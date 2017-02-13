@@ -2,9 +2,10 @@
 // use std::io::BufferedReader;
 // use std::io::File;
 // use std::from_str::from_str;
-use std::error::Error;
 use std::fs::File;
 use std::io::prelude::*;
+use std::io;
+use std::io::Error;
 use std::path::Path;
 use std::char;
 use std::cmp;
@@ -26,52 +27,38 @@ fn main() {
     //     // then parse chunks
     //     let terms: ~[int] = vec::from_fn(nterms, |i: uint| parse_str::<int>(chunks[i+1]));
     // }
-
-    let charo = 'a';
     
-    println!("{}", charo.to_string());
+    // let vec = lines.collect::<Vec<&str>>();
+    // println!("{}", vec[1000]);
 
-    let path = Path::new("words.txt");
-    let display = path.display();
-
-    // Open the path in read-only mode, returns `io::Result<File>`
-    let mut file = match File::open(&path) {
-        Err(why) => panic!("couldn't open {}: {}", display, why.description()),
-        Ok(file) => file,
-    };
-
-    // Read the file contents into a string, returns `io::Result<usize>`
-    let mut s = String::new();
-    // match file.read_to_string(&mut s) {
-    //     Err(why) => panic!("couldn't read {}: {}", display,
-    //                                                why.description()),
-    //     Ok(_) => , //print!("{} contains:\n{}", display, s),
-    // }
-
-    file.read_to_string(&mut s);
-
-    let split = s.lines();
-    let vec = split.collect::<Vec<&str>>();
-    println!("{}", vec[1000]);
+    // read into a String, so that you don't need to do the conversion.
 
     println!("distance(jaa, jaar){}", distance("jaa", "jaar"));
     println!("distance(jaa, naar){}", distance("jaa", "naar"));
     println!("distance(jaa, m){}", distance("jaa", "m"));
-    // for word in &vec {
-    //     println!("A reference to {}", i);
-    // }
-
-    // let mut iterator = vec.iter();
-    // iterator.next();
-    // for (index, value) in iterator.enumerate() {
-    //     let distance = distance(vec[index-1], vec[index]);
-    // }
 
     use std::time::SystemTime;
     let now = SystemTime::now();
-    let end = vec.len();
-    for index in 1..end{
-        let distance = distance(vec[index-1], vec[index]);
+
+    print_dir_contents();
+
+}
+
+
+fn print_dir_contents() -> Result<(), Error> {
+
+    use std::time::SystemTime;
+    let now = SystemTime::now();
+
+    let mut f = try!(File::open("words.txt"));
+
+    let mut s = String::new();
+    try!(f.read_to_string(&mut s));
+
+    let lines = s.lines();
+
+    for line in lines{
+        let distance = distance("test123", line);
     }
     
     let sec = match now.elapsed() {
@@ -80,7 +67,10 @@ fn main() {
     };
     println!("Seconds: {}", sec);
 
+    Ok(())
+
 }
+
 
 
 fn distance(s1: &str, s2: &str) -> i32 {
@@ -106,23 +96,23 @@ fn distance(s1: &str, s2: &str) -> i32 {
         column[x] = x as i32;
     }
 
-    for (x, currentChar2) in s2.chars().enumerate() {
+    for (x, current_char2) in s2.chars().enumerate() {
     //     println!("index = {} and value = {}", index, value);
     // }
 
     // for x in 1..len_s2+1 {
-        // let currentChar2 = s2chars.next().unwrap();
-        let mut s1chars = s1.chars();
+        // let current_char2 = s2chars.next().unwrap();
+        // let mut s1chars = s1.chars();
         column[0] = x as i32  + 1;
         lastdiag = (x as i32) ;
-        for (y, currentChar1) in s1.chars().enumerate() {
+        for (y, current_char1) in s1.chars().enumerate() {
         // for y in 1..len_s1+1 {
-            // let currentChar1 = s1chars.next().unwrap();
+            // let current_char1 = s1chars.next().unwrap();
             olddiag = column[y+1];
             cost = 0;
-            // println!("currentChar1: {}", currentChar1);
-            // println!("currentChar2: {}", currentChar2);
-            if currentChar1 != currentChar2 {
+            // println!("current_char1: {}", current_char1);
+            // println!("current_char2: {}", current_char2);
+            if current_char1 != current_char2 {
                 cost = 1
             }
             // if s1chars_vec[y-1] != s2chars_vec[x-1] {
@@ -140,18 +130,4 @@ fn distance(s1: &str, s2: &str) -> i32 {
     }
     column[len_s1]
 
-}
-
-
-fn mini(a:i32, b:i32, c:i32) -> i32 {
-    if a < b {
-        if a < c {
-            return a
-        }
-    } else {
-        if b < c {
-            return b
-        }
-    }
-    return c
 }

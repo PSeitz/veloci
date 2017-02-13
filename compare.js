@@ -27,13 +27,14 @@ console.log(arr[100])
 // console.log(source[800])
 // fs.writeFileSync("words.txt", source.join('\n'),'utf-8')
 
-let source2 = fs.readFileSync("words.txt", 'utf-8').split('\n')
+
 
 // console.log(source2)
 var levenshtein = require('fast-levenshtein');
 
 console.time("abc")
+let source2 = fs.readFileSync("words.txt", 'utf-8').split('\n')
 for (var i = 1; i < source2.length; i++) {
-    var distance = levenshtein.get(source2[i-1], source2[i]);   // 2
+    var distance = levenshtein.get("test123", source2[i]);   // 2
 }
 console.timeEnd("abc")

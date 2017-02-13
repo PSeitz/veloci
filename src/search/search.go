@@ -84,20 +84,18 @@ func main() {
     // distance := levenshtein.DistanceForStrings([]rune(source), []rune(target), levenshtein.DefaultOptions)
     fmt.Printf(`Distance between "%s" and "%s" computed as %d`, source, target, Distance([]rune(source), []rune(target)))
 
-
+    fmt.Printf(`Distance between jaa and jaar computed as %d`, levenstheino([]rune("jaa"), []rune("jaar")))
+    
+    start := time.Now()
 
     words, err := ioutil.ReadFile("words.txt") 
     wordsstr := string(words) // convert content to a 'string'
     wordsArr := strings.Split(wordsstr, "\n")
 
-
-    fmt.Printf(`Distance between jaa and jaar computed as %d`, levenstheino([]rune("jaa"), []rune("jaar")))
-    
-    start := time.Now()
     for i := 1; i < len(wordsArr); i++ {
         // levenshtein.DistanceForStrings([]rune(wordsArr[i-1]), []rune(wordsArr[i]), levenshtein.DefaultOptions)
         //fmt.Printf(`Distance between "%s" and "%s" computed as %d`, source, target, distance)
-        Distance([]rune(wordsArr[i-1]), []rune(wordsArr[i]))
+        Distance([]rune("test123"), []rune(wordsArr[i]))
     }
 
     fmt.Printf("\nBinomial took %s", time.Since(start))
