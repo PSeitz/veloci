@@ -109,6 +109,8 @@ func loadIndex(path string) []int32 {
 
     const SIZEOF_INT32 = 4 // bytes
 
+
+    fmt.Println(raw[100])
     // Get the slice header
     header := *(*reflect.SliceHeader)(unsafe.Pointer(&raw))
     // The length and capacity of the slice are different.
