@@ -15,30 +15,6 @@ import (
     // "bytes"
 )
 
-func check(e error) {
-    if e != nil {
-        panic(e)
-    }
-}
-
-func newRuneIterator(completeString  []rune, sep rune) func() ([]rune, bool) {
-    currentPos := 0
-    length := len(completeString)
-    // closure captures variable currentPos
-    return func() ([]rune, bool) {
-
-        var inc = 1
-        for (completeString)[currentPos+inc] != sep{
-            inc ++
-            if length == currentPos+inc {
-                return nil, false
-            }
-        }
-
-        slice := (completeString)[currentPos:currentPos+inc]
-        return slice, true
-    }
-}
 
 func main() {
 
@@ -77,6 +53,7 @@ func main() {
     // fmt.Println(valIds)
     r1 := IndexKeyValueStore{loadIndex("jmdict/meanings.ger[].text.textindex.valueIdToParent.valIds"), loadIndex("jmdict/meanings.ger[].text.textindex.valueIdToParent.mainIds")}
     fmt.Println(r1.values1[100])
+    fmt.Println(r1.getValue(100))
 
     source := "a"
     target := "aa"
