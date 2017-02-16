@@ -31,30 +31,26 @@ let kvStore = new IndexKeyValueStore("jmdict/meanings.ger[].text.textindex.value
 console.log(kvStore.values[100])
 
 console.log(kvStore.getValue(100))
-return
-let words = fs.readFileSync("jmdict/meanings.ger[].text", 'utf-8').split('\n')
+// return
+// let words = fs.readFileSync("jmdict/meanings.ger[].text", 'utf-8').split('\n')
 
-console.log(words[1000])
-
-
-for (var i = 0; i < words.length; i++) {
-    if(words[i].indexOf("waschf") == 0){
-        console.log(words[i])
-        // return
-    }
-}
+// console.log(words[1000])
 
 
-
-let buf = fs.readFileSync("jmdict/meanings.ger[].text.textindex.valueIdToParent.valIds")
+// for (var i = 0; i < words.length; i++) {
+//     if(words[i].indexOf("waschf") == 0){
+//         console.log(words[i])
+//         // return
+//     }
+// }
 
 
 
-console.log(buf[400])
+// let buf = fs.readFileSync("jmdict/meanings.ger[].text.textindex.valueIdToParent.valIds")
+// console.log(buf[400])
+// let arr =  new Uint32Array(buf.buffer, buf.offset, buf.byteLength/4)
 
-let arr =  new Uint32Array(buf.buffer, buf.offset, buf.byteLength/4)
-
-console.log(arr[100])
+// console.log(arr[100])
 
 
 
