@@ -25,27 +25,10 @@ use std::thread;
 
 use std::sync::mpsc::sync_channel;
 
-// fn list() -> BoxStream<i32, u32> {
-//     let (tx, rx) = mpsc::channel(1);
-//     tx.send(Ok(1))
-//       .and_then(|tx| tx.send(Ok(2)))
-//       .and_then(|tx| tx.send(Ok(3)))
-//       .forget();
-//     rx.then(|r| r.unwrap()).boxed()
-// }
-
-fn list() -> BoxStream<i32, u32> {
-    let (tx, rx) = mpsc::channel(1);
-    tx.send(Ok(1))
-      .and_then(|tx| tx.send(Ok(2)))
-      .and_then(|tx| tx.send(Ok(3)));
-    rx.then(|r| r.unwrap()).boxed()
-}
 
 fn getTextLines2() -> BoxStream<String, io::Error> {
     let (mut tx, rx) = channel();
     thread::spawn(move || {
-
         for msg in &["one", "two", "three", "four"] {
             thread::sleep(Duration::from_millis(500));
             tx = tx.send(Ok(msg.to_string())).wait().unwrap();
@@ -79,8 +62,42 @@ fn stdin() -> BoxStream<String, io::Error> {
 }
 
 
-pub fn main2() {
+fn call_twice<A, F>(val: A, mut f: F)
+where F: FnMut(A) {
+    f(val);
+}
 
+fn main3() {
+    let mut num = 5;
+    // let plus_num = |x: i32| -> i32 {  x + num;}
+
+    let plus_one_v2 = |x: i32| { println!("Its: {}", num); num +=x };
+
+    // let x = 12;
+    // let plus_one = |x: i32| x + 1;
+    // fn double(x: i32) -> i32 {x + x};
+    call_twice(10, plus_one_v2);
+
+    // println!("Res is {}", call_twice(10, plus_one_v2));
+    // println!("Res is {}", call_twice(10, |x| x + x));
+}
+
+
+pub fn main2() {
+    main3();
+    // let stream = getTextLines2();
+    // let mut stream = getTextLines2().fuse().wait();
+    
+    // println!("msg {}", stream.next());
+    // stream.map(move |msg| {
+    //     println!("msg {}", msg);
+
+    //     // unfortunate workaround needed since `send()` takes `self`
+    //     // let mut tx = tx_opt.take().unwrap();
+    //     // tx = tx.send(msg.clone()).wait().unwrap();
+    //     // tx_opt = Some(tx);
+    //     // msg
+    // });
 
 
     let pool = CpuPool::new_num_cpus();
@@ -115,10 +132,9 @@ pub fn main2() {
     use std::time::SystemTime;
     let now = SystemTime::now();
 
-    let path = "jmdict/meanings.ger[].text";
-    let test = file_as_string(&(path.to_string()+".charOffsets.chars"));
-    // println!("{}", test);
-    print_dir_contents();
+    // let path = "jmdict/meanings.ger[].text";
+    // let test = file_as_string(&(path.to_string()+".charOffsets.chars"));
+    // test_levenshtein();
 
     let charOffsets = CharOffset::new("jmdict/meanings.ger[].text");
 
@@ -215,6 +231,29 @@ impl CharOffset {
 
 }
 
+
+
+fn call_twice2<A, F>(val: A, mut f: F)
+where F: FnMut(&str) {
+    f("val");
+}
+
+fn main4() {
+    let mut num = 5;
+    // let plus_num = |x: i32| -> i32 {  x + num;}
+
+    let plus_one_v2 = |x: &str| { println!("Its: {}", x); };
+
+    // let x = 12;
+    // let plus_one = |x: i32| x + 1;
+    // fn double(x: i32) -> i32 {x + x};
+    call_twice2(10, plus_one_v2);
+
+    // println!("Res is {}", call_twice(10, plus_one_v2));
+    // println!("Res is {}", call_twice(10, |x| x + x));
+}
+
+
 // struct LineOptions {
 //     path: &str,
 //     character: &str,
@@ -222,8 +261,26 @@ impl CharOffset {
 // }
 
 #[inline(always)]
-fn getTextLines(path: &str,character: Option<&str>){
+fn getTextLines<F>(path: &str,character: Option<&str>, mut fun: F) 
+where F: FnMut(&str) {
+    
+    let charOffset = if character.is_some() { Some(CharOffset::new(path)) } else { None };
 
+    if charOffset.is_some() {
+        
+    }else{
+        let mut f = File::open("words.txt").unwrap();
+        let mut s = String::new();
+        f.read_to_string(&mut s).unwrap();
+
+        let lines = s.lines();
+
+        for line in lines{
+            fun(&line)
+            // let distance = distance("test123", line);
+        }
+    }
+    fun("val");
 }
 
 fn load_index(s1: &str) -> Result<(Vec<u32>), io::Error> {
@@ -254,7 +311,7 @@ fn file_as_string(path:&str) -> String {
     contents
 }
 
-fn print_dir_contents() -> Result<(), io::Error> {
+fn test_levenshtein() -> Result<(), io::Error> {
 
     use std::time::SystemTime;
     let now = SystemTime::now();
@@ -270,69 +327,19 @@ fn print_dir_contents() -> Result<(), io::Error> {
         let distance = distance("test123", line);
     }
     
-    let sec = match now.elapsed() {
-        Ok(elapsed) => {(elapsed.as_secs() as f64) + (elapsed.subsec_nanos() as f64 / 1000_000_000.0)}
+    let ms = match now.elapsed() {
+        Ok(elapsed) => {(elapsed.as_secs() as f64) + (elapsed.subsec_nanos() as f64 / 1000_000.0)}
         Err(_e) => {-1.0}
     };
-    println!("Seconds: {}", sec);
 
+    let lines_checked = s.lines().count() as f64;
+    println!("levenshtein ms: {}", ms);
+    println!("Lines : {}", lines_checked );
+    let ms_per_1000 = ( ((ms as f64) / lines_checked) * 1000.0);
+    println!("ms per 1000 lookups: {}", ms_per_1000);
     Ok(())
 
 }
-
-
-// fn levenshteins_impl(s1: &str, s2: &str, n:usize, m:usize) -> u32 {
-//     // Inside impl n <= m!
-//     let mut p: Vec<u32> = Vec::with_capacity(n+1);
-//     let mut d: Vec<u32> = Vec::with_capacity(n+1);
-//     unsafe { p.set_len(n+1); }
-//     unsafe { d.set_len(n+1); }
-//     for x in 0..n+1 {
-//         p[x] = x as u32;
-//         d[x] = x as u32;
-//     }
-
-//     fn  eachJ (j: i32, t_j: char, mut d: Vec<u32>, p: Vec<u32>) -> i32 {
-//         d[0] = j as u32;
-//         return 10
-//     }
-
-
-//     // @tailrec def eachJ(j: u32, t_j: Chars, d: Array[u32], p: Array[u32]): u32 = {
-//     //     d(0) = j
-//     //     @tailrec def eachI(i: u32) {
-//     //         let a = d(i - 1) + 1
-//     //         let b = p(i) + 1
-//     //         d(i) = if (a < b) a else {
-//     //             let c = if (s.charAt(i - 1) == t_j) p(i - 1) else p(i - 1) + 1
-//     //             if (b < c) b else c
-//     //         }
-//     //         if (i < n)
-//     //             eachI(i + 1)
-//     //     }
-//     //     eachI(1)
-
-//     //     if (j < m)
-//     //         eachJ(j + 1, t.charAt(j), p, d)
-//     //     else
-//     //         d(n)
-//     // }
-//     // eachJ(1, t.charAt(0), d, p)
-
-//     return 10
-// }
-
-
-// fn levenshteins1(s: &str, t: &str) -> u32 {
-    
-
-//     let n = s.len();
-//     let m = t.len();
-//     // if (n == 0) m else if (m == 0) n else {
-//     //     if (n > m) impl(t, s, m, n) else impl(s, t, n, m)
-//     // }
-//     return 10
-// }
 
 
 fn distance(s1: &str, s2: &str) -> u32 {
