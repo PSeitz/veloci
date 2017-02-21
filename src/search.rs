@@ -19,12 +19,14 @@ use futures::future::{ok, err};
 use futures::stream::{iter, Peekable, BoxStream, channel, Stream};
 use futures::sync::oneshot;
 use futures::sync::mpsc;
-
-
+use std::str;
 use std::thread;
-
+use std::fmt;
 use std::sync::mpsc::sync_channel;
 
+use std::os::windows::fs::FileExt;
+use std::io::SeekFrom;
+use std::collections::HashMap;
 
 fn getTextLines2() -> BoxStream<String, io::Error> {
     let (mut tx, rx) = channel();
@@ -155,6 +157,12 @@ pub fn main2() {
     // load_index("jmdict/meanings.ger[].text.textindex.valueIdToParent.valIds");
     // load_index("index11");
 
+    let tehCallback = |x: &str| { println!("Its: {}", x); };
+
+    let startChar = "a";
+    // getTextLines("jmdict/meanings.ger[].text", Some(startChar), tehCallback) ;
+
+
 }
 
 struct IndexKeyValueStore {
@@ -205,6 +213,15 @@ struct CharOffset {
     byteOffsetsEnd: Vec<u32>,
     lineOffsets: Vec<u32>,
 }
+
+impl fmt::Debug for OffsetInfo {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        writeln!(f, "byteRangeStart: {}", self.byteRangeStart);
+        writeln!(f, "byteRangeEnd: {}", self.byteRangeEnd);
+        writeln!(f, "lineOffset: {}", self.lineOffset)
+    }
+}
+
 impl CharOffset {
     fn new(path:&str) -> CharOffset {
         CharOffset { 
@@ -219,8 +236,8 @@ impl CharOffset {
     //     let lineOffset = match self.lineOffsets.binary_search(&linePos){ Ok(value) => value,Err(value) => value};
     //     return self.getOffsetInfo(lineOffset);
     // }
-    fn getCharOffsetInfo(&self,character: String) -> Result<OffsetInfo, usize>{
-        let charIndex = try!(self.chars.binary_search(&character));
+    fn getCharOffsetInfo(&self,character: &str) -> Result<OffsetInfo, usize>{
+        let charIndex = try!(self.chars.binary_search(&character.to_string()));
         return Ok(self.getOffsetInfo(charIndex))
         // self.chars.binary_search(&character) { Ok(charIndex) => this.getOffsetInfo(charIndex),Err(_) => };
     }
@@ -253,34 +270,145 @@ fn main4() {
     // println!("Res is {}", call_twice(10, |x| x + x));
 }
 
+enum CheckOperators {
+    All,
+    One
+}
+struct SearchOptions<'b, 'a> {
+    // checks: Vec<&Fn(&str) -> bool>
+    // checks: Vec<fn(&str) -> bool>,
+    checkOperator: CheckOperators,
+    levenshtein_distance: u32,
+    startsWith: Option<&'a str>,
+    exact: bool,
+    firstCharExactMatch: bool,
+    customCompare:&'b Fn(&str) -> bool
+    // customScore:&Fn(&str) -> bool
+}
 
-// struct LineOptions {
-//     path: &str,
-//     character: &str,
-//     lineOffset: u32,
+//todo use cache
+fn getCreateCharOffsetInfo(path: &str,character: &str) -> Result<OffsetInfo, usize> {
+    let charOffset = CharOffset::new(path);
+    return charOffset.getCharOffsetInfo(character);
+    // charOffsetCache[path] = charOffsetCache[path] || new CharOffset(path)
+    // return charOffsetCache[path]
+}
+
+struct Hit{
+    id: u32,
+    score: f32
+}
+// fn levenshteinCheck(text: &str, term: &str) -> bool {
+//     distance(text, term) <=
 // }
+
+fn getHitsInField(path: &str, mut options: SearchOptions, term: &str){
+    let mut hits:HashMap<u32, f32> = HashMap::new(); // id:score
+
+    // let checks:Vec<Fn(&str) -> bool> = Vec::new();
+
+    
+
+    let term_chars = term.chars().collect::<Vec<char>>();
+
+    options.firstCharExactMatch = options.exact || options.levenshtein_distance == 0 || options.startsWith.is_some();
+
+    let startChar = if options.exact || options.levenshtein_distance == 0 || options.startsWith.is_some() && term_chars.len() >= 2 {
+        Some(term_chars[0].to_string() + &term_chars[1].to_string())
+    }
+    else if options.firstCharExactMatch {
+        Some(term_chars[0].to_string())
+    }
+    else {
+        None
+    };
+
+    let value = startChar.as_ref().map(String::as_ref);
+
+    let tehCallback = |line: &str| {
+        if options.exact &&  line == term {
+            hits.insert(10, 1.0);
+        }
+    };
+
+    getTextLines("jmdict/meanings.ger[].text", value, tehCallback) ;
+
+    // if options.exact {
+    //     checks.push(|text: &str, term: &str| -> bool { return text == term})
+    // }
+    // let mut hits = Vec<Hit> // id:score
+    // let lineoptions = {path:path}
+
+//     options.checks = options.checks || []
+
+//     if (options.operator && ['every', 'some'].indexOf(options.operator) === -1) throw new Error('options.operator must be "some" or "every"')
+
+//     let checksmethod = options.checks[options.operator || 'every'].bind(options.checks) // ''every' or 'some'
+
+//     //exact when nothing else set
+//     if (options.exact === undefined && options.levenshtein_distance === undefined && options.startsWith === undefined && options.customCompare === undefined)
+//         options.exact = true
+
+//     if (options.exact !== undefined) options.checks.push(line => line == term)
+//     if (options.levenshtein_distance !== undefined) options.checks.push(line => levenshtein.get(line, term) <= options.levenshtein_distance)
+//     if (options.startsWith !== undefined) options.checks.push(line => line.startsWith(term))
+//     if (options.customCompare !== undefined) options.checks.push(line => options.customCompare(line))
+
+//     //Check limit search on starting char
+//     if (options.firstCharExactMatch)  lineoptions.char = term.charAt(0)
+
+//     if (options.exact || options.levenshtein_distance === 0 || options.startsWith !== undefined)
+//         lineoptions.char = term.charAt(0) + term.charAt(1)
+
+//     var hrstart = process.hrtime()
+//     return getTextLines(lineoptions, (line, linePos) => {
+//         // console.log("Check: "+line + " linePos:"+linePos)
+//         if (checksmethod(check => check(line))){
+            
+//             let score = options.customScore ? options.customScore(line, term) : getDefaultScore(line, term)
+//             if(hits[linePos]) hits[linePos].score += score
+//             else hits[linePos] = {score:score}
+
+//             // console.log("Hit: "+line + " linePos:"+linePos + " score:"+score)
+//             if (options.includeValue) hits[linePos].value = line
+//         }
+//     }).then(() => {
+//         console.info("getHitsInFieldTime: %dms",  process.hrtime(hrstart)[1]/1000000)
+//         return hits
+//     })
+}
+
 
 #[inline(always)]
 fn getTextLines<F>(path: &str,character: Option<&str>, mut fun: F) 
 where F: FnMut(&str) {
     
-    let charOffset = if character.is_some() { Some(CharOffset::new(path)) } else { None };
-
-    if charOffset.is_some() {
+    let charOffsetInfoOpt = if character.is_some() { Some(getCreateCharOffsetInfo(path, character.unwrap())) } else { None };
+    if charOffsetInfoOpt.is_some() {
+        let charOffsetInfo = charOffsetInfoOpt.unwrap().unwrap();
+        let mut f = File::open(path).unwrap();
+        let mut buffer:Vec<u8> = Vec::with_capacity((charOffsetInfo.byteRangeEnd - charOffsetInfo.byteRangeStart) as usize);
+        unsafe { buffer.set_len(charOffsetInfo.byteRangeEnd as usize - charOffsetInfo.byteRangeStart as usize); }
         
+        f.seek(SeekFrom::Start(charOffsetInfo.byteRangeStart as u64));
+        f.read_exact(&mut buffer).unwrap();
+        let s = unsafe {str::from_utf8_unchecked(&buffer)};
+
+        let lines = s.lines();
+        for line in lines{
+            fun(&line)
+        }
+
     }else{
-        let mut f = File::open("words.txt").unwrap();
+        let mut f = File::open(path).unwrap();
         let mut s = String::new();
         f.read_to_string(&mut s).unwrap();
 
         let lines = s.lines();
-
         for line in lines{
             fun(&line)
-            // let distance = distance("test123", line);
         }
     }
-    fun("val");
 }
 
 fn load_index(s1: &str) -> Result<(Vec<u32>), io::Error> {
