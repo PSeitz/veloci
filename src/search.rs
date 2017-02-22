@@ -161,6 +161,34 @@ pub fn main2() {
     let startChar = "a";
     // getTextLines("jmdict/meanings.ger[].text", Some(startChar), tehCallback) ;
 
+    let options = SearchOptions{
+        levenshtein_distance: 0,
+        exact: true,
+        firstCharExactMatch: true,
+        .. Default::default()
+    };
+
+    let hits = getHitsInField("jmdict/meanings.ger[].text", options, "haus");
+
+
+}
+
+struct Request<'b> {
+    search: RequestSearchPart,
+    boost: RequestBoostPart<'b>
+}
+struct RequestSearchPart {
+    path: String,
+    options: SearchOptions
+}
+struct RequestBoostPart<'b> {
+    path: String,
+    boostFunction:&'b Fn(f64) -> f32
+    // values2: Vec<u32>
+}
+
+
+fn searchRaw(request: Request){
 
 }
 
@@ -248,40 +276,24 @@ impl CharOffset {
 }
 
 
-
-fn call_twice2<A, F>(val: A, mut f: F)
-where F: FnMut(&str) {
-    f("val");
-}
-
-fn main4() {
-    let mut num = 5;
-    // let plus_num = |x: i32| -> i32 {  x + num;}
-
-    let plus_one_v2 = |x: &str| { println!("Its: {}", x); };
-
-    // let x = 12;
-    // let plus_one = |x: i32| x + 1;
-    // fn double(x: i32) -> i32 {x + x};
-    call_twice2(10, plus_one_v2);
-
-    // println!("Res is {}", call_twice(10, plus_one_v2));
-    // println!("Res is {}", call_twice(10, |x| x + x));
-}
-
 enum CheckOperators {
     All,
     One
 }
-struct SearchOptions<'b, 'a> {
+impl Default for CheckOperators {
+    fn default() -> CheckOperators { CheckOperators::All }
+}
+
+#[derive(Default)]
+struct SearchOptions {
     // checks: Vec<&Fn(&str) -> bool>
     // checks: Vec<fn(&str) -> bool>,
     checkOperator: CheckOperators,
     levenshtein_distance: u32,
-    startsWith: Option<&'a str>,
+    startsWith: Option<String>,
     exact: bool,
-    firstCharExactMatch: bool,
-    customCompare:Option<&'b Fn(&str, &str) -> bool>
+    firstCharExactMatch: bool
+    // customCompare:Option<&'b Fn(&str, &str) -> bool>
     // customScore:&Fn(&str) -> bool
 }
 
@@ -308,11 +320,10 @@ fn getDefaultScore2(distance: u32) -> f32{
     return 2.0/(distance as f32 + 0.2 )
 }
 
-fn getHitsInField(path: &str, mut options: SearchOptions, term: &str)/* -> HashMap<u32, f32>*/ {
+fn getHitsInField(path: &str, mut options: SearchOptions, term: &str) -> HashMap<u32, f32> {
     let mut hits:HashMap<u32, f32> = HashMap::new(); // id:score
 
     // let checks:Vec<Fn(&str) -> bool> = Vec::new();
-
     let term_chars = term.chars().collect::<Vec<char>>();
 
     options.firstCharExactMatch = options.exact || options.levenshtein_distance == 0 || options.startsWith.is_some();
@@ -329,34 +340,36 @@ fn getHitsInField(path: &str, mut options: SearchOptions, term: &str)/* -> HashM
 
     let value = startChar.as_ref().map(String::as_ref);
 
-    let tehCallback = |line: &str| {
-
-        let distance = if options.levenshtein_distance != 0 { Some(distance(term, line))} else { None };
-
-        if (options.exact &&  line == term)
-            || (distance.is_some() && distance.unwrap() >= options.levenshtein_distance)
-            || (options.startsWith.is_some() && line.starts_with(options.startsWith.unwrap())  )
-            // || (options.customCompare.is_some() && options.customCompare.unwrap(line, term))
-            {
-            // let score = getDefaultScore(term, line);
-            let score = if distance.is_some() {getDefaultScore2(distance.unwrap())} else {getDefaultScore(term, line)};
-            hits.insert(10, score);
-        }
-    };
-
-    getTextLines(path, value, tehCallback);
-    // hits
+    
+    {
+        let tehCallback = |line: &str, linePos: u32| {
+    
+            let distance = if options.levenshtein_distance != 0 { Some(distance(term, line))} else { None };
+            if (options.exact &&  line == term)
+                || (distance.is_some() && distance.unwrap() >= options.levenshtein_distance)
+                || (options.startsWith.is_some() && line.starts_with(options.startsWith.as_ref().unwrap())  )
+                // || (options.customCompare.is_some() && options.customCompare.unwrap(line, term))
+                {
+                // let score = getDefaultScore(term, line);
+                let score = if distance.is_some() {getDefaultScore2(distance.unwrap())} else {getDefaultScore(term, line)};
+                hits.insert(linePos, score);
+            }
+        };
+    
+        getTextLines(path, value, tehCallback);
+    }
+    hits
 
 }
 
 
 #[inline(always)]
 fn getTextLines<F>(path: &str,character: Option<&str>, mut fun: F)
-where F: FnMut(&str) {
+where F: FnMut(&str, u32) {
 
     let charOffsetInfoOpt = if character.is_some() { Some(getCreateCharOffsetInfo(path, character.unwrap())) } else { None };
     if charOffsetInfoOpt.is_some() {
-        let charOffsetInfo = charOffsetInfoOpt.unwrap().unwrap();
+        let mut charOffsetInfo = charOffsetInfoOpt.unwrap().unwrap();
         let mut f = File::open(path).unwrap();
         let mut buffer:Vec<u8> = Vec::with_capacity((charOffsetInfo.byteRangeEnd - charOffsetInfo.byteRangeStart) as usize);
         unsafe { buffer.set_len(charOffsetInfo.byteRangeEnd as usize - charOffsetInfo.byteRangeStart as usize); }
@@ -367,7 +380,8 @@ where F: FnMut(&str) {
 
         let lines = s.lines();
         for line in lines{
-            fun(&line)
+            fun(&line, charOffsetInfo.lineOffset as u32);
+            charOffsetInfo.lineOffset += 1
         }
 
     }else{
@@ -376,8 +390,9 @@ where F: FnMut(&str) {
         f.read_to_string(&mut s).unwrap();
 
         let lines = s.lines();
-        for line in lines{
-            fun(&line)
+
+        for (linePos, line) in lines.enumerate(){
+            fun(&line, linePos as u32)
         }
     }
 }
