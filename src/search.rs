@@ -175,7 +175,7 @@ pub fn main2() {
 
 struct Request<'b> {
     search: RequestSearchPart,
-    boost: RequestBoostPart<'b>
+    boost: Vec<RequestBoostPart<'b>>
 }
 struct RequestSearchPart {
     path: String,
