@@ -23,11 +23,17 @@ use std::str;
 use std::thread;
 use std::fmt;
 use std::sync::mpsc::sync_channel;
+use std::fs;
 
 // use std::os::windows::fs::FileExt;
 use std::io::SeekFrom;
 use std::collections::HashMap;
+use util;
+use std::collections::hash_map::Entry;
+use fnv::FnvHashMap;
 
+
+use std::collections::hash_map::Entry::{Occupied, Vacant};
 fn getTextLines2() -> BoxStream<String, io::Error> {
     let (mut tx, rx) = channel();
     thread::spawn(move || {
@@ -69,6 +75,9 @@ where F: FnMut(A) {
 }
 
 fn main3() {
+
+    
+
     let mut num = 5;
     // let plus_num = |x: i32| -> i32 {  x + num;}
 
@@ -173,54 +182,77 @@ pub fn main2() {
 
 }
 
-struct Request<'b> {
+pub struct Request<'b> {
+    OR : Option<Vec<RequestSearchPart>>,
+    AND : Option<Vec<RequestSearchPart>>,
     search: RequestSearchPart,
     boost: Vec<RequestBoostPart<'b>>
 }
-struct RequestSearchPart {
+pub struct RequestSearchPart {
     path: String,
+    term: String,
     options: SearchOptions
 }
-struct RequestBoostPart<'b> {
+pub struct RequestBoostPart<'b> {
     path: String,
     boostFunction:&'b Fn(f64) -> f32
     // values2: Vec<u32>
 }
 
-
-fn searchRaw(request: Request){
-
+pub fn searchUnrolled(request: Request) -> FnvHashMap<u32, f32>{
+    if request.OR.is_some() {
+        searchRaw(request)
+        // request.OR.unwrap().iter()
+        //     .fold(FnvHashMap::default(), |mut acc, x| -> FnvHashMap<u32, f32> {
+        //         let requesto = Request{search: (*x), boost: request.boost, OR:None, AND: None};
+        //         acc.extend(searchRaw(requesto));
+        //         acc
+        //     })
+        // return Promise.all(request.OR.map(req => searchUnrolled(req)))
+        // .then(results => results.reduce((p, c) => Object.assign(p, c)))
+    }else if request.AND.is_some(){
+        searchRaw(request)
+        // return Promise.all(request.AND.map(req => searchUnrolled(req)))
+        // .then(results => results
+        //     .reduce((p, c) => intersection(p, c)
+        //     .map(commonKey => ((p[commonKey].score > c[commonKey].score) ? p[commonKey] : c[commonKey]))))
+    }else{
+        searchRaw(request)
+    }
 }
 
-struct IndexKeyValueStore {
-    values1: Vec<u32>,
-    values2: Vec<u32>,
-}
 
-impl IndexKeyValueStore {
-    fn new(path1:&str, path2:&str) -> IndexKeyValueStore {
-        IndexKeyValueStore { values1: load_index(path1).unwrap(), values2: load_index(path2).unwrap() }
-    }
-    fn getValue(&self, find: u32) -> Option<u32> {
-        match self.values1.binary_search(&find) {
-            Ok(value) => { Some(self.values2[value]) },
-            Err(_) => {None},
-        }
-    }
-    fn getValues(&self, find: u32) -> Vec<u32> {
-        let mut result = Vec::new();
-        match self.values1.binary_search(&find) {
-            Ok(value) => {
-                result.push(self.values2[value]);
-                let mut i = value;
-                while(self.values1[i] == find){
-                    result.push(self.values2[i]);
-                    i+=1;
+pub fn searchRaw(request: Request) -> FnvHashMap<u32, f32> {
+
+    let path = request.search.path;
+    let term = util::normalizeText(&request.search.term);
+
+
+    let mut hits = getHitsInField(&path, request.search.options, &term);
+    addTokenResults(&mut hits, &path);
+
+    let mut nextLevelHits:FnvHashMap<u32, f32> = FnvHashMap::default();
+
+    let paths = util::getStepsToAnchor(&path);
+    for i in (paths.len()-1)..0 {
+        let ref path = paths[i];
+        let isLast = (i == (paths.len() -1));
+
+        let kvStore = IndexKeyValueStore::new(&(path.to_string()+".valueIdToParent.valIds"), &(path.to_string()+".valueIdToParent.mainIds"));
+        for (valueId, score) in &hits {
+            let values = kvStore.getValues(*valueId);
+            for parentValId in values {
+                match nextLevelHits.entry(parentValId as u32) {
+                    Vacant(entry) => {entry.insert(*score);},
+                    Occupied(entry) => { *entry.into_mut() = score.max(*entry.get()) + 0.1;},
                 }
-            },Err(_) => {},
+            }
         }
-        result
+        hits = nextLevelHits;
+        nextLevelHits = FnvHashMap::default();
     }
+
+    nextLevelHits
 }
 
 
@@ -320,8 +352,9 @@ fn getDefaultScore2(distance: u32) -> f32{
     return 2.0/(distance as f32 + 0.2 )
 }
 
-fn getHitsInField(path: &str, mut options: SearchOptions, term: &str) -> HashMap<u32, f32> {
-    let mut hits:HashMap<u32, f32> = HashMap::new(); // id:score
+fn getHitsInField(path: &str, mut options: SearchOptions, term: &str) -> FnvHashMap<u32, f32> {
+    let mut hits:FnvHashMap<u32, f32> = FnvHashMap::default();
+    // let mut hits:HashMap<u32, f32> = HashMap::new(); // id:score
 
     // let checks:Vec<Fn(&str) -> bool> = Vec::new();
     let term_chars = term.chars().collect::<Vec<char>>();
@@ -359,6 +392,85 @@ fn getHitsInField(path: &str, mut options: SearchOptions, term: &str) -> HashMap
         getTextLines(path, value, tehCallback);
     }
     hits
+
+}
+
+
+struct IndexKeyValueStore {
+    values1: Vec<u32>,
+    values2: Vec<u32>,
+}
+
+impl IndexKeyValueStore {
+    fn new(path1:&str, path2:&str) -> IndexKeyValueStore {
+        IndexKeyValueStore { values1: load_index(path1).unwrap(), values2: load_index(path2).unwrap() }
+    }
+    fn getValue(&self, find: u32) -> Option<u32> {
+        match self.values1.binary_search(&find) {
+            Ok(value) => { Some(self.values2[value]) },
+            Err(_) => {None},
+        }
+    }
+    fn getValues(&self, find: u32) -> Vec<u32> {
+        let mut result = Vec::new();
+        match self.values1.binary_search(&find) {
+            Ok(value) => {
+                result.push(self.values2[value]);
+                let mut i = value;
+                while self.values1[i] == find{
+                    result.push(self.values2[i]);
+                    i+=1;
+                }
+            },Err(_) => {},
+        }
+        result
+    }
+}
+
+trait TokensIndexKeyValueStore {
+    fn new(path:&str) -> Self;
+    fn getParentValId(&self, find: u32) -> Option<u32>;
+    fn getParentValIds(&self, find: u32) -> Vec<u32>;
+}
+
+impl TokensIndexKeyValueStore for IndexKeyValueStore {
+    fn new(path:&str) -> Self {
+        IndexKeyValueStore { values1: load_index(&(path.to_string()+".tokens.tokenValIds")).unwrap(), values2: load_index(&(path.to_string()+".tokens.parentValId")).unwrap() }
+    }
+    fn getParentValId(&self, find: u32) -> Option<u32>{  return self.getValue(find); }
+    fn getParentValIds(&self, find: u32) -> Vec<u32>{ return self.getValues(find); }
+}
+
+
+fn addTokenResults(hits: &mut FnvHashMap<u32, f32>, path:&str){
+
+    let hasTokens = fs::metadata("/some/file/path.txt");
+    if hasTokens.is_err() {
+        return;
+    }
+
+    // var hrstart = process.hrtime()
+    let tokenKVData: IndexKeyValueStore = TokensIndexKeyValueStore::new(path);
+    let valueLengths = load_index(&(path.to_string()+".length")).unwrap();
+
+    let mut tokenHits:FnvHashMap<u32, f32> = FnvHashMap::default();
+    for valueId in hits.keys() {
+        let parentIdsForToken = tokenKVData.getParentValIds(*valueId);
+        if parentIdsForToken.len() > 0 {
+            for tokenParentvalId in parentIdsForToken {
+                let parentTextLength = valueLengths[tokenParentvalId as usize];
+                let tokenTextLength = valueLengths[*valueId as usize];
+                let adjustedScore = 2.0/(parentTextLength as f32 - tokenTextLength as f32) + 0.2;
+                // if (adjustedScore < 0) throw new Error('asdf')
+
+                let theScore = tokenHits.entry(tokenParentvalId as u32)
+                    .or_insert(*hits.get(&tokenParentvalId).unwrap_or(&0.0));
+                *theScore += adjustedScore;
+            }
+        }
+    }
+
+    hits.extend(tokenHits);
 
 }
 
@@ -449,7 +561,7 @@ fn test_levenshtein() -> Result<(), io::Error> {
     let lines_checked = s.lines().count() as f64;
     println!("levenshtein ms: {}", ms);
     println!("Lines : {}", lines_checked );
-    let ms_per_1000 = ( ((ms as f64) / lines_checked) * 1000.0);
+    let ms_per_1000 = ((ms as f64) / lines_checked) * 1000.0;
     println!("ms per 1000 lookups: {}", ms_per_1000);
     Ok(())
 
