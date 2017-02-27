@@ -67,7 +67,7 @@ pub fn bench_fnvhashmap_insert(num_hits: u32, token_hits: u32){
 //     }
 // }
 
-pub fn bench_hashmap_extend(num_hits: u32, token_hits: u32){
+pub fn bench_fnvhashmap_extend(num_hits: u32, token_hits: u32){
     let mut hits:FnvHashMap<u32, f32> = FnvHashMap::default();
     for x in 0..num_hits {
         hits.insert(x * 8, 0.22);
@@ -99,25 +99,15 @@ pub fn bench_vc_scoreonly_insert(num_hits: u32, token_hits: u32){
     }
 }
 
+pub fn bench_bucketed_insert(num_hits: u32, token_hits: u32){
 
-// pub fn quadratic_yes() {
-//     let mut one = HashSet::new();
-//     for i in 1..500000 {
-//         one.insert(i);
-//     }
-//     let mut two = HashSet::new();
-//     for v in one {
-//         two.insert(v);
-//     }
-// }
-
-pub fn quadratic_no() {
-    let mut one = HashMap::new();
-    for i in 1..500000 {
-        one.insert(i, 0.5);
+    let mut scores = Bucketed_ScoreList{arr: vec![]};
+    for x in 0..num_hits {
+        scores.insert((x * 8), 0.22);
     }
-    let mut two = HashMap::new();
-    two.extend(one);
+    for x in 0..token_hits {
+        scores.insert((x * 12), 0.22);
+    }
 }
 
 // pub fn bench_bit_vec_insert(){
@@ -137,6 +127,77 @@ pub fn quadratic_no() {
 
 //     }
 // }
+
+
+struct Bucketed_ScoreList {
+    arr: Vec<Vec<f32>>
+}
+
+use std::process;
+impl Bucketed_ScoreList {
+    fn insert(& mut self, index: u32, value:f32) {
+        // let bucket = (index & 0b0000000000001111) as usize;
+        // let pos = (index - 1024 * bucket as u32) as usize;
+
+        let pos = (index & 0b0000000000001111) as usize;
+        let bucket = ((index & 0b1111111111110000) / 1024) as usize;
+
+        if pos > index as usize {
+            println!("WHAAAAT  {}", index);
+            process::exit(1);
+        }
+        // println!("bucket {:?}" ;
+        if self.arr.len() <= bucket {
+            self.arr.resize(bucket+1, vec![]);
+        }
+        if self.arr[bucket].len() <= pos {
+            self.arr[bucket].resize(((pos + 1) as f32 * 1.5) as usize, 0.0);
+        }
+        self.arr[bucket][pos] = value;
+    }
+
+    fn get(&self, index: usize) -> Option<&f32> {
+        // let bucket = index & 0b0000000000001111;
+        // let pos = index - 1024 * bucket;
+
+        let pos = (index & 0b0000000000001111) as usize;
+        let bucket = ((index & 0b1111111111110000) / 1024) as usize;
+        if self.arr.len() < bucket {
+            None
+        }else{
+            self.arr[bucket].get(pos)
+        }
+    }
+    fn num_values(&self){
+        // self.arr.iter()
+        //     .fold(0, |acc2, &subArr| {
+        //         acc2 + subArr.iter.fold(0, |acc, &x| {
+        //             if x == 0 { acc } else { acc + 1 }
+        //         })
+        //     })
+    }
+}
+
+// pub fn quadratic_yes() {
+//     let mut one = HashSet::new();
+//     for i in 1..500000 {
+//         one.insert(i);
+//     }
+//     let mut two = HashSet::new();
+//     for v in one {
+//         two.insert(v);
+//     }
+// }
+
+pub fn quadratic_no(num_hits: u32) {
+    let mut one = HashMap::new();
+    for i in 1..num_hits {
+        one.insert(i, 0.5);
+    }
+    let mut two = HashMap::new();
+    two.extend(one);
+}
+
 
 // static  K100K = 100000;
 
@@ -167,7 +228,7 @@ mod tests {
 
     #[bench]
     fn bench_hashmap_extend_(b: &mut Bencher) {
-        b.iter(|| bench_hashmap_extend(K500K, K300K));
+        b.iter(|| bench_fnvhashmap_extend(K500K, K300K));
     }
 
     #[bench]
@@ -180,9 +241,15 @@ mod tests {
     //     b.iter(|| quadratic_yes());
     // }
 
-    // #[bench]
-    // fn quadratic_noo_(b: &mut Bencher) {
-    //     b.iter(|| quadratic_no());
-    // }
+    #[bench]
+    fn bench_bucketed_insert_(b: &mut Bencher) {
+        b.iter(|| bench_bucketed_insert(K500K, K300K));
+    }
+
+
+    #[bench]
+    fn quadratic_noo_(b: &mut Bencher) {
+        b.iter(|| quadratic_no(K500K));
+    }
 
 }
