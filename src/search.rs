@@ -152,7 +152,6 @@ pub fn main2() {
     // println!("kv.getValue(100) {}", kv.getValue(100).unwrap());
     // println!("kv.values1[100] {}", kv.values1[100]);
     // println!("kv.values2[100] {}", kv.values2[100]);
-    
 
     let x = vec![1,2,3,6,7,8];
     let u =  x.binary_search(&4).unwrap_err();;
@@ -177,21 +176,21 @@ pub fn main2() {
         .. Default::default()
     };
 
-    let hits = getHitsInField("jmdict/meanings.ger[].text", options, "haus");
+    let hits = getHitsInField("jmdict/meanings.ger[].text", &options, "haus");
 
 
 }
 
 pub struct Request<'b> {
-    OR : Option<Vec<RequestSearchPart>>,
-    AND : Option<Vec<RequestSearchPart>>,
-    search: RequestSearchPart,
-    boost: Vec<RequestBoostPart<'b>>
+    OR : Option<Vec<RequestSearchPart<'b>>>,
+    AND : Option<Vec<RequestSearchPart<'b>>>,
+    search: & 'b RequestSearchPart<'b>,
+    // boost: Vec<RequestBoostPart<'b>>
 }
-pub struct RequestSearchPart {
+pub struct RequestSearchPart<'b> {
     path: String,
     term: String,
-    options: SearchOptions
+    options: & 'b SearchOptions
 }
 pub struct RequestBoostPart<'b> {
     path: String,
@@ -199,15 +198,39 @@ pub struct RequestBoostPart<'b> {
     // values2: Vec<u32>
 }
 
+
+enum CheckOperators {
+    All,
+    One
+}
+impl Default for CheckOperators {
+    fn default() -> CheckOperators { CheckOperators::All }
+}
+
+#[derive(Default)]
+struct SearchOptions {
+    // checks: Vec<&Fn(&str) -> bool>
+    // checks: Vec<fn(&str) -> bool>,
+    checkOperator: CheckOperators,
+    levenshtein_distance: u32,
+    startsWith: Option<String>,
+    exact: bool,
+    firstCharExactMatch: bool
+    // customCompare:Option<&'b Fn(&str, &str) -> bool>
+    // customScore:&Fn(&str) -> bool
+}
+
+
 pub fn searchUnrolled(request: Request) -> FnvHashMap<u32, f32>{
     if request.OR.is_some() {
-        searchRaw(request)
-        // request.OR.unwrap().iter()
-        //     .fold(FnvHashMap::default(), |mut acc, x| -> FnvHashMap<u32, f32> {
-        //         let requesto = Request{search: (*x), boost: request.boost, OR:None, AND: None};
-        //         acc.extend(searchRaw(requesto));
-        //         acc
-        //     })
+        // searchRaw(request)
+        // let request2 = request;
+        request.OR.unwrap().iter()
+            .fold(FnvHashMap::default(), |mut acc, x| -> FnvHashMap<u32, f32> {
+                let requesto = Request{search: x, OR:None, AND: None}; // TODO :BOOST
+                acc.extend(searchRaw(requesto));
+                acc
+            })
         // return Promise.all(request.OR.map(req => searchUnrolled(req)))
         // .then(results => results.reduce((p, c) => Object.assign(p, c)))
     }else if request.AND.is_some(){
@@ -224,7 +247,7 @@ pub fn searchUnrolled(request: Request) -> FnvHashMap<u32, f32>{
 
 pub fn searchRaw(request: Request) -> FnvHashMap<u32, f32> {
 
-    let path = request.search.path;
+    let ref path = request.search.path;
     let term = util::normalizeText(&request.search.term);
 
 
@@ -283,11 +306,11 @@ impl fmt::Debug for OffsetInfo {
 
 impl CharOffset {
     fn new(path:&str) -> CharOffset {
-        CharOffset { 
-            chars: serde_json::from_str(&file_as_string(&(path.to_string()+".charOffsets.chars"))).unwrap(), 
+        CharOffset {
+            chars: serde_json::from_str(&file_as_string(&(path.to_string()+".charOffsets.chars"))).unwrap(),
             byteOffsetsStart: load_index(&(path.to_string()+".charOffsets.byteOffsetsStart")).unwrap(),
             byteOffsetsEnd: load_index(&(path.to_string()+".charOffsets.byteOffsetsEnd")).unwrap(),
-            lineOffsets: load_index(&(path.to_string()+".charOffsets.lineOffset")).unwrap() 
+            lineOffsets: load_index(&(path.to_string()+".charOffsets.lineOffset")).unwrap()
         }
     }
 
@@ -307,27 +330,6 @@ impl CharOffset {
 
 }
 
-
-enum CheckOperators {
-    All,
-    One
-}
-impl Default for CheckOperators {
-    fn default() -> CheckOperators { CheckOperators::All }
-}
-
-#[derive(Default)]
-struct SearchOptions {
-    // checks: Vec<&Fn(&str) -> bool>
-    // checks: Vec<fn(&str) -> bool>,
-    checkOperator: CheckOperators,
-    levenshtein_distance: u32,
-    startsWith: Option<String>,
-    exact: bool,
-    firstCharExactMatch: bool
-    // customCompare:Option<&'b Fn(&str, &str) -> bool>
-    // customScore:&Fn(&str) -> bool
-}
 
 //todo use cache
 fn getCreateCharOffsetInfo(path: &str,character: &str) -> Result<OffsetInfo, usize> {
@@ -352,14 +354,14 @@ fn getDefaultScore2(distance: u32) -> f32{
     return 2.0/(distance as f32 + 0.2 )
 }
 
-fn getHitsInField(path: &str, mut options: SearchOptions, term: &str) -> FnvHashMap<u32, f32> {
+fn getHitsInField(path: &str, options: &SearchOptions, term: &str) -> FnvHashMap<u32, f32> {
     let mut hits:FnvHashMap<u32, f32> = FnvHashMap::default();
     // let mut hits:HashMap<u32, f32> = HashMap::new(); // id:score
 
     // let checks:Vec<Fn(&str) -> bool> = Vec::new();
     let term_chars = term.chars().collect::<Vec<char>>();
 
-    options.firstCharExactMatch = options.exact || options.levenshtein_distance == 0 || options.startsWith.is_some();
+    // options.firstCharExactMatch = options.exact || options.levenshtein_distance == 0 || options.startsWith.is_some(); // TODO fix
 
     let startChar = if options.exact || options.levenshtein_distance == 0 || options.startsWith.is_some() && term_chars.len() >= 2 {
         Some(term_chars[0].to_string() + &term_chars[1].to_string())
@@ -373,10 +375,8 @@ fn getHitsInField(path: &str, mut options: SearchOptions, term: &str) -> FnvHash
 
     let value = startChar.as_ref().map(String::as_ref);
 
-    
     {
         let tehCallback = |line: &str, linePos: u32| {
-    
             let distance = if options.levenshtein_distance != 0 { Some(distance(term, line))} else { None };
             if (options.exact &&  line == term)
                 || (distance.is_some() && distance.unwrap() >= options.levenshtein_distance)
@@ -388,7 +388,6 @@ fn getHitsInField(path: &str, mut options: SearchOptions, term: &str) -> FnvHash
                 hits.insert(linePos, score);
             }
         };
-    
         getTextLines(path, value, tehCallback);
     }
     hits
