@@ -220,6 +220,30 @@ struct SearchOptions {
     // customScore:&Fn(&str) -> bool
 }
 
+pub struct Hit {
+    id: u32,
+    score: f32
+}
+
+use std::cmp::Ordering;
+
+fn hitsToArray(hits:FnvHashMap<u32, f32>) -> Vec<Hit> {
+    let mut res:Vec<Hit> = hits.iter().map(|(id, score)| Hit{id:*id, score:*score}).collect();
+    res.sort_by(|a, b| a.score.partial_cmp(&b.score).unwrap_or(Ordering::Equal));
+    res
+}
+
+
+pub fn search(request: Request, skip:u32, top:u32) -> Vec<Hit>{
+    // request.skip = request.skip || 0
+    // request.top = request.top || 10
+
+    let res = hitsToArray(searchUnrolled(request));
+    // res.resize(skip + top, 0);
+    res
+    
+        // .then(res => res.slice(request.skip, request.top))
+}
 
 pub fn searchUnrolled(request: Request) -> FnvHashMap<u32, f32>{
     if request.OR.is_some() {
@@ -339,10 +363,6 @@ fn getCreateCharOffsetInfo(path: &str,character: &str) -> Result<OffsetInfo, usi
     // return charOffsetCache[path]
 }
 
-struct Hit{
-    id: u32,
-    score: f32
-}
 // fn levenshteinCheck(text: &str, term: &str) -> bool {
 //     distance(text, term) <=
 // }
