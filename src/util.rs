@@ -24,6 +24,11 @@ pub  fn normalizeText(text:&str) -> String {
 
 }
 
+pub fn getLevel(path:&str) -> usize{
+    path.matches("[]").count()
+}
+
+
 pub fn getStepsToAnchor(path:&str) -> Vec<String> {
     
     let mut paths = vec![];

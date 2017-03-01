@@ -7,7 +7,6 @@ use std::path::Path;
 use std::char;
 use std::cmp;
 use std::mem;
-use serde_json;
 use std::time::Duration;
 
 use futures_cpupool::CpuPool;
@@ -31,3 +30,44 @@ use std::collections::HashMap;
 use util;
 use std::collections::hash_map::Entry;
 use fnv::FnvHashMap;
+
+
+//-----
+
+use serde_json;
+use serde_json::Value;
+
+pub struct CreateIndexOptions {
+    tokenize: bool,
+    firstCharExactMatch: bool
+}
+
+
+pub fn getAllterms(data:String,  path:&str, options:CreateIndexOptions){
+
+
+}
+
+
+pub fn createFulltextIndex(data:String, path:&str, options:CreateIndexOptions){
+
+
+	let dat2 = r#" { "name": "John Doe", "age": 43, ... } "#;
+	let v: Value = serde_json::from_str(dat2).unwrap();
+
+
+	let allTerms = getAllterms(data, path, options);
+
+	let paths = util::getStepsToAnchor(path);
+
+	let lastPath = (paths.iter().last().unwrap()).clone();
+
+	for pathToAnchor in paths {
+	    let level = util::getLevel(&pathToAnchor);
+	    // let tuples = vec![];
+
+	    let isLast = pathToAnchor == lastPath;
+
+	}
+
+}
