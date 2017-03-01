@@ -241,7 +241,6 @@ pub fn search(request: Request, skip:u32, top:u32) -> Vec<Hit>{
     let res = hitsToArray(searchUnrolled(request));
     // res.resize(skip + top, 0);
     res
-    
         // .then(res => res.slice(request.skip, request.top))
 }
 
