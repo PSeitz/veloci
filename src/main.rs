@@ -38,6 +38,9 @@ fn it_works() {
     assert_eq!(util::normalizeText("\"H,ell-;o"), "Hello");
     assert_eq!(util::normalizeText("Hello(f)"), "Hello");
     assert_eq!(util::normalizeText("Hello(2)"), "Hello");
+
+    assert_eq!(util::removeArrayMarker("Hello[]"), "Hello");
+    assert_eq!(util::removeArrayMarker("Hello[].ja"), "Hello.ja");
 }
 
 use std::collections::HashSet;

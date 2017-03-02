@@ -28,6 +28,17 @@ pub fn getLevel(path:&str) -> usize{
     path.matches("[]").count()
 }
 
+pub fn removeArrayMarker(path:&str) -> String{
+    path.split(".").collect::<Vec<_>>()
+    .iter().map(|el| {
+        if el.ends_with("[]") {
+            &el[0..el.len()-2]
+        } 
+        else {el}
+    }).collect::<Vec<_>>()
+    .join(".")
+}
+
 
 pub fn getStepsToAnchor(path:&str) -> Vec<String> {
     
