@@ -1,7 +1,12 @@
 
 use regex::Regex;
+use std::io::prelude::*;
+use std::io::{self, BufRead};
+use std::mem;
+use std::fs::File;
 
 use std::borrow::Cow;
+
 pub  fn normalizeText(text:&str) -> String {
     
     lazy_static! {
@@ -24,8 +29,51 @@ pub  fn normalizeText(text:&str) -> String {
 
 }
 
-pub fn getLevel(path:&str) -> usize{
-    path.matches("[]").count()
+pub fn getPathName(pathToAnchor: &str, isTextIndexPart:bool) -> String{
+    let suffix = if isTextIndexPart {".textindex"}else{""};
+    pathToAnchor.to_owned() + suffix
+}
+
+pub fn load_index(s1: &str) -> Result<(Vec<u32>), io::Error> {
+    let mut f = try!(File::open(s1));
+    let mut buffer = Vec::new();
+    try!(f.read_to_end(&mut buffer));
+    buffer.shrink_to_fit();
+    let buf_len = buffer.len();
+
+    let mut read: Vec<u32> = unsafe { mem::transmute(buffer) };
+    unsafe { read.set_len(buf_len/4); }
+    // println!("100: {}", data[100]);
+    Ok(read)
+    // let v_from_raw = unsafe {
+    // Vec::from_raw_parts(buffer.as_mut_ptr(),
+    //                     buffer.len(),
+    //                     buffer.capacity())
+    // };
+    // println!("100: {}", v_from_raw[100]);
+
+
+}
+
+pub fn write_index(data:&Vec<u32>, path:&str) -> Result<(), io::Error> {
+
+    // let read: Vec<u8> = unsafe { mem::transmute(data) };
+    // File::create(path)?.write_all(&read);
+    let v_from_raw:Vec<u8> = unsafe {
+        // let x_ptr:*mut u8 = data.as_mut_ptr() as *mut u8;
+        Vec::from_raw_parts(mem::transmute::<*const u32, *mut u8>(data.as_ptr()),
+                            data.len() * 4,
+                            data.capacity())
+    };
+
+    File::create(path)?.write_all(v_from_raw.as_slice());
+
+    Ok(())
+
+}
+
+pub fn getLevel(path:&str) -> u32{
+    path.matches("[]").count() as u32
 }
 
 pub fn removeArrayMarker(path:&str) -> String{

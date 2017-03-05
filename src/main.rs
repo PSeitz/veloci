@@ -41,6 +41,13 @@ fn it_works() {
 
     assert_eq!(util::removeArrayMarker("Hello[]"), "Hello");
     assert_eq!(util::removeArrayMarker("Hello[].ja"), "Hello.ja");
+
+    // let mut data = vec![2, 30];
+    // util::write_index(&data, "asdf");
+
+    // let dato = util::load_index("asdf").unwrap();
+    // println!("LOAD {:?}", dato);
+
 }
 
 use std::collections::HashSet;
@@ -223,35 +230,37 @@ mod tests {
     use super::*;
     use test::Bencher;
 
-    #[bench]
-    fn bench_fnvhashmap_insert_(b: &mut Bencher) {
-        b.iter(|| bench_fnvhashmap_insert(K500K, K500K));
-    }
+
 
     // #[bench]
-    // fn bench_hashmap_insert_(b: &mut Bencher) {
-    //     b.iter(|| bench_hashmap_insert(K500K, K300K));
+    // fn bench_fnvhashmap_insert_(b: &mut Bencher) {
+    //     b.iter(|| bench_fnvhashmap_insert(K500K, K500K));
     // }
 
-    #[bench]
-    fn bench_hashmap_extend_(b: &mut Bencher) {
-        b.iter(|| bench_fnvhashmap_extend(K500K, K500K));
-    }
-
-    #[bench]
-    fn bench_vec_scoreonly_insert_(b: &mut Bencher) {
-        b.iter(|| bench_vc_scoreonly_insert(K500K, K500K));
-    }
+    // // #[bench]
+    // // fn bench_hashmap_insert_(b: &mut Bencher) {
+    // //     b.iter(|| bench_hashmap_insert(K500K, K300K));
+    // // }
 
     // #[bench]
-    // fn quadratic_yes_(b: &mut Bencher) {
-    //     b.iter(|| quadratic_yes());
+    // fn bench_hashmap_extend_(b: &mut Bencher) {
+    //     b.iter(|| bench_fnvhashmap_extend(K500K, K500K));
     // }
 
-    #[bench]
-    fn bench_bucketed_insert_(b: &mut Bencher) {
-        b.iter(|| bench_bucketed_insert(K500K, K500K));
-    }
+    // #[bench]
+    // fn bench_vec_scoreonly_insert_(b: &mut Bencher) {
+    //     b.iter(|| bench_vc_scoreonly_insert(K500K, K500K));
+    // }
+
+    // // #[bench]
+    // // fn quadratic_yes_(b: &mut Bencher) {
+    // //     b.iter(|| quadratic_yes());
+    // // }
+
+    // #[bench]
+    // fn bench_bucketed_insert_(b: &mut Bencher) {
+    //     b.iter(|| bench_bucketed_insert(K500K, K500K));
+    // }
 
 
     // #[bench]

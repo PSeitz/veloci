@@ -161,8 +161,8 @@ pub fn main2() {
 
     println!("mjjaaa {}", value);
 
-    // load_index("jmdict/meanings.ger[].text.textindex.valueIdToParent.valIds");
-    // load_index("index11");
+    // util::load_index("jmdict/meanings.ger[].text.textindex.valueIdToParent.valIds");
+    // util::load_index("index11");
 
     let tehCallback = |x: &str| { println!("Its: {}", x); };
 
@@ -301,7 +301,6 @@ pub fn searchRaw(request: Request) -> FnvHashMap<u32, f32> {
     nextLevelHits
 }
 
-
 // struct ByteRange {
 //     byteOffsetsStart: u32,
 //     byteOffsetsEnd: u32,
@@ -331,9 +330,9 @@ impl CharOffset {
     fn new(path:&str) -> CharOffset {
         CharOffset {
             chars: serde_json::from_str(&file_as_string(&(path.to_string()+".charOffsets.chars"))).unwrap(),
-            byteOffsetsStart: load_index(&(path.to_string()+".charOffsets.byteOffsetsStart")).unwrap(),
-            byteOffsetsEnd: load_index(&(path.to_string()+".charOffsets.byteOffsetsEnd")).unwrap(),
-            lineOffsets: load_index(&(path.to_string()+".charOffsets.lineOffset")).unwrap()
+            byteOffsetsStart: util::load_index(&(path.to_string()+".charOffsets.byteOffsetsStart")).unwrap(),
+            byteOffsetsEnd: util::load_index(&(path.to_string()+".charOffsets.byteOffsetsEnd")).unwrap(),
+            lineOffsets: util::load_index(&(path.to_string()+".charOffsets.lineOffset")).unwrap()
         }
     }
 
@@ -421,7 +420,7 @@ struct IndexKeyValueStore {
 
 impl IndexKeyValueStore {
     fn new(path1:&str, path2:&str) -> IndexKeyValueStore {
-        IndexKeyValueStore { values1: load_index(path1).unwrap(), values2: load_index(path2).unwrap() }
+        IndexKeyValueStore { values1: util::load_index(path1).unwrap(), values2: util::load_index(path2).unwrap() }
     }
     fn getValue(&self, find: u32) -> Option<u32> {
         match self.values1.binary_search(&find) {
@@ -453,7 +452,7 @@ trait TokensIndexKeyValueStore {
 
 impl TokensIndexKeyValueStore for IndexKeyValueStore {
     fn new(path:&str) -> Self {
-        IndexKeyValueStore { values1: load_index(&(path.to_string()+".tokens.tokenValIds")).unwrap(), values2: load_index(&(path.to_string()+".tokens.parentValId")).unwrap() }
+        IndexKeyValueStore { values1: util::load_index(&(path.to_string()+".tokens.tokenValIds")).unwrap(), values2: util::load_index(&(path.to_string()+".tokens.parentValId")).unwrap() }
     }
     fn getParentValId(&self, find: u32) -> Option<u32>{  return self.getValue(find); }
     fn getParentValIds(&self, find: u32) -> Vec<u32>{ return self.getValues(find); }
@@ -469,7 +468,7 @@ fn addTokenResults(hits: &mut FnvHashMap<u32, f32>, path:&str){
 
     // var hrstart = process.hrtime()
     let tokenKVData: IndexKeyValueStore = TokensIndexKeyValueStore::new(path);
-    let valueLengths = load_index(&(path.to_string()+".length")).unwrap();
+    let valueLengths = util::load_index(&(path.to_string()+".length")).unwrap();
 
     let mut tokenHits:FnvHashMap<u32, f32> = FnvHashMap::default();
     for valueId in hits.keys() {
@@ -527,26 +526,7 @@ where F: FnMut(&str, u32) {
     }
 }
 
-fn load_index(s1: &str) -> Result<(Vec<u32>), io::Error> {
-    let mut f = try!(File::open(s1));
-    let mut buffer = Vec::new();
-    try!(f.read_to_end(&mut buffer));
-    buffer.shrink_to_fit();
-    let buf_len = buffer.len();
 
-    let mut read: Vec<u32> = unsafe { mem::transmute(buffer) };
-    unsafe { read.set_len(buf_len/4); }
-    // println!("100: {}", data[100]);
-    Ok(read)
-    // let v_from_raw = unsafe {
-    // Vec::from_raw_parts(buffer.as_mut_ptr(),
-    //                     buffer.len(),
-    //                     buffer.capacity())
-    // };
-    // println!("100: {}", v_from_raw[100]);
-
-
-}
 
 fn file_as_string(path:&str) -> String {
     let mut file = File::open(path).unwrap();
