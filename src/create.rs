@@ -88,12 +88,35 @@ where F: FnMut(&str, u32, u32) { // value, valueId, parentValId   // TODO ADD Te
 
     let path = util::removeArrayMarker(path2);
     let paths = path.split(".").collect::<Vec<_>>();
-    
+
     walk(data, 0, opt, &paths, cb);
 }
 
+use fnv::FnvHashSet;
+
 pub fn getAllterms(data:&Value, path:&str, options:CreateIndexOptions) -> Vec<String>{
 
+    let mut terms:FnvHashSet<String> = FnvHashSet::default();
+    // let terms = vec![];
+
+    let mut opt = ForEachOpt {
+        parentPosInPath: 0,
+        currentParentIdCounter: 0,
+        valueIdCounter: 0,
+        path: path.to_string(),
+    };
+
+    forEachElementInPath(&data, &mut opt, &path, &mut |value: &str, valueId: u32, parentValId: u32| {
+        let normalizedText = util::normalizeText(value);
+        // if isInStopWords(normalizedText, options) continue/return
+
+        terms.insert(normalizedText);
+        // if (options.tokenize && normalizedText.split(' ').length > 1) 
+        //     forEachToken(normalizedText, token => {if(!isInStopWords(normalizedText, options)) tokens.push([getValueID(allTerms, token), valId])})
+
+    });
+
+    // return Object.keys(terms).sort()
     vec![]
 }
 
@@ -163,7 +186,7 @@ pub fn createFulltextIndex(dataStr:String, path:&str, options:CreateIndexOptions
 
         tuples.sort_by(|a, b| a.valid.partial_cmp(&b.valid).unwrap_or(Ordering::Equal));
         let pathName = util::getPathName(&paths[i], isTextIndex);
-        util::write_index(&tuples.iter().map(|ref el| el.valid).collect::<Vec<_>>(), &(pathName.clone()+".valueIdToParent.valIds"));
+        util::write_index(&tuples.iter().map(|ref el| el.valid      ).collect::<Vec<_>>(), &(pathName.clone()+".valueIdToParent.valIds"));
         util::write_index(&tuples.iter().map(|ref el| el.parentValId).collect::<Vec<_>>(), &(pathName+".valueIdToParent.mainIds"));
 
     }
