@@ -7,7 +7,7 @@ use std::fs::File;
 
 use std::borrow::Cow;
 
-pub  fn normalizeText(text:&str) -> String {
+pub fn normalizeText(text:&str) -> String {
     
     lazy_static! {
         static ref REGEXES:Vec<(Regex, & 'static str)> = vec![
@@ -26,8 +26,21 @@ pub  fn normalizeText(text:&str) -> String {
 
     newStr.trim().to_owned()
 
+}
+
+pub fn getTokens(normalizedText:&str) -> Vec<String>{
+    lazy_static! {
+        static ref REGEX1: Regex = Regex::new(r#"[-,.'"]"#).unwrap(); // remove ' " {}
+        static ref REGEX2: Regex = Regex::new(r"\s\s+").unwrap(); // replace tabs, newlines, double spaces with single spaces
+    }
+
+    let mut rego = REGEX1.replace_all(normalizedText, " ");
+    let mut rego2 = REGEX2.replace_all(&rego, " ");
+
+    rego2.split(" ").into_iter().map(|s| s.to_owned()).collect::<Vec<_>>()
 
 }
+
 
 pub fn getPathName(pathToAnchor: &str, isTextIndexPart:bool) -> String{
     let suffix = if isTextIndexPart {".textindex"}else{""};

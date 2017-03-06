@@ -37,9 +37,10 @@ use fnv::FnvHashMap;
 use serde_json;
 use serde_json::Value;
 
-pub struct CreateIndexOptions {
+pub struct CreateIndexOptions<'a> {
     tokenize: bool,
-    firstCharExactMatch: bool
+    firstCharExactMatch: bool,
+    stopwords: Vec<&'a str>
 }
 
 struct ForEachOpt {
@@ -83,6 +84,7 @@ where F: FnMut(&str, u32, u32) {
     }
 }
 
+
 fn forEachElementInPath<F>(data: &Value, opt: &mut ForEachOpt, path2:&str, cb: &mut F)
 where F: FnMut(&str, u32, u32) { // value, valueId, parentValId   // TODO ADD Template for Value
 
@@ -94,10 +96,9 @@ where F: FnMut(&str, u32, u32) { // value, valueId, parentValId   // TODO ADD Te
 
 use fnv::FnvHashSet;
 
-pub fn getAllterms(data:&Value, path:&str, options:CreateIndexOptions) -> Vec<String>{
+pub fn getAllterms(data:&Value, path:&str, options:&CreateIndexOptions) -> Vec<String>{
 
     let mut terms:FnvHashSet<String> = FnvHashSet::default();
-    // let terms = vec![];
 
     let mut opt = ForEachOpt {
         parentPosInPath: 0,
@@ -106,9 +107,22 @@ pub fn getAllterms(data:&Value, path:&str, options:CreateIndexOptions) -> Vec<St
         path: path.to_string(),
     };
 
-    forEachElementInPath(&data, &mut opt, &path, &mut |value: &str, valueId: u32, parentValId: u32| {
+
+    forEachElementInPath(&data, &mut opt, &path,  &mut |value: &str, valueId: u32, parentValId: u32| {
         let normalizedText = util::normalizeText(value);
-        // if isInStopWords(normalizedText, options) continue/return
+        if options.stopwords.contains(&(&normalizedText as &str)) {
+            return;
+        }
+
+        // if stopwords.map_or(false, |ref v| v.contains(&value)){
+        //     return;
+        // }
+
+        // let stopwords = options.stopwords.clone();
+
+        // if stopwords.is_some() && isInStopWords(&normalizedText, &stopwords.unwrap()){
+        //     return;
+        // } ///return
 
         terms.insert(normalizedText);
         // if (options.tokenize && normalizedText.split(' ').length > 1) 
@@ -116,8 +130,9 @@ pub fn getAllterms(data:&Value, path:&str, options:CreateIndexOptions) -> Vec<St
 
     });
 
-    // return Object.keys(terms).sort()
-    vec![]
+    let mut v: Vec<String> = terms.into_iter().collect::<Vec<String>>();
+    v.sort();
+    v
 }
 
 
@@ -125,7 +140,8 @@ pub fn getAllterms(data:&Value, path:&str, options:CreateIndexOptions) -> Vec<St
 //     return binarySearch(data, value)
 // }
 
-fn isInStopWords(term:&str, stopwords:&Vec<&str>){
+fn isInStopWords(term:&str, stopwords:&Vec<&str>) -> bool{
+    stopwords.contains(&term)
     // return stopwords.indexOf(term) >= 0
 }
 
@@ -143,7 +159,7 @@ pub fn createFulltextIndex(dataStr:String, path:&str, options:CreateIndexOptions
     // let dat2 = r#" { "name": "John Doe", "age": 43, ... } "#;
     let data: Value = serde_json::from_str(&dataStr).unwrap();
 
-    let allTerms = getAllterms(&data, path, options);
+    let allTerms = getAllterms(&data, path, &options);
 
     let paths = util::getStepsToAnchor(path);
 
