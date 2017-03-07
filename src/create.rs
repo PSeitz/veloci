@@ -33,13 +33,12 @@ use fnv::FnvHashMap;
 
 
 //-----
-
 use serde_json;
 use serde_json::Value;
 
+
 pub struct CreateIndexOptions<'a> {
     tokenize: bool,
-    firstCharExactMatch: bool,
     stopwords: Vec<&'a str>
 }
 
@@ -53,15 +52,15 @@ struct ForEachOpt {
 fn walk<F>(currentEl: &Value, startPos: u32, opt: &mut ForEachOpt, paths:&Vec<&str>, cb: &mut F)
 where F: FnMut(&str, u32, u32) {
 
-    for i in startPos..(paths.len() as u32 - 1) {
+    for i in startPos..(paths.len() as u32) {
         let isLastPath = i == paths.len() as u32-1;
         let isParentPathPos = (i == opt.parentPosInPath && i!=0);
         let mut comp = paths[i as usize];
-
         if !currentEl.get(comp).is_some() {break;}
+        let nextEl = &currentEl[comp];
 
-        if currentEl.is_array(){
-            let currentElArr = currentEl.as_array().unwrap();
+        if nextEl.is_array(){
+            let currentElArr = nextEl.as_array().unwrap();
             if isLastPath{
                 for el in currentElArr {
                     cb(el.as_str().unwrap(), opt.valueIdCounter, opt.currentParentIdCounter);
@@ -76,7 +75,7 @@ where F: FnMut(&str, u32, u32) {
             }
         }else{
             if isLastPath{
-                cb(currentEl.as_str().unwrap(), opt.valueIdCounter, opt.currentParentIdCounter);
+                cb(nextEl.as_str().unwrap(), opt.valueIdCounter, opt.currentParentIdCounter);
                 opt.valueIdCounter+=1;
             }
         }
@@ -90,8 +89,18 @@ where F: FnMut(&str, u32, u32) { // value, valueId, parentValId   // TODO ADD Te
 
     let path = util::removeArrayMarker(path2);
     let paths = path.split(".").collect::<Vec<_>>();
+    println!("JAAAA:: {:?}", paths);
+    
 
-    walk(data, 0, opt, &paths, cb);
+    if data.is_array(){
+        // let startMainId = parentPosInPath == 0 ? currentParentIdCounter : 0
+        for el in data.as_array().unwrap() {
+            walk(el, 0, opt, &paths, cb);
+            if (opt.parentPosInPath == 0) {opt.currentParentIdCounter += 1;}
+        }
+    }else{
+        walk(data, 0, opt, &paths, cb);
+    }
 }
 
 use fnv::FnvHashSet;
@@ -117,17 +126,13 @@ pub fn getAllterms(data:&Value, path:&str, options:&CreateIndexOptions) -> Vec<S
         // if stopwords.map_or(false, |ref v| v.contains(&value)){
         //     return;
         // }
-
-        // let stopwords = options.stopwords.clone();
-
-        // if stopwords.is_some() && isInStopWords(&normalizedText, &stopwords.unwrap()){
-        //     return;
-        // } ///return
-
-        terms.insert(normalizedText);
-        // if (options.tokenize && normalizedText.split(' ').length > 1) 
-        //     forEachToken(normalizedText, token => {if(!isInStopWords(normalizedText, options)) tokens.push([getValueID(allTerms, token), valId])})
-
+        terms.insert(normalizedText.clone());
+        if (options.tokenize && normalizedText.split(" ").count() > 1) {
+            for token in normalizedText.split(" ") {
+                if options.stopwords.contains(&token) { continue; }
+                terms.insert(token.to_string());
+            }
+        }
     });
 
     let mut v: Vec<String> = terms.into_iter().collect::<Vec<String>>();
@@ -140,10 +145,10 @@ pub fn getAllterms(data:&Value, path:&str, options:&CreateIndexOptions) -> Vec<S
 //     return binarySearch(data, value)
 // }
 
-fn isInStopWords(term:&str, stopwords:&Vec<&str>) -> bool{
-    stopwords.contains(&term)
-    // return stopwords.indexOf(term) >= 0
-}
+// fn isInStopWords(term:&str, stopwords:&Vec<&str>) -> bool{
+//     stopwords.contains(&term)
+//     // return stopwords.indexOf(term) >= 0
+// }
 
 // #[derive(Debug)]
 struct Tuple {
@@ -154,22 +159,20 @@ struct Tuple {
 use std::sync::{Arc, Mutex};
 use std::cmp::Ordering;
 
-pub fn createFulltextIndex(dataStr:String, path:&str, options:CreateIndexOptions){
+pub fn createFulltextIndex(dataStr:&str, path:&str, options:CreateIndexOptions) -> Result<(), io::Error> {
 
     // let dat2 = r#" { "name": "John Doe", "age": 43, ... } "#;
-    let data: Value = serde_json::from_str(&dataStr).unwrap();
+    let data: Value = serde_json::from_str(dataStr).unwrap();
 
     let allTerms = getAllterms(&data, path, &options);
 
     let paths = util::getStepsToAnchor(path);
 
-    let lastPath = (paths.iter().last().unwrap()).clone();
-
-
     for i in 0..(paths.len() - 1) {
 
         let level = util::getLevel(&paths[i]);
         let mut tuples:Vec<Tuple> = vec![];
+        let mut tokens:Vec<Tuple> = vec![];
 
         let isTextIndex = (i == (paths.len() -1));
 
@@ -185,10 +188,16 @@ pub fn createFulltextIndex(dataStr:String, path:&str, options:CreateIndexOptions
                 let normalizedText = util::normalizeText(value);
                 // if isInStopWords(normalizedText, options) continue/return
 
-                let valId = allTerms.binary_search(&value.to_owned()).unwrap();
+                let valId = allTerms.binary_search(&value.to_string()).unwrap();
                 tuples.push(Tuple{valid:valId as u32, parentValId:valueId});
-                // if (options.tokenize && normalizedText.split(' ').length > 1) 
-                //     forEachToken(normalizedText, token => {if(!isInStopWords(normalizedText, options)) tokens.push([getValueID(allTerms, token), valId])})
+                if (options.tokenize && normalizedText.split(" ").count() > 1) {
+                    for token in normalizedText.split(" ") {
+                        if options.stopwords.contains(&token) { continue; }
+                        // terms.insert(token.to_string());
+                        let valId = allTerms.binary_search(&token.to_string()).unwrap();
+                        tokens.push(Tuple{valid:valId as u32, parentValId:valueId});
+                    }
+                }
 
             });
         }else{
@@ -202,9 +211,102 @@ pub fn createFulltextIndex(dataStr:String, path:&str, options:CreateIndexOptions
 
         tuples.sort_by(|a, b| a.valid.partial_cmp(&b.valid).unwrap_or(Ordering::Equal));
         let pathName = util::getPathName(&paths[i], isTextIndex);
-        util::write_index(&tuples.iter().map(|ref el| el.valid      ).collect::<Vec<_>>(), &(pathName.clone()+".valueIdToParent.valIds"));
-        util::write_index(&tuples.iter().map(|ref el| el.parentValId).collect::<Vec<_>>(), &(pathName+".valueIdToParent.mainIds"));
+        util::write_index(&tuples.iter().map(|ref el| el.valid      ).collect::<Vec<_>>(), &(pathName.to_string()+".valueIdToParent.valIds"));
+        util::write_index(&tuples.iter().map(|ref el| el.parentValId).collect::<Vec<_>>(), &(pathName.to_string()+".valueIdToParent.mainIds"));
+
+        if (tokens.len() > 0) {
+            tokens.sort_by(|a, b| a.valid.partial_cmp(&b.valid).unwrap_or(Ordering::Equal));
+            util::write_index(&tokens.iter().map(|ref el| el.valid      ).collect::<Vec<_>>(), &(path.to_string()+".tokens.tokenValIds"));
+            util::write_index(&tokens.iter().map(|ref el| el.parentValId).collect::<Vec<_>>(), &(path.to_string()+".tokens.parentValId"));
+        }
 
     }
 
+    File::create(path)?.write_all(allTerms.join("\n").as_bytes());
+    util::write_index(&allTerms.iter().map(|ref el| el.len() as u32).collect::<Vec<_>>(), &(path.to_string()+".length"));
+    // creatCharOffsets(path, resolve)
+    Ok(())
+
+}
+
+struct CharWithOffset {
+    char: String,
+    byteOffsetStart: usize
+}
+
+pub fn creatCharOffsets(data:Vec<String>, path:&str){
+
+    // let mut terms:FnvHashSet<String> = FnvHashSet::default();
+    let mut charToOffset:FnvHashMap<String, usize> = FnvHashMap::default();
+
+    let mut currentByteOffset = 0;
+    for text in data {
+        let char1 = text.chars().nth(0).map_or("".to_string(), |c| c.to_string());
+        let char12 = char1.clone() + &text.chars().nth(1).map_or("".to_string(), |c| c.to_string());
+
+        if !charToOffset.contains_key(&char1) {
+            charToOffset.insert(char1, currentByteOffset);
+        }
+
+        if !charToOffset.contains_key(&char12) {
+            charToOffset.insert(char12, currentByteOffset);
+        }
+
+        currentByteOffset += text.len() + 1;
+    }
+
+    // let offsets = []
+
+    // let currentSingleChar, currentSecondChar
+    // let byteOffset = 0, lineNum = 0, currentChar, currentTwoChar
+    // rl.on('line', (line) => {
+    //     let firstCharOfLine = line.charAt(0)
+    //     let firstTwoCharOfLine = line.charAt(0) + line.charAt(1)
+    //     if(currentChar != firstCharOfLine){
+    //         currentChar = firstCharOfLine
+    //         if(currentSingleChar) currentSingleChar.byteOffsetEnd = byteOffset
+    //         currentSingleChar = {char: currentChar, byteOffsetStart:byteOffset, lineOffset:lineNum}
+    //         offsets.push(currentSingleChar)
+    //         console.log(`${currentChar} ${byteOffset} ${lineNum}`)
+    //     }
+    //     if(currentTwoChar != firstTwoCharOfLine){
+    //         currentTwoChar = firstTwoCharOfLine
+    //         if(currentSecondChar) currentSecondChar.byteOffsetEnd = byteOffset
+    //         currentSecondChar = {char: currentTwoChar, byteOffsetStart:byteOffset, lineOffset:lineNum}
+    //         offsets.push(currentSecondChar)
+    //         console.log(`${currentTwoChar} ${byteOffset} ${lineNum}`)
+    //     }
+    //     byteOffset+= Buffer.byteLength(line, 'utf8') + 1 // linebreak = 1
+    //     lineNum++
+    // }).on('close', () => {
+    //     if(currentSingleChar) currentSingleChar.byteOffsetEnd = byteOffset
+    //     if(currentSecondChar) currentSecondChar.byteOffsetEnd = byteOffset
+    //     writeFileSync(path+'.charOffsets.chars', JSON.stringify(offsets.map(offset=>offset.char)))
+    //     writeFileSync(path+'.charOffsets.byteOffsetsStart',     new Buffer(new Uint32Array(offsets.map(offset=>offset.byteOffsetStart)).buffer))
+    //     writeFileSync(path+'.charOffsets.byteOffsetsEnd',  new Buffer(new Uint32Array(offsets.map(offset=>offset.byteOffsetEnd)).buffer))
+    //     writeFileSync(path+'.charOffsets.lineOffset',  new Buffer(new Uint32Array(offsets.map(offset=>offset.lineOffset)).buffer))
+    //     resolve()
+    // })
+}
+
+
+
+
+
+#[cfg(test)]
+mod test {
+    use create;
+    #[test]
+    fn test_eq() {
+        let opt = create::CreateIndexOptions{
+            tokenize: true,
+            stopwords: vec![]
+        };
+
+        let dat2 = r#" [{ "name": "John Doe", "age": 43 }] "#;
+        
+        let res = create::createFulltextIndex(dat2, "name", opt);
+        assert_eq!("Hello", "Hello");
+
+    }
 }

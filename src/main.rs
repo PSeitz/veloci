@@ -230,8 +230,6 @@ mod tests {
     use super::*;
     use test::Bencher;
 
-
-
     // #[bench]
     // fn bench_fnvhashmap_insert_(b: &mut Bencher) {
     //     b.iter(|| bench_fnvhashmap_insert(K500K, K500K));
