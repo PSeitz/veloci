@@ -94,6 +94,8 @@ fn main3() {
 
 
 pub fn main2() {
+    test_levenshtein("mund", 3);
+
     main3();
     // let stream = getTextLines2();
     // let mut stream = getTextLines2().fuse().wait();
@@ -144,7 +146,7 @@ pub fn main2() {
 
     // let path = "jmdict/meanings.ger[].text";
     // let test = file_as_string(&(path.to_string()+".charOffsets.chars"));
-    // test_levenshtein();
+    
 
     let charOffsets = CharOffset::new("jmdict/meanings.ger[].text");
 
@@ -535,7 +537,7 @@ fn file_as_string(path:&str) -> String {
     contents
 }
 
-fn test_levenshtein() -> Result<(), io::Error> {
+fn test_levenshtein(term:&str, max_distance:u32) -> Result<(), io::Error> {
 
     use std::time::SystemTime;
     let now = SystemTime::now();
@@ -546,9 +548,12 @@ fn test_levenshtein() -> Result<(), io::Error> {
     try!(f.read_to_string(&mut s));
 
     let lines = s.lines();
-
+    let mut hits = vec![];
     for line in lines{
-        let distance = distance("test123", line);
+        let distance = distance(term, line);
+        if distance < max_distance {
+            hits.push(line)
+        }
     }
     
     let ms = match now.elapsed() {
@@ -600,3 +605,6 @@ fn distance(s1: &str, s2: &str) -> u32 {
     column[len_s1]
 
 }
+
+
+

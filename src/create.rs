@@ -224,7 +224,7 @@ pub fn createFulltextIndex(dataStr:&str, path:&str, options:CreateIndexOptions) 
 
     File::create(path)?.write_all(allTerms.join("\n").as_bytes());
     util::write_index(&allTerms.iter().map(|ref el| el.len() as u32).collect::<Vec<_>>(), &(path.to_string()+".length"));
-    // creatCharOffsets(path, resolve)
+    creatCharOffsets(allTerms, path);
     Ok(())
 
 }
@@ -234,26 +234,63 @@ struct CharWithOffset {
     byteOffsetStart: usize
 }
 
+struct CharData {
+    lineNum: usize,
+    byteOffsetStart: usize
+}
+
+struct CharDataComplete {
+    suffix:String,
+    lineNum: usize,
+    byteOffsetStart: usize,
+    byteOffsetEnd: usize
+}
+
 pub fn creatCharOffsets(data:Vec<String>, path:&str){
 
     // let mut terms:FnvHashSet<String> = FnvHashSet::default();
-    let mut charToOffset:FnvHashMap<String, usize> = FnvHashMap::default();
+    let mut charToOffset:FnvHashMap<String, CharData> = FnvHashMap::default();
 
     let mut currentByteOffset = 0;
+    let mut lineNum = 0;
     for text in data {
         let char1 = text.chars().nth(0).map_or("".to_string(), |c| c.to_string());
         let char12 = char1.clone() + &text.chars().nth(1).map_or("".to_string(), |c| c.to_string());
 
         if !charToOffset.contains_key(&char1) {
-            charToOffset.insert(char1, currentByteOffset);
+            charToOffset.insert(char1, CharData{byteOffsetStart:currentByteOffset, lineNum:lineNum});
         }
 
         if !charToOffset.contains_key(&char12) {
-            charToOffset.insert(char12, currentByteOffset);
+            charToOffset.insert(char12, CharData{byteOffsetStart:currentByteOffset, lineNum:lineNum});
         }
 
         currentByteOffset += text.len() + 1;
+        lineNum+=1;
     }
+
+    let mut charOffsets:Vec<CharDataComplete> = charToOffset.iter().map(|(suffix, charData)| 
+        CharDataComplete{suffix:suffix.to_string(), lineNum:charData.lineNum, byteOffsetStart:charData.byteOffsetStart, byteOffsetEnd:0}
+    ).collect();
+    charOffsets.sort_by(|a, b| a.suffix.partial_cmp(&b.suffix).unwrap_or(Ordering::Equal));
+
+    // for ref mut charOffset in charOffsets {
+    //     charOffset.byteOffsetEnd = 10;
+
+    // }
+
+
+    for (i,ref mut charOffset) in charOffsets.iter().enumerate() {
+        let forwardLookNextEl = charOffsets.iter().skip(i).find(|&r| r.suffix.len() == charOffset.suffix.len());
+
+        // let el = forwardLookIter.unwrap();
+        // charOffset.byteOffsetEnd = 10;
+
+    }
+
+       // to_string() == "two"
+
+    // res
 
     // let offsets = []
 
@@ -304,7 +341,7 @@ mod test {
         };
 
         let dat2 = r#" [{ "name": "John Doe", "age": 43 }] "#;
-        
+
         let res = create::createFulltextIndex(dat2, "name", opt);
         assert_eq!("Hello", "Hello");
 

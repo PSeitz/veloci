@@ -12,7 +12,7 @@ extern crate futures_cpupool;
 extern crate tokio_timer;
 extern crate regex;
 extern crate fnv;
-
+extern crate fst;
 
 
 #[macro_use] extern crate lazy_static;
@@ -25,10 +25,59 @@ mod create;
 
 fn main() {
     
+
+    println!("{:?}",testfst());
+
     println!("Hello, world!");
 
     search::main2();
 }
+
+pub fn testfst() -> Result<(), fst::Error> {
+    use std::fs::File;
+    use std::io::prelude::*;
+    use std::io::{self, BufRead};
+
+    use std::time::Instant;
+    
+
+
+
+
+    let mut f = try!(File::open("words.txt"));
+    let mut s = String::new();
+    try!(f.read_to_string(&mut s));
+    let mut lines = s.split("\n").collect::<Vec<&str>>();
+    lines.sort();
+
+    println!("{:?}", lines.len());
+    use fst::{IntoStreamer, Streamer, Levenshtein, Set};
+
+    let now = Instant::now();
+
+    // A convenient way to create sets in memory.
+    // let keys = vec!["fa", "fo", "fob", "focus", "foo", "food", "foul", "hallowee"];
+    let set = try!(Set::from_iter(lines));
+
+    // Build our fuzzy query.
+    let lev = try!(Levenshtein::new("mund", 3));
+
+    // Apply our fuzzy query to the set we built.
+    let mut stream = set.search(lev).into_stream();
+
+    let keys = try!(stream.into_strs());
+
+    println!("{:?}", keys);
+
+    let elapsed = now.elapsed();
+    let sec = (elapsed.as_secs() as f64) + (elapsed.subsec_nanos() as f64 / 1000_000.0);
+    println!("ms: {}", sec);
+
+    // assert_eq!(keys, vec!["fo", "fob", "foo", "food"]);
+
+    Ok(())
+}
+
 
 
 #[test]
@@ -47,6 +96,7 @@ fn it_works() {
 
     // let dato = util::load_index("asdf").unwrap();
     // println!("LOAD {:?}", dato);
+
 
 }
 
