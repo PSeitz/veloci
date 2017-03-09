@@ -31,6 +31,7 @@ use util;
 use std::collections::hash_map::Entry;
 use fnv::FnvHashMap;
 
+use fnv::FnvHashSet;
 
 //-----
 use serde_json;
@@ -103,7 +104,7 @@ where F: FnMut(&str, u32, u32) { // value, valueId, parentValId   // TODO ADD Te
     }
 }
 
-use fnv::FnvHashSet;
+
 
 pub fn getAllterms(data:&Value, path:&str, options:&CreateIndexOptions) -> Vec<String>{
 

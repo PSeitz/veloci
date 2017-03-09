@@ -24,7 +24,9 @@ mod create;
 
 
 fn main() {
-    
+
+
+    println!("{:?}",testBuildFST());
 
     println!("{:?}",testfst());
 
@@ -33,16 +35,14 @@ fn main() {
     search::main2();
 }
 
+use fst::{IntoStreamer, Streamer, Levenshtein, Set, MapBuilder};
+use std::fs::File;
+use std::io::prelude::*;
+use std::io::{self, BufRead};
+use fnv::FnvHashSet;
+use std::time::Instant;
+
 pub fn testfst() -> Result<(), fst::Error> {
-    use std::fs::File;
-    use std::io::prelude::*;
-    use std::io::{self, BufRead};
-
-    use std::time::Instant;
-    
-
-
-
 
     let mut f = try!(File::open("words.txt"));
     let mut s = String::new();
@@ -51,7 +51,6 @@ pub fn testfst() -> Result<(), fst::Error> {
     lines.sort();
 
     println!("{:?}", lines.len());
-    use fst::{IntoStreamer, Streamer, Levenshtein, Set};
 
     let now = Instant::now();
 
@@ -78,6 +77,44 @@ pub fn testfst() -> Result<(), fst::Error> {
     Ok(())
 }
 
+fn splitAtFirst()  {
+
+    // lines.sort();
+    // let firsts = lines.into_iter().map(|line: &str| {
+    //     let splits = line.split(" ").collect::<Vec<&str>>();
+    //     splits[0].to_string()
+
+    // }).collect::<Vec<String>>();
+    // File::create("de_full_2.txt")?.write_all(firsts.join("\n").as_bytes());
+}
+
+fn testBuildFST() -> Result<(), fst::Error> {
+    let mut f = try!(File::open("de_full_2.txt"));
+    let mut s = String::new();
+    try!(f.read_to_string(&mut s));
+    let mut lines = s.lines().collect::<Vec<&str>>();
+    println!("lines: {:?}", lines.len());
+
+
+
+    let mut wtr = io::BufWriter::new(try!(File::create("map.fst")));
+    // Create a builder that can be used to insert new key-value pairs.
+    let mut build = try!(MapBuilder::new(wtr));
+
+    let mut i = 0;
+    for line in lines {
+        build.insert(line, i).unwrap();
+        i += 1;
+    }
+
+    // println!("mapsize: {:?}", build.len());
+    // println!("lines: {:?}", lines.len());
+    // println(dupl_terms_checker.len())
+    // Finish construction of the map and flush its contents to disk.
+    try!(build.finish());
+
+    Ok(())
+}
 
 
 #[test]
