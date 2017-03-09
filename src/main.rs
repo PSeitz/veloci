@@ -2,7 +2,6 @@
 
 extern crate test;
 
-#[macro_use]
 extern crate serde_json;
 
 extern crate serde;
@@ -13,6 +12,19 @@ extern crate tokio_timer;
 extern crate regex;
 extern crate fnv;
 extern crate fst;
+
+#[allow(unused_imports)]
+use fst::{IntoStreamer, Streamer, Levenshtein, Set, MapBuilder};
+use std::fs::File;
+use std::io::prelude::*;
+#[allow(unused_imports)]
+use std::io::{self, BufRead};
+#[allow(unused_imports)]
+use fnv::FnvHashSet;
+#[allow(unused_imports)]
+use std::collections::HashSet;
+use std::collections::HashMap;
+use fnv::FnvHashMap;
 
 
 #[macro_use] extern crate lazy_static;
@@ -26,7 +38,7 @@ mod create;
 fn main() {
 
 
-    println!("{:?}",testBuildFST());
+    println!("{:?}",test_build_f_s_t());
 
     println!("{:?}",testfst());
 
@@ -35,20 +47,16 @@ fn main() {
     search::main2();
 }
 
-use fst::{IntoStreamer, Streamer, Levenshtein, Set, MapBuilder};
-use std::fs::File;
-use std::io::prelude::*;
-use std::io::{self, BufRead};
-use fnv::FnvHashSet;
+
 use std::time::Instant;
 
 pub fn testfst() -> Result<(), fst::Error> {
 
-    let mut f = try!(File::open("words.txt"));
+    let mut f = try!(File::open("de_full_2.txt"));
     let mut s = String::new();
     try!(f.read_to_string(&mut s));
-    let mut lines = s.split("\n").collect::<Vec<&str>>();
-    lines.sort();
+    let lines = s.lines().collect::<Vec<&str>>();
+    // lines.sort();
 
     println!("{:?}", lines.len());
 
@@ -59,10 +67,10 @@ pub fn testfst() -> Result<(), fst::Error> {
     let set = try!(Set::from_iter(lines));
 
     // Build our fuzzy query.
-    let lev = try!(Levenshtein::new("mund", 3));
+    let lev = try!(Levenshtein::new("anschauen", 2));
 
     // Apply our fuzzy query to the set we built.
-    let mut stream = set.search(lev).into_stream();
+    let stream = set.search(lev).into_stream();
 
     let keys = try!(stream.into_strs());
 
@@ -77,27 +85,26 @@ pub fn testfst() -> Result<(), fst::Error> {
     Ok(())
 }
 
-fn splitAtFirst()  {
+// fn split_at_first()  {
 
-    // lines.sort();
-    // let firsts = lines.into_iter().map(|line: &str| {
-    //     let splits = line.split(" ").collect::<Vec<&str>>();
-    //     splits[0].to_string()
+//     lines.sort();
+//     let firsts = lines.into_iter().map(|line: &str| {
+//         let splits = line.split(" ").collect::<Vec<&str>>();
+//         splits[0].to_string()
 
-    // }).collect::<Vec<String>>();
-    // File::create("de_full_2.txt")?.write_all(firsts.join("\n").as_bytes());
-}
+//     }).collect::<Vec<String>>();
+//     File::create("de_full_2.txt")?.write_all(firsts.join("\n").as_bytes());
+// }
 
-fn testBuildFST() -> Result<(), fst::Error> {
+fn test_build_f_s_t() -> Result<(), fst::Error> {
     let mut f = try!(File::open("de_full_2.txt"));
     let mut s = String::new();
     try!(f.read_to_string(&mut s));
-    let mut lines = s.lines().collect::<Vec<&str>>();
+    let lines = s.lines().collect::<Vec<&str>>();
     println!("lines: {:?}", lines.len());
 
 
-
-    let mut wtr = io::BufWriter::new(try!(File::create("map.fst")));
+    let wtr = io::BufWriter::new(try!(File::create("map.fst")));
     // Create a builder that can be used to insert new key-value pairs.
     let mut build = try!(MapBuilder::new(wtr));
 
@@ -137,9 +144,6 @@ fn it_works() {
 
 }
 
-use std::collections::HashSet;
-use std::collections::HashMap;
-use fnv::FnvHashMap;
 
 extern crate bit_set;
 
@@ -199,7 +203,7 @@ pub fn bench_vc_scoreonly_insert(num_hits: u32, token_hits: u32){
 
 pub fn bench_bucketed_insert(num_hits: u32, token_hits: u32){
 
-    let mut scores = Bucketed_ScoreList{arr: vec![]};
+    let mut scores = BucketedScoreList{arr: vec![]};
     for x in 0..num_hits {
         scores.insert((x * 8) as u64, 0.22);
     }
@@ -229,12 +233,12 @@ pub fn bench_bucketed_insert(num_hits: u32, token_hits: u32){
 // }
 
 
-struct Bucketed_ScoreList {
+struct BucketedScoreList {
     arr: Vec<Vec<f32>>
 }
 
 use std::process;
-impl Bucketed_ScoreList {
+impl BucketedScoreList {
     fn insert(& mut self, index: u64, value:f32) {
         // let bucket = (index & 0b0000000000001111) as usize;
         // let pos = (index - 1024 * bucket as u32) as usize;
@@ -268,14 +272,14 @@ impl Bucketed_ScoreList {
             self.arr[bucket].get(pos)
         }
     }
-    fn num_values(&self){
+    // fn num_values(&self){
         // self.arr.iter()
         //     .fold(0, |acc2, &subArr| {
         //         acc2 + subArr.iter.fold(0, |acc, &x| {
         //             if x == 0 { acc } else { acc + 1 }
         //         })
         //     })
-    }
+    // }
 }
 
 // pub fn quadratic_yes() {
@@ -303,19 +307,18 @@ pub fn quadratic_no(num_hits: u32) {
 
 
 
-static K1K: u32 =   1000;
-static K3K: u32 =  3000;
+// static K1K: u32 =   1000;
+// static K3K: u32 =  3000;
 // static K10K: u32 =  10000;
 // static K100K: u32 = 100000;
-static K300K: u32 = 300000;
-static K500K: u32 = 500000;
-static K3MIO: u32 = 3000000;
+// static K300K: u32 = 300000;
+// static K500K: u32 = 500000;
+// static K3MIO: u32 = 3000000;
 // static MIO: u32 =   1000000;
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use test::Bencher;
+    // use test::Bencher;
 
     // #[bench]
     // fn bench_fnvhashmap_insert_(b: &mut Bencher) {

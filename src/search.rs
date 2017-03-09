@@ -94,7 +94,7 @@ fn main3() {
 
 
 pub fn main2() {
-    test_levenshtein("mund", 3);
+    test_levenshtein("anschauen", 2);
 
     main3();
     // let stream = getTextLines2();
@@ -542,7 +542,7 @@ fn test_levenshtein(term:&str, max_distance:u32) -> Result<(), io::Error> {
     use std::time::SystemTime;
     let now = SystemTime::now();
 
-    let mut f = try!(File::open("words.txt"));
+    let mut f = try!(File::open("de_full_2.txt"));
 
     let mut s = String::new();
     try!(f.read_to_string(&mut s));
