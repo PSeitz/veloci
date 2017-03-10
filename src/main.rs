@@ -37,6 +37,8 @@ mod create;
 
 fn main() {
 
+    let wa = "💩";
+    println!("wa {:?}",wa.chars().count());
 
     println!("{:?}",test_build_f_s_t());
 
@@ -61,6 +63,8 @@ pub fn testfst() -> Result<(), fst::Error> {
     println!("{:?}", lines.len());
 
     let now = Instant::now();
+
+
 
     // A convenient way to create sets in memory.
     // let keys = vec!["fa", "fo", "fob", "focus", "foo", "food", "foul", "hallowee"];
@@ -126,14 +130,14 @@ fn test_build_f_s_t() -> Result<(), fst::Error> {
 
 #[test]
 fn it_works() {
-    assert_eq!(util::normalizeText("Hello"), "Hello");
-    assert_eq!(util::normalizeText("(Hello)"), "Hello");
-    assert_eq!(util::normalizeText("\"H,ell-;o"), "Hello");
-    assert_eq!(util::normalizeText("Hello(f)"), "Hello");
-    assert_eq!(util::normalizeText("Hello(2)"), "Hello");
+    assert_eq!(util::normalize_text("Hello"), "Hello");
+    assert_eq!(util::normalize_text("(Hello)"), "Hello");
+    assert_eq!(util::normalize_text("\"H,ell-;o"), "Hello");
+    assert_eq!(util::normalize_text("Hello(f)"), "Hello");
+    assert_eq!(util::normalize_text("Hello(2)"), "Hello");
 
-    assert_eq!(util::removeArrayMarker("Hello[]"), "Hello");
-    assert_eq!(util::removeArrayMarker("Hello[].ja"), "Hello.ja");
+    assert_eq!(util::remove_array_marker("Hello[]"), "Hello");
+    assert_eq!(util::remove_array_marker("Hello[].ja"), "Hello.ja");
 
     // let mut data = vec![2, 30];
     // util::write_index(&data, "asdf");

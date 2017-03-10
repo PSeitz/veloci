@@ -7,8 +7,8 @@ use std::fs::File;
 
 use std::borrow::Cow;
 
-pub fn normalizeText(text:&str) -> String {
-    
+pub fn normalize_text(text:&str) -> String {
+
     lazy_static! {
         static ref REGEXES:Vec<(Regex, & 'static str)> = vec![
             (Regex::new(r"([fmn\d])").unwrap(), " "),
@@ -75,7 +75,7 @@ pub fn getLevel(path:&str) -> u32{
     path.matches("[]").count() as u32
 }
 
-pub fn removeArrayMarker(path:&str) -> String{
+pub fn remove_array_marker(path:&str) -> String{
     path.split(".").collect::<Vec<_>>()
     .iter().map(|el| {
         if el.ends_with("[]") {

@@ -273,7 +273,7 @@ pub fn searchUnrolled(request: Request) -> FnvHashMap<u32, f32>{
 pub fn searchRaw(request: Request) -> FnvHashMap<u32, f32> {
 
     let ref path = request.search.path;
-    let term = util::normalizeText(&request.search.term);
+    let term = util::normalize_text(&request.search.term);
 
 
     let mut hits = getHitsInField(&path, request.search.options, &term);

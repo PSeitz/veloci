@@ -114,10 +114,9 @@ where F: FnMut(&str, u32, u32) {
 fn for_each_element_in_path<F>(data: &Value, opt: &mut ForEachOpt, path2:&str, cb: &mut F)
 where F: FnMut(&str, u32, u32) { // value, value_id, parent_val_id   // TODO ADD Template for Value
 
-    let path = util::removeArrayMarker(path2);
+    let path = util::remove_array_marker(path2);
     let paths = path.split(".").collect::<Vec<_>>();
     println!("JAAAA:: {:?}", paths);
-    
 
     if data.is_array(){
         // let startMainId = parent_pos_in_path == 0 ? current_parent_id_counter : 0
@@ -143,9 +142,8 @@ pub fn get_allterms(data:&Value, path:&str, options:&CreateIndexOptions) -> Vec<
         path: path.to_string(),
     };
 
-
     for_each_element_in_path(&data, &mut opt, &path,  &mut |value: &str, value_id: u32, parent_val_id: u32| {
-        let normalized_text = util::normalizeText(value);
+        let normalized_text = util::normalize_text(value);
         if options.stopwords.contains(&(&normalized_text as &str)) {
             return;
         }
@@ -211,7 +209,7 @@ pub fn createFulltextIndex(data_str:&str, path:&str, options:CreateIndexOptions)
 
         if isTextIndex {
             for_each_element_in_path(&data, &mut opt, &paths[i], &mut |value: &str, value_id: u32, parent_val_id: u32| {
-                let normalized_text = util::normalizeText(value);
+                let normalized_text = util::normalize_text(value);
                 // if isInStopWords(normalized_text, options) continue/return
 
                 let valId = all_terms.binary_search(&value.to_string()).unwrap();
