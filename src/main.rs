@@ -1,6 +1,6 @@
 #![feature(test)]
 
-extern crate test;
+// extern crate test;
 
 extern crate serde_json;
 
@@ -29,11 +29,12 @@ use fnv::FnvHashMap;
 
 #[macro_use] extern crate lazy_static;
 
+
 // extern crate rustc_serialize;
 mod util;
 mod search;
 mod create;
-
+mod test;
 
 fn main() {
 
@@ -361,3 +362,5 @@ mod tests {
     // }
 
 }
+
+

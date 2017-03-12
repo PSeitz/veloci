@@ -19,18 +19,18 @@ pub fn normalize_text(text:&str) -> String {
             (Regex::new(r"[;・’-]").unwrap(), "") // remove ;・’-
         ];
     }
-    let mut newStr = text.to_owned();
+    let mut new_str = text.to_owned();
     for ref tupl in &*REGEXES {
-        newStr = (tupl.0).replace_all(&newStr, tupl.1).into_owned();
+        new_str = (tupl.0).replace_all(&new_str, tupl.1).into_owned();
     }
 
-    newStr.trim().to_owned()
+    new_str.trim().to_owned()
 
 }
 
-pub fn getPathName(pathToAnchor: &str, isTextIndexPart:bool) -> String{
-    let suffix = if isTextIndexPart {".textindex"}else{""};
-    pathToAnchor.to_owned() + suffix
+pub fn get_path_name(path_to_anchor: &str, is_text_indexPart:bool) -> String{
+    let suffix = if is_text_indexPart {".textindex"}else{""};
+    path_to_anchor.to_owned() + suffix
 }
 
 pub fn load_index(s1: &str) -> Result<(Vec<u32>), io::Error> {
@@ -55,7 +55,6 @@ pub fn load_index(s1: &str) -> Result<(Vec<u32>), io::Error> {
 }
 
 pub fn write_index(data:&Vec<u32>, path:&str) -> Result<(), io::Error> {
-
     // let read: Vec<u8> = unsafe { mem::transmute(data) };
     // File::create(path)?.write_all(&read);
     let v_from_raw:Vec<u8> = unsafe {
@@ -64,14 +63,24 @@ pub fn write_index(data:&Vec<u32>, path:&str) -> Result<(), io::Error> {
                             data.len() * 4,
                             data.capacity())
     };
-
     File::create(path)?.write_all(v_from_raw.as_slice());
-
     Ok(())
-
 }
 
-pub fn getLevel(path:&str) -> u32{
+pub fn write_index64(data:&Vec<u64>, path:&str) -> Result<(), io::Error> {
+    // let read: Vec<u8> = unsafe { mem::transmute(data) };
+    // File::create(path)?.write_all(&read);
+    let v_from_raw:Vec<u8> = unsafe {
+        // let x_ptr:*mut u8 = data.as_mut_ptr() as *mut u8;
+        Vec::from_raw_parts(mem::transmute::<*const u64, *mut u8>(data.as_ptr()),
+                            data.len() * 8,
+                            data.capacity())
+    };
+    File::create(path)?.write_all(v_from_raw.as_slice());
+    Ok(())
+}
+
+pub fn get_level(path:&str) -> u32{
     path.matches("[]").count() as u32
 }
 
@@ -87,7 +96,7 @@ pub fn remove_array_marker(path:&str) -> String{
 }
 
 
-pub fn getStepsToAnchor(path:&str) -> Vec<String> {
+pub fn get_steps_to_anchor(path:&str) -> Vec<String> {
     
     let mut paths = vec![];
     let mut current = vec![];

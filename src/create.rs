@@ -3,55 +3,28 @@ use std::fs::File;
 use std::io::prelude::*;
 #[allow(unused_imports)]
 use std::io::{self, BufRead};
-// use std::io::Error;
-#[allow(unused_imports)]
-use std::path::Path;
-#[allow(unused_imports)]
-use std::char;
-#[allow(unused_imports)]
-use std::cmp;
-#[allow(unused_imports)]
-use std::mem;
 #[allow(unused_imports)]
 use std::time::Duration;
 
 #[allow(unused_imports)]
 use futures_cpupool::CpuPool;
-#[allow(unused_imports)]
-use tokio_timer::Timer;
 
 #[allow(unused_imports)]
-use futures::{Poll, Future, Sink};
-#[allow(unused_imports)]
-use futures::executor;
+use futures::{Poll, Future, Sink, executor};
 #[allow(unused_imports)]
 use futures::future::{ok, err};
 #[allow(unused_imports)]
-use futures::stream::{iter, Peekable, BoxStream, channel, Stream};
+use futures::stream::{iter, Peekable, BoxStream, Stream};
 #[allow(unused_imports)]
-use futures::sync::oneshot;
-#[allow(unused_imports)]
-use futures::sync::mpsc;
-#[allow(unused_imports)]
-use std::str;
+use futures::sync::{oneshot, mpsc};
 #[allow(unused_imports)]
 use std::thread;
 #[allow(unused_imports)]
-use std::fmt;
-#[allow(unused_imports)]
 use std::sync::mpsc::sync_channel;
-#[allow(unused_imports)]
-use std::fs;
 
 #[allow(unused_imports)]
 use std::io::SeekFrom;
-#[allow(unused_imports)]
-use std::collections::HashMap;
 use util;
-#[allow(unused_imports)]
-use std::collections::hash_map::Entry;
-use fnv::FnvHashMap;
-
 use fnv::FnvHashSet;
 
 #[allow(unused_imports)]
@@ -59,7 +32,6 @@ use std::sync::{Arc, Mutex};
 #[allow(unused_imports)]
 use std::cmp::Ordering;
 
-//-----
 use serde_json;
 use serde_json::Value;
 
@@ -72,8 +44,7 @@ pub struct CreateIndexOptions<'a> {
 struct ForEachOpt {
     parent_pos_in_path: u32,
     current_parent_id_counter: u32,
-    value_id_counter: u32,
-    path: String,
+    value_id_counter: u32
 }
 
 fn walk<F>(current_el: &Value, start_pos: u32, opt: &mut ForEachOpt, paths:&Vec<&str>, cb: &mut F)
@@ -138,11 +109,10 @@ pub fn get_allterms(data:&Value, path:&str, options:&CreateIndexOptions) -> Vec<
     let mut opt = ForEachOpt {
         parent_pos_in_path: 0,
         current_parent_id_counter: 0,
-        value_id_counter: 0,
-        path: path.to_string(),
+        value_id_counter: 0
     };
 
-    for_each_element_in_path(&data, &mut opt, &path,  &mut |value: &str, value_id: u32, parent_val_id: u32| {
+    for_each_element_in_path(&data, &mut opt, &path,  &mut |value: &str, _value_id: u32, _parent_val_id: u32| {
         let normalized_text = util::normalize_text(value);
         if options.stopwords.contains(&(&normalized_text as &str)) {
             return;
@@ -166,67 +136,55 @@ pub fn get_allterms(data:&Value, path:&str, options:&CreateIndexOptions) -> Vec<
 }
 
 
-// fn getValueID(data, value){
-//     return binarySearch(data, value)
-// }
-
-// fn isInStopWords(term:&str, stopwords:&Vec<&str>) -> bool{
-//     stopwords.contains(&term)
-//     // return stopwords.indexOf(term) >= 0
-// }
-
 // #[derive(Debug)]
-struct Tuple {
+struct ValIdPair {
     valid: u32,
     parent_val_id:u32
 }
 
 
+pub fn create_fulltext_index(data_str:&str, path:&str, options:CreateIndexOptions) -> Result<(), io::Error> {
 
-pub fn createFulltextIndex(data_str:&str, path:&str, options:CreateIndexOptions) -> Result<(), io::Error> {
-
-    // let dat2 = r#" { "name": "John Doe", "age": 43, ... } "#;
     let data: Value = serde_json::from_str(data_str).unwrap();
-
     let all_terms = get_allterms(&data, path, &options);
 
-    let paths = util::getStepsToAnchor(path);
+    let paths = util::get_steps_to_anchor(path);
 
     for i in 0..(paths.len() - 1) {
 
-        let level = util::getLevel(&paths[i]);
-        let mut tuples:Vec<Tuple> = vec![];
-        let mut tokens:Vec<Tuple> = vec![];
+        let level = util::get_level(&paths[i]);
+        let mut tuples:Vec<ValIdPair> = vec![];
+        let mut tokens:Vec<ValIdPair> = vec![];
 
-        let isTextIndex = (i == (paths.len() -1));
+        let is_text_index = i == (paths.len() -1);
 
         let mut opt = ForEachOpt {
             parent_pos_in_path: level-1,
             current_parent_id_counter: 0,
-            value_id_counter: 0,
-            path: paths[i].clone(),
+            value_id_counter: 0
         };
 
-        if isTextIndex {
-            for_each_element_in_path(&data, &mut opt, &paths[i], &mut |value: &str, value_id: u32, parent_val_id: u32| {
+        if is_text_index {
+            for_each_element_in_path(&data, &mut opt, &paths[i], &mut |value: &str, value_id: u32, _parent_val_id: u32| {
                 let normalized_text = util::normalize_text(value);
+                if options.stopwords.contains(&(&normalized_text as &str)) { return; }
                 // if isInStopWords(normalized_text, options) continue/return
 
-                let valId = all_terms.binary_search(&value.to_string()).unwrap();
-                tuples.push(Tuple{valid:valId as u32, parent_val_id:value_id});
-                if (options.tokenize && normalized_text.split(" ").count() > 1) {
+                let val_id = all_terms.binary_search(&value.to_string()).unwrap();
+                tuples.push(ValIdPair{valid:val_id as u32, parent_val_id:value_id});
+                if options.tokenize && normalized_text.split(" ").count() > 1 {
                     for token in normalized_text.split(" ") {
                         if options.stopwords.contains(&token) { continue; }
                         // terms.insert(token.to_string());
-                        let valId = all_terms.binary_search(&token.to_string()).unwrap();
-                        tokens.push(Tuple{valid:valId as u32, parent_val_id:value_id});
+                        let val_id = all_terms.binary_search(&token.to_string()).unwrap();
+                        tokens.push(ValIdPair{valid:val_id as u32, parent_val_id:value_id});
                     }
                 }
 
             });
         }else{
-            let mut callback = |value: &str, value_id: u32, parent_val_id: u32| {
-                tuples.push(Tuple{valid:value_id, parent_val_id:parent_val_id});
+            let mut callback = |_value: &str, value_id: u32, parent_val_id: u32| {
+                tuples.push(ValIdPair{valid:value_id, parent_val_id:parent_val_id});
             };
 
             for_each_element_in_path(&data, &mut opt, &paths[i], &mut callback);
@@ -234,120 +192,89 @@ pub fn createFulltextIndex(data_str:&str, path:&str, options:CreateIndexOptions)
         }
 
         tuples.sort_by(|a, b| a.valid.partial_cmp(&b.valid).unwrap_or(Ordering::Equal));
-        let pathName = util::getPathName(&paths[i], isTextIndex);
-        util::write_index(&tuples.iter().map(|ref el| el.valid      ).collect::<Vec<_>>(), &(pathName.to_string()+".valueIdToParent.valIds"));
-        util::write_index(&tuples.iter().map(|ref el| el.parent_val_id).collect::<Vec<_>>(), &(pathName.to_string()+".valueIdToParent.mainIds"));
+        let path_name = util::get_path_name(&paths[i], is_text_index);
+        util::write_index(&tuples.iter().map(|ref el| el.valid      ).collect::<Vec<_>>(), &(path_name.to_string()+".valueIdToParent.val_ids"))?;
+        util::write_index(&tuples.iter().map(|ref el| el.parent_val_id).collect::<Vec<_>>(), &(path_name.to_string()+".valueIdToParent.mainIds"))?;
 
-        if (tokens.len() > 0) {
+        if tokens.len() > 0 {
             tokens.sort_by(|a, b| a.valid.partial_cmp(&b.valid).unwrap_or(Ordering::Equal));
-            util::write_index(&tokens.iter().map(|ref el| el.valid      ).collect::<Vec<_>>(), &(path.to_string()+".tokens.tokenValIds"));
-            util::write_index(&tokens.iter().map(|ref el| el.parent_val_id).collect::<Vec<_>>(), &(path.to_string()+".tokens.parent_val_id"));
+            util::write_index(&tokens.iter().map(|ref el| el.valid      ).collect::<Vec<_>>(), &(path.to_string()+".tokens.tokenValIds"))?;
+            util::write_index(&tokens.iter().map(|ref el| el.parent_val_id).collect::<Vec<_>>(), &(path.to_string()+".tokens.parent_val_id"))?;
         }
 
     }
 
-    File::create(path)?.write_all(all_terms.join("\n").as_bytes());
-    util::write_index(&all_terms.iter().map(|ref el| el.len() as u32).collect::<Vec<_>>(), &(path.to_string()+".length"));
-    creatCharOffsets(all_terms, path);
+    File::create(path)?.write_all(all_terms.join("\n").as_bytes())?;
+    util::write_index(&all_terms.iter().map(|ref el| el.len() as u32).collect::<Vec<_>>(), &(path.to_string()+".length"))?;
+    create_char_offsets(all_terms, path)?;
     Ok(())
 
 }
 
-struct CharWithOffset {
-    char: String,
-    byte_offset_start: usize
-}
-
+#[derive(Debug, Clone)]
 struct CharData {
-    line_num: usize,
-    byte_offset_start: usize
+    suffix:String,
+    line_num: u32,
+    byte_offset_start: u64
 }
 
+impl PartialEq for CharData {
+    fn eq(&self, other: &CharData) -> bool {
+        self.suffix == other.suffix
+    }
+}
+
+
+#[derive(Debug, Clone)]
 struct CharDataComplete {
     suffix:String,
-    line_num: usize,
-    byte_offset_start: usize,
-    byteOffsetEnd: usize
+    line_num: u32,
+    byte_offset_start: u64,
+    byte_offset_end: u64
 }
 
-pub fn creatCharOffsets(data:Vec<String>, path:&str){
+pub fn create_char_offsets(data:Vec<String>, path:&str) -> Result<(), io::Error> {
 
-    // let mut terms:FnvHashSet<String> = FnvHashSet::default();
-    let mut charToOffset:FnvHashMap<String, CharData> = FnvHashMap::default();
+    let mut char_offsets:Vec<CharData> = vec![];
 
-    let mut currentByteOffset = 0;
+    let mut current_byte_offset = 0;
     let mut line_num = 0;
     for text in data {
         let char1 = text.chars().nth(0).map_or("".to_string(), |c| c.to_string());
         let char12 = char1.clone() + &text.chars().nth(1).map_or("".to_string(), |c| c.to_string());
 
-        if !charToOffset.contains_key(&char1) {
-            charToOffset.insert(char1, CharData{byte_offset_start:currentByteOffset, line_num:line_num});
+        if !char_offsets.iter().any(|ref x| x.suffix == char1) {
+            char_offsets.push(CharData{suffix:char1, byte_offset_start:current_byte_offset, line_num:line_num});
         }
 
-        if !charToOffset.contains_key(&char12) {
-            charToOffset.insert(char12, CharData{byte_offset_start:currentByteOffset, line_num:line_num});
+        if !char_offsets.iter().any(|ref x| x.suffix == char12) {
+            char_offsets.push(CharData{suffix:char12, byte_offset_start:current_byte_offset, line_num:line_num});
         }
 
-        currentByteOffset += text.len() + 1;
+        current_byte_offset += text.len() as u64 + 1;
         line_num+=1;
     }
 
-    let mut charOffsets:Vec<CharDataComplete> = charToOffset.iter().map(|(suffix, charData)| 
-        CharDataComplete{suffix:suffix.to_string(), line_num:charData.line_num, byte_offset_start:charData.byte_offset_start, byteOffsetEnd:0}
-    ).collect();
-    charOffsets.sort_by(|a, b| a.suffix.partial_cmp(&b.suffix).unwrap_or(Ordering::Equal));
+    let mut char_offsets_complete:Vec<CharDataComplete> = vec![];
 
-    // for ref mut charOffset in charOffsets {
-    //     charOffset.byteOffsetEnd = 10;
-
-    // }
-
-
-    for (i,ref mut charOffset) in charOffsets.iter().enumerate() {
-        let forwardLookNextEl = charOffsets.iter().skip(i).find(|&r| r.suffix.len() == charOffset.suffix.len());
-
-        // let el = forwardLookIter.unwrap();
-        // charOffset.byteOffsetEnd = 10;
-
+    for (i,ref mut char_offset) in char_offsets.iter().enumerate() {
+        let forward_look_next_el = char_offsets.iter().skip(i+1).find(|&r| r.suffix.len() == char_offset.suffix.len());
+        // println!("{:?}", forward_look_next_el);
+        let byte_offset_end = forward_look_next_el.map_or(current_byte_offset, |v| v.byte_offset_start-1);
+        char_offsets_complete.push(CharDataComplete{
+            suffix:char_offset.suffix.to_string(), 
+            line_num:char_offset.line_num, 
+            byte_offset_start:char_offset.byte_offset_start, 
+            byte_offset_end:byte_offset_end});
     }
 
-       // to_string() == "two"
+    util::write_index64(&char_offsets_complete.iter().map(|ref el| el.byte_offset_start).collect::<Vec<_>>(), &(path.to_string()+".char_offsets.byteOffsetsStart"))?;
+    util::write_index64(&char_offsets_complete.iter().map(|ref el| el.byte_offset_end  ).collect::<Vec<_>>(), &(path.to_string()+".char_offsets.byteOffsetsEnd"))?;
+    util::write_index(&char_offsets_complete.iter().map(|ref el| el.line_num         ).collect::<Vec<_>>(), &(path.to_string()+".char_offsets.lineOffset"))?;
 
-    // res
+    File::create(path)?.write_all(&char_offsets_complete.iter().map(|ref el| el.suffix.to_string()).collect::<Vec<_>>().join("\n").as_bytes())?;
 
-    // let offsets = []
-
-    // let currentSingleChar, currentSecondChar
-    // let byteOffset = 0, line_num = 0, currentChar, currentTwoChar
-    // rl.on('line', (line) => {
-    //     let firstCharOfLine = line.charAt(0)
-    //     let firstTwoCharOfLine = line.charAt(0) + line.charAt(1)
-    //     if(currentChar != firstCharOfLine){
-    //         currentChar = firstCharOfLine
-    //         if(currentSingleChar) currentSingleChar.byteOffsetEnd = byteOffset
-    //         currentSingleChar = {char: currentChar, byte_offset_start:byteOffset, lineOffset:line_num}
-    //         offsets.push(currentSingleChar)
-    //         console.log(`${currentChar} ${byteOffset} ${line_num}`)
-    //     }
-    //     if(currentTwoChar != firstTwoCharOfLine){
-    //         currentTwoChar = firstTwoCharOfLine
-    //         if(currentSecondChar) currentSecondChar.byteOffsetEnd = byteOffset
-    //         currentSecondChar = {char: currentTwoChar, byte_offset_start:byteOffset, lineOffset:line_num}
-    //         offsets.push(currentSecondChar)
-    //         console.log(`${currentTwoChar} ${byteOffset} ${line_num}`)
-    //     }
-    //     byteOffset+= Buffer.byteLength(line, 'utf8') + 1 // linebreak = 1
-    //     line_num++
-    // }).on('close', () => {
-    //     if(currentSingleChar) currentSingleChar.byteOffsetEnd = byteOffset
-    //     if(currentSecondChar) currentSecondChar.byteOffsetEnd = byteOffset
-    //     writeFileSync(path+'.charOffsets.chars', JSON.stringify(offsets.map(offset=>offset.char)))
-    //     writeFileSync(path+'.charOffsets.byteOffsetsStart',     new Buffer(new Uint32Array(offsets.map(offset=>offset.byte_offset_start)).buffer))
-    //     writeFileSync(path+'.charOffsets.byteOffsetsEnd',  new Buffer(new Uint32Array(offsets.map(offset=>offset.byteOffsetEnd)).buffer))
-    //     writeFileSync(path+'.charOffsets.lineOffset',  new Buffer(new Uint32Array(offsets.map(offset=>offset.lineOffset)).buffer))
-    //     resolve()
-    // })
+    Ok(())
 }
 
 
@@ -362,9 +289,9 @@ mod test {
             stopwords: vec![]
         };
 
-        let dat2 = r#" [{ "name": "John Doe", "age": 43 }] "#;
+        let dat2 = r#" [{ "name": "John Doe", "age": 43 }, { "name": "Jaa", "age": 43 }] "#;
 
-        let res = create::createFulltextIndex(dat2, "name", opt);
+        create::create_fulltext_index(dat2, "name", opt);
         assert_eq!("Hello", "Hello");
 
     }
