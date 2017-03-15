@@ -1,5 +1,3 @@
-#![feature(test)]
-
 // extern crate test;
 
 #[macro_use]
@@ -144,12 +142,6 @@ fn it_works() {
 
     assert_eq!(util::remove_array_marker("Hello[]"), "Hello");
     assert_eq!(util::remove_array_marker("Hello[].ja"), "Hello.ja");
-
-    // let mut data = vec![2, 30];
-    // util::write_index(&data, "asdf");
-
-    // let dato = util::load_index("asdf").unwrap();
-    // println!("LOAD {:?}", dato);
 
 
 }

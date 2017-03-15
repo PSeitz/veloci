@@ -22,7 +22,7 @@ use futures::executor;
 #[allow(unused_imports)]
 use futures::future::{ok, err};
 #[allow(unused_imports)]
-use futures::stream::{iter, Peekable, BoxStream, channel, Stream};
+use futures::stream::{iter, Peekable, BoxStream, Stream};
 #[allow(unused_imports)]
 use futures::sync::oneshot;
 #[allow(unused_imports)]
@@ -30,7 +30,6 @@ use futures::sync::mpsc;
 use std::str;
 #[allow(unused_imports)]
 use std::thread;
-use std::fmt;
 #[allow(unused_imports)]
 use std::sync::mpsc::sync_channel;
 use std::fs;
@@ -277,6 +276,7 @@ pub fn search_raw(request: Request) -> FnvHashMap<u32, f32> {
     for i in (paths.len()-1)..0 {
         let ref path = paths[i];
         let is_last = i == (paths.len() -1);
+        println!("{:?}", is_last); // TODO handle is_last
 
         let kv_store = IndexKeyValueStore::new(&(path.to_string()+".value_idToParent.val_ids"), &(path.to_string()+".value_idToParent.mainIds"));
         for (value_id, score) in &hits {
@@ -400,7 +400,8 @@ fn get_hits_in_field(path: &str, options: &SearchOptions, term: &str) -> FnvHash
                 hits.insert(line_pos, score);
             }
         };
-        get_text_lines(path, value, teh_callback);
+        let result = get_text_lines(path, value, teh_callback);
+        println!("{:?}", result); // TODO: Forward
     }
     hits
 
@@ -487,7 +488,7 @@ fn add_token_results(hits: &mut FnvHashMap<u32, f32>, path:&str){
 
 
 #[inline(always)]
-fn get_text_lines<F>(path: &str,character: Option<&str>, mut fun: F)
+fn get_text_lines<F>(path: &str,character: Option<&str>, mut fun: F) -> Result<(), io::Error>
 where F: FnMut(&str, u32) {
 
     let char_offset_info_opt = if character.is_some() { Some(get_create_char_offset_info(path, character.unwrap())) } else { None };
@@ -497,7 +498,7 @@ where F: FnMut(&str, u32) {
         let mut buffer:Vec<u8> = Vec::with_capacity((char_offset_info.byte_range_end - char_offset_info.byte_range_start) as usize);
         unsafe { buffer.set_len(char_offset_info.byte_range_end as usize - char_offset_info.byte_range_start as usize); }
 
-        f.seek(SeekFrom::Start(char_offset_info.byte_range_start as u64));
+        f.seek(SeekFrom::Start(char_offset_info.byte_range_start as u64))?;
         f.read_exact(&mut buffer).unwrap();
         let s = unsafe {str::from_utf8_unchecked(&buffer)};
 
@@ -518,6 +519,8 @@ where F: FnMut(&str, u32) {
             fun(&line, line_pos as u32)
         }
     }
+
+    Ok(())
 }
 
 

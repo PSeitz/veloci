@@ -36,13 +36,33 @@ use serde_json;
 use serde_json::Value;
 
 
-#[derive(Serialize, Deserialize)]
+// #[derive(Serialize, Deserialize)]
+// pub struct CreateIndex {
+//     boost: Option<BoostIndexOptions>,
+//     fulltext:  Option<FulltextIndexOptions>,
+
+// }
+
+#[derive(Serialize, Deserialize, Debug)]
+#[serde(untagged)]
+pub enum CreateIndex {
+    Fulltext { fulltext: String, options: FulltextIndexOptions },
+    Boost { boost: String, options: BoostIndexOptions },
+}
+
+#[derive(Serialize, Deserialize, Debug)]
 pub struct FulltextIndexOptions {
     tokenize: bool,
     stopwords: Vec<String>
 }
 
-#[derive(Serialize, Deserialize)]
+// #[derive(Serialize, Deserialize, Debug)]
+// pub struct TestBoostIndexOptions {
+//     boost: String, 
+//     options: BoostIndexOptions
+// }
+
+#[derive(Serialize, Deserialize, Debug)]
 pub struct BoostIndexOptions {
     boost_type:String
     // type:
@@ -88,13 +108,11 @@ where F: FnMut(&str, u32, u32) {
     }
 }
 
-
 fn for_each_element_in_path<F>(data: &Value, opt: &mut ForEachOpt, path2:&str, cb: &mut F)
 where F: FnMut(&str, u32, u32) { // value, value_id, parent_val_id   // TODO ADD Template for Value
 
     let path = util::remove_array_marker(path2);
     let paths = path.split(".").collect::<Vec<_>>();
-    println!("JAAAA:: {:?}", paths);
 
     if data.is_array(){
         // let startMainId = parent_pos_in_path == 0 ? current_parent_id_counter : 0
@@ -131,9 +149,9 @@ pub fn get_allterms(data:&Value, path:&str, options:&FulltextIndexOptions) -> Ve
         terms.insert(normalized_text.clone());
         if options.tokenize && normalized_text.split(" ").count() > 1 {
             for token in normalized_text.split(" ") {
-                let tokenStr = token.to_string();
-                if options.stopwords.contains(&tokenStr) { continue; }
-                terms.insert(tokenStr);
+                let token_str = token.to_string();
+                if options.stopwords.contains(&token_str) { continue; }
+                terms.insert(token_str);
             }
         }
     });
@@ -181,10 +199,10 @@ pub fn create_fulltext_index(data: &Value, path:&str, options:FulltextIndexOptio
                 tuples.push(ValIdPair{valid:val_id as u32, parent_val_id:value_id});
                 if options.tokenize && normalized_text.split(" ").count() > 1 {
                     for token in normalized_text.split(" ") {
-                        let tokenStr = token.to_string();
-                        if options.stopwords.contains(&tokenStr) { continue; }
+                        let token_str = token.to_string();
+                        if options.stopwords.contains(&token_str) { continue; }
                         // terms.insert(token.to_string());
-                        let val_id = all_terms.binary_search(&tokenStr).unwrap();
+                        let val_id = all_terms.binary_search(&token_str).unwrap();
                         tokens.push(ValIdPair{valid:val_id as u32, parent_val_id:value_id});
                     }
                 }
@@ -210,6 +228,7 @@ pub fn create_fulltext_index(data: &Value, path:&str, options:FulltextIndexOptio
 
     }
 
+
     File::create(path)?.write_all(all_terms.join("\n").as_bytes())?;
     util::write_index(&all_terms.iter().map(|ref el| el.len() as u32).collect::<Vec<_>>(), &(path.to_string()+".length"))?;
     create_char_offsets(all_terms, path)?;
@@ -228,9 +247,12 @@ fn create_boost_index(data: &Value, path:&str, options:BoostIndexOptions) -> Res
 
     let mut tuples:Vec<ValIdPair> = vec![];
     {
-        let mut callback = |value: &str, value_id: u32, parent_val_id: u32| {
-            let my_int = value.parse::<u32>().unwrap();
-            tuples.push(ValIdPair{valid:my_int, parent_val_id:parent_val_id});
+        let mut callback = |value: &str, _value_id: u32, parent_val_id: u32| {
+            if options.boost_type == "int" {
+                let my_int = value.parse::<u32>().unwrap();
+                tuples.push(ValIdPair{valid:my_int, parent_val_id:parent_val_id});
+            } // TODO More cases
+            
         };
         for_each_element_in_path(&data, &mut opt, &path, &mut callback);
 
@@ -311,42 +333,56 @@ pub fn create_char_offsets(data:Vec<String>, path:&str) -> Result<(), io::Error>
 }
 
 
-// pub fn createIndices(data_str:&str, indices:&str){
-//     return Promise.all(indices.map(index => {
-//         if (index.fulltext) {
-//             return createFulltextIndex(data, index.fulltext, index.options)
-//         }else if(index.boost){
-//             return createBoostIndex(data, index.boost, index.options)
-//         }else{
-//             throw new Error('Choose boost or fulltext')
-//         }
-//     }))
-// }
+use std::fs;
+use std::env;
 
+pub fn create_indices(folder:&str, data_str:&str, indices:&str) -> Result<(), io::Error>{
 
-#[cfg(test)]
-mod test {
-    use create;
-    use serde_json;
-    use serde_json::Value;
+    fs::create_dir_all(folder)?;
+    env::set_current_dir(&folder)?;
 
-    #[test]
-    fn test_eq() {
+    let data: Value = serde_json::from_str(data_str).unwrap();
 
-        let opt: create::FulltextIndexOptions = serde_json::from_str(r#"{"tokenize":true, "stopwords": []}"#).unwrap();
-        // let opt = create::FulltextIndexOptions{
-        //     tokenize: true,
-        //     stopwords: vec![]
-        // };
+    let indices_json:Vec<CreateIndex> = serde_json::from_str(indices).unwrap();
 
-        let dat2 = r#" [{ "name": "John Doe", "age": 43 }, { "name": "Jaa", "age": 43 }] "#;
-        let data: Value = serde_json::from_str(dat2).unwrap();
-        create::create_fulltext_index(&data, "name", opt);
-
-        let deserialized: create::BoostIndexOptions = serde_json::from_str(r#"{"boost_type":"int"}"#).unwrap();
-
-        assert_eq!("Hello", "Hello");
-
+    for el in indices_json {
+        match el {
+            CreateIndex::Fulltext{ fulltext: path, options } => create_fulltext_index(&data, &path, options)?,
+            CreateIndex::Boost{ boost: path, options } => create_boost_index(&data, &path, options)?
+        }
     }
+    Ok(())
 }
+
+
+// #[cfg(test)]
+// mod test {
+//     use create;
+//     use serde_json;
+//     use serde_json::Value;
+
+//     #[test]
+//     fn test_ewwwwwwwq() {
+
+//         let opt: create::FulltextIndexOptions = serde_json::from_str(r#"{"tokenize":true, "stopwords": []}"#).unwrap();
+//         // let opt = create::FulltextIndexOptions{
+//         //     tokenize: true,
+//         //     stopwords: vec![]
+//         // };
+
+//         let dat2 = r#" [{ "name": "John Doe", "age": 43 }, { "name": "Jaa", "age": 43 }] "#;
+//         let data: Value = serde_json::from_str(dat2).unwrap();
+//         let res = create::create_fulltext_index(&data, "name", opt);
+//         println!("{:?}", res);
+//         let deserialized: create::BoostIndexOptions = serde_json::from_str(r#"{"boost_type":"int"}"#).unwrap();
+
+//         assert_eq!("Hello", "Hello");
+
+//         let service: create::CreateIndex = serde_json::from_str(r#"{"boost_type":"int"}"#).unwrap();
+//         println!("service: {:?}", service);
+
+
+
+//     }
+// }
 
