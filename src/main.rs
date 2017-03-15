@@ -2,6 +2,9 @@
 
 // extern crate test;
 
+#[macro_use]
+extern crate serde_derive;
+
 extern crate serde_json;
 
 extern crate serde;
@@ -34,7 +37,9 @@ use fnv::FnvHashMap;
 mod util;
 mod search;
 mod create;
-mod test;
+
+#[cfg(test)]
+mod tests;
 
 fn main() {
 
@@ -321,8 +326,9 @@ pub fn quadratic_no(num_hits: u32) {
 // static K3MIO: u32 = 3000000;
 // static MIO: u32 =   1000000;
 
-#[cfg(test)]
-mod tests {
+
+// #[cfg(test)]
+// mod tests {
     // use test::Bencher;
 
     // #[bench]
@@ -361,6 +367,6 @@ mod tests {
     //     b.iter(|| quadratic_no(K500K));
     // }
 
-}
+// }
 
 
