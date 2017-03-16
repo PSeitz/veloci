@@ -46,11 +46,11 @@ use serde_json::Value;
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(untagged)]
 pub enum CreateIndex {
-    Fulltext { fulltext: String, options: FulltextIndexOptions },
+    Fulltext { fulltext: String, options: Option<FulltextIndexOptions> },
     Boost { boost: String, options: BoostIndexOptions },
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Default)]
 pub struct FulltextIndexOptions {
     tokenize: bool,
     stopwords: Vec<String>
@@ -74,6 +74,7 @@ struct ForEachOpt {
     value_id_counter: u32
 }
 
+
 fn walk<F>(current_el: &Value, start_pos: u32, opt: &mut ForEachOpt, paths:&Vec<&str>, cb: &mut F)
 where F: FnMut(&str, u32, u32) {
 
@@ -88,8 +89,10 @@ where F: FnMut(&str, u32, u32) {
             let current_el_arr = next_el.as_array().unwrap();
             if is_last_path{
                 for el in current_el_arr {
-                    cb(el.as_str().unwrap(), opt.value_id_counter, opt.current_parent_id_counter);
-                    opt.value_id_counter+=1;
+                    if !el.is_null() {
+                        cb(&el.to_string(), opt.value_id_counter, opt.current_parent_id_counter);
+                        opt.value_id_counter+=1;
+                    }
                 }
             }else{
                 let next_level = i+1;
@@ -100,8 +103,12 @@ where F: FnMut(&str, u32, u32) {
             }
         }else{
             if is_last_path{
-                cb(next_el.as_str().unwrap(), opt.value_id_counter, opt.current_parent_id_counter);
-                opt.value_id_counter+=1;
+                // next_el.as_u64().map_or(next_el.as_str().unwrap().to_string(), |v| v.to_string());
+                if !next_el.is_null() {
+                    cb(&next_el.to_string(), opt.value_id_counter, opt.current_parent_id_counter);
+                    opt.value_id_counter+=1;
+                }
+                
             }
         }
 
@@ -347,7 +354,7 @@ pub fn create_indices(folder:&str, data_str:&str, indices:&str) -> Result<(), io
 
     for el in indices_json {
         match el {
-            CreateIndex::Fulltext{ fulltext: path, options } => create_fulltext_index(&data, &path, options)?,
+            CreateIndex::Fulltext{ fulltext: path, options } => create_fulltext_index(&data, &path, options.unwrap_or(Default::default()))?,
             CreateIndex::Boost{ boost: path, options } => create_boost_index(&data, &path, options)?
         }
     }

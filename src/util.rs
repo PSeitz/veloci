@@ -31,6 +31,18 @@ pub fn get_path_name(path_to_anchor: &str, is_text_index_part:bool) -> String{
     path_to_anchor.to_owned() + suffix
 }
 
+pub fn load_index64(s1: &str) -> Result<(Vec<u64>), io::Error> {
+    let mut f = try!(File::open(s1));
+    let mut buffer = Vec::new();
+    try!(f.read_to_end(&mut buffer));
+    buffer.shrink_to_fit();
+    let buf_len = buffer.len();
+    let mut read: Vec<u64> = unsafe { mem::transmute(buffer) };
+    unsafe { read.set_len(buf_len/8); }
+    Ok(read)
+
+}
+
 pub fn load_index(s1: &str) -> Result<(Vec<u32>), io::Error> {
     let mut f = try!(File::open(s1));
     let mut buffer = Vec::new();
@@ -49,38 +61,32 @@ pub fn load_index(s1: &str) -> Result<(Vec<u32>), io::Error> {
     // };
     // println!("100: {}", v_from_raw[100]);
 
+    // >   native_search-429325dbe2259521.exe!alloc::raw_vec::{{impl}}::drop<u32>(alloc::raw_vec::RawVec<u32> * self) Line 546 Unknown
 
+}
+use std;
+unsafe fn typed_to_bytes<T>(slice: &[T]) -> &[u8] {
+    std::slice::from_raw_parts(slice.as_ptr() as *const u8,
+                               slice.len() * mem::size_of::<T>())
 }
 
 pub fn write_index(data:&Vec<u32>, path:&str) -> Result<(), io::Error> {
-    // let read: Vec<u8> = unsafe { mem::transmute(data) };
-    // File::create(path)?.write_all(&read);
-    println!("write_index1");
-    println!("{:?}", data);
-    let v_from_raw:Vec<u8> = unsafe {
-        // let x_ptr:*mut u8 = data.as_mut_ptr() as *mut u8;
-        Vec::from_raw_parts(mem::transmute::<*const u32, *mut u8>(data.as_ptr()),
-                            data.len() * 4,
-                            data.capacity())
-    };
-    println!("write_index2");
-    let mut f = File::create(path)?;
-    f.write_all(v_from_raw.as_slice())?;
-    f.sync_all();
-    println!("write_index3");
+    unsafe { File::create(path)?.write_all(typed_to_bytes(data))?; }
     Ok(())
 }
 
 pub fn write_index64(data:&Vec<u64>, path:&str) -> Result<(), io::Error> {
+
+    unsafe { File::create(path)?.write_all(typed_to_bytes(data))?; }
     // let read: Vec<u8> = unsafe { mem::transmute(data) };
     // File::create(path)?.write_all(&read);
-    let v_from_raw:Vec<u8> = unsafe {
-        // let x_ptr:*mut u8 = data.as_mut_ptr() as *mut u8;
-        Vec::from_raw_parts(mem::transmute::<*const u64, *mut u8>(data.as_ptr()),
-                            data.len() * 8,
-                            data.capacity())
-    };
-    File::create(path)?.write_all(v_from_raw.as_slice())?;
+    // let v_from_raw:Vec<u8> = unsafe {
+    //     // let x_ptr:*mut u8 = data.as_mut_ptr() as *mut u8;
+    //     Vec::from_raw_parts(mem::transmute::<*const u64, *mut u8>(data.as_ptr()),
+    //                         data.len() * 8,
+    //                         data.capacity())
+    // };
+    // File::create(path)?.write_all(v_from_raw.as_slice())?;
     Ok(())
 }
 
