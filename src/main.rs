@@ -14,6 +14,9 @@ extern crate regex;
 extern crate fnv;
 extern crate fst;
 
+#[macro_use] extern crate log;
+extern crate env_logger;
+
 #[allow(unused_imports)]
 use fst::{IntoStreamer, Streamer, Levenshtein, Set, MapBuilder};
 use std::fs::File;
@@ -41,22 +44,63 @@ mod tests;
 
 fn main() {
 
-    let wa = "💩";
-    println!("wa {:?}",wa.chars().count());
+    env_logger::init().unwrap();
 
-    println!("{:?}",test_build_f_s_t());
+    info!("starting up");
 
-    println!("{:?}",testfst());
+    // let wa = "💩";
+    // println!("wa {:?}",wa.chars().count());
 
-    println!("Hello, world!");
+    // println!("{:?}",test_build_f_s_t());
 
-    search::main2();
+
+    // println!("Hello, world!");
+    // search::main2();
+
 }
+// { "fulltext":"meanings.ger[]", "options":{"tokenize":true, "stopwords": ["stopword"]} }
 
+fn create_index() -> Result<(), io::Error> {
+    let indices = r#"
+    [
+        {
+            "boost": "commonness",
+            "options": { "boost_type": "int" }
+        },
+        { "fulltext": "kanji[].text" },
+        { "fulltext": "kana[].text" },
+        {
+            "fulltext": "meanings.ger[].text",
+            "options": { "tokenize": true  }
+        },
+        {
+            "boost": "meanings.ger[].rank",
+            "options": { "boost_type": "int" }
+        },
+        {
+            "fulltext": "meanings.eng[]",
+            "options": { "tokenize": true  }
+        },
+        {
+            "boost": "kanji[].commonness",
+            "options": { "boost_type": "int" }
+        },
+        {
+            "boost": "kana[].commonness",
+            "options": { "boost_type": "int" }
+        }
+    ]
+    "#;
+    let mut f = File::open("jmdict.json")?;
+    let mut s = String::new();
+    f.read_to_string(&mut s)?;
+    println!("{:?}", create::create_indices("jmdict", &s,  indices));
+    Ok(())
+}
 
 use std::time::Instant;
 
-pub fn testfst() -> Result<(), fst::Error> {
+pub fn testfst(term:&str, max_distance:u32) -> Result<(Vec<String>), fst::Error> {
 
     let mut f = try!(File::open("de_full_2.txt"));
     let mut s = String::new();
@@ -66,31 +110,29 @@ pub fn testfst() -> Result<(), fst::Error> {
 
     println!("{:?}", lines.len());
 
-    let now = Instant::now();
-
-
 
     // A convenient way to create sets in memory.
     // let keys = vec!["fa", "fo", "fob", "focus", "foo", "food", "foul", "hallowee"];
     let set = try!(Set::from_iter(lines));
 
+    let now = Instant::now();
+
     // Build our fuzzy query.
-    let lev = try!(Levenshtein::new("anschauen", 2));
+    let lev = try!(Levenshtein::new(term, max_distance));
 
     // Apply our fuzzy query to the set we built.
     let stream = set.search(lev).into_stream();
 
     let keys = try!(stream.into_strs());
 
-    println!("{:?}", keys);
+    // println!("{:?}", keys);
 
-    let elapsed = now.elapsed();
-    let sec = (elapsed.as_secs() as f64) + (elapsed.subsec_nanos() as f64 / 1000_000.0);
-    println!("ms: {}", sec);
+    let sec = (now.elapsed().as_secs() as f64 * 1_000.0) + (now.elapsed().subsec_nanos() as f64 / 1000_000.0);
+    println!("fst ms: {}", sec);
 
     // assert_eq!(keys, vec!["fo", "fob", "foo", "food"]);
 
-    Ok(())
+    Ok((keys))
 }
 
 // fn split_at_first()  {
@@ -134,15 +176,17 @@ fn test_build_f_s_t() -> Result<(), fst::Error> {
 
 #[test]
 fn it_works() {
+
     assert_eq!(util::normalize_text("Hello"), "Hello");
     assert_eq!(util::normalize_text("(Hello)"), "Hello");
     assert_eq!(util::normalize_text("\"H,ell-;o"), "Hello");
     assert_eq!(util::normalize_text("Hello(f)"), "Hello");
     assert_eq!(util::normalize_text("Hello(2)"), "Hello");
 
+    assert_eq!(util::normalize_text("majestätisches Aussehen (n)"), "majestätisches Aussehen");
+
     assert_eq!(util::remove_array_marker("Hello[]"), "Hello");
     assert_eq!(util::remove_array_marker("Hello[].ja"), "Hello.ja");
-
 
 }
 

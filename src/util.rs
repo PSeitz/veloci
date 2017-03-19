@@ -4,12 +4,13 @@ use std::io::prelude::*;
 use std::io;
 use std::mem;
 use std::fs::File;
+use std;
 
 pub fn normalize_text(text:&str) -> String {
 
     lazy_static! {
         static ref REGEXES:Vec<(Regex, & 'static str)> = vec![
-            (Regex::new(r"([fmn\d])").unwrap(), " "),
+            (Regex::new(r"\([fmn\d]\)").unwrap(), " "),
             (Regex::new(r"[\(\)]").unwrap(), " "),  // remove braces
             (Regex::new(r#"[{}'"“]"#).unwrap(), ""), // remove ' " {}
             (Regex::new(r"\s\s+").unwrap(), " "), // replace tabs, newlines, double spaces with single spaces
@@ -24,6 +25,10 @@ pub fn normalize_text(text:&str) -> String {
 
     new_str.trim().to_owned()
 
+}
+
+pub fn get_file_path(folder: &str, path:&str, suffix:&str) -> String {
+    folder.to_string()+"/"+path+suffix
 }
 
 pub fn get_path_name(path_to_anchor: &str, is_text_index_part:bool) -> String{
@@ -64,7 +69,7 @@ pub fn load_index(s1: &str) -> Result<(Vec<u32>), io::Error> {
     // >   native_search-429325dbe2259521.exe!alloc::raw_vec::{{impl}}::drop<u32>(alloc::raw_vec::RawVec<u32> * self) Line 546 Unknown
 
 }
-use std;
+
 unsafe fn typed_to_bytes<T>(slice: &[T]) -> &[u8] {
     std::slice::from_raw_parts(slice.as_ptr() as *const u8,
                                slice.len() * mem::size_of::<T>())

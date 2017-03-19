@@ -39,6 +39,7 @@ use std::io::SeekFrom;
 #[allow(unused_imports)]
 use std::collections::HashMap;
 use util;
+use util::get_file_path;
 #[allow(unused_imports)]
 use std::collections::hash_map::Entry;
 use fnv::FnvHashMap;
@@ -66,50 +67,9 @@ use std::collections::hash_map::Entry::{Occupied, Vacant};
 // }
 
 
-
-fn call_twice<A, F>(val: A, mut f: F)
-where F: FnMut(A) {
-    f(val);
-}
-
-fn main3() {
-
-    
-
-    let mut num = 5;
-    // let plus_num = |x: i32| -> i32 {  x + num;}
-
-    let plus_one_v2 = |x: i32| { println!("Its: {}", num); num +=x };
-
-    // let x = 12;
-    // let plus_one = |x: i32| x + 1;
-    // fn double(x: i32) -> i32 {x + x};
-    call_twice(10, plus_one_v2);
-
-    // println!("Res is {}", call_twice(10, plus_one_v2));
-    // println!("Res is {}", call_twice(10, |x| x + x));
-}
-
-
 pub fn main2() {
     let res = test_levenshtein("anschauen", 2);
     println!("{:?}", res);
-
-    main3();
-    // let stream = get_text_lines2();
-    // let mut stream = get_text_lines2().fuse().wait();
-    
-    // println!("msg {}", stream.next());
-    // stream.map(move |msg| {
-    //     println!("msg {}", msg);
-
-    //     // unfortunate workaround needed since `send()` takes `self`
-    //     // let mut tx = tx_opt.take().unwrap();
-    //     // tx = tx.send(msg.clone()).wait().unwrap();
-    //     // tx_opt = Some(tx);
-    //     // msg
-    // });
-
 
     let pool = CpuPool::new_num_cpus();
     let timer = Timer::default();
@@ -120,7 +80,6 @@ pub fn main2() {
     // spawn our computation, getting back a *future* of the answer
     let prime_future = pool.spawn_fn(|| {
         let prime = true;
-
         // For reasons we'll see later, we need to return a Result here
         let res: Result<bool, ()> = Ok(prime);
         res
@@ -134,20 +93,11 @@ pub fn main2() {
         Err(_) => println!("Timed wwwout"),
     }
 
-
-
     // let char_offsets = CharOffset::new("jmdict/meanings.ger[].text");
-
     // let kv = IndexKeyValueStore::new("jmdict/meanings.ger[].text.textindex.value_idToParent.val_ids", "jmdict/meanings.ger[].text.textindex.value_idToParent.mainIds");
     // println!("kv.get_value(100) {}", kv.get_value(100).unwrap());
     // println!("kv.values1[100] {}", kv.values1[100]);
     // println!("kv.values2[100] {}", kv.values2[100]);
-
-    let x = vec![1,2,3,6,7,8];
-    let u =  x.binary_search(&4).unwrap_err();;
-    println!("{:?}", u);
-    let value = match x.binary_search(&4) { Ok(value) => value,Err(value) => value};
-    println!("mjjaaa {}", value);
 
     // util::load_index("jmdict/meanings.ger[].text.textindex.value_idToParent.val_ids");
     // util::load_index("index11");
@@ -156,40 +106,41 @@ pub fn main2() {
     // let start_char = "a";
     // get_text_lines("jmdict/meanings.ger[].text", Some(start_char), teh_callback) ;
 
-    let options = SearchOptions{
+    let search_part = RequestSearchPart{
         levenshtein_distance: 0,
-        exact: true,
-        first_char_exact_match: true,
+        exact: Some(true),
+        first_char_exact_match: Some(true),
+        path: "jmdict/menaings.ger[].text".to_string(),
+        term:"haus".to_string(),
         .. Default::default()
     };
 
     // let hits = get_hits_in_field("jmdict/meanings.ger[].text", &options, "haus");
-    let search_part = RequestSearchPart{path: "jmdict/meanings.ger[].text".to_string(), term:"haus".to_string(), options:&options};
-    let request = Request{search:&search_part, or:None, and:None};
+    // let search_part = RequestSearchPart{path: "jmdict/meanings.ger[].text".to_string(), term:"haus".to_string(), options:options};
+    let request = Request{search:search_part, or:None, and:None};
 
-    let res:Vec<Hit> = search(request, 0, 10);
+    let res:Vec<Hit> = search("", request, 0, 10);
     println!("{:?}", res[0].id);
 
 }
 
-pub struct Request<'b> {
-    or : Option<Vec<RequestSearchPart<'b>>>,
-    and : Option<Vec<RequestSearchPart<'b>>>,
-    search: & 'b RequestSearchPart<'b>,
-    // boost: Vec<RequestBoostPart<'b>>
+#[derive(Serialize, Deserialize, Default, Clone, Debug)]
+pub struct Request {
+    pub or : Option<Vec<Request>>,
+    pub and : Option<Vec<Request>>,
+    pub search: RequestSearchPart,
+    // boost: Vec<RequestBoostPart<'b>> // @FixMe // @Hack 
 }
 
-pub struct RequestSearchPart<'b> {
-    path: String,
-    term: String,
-    options: & 'b SearchOptions
+#[derive(Serialize, Deserialize, Default, Clone, Debug)]
+pub struct RequestSearchPart {
+    pub path: String,
+    pub term: String,
+    pub levenshtein_distance: u32,
+    pub starts_with: Option<String>,
+    pub exact: Option<bool>,
+    pub first_char_exact_match: Option<bool>
 }
-// pub struct RequestBoostPart<'b> {
-//     path: String,
-//     boost_function:&'b Fn(f64) -> f32
-//     // values2: Vec<u32>
-// }
-
 
 // pub enum CheckOperators {
 //     All,
@@ -199,18 +150,6 @@ pub struct RequestSearchPart<'b> {
 //     fn default() -> CheckOperators { CheckOperators::All }
 // }
 
-#[derive(Default)]
-struct SearchOptions {
-    // checks: Vec<&Fn(&str) -> bool>
-    // checks: Vec<fn(&str) -> bool>,
-    // check_operator: CheckOperators,
-    levenshtein_distance: u32,
-    starts_with: Option<String>,
-    exact: bool,
-    first_char_exact_match: bool
-    // customCompare:Option<&'b Fn(&str, &str) -> bool>
-    // customScore:&Fn(&str) -> bool
-}
 
 #[derive(Debug, Clone, Copy)]
 pub struct Hit {
@@ -227,60 +166,56 @@ fn hits_to_array(hits:FnvHashMap<u32, f32>) -> Vec<Hit> {
 }
 
 
-pub fn search(request: Request, skip:u32, top:u32) -> Vec<Hit>{
-    // request.skip = request.skip || 0
-    // request.top = request.top || 10
-
-    let res = hits_to_array(search_unrolled(request));
-    // res.resize(skip + top, 0);
-    res[skip as usize..top as usize].to_vec()
-        // .then(res => res.slice(request.skip, request.top))
+pub fn search(folder:&str, request: Request, skip:usize, mut top:usize) -> Vec<Hit>{
+    let res = hits_to_array(search_unrolled(folder, request));
+    top = cmp::min(top + skip, res.len());
+    res[skip..top].to_vec()
 }
 
-pub fn search_unrolled(request: Request) -> FnvHashMap<u32, f32>{
+pub fn search_unrolled(folder:&str, request: Request) -> FnvHashMap<u32, f32>{
     if request.or.is_some() {
-        // search_raw(request)
-        // let request2 = request;
         request.or.unwrap().iter()
             .fold(FnvHashMap::default(), |mut acc, x| -> FnvHashMap<u32, f32> {
-                let requesto = Request{search: x, or:None, and: None}; // TODO :BOOST
-                acc.extend(search_raw(requesto));
+                // let requesto = Request{search: x.clone(), or:None, and: None}; // TODO :BOOST
+                // acc.extend(search_raw(requesto));
+                acc.extend(search_unrolled(folder, x.clone()));
                 acc
             })
         // return Promise.all(request.or.map(req => search_unrolled(req)))
         // .then(results => results.reduce((p, c) => Object.assign(p, c)))
-    }else if request.and.is_some(){
-        search_raw(request)
+    }else if request.and.is_some(){ //TODO Implement
+        search_raw(folder, request.search)  // @Hack // @FixMe 
         // return Promise.all(request.and.map(req => search_unrolled(req)))
         // .then(results => results
         //     .reduce((p, c) => intersection(p, c)
         //     .map(commonKey => ((p[commonKey].score > c[commonKey].score) ? p[commonKey] : c[commonKey]))))
     }else{
-        search_raw(request)
+        search_raw(folder, request.search)
     }
 }
 
 
-pub fn search_raw(request: Request) -> FnvHashMap<u32, f32> {
+pub fn search_raw(folder:&str, request: RequestSearchPart) -> FnvHashMap<u32, f32> {
 
-    let ref path = request.search.path;
-    let term = util::normalize_text(&request.search.term);
+    let ref path = request.path;
+    let term = util::normalize_text(&request.term);
 
-
-    let mut hits = get_hits_in_field(&path, request.search.options, &term);
-    add_token_results(&mut hits, &path);
+    let mut hits = get_hits_in_field(folder, &request, &term);
+    add_token_results(folder, &path, &mut hits);
 
     let mut next_level_hits:FnvHashMap<u32, f32> = FnvHashMap::default();
 
     let paths = util::get_steps_to_anchor(&path);
-    for i in (paths.len()-1)..0 {
-        let ref path = paths[i];
-        let is_last = i == (paths.len() -1);
-        println!("{:?}", is_last); // TODO handle is_last
-
-        let kv_store = IndexKeyValueStore::new(&(path.to_string()+".value_idToParent.val_ids"), &(path.to_string()+".value_idToParent.mainIds"));
+    info!("paths::: {:?}", paths);
+    for i in (0..paths.len()).rev() {
+        let is_text_index = i == (paths.len() -1);
+        let path_name = util::get_path_name(&paths[i], is_text_index);
+        let kv_store = IndexKeyValueStore::new(&get_file_path(folder, &path_name, ".valueIdToParent.valIds") , &get_file_path(folder, &path_name, ".valueIdToParent.mainIds"));
+        trace!("kv_store: {:?}", kv_store);
         for (value_id, score) in &hits {
             let values = kv_store.get_values(*value_id);
+            trace!("value_id: {:?}", value_id);
+            trace!("values: {:?}", values);
             for parent_val_id in values {
                 match next_level_hits.entry(parent_val_id as u32) {
                     Vacant(entry) => {entry.insert(*score);},
@@ -288,23 +223,22 @@ pub fn search_raw(request: Request) -> FnvHashMap<u32, f32> {
                 }
             }
         }
+        trace!("next_level_hits: {:?}", next_level_hits);
         hits = next_level_hits;
         next_level_hits = FnvHashMap::default();
     }
 
-    next_level_hits
+    hits
 }
 
-// struct ByteRange {
-//     byte_offsets_start: u32,
-//     byte_offsets_end: u32,
-// }
+#[derive(Debug)]
 struct OffsetInfo {
     byte_range_start: u32,
     byte_range_end: u32,
     line_offset: u32,
 }
 
+#[derive(Debug)]
 struct CharOffset {
     chars: Vec<String>,
     byte_offsets_start: Vec<u32>,
@@ -312,13 +246,6 @@ struct CharOffset {
     line_offsets: Vec<u32>,
 }
 
-// impl fmt::Debug for OffsetInfo {
-//     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-//         writeln!(f, "byte_range_start: {}", self.byte_range_start);
-//         writeln!(f, "byte_range_end: {}", self.byte_range_end);
-//         writeln!(f, "line_offset: {}", self.line_offset)
-//     }
-// }
 
 impl CharOffset {
     fn new(path:&str) -> CharOffset {
@@ -329,18 +256,12 @@ impl CharOffset {
             line_offsets: util::load_index(&(path.to_string()+".char_offsets.line_offset")).unwrap()
         }
     }
-
-    // fn getClosestOffset(&self, line_pos: u32) -> OffsetInfo {
-    //     let line_offset = match self.line_offsets.binary_search(&line_pos){ Ok(value) => value,Err(value) => value};
-    //     return self.get_offset_info(line_offset);
-    // }
     fn get_char_offset_info(&self,character: &str) -> Result<OffsetInfo, usize>{
-        let char_index = try!(self.chars.binary_search(&character.to_string()));
-        return Ok(self.get_offset_info(char_index))
+        let char_index = self.chars.binary_search(&character.to_string())?;
+        Ok(self.get_offset_info(char_index))
         // self.chars.binary_search(&character) { Ok(char_index) => this.get_offset_info(char_index),Err(_) => };
     }
     fn get_offset_info(&self, index: usize) -> OffsetInfo {
-        // let byteRange = {start: this.byte_offsets_start[index], end:this.byte_offsets_end[index]-1}; // -1 For the linebreak
         return OffsetInfo{byte_range_start: self.byte_offsets_start[index], byte_range_end: self.byte_offsets_end[index]-1, line_offset: self.line_offsets[index]}; // -1 For the linebreak
     }
 
@@ -348,16 +269,10 @@ impl CharOffset {
 
 
 //todo use cache
-fn get_create_char_offset_info(path: &str,character: &str) -> Result<OffsetInfo, usize> {
-    let char_offset = CharOffset::new(path);
+fn get_create_char_offset_info(folder:&str, path: &str,character: &str) -> Result<OffsetInfo, usize> { // @Temporary 
+    let char_offset = CharOffset::new(&get_file_path(folder, &path, ""));
     return char_offset.get_char_offset_info(character);
-    // char_offsetCache[path] = char_offsetCache[path] || new CharOffset(path)
-    // return char_offsetCache[path]
 }
-
-// fn levenshteinCheck(text: &str, term: &str) -> bool {
-//     distance(text, term) <=
-// }
 
 fn get_default_score(term1: &str, term2: &str) -> f32{
     return 2.0/(distance(term1, term2) as f32 + 0.2 )
@@ -366,48 +281,45 @@ fn get_default_score2(distance: u32) -> f32{
     return 2.0/(distance as f32 + 0.2 )
 }
 
-fn get_hits_in_field(path: &str, options: &SearchOptions, term: &str) -> FnvHashMap<u32, f32> {
+fn get_hits_in_field(folder:&str, options: &RequestSearchPart, term: &str) -> FnvHashMap<u32, f32> {
     let mut hits:FnvHashMap<u32, f32> = FnvHashMap::default();
-    // let mut hits:HashMap<u32, f32> = HashMap::new(); // id:score
 
     // let checks:Vec<Fn(&str) -> bool> = Vec::new();
     let term_chars = term.chars().collect::<Vec<char>>();
-
     // options.first_char_exact_match = options.exact || options.levenshtein_distance == 0 || options.starts_with.is_some(); // TODO fix
 
-    let start_char = if options.exact || options.levenshtein_distance == 0 || options.starts_with.is_some() && term_chars.len() >= 2 {
+    let start_char = if options.exact.unwrap_or(false) || options.levenshtein_distance == 0 || options.starts_with.is_some() && term_chars.len() >= 2 {
         Some(term_chars[0].to_string() + &term_chars[1].to_string())
     }
-    else if options.first_char_exact_match {
-        Some(term_chars[0].to_string())
+    else if options.first_char_exact_match.unwrap_or(false) { Some(term_chars[0].to_string() )
     }
-    else {
-        None
-    };
+    else { None };
 
     let value = start_char.as_ref().map(String::as_ref);
 
     {
         let teh_callback = |line: &str, line_pos: u32| {
             let distance = if options.levenshtein_distance != 0 { Some(distance(term, line))} else { None };
-            if (options.exact &&  line == term)
-                || (distance.is_some() && distance.unwrap() >= options.levenshtein_distance)
+            if (options.exact.unwrap_or(false) &&  line == term)
+                || (distance.is_some() && distance.unwrap() <= options.levenshtein_distance)
                 || (options.starts_with.is_some() && line.starts_with(options.starts_with.as_ref().unwrap())  )
                 // || (options.customCompare.is_some() && options.customCompare.unwrap(line, term))
                 {
                 // let score = get_default_score(term, line);
+                println!("Hit: {:?}", line);
                 let score = if distance.is_some() {get_default_score2(distance.unwrap())} else {get_default_score(term, line)};
                 hits.insert(line_pos, score);
             }
         };
-        let result = get_text_lines(path, value, teh_callback);
+        let result = get_text_lines(folder, &options.path, value, teh_callback); // @Hack // @Cleanup // @FixMe Forward errors
         println!("{:?}", result); // TODO: Forward
     }
+    println!("hits: {:?}", hits);
     hits
 
 }
 
-
+#[derive(Debug)]
 struct IndexKeyValueStore {
     values1: Vec<u32>,
     values2: Vec<u32>,
@@ -419,19 +331,17 @@ impl IndexKeyValueStore {
     }
     fn get_value(&self, find: u32) -> Option<u32> {
         match self.values1.binary_search(&find) {
-            Ok(value) => { Some(self.values2[value]) },
+            Ok(pos) => { Some(self.values2[pos]) },
             Err(_) => {None},
         }
     }
     fn get_values(&self, find: u32) -> Vec<u32> {
         let mut result = Vec::new();
         match self.values1.binary_search(&find) {
-            Ok(value) => {
-                result.push(self.values2[value]);
-                let mut i = value;
-                while self.values1[i] == find{
-                    result.push(self.values2[i]);
-                    i+=1;
+            Ok(mut pos) => {
+                while self.values1[pos] == find{
+                    result.push(self.values2[pos]);
+                    pos+=1;
                 }
             },Err(_) => {},
         }
@@ -447,27 +357,28 @@ trait TokensIndexKeyValueStore {
 
 impl TokensIndexKeyValueStore for IndexKeyValueStore {
     fn new(path:&str) -> Self {
-        IndexKeyValueStore { values1: util::load_index(&(path.to_string()+".tokens.tokenValIds")).unwrap(), values2: util::load_index(&(path.to_string()+".tokens.parent_val_id")).unwrap() }
+        IndexKeyValueStore { values1: util::load_index(&(path.to_string()+".tokens.tokenValIds")).unwrap(), values2: util::load_index(&(path.to_string()+".tokens.parentValId")).unwrap() }
     }
     fn get_parent_val_id(&self, find: u32) -> Option<u32>{  return self.get_value(find); }
     fn get_parent_val_ids(&self, find: u32) -> Vec<u32>{ return self.get_values(find); }
 }
 
 
-fn add_token_results(hits: &mut FnvHashMap<u32, f32>, path:&str){
-
-    let has_tokens = fs::metadata("/some/file/path.txt");
-    if has_tokens.is_err() {
-        return;
-    }
+fn add_token_results(folder:&str, path:&str, hits: &mut FnvHashMap<u32, f32>){
+    let complete_path = &get_file_path(folder, &path, ".tokens.parentValId");
+    let has_tokens = fs::metadata(&complete_path);
+    println!("has_tokens {:?} {:?}", complete_path, has_tokens.is_err());
+    if has_tokens.is_err() { return; }
 
     // var hrstart = process.hrtime()
-    let token_kvdata: IndexKeyValueStore = TokensIndexKeyValueStore::new(path);
-    let value_lengths = util::load_index(&(path.to_string()+".length")).unwrap();
+    let token_kvdata: IndexKeyValueStore = TokensIndexKeyValueStore::new(&get_file_path(folder, &path, ""));
+    let value_lengths = util::load_index(&get_file_path(folder, &path, ".length")).unwrap();
 
     let mut token_hits:FnvHashMap<u32, f32> = FnvHashMap::default();
     for value_id in hits.keys() {
         let parent_ids_for_token = token_kvdata.get_parent_val_ids(*value_id);
+        // println!("value_id {:?}", value_id);
+        // println!("parent_ids_for_token {:?}", parent_ids_for_token);
         if parent_ids_for_token.len() > 0 {
             for token_parentval_id in parent_ids_for_token {
                 let parent_text_length = value_lengths[token_parentval_id as usize];
@@ -481,25 +392,24 @@ fn add_token_results(hits: &mut FnvHashMap<u32, f32>, path:&str){
             }
         }
     }
-
     hits.extend(token_hits);
-
 }
 
 
 #[inline(always)]
-fn get_text_lines<F>(path: &str,character: Option<&str>, mut fun: F) -> Result<(), io::Error>
+fn get_text_lines<F>(folder:&str, path: &str,character: Option<&str>, mut fun: F) -> Result<(), io::Error>
 where F: FnMut(&str, u32) {
 
-    let char_offset_info_opt = if character.is_some() { Some(get_create_char_offset_info(path, character.unwrap())) } else { None };
+    let char_offset_info_opt = character.map(|charo | get_create_char_offset_info(folder, path, charo));
+
     if char_offset_info_opt.is_some() {
         let mut char_offset_info = char_offset_info_opt.unwrap().unwrap();
-        let mut f = File::open(path).unwrap();
+        let mut f = File::open(&get_file_path(folder, &path, ""))?;
         let mut buffer:Vec<u8> = Vec::with_capacity((char_offset_info.byte_range_end - char_offset_info.byte_range_start) as usize);
         unsafe { buffer.set_len(char_offset_info.byte_range_end as usize - char_offset_info.byte_range_start as usize); }
 
         f.seek(SeekFrom::Start(char_offset_info.byte_range_start as u64))?;
-        f.read_exact(&mut buffer).unwrap();
+        f.read_exact(&mut buffer)?;
         let s = unsafe {str::from_utf8_unchecked(&buffer)};
 
         let lines = s.lines();
@@ -509,12 +419,10 @@ where F: FnMut(&str, u32) {
         }
 
     }else{
-        let mut f = File::open(path).unwrap();
+        let mut f = File::open(&get_file_path(folder, &path, ""))?;
         let mut s = String::new();
-        f.read_to_string(&mut s).unwrap();
-
+        f.read_to_string(&mut s)?;
         let lines = s.lines();
-
         for (line_pos, line) in lines.enumerate(){
             fun(&line, line_pos as u32)
         }
@@ -524,35 +432,33 @@ where F: FnMut(&str, u32) {
 }
 
 
-
 fn file_as_string(path:&str) -> String {
     let mut file = File::open(path).unwrap();
     let mut contents = String::new();
     file.read_to_string(&mut contents).unwrap();
     contents
 }
-
-fn test_levenshtein(term:&str, max_distance:u32) -> Result<(), io::Error> {
+pub fn test_levenshtein(term:&str, max_distance:u32) -> Result<(Vec<String>), io::Error> {
 
     use std::time::SystemTime;
-    let now = SystemTime::now();
-
+    
     let mut f = try!(File::open("de_full_2.txt"));
-
     let mut s = String::new();
     try!(f.read_to_string(&mut s));
+
+    let now = SystemTime::now();
 
     let lines = s.lines();
     let mut hits = vec![];
     for line in lines{
         let distance = distance(term, line);
         if distance < max_distance {
-            hits.push(line)
+            hits.push(line.to_string())
         }
     }
     
     let ms = match now.elapsed() {
-        Ok(elapsed) => {(elapsed.as_secs() as f64) + (elapsed.subsec_nanos() as f64 / 1000_000.0)}
+        Ok(elapsed) => {(elapsed.as_secs() as f64) * 1_000.0 + (elapsed.subsec_nanos() as f64 / 1000_000.0)}
         Err(_e) => {-1.0}
     };
 
@@ -561,24 +467,13 @@ fn test_levenshtein(term:&str, max_distance:u32) -> Result<(), io::Error> {
     println!("Lines : {}", lines_checked );
     let ms_per_1000 = ((ms as f64) / lines_checked) * 1000.0;
     println!("ms per 1000 lookups: {}", ms_per_1000);
-    Ok(())
+    Ok((hits))
 
 }
 
 
 fn distance(s1: &str, s2: &str) -> u32 {
-    // if s1.len() > s2.len(){
-    //     return distance(s2, s1);
-    // }
-
     let len_s1 = s1.chars().count();
-    // let len_s2 = s2.chars().count();
-
-    // let s1chars_vec = s1.chars().collect::<Vec<char>>();
-    // let s2chars_vec = s2.chars().collect::<Vec<char>>();
-
-    // let len_s1 = s1chars_vec.len();
-    // let len_s2 = s2chars_vec.len();
 
     let mut column: Vec<u32> = Vec::with_capacity(len_s1+1);
     unsafe { column.set_len(len_s1+1); }
