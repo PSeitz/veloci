@@ -17,6 +17,8 @@ extern crate fst;
 #[macro_use] extern crate log;
 extern crate env_logger;
 
+extern crate flate2;
+
 #[allow(unused_imports)]
 use fst::{IntoStreamer, Streamer, Levenshtein, Set, MapBuilder};
 use std::fs::File;
@@ -30,6 +32,7 @@ use std::collections::HashSet;
 use std::collections::HashMap;
 use fnv::FnvHashMap;
 
+use std::time::Instant;
 
 #[macro_use] extern crate lazy_static;
 
@@ -38,6 +41,7 @@ use fnv::FnvHashMap;
 mod util;
 mod search;
 mod create;
+mod doc_loader;
 
 #[cfg(test)]
 mod tests;
@@ -52,10 +56,18 @@ fn main() {
     // println!("wa {:?}",wa.chars().count());
 
     // println!("{:?}",test_build_f_s_t());
-
+    // println!("{:?}",testfst("anschauen", 2));
+    // println!("{:?}",search::test_levenshtein("anschauen", 2));
 
     // println!("Hello, world!");
     // search::main2();
+    println!("{:?}",create_index());
+    
+    let doc_loader = doc_loader::DocLoader::new("jmdict", "data");
+    
+    let now = Instant::now();
+    println!("{:?}", doc_loader.get_doc(1000).unwrap());
+    println!("Load Time: {}", (now.elapsed().as_secs() as f64 * 1_000.0) + (now.elapsed().subsec_nanos() as f64 / 1000_000.0));
 
 }
 // { "fulltext":"meanings.ger[]", "options":{"tokenize":true, "stopwords": ["stopword"]} }
@@ -98,7 +110,7 @@ fn create_index() -> Result<(), io::Error> {
     Ok(())
 }
 
-use std::time::Instant;
+
 
 pub fn testfst(term:&str, max_distance:u32) -> Result<(Vec<String>), fst::Error> {
 

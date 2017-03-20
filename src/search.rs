@@ -43,7 +43,7 @@ use util::get_file_path;
 #[allow(unused_imports)]
 use std::collections::hash_map::Entry;
 use fnv::FnvHashMap;
-
+use std::time::Instant;
 
 use std::collections::hash_map::Entry::{Occupied, Vacant};
 // fn get_text_lines2() -> BoxStream<String, io::Error> {
@@ -495,6 +495,4 @@ fn distance(s1: &str, s2: &str) -> u32 {
     column[len_s1]
 
 }
-
-
 

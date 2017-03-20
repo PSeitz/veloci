@@ -41,6 +41,11 @@ use std::fs;
 #[allow(unused_imports)]
 use std::env;
 
+use std::io::prelude::*;
+use flate2::Compression;
+use flate2::write::ZlibEncoder;
+
+use std::str;
 
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(untagged)]
@@ -280,14 +285,14 @@ pub fn create_fulltext_index(data: &Value, folder: &str, path:&str, options:Full
 
         tuples.sort_by(|a, b| a.valid.partial_cmp(&b.valid).unwrap_or(Ordering::Equal));
         let path_name = util::get_path_name(&paths[i], is_text_index);
-        trace!("\nValueIdToParent {:?}: {}", path_name, print_vec(&tuples));
+        debug!("\nValueIdToParent {:?}: {}", path_name, print_vec(&tuples));
         util::write_index(&tuples.iter().map(|ref el| el.valid      ).collect::<Vec<_>>(),   &get_file_path(folder, &path_name, ".valueIdToParent.valIds"))?;
         util::write_index(&tuples.iter().map(|ref el| el.parent_val_id).collect::<Vec<_>>(), &get_file_path(folder, &path_name, ".valueIdToParent.mainIds"))?;
 
 
         if tokens.len() > 0 {
             tokens.sort_by(|a, b| a.valid.partial_cmp(&b.valid).unwrap_or(Ordering::Equal));
-            trace!("\nTokens {:?}: {}", path, print_vec(&tokens));
+            debug!("\nTokens {:?}: {}", path, print_vec(&tokens));
             util::write_index(&tokens.iter().map(|ref el| el.valid      ).collect::<Vec<_>>(),  &get_file_path(folder, path, ".tokens.tokenValIds") )?;
             util::write_index(&tokens.iter().map(|ref el| el.parent_val_id).collect::<Vec<_>>(), &get_file_path(folder, path, ".tokens.parentValId"))?;
         }
@@ -330,6 +335,7 @@ fn create_boost_index(data: &Value, folder: &str, path:&str, options:BoostIndexO
     util::write_index(&tuples.iter().map(|ref el| el.parent_val_id).collect::<Vec<_>>(),&get_file_path(folder, path, ".boost.subObjId"))?;
     util::write_index(&tuples.iter().map(|ref el| el.valid      ).collect::<Vec<_>>(),  &get_file_path(folder, path, ".boost.value"))?;
     println!("create_boost_index {} {}ms" , path, (now.elapsed().as_secs() as f64 * 1_000.0) + (now.elapsed().subsec_nanos() as f64 / 1000_000.0));
+
     Ok(())
 
 }
@@ -416,8 +422,30 @@ pub fn create_indices(folder:&str, data_str:&str, indices:&str) -> Result<(), io
             CreateIndex::Boost{ boost: path, options } => create_boost_index(&data, &folder, &path, options)?
         }
     }
+
+    write_json_to_disk(&data, folder, "data");
+
     Ok(())
 }
+
+
+
+fn write_json_to_disk(data: &Value, folder: &str, path:&str) -> Result<(), io::Error> {
+    let mut offsets = vec![];
+    let mut buffer = File::create(&get_file_path(folder, &path, ""))?;
+    let mut current_offset = 0;
+    let arro = data.as_array().unwrap();
+    for el in arro {
+        let el_str = el.to_string().into_bytes();
+        buffer.write_all(&el_str)?;
+        offsets.push(current_offset as u64);
+        current_offset += el_str.len();
+    }
+    // println!("json offsets: {:?}", offsets);
+    util::write_index64(&offsets, &get_file_path(folder, &path, ".offsets"))?;
+    Ok(())
+}
+
 
 
 // #[cfg(test)]
