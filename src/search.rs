@@ -67,6 +67,40 @@ use std::collections::hash_map::Entry::{Occupied, Vacant};
 // }
 
 
+#[derive(Serialize, Deserialize, Default, Clone, Debug)]
+pub struct Request {
+    pub or : Option<Vec<Request>>,
+    pub and : Option<Vec<Request>>,
+    pub search: RequestSearchPart,
+    // boost: Vec<RequestBoostPart<'b>> // @FixMe // @Hack 
+}
+
+#[derive(Serialize, Deserialize, Default, Clone, Debug)]
+pub struct RequestSearchPart {
+    pub path: String,
+    pub term: String,
+    pub levenshtein_distance: u32,
+    pub starts_with: Option<String>,
+    pub exact: Option<bool>,
+    pub first_char_exact_match: Option<bool>
+}
+
+// pub enum CheckOperators {
+//     All,
+//     One
+// }
+// impl Default for CheckOperators {
+//     fn default() -> CheckOperators { CheckOperators::All }
+// }
+
+
+#[derive(Debug, Serialize, Deserialize, Clone, Copy)]
+pub struct Hit {
+    pub id: u32,
+    pub score: f32
+}
+
+
 pub fn main2() {
     let res = test_levenshtein("anschauen", 2);
     println!("{:?}", res);
@@ -124,39 +158,6 @@ pub fn main2() {
 
 }
 
-#[derive(Serialize, Deserialize, Default, Clone, Debug)]
-pub struct Request {
-    pub or : Option<Vec<Request>>,
-    pub and : Option<Vec<Request>>,
-    pub search: RequestSearchPart,
-    // boost: Vec<RequestBoostPart<'b>> // @FixMe // @Hack 
-}
-
-#[derive(Serialize, Deserialize, Default, Clone, Debug)]
-pub struct RequestSearchPart {
-    pub path: String,
-    pub term: String,
-    pub levenshtein_distance: u32,
-    pub starts_with: Option<String>,
-    pub exact: Option<bool>,
-    pub first_char_exact_match: Option<bool>
-}
-
-// pub enum CheckOperators {
-//     All,
-//     One
-// }
-// impl Default for CheckOperators {
-//     fn default() -> CheckOperators { CheckOperators::All }
-// }
-
-
-#[derive(Debug, Clone, Copy)]
-pub struct Hit {
-    id: u32,
-    score: f32
-}
-
 use std::cmp::Ordering;
 
 fn hits_to_array(hits:FnvHashMap<u32, f32>) -> Vec<Hit> {
@@ -165,6 +166,20 @@ fn hits_to_array(hits:FnvHashMap<u32, f32>) -> Vec<Hit> {
     res
 }
 
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct DocWithHit {
+    pub doc: String,
+    pub hit: Hit
+}
+
+use doc_loader;
+pub fn toDocuments(hits: &Vec<Hit>, folder:&str) -> Vec<DocWithHit> {
+    let doc_loader = doc_loader::DocLoader::new(folder, "data");
+    hits.iter().map(|ref hit| {
+        let doc = doc_loader.get_doc(hit.id as usize).unwrap();
+        DocWithHit{doc:doc, hit:*hit.clone()}
+    }).collect::<Vec<_>>()
+}
 
 pub fn search(folder:&str, request: Request, skip:usize, mut top:usize) -> Vec<Hit>{
     let res = hits_to_array(search_unrolled(folder, request));
@@ -248,13 +263,13 @@ struct CharOffset {
 
 
 impl CharOffset {
-    fn new(path:&str) -> CharOffset {
-        CharOffset {
-            chars: serde_json::from_str(&file_as_string(&(path.to_string()+".char_offsets.chars"))).unwrap(),
+    fn new(path:&str) -> Result<CharOffset, io::Error> {
+        Ok(CharOffset {
+            chars: serde_json::from_str(&file_as_string(&(path.to_string()+".char_offsets.chars"))?).unwrap(),
             byte_offsets_start: util::load_index(&(path.to_string()+".char_offsets.byte_offsets_start")).unwrap(),
             byte_offsets_end: util::load_index(&(path.to_string()+".char_offsets.byte_offsets_end")).unwrap(),
             line_offsets: util::load_index(&(path.to_string()+".char_offsets.line_offset")).unwrap()
-        }
+        })
     }
     fn get_char_offset_info(&self,character: &str) -> Result<OffsetInfo, usize>{
         let char_index = self.chars.binary_search(&character.to_string())?;
@@ -267,11 +282,17 @@ impl CharOffset {
 
 }
 
+// #[derive(Debug)]
+// pub enum NotFoundOrIOError {
+//     io::Error,
+//     usize
+// }
+
 
 //todo use cache
-fn get_create_char_offset_info(folder:&str, path: &str,character: &str) -> Result<OffsetInfo, usize> { // @Temporary 
-    let char_offset = CharOffset::new(&get_file_path(folder, &path, ""));
-    return char_offset.get_char_offset_info(character);
+fn get_create_char_offset_info(folder:&str, path: &str,character: &str) -> Result<Option<OffsetInfo>, io::Error> { // @Temporary 
+    let char_offset = CharOffset::new(&get_file_path(folder, &path, ""))?;
+    return Ok(char_offset.get_char_offset_info(character).ok());
 }
 
 fn get_default_score(term1: &str, term2: &str) -> f32{
@@ -339,7 +360,8 @@ impl IndexKeyValueStore {
         let mut result = Vec::new();
         match self.values1.binary_search(&find) {
             Ok(mut pos) => {
-                while self.values1[pos] == find{
+                let val_len = self.values1.len();
+                while pos < val_len && self.values1[pos] == find{
                     result.push(self.values2[pos]);
                     pos+=1;
                 }
@@ -400,10 +422,17 @@ fn add_token_results(folder:&str, path:&str, hits: &mut FnvHashMap<u32, f32>){
 fn get_text_lines<F>(folder:&str, path: &str,character: Option<&str>, mut fun: F) -> Result<(), io::Error>
 where F: FnMut(&str, u32) {
 
-    let char_offset_info_opt = character.map(|charo | get_create_char_offset_info(folder, path, charo));
+    //let char_offset_info_opt = character.map(|charo| get_create_char_offset_info(folder, path, charo)?);
+    // if let Some(char_offset_info_opt) = character {
+    //     get_create_char_offset_info(folder, path, charo)?;
+    // }
 
-    if char_offset_info_opt.is_some() {
-        let mut char_offset_info = char_offset_info_opt.unwrap().unwrap();
+    if character.is_some() {
+        let char_offset_info_opt = get_create_char_offset_info(folder, path, character.unwrap())?;
+        if char_offset_info_opt.is_none() {
+            return Ok(())
+        }
+        let mut char_offset_info = char_offset_info_opt.unwrap();
         let mut f = File::open(&get_file_path(folder, &path, ""))?;
         let mut buffer:Vec<u8> = Vec::with_capacity((char_offset_info.byte_range_end - char_offset_info.byte_range_start) as usize);
         unsafe { buffer.set_len(char_offset_info.byte_range_end as usize - char_offset_info.byte_range_start as usize); }
@@ -432,11 +461,11 @@ where F: FnMut(&str, u32) {
 }
 
 
-fn file_as_string(path:&str) -> String {
-    let mut file = File::open(path).unwrap();
+fn file_as_string(path:&str) -> Result<(String), io::Error> {
+    let mut file = File::open(path)?;
     let mut contents = String::new();
-    file.read_to_string(&mut contents).unwrap();
-    contents
+    file.read_to_string(&mut contents)?;
+    Ok(contents)
 }
 pub fn test_levenshtein(term:&str, max_distance:u32) -> Result<(Vec<String>), io::Error> {
 

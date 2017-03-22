@@ -3,7 +3,7 @@ mod tests {
     use super::*;
     extern crate env_logger;
 
-
+    use doc_loader;
     use util;
     #[allow(unused_imports)]
     use util::normalize_text;
@@ -205,26 +205,82 @@ mod tests {
 
     // #[test]
     // fn should_search_tokenized_and_levensthein() {
-        
 
-
-        let req = r#"
-        {
-            "search": {
-                "term": "majestätischer",
-                "path": "meanings.ger[]",
-                "levenshtein_distance": 1,
-                "firstCharExactMatch": true
-            }
-        }
-        "#;
-        let requesto: search::Request = serde_json::from_str(req).unwrap();
-
-        let hits = search::search(TEST_FOLDER, requesto, 0, 10);
-        println!("hits {:?}", hits);
-        assert_eq!(hits.len(), 1);
+    fn searchTest(req: Value) -> Vec<search::Hit> {
+        let requesto: search::Request = serde_json::from_str(&req.to_string()).unwrap();
+        search::search(TEST_FOLDER, requesto, 0, 10)
     }
 
+    fn searchTestToDoc(req: Value) -> Vec<search::DocWithHit> {
+        let requesto: search::Request = serde_json::from_str(&req.to_string()).unwrap();
+        search::toDocuments(&search::search(TEST_FOLDER, requesto, 0, 10), TEST_FOLDER)
+    }
+
+        let doc_loader = doc_loader::DocLoader::new(TEST_FOLDER, "data");
+
+        {
+            let req = json!({
+                "search": {
+                    "term":"majestätischer",
+                    "path": "meanings.ger[]",
+                    "levenshtein_distance": 1,
+                    "firstCharExactMatch": true
+                }
+            });
+
+            let hits = searchTestToDoc(req);
+            assert_eq!(hits.len(), 1);
+        }
+
+        { // should search without firstCharExactMatch
+            let req = json!({
+                "search": {
+                    "term":"najestätischer",
+                    "path": "meanings.ger[]",
+                    "levenshtein_distance": 1
+                }
+            });
+            let hits = searchTestToDoc(req);
+    
+            println!("hits {:?}", hits);
+            assert_eq!(hits.len(), 1);
+        }
+
+        { // 'should prefer exact matches to tokenmatches'
+            let req = json!({
+                "search": {
+                    "term":"will",
+                    "path": "meanings.eng[]",
+                    "levenshtein_distance": 1
+                }
+            });
+            let requesto: search::Request = serde_json::from_str(&req.to_string()).unwrap();
+            let wa = search::toDocuments(&search::search(TEST_FOLDER, requesto, 0, 10), TEST_FOLDER);
+    
+            // serde_json::from_str(data_str).unwrap();
+            println!("wa {:?}", wa);
+            let doc1:Value = serde_json::from_str(&wa[0].doc).unwrap();
+            assert_eq!(doc1["meanings"]["eng"][0], "will");
+        }
+
+        // { // 'should search word non tokenized'
+        //     let req = json!({
+        //         "search": {
+        //             "term":"偉容",
+        //             "path": "kanji[].text",
+        //             "levenshtein_distance": 0,
+        //             "firstCharExactMatch":true
+        //         }
+        //     });
+        //     let requesto: search::Request = serde_json::from_str(&req.to_string()).unwrap();
+        //     let wa = search::toDocuments(&search::search(TEST_FOLDER, requesto, 0, 10), TEST_FOLDER);
+    
+        //     // serde_json::from_str(data_str).unwrap();
+        //     println!("wa {:?}", wa);
+        //     let doc1:Value = serde_json::from_str(&wa[0].doc).unwrap();
+        //     assert_eq!(doc1["meanings"]["eng"][0], "will");
+        // }
+    }
 
 
     // #[test]
