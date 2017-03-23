@@ -153,7 +153,7 @@ pub fn main2() {
     // let search_part = RequestSearchPart{path: "jmdict/meanings.ger[].text".to_string(), term:"haus".to_string(), options:options};
     let request = Request{search:search_part, or:None, and:None};
 
-    let res:Vec<Hit> = search("", request, 0, 10);
+    let res:Vec<Hit> = search("", request, 0, 10).unwrap();
     println!("{:?}", res[0].id);
 
 }
@@ -181,41 +181,59 @@ pub fn toDocuments(hits: &Vec<Hit>, folder:&str) -> Vec<DocWithHit> {
     }).collect::<Vec<_>>()
 }
 
-pub fn search(folder:&str, request: Request, skip:usize, mut top:usize) -> Vec<Hit>{
-    let res = hits_to_array(search_unrolled(folder, request));
+pub fn search(folder:&str, request: Request, skip:usize, mut top:usize) -> Result<Vec<Hit>, SearchError>{
+    let res = hits_to_array(search_unrolled(folder, request)?);
     top = cmp::min(top + skip, res.len());
-    res[skip..top].to_vec()
+    Ok(res[skip..top].to_vec())
 }
 
-pub fn search_unrolled(folder:&str, request: Request) -> FnvHashMap<u32, f32>{
+pub fn search_unrolled(folder:&str, request: Request) -> Result<FnvHashMap<u32, f32>, SearchError>{
     if request.or.is_some() {
-        request.or.unwrap().iter()
+        Ok(request.or.unwrap().iter()
             .fold(FnvHashMap::default(), |mut acc, x| -> FnvHashMap<u32, f32> {
                 // let requesto = Request{search: x.clone(), or:None, and: None}; // TODO :BOOST
                 // acc.extend(search_raw(requesto));
-                acc.extend(search_unrolled(folder, x.clone()));
+                acc.extend(search_unrolled(folder, x.clone()).unwrap());
                 acc
-            })
+            }))
         // return Promise.all(request.or.map(req => search_unrolled(req)))
         // .then(results => results.reduce((p, c) => Object.assign(p, c)))
     }else if request.and.is_some(){ //TODO Implement
-        search_raw(folder, request.search)  // @Hack // @FixMe 
+        Ok(search_raw(folder, request.search)?)  // @Hack // @FixMe 
         // return Promise.all(request.and.map(req => search_unrolled(req)))
         // .then(results => results
         //     .reduce((p, c) => intersection(p, c)
         //     .map(commonKey => ((p[commonKey].score > c[commonKey].score) ? p[commonKey] : c[commonKey]))))
     }else{
-        search_raw(folder, request.search)
+        Ok(search_raw(folder, request.search)?)
+    }
+}
+
+#[derive(Debug)]
+pub enum SearchError{
+    Io(io::Error),
+    MetaData(serde_json::Error)
+}
+
+impl From<io::Error> for SearchError { // Automatic Conversion
+    fn from(err: io::Error) -> SearchError {
+        SearchError::Io(err)
+    }
+}
+
+impl From<serde_json::Error> for SearchError { // Automatic Conversion
+    fn from(err: serde_json::Error) -> SearchError {
+        SearchError::MetaData(err)
     }
 }
 
 
-pub fn search_raw(folder:&str, request: RequestSearchPart) -> FnvHashMap<u32, f32> {
+pub fn search_raw(folder:&str, request: RequestSearchPart) -> Result<FnvHashMap<u32, f32>, SearchError> {
 
     let ref path = request.path;
     let term = util::normalize_text(&request.term);
 
-    let mut hits = get_hits_in_field(folder, &request, &term);
+    let mut hits = get_hits_in_field(folder, &request, &term)?;
     add_token_results(folder, &path, &mut hits);
 
     let mut next_level_hits:FnvHashMap<u32, f32> = FnvHashMap::default();
@@ -243,7 +261,7 @@ pub fn search_raw(folder:&str, request: RequestSearchPart) -> FnvHashMap<u32, f3
         next_level_hits = FnvHashMap::default();
     }
 
-    hits
+    Ok(hits)
 }
 
 #[derive(Debug)]
@@ -263,12 +281,12 @@ struct CharOffset {
 
 
 impl CharOffset {
-    fn new(path:&str) -> Result<CharOffset, io::Error> {
+    fn new(path:&str) -> Result<CharOffset, SearchError> {
         Ok(CharOffset {
-            chars: serde_json::from_str(&file_as_string(&(path.to_string()+".char_offsets.chars"))?).unwrap(),
-            byte_offsets_start: util::load_index(&(path.to_string()+".char_offsets.byte_offsets_start")).unwrap(),
-            byte_offsets_end: util::load_index(&(path.to_string()+".char_offsets.byte_offsets_end")).unwrap(),
-            line_offsets: util::load_index(&(path.to_string()+".char_offsets.line_offset")).unwrap()
+            chars: file_as_string(&(path.to_string()+".char_offsets.chars"))?.lines().collect::<Vec<_>>().iter().map(|el| el.to_string()).collect(), // @Cleanup // @Temporary  sinlge  collect
+            byte_offsets_start: util::load_index(&(path.to_string()+".char_offsets.byte_offsets_start"))?,
+            byte_offsets_end: util::load_index(&(path.to_string()+".char_offsets.byte_offsets_end"))?,
+            line_offsets: util::load_index(&(path.to_string()+".char_offsets.line_offset"))?
         })
     }
     fn get_char_offset_info(&self,character: &str) -> Result<OffsetInfo, usize>{
@@ -282,15 +300,9 @@ impl CharOffset {
 
 }
 
-// #[derive(Debug)]
-// pub enum NotFoundOrIOError {
-//     io::Error,
-//     usize
-// }
-
 
 //todo use cache
-fn get_create_char_offset_info(folder:&str, path: &str,character: &str) -> Result<Option<OffsetInfo>, io::Error> { // @Temporary 
+fn get_create_char_offset_info(folder:&str, path: &str,character: &str) -> Result<Option<OffsetInfo>, SearchError> { // @Temporary 
     let char_offset = CharOffset::new(&get_file_path(folder, &path, ""))?;
     return Ok(char_offset.get_char_offset_info(character).ok());
 }
@@ -302,7 +314,7 @@ fn get_default_score2(distance: u32) -> f32{
     return 2.0/(distance as f32 + 0.2 )
 }
 
-fn get_hits_in_field(folder:&str, options: &RequestSearchPart, term: &str) -> FnvHashMap<u32, f32> {
+fn get_hits_in_field(folder:&str, options: &RequestSearchPart, term: &str) -> Result<FnvHashMap<u32, f32>, SearchError> {
     let mut hits:FnvHashMap<u32, f32> = FnvHashMap::default();
 
     // let checks:Vec<Fn(&str) -> bool> = Vec::new();
@@ -332,11 +344,11 @@ fn get_hits_in_field(folder:&str, options: &RequestSearchPart, term: &str) -> Fn
                 hits.insert(line_pos, score);
             }
         };
-        let result = get_text_lines(folder, &options.path, value, teh_callback); // @Hack // @Cleanup // @FixMe Forward errors
-        println!("{:?}", result); // TODO: Forward
+        let result = get_text_lines(folder, &options.path, value, teh_callback)?; // @Hack // @Cleanup // @FixMe Forward errors
+        info!("{:?}", result); // TODO: Forward
     }
     println!("hits: {:?}", hits);
-    hits
+    Ok(hits)
 
 }
 
@@ -419,7 +431,7 @@ fn add_token_results(folder:&str, path:&str, hits: &mut FnvHashMap<u32, f32>){
 
 
 #[inline(always)]
-fn get_text_lines<F>(folder:&str, path: &str,character: Option<&str>, mut fun: F) -> Result<(), io::Error>
+fn get_text_lines<F>(folder:&str, path: &str,character: Option<&str>, mut fun: F) -> Result<(), SearchError>
 where F: FnMut(&str, u32) {
 
     //let char_offset_info_opt = character.map(|charo| get_create_char_offset_info(folder, path, charo)?);
@@ -462,6 +474,7 @@ where F: FnMut(&str, u32) {
 
 
 fn file_as_string(path:&str) -> Result<(String), io::Error> {
+    info!("Loading File {}", path);
     let mut file = File::open(path)?;
     let mut contents = String::new();
     file.read_to_string(&mut contents)?;

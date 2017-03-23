@@ -37,6 +37,7 @@ pub fn get_path_name(path_to_anchor: &str, is_text_index_part:bool) -> String{
 }
 
 pub fn load_index64(s1: &str) -> Result<(Vec<u64>), io::Error> {
+    info!("Loading Index64 {} ", s1);
     let mut f = File::open(s1)?;
     let mut buffer = Vec::new();
     f.read_to_end(&mut buffer)?;
@@ -45,12 +46,13 @@ pub fn load_index64(s1: &str) -> Result<(Vec<u64>), io::Error> {
 
     let mut read: Vec<u64> = unsafe { mem::transmute(buffer) };
     unsafe { read.set_len(buf_len/8); }
-    info!("Loaded Index64 With size {:?}", read.len());
+    info!("Loaded Index64 {} With size {:?}",s1,  read.len());
     Ok(read)
 
 }
 
 pub fn load_index(s1: &str) -> Result<(Vec<u32>), io::Error> {
+    info!("Loading Index32 {} ", s1);
     let mut f = File::open(s1)?;
     let mut buffer = Vec::new();
     f.read_to_end(&mut buffer)?;
@@ -60,7 +62,7 @@ pub fn load_index(s1: &str) -> Result<(Vec<u32>), io::Error> {
     let mut read: Vec<u32> = unsafe { mem::transmute(buffer) };
     unsafe { read.set_len(buf_len/4); }
     // info!("100: {}", data[100]);
-    info!("Loaded Index32 With size {:?}", read.len());
+    info!("Loaded Index32 {} With size {:?}",s1,  read.len());
     Ok(read)
     // let v_from_raw = unsafe {
     // Vec::from_raw_parts(buffer.as_mut_ptr(),
