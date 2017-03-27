@@ -36,7 +36,15 @@ pub fn get_path_name(path_to_anchor: &str, is_text_index_part:bool) -> String{
     path_to_anchor.to_owned() + suffix
 }
 
-pub fn load_index64(s1: &str) -> Result<(Vec<u64>), io::Error> {
+pub fn file_as_string(path:&str) -> Result<(String), io::Error> {
+    info!("Loading File {}", path);
+    let mut file = File::open(path)?;
+    let mut contents = String::new();
+    file.read_to_string(&mut contents)?;
+    Ok(contents)
+}
+
+pub fn load_index_64(s1: &str) -> Result<(Vec<u64>), io::Error> {
     info!("Loading Index64 {} ", s1);
     let mut f = File::open(s1)?;
     let mut buffer = Vec::new();
@@ -82,14 +90,16 @@ unsafe fn typed_to_bytes<T>(slice: &[T]) -> &[u8] {
 
 pub fn write_index(data:&Vec<u32>, path:&str) -> Result<(), io::Error> {
     unsafe { File::create(path)?.write_all(typed_to_bytes(data))?; }
-    info!("Wrote Index32 With size {:?}", data.len());
+    info!("Wrote Index32 {} With size {:?}", path, data.len());
+    trace!("{:?}", data);
     Ok(())
 }
 
 pub fn write_index64(data:&Vec<u64>, path:&str) -> Result<(), io::Error> {
 
     unsafe { File::create(path)?.write_all(typed_to_bytes(data))?; }
-    info!("Wrote Index64 With size {:?}", data.len());
+    info!("Wrote Index64 {} With size {:?}", path, data.len());
+    trace!("{:?}", data);
     // let read: Vec<u8> = unsafe { mem::transmute(data) };
     // File::create(path)?.write_all(&read);
     // let v_from_raw:Vec<u8> = unsafe {

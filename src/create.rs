@@ -41,8 +41,11 @@ use std::fs;
 #[allow(unused_imports)]
 use std::env;
 
+#[allow(unused_imports)]
 use std::io::prelude::*;
+#[allow(unused_imports)]
 use flate2::Compression;
+#[allow(unused_imports)]
 use flate2::write::ZlibEncoder;
 
 use std::str;
@@ -303,6 +306,7 @@ pub fn create_fulltext_index(data: &Value, folder: &str, path:&str, options:Full
 
     // println!("{:?}", all_terms);
     // println!("{:?}", all_terms.join("\n"));
+    util::write_index64(&get_string_offsets(&all_terms), &get_file_path(folder, &path, ".offsets"))?; // String offsets
     File::create(&get_file_path(folder, &path, ""))?.write_all(all_terms.join("\n").as_bytes())?;
     util::write_index(&all_terms.iter().map(|ref el| el.len() as u32).collect::<Vec<_>>(), &get_file_path(folder, path, ".length"))?;
     create_char_offsets(all_terms, &get_file_path(folder, &path, ""))?;
@@ -310,6 +314,18 @@ pub fn create_fulltext_index(data: &Value, folder: &str, path:&str, options:Full
     println!("createIndexComplete {} {}ms" , path, (now.elapsed().as_secs() as f64 * 1_000.0) + (now.elapsed().subsec_nanos() as f64 / 1000_000.0));
     Ok(())
 
+}
+
+
+fn get_string_offsets(data:&Vec<String>) -> Vec<u64> {
+    let mut offsets = vec![];
+    let mut offset = 0;
+    for el in data {
+        offsets.push(offset as u64);
+        offset += el.len() + 1; // 1 for linevreak
+    }
+    offsets.push(offset as u64);
+    offsets
 }
 
 fn create_boost_index(data: &Value, folder: &str, path:&str, options:BoostIndexOptions) -> Result<(), io::Error> {
@@ -343,7 +359,7 @@ fn create_boost_index(data: &Value, folder: &str, path:&str, options:BoostIndexO
 #[derive(Debug, Clone)]
 struct CharData {
     suffix:String,
-    line_num: u32,
+    line_num: u64,
     byte_offset_start: u64
 }
 
@@ -357,10 +373,18 @@ impl PartialEq for CharData {
 #[derive(Debug, Clone)]
 struct CharDataComplete {
     suffix:String,
-    line_num: u32,
+    line_num: u64,
     byte_offset_start: u64,
     byte_offset_end: u64
 }
+
+fn print_vec_chardata(vec: &Vec<CharDataComplete>) -> String{
+    String::from(format!("\nchar\toffset_start\toffset_end\tline_offset")) + &vec
+        .iter().map(|el| format!("\n{:3}\t{:10}\t{:10}\t{:10}", el.suffix, el.byte_offset_start, el.byte_offset_end, el.line_num))
+        .collect::<Vec<_>>()
+        .join("")
+}
+
 
 pub fn create_char_offsets(data:Vec<String>, path:&str) -> Result<(), io::Error> {
     let now = Instant::now();
@@ -384,7 +408,6 @@ pub fn create_char_offsets(data:Vec<String>, path:&str) -> Result<(), io::Error>
         current_byte_offset += text.len() as u64 + 1;
         line_num+=1;
     }
-    println!("create_char_offsets_half {} {}ms" , path, (now.elapsed().as_secs() as f64 * 1_000.0) + (now.elapsed().subsec_nanos() as f64 / 1000_000.0));
     let mut char_offsets_complete:Vec<CharDataComplete> = vec![];
 
     for (i,ref mut char_offset) in char_offsets.iter().enumerate() {
@@ -398,12 +421,15 @@ pub fn create_char_offsets(data:Vec<String>, path:&str) -> Result<(), io::Error>
             byte_offset_end:byte_offset_end});
     }
 
+    trace!("{}", print_vec_chardata(&char_offsets_complete));
+
     util::write_index64(&char_offsets_complete.iter().map(|ref el| el.byte_offset_start).collect::<Vec<_>>(), &(path.to_string()+".char_offsets.byteOffsetsStart"))?;
     util::write_index64(&char_offsets_complete.iter().map(|ref el| el.byte_offset_end  ).collect::<Vec<_>>(), &(path.to_string()+".char_offsets.byteOffsetsEnd"))?;
-    util::write_index(&char_offsets_complete.iter().map(|ref el| el.line_num         ).collect::<Vec<_>>(), &(path.to_string()+".char_offsets.lineOffset"))?;
+    util::write_index64(&char_offsets_complete.iter().map(|ref el| el.line_num         ).collect::<Vec<_>>(), &(path.to_string()+".char_offsets.lineOffset"))?;
+
 
     File::create(&(path.to_string()+".char_offsets.chars"))?.write_all(&char_offsets_complete.iter().map(|ref el| el.suffix.to_string()).collect::<Vec<_>>().join("\n").as_bytes())?;
-    println!("create_char_offsets_complete {} {}ms" , path, (now.elapsed().as_secs() as f64 * 1_000.0) + (now.elapsed().subsec_nanos() as f64 / 1000_000.0));
+    info!("create_char_offsets_complete {} {}ms" , path, (now.elapsed().as_secs() as f64 * 1_000.0) + (now.elapsed().subsec_nanos() as f64 / 1000_000.0));
     Ok(())
 }
 
@@ -423,7 +449,7 @@ pub fn create_indices(folder:&str, data_str:&str, indices:&str) -> Result<(), io
         }
     }
 
-    write_json_to_disk(&data, folder, "data");
+    write_json_to_disk(&data, folder, "data")?;
 
     Ok(())
 }

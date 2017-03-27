@@ -1,10 +1,8 @@
 use std::fs::File;
 use std::io::prelude::*;
-use std::fs;
 use std::io;
 use std::io::SeekFrom;
 use std::str;
-use std::time::Instant;
 
 use util;
 use util::get_file_path;
@@ -19,11 +17,10 @@ pub struct DocLoader {
 
 impl DocLoader {
     pub fn new(folder:&str, filename:&str) -> DocLoader {
-        DocLoader{folder : folder.to_string(), filename: filename.to_string(), offsets: util::load_index64(&get_file_path(folder, filename, ".offsets")).unwrap()}
+        DocLoader{folder : folder.to_string(), filename: filename.to_string(), offsets: util::load_index_64(&get_file_path(folder, filename, ".offsets")).unwrap()}
     }
 
     pub fn get_doc(&self, pos: usize) -> Result<String, io::Error> {
-        let now = Instant::now();
         let mut f = File::open(&get_file_path(&self.folder, &self.filename, ""))?;
         // println!("OPen Time: {}", (now.elapsed().as_secs() as f64 * 1_000.0) + (now.elapsed().subsec_nanos() as f64 / 1000_000.0));
         let start = self.offsets[pos] as usize;

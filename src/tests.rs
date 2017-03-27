@@ -1,8 +1,8 @@
 #[cfg(test)]
 mod tests {
-    use super::*;
     extern crate env_logger;
 
+    #[allow(unused_imports)]
     use doc_loader;
     use util;
     #[allow(unused_imports)]
@@ -154,7 +154,7 @@ mod tests {
     fn test_write_index_64() {
         let ele:Vec<u64> = vec![3_000_000_000_000, 3, 3, 7];
         println!("{:?}", util::write_index64(&ele, "test64"));
-        let ele2 = util::load_index64("test64").unwrap();
+        let ele2 = util::load_index_64("test64").unwrap();
         println!("{:?}", ele2);
         assert_eq!(ele, ele2);
         println!("{:?}", fs::remove_file("test64"));
@@ -174,31 +174,34 @@ mod tests {
         warn!("can log from the test too");
         let requesto: search::Request = serde_json::from_str(r#"{"search":{"path":"asdf", "term": "asdf", "levenshtein_distance":1}}"#).unwrap();
         println!("mjjaaa {:?}", requesto);
-        assert_eq!(requesto.search.levenshtein_distance, 1);
+        assert_eq!(requesto.search.unwrap().levenshtein_distance, 1);
     }
 
     #[test]
     fn create_indices_1() {
-        let _ = env_logger::init();
-        let indices = r#"
-        [
-            { "boost":"commonness" , "options":{"boost_type":"int"}}, 
-            { "fulltext":"ent_seq" },
-            { "boost":"field1[].rank" , "options":{"boost_type":"int"}}, 
-            { "fulltext":"field1[].text" }, 
-            { "fulltext":"kanji[].text" }, 
-            { "fulltext":"meanings.ger[]", "options":{"tokenize":true, "stopwords": ["stopword"]} },
-            { "fulltext":"meanings.eng[]", "options":{"tokenize":true} }, 
-            { "boost":"kanji[].commonness" , "options":{"boost_type":"int"}}, 
-            { "boost":"kana[].commonness", "options":{"boost_type":"int"} }
-        ]
-        "#;
-        // let indices = r#"
-        // [
-        //     { "fulltext":"meanings.ger[]", "options":{"tokenize":true, "stopwords": ["stopword"]} }
-        // ]
-        // "#;
-        println!("{:?}", create::create_indices(TEST_FOLDER, TEST_DATA, indices));
+        {
+
+            let indices = r#"
+            [
+                { "boost":"commonness" , "options":{"boost_type":"int"}}, 
+                { "fulltext":"ent_seq" },
+                { "boost":"field1[].rank" , "options":{"boost_type":"int"}}, 
+                { "fulltext":"field1[].text" }, 
+                { "fulltext":"kanji[].text" }, 
+                { "fulltext":"meanings.ger[]", "options":{"tokenize":true, "stopwords": ["stopword"]} },
+                { "fulltext":"meanings.eng[]", "options":{"tokenize":true} }, 
+                { "boost":"kanji[].commonness" , "options":{"boost_type":"int"}}, 
+                { "boost":"kana[].commonness", "options":{"boost_type":"int"} }
+            ]
+            "#;
+            // let indices = r#"
+            // [
+            //     { "fulltext":"meanings.ger[]", "options":{"tokenize":true, "stopwords": ["stopword"]} }
+            // ]
+            // "#;
+            println!("{:?}", create::create_indices(TEST_FOLDER, TEST_DATA, indices));
+
+        }
 
     //     assert_eq!(normalize_text("Hello"), "Hello");
     // }
@@ -206,18 +209,16 @@ mod tests {
     // #[test]
     // fn should_search_tokenized_and_levensthein() {
 
-    fn searchTest(req: Value) -> Vec<search::Hit> {
-        let requesto: search::Request = serde_json::from_str(&req.to_string()).unwrap();
-        search::search(TEST_FOLDER, requesto, 0, 10).unwrap()
-    }
+    // fn search_test(req: Value) -> Vec<search::Hit> {
+    //     let requesto: search::Request = serde_json::from_str(&req.to_string()).unwrap();
+    //     search::search(TEST_FOLDER, requesto, 0, 10).unwrap()
+    // }
 
-    fn searchTestToDoc(req: Value) -> Result<Vec<search::DocWithHit>, search::SearchError>  {
+    fn search_test_to_doc(req: Value) -> Result<Vec<search::DocWithHit>, search::SearchError>  {
         let requesto: search::Request = serde_json::from_str(&req.to_string()).unwrap();
         let hits = search::search(TEST_FOLDER, requesto, 0, 10)?;
-        Ok(search::toDocuments(&hits, TEST_FOLDER))
+        Ok(search::to_documents(&hits, TEST_FOLDER))
     }
-
-        let doc_loader = doc_loader::DocLoader::new(TEST_FOLDER, "data");
 
         {
             let req = json!({
@@ -229,7 +230,7 @@ mod tests {
                 }
             });
 
-            let hits = searchTestToDoc(req).unwrap();
+            let hits = search_test_to_doc(req).unwrap();
             assert_eq!(hits.len(), 1);
         }
 
@@ -241,44 +242,139 @@ mod tests {
                     "levenshtein_distance": 1
                 }
             });
-            let hits = searchTestToDoc(req).unwrap();
+            let hits = search_test_to_doc(req).unwrap();
     
-            println!("hits {:?}", hits);
+            // println!("hits {:?}", hits);
             assert_eq!(hits.len(), 1);
         }
 
-        // { // 'should prefer exact matches to tokenmatches'
-        //     let req = json!({
-        //         "search": {
-        //             "term":"will",
-        //             "path": "meanings.eng[]",
-        //             "levenshtein_distance": 1
-        //         }
-        //     });
-        //     let wa = searchTestToDoc(req).unwrap();
+        { // 'should prefer exact matches to tokenmatches'
+            
+            let req = json!({
+                "search": {
+                    "term":"will",
+                    "path": "meanings.eng[]",
+                    "levenshtein_distance": 1
+                }
+            });
+            let wa = search_test_to_doc(req).unwrap();
     
-        //     // serde_json::from_str(data_str).unwrap();
-        //     println!("wa {:?}", wa);
-        //     let doc1:Value = serde_json::from_str(&wa[0].doc).unwrap();
-        //     assert_eq!(doc1["meanings"]["eng"][0], "will");
-        // }
+            // serde_json::from_str(data_str).unwrap();
+            // println!("wa {}", wa[0]);
+            let doc1:Value = serde_json::from_str(&wa[0].doc).unwrap();
+            assert_eq!(doc1["meanings"]["eng"][0], "will");
+        }
 
-        // { // 'should search word non tokenized'
-        //     let req = json!({
-        //         "search": {
-        //             "term":"偉容",
-        //             "path": "kanji[].text",
-        //             "levenshtein_distance": 0,
-        //             "firstCharExactMatch":true
-        //         }
-        //     });
+        { // 'should search word non tokenized'
+            let req = json!({
+                "search": {
+                    "term":"偉容",
+                    "path": "kanji[].text",
+                    "levenshtein_distance": 0,
+                    "firstCharExactMatch":true
+                }
+            });
 
-        //     let hits = searchTestToDoc(req);
-        //     println!("{:?}", hits);
-        //     assert_eq!(hits.unwrap().len(), 1);
-        // }
+            let hits = search_test_to_doc(req);
+            assert_eq!(hits.unwrap().len(), 1);
+        }
+
+        { // 'should search on non subobject'
+            let req = json!({
+                "search": {
+                    "term":"1587690",
+                    "path": "ent_seq",
+                    "levenshtein_distance": 0,
+                    "firstCharExactMatch":true
+                }
+            });
+
+            let hits = search_test_to_doc(req);
+            assert_eq!(hits.unwrap().len(), 1);
+        }
+
+        { // 'AND connect hits same field'
+            let req = json!({
+                "and":[
+                    {"search": {
+                        "term":"Aussehen",
+                        "path": "meanings.ger[]",
+                        "levenshtein_distance":0
+                    }},
+                    {"search": {
+                        "term":"majestätisches",
+                        "path": "meanings.ger[]",
+                        "levenshtein_distance":0
+                    }}
+                ]
+            });
+
+            let hits = search_test_to_doc(req);
+            assert_eq!(hits.unwrap().len(), 1);
+        }
+
+        { // AND connect hits different fields
+            let req = json!({
+                "and":[
+                    {"search": {
+                        "term":"Majestät",
+                        "path": "meanings.ger[]",
+                        "levenshtein_distance":0
+                    }},
+                    {"search": {
+                        "term":"majestic",
+                        "path": "meanings.eng[]",
+                        "levenshtein_distance":0
+                    }}
+                ]
+            });
+
+            let hits = search_test_to_doc(req);
+            assert_eq!(hits.unwrap().len(), 1);
+        }
+
+        { // AND connect hits different fields - no hit
+            let req = json!({
+                "and":[
+                    {"search": {
+                        "term":"Majestät",
+                        "path": "meanings.ger[]",
+                        "levenshtein_distance":0
+                    }},
+                    {"search": {
+                        "term":"urge",
+                        "path": "meanings.eng[]",
+                        "levenshtein_distance":0
+                    }}
+                ]
+            });
+
+            let hits = search_test_to_doc(req);
+            assert_eq!(hits.unwrap().len(), 0);
+        }
+
+        { // OR connect hits
+            let _ = env_logger::init();
+            let req = json!({
+                "or":[
+                    {"search": {
+                        "term":"Majestät",
+                        "path": "meanings.ger[]",
+                        "levenshtein_distance":0
+                    }},
+                    {"search": {
+                        "term":"urge",
+                        "path": "meanings.eng[]",
+                        "levenshtein_distance":0
+                    }}
+                ]
+            });
+
+            let hits = search_test_to_doc(req);
+            assert_eq!(hits.unwrap().len(), 2);
+        }
+
     }
-
 
     // #[test]
     // fn checked_was_abgehst_22() {

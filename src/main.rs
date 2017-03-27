@@ -1,4 +1,5 @@
-// extern crate test;
+#![feature(retain_hash_collection)]
+#![feature(slice_get_slice)]
 
 #[macro_use]
 extern crate serde_derive;
@@ -39,13 +40,20 @@ use std::time::Instant;
 
 
 // extern crate rustc_serialize;
-mod util;
-mod search;
-mod create;
-mod doc_loader;
+pub mod util;
+pub mod search;
+pub mod create;
+pub mod doc_loader;
 
 #[cfg(test)]
 mod tests;
+
+
+#[derive(Debug)]
+struct FileAccess {
+    path: String,
+    curr: u64,
+} 
 
 fn main() {
 
