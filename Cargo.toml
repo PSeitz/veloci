@@ -4,7 +4,6 @@ version = "0.1.0"
 authors = ["Pascal Powerman <you@gmail.com>"]
 
 [dependencies]
-rustc-serialize = "0.3.22"
 serde_derive = "0.9"
 serde = "0.9.7"
 serde_json = "0.9"
@@ -22,16 +21,11 @@ env_logger = "0.3"
 flate2 = "0.2"
 syn = "0.11"
 quote = "0.3"
+abomonation = "0.4.4"
 
 [dev-dependencies]
 env_logger = "0.3"
 colored = "1.4"
-
-[[test]]
-name = "runner"
-harness = false
-proc-macro=true
-
 
 [lib]
 name = "native_search"

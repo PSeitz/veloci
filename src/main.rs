@@ -21,6 +21,8 @@ extern crate env_logger;
 
 extern crate flate2;
 
+extern crate abomonation;
+
 #[allow(unused_imports)]
 use fst::{IntoStreamer, Streamer, Levenshtein, Set, MapBuilder};
 use std::fs::File;
@@ -71,12 +73,17 @@ fn main() {
     // println!("Hello, world!");
     // search::main2();
     println!("{:?}",create_index());
-    
+
     let doc_loader = doc_loader::DocLoader::new("jmdict", "data");
-    
+
     let now = Instant::now();
     println!("{:?}", doc_loader.get_doc(1000).unwrap());
     println!("Load Time: {}", (now.elapsed().as_secs() as f64 * 1_000.0) + (now.elapsed().subsec_nanos() as f64 / 1000_000.0));
+
+
+    // println!("{:?}", testfst("寿司は焦げられない", 2));
+
+    println!("{:?}",test_build_fst());
 
 }
 // { "fulltext":"meanings.ger[]", "options":{"tokenize":true, "stopwords": ["stopword"]} }
@@ -133,27 +140,22 @@ pub fn testfst(term:&str, max_distance:u32) -> Result<(Vec<String>), fst::Error>
 
 
     // A convenient way to create sets in memory.
-    // let keys = vec!["fa", "fo", "fob", "focus", "foo", "food", "foul", "hallowee"];
-    let set = try!(Set::from_iter(lines));
+    // let set = try!(Set::from_iter(lines));
+
+    let keys = vec!["寿司は焦げられない"];
+    let set = try!(Set::from_iter(keys));
 
     let now = Instant::now();
 
-    // Build our fuzzy query.
     let lev = try!(Levenshtein::new(term, max_distance));
-
-    // Apply our fuzzy query to the set we built.
     let stream = set.search(lev).into_stream();
+    let hits = try!(stream.into_strs());
 
-    let keys = try!(stream.into_strs());
+    println!("fst ms: {}", (now.elapsed().as_secs() as f64 * 1_000.0) + (now.elapsed().subsec_nanos() as f64 / 1000_000.0));
 
-    // println!("{:?}", keys);
+    // assert_eq!(hits, vec!["fo", "fob", "foo", "food"]);
 
-    let sec = (now.elapsed().as_secs() as f64 * 1_000.0) + (now.elapsed().subsec_nanos() as f64 / 1000_000.0);
-    println!("fst ms: {}", sec);
-
-    // assert_eq!(keys, vec!["fo", "fob", "foo", "food"]);
-
-    Ok((keys))
+    Ok((hits))
 }
 
 // fn split_at_first()  {
@@ -167,17 +169,19 @@ pub fn testfst(term:&str, max_distance:u32) -> Result<(Vec<String>), fst::Error>
 //     File::create("de_full_2.txt")?.write_all(firsts.join("\n").as_bytes());
 // }
 
-fn test_build_f_s_t() -> Result<(), fst::Error> {
-    let mut f = try!(File::open("de_full_2.txt"));
+fn test_build_fst() -> Result<(), fst::Error> {
+    let now = Instant::now();
+
+    let mut f = File::open("de_full_2.txt")?;
     let mut s = String::new();
-    try!(f.read_to_string(&mut s));
+    f.read_to_string(&mut s)?;
     let lines = s.lines().collect::<Vec<&str>>();
     println!("lines: {:?}", lines.len());
 
 
-    let wtr = io::BufWriter::new(try!(File::create("map.fst")));
+    let wtr = io::BufWriter::new(File::create("map.fst")?);
     // Create a builder that can be used to insert new key-value pairs.
-    let mut build = try!(MapBuilder::new(wtr));
+    let mut build = MapBuilder::new(wtr)?;
 
     let mut i = 0;
     for line in lines {
@@ -189,7 +193,10 @@ fn test_build_f_s_t() -> Result<(), fst::Error> {
     // println!("lines: {:?}", lines.len());
     // println(dupl_terms_checker.len())
     // Finish construction of the map and flush its contents to disk.
-    try!(build.finish());
+    build.finish()?;
+
+    println!("test_build_fst ms: {}", (now.elapsed().as_secs() as f64 * 1_000.0) + (now.elapsed().subsec_nanos() as f64 / 1000_000.0));
+
 
     Ok(())
 }

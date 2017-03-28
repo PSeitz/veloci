@@ -33,7 +33,8 @@ impl DocLoader {
         f.read_exact(&mut buffer)?;
         // println!("Load Buffer: {}", (now.elapsed().as_secs() as f64 * 1_000.0) + (now.elapsed().subsec_nanos() as f64 / 1000_000.0));
 
-        let s = unsafe {str::from_utf8_unchecked(&buffer).to_string()};
+        let s = str::from_utf8(&buffer).unwrap().to_string();
+        // let s = unsafe {str::from_utf8_unchecked(&buffer).to_string()};
         // println!("To String: {}", (now.elapsed().as_secs() as f64 * 1_000.0) + (now.elapsed().subsec_nanos() as f64 / 1000_000.0));
 
         Ok(s)

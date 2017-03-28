@@ -140,7 +140,16 @@ mod tests {
     //     assert_eq!(normalize_text("Hello"), "Hello");
     // }
 
-     #[test]#[ignore]
+
+    
+    #[test]#[ignore]
+    fn test_paths() {
+        let paths = util::get_steps_to_anchor("meanings.ger[]");
+        println!("{:?}", paths);
+        
+    }
+
+    #[test]#[ignore]
     fn test_write_index() {
         let ele:Vec<u32> = vec![3, 3, 3, 7];
         println!("{:?}", util::write_index(&ele, "testbug"));
@@ -150,7 +159,7 @@ mod tests {
         println!("{:?}", fs::remove_file("testbug"));
     }
 
-     #[test]#[ignore]
+    #[test]#[ignore]
     fn test_write_index_64() {
         let ele:Vec<u64> = vec![3_000_000_000_000, 3, 3, 7];
         println!("{:?}", util::write_index64(&ele, "test64"));
@@ -179,18 +188,19 @@ mod tests {
 
     #[test]
     fn create_indices_1() {
+        let _ = env_logger::init();
         {
 
             let indices = r#"
             [
-                { "boost":"commonness" , "options":{"boost_type":"int"}}, 
+                { "boost":"commonness" , "options":{"boost_type":"int"}},
                 { "fulltext":"ent_seq" },
-                { "boost":"field1[].rank" , "options":{"boost_type":"int"}}, 
-                { "fulltext":"field1[].text" }, 
-                { "fulltext":"kanji[].text" }, 
+                { "boost":"field1[].rank" , "options":{"boost_type":"int"}},
+                { "fulltext":"field1[].text" },
+                { "fulltext":"kanji[].text" },
                 { "fulltext":"meanings.ger[]", "options":{"tokenize":true, "stopwords": ["stopword"]} },
-                { "fulltext":"meanings.eng[]", "options":{"tokenize":true} }, 
-                { "boost":"kanji[].commonness" , "options":{"boost_type":"int"}}, 
+                { "fulltext":"meanings.eng[]", "options":{"tokenize":true} },
+                { "boost":"kanji[].commonness" , "options":{"boost_type":"int"}},
                 { "boost":"kana[].commonness", "options":{"boost_type":"int"} }
             ]
             "#;

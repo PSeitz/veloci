@@ -40,6 +40,7 @@ use std::io::SeekFrom;
 use std::collections::HashMap;
 use util;
 use util::get_file_path;
+use util::get_file_path_tuple;
 #[allow(unused_imports)]
 use std::collections::hash_map::Entry;
 use fnv::FnvHashMap;
@@ -272,8 +273,6 @@ impl From<std::str::Utf8Error> for SearchError { // Automatic Conversion
 }
 
 pub fn search_raw(folder:&str, mut request: RequestSearchPart) -> Result<FnvHashMap<u32, f32>, SearchError> {
-
-    // let ref path = request.path;
     let term = util::normalize_text(&request.term);
 
     let mut hits = get_hits_in_field(folder, &mut request, &term)?;
@@ -286,12 +285,15 @@ pub fn search_raw(folder:&str, mut request: RequestSearchPart) -> Result<FnvHash
     for i in (0..paths.len()).rev() {
         let is_text_index = i == (paths.len() -1);
         let path_name = util::get_path_name(&paths[i], is_text_index);
-        let kv_store = IndexKeyValueStore::new(&get_file_path(folder, &path_name, ".valueIdToParent.valIds") , &get_file_path(folder, &path_name, ".valueIdToParent.mainIds"));
+        let key = get_file_path_tuple(folder, &path_name, ".valueIdToParent.valIds", ".valueIdToParent.mainIds");
+        IndexKeyValueStore::load(&key);
+        let cache = INDEX_KEY_VALUE_STORE_CACHE.read().unwrap();
+        let kv_store = cache.get(&key).unwrap();
+        // let kv_store = IndexKeyValueStore::new(&get_file_path(folder, &path_name, ".valueIdToParent.valIds") , &get_file_path(folder, &path_name, ".valueIdToParent.mainIds"));
         trace!("kv_store: {:?}", kv_store);
         for (value_id, score) in &hits {
             let values = kv_store.get_values(*value_id);
-            trace!("value_id: {:?}", value_id);
-            trace!("values: {:?}", values);
+            trace!("value_id: {:?} values: {:?} ", value_id, values);
             for parent_val_id in values {
                 match next_level_hits.entry(parent_val_id as u32) {
                     Vacant(entry) => { entry.insert(*score); },
@@ -422,9 +424,33 @@ struct IndexKeyValueStore {
     values2: Vec<u32>,
 }
 
+use std::sync::RwLock;
+
+lazy_static! {
+    static ref INDEX_KEY_VALUE_STORE_CACHE: RwLock<HashMap<(String, String), IndexKeyValueStore>> = RwLock::new(HashMap::new());
+}
+
 impl IndexKeyValueStore {
+    fn load(key:&(String, String)) {
+        {
+            let cache = INDEX_KEY_VALUE_STORE_CACHE.read().unwrap();
+            if cache.contains_key(&key){
+                return;
+            }
+        }
+        {
+            let mut cache = INDEX_KEY_VALUE_STORE_CACHE.write().unwrap();
+            let new_store = IndexKeyValueStore { values1: util::load_index(&key.0).unwrap(), values2: util::load_index(&key.1).unwrap() };
+            cache.insert(key.clone(), new_store);
+        }
+    }
     fn new(path1:&str, path2:&str) -> IndexKeyValueStore {
-        IndexKeyValueStore { values1: util::load_index(path1).unwrap(), values2: util::load_index(path2).unwrap() }
+        // INDEX_KEY_VALUE_STORE_CACHE.read.lock()
+        // {
+        //     let r1 = INDEX_KEY_VALUE_STORE_CACHE.read().unwrap();
+        // }
+        let new_store = IndexKeyValueStore { values1: util::load_index(path1).unwrap(), values2: util::load_index(path2).unwrap() };
+        new_store
     }
     fn get_value(&self, find: u32) -> Option<u32> {
         match self.values1.binary_search(&find) {
@@ -448,12 +474,18 @@ impl IndexKeyValueStore {
 }
 
 trait TokensIndexKeyValueStore {
+    fn load(folder:&str, path:&str);
     fn new(path:&str) -> Self;
     fn get_parent_val_id(&self, find: u32) -> Option<u32>;
     fn get_parent_val_ids(&self, find: u32) -> Vec<u32>;
 }
 
 impl TokensIndexKeyValueStore for IndexKeyValueStore {
+    fn load(folder:&str, path:&str) {
+        let key = get_file_path_tuple(folder, &path, ".tokens.tokenValIds", ".tokens.parentValId");
+        IndexKeyValueStore::load(&key);
+        // IndexKeyValueStore { values1: util::load_index(&(path.to_string()+".tokens.tokenValIds")).unwrap(), values2: util::load_index(&(path.to_string()+".tokens.parentValId")).unwrap() }
+    }
     fn new(path:&str) -> Self {
         IndexKeyValueStore { values1: util::load_index(&(path.to_string()+".tokens.tokenValIds")).unwrap(), values2: util::load_index(&(path.to_string()+".tokens.parentValId")).unwrap() }
     }
@@ -469,6 +501,9 @@ fn add_token_results(folder:&str, path:&str, hits: &mut FnvHashMap<u32, f32>){
     if has_tokens.is_err() { return; }
 
     // var hrstart = process.hrtime()
+
+    // TokensIndexKeyValueStore::load(&get_file_path(folder, &path, ""));
+    // TokensIndexKeyValueStore::load(folder, &path);
     let token_kvdata: IndexKeyValueStore = TokensIndexKeyValueStore::new(&get_file_path(folder, &path, ""));
     let value_lengths = util::load_index(&get_file_path(folder, &path, ".length")).unwrap();
 
