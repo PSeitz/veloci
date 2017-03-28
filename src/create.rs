@@ -50,6 +50,24 @@ use flate2::write::ZlibEncoder;
 
 use std::str;
 
+
+// #[derive(Serialize, Deserialize, Debug, Default)]
+// pub struct MetaData {
+//     path: String,
+//     stopwords: Option<Vec<String>>
+// }
+// #[derive(Serialize, Deserialize, Debug, Default)]
+// pub struct IndexKeyValueMetaData {
+//     path1: String,
+//     path2: String,
+//     size: u64
+// }
+// #[derive(Serialize, Deserialize, Debug, Default)]
+// pub struct CharOffsetMetaData {
+//     path: String,
+// }
+
+
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(untagged)]
 pub enum CreateIndex {
@@ -288,14 +306,14 @@ pub fn create_fulltext_index(data: &Value, folder: &str, path:&str, options:Full
 
         tuples.sort_by(|a, b| a.valid.partial_cmp(&b.valid).unwrap_or(Ordering::Equal));
         let path_name = util::get_path_name(&paths[i], is_text_index);
-        debug!("\nValueIdToParent {:?}: {}", path_name, print_vec(&tuples));
+        trace!("\nValueIdToParent {:?}: {}", path_name, print_vec(&tuples));
         util::write_index(&tuples.iter().map(|ref el| el.valid      ).collect::<Vec<_>>(),   &get_file_path(folder, &path_name, ".valueIdToParent.valIds"))?;
         util::write_index(&tuples.iter().map(|ref el| el.parent_val_id).collect::<Vec<_>>(), &get_file_path(folder, &path_name, ".valueIdToParent.mainIds"))?;
 
 
         if tokens.len() > 0 {
             tokens.sort_by(|a, b| a.valid.partial_cmp(&b.valid).unwrap_or(Ordering::Equal));
-            debug!("\nTokens {:?}: {}", path, print_vec(&tokens));
+            trace!("\nTokens {:?}: {}", path, print_vec(&tokens));
             util::write_index(&tokens.iter().map(|ref el| el.valid      ).collect::<Vec<_>>(),  &get_file_path(folder, path, ".tokens.tokenValIds") )?;
             util::write_index(&tokens.iter().map(|ref el| el.parent_val_id).collect::<Vec<_>>(), &get_file_path(folder, path, ".tokens.parentValId"))?;
         }

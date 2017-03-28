@@ -2,11 +2,31 @@
 use regex::Regex;
 use std::io::prelude::*;
 use std::io;
-use std::mem;
+// use std::mem;
 use std::fs::File;
-use std;
+// use std;
 
 use abomonation::{encode, decode};
+use std;
+
+#[derive(Debug)]
+pub struct MeasureTime {
+    name: &'static str,
+    start: std::time::Instant
+}
+
+impl MeasureTime {
+    pub fn new(name: &'static str) -> Self {
+        MeasureTime{name:name, start: std::time::Instant::now()}
+    }
+}
+
+impl Drop for MeasureTime {
+    fn drop(&mut self) {
+        println!("{} took {}ms ",self.name, (self.start.elapsed().as_secs() as f64 * 1_000.0) + (self.start.elapsed().subsec_nanos() as f64 / 1000_000.0));
+    }
+}
+
 
 pub fn normalize_text(text:&str) -> String {
 
@@ -25,7 +45,7 @@ pub fn normalize_text(text:&str) -> String {
         new_str = (tupl.0).replace_all(&new_str, tupl.1).into_owned();
     }
 
-    new_str.trim().to_owned()
+    new_str.to_lowercase().trim().to_owned()
 
 }
 
@@ -105,10 +125,10 @@ pub fn load_index(s1: &str) -> Result<(Vec<u32>), io::Error> {
 
 }
 
-unsafe fn typed_to_bytes<T>(slice: &[T]) -> &[u8] {
-    std::slice::from_raw_parts(slice.as_ptr() as *const u8,
-                               slice.len() * mem::size_of::<T>())
-}
+// unsafe fn typed_to_bytes<T>(slice: &[T]) -> &[u8] {
+//     std::slice::from_raw_parts(slice.as_ptr() as *const u8,
+//                                slice.len() * mem::size_of::<T>())
+// }
 
 pub fn write_index(data:&Vec<u32>, path:&str) -> Result<(), io::Error> {
 

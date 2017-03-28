@@ -10,9 +10,11 @@ use std::char;
 use std::cmp;
 
 use serde_json;
+#[allow(unused_imports)]
 use std::time::Duration;
-
+#[allow(unused_imports)]
 use futures_cpupool::CpuPool;
+#[allow(unused_imports)]
 use tokio_timer::Timer;
 
 #[allow(unused_imports)]
@@ -48,25 +50,7 @@ use fnv::FnvHashMap;
 use std::time::Instant;
 
 use std::collections::hash_map::Entry::{Occupied, Vacant};
-// fn get_text_lines2() -> BoxStream<String, io::Error> {
-//     let (mut tx, rx) = channel();
-//     thread::spawn(move || {
-//         for msg in &["one", "two", "three", "four"] {
-//             thread::sleep(Duration::from_millis(500));
-//             tx = tx.send(Ok(msg.to_string())).wait().unwrap();
-//         }
-//         // tx.send("line");
-//         // let x = vec!["asdf", "asddddd"];
-//         // for line in x {
-//         //      tx.send(line).wait() {
-//         //         Ok(s) => tx = s,
-//         //         Err(_) => break,
-//         //     }
-//         // }
-
-//     });
-//     return rx.boxed();
-// }
+use std::cmp::Ordering;
 
 
 #[derive(Serialize, Deserialize, Default, Clone, Debug)]
@@ -74,7 +58,7 @@ pub struct Request {
     pub or : Option<Vec<Request>>,
     pub and : Option<Vec<Request>>,
     pub search: Option<RequestSearchPart>,
-    pub boost: Option<Vec<RequestBoostPart>> // @FixMe // @Hack 
+    pub boost: Option<Vec<RequestBoostPart>>
 }
 
 #[derive(Serialize, Deserialize, Default, Clone, Debug)]
@@ -120,51 +104,6 @@ pub struct Hit {
 }
 
 
-pub fn main2() {
-    let res = test_levenshtein("anschauen", 2);
-    println!("{:?}", res);
-
-    let pool = CpuPool::new_num_cpus();
-    let timer = Timer::default();
-    // a future that resolves to Err after a timeout
-    let timeout = timer.sleep(Duration::from_millis(750))
-        .then(|_| Err(()));
-
-    // spawn our computation, getting back a *future* of the answer
-    let prime_future = pool.spawn_fn(|| {
-        let prime = true;
-        // For reasons we'll see later, we need to return a Result here
-        let res: Result<bool, ()> = Ok(prime);
-        res
-    });
-
-    let winner = timeout.select(prime_future).map(|(win, _)| win);
-    // now block until we have a winner, then print what happened
-    match winner.wait() {
-        Ok(true) => println!("Priwwwme"),
-        Ok(false) => println!("Not wwww"),
-        Err(_) => println!("Timed wwwout"),
-    }
-
-    let search_part = RequestSearchPart{
-        levenshtein_distance: 0,
-        exact: Some(true),
-        first_char_exact_match: Some(true),
-        path: "jmdict/menaings.ger[].text".to_string(),
-        term:"haus".to_string(),
-        .. Default::default()
-    };
-
-    // let hits = get_hits_in_field("jmdict/meanings.ger[].text", &options, "haus");
-    // let search_part = RequestSearchPart{path: "jmdict/meanings.ger[].text".to_string(), term:"haus".to_string(), options:options};
-    let request = Request{search:Some(search_part), or:None, and:None, boost:None};
-
-    let res:Vec<Hit> = search("", request, 0, 10).unwrap();
-    println!("{:?}", res[0].id);
-
-}
-
-use std::cmp::Ordering;
 
 fn hits_to_array(hits:FnvHashMap<u32, f32>) -> Vec<Hit> {
     let mut res:Vec<Hit> = hits.iter().map(|(id, score)| Hit{id:*id, score:*score}).collect();
@@ -231,7 +170,12 @@ pub fn search_unrolled(folder:&str, request: Request) -> Result<FnvHashMap<u32, 
 }
 
 fn add_boost(folder: &str, boost: &RequestBoostPart, hits : &mut FnvHashMap<u32, f32>) -> Result<(), SearchError> {
-    let boostkv_store = IndexKeyValueStore::new(&get_file_path(folder, &boost.path, ".boost.subObjId") , &get_file_path(folder, &boost.path, ".boost.value"));
+    // let boostkv_store = IndexKeyValueStore::new(&get_file_path(folder, &boost.path, ".boost.subObjId") , &get_file_path(folder, &boost.path, ".boost.value"));
+    let key = get_file_path_tuple(folder, &boost.path, ".boost.subObjId", ".boost.value");
+    IndexKeyValueStore::load(&key);
+    let cache = INDEX_KEY_VALUE_STORE_CACHE.read().unwrap();
+    let boostkv_store = cache.get(&key).unwrap();
+
     let boost_param = boost.param.unwrap_or(0.0);
     for (value_id, score) in hits {
         if let Some(boost_value) = boostkv_store.get_value(*value_id) {
@@ -371,7 +315,7 @@ fn get_default_score2(distance: u32) -> f32{
 
 fn get_hits_in_field(folder:&str, mut options: &mut RequestSearchPart, term: &str) -> Result<FnvHashMap<u32, f32>, SearchError> {
     let mut hits:FnvHashMap<u32, f32> = FnvHashMap::default();
-
+    let my_time = util::MeasureTime::new("get_hits_in_field");
     // let checks:Vec<Fn(&str) -> bool> = Vec::new();
     let term_chars = term.chars().collect::<Vec<char>>();
     // options.first_char_exact_match = options.exact || options.levenshtein_distance == 0 || options.starts_with.is_some(); // TODO fix
@@ -406,12 +350,11 @@ fn get_hits_in_field(folder:&str, mut options: &mut RequestSearchPart, term: &st
                 {
                 // let score = get_default_score(term, line);
                 let score = if distance.is_some() {get_default_score2(distance.unwrap())} else {get_default_score(term, line)};
-                trace!("Hit: {:?} score: {:?}", line, score);
+                debug!("Hit: {:?} score: {:?}", line, score);
                 hits.insert(line_pos, score);
             }
         };
-        let result = get_text_lines(folder, &options.path, value, teh_callback)?; // @Hack // @Cleanup // @FixMe Forward errors
-        info!("{:?}", result); // TODO: Forward
+        get_text_lines(folder, &options.path, value, teh_callback)?; // @Hack // @Cleanup // @FixMe Forward errors
     }
     trace!("hits: {:?}", hits);
     Ok(hits)
@@ -444,14 +387,14 @@ impl IndexKeyValueStore {
             cache.insert(key.clone(), new_store);
         }
     }
-    fn new(path1:&str, path2:&str) -> IndexKeyValueStore {
-        // INDEX_KEY_VALUE_STORE_CACHE.read.lock()
-        // {
-        //     let r1 = INDEX_KEY_VALUE_STORE_CACHE.read().unwrap();
-        // }
-        let new_store = IndexKeyValueStore { values1: util::load_index(path1).unwrap(), values2: util::load_index(path2).unwrap() };
-        new_store
-    }
+    // fn new(path1:&str, path2:&str) -> IndexKeyValueStore {
+    //     // INDEX_KEY_VALUE_STORE_CACHE.read.lock()
+    //     // {
+    //     //     let r1 = INDEX_KEY_VALUE_STORE_CACHE.read().unwrap();
+    //     // }
+    //     let new_store = IndexKeyValueStore { values1: util::load_index(path1).unwrap(), values2: util::load_index(path2).unwrap() };
+    //     new_store
+    // }
     fn get_value(&self, find: u32) -> Option<u32> {
         match self.values1.binary_search(&find) {
             Ok(pos) => { Some(self.values2[pos]) },
@@ -474,21 +417,29 @@ impl IndexKeyValueStore {
 }
 
 trait TokensIndexKeyValueStore {
-    fn load(folder:&str, path:&str);
-    fn new(path:&str) -> Self;
+    // fn new(path:&str) -> Self;
     fn get_parent_val_id(&self, find: u32) -> Option<u32>;
     fn get_parent_val_ids(&self, find: u32) -> Vec<u32>;
 }
 
+fn load_tokens_index_key_value_store(folder:&str, path:&str) {
+    IndexKeyValueStore::load(&token_kvdata_key(folder, path));
+}
+
+fn token_kvdata_key(folder:&str, path:&str) -> (String, String) {
+    get_file_path_tuple(folder, &path, ".tokens.tokenValIds", ".tokens.parentValId")
+}
+
 impl TokensIndexKeyValueStore for IndexKeyValueStore {
-    fn load(folder:&str, path:&str) {
-        let key = get_file_path_tuple(folder, &path, ".tokens.tokenValIds", ".tokens.parentValId");
-        IndexKeyValueStore::load(&key);
-        // IndexKeyValueStore { values1: util::load_index(&(path.to_string()+".tokens.tokenValIds")).unwrap(), values2: util::load_index(&(path.to_string()+".tokens.parentValId")).unwrap() }
-    }
-    fn new(path:&str) -> Self {
-        IndexKeyValueStore { values1: util::load_index(&(path.to_string()+".tokens.tokenValIds")).unwrap(), values2: util::load_index(&(path.to_string()+".tokens.parentValId")).unwrap() }
-    }
+    // fn loadd(folder:&str, path:&str) -> Result<(), SearchError>{
+    //     let key = get_file_path_tuple(folder, &path, ".tokens.tokenValIds", ".tokens.parentValId");
+    //     IndexKeyValueStore::load(&key);
+    //     Ok(())
+    //     // IndexKeyValueStore { values1: util::load_index(&(path.to_string()+".tokens.tokenValIds")).unwrap(), values2: util::load_index(&(path.to_string()+".tokens.parentValId")).unwrap() }
+    // }
+    // fn new(path:&str) -> Self {
+    //     IndexKeyValueStore { values1: util::load_index(&(path.to_string()+".tokens.tokenValIds")).unwrap(), values2: util::load_index(&(path.to_string()+".tokens.parentValId")).unwrap() }
+    // }
     fn get_parent_val_id(&self, find: u32) -> Option<u32>{  return self.get_value(find); }
     fn get_parent_val_ids(&self, find: u32) -> Vec<u32>{ return self.get_values(find); }
 }
@@ -503,8 +454,10 @@ fn add_token_results(folder:&str, path:&str, hits: &mut FnvHashMap<u32, f32>){
     // var hrstart = process.hrtime()
 
     // TokensIndexKeyValueStore::load(&get_file_path(folder, &path, ""));
-    // TokensIndexKeyValueStore::load(folder, &path);
-    let token_kvdata: IndexKeyValueStore = TokensIndexKeyValueStore::new(&get_file_path(folder, &path, ""));
+    load_tokens_index_key_value_store(folder, &path);
+    // let token_kvdata: IndexKeyValueStore = TokensIndexKeyValueStore::new(&get_file_path(folder, &path, ""));
+    let cache = INDEX_KEY_VALUE_STORE_CACHE.read().unwrap();
+    let token_kvdata = cache.get(&token_kvdata_key(folder, &path)).unwrap();
     let value_lengths = util::load_index(&get_file_path(folder, &path, ".length")).unwrap();
 
     let mut token_hits:FnvHashMap<u32, f32> = FnvHashMap::default();
@@ -534,14 +487,13 @@ fn get_text_lines<F>(folder:&str, path: &str, character: Option<&str>, mut fun: 
 where F: FnMut(&str, u32) {
 
     if character.is_some() {
-        trace!("Search CharOffset for: {:?}", character.unwrap());
-        println!("{:?}", get_create_char_offset_info(folder, path, character.unwrap()));
+        debug!("Search CharOffset for: {:?}", character.unwrap());
         let char_offset_info_opt = get_create_char_offset_info(folder, path, character.unwrap())?;
-        trace!("CharOffset: {:?}", char_offset_info_opt);
+        debug!("CharOffset: {:?}", char_offset_info_opt);
         if char_offset_info_opt.is_none() {
             return Ok(())
         }
-        let mut char_offset_info = char_offset_info_opt.unwrap();
+        let char_offset_info = char_offset_info_opt.unwrap();
         let mut f = File::open(&get_file_path(folder, &path, ""))?;
         let mut buffer:Vec<u8> = Vec::with_capacity((char_offset_info.byte_range_end - char_offset_info.byte_range_start) as usize);
         unsafe { buffer.set_len(char_offset_info.byte_range_end as usize - char_offset_info.byte_range_start as usize); }
@@ -552,10 +504,12 @@ where F: FnMut(&str, u32) {
         let s = str::from_utf8(&buffer)?; // @Temporary  -> use unchecked if stable
         // trace!("Loaded Text: {}", s);
         let lines = s.lines();
+        let mut pos = 0;
         for line in lines{
-            fun(&line, char_offset_info.line_offset as u32);
-            char_offset_info.line_offset += 1
+            fun(&line, char_offset_info.line_offset as u32 + pos );
+            pos += 1;
         }
+        debug!("Checked {:?} lines", pos);
 
     }else{
         let mut f = File::open(&get_file_path(folder, &path, ""))?;

@@ -307,7 +307,7 @@ mod tests {
             let req = json!({
                 "and":[
                     {"search": {
-                        "term":"Aussehen",
+                        "term":"aussehen",
                         "path": "meanings.ger[]",
                         "levenshtein_distance":0
                     }},
@@ -327,7 +327,7 @@ mod tests {
             let req = json!({
                 "and":[
                     {"search": {
-                        "term":"Majestät",
+                        "term":"majestät",
                         "path": "meanings.ger[]",
                         "levenshtein_distance":0
                     }},
@@ -347,7 +347,7 @@ mod tests {
             let req = json!({
                 "and":[
                     {"search": {
-                        "term":"Majestät",
+                        "term":"majestät",
                         "path": "meanings.ger[]",
                         "levenshtein_distance":0
                     }},
@@ -368,7 +368,7 @@ mod tests {
             let req = json!({
                 "or":[
                     {"search": {
-                        "term":"Majestät",
+                        "term":"majestät",
                         "path": "meanings.ger[]",
                         "levenshtein_distance":0
                     }},
