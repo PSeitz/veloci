@@ -1,5 +1,9 @@
 #![feature(retain_hash_collection)]
 
+#[cfg(test)] // <-- not needed in examples + integration tests
+#[macro_use]
+extern crate pretty_assertions;
+
 #[macro_use]
 extern crate serde_derive;
 
@@ -54,13 +58,66 @@ mod tests;
 struct FileAccess {
     path: String,
     offsets: Vec<u64>,
-} 
+    file: File,
+    buffer: Vec<u8>
+}
+
+
+use std::io::SeekFrom;
+use std::str;
+
+impl FileAccess {
+
+    fn new(path: &str) -> Self {
+        FileAccess{path:path.to_string(), offsets: util::load_index_64(&(path.to_string()+".offsets")).unwrap(), file: File::open(path).unwrap(), buffer: Vec::with_capacity(50 as usize)}
+    }
+
+    fn loadText<'a>(&mut self, pos: usize) { // @Temporary Use Result
+        let stringSize = self.offsets[pos+1] - self.offsets[pos] - 1;
+        // let mut buffer:Vec<u8> = Vec::with_capacity(stringSize as usize);
+        // unsafe { buffer.set_len(stringSize as usize); }
+        self.buffer.resize(stringSize as usize, 0);
+        self.file.seek(SeekFrom::Start(self.offsets[pos])).unwrap();
+        self.file.read_exact(&mut self.buffer).unwrap();
+        // unsafe {str::from_utf8_unchecked(&buffer)}
+        // let s = unsafe {str::from_utf8_unchecked(&buffer)};
+        // str::from_utf8(&buffer).unwrap() // @Temporary  -> use unchecked if stable
+    }
+
+    fn binarySearch(&mut self, term: &str) -> Result<(i64), io::Error> {
+        let my_time = util::MeasureTime::new("binarySearch in File");
+        // let mut buffer:Vec<u8> = Vec::with_capacity(50 as usize);
+        // let mut f = File::open(&self.path)?;
+        let mut low = 0;
+        let mut high = self.offsets.len() - 2;
+        let mut i = 0;
+        while (low <= high) {
+            i = ((low + high) >> 1);
+            self.loadText(i);
+            // println!("Comparing {:?}", str::from_utf8(&buffer).unwrap());
+        // comparison = comparator(arr[i], find);
+            if str::from_utf8(&self.buffer).unwrap() < term { low = i + 1; continue }
+            if str::from_utf8(&self.buffer).unwrap() > term { high = i - 1; continue }
+            return Ok(i as i64)
+        }
+        Ok(-1)
+    }
+}
 
 
 
 fn main() {
 
     env_logger::init().unwrap();
+
+    {
+        let my_time = util::MeasureTime::new("binarySearch total");
+        let mut faccess = FileAccess::new("jmdict/meanings.ger[].text");
+        let result = faccess.binarySearch("haus");
+        let result = faccess.binarySearch("genau");
+        let result = faccess.binarySearch("achtung");
+        // println!("{:?}", result);
+    }
 
     info!("starting up");
 
@@ -72,22 +129,23 @@ fn main() {
     // println!("{:?}",create_index());
     
 
-    let _ = env_logger::init();
-    let req = json!({
-        "search": {
-            "term":"haus",
-            "path": "meanings.ger[].text",
-            "levenshtein_distance": 0,
-            "firstCharExactMatch":true
-        }
-    });
+    // let _ = env_logger::init();
+    // let req = json!({
+    //     "search": {
+    //         "term":"haus",
+    //         "path": "meanings.ger[].text",
+    //         "levenshtein_distance": 0,
+    //         "firstCharExactMatch":true
+    //     }
+    // });
 
-    let requesto: search::Request = serde_json::from_str(&req.to_string()).unwrap();
-    let my_time = util::MeasureTime::new("Search");
-    let hits = search::search("jmdict", requesto, 0, 10).unwrap();
+    // let requesto: search::Request = serde_json::from_str(&req.to_string()).unwrap();
+    // let my_time = util::MeasureTime::new("Search");
+    // let hits = search::search("jmdict", requesto, 0, 10).unwrap();
 
-    let requesto2: search::Request = serde_json::from_str(&req.to_string()).unwrap();
-    let hits2 = search::search("jmdict", requesto2, 0, 10).unwrap();
+    // let requesto2: search::Request = serde_json::from_str(&req.to_string()).unwrap();
+    // let hits2 = search::search("jmdict", requesto2, 0, 10).unwrap();
+
     // let docs = search::to_documents(&hits, "jmdict");
 
     // println!("{:?}", hits);
