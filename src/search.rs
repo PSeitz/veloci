@@ -52,6 +52,7 @@ use std::time::Instant;
 use std::collections::hash_map::Entry::{Occupied, Vacant};
 use std::cmp::Ordering;
 
+use persistence;
 
 #[derive(Serialize, Deserialize, Default, Clone, Debug)]
 pub struct Request {
@@ -275,9 +276,9 @@ impl CharOffset {
         let char_offset = CharOffset {
             path: path.to_string(),
             chars: util::file_as_string(&(path.to_string()+".char_offsets.chars"))?.lines().collect::<Vec<_>>().iter().map(|el| el.to_string()).collect(), // @Cleanup // @Temporary  sinlge  collect
-            byte_offsets_start: util::load_index_64(&(path.to_string()+".char_offsets.byteOffsetsStart"))?,
-            byte_offsets_end: util::load_index_64(&(path.to_string()+".char_offsets.byteOffsetsEnd"))?,
-            line_offsets: util::load_index_64(&(path.to_string()+".char_offsets.lineOffset"))?
+            byte_offsets_start: persistence::load_index_64(&(path.to_string()+".char_offsets.byteOffsetsStart"))?,
+            byte_offsets_end: persistence::load_index_64(&(path.to_string()+".char_offsets.byteOffsetsEnd"))?,
+            line_offsets: persistence::load_index_64(&(path.to_string()+".char_offsets.lineOffset"))?
         };
         trace!("Loaded CharOffset:{} ", path );
         trace!("{:?}", char_offset);
@@ -383,7 +384,7 @@ impl IndexKeyValueStore {
         }
         {
             let mut cache = INDEX_KEY_VALUE_STORE_CACHE.write().unwrap();
-            let new_store = IndexKeyValueStore { values1: util::load_index(&key.0).unwrap(), values2: util::load_index(&key.1).unwrap() };
+            let new_store = IndexKeyValueStore { values1: persistence::load_index(&key.0).unwrap(), values2: persistence::load_index(&key.1).unwrap() };
             cache.insert(key.clone(), new_store);
         }
     }
@@ -392,7 +393,7 @@ impl IndexKeyValueStore {
     //     // {
     //     //     let r1 = INDEX_KEY_VALUE_STORE_CACHE.read().unwrap();
     //     // }
-    //     let new_store = IndexKeyValueStore { values1: util::load_index(path1).unwrap(), values2: util::load_index(path2).unwrap() };
+    //     let new_store = IndexKeyValueStore { values1: persistence::load_index(path1).unwrap(), values2: persistence::load_index(path2).unwrap() };
     //     new_store
     // }
     fn get_value(&self, find: u32) -> Option<u32> {
@@ -435,10 +436,10 @@ impl TokensIndexKeyValueStore for IndexKeyValueStore {
     //     let key = get_file_path_tuple(folder, &path, ".tokens.tokenValIds", ".tokens.parentValId");
     //     IndexKeyValueStore::load(&key);
     //     Ok(())
-    //     // IndexKeyValueStore { values1: util::load_index(&(path.to_string()+".tokens.tokenValIds")).unwrap(), values2: util::load_index(&(path.to_string()+".tokens.parentValId")).unwrap() }
+    //     // IndexKeyValueStore { values1: persistence::load_index(&(path.to_string()+".tokens.tokenValIds")).unwrap(), values2: persistence::load_index(&(path.to_string()+".tokens.parentValId")).unwrap() }
     // }
     // fn new(path:&str) -> Self {
-    //     IndexKeyValueStore { values1: util::load_index(&(path.to_string()+".tokens.tokenValIds")).unwrap(), values2: util::load_index(&(path.to_string()+".tokens.parentValId")).unwrap() }
+    //     IndexKeyValueStore { values1: persistence::load_index(&(path.to_string()+".tokens.tokenValIds")).unwrap(), values2: persistence::load_index(&(path.to_string()+".tokens.parentValId")).unwrap() }
     // }
     fn get_parent_val_id(&self, find: u32) -> Option<u32>{  return self.get_value(find); }
     fn get_parent_val_ids(&self, find: u32) -> Vec<u32>{ return self.get_values(find); }
@@ -458,7 +459,7 @@ fn add_token_results(folder:&str, path:&str, hits: &mut FnvHashMap<u32, f32>){
     // let token_kvdata: IndexKeyValueStore = TokensIndexKeyValueStore::new(&get_file_path(folder, &path, ""));
     let cache = INDEX_KEY_VALUE_STORE_CACHE.read().unwrap();
     let token_kvdata = cache.get(&token_kvdata_key(folder, &path)).unwrap();
-    let value_lengths = util::load_index(&get_file_path(folder, &path, ".length")).unwrap();
+    let value_lengths = persistence::load_index(&get_file_path(folder, &path, ".length")).unwrap();
 
     let mut token_hits:FnvHashMap<u32, f32> = FnvHashMap::default();
     for value_id in hits.keys() {

@@ -4,9 +4,8 @@ use std::io;
 use std::io::SeekFrom;
 use std::str;
 
-use util;
 use util::get_file_path;
-
+use persistence;
 
 #[derive(Debug)]
 pub struct DocLoader {
@@ -17,7 +16,7 @@ pub struct DocLoader {
 
 impl DocLoader {
     pub fn new(folder:&str, filename:&str) -> DocLoader {
-        DocLoader{folder : folder.to_string(), filename: filename.to_string(), offsets: util::load_index_64(&get_file_path(folder, filename, ".offsets")).unwrap()}
+        DocLoader{folder : folder.to_string(), filename: filename.to_string(), offsets: persistence::load_index_64(&get_file_path(folder, filename, ".offsets")).unwrap()}
     }
 
     pub fn get_doc(&self, pos: usize) -> Result<String, io::Error> {
@@ -33,8 +32,7 @@ impl DocLoader {
         f.read_exact(&mut buffer)?;
         // println!("Load Buffer: {}", (now.elapsed().as_secs() as f64 * 1_000.0) + (now.elapsed().subsec_nanos() as f64 / 1000_000.0));
 
-        let s = str::from_utf8(&buffer).unwrap().to_string();
-        // let s = unsafe {str::from_utf8_unchecked(&buffer).to_string()};
+        let s = unsafe {str::from_utf8_unchecked(&buffer).to_string()};
         // println!("To String: {}", (now.elapsed().as_secs() as f64 * 1_000.0) + (now.elapsed().subsec_nanos() as f64 / 1000_000.0));
 
         Ok(s)

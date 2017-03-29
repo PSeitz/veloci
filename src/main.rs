@@ -49,6 +49,7 @@ pub mod util;
 pub mod search;
 pub mod create;
 pub mod doc_loader;
+pub mod persistence;
 
 #[cfg(test)]
 mod tests;
@@ -69,10 +70,10 @@ use std::str;
 impl FileAccess {
 
     fn new(path: &str) -> Self {
-        FileAccess{path:path.to_string(), offsets: util::load_index_64(&(path.to_string()+".offsets")).unwrap(), file: File::open(path).unwrap(), buffer: Vec::with_capacity(50 as usize)}
+        FileAccess{path:path.to_string(), offsets: persistence::load_index_64(&(path.to_string()+".offsets")).unwrap(), file: File::open(path).unwrap(), buffer: Vec::with_capacity(50 as usize)}
     }
 
-    fn loadText<'a>(&mut self, pos: usize) { // @Temporary Use Result
+    fn load_text<'a>(&mut self, pos: usize) { // @Temporary Use Result
         let stringSize = self.offsets[pos+1] - self.offsets[pos] - 1;
         // let mut buffer:Vec<u8> = Vec::with_capacity(stringSize as usize);
         // unsafe { buffer.set_len(stringSize as usize); }
@@ -84,16 +85,16 @@ impl FileAccess {
         // str::from_utf8(&buffer).unwrap() // @Temporary  -> use unchecked if stable
     }
 
-    fn binarySearch(&mut self, term: &str) -> Result<(i64), io::Error> {
-        let my_time = util::MeasureTime::new("binarySearch in File");
+    fn binary_search(&mut self, term: &str) -> Result<(i64), io::Error> {
+        let my_time = util::MeasureTime::new("binary_search in File");
         // let mut buffer:Vec<u8> = Vec::with_capacity(50 as usize);
         // let mut f = File::open(&self.path)?;
         let mut low = 0;
         let mut high = self.offsets.len() - 2;
         let mut i = 0;
-        while (low <= high) {
-            i = ((low + high) >> 1);
-            self.loadText(i);
+        while low <= high {
+            i = (low + high) >> 1;
+            self.load_text(i);
             // println!("Comparing {:?}", str::from_utf8(&buffer).unwrap());
         // comparison = comparator(arr[i], find);
             if str::from_utf8(&self.buffer).unwrap() < term { low = i + 1; continue }
@@ -111,11 +112,11 @@ fn main() {
     env_logger::init().unwrap();
 
     {
-        let my_time = util::MeasureTime::new("binarySearch total");
+        let my_time = util::MeasureTime::new("binary_search total");
         let mut faccess = FileAccess::new("jmdict/meanings.ger[].text");
-        let result = faccess.binarySearch("haus");
-        let result = faccess.binarySearch("genau");
-        let result = faccess.binarySearch("achtung");
+        let result = faccess.binary_search("haus");
+        let result = faccess.binary_search("genau");
+        let result = faccess.binary_search("achtung");
         // println!("{:?}", result);
     }
 
@@ -126,7 +127,7 @@ fn main() {
     // println!("{:?}",search::test_levenshtein("anschauen", 2));
 
 
-    // println!("{:?}",create_index());
+    println!("{:?}",create_index());
     
 
     // let _ = env_logger::init();

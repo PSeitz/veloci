@@ -5,6 +5,7 @@ mod tests {
     #[allow(unused_imports)]
     use doc_loader;
     use util;
+    use persistence;
     #[allow(unused_imports)]
     use util::normalize_text;
     #[allow(unused_imports)]
@@ -149,25 +150,25 @@ mod tests {
         
     }
 
-    #[test]#[ignore]
-    fn test_write_index() {
-        let ele:Vec<u32> = vec![3, 3, 3, 7];
-        println!("{:?}", util::write_index(&ele, "testbug"));
-        let ele2 = util::load_index("testbug").unwrap();
-        println!("{:?}", ele2);
-        assert_eq!(ele, ele2);
-        println!("{:?}", fs::remove_file("testbug"));
-    }
+    // #[test]#[ignore]
+    // fn test_write_index() {
+    //     let ele:Vec<u32> = vec![3, 3, 3, 7];
+    //     println!("{:?}", persistence::write_index(&ele, "testbug"));
+    //     let ele2 = persistence::load_index("testbug").unwrap();
+    //     println!("{:?}", ele2);
+    //     assert_eq!(ele, ele2);
+    //     println!("{:?}", fs::remove_file("testbug"));
+    // }
 
-    #[test]#[ignore]
-    fn test_write_index_64() {
-        let ele:Vec<u64> = vec![3_000_000_000_000, 3, 3, 7];
-        println!("{:?}", util::write_index64(&ele, "test64"));
-        let ele2 = util::load_index_64("test64").unwrap();
-        println!("{:?}", ele2);
-        assert_eq!(ele, ele2);
-        println!("{:?}", fs::remove_file("test64"));
-    }
+    // #[test]#[ignore]
+    // fn test_write_index_64() {
+    //     let ele:Vec<u64> = vec![3_000_000_000_000, 3, 3, 7];
+    //     println!("{:?}", persistence::write_index64(&ele, "test64"));
+    //     let ele2 = persistence::load_index_64("test64").unwrap();
+    //     println!("{:?}", ele2);
+    //     assert_eq!(ele, ele2);
+    //     println!("{:?}", fs::remove_file("test64"));
+    // }
 
     #[test]#[ignore]
     fn test_binary_search() {
