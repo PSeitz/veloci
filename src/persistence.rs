@@ -42,7 +42,8 @@ pub struct MetaData {
 pub struct IDList {
     pub path: String,
     pub size: u64,
-    pub id_type: IDDataType
+    pub id_type: IDDataType,
+    pub doc_id_type:bool
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -101,6 +102,33 @@ pub fn load_index(s1: &str) -> Result<(Vec<u32>), io::Error> {
     }
 
 }
+use std;
+// fn check_is_docid_type<T: std::cmp::PartialEq>(data: &Vec<T>) -> bool {
+//     for (index, value_id) in data.iter().enumerate(){
+//         if *value_id as usize != index  {
+//             return false
+//         }
+//     }
+//     return true
+// }
+
+fn check_is_docid_type32(data: &Vec<u32>) -> bool {
+    for (index, value_id) in data.iter().enumerate(){
+        if *value_id as usize != index  {
+            return false
+        }
+    }
+    return true
+}
+
+fn check_is_docid_type64(data: &Vec<u64>) -> bool {
+    for (index, value_id) in data.iter().enumerate(){
+        if *value_id as usize != index  {
+            return false
+        }
+    }
+    return true
+}
 
 pub fn write_index(data:&Vec<u32>, path:&str, metadata: &mut MetaData) -> Result<(), io::Error> {
 
@@ -110,7 +138,7 @@ pub fn write_index(data:&Vec<u32>, path:&str, metadata: &mut MetaData) -> Result
     // unsafe { File::create(path)?.write_all(typed_to_bytes(data))?; }
     info!("Wrote Index32 {} With size {:?}", path, data.len());
     trace!("{:?}", data);
-    metadata.id_lists.insert(path.to_string(), IDList{path: path.to_string(), size: data.len() as u64, id_type: IDDataType::U32});
+    metadata.id_lists.insert(path.to_string(), IDList{path: path.to_string(), size: data.len() as u64, id_type: IDDataType::U32, doc_id_type:check_is_docid_type32(&data)});
     Ok(())
 }
 
@@ -122,6 +150,6 @@ pub fn write_index64(data:&Vec<u64>, path:&str, metadata: &mut MetaData) -> Resu
     // unsafe { File::create(path)?.write_all(typed_to_bytes(data))?; }
     info!("Wrote Index64 {} With size {:?}", path, data.len());
     trace!("{:?}", data);
-    metadata.id_lists.insert(path.to_string(), IDList{path: path.to_string(), size: data.len() as u64, id_type: IDDataType::U64});
+    metadata.id_lists.insert(path.to_string(), IDList{path: path.to_string(), size: data.len() as u64, id_type: IDDataType::U64, doc_id_type:check_is_docid_type64(&data)});
     Ok(())
 }
