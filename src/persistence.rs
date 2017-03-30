@@ -33,6 +33,9 @@ use fnv::FnvHashMap;
 use std::str;
 use abomonation::{encode, decode};
 
+use std::sync::RwLock;
+use std::collections::HashMap;
+
 #[derive(Serialize, Deserialize, Debug)]
 pub struct MetaData {
     pub id_lists: FnvHashMap<String, IDList>
@@ -62,31 +65,74 @@ struct Persistence {
 // use persistence object with folder and metadata
 // move cache here
 
-pub fn load_index_64(s1: &str) -> Result<(Vec<u64>), io::Error> {
-    info!("Loading Index64 {} ", s1);
-    let mut f = File::open(s1)?;
-    let mut buffer: Vec<u8> = Vec::new();
-    f.read_to_end(&mut buffer)?;
-    buffer.shrink_to_fit();
-    // let buf_len = buffer.len();
+lazy_static! {
+    pub static ref INDEX_64_CACHE: RwLock<HashMap<String, Vec<u64>>> = RwLock::new(HashMap::new());
+    pub static ref INDEX_32_CACHE: RwLock<HashMap<String, Vec<u32>>> = RwLock::new(HashMap::new());
+}
 
-    // let mut read: Vec<u64> = unsafe { mem::transmute(buffer) };
-    // unsafe { read.set_len(buf_len/8); }
-    // info!("Loaded Index64 {} With size {:?}",s1,  read.len());
-    // Ok(read)
+pub fn load_index_64(s1: &str) -> Result<(), io::Error> {
 
-    if let Some((result, remaining)) = unsafe { decode::<Vec<u64>>(&mut buffer) } {
-        assert!(remaining.len() == 0);
-        Ok(result.clone())
-    }else{
-        panic!("Could no load Vector");
+    {
+        let cache = INDEX_64_CACHE.read().unwrap();
+        if cache.contains_key(s1){
+            return Ok(());
+        }
+    }
+    {
+        info!("Loading Index64 {} ", s1);
+        let mut f = File::open(s1)?;
+        let mut buffer: Vec<u8> = Vec::new();
+        f.read_to_end(&mut buffer)?;
+        buffer.shrink_to_fit();
+
+        if let Some((result, remaining)) = unsafe { decode::<Vec<u64>>(&mut buffer) } {
+            assert!(remaining.len() == 0);
+            // Ok(result.clone())
+            let mut cache = INDEX_64_CACHE.write().unwrap();
+            cache.insert(s1.to_string(), result.clone());
+        }else{
+            panic!("Could no load Vector");
+        }
+
+        Ok(())
+
     }
 
 }
 
+pub fn load_index_into_cache(s1: &str) -> Result<(), io::Error> {
+
+    {
+        let cache = INDEX_32_CACHE.read().unwrap();
+        if cache.contains_key(s1){
+            return Ok(());
+        }
+    }
+    {
+        info!("Loading Index32 {} ", s1);
+        let mut f = File::open(s1)?;
+        let mut buffer: Vec<u8> = Vec::new();
+        f.read_to_end(&mut buffer)?;
+        buffer.shrink_to_fit();
+
+        if let Some((result, remaining)) = unsafe { decode::<Vec<u32>>(&mut buffer) } {
+            assert!(remaining.len() == 0);
+            // Ok(result.clone())
+            let mut cache = INDEX_32_CACHE.write().unwrap();
+            cache.insert(s1.to_string(), result.clone());
+        }else{
+            panic!("Could no load Vector");
+        }
+
+        Ok(())
+
+    }
 
 
-pub fn load_index(s1: &str) -> Result<(Vec<u32>), io::Error> {
+}
+
+
+pub fn load_index(s1: &str) -> Result<Vec<u32>, io::Error> {
     info!("Loading Index32 {} ", s1);
     let mut f = File::open(s1)?;
     let mut buffer: Vec<u8> = Vec::new();

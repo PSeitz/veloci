@@ -171,11 +171,9 @@ pub fn search_unrolled(folder:&str, request: Request) -> Result<FnvHashMap<u32, 
 }
 
 fn add_boost(folder: &str, boost: &RequestBoostPart, hits : &mut FnvHashMap<u32, f32>) -> Result<(), SearchError> {
-    // let boostkv_store = IndexKeyValueStore::new(&get_file_path(folder, &boost.path, ".boost.subObjId") , &get_file_path(folder, &boost.path, ".boost.value"));
     let key = get_file_path_tuple(folder, &boost.path, ".boost.subObjId", ".boost.value");
-    IndexKeyValueStore::load(&key);
-    let cache = INDEX_KEY_VALUE_STORE_CACHE.read().unwrap();
-    let boostkv_store = cache.get(&key).unwrap();
+    
+    let boostkv_store = SupiIndexKeyValueStore::new(&key.0, &key.1);
 
     let boost_param = boost.param.unwrap_or(0.0);
     for (value_id, score) in hits {
@@ -231,9 +229,7 @@ pub fn search_raw(folder:&str, mut request: RequestSearchPart) -> Result<FnvHash
         let is_text_index = i == (paths.len() -1);
         let path_name = util::get_path_name(&paths[i], is_text_index);
         let key = get_file_path_tuple(folder, &path_name, ".valueIdToParent.valIds", ".valueIdToParent.mainIds");
-        IndexKeyValueStore::load(&key);
-        let cache = INDEX_KEY_VALUE_STORE_CACHE.read().unwrap();
-        let kv_store = cache.get(&key).unwrap();
+        let kv_store = SupiIndexKeyValueStore::new(&key.0, &key.1);
         // let kv_store = IndexKeyValueStore::new(&get_file_path(folder, &path_name, ".valueIdToParent.valIds") , &get_file_path(folder, &path_name, ".valueIdToParent.mainIds"));
         trace!("kv_store: {:?}", kv_store);
         for (value_id, score) in &hits {
@@ -265,20 +261,23 @@ struct OffsetInfo {
 struct CharOffset {
     path: String,
     chars: Vec<String>,
-    byte_offsets_start: Vec<u64>,
-    byte_offsets_end: Vec<u64>,
-    line_offsets: Vec<u64>,
+    // byte_offsets_start: Vec<u64>,
+    // byte_offsets_end: Vec<u64>,
+    // line_offsets: Vec<u64>,
 }
 
 
 impl CharOffset {
     fn new(path:&str) -> Result<CharOffset, SearchError> {
+        persistence::load_index_64(&(path.to_string()+".char_offsets.byteOffsetsStart"))?;
+        persistence::load_index_64(&(path.to_string()+".char_offsets.byteOffsetsEnd"))?;
+        persistence::load_index_64(&(path.to_string()+".char_offsets.lineOffset"))?;
         let char_offset = CharOffset {
             path: path.to_string(),
             chars: util::file_as_string(&(path.to_string()+".char_offsets.chars"))?.lines().collect::<Vec<_>>().iter().map(|el| el.to_string()).collect(), // @Cleanup // @Temporary  sinlge  collect
-            byte_offsets_start: persistence::load_index_64(&(path.to_string()+".char_offsets.byteOffsetsStart"))?,
-            byte_offsets_end: persistence::load_index_64(&(path.to_string()+".char_offsets.byteOffsetsEnd"))?,
-            line_offsets: persistence::load_index_64(&(path.to_string()+".char_offsets.lineOffset"))?
+            // byte_offsets_start: persistence::load_index_64(&(path.to_string()+".char_offsets.byteOffsetsStart"))?,
+            // byte_offsets_end: persistence::load_index_64(&(path.to_string()+".char_offsets.byteOffsetsEnd"))?,
+            // line_offsets: persistence::load_index_64(&(path.to_string()+".char_offsets.lineOffset"))?
         };
         trace!("Loaded CharOffset:{} ", path );
         trace!("{:?}", char_offset);
@@ -294,8 +293,13 @@ impl CharOffset {
         // self.chars.binary_search(&character) { Ok(char_index) => this.get_offset_info(char_index),Err(_) => };
     }
     fn get_offset_info(&self, index: usize) -> OffsetInfo {
-        trace!("get_offset_info path:{}\tindex:{}\toffsetSize: {}", self.path, index, self.byte_offsets_start.len());
-        return OffsetInfo{byte_range_start: self.byte_offsets_start[index], byte_range_end: self.byte_offsets_end[index], line_offset: self.line_offsets[index]};
+        let cacheLock = persistence::INDEX_64_CACHE.read().unwrap();
+        let byte_offsets_start = cacheLock.get(&(self.path.to_string()+".char_offsets.byteOffsetsStart")).unwrap();
+        let byte_offsets_end =   cacheLock.get(&(self.path.to_string()+".char_offsets.byteOffsetsEnd")).unwrap();
+        let line_offsets =       cacheLock.get(&(self.path.to_string()+".char_offsets.lineOffset")).unwrap();
+
+        trace!("get_offset_info path:{}\tindex:{}\toffsetSize: {}", self.path, index, byte_offsets_start.len());
+        return OffsetInfo{byte_range_start: byte_offsets_start[index], byte_range_end: byte_offsets_end[index], line_offset: line_offsets[index]};
     }
 
 }
@@ -362,53 +366,45 @@ fn get_hits_in_field(folder:&str, mut options: &mut RequestSearchPart, term: &st
 
 }
 
-#[derive(Debug)]
-struct IndexKeyValueStore {
-    values1: Vec<u32>,
-    values2: Vec<u32>,
-}
-
 use std::sync::RwLock;
 
-lazy_static! {
-    static ref INDEX_KEY_VALUE_STORE_CACHE: RwLock<HashMap<(String, String), IndexKeyValueStore>> = RwLock::new(HashMap::new());
+
+#[derive(Debug)]
+struct SupiIndexKeyValueStore {
+    path1:String,
+    path2:String
 }
 
-impl IndexKeyValueStore {
-    fn load(key:&(String, String)) {
-        {
-            let cache = INDEX_KEY_VALUE_STORE_CACHE.read().unwrap();
-            if cache.contains_key(&key){
-                return;
-            }
-        }
-        {
-            let mut cache = INDEX_KEY_VALUE_STORE_CACHE.write().unwrap();
-            let new_store = IndexKeyValueStore { values1: persistence::load_index(&key.0).unwrap(), values2: persistence::load_index(&key.1).unwrap() };
-            cache.insert(key.clone(), new_store);
-        }
+impl SupiIndexKeyValueStore {
+    fn new(path1:&str, path2:&str) -> SupiIndexKeyValueStore {
+        persistence::load_index_into_cache(&path1);
+        persistence::load_index_into_cache(&path2);
+        let new_store = SupiIndexKeyValueStore { path1: path1.to_string(), path2:path2.to_string()};
+        new_store
     }
-    // fn new(path1:&str, path2:&str) -> IndexKeyValueStore {
-    //     // INDEX_KEY_VALUE_STORE_CACHE.read.lock()
-    //     // {
-    //     //     let r1 = INDEX_KEY_VALUE_STORE_CACHE.read().unwrap();
-    //     // }
-    //     let new_store = IndexKeyValueStore { values1: persistence::load_index(path1).unwrap(), values2: persistence::load_index(path2).unwrap() };
-    //     new_store
-    // }
     fn get_value(&self, find: u32) -> Option<u32> {
-        match self.values1.binary_search(&find) {
-            Ok(pos) => { Some(self.values2[pos]) },
+        let cacheLock = persistence::INDEX_32_CACHE.read().unwrap();
+        let values1 = cacheLock.get(&self.path1).unwrap();
+        let values2 = cacheLock.get(&self.path2).unwrap();
+
+        match values1.binary_search(&find) {
+            Ok(pos) => { Some(values2[pos]) },
             Err(_) => {None},
         }
     }
     fn get_values(&self, find: u32) -> Vec<u32> {
+        println!("Requesting {:?}", self.path1);
+        println!("Requesting {:?}", self.path2);
+        let cacheLock = persistence::INDEX_32_CACHE.read().unwrap();
+        let values1 = cacheLock.get(&self.path1).unwrap();
+        let values2 = cacheLock.get(&self.path2).unwrap();
+
         let mut result = Vec::new();
-        match self.values1.binary_search(&find) {
+        match values1.binary_search(&find) {
             Ok(mut pos) => {
-                let val_len = self.values1.len();
-                while pos < val_len && self.values1[pos] == find{
-                    result.push(self.values2[pos]);
+                let val_len = values1.len();
+                while pos < val_len && values1[pos] == find{
+                    result.push(values2[pos]);
                     pos+=1;
                 }
             },Err(_) => {},
@@ -417,31 +413,23 @@ impl IndexKeyValueStore {
     }
 }
 
+
 trait TokensIndexKeyValueStore {
-    // fn new(path:&str) -> Self;
+    fn new(path:&str) -> Self;
     fn get_parent_val_id(&self, find: u32) -> Option<u32>;
     fn get_parent_val_ids(&self, find: u32) -> Vec<u32>;
 }
 
-fn load_tokens_index_key_value_store(folder:&str, path:&str) {
-    IndexKeyValueStore::load(&token_kvdata_key(folder, path));
-}
 
-fn token_kvdata_key(folder:&str, path:&str) -> (String, String) {
-    get_file_path_tuple(folder, &path, ".tokens.tokenValIds", ".tokens.parentValId")
-}
+// fn token_kvdata_key(folder:&str, path:&str) -> (String, String) {
+//     get_file_path_tuple(folder, &path, ".tokens.tokenValIds", ".tokens.parentValId")
+// }
 
-impl TokensIndexKeyValueStore for IndexKeyValueStore {
-    // fn loadd(folder:&str, path:&str) -> Result<(), SearchError>{
-    //     let key = get_file_path_tuple(folder, &path, ".tokens.tokenValIds", ".tokens.parentValId");
-    //     IndexKeyValueStore::load(&key);
-    //     Ok(())
-    //     // IndexKeyValueStore { values1: persistence::load_index(&(path.to_string()+".tokens.tokenValIds")).unwrap(), values2: persistence::load_index(&(path.to_string()+".tokens.parentValId")).unwrap() }
-    // }
-    // fn new(path:&str) -> Self {
-    //     IndexKeyValueStore { values1: persistence::load_index(&(path.to_string()+".tokens.tokenValIds")).unwrap(), values2: persistence::load_index(&(path.to_string()+".tokens.parentValId")).unwrap() }
-    // }
-    fn get_parent_val_id(&self, find: u32) -> Option<u32>{  return self.get_value(find); }
+impl TokensIndexKeyValueStore for SupiIndexKeyValueStore {
+    fn new(path:&str) -> Self {
+        SupiIndexKeyValueStore::new(&(path.to_string()+".tokens.tokenValIds"), &(path.to_string()+".tokens.parentValId"))
+    }
+    fn get_parent_val_id(&self, find: u32) -> Option<u32>{ return self.get_value(find); }
     fn get_parent_val_ids(&self, find: u32) -> Vec<u32>{ return self.get_values(find); }
 }
 
@@ -453,12 +441,7 @@ fn add_token_results(folder:&str, path:&str, hits: &mut FnvHashMap<u32, f32>){
     if has_tokens.is_err() { return; }
 
     // var hrstart = process.hrtime()
-
-    // TokensIndexKeyValueStore::load(&get_file_path(folder, &path, ""));
-    load_tokens_index_key_value_store(folder, &path);
-    // let token_kvdata: IndexKeyValueStore = TokensIndexKeyValueStore::new(&get_file_path(folder, &path, ""));
-    let cache = INDEX_KEY_VALUE_STORE_CACHE.read().unwrap();
-    let token_kvdata = cache.get(&token_kvdata_key(folder, &path)).unwrap();
+    let token_kvdata: SupiIndexKeyValueStore = TokensIndexKeyValueStore::new(&get_file_path(folder, &path, ""));
     let value_lengths = persistence::load_index(&get_file_path(folder, &path, ".length")).unwrap();
 
     let mut token_hits:FnvHashMap<u32, f32> = FnvHashMap::default();
