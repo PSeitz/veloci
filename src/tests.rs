@@ -184,7 +184,7 @@ mod tests {
         warn!("can log from the test too");
         let requesto: search::Request = serde_json::from_str(r#"{"search":{"path":"asdf", "term": "asdf", "levenshtein_distance":1}}"#).unwrap();
         println!("mjjaaa {:?}", requesto);
-        assert_eq!(requesto.search.unwrap().levenshtein_distance, 1);
+        assert_eq!(requesto.search.unwrap().levenshtein_distance, Some(1));
     }
 
     #[test]

@@ -1,9 +1,5 @@
 #![feature(retain_hash_collection)]
 
-#[cfg(test)] // <-- not needed in examples + integration tests
-#[macro_use]
-extern crate pretty_assertions;
-
 #[macro_use]
 extern crate serde_derive;
 
@@ -25,6 +21,7 @@ extern crate env_logger;
 extern crate flate2;
 
 extern crate abomonation;
+extern crate csv;
 
 #[allow(unused_imports)]
 use fst::{IntoStreamer, Streamer, Levenshtein, Set, MapBuilder};
@@ -55,71 +52,25 @@ pub mod persistence;
 mod tests;
 
 
-#[derive(Debug)]
-struct FileAccess {
-    path: String,
-    // offsets: Vec<u64>,
-    file: File,
-    buffer: Vec<u8>
-}
-
-
 use std::io::SeekFrom;
 use std::str;
 
-impl FileAccess {
 
-    fn new(path: &str) -> Self {
-        persistence::load_index_64(&(path.to_string()+".offsets")).unwrap();
-        FileAccess{path:path.to_string(), file: File::open(path).unwrap(), buffer: Vec::with_capacity(50 as usize)}
-    }
 
-    fn load_text<'a>(&mut self, pos: usize, offsets:&Vec<u64>) { // @Temporary Use Result
-        let stringSize = offsets[pos+1] - offsets[pos] - 1;
-        // let mut buffer:Vec<u8> = Vec::with_capacity(stringSize as usize);
-        // unsafe { buffer.set_len(stringSize as usize); }
-        self.buffer.resize(stringSize as usize, 0);
-        self.file.seek(SeekFrom::Start(offsets[pos])).unwrap();
-        self.file.read_exact(&mut self.buffer).unwrap();
-        // unsafe {str::from_utf8_unchecked(&buffer)}
-        // let s = unsafe {str::from_utf8_unchecked(&buffer)};
-        // str::from_utf8(&buffer).unwrap() // @Temporary  -> use unchecked if stable
-    }
-
-    fn binary_search(&mut self, term: &str) -> Result<(i64), io::Error> {
-        let cacheLock = persistence::INDEX_64_CACHE.read().unwrap();
-        let offsets = cacheLock.get(&(self.path.to_string()+".offsets")).unwrap();
-        let my_time = util::MeasureTime::new("binary_search in File");
-        // let mut buffer:Vec<u8> = Vec::with_capacity(50 as usize);
-        // let mut f = File::open(&self.path)?;
-        let mut low = 0;
-        let mut high = offsets.len() - 2;
-        let mut i = 0;
-        while low <= high {
-            i = (low + high) >> 1;
-            self.load_text(i, offsets);
-            // println!("Comparing {:?}", str::from_utf8(&buffer).unwrap());
-        // comparison = comparator(arr[i], find);
-            if str::from_utf8(&self.buffer).unwrap() < term { low = i + 1; continue }
-            if str::from_utf8(&self.buffer).unwrap() > term { high = i - 1; continue }
-            return Ok(i as i64)
-        }
-        Ok(-1)
-    }
-}
-
-extern crate csv;
 
 fn loadcsv(csv_path:&str, pos:usize) -> Vec<String>{
+    // char escapeChar = 'a';
     // MATNR, ISMTITLE, ISMORIGTITLE, ISMSUBTITLE1, ISMSUBTITLE2, ISMSUBTITLE3, ISMARTIST, ISMLANGUAGES, ISMPUBLDATE, EAN11, ISMORIDCODE
+    let total_time = util::MeasureTime::new("total_time");
     let mut terms:FnvHashSet<String> = FnvHashSet::default();
-    let mut rdr = csv::Reader::from_file(csv_path).unwrap();
+    let mut rdr = csv::Reader::from_file(csv_path).unwrap().has_headers(false).escape(Some(b'\\'));
     for record in rdr.decode() {
         // let (matnr, ismtitle, ismorigtitle, ismsubtitle1, ismsubtitle2, ismsubtitle3, ismartist, ismlanguages, ismpubldate, ean11, ismoridcode):
         //     (String, String, String, String, String, String, String, String, String, String, String) = record.unwrap();
-        let els:Vec<String> = record.unwrap();
-        terms.insert(els[pos].clone());
+        let els:Vec<Option<String>> = record.unwrap();
+        terms.insert(els[pos].as_ref().unwrap().clone());
     }
+    let my_time = util::MeasureTime::new("Sort Time");
     let mut v: Vec<String> = terms.into_iter().collect::<Vec<String>>();
     v.sort();
     v
@@ -129,23 +80,94 @@ fn main() {
 
     env_logger::init().unwrap();
 
-    // println!("{:?}", loadcsv("./data.csv", 0));
+    // let all_terms = loadcsv("./data.csv", 0);
+    // println!("{:?}", all_terms.len());
+
+    // File::create("MATNR").unwrap().write_all(all_terms.join("\n").as_bytes()).unwrap();
+    let indices = r#"
+    [
+        { "fulltext":"MATNR", "attr_pos" : 0 },
+        { "fulltext":"ISMTITLE", "attr_pos" : 1, "options":{"tokenize":true}},
+        { "fulltext":"ISMORIGTITLE", "attr_pos" : 2, "options":{"tokenize":true}},
+        { "fulltext":"ISMSUBTITLE1", "attr_pos" : 3, "options":{"tokenize":true}},
+        { "fulltext":"ISMSUBTITLE2", "attr_pos" : 4, "options":{"tokenize":true}},
+        { "fulltext":"ISMSUBTITLE3", "attr_pos" : 5, "options":{"tokenize":true}},
+        { "fulltext":"ISMARTIST", "attr_pos" : 6, "options":{"tokenize":true}},
+        { "fulltext":"ISMLANGUAGES", "attr_pos" : 7},
+        { "fulltext":"ISMPUBLDATE", "attr_pos" : 8},
+        { "fulltext":"EAN11", "attr_pos" : 9},
+        { "fulltext":"ISMORIDCODE", "attr_pos" : 10}
+    ]
+    "#;
+
+
+    // println!("{:?}", create::create_indices_csv("csv_test", "./data.csv", indices));
+    let meta_data = persistence::MetaData::new("csv_test");
+    println!("{:?}", persistence::loadAll(&meta_data));
 
     {
-        let my_time = util::MeasureTime::new("binary_search total");
-        let mut faccess = FileAccess::new("jmdict/meanings.ger[].text");
-        let result = faccess.binary_search("haus");
-        let result = faccess.binary_search("genau");
-        let result = faccess.binary_search("achtung");
-        // println!("{:?}", result);
+        println!("Ab gehts");
+        let my_time = util::MeasureTime::new("search total");
+        // let req = json!({
+        //     "or":[
+        //         {
+        //             "and":[{"search": {"term":"kriege", "path": "MATNR"}}, {"search": {"term":"die", "path": "MATNR"}}, {"search": {"term":"ich", "path": "MATNR"}}, {"search": {"term":"gesehen", "path": "MATNR"}}, {"search": {"term":"habe", "path": "MATNR"}} ]
+        //         },
+        //         {
+        //             "and":[{"search": {"term":"kriege", "path": "ISMTITLE"}}, {"search": {"term":"die", "path": "ISMTITLE"}}, {"search": {"term":"ich", "path": "ISMTITLE"}}, {"search": {"term":"gesehen", "path": "ISMTITLE"}}, {"search": {"term":"habe", "path": "ISMTITLE"}} ]
+        //         },
+        //         {
+        //             "and":[{"search": {"term":"kriege", "path": "ISMORIGTITLE"}}, {"search": {"term":"die", "path": "ISMORIGTITLE"}}, {"search": {"term":"ich", "path": "ISMORIGTITLE"}}, {"search": {"term":"gesehen", "path": "ISMORIGTITLE"}}, {"search": {"term":"habe", "path": "ISMORIGTITLE"}} ]
+        //         },
+        //         {
+        //             "and":[{"search": {"term":"kriege", "path": "ISMSUBTITLE1"}}, {"search": {"term":"die", "path": "ISMSUBTITLE1"}}, {"search": {"term":"ich", "path": "ISMSUBTITLE1"}}, {"search": {"term":"gesehen", "path": "ISMSUBTITLE1"}}, {"search": {"term":"habe", "path": "ISMSUBTITLE1"}} ]
+        //         },
+        //         {
+        //             "and":[{"search": {"term":"kriege", "path": "ISMSUBTITLE2"}}, {"search": {"term":"die", "path": "ISMSUBTITLE2"}}, {"search": {"term":"ich", "path": "ISMSUBTITLE2"}}, {"search": {"term":"gesehen", "path": "ISMSUBTITLE2"}}, {"search": {"term":"habe", "path": "ISMSUBTITLE2"}} ]
+        //         },
+        //         {
+        //             "and":[{"search": {"term":"kriege", "path": "ISMSUBTITLE3"}}, {"search": {"term":"die", "path": "ISMSUBTITLE3"}}, {"search": {"term":"ich", "path": "ISMSUBTITLE3"}}, {"search": {"term":"gesehen", "path": "ISMSUBTITLE3"}}, {"search": {"term":"habe", "path": "ISMSUBTITLE3"}} ]
+        //         },
+        //         {
+        //             "and":[{"search": {"term":"kriege", "path": "ISMARTIST"}}, {"search": {"term":"die", "path": "ISMARTIST"}}, {"search": {"term":"ich", "path": "ISMARTIST"}}, {"search": {"term":"gesehen", "path": "ISMARTIST"}}, {"search": {"term":"habe", "path": "ISMARTIST"}} ]
+        //         },
+        //         {
+        //             "and":[{"search": {"term":"kriege", "path": "ISMLANGUAGES"}}, {"search": {"term":"die", "path": "ISMLANGUAGES"}}, {"search": {"term":"ich", "path": "ISMLANGUAGES"}}, {"search": {"term":"gesehen", "path": "ISMLANGUAGES"}}, {"search": {"term":"habe", "path": "ISMLANGUAGES"}} ]
+        //         },
+        //         {
+        //             "and":[{"search": {"term":"kriege", "path": "ISMPUBLDATE"}}, {"search": {"term":"die", "path": "ISMPUBLDATE"}}, {"search": {"term":"ich", "path": "ISMPUBLDATE"}}, {"search": {"term":"gesehen", "path": "ISMPUBLDATE"}}, {"search": {"term":"habe", "path": "ISMPUBLDATE"}} ]
+        //         },
+        //         {
+        //             "and":[{"search": {"term":"kriege", "path": "EAN11"}}, {"search": {"term":"die", "path": "EAN11"}}, {"search": {"term":"ich", "path": "EAN11"}}, {"search": {"term":"gesehen", "path": "EAN11"}}, {"search": {"term":"habe", "path": "EAN11"}} ]
+        //         },
+        //         {
+        //             "and":[{"search": {"term":"kriege", "path": "ISMORIDCODE"}}, {"search": {"term":"die", "path": "ISMORIDCODE"}}, {"search": {"term":"ich", "path": "ISMORIDCODE"}}, {"search": {"term":"gesehen", "path": "ISMORIDCODE"}}, {"search": {"term":"habe", "path": "ISMORIDCODE"}} ]
+        //         }
+        //     ]
+        // });
+
+        let req = json!({
+            "and":[{"search": {"term":"kriege", "path": "ISMTITLE"}}, {"search": {"term":"die", "path": "ISMTITLE"}}, {"search": {"term":"ich", "path": "ISMTITLE"}}, {"search": {"term":"gesehen", "path": "ISMTITLE"}}, {"search": {"term":"habe", "path": "ISMTITLE"}} ]
+        });
+
+        let requesto: search::Request = serde_json::from_str(&req.to_string()).unwrap();
+        let hits = search::search("csv_test", requesto, 0, 10).unwrap();
+        println!("{:?}", hits);
     }
 
-    info!("starting up");
+
+    // {
+    //     let my_time = util::MeasureTime::new("binary_search total");
+    //     let mut faccess = FileAccess::new("jmdict/meanings.ger[].text");
+    //     let result = faccess.binary_search("haus");
+    //     let result = faccess.binary_search("genau");
+    //     let result = faccess.binary_search("achtung");
+    //     // println!("{:?}", result);
+    // }
 
     // println!("{:?}",test_build_f_s_t());
     // println!("{:?}",testfst("anschauen", 2));
     // println!("{:?}",search::test_levenshtein("anschauen", 2));
-
 
     // println!("{:?}",create_index());
 

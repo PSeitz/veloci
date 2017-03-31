@@ -66,7 +66,7 @@ pub struct Request {
 pub struct RequestSearchPart {
     pub path: String,
     pub term: String,
-    pub levenshtein_distance: u32,
+    pub levenshtein_distance: Option<u32>,
     pub starts_with: Option<String>,
     pub exact: Option<bool>,
     pub first_char_exact_match: Option<bool>
@@ -144,6 +144,7 @@ pub fn search(folder:&str, request: Request, skip:usize, mut top:usize) -> Resul
 }
 
 pub fn search_unrolled(folder:&str, request: Request) -> Result<FnvHashMap<u32, f32>, SearchError>{
+    let search_unrolled_time = util::MeasureTime::new("search_unrolled");
     if request.or.is_some() {
         Ok(request.or.unwrap().iter()
             .fold(FnvHashMap::default(), |mut acc, x| -> FnvHashMap<u32, f32> {
@@ -172,7 +173,7 @@ pub fn search_unrolled(folder:&str, request: Request) -> Result<FnvHashMap<u32, 
 
 fn add_boost(folder: &str, boost: &RequestBoostPart, hits : &mut FnvHashMap<u32, f32>) -> Result<(), SearchError> {
     let key = get_file_path_tuple(folder, &boost.path, ".boost.subObjId", ".boost.value");
-    
+
     let boostkv_store = SupiIndexKeyValueStore::new(&key.0, &key.1);
 
     let boost_param = boost.param.unwrap_or(0.0);
@@ -186,7 +187,7 @@ fn add_boost(folder: &str, boost: &RequestBoostPart, hits : &mut FnvHashMap<u32,
         }
     }
     Ok(())
-    
+
 }
 
 
@@ -198,26 +199,20 @@ pub enum SearchError{
 }
 
 impl From<io::Error> for SearchError { // Automatic Conversion
-    fn from(err: io::Error) -> SearchError {
-        SearchError::Io(err)
-    }
+    fn from(err: io::Error) -> SearchError {SearchError::Io(err) }
 }
 
 impl From<serde_json::Error> for SearchError { // Automatic Conversion
-    fn from(err: serde_json::Error) -> SearchError {
-        SearchError::MetaData(err)
-    }
+    fn from(err: serde_json::Error) -> SearchError {SearchError::MetaData(err) }
 }
 
 impl From<std::str::Utf8Error> for SearchError { // Automatic Conversion
-    fn from(err: std::str::Utf8Error) -> SearchError {
-        SearchError::Utf8Error(err)
-    }
+    fn from(err: std::str::Utf8Error) -> SearchError {SearchError::Utf8Error(err) }
 }
 
 pub fn search_raw(folder:&str, mut request: RequestSearchPart) -> Result<FnvHashMap<u32, f32>, SearchError> {
     let term = util::normalize_text(&request.term);
-
+    let search_raw_time = util::MeasureTime::new("search_raw");
     let mut hits = get_hits_in_field(folder, &mut request, &term)?;
     add_token_results(folder, &request.path, &mut hits);
 
@@ -226,6 +221,7 @@ pub fn search_raw(folder:&str, mut request: RequestSearchPart) -> Result<FnvHash
     let paths = util::get_steps_to_anchor(&request.path);
     info!("Joining paths::: {:?}", paths);
     for i in (0..paths.len()).rev() {
+        let cacheLock = persistence::INDEX_32_CACHE.read().unwrap();
         let is_text_index = i == (paths.len() -1);
         let path_name = util::get_path_name(&paths[i], is_text_index);
         let key = get_file_path_tuple(folder, &path_name, ".valueIdToParent.valIds", ".valueIdToParent.mainIds");
@@ -233,7 +229,7 @@ pub fn search_raw(folder:&str, mut request: RequestSearchPart) -> Result<FnvHash
         // let kv_store = IndexKeyValueStore::new(&get_file_path(folder, &path_name, ".valueIdToParent.valIds") , &get_file_path(folder, &path_name, ".valueIdToParent.mainIds"));
         trace!("kv_store: {:?}", kv_store);
         for (value_id, score) in &hits {
-            let values = kv_store.get_values(*value_id);
+            let values = kv_store.get_values(*value_id, &cacheLock);
             trace!("value_id: {:?} values: {:?} ", value_id, values);
             for parent_val_id in values {
                 match next_level_hits.entry(parent_val_id as u32) {
@@ -243,6 +239,7 @@ pub fn search_raw(folder:&str, mut request: RequestSearchPart) -> Result<FnvHash
             }
         }
         trace!("next_level_hits: {:?}", next_level_hits);
+        debug!("num next_level_hits: {:?}", next_level_hits.len());
         hits = next_level_hits;
         next_level_hits = FnvHashMap::default();
     }
@@ -293,10 +290,10 @@ impl CharOffset {
         // self.chars.binary_search(&character) { Ok(char_index) => this.get_offset_info(char_index),Err(_) => };
     }
     fn get_offset_info(&self, index: usize) -> OffsetInfo {
-        let cacheLock = persistence::INDEX_64_CACHE.read().unwrap();
-        let byte_offsets_start = cacheLock.get(&(self.path.to_string()+".char_offsets.byteOffsetsStart")).unwrap();
-        let byte_offsets_end =   cacheLock.get(&(self.path.to_string()+".char_offsets.byteOffsetsEnd")).unwrap();
-        let line_offsets =       cacheLock.get(&(self.path.to_string()+".char_offsets.lineOffset")).unwrap();
+        let cache_lock = persistence::INDEX_64_CACHE.read().unwrap();
+        let byte_offsets_start = cache_lock.get(&(self.path.to_string()+".char_offsets.byteOffsetsStart")).unwrap();
+        let byte_offsets_end =   cache_lock.get(&(self.path.to_string()+".char_offsets.byteOffsetsEnd")).unwrap();
+        let line_offsets =       cache_lock.get(&(self.path.to_string()+".char_offsets.lineOffset")).unwrap();
 
         trace!("get_offset_info path:{}\tindex:{}\toffsetSize: {}", self.path, index, byte_offsets_start.len());
         return OffsetInfo{byte_range_start: byte_offsets_start[index], byte_range_end: byte_offsets_end[index], line_offset: line_offsets[index]};
@@ -319,17 +316,17 @@ fn get_default_score2(distance: u32) -> f32{
 }
 
 fn get_hits_in_field(folder:&str, mut options: &mut RequestSearchPart, term: &str) -> Result<FnvHashMap<u32, f32>, SearchError> {
+    let get_hits_in_field_time = util::MeasureTime::new("get_hits_in_field");
     let mut hits:FnvHashMap<u32, f32> = FnvHashMap::default();
-    let my_time = util::MeasureTime::new("get_hits_in_field");
     // let checks:Vec<Fn(&str) -> bool> = Vec::new();
     let term_chars = term.chars().collect::<Vec<char>>();
     // options.first_char_exact_match = options.exact || options.levenshtein_distance == 0 || options.starts_with.is_some(); // TODO fix
 
-    if options.levenshtein_distance == 0 {
+    if options.levenshtein_distance.unwrap_or(0) == 0 {
         options.exact = Some(true);
     }
 
-    let start_char = if options.exact.unwrap_or(false) || options.levenshtein_distance == 0 || options.starts_with.is_some() && term_chars.len() >= 2 {
+    let start_char = if options.exact.unwrap_or(false) || options.levenshtein_distance.unwrap_or(0) == 0 || options.starts_with.is_some() && term_chars.len() >= 2 {
         Some(term_chars[0].to_string() + &term_chars[1].to_string())
     }
     else if options.first_char_exact_match.unwrap_or(false) { Some(term_chars[0].to_string() )
@@ -338,18 +335,18 @@ fn get_hits_in_field(folder:&str, mut options: &mut RequestSearchPart, term: &st
 
     let value = start_char.as_ref().map(String::as_ref);
 
-    debug!("Will Check distance {:?}", options.levenshtein_distance != 0);
+    debug!("Will Check distance {:?}", options.levenshtein_distance.unwrap_or(0) != 0);
     debug!("Will Check exact {:?}", options.exact);
     debug!("Will Check starts_with {:?}", options.starts_with);
     {
         let teh_callback = |line: &str, line_pos: u32| {
             trace!("Checking {} with {}", line, term);
-            let distance = if options.levenshtein_distance != 0 { Some(distance(term, line))} else { None };
+            let distance = if options.levenshtein_distance.unwrap_or(0) != 0 { Some(distance(term, line))} else { None };
             trace!("Exact match {}", (options.exact.unwrap_or(false) &&  line == term));
-            trace!("Distance {}", (distance.is_some() && distance.unwrap() <= options.levenshtein_distance));
+            trace!("Distance {}", (distance.is_some() && distance.unwrap() <= options.levenshtein_distance.unwrap_or(0)));
             trace!("starts_with {}", (options.starts_with.is_some() && line.starts_with(options.starts_with.as_ref().unwrap())));
             if (options.exact.unwrap_or(false) &&  line == term)
-                || (distance.is_some() && distance.unwrap() <= options.levenshtein_distance)
+                || (distance.is_some() && distance.unwrap() <= options.levenshtein_distance.unwrap_or(0))
                 || (options.starts_with.is_some() && line.starts_with(options.starts_with.as_ref().unwrap())  )
                 // || (options.customCompare.is_some() && options.customCompare.unwrap(line, term))
                 {
@@ -359,9 +356,10 @@ fn get_hits_in_field(folder:&str, mut options: &mut RequestSearchPart, term: &st
                 hits.insert(line_pos, score);
             }
         };
-        get_text_lines(folder, &options.path, value, teh_callback)?; // @Hack // @Cleanup // @FixMe Forward errors
+        let exact_search = if options.exact.unwrap_or(false) {Some(term.to_string())} else {None};
+        get_text_lines(folder, &options.path, exact_search, value, teh_callback)?; // @Hack // @Cleanup // @FixMe Forward errors
     }
-    trace!("hits: {:?}", hits);
+    trace!("hits in textindex: {:?}", hits);
     Ok(hits)
 
 }
@@ -374,7 +372,7 @@ struct SupiIndexKeyValueStore {
     path1:String,
     path2:String
 }
-
+use std::sync::RwLockReadGuard;
 impl SupiIndexKeyValueStore {
     fn new(path1:&str, path2:&str) -> SupiIndexKeyValueStore {
         persistence::load_index_into_cache(&path1);
@@ -383,21 +381,21 @@ impl SupiIndexKeyValueStore {
         new_store
     }
     fn get_value(&self, find: u32) -> Option<u32> {
-        let cacheLock = persistence::INDEX_32_CACHE.read().unwrap();
-        let values1 = cacheLock.get(&self.path1).unwrap();
-        let values2 = cacheLock.get(&self.path2).unwrap();
+        let cache_lock = persistence::INDEX_32_CACHE.read().unwrap();
+        let values1 = cache_lock.get(&self.path1).unwrap();
+        let values2 = cache_lock.get(&self.path2).unwrap();
 
         match values1.binary_search(&find) {
             Ok(pos) => { Some(values2[pos]) },
             Err(_) => {None},
         }
     }
-    fn get_values(&self, find: u32) -> Vec<u32> {
-        println!("Requesting {:?}", self.path1);
-        println!("Requesting {:?}", self.path2);
-        let cacheLock = persistence::INDEX_32_CACHE.read().unwrap();
-        let values1 = cacheLock.get(&self.path1).unwrap();
-        let values2 = cacheLock.get(&self.path2).unwrap();
+    fn get_values(&self, find: u32, cache_lock: &RwLockReadGuard<HashMap<String, Vec<u32>>> ) -> Vec<u32> {
+        // println!("Requesting {:?}", self.path1);
+        // println!("Requesting {:?}", self.path2);
+        // let cache_lock = persistence::INDEX_32_CACHE.read().unwrap();
+        let values1 = cache_lock.get(&self.path1).unwrap();
+        let values2 = cache_lock.get(&self.path2).unwrap();
 
         let mut result = Vec::new();
         match values1.binary_search(&find) {
@@ -417,7 +415,7 @@ impl SupiIndexKeyValueStore {
 trait TokensIndexKeyValueStore {
     fn new(path:&str) -> Self;
     fn get_parent_val_id(&self, find: u32) -> Option<u32>;
-    fn get_parent_val_ids(&self, find: u32) -> Vec<u32>;
+    fn get_parent_val_ids(&self, find: u32, cache_lock: &RwLockReadGuard<HashMap<String, Vec<u32>>>) -> Vec<u32>;
 }
 
 
@@ -427,15 +425,16 @@ trait TokensIndexKeyValueStore {
 
 impl TokensIndexKeyValueStore for SupiIndexKeyValueStore {
     fn new(path:&str) -> Self {
-        SupiIndexKeyValueStore::new(&(path.to_string()+".tokens.tokenValIds"), &(path.to_string()+".tokens.parentValId"))
+        SupiIndexKeyValueStore::new(&(path.to_string()+".textindex.tokens.tokenValIds"), &(path.to_string()+".textindex.tokens.parentValId"))
     }
     fn get_parent_val_id(&self, find: u32) -> Option<u32>{ return self.get_value(find); }
-    fn get_parent_val_ids(&self, find: u32) -> Vec<u32>{ return self.get_values(find); }
+    fn get_parent_val_ids(&self, find: u32, cache_lock: &RwLockReadGuard<HashMap<String, Vec<u32>>>) -> Vec<u32>{  return self.get_values(find, &cache_lock); }
 }
 
 
 fn add_token_results(folder:&str, path:&str, hits: &mut FnvHashMap<u32, f32>){
-    let complete_path = &get_file_path(folder, &path, ".tokens.parentValId");
+    let add_token_results_time = util::MeasureTime::new("add_token_results");
+    let complete_path = &get_file_path(folder, &path, ".textindex.tokens.parentValId");
     let has_tokens = fs::metadata(&complete_path);
     debug!("has_tokens {:?} {:?}", complete_path, has_tokens.is_ok());
     if has_tokens.is_err() { return; }
@@ -444,9 +443,10 @@ fn add_token_results(folder:&str, path:&str, hits: &mut FnvHashMap<u32, f32>){
     let token_kvdata: SupiIndexKeyValueStore = TokensIndexKeyValueStore::new(&get_file_path(folder, &path, ""));
     let value_lengths = persistence::load_index(&get_file_path(folder, &path, ".length")).unwrap();
 
+    let cacheLock = persistence::INDEX_32_CACHE.read().unwrap();
     let mut token_hits:FnvHashMap<u32, f32> = FnvHashMap::default();
     for value_id in hits.keys() {
-        let parent_ids_for_token = token_kvdata.get_parent_val_ids(*value_id);
+        let parent_ids_for_token = token_kvdata.get_parent_val_ids(*value_id, &cacheLock);
         // trace!("value_id {:?}", value_id);
         // trace!("parent_ids_for_token {:?}", parent_ids_for_token);
         if parent_ids_for_token.len() > 0 {
@@ -466,11 +466,71 @@ fn add_token_results(folder:&str, path:&str, hits: &mut FnvHashMap<u32, f32>){
 }
 
 
+#[derive(Debug)]
+struct FileAccess {
+    path: String,
+    // offsets: Vec<u64>,
+    file: File,
+    buffer: Vec<u8>
+}
+
+
+impl FileAccess {
+
+    fn new(path: &str) -> Self {
+        persistence::load_index_64(&(path.to_string()+".offsets")).unwrap();
+        FileAccess{path:path.to_string(), file: File::open(path).unwrap(), buffer: Vec::with_capacity(50 as usize)}
+    }
+
+    fn load_text<'a>(&mut self, pos: usize, offsets:&Vec<u64>) { // @Temporary Use Result
+        let string_size = offsets[pos+1] - offsets[pos] - 1;
+        // let mut buffer:Vec<u8> = Vec::with_capacity(string_size as usize);
+        // unsafe { buffer.set_len(string_size as usize); }
+        self.buffer.resize(string_size as usize, 0);
+        self.file.seek(SeekFrom::Start(offsets[pos])).unwrap();
+        self.file.read_exact(&mut self.buffer).unwrap();
+        // unsafe {str::from_utf8_unchecked(&buffer)}
+        // let s = unsafe {str::from_utf8_unchecked(&buffer)};
+        // str::from_utf8(&buffer).unwrap() // @Temporary  -> use unchecked if stable
+    }
+
+    fn binary_search(&mut self, term: &str) -> Result<(String, i64), io::Error> {
+        let cache_lock = persistence::INDEX_64_CACHE.read().unwrap();
+        let offsets = cache_lock.get(&(self.path.to_string()+".offsets")).unwrap();
+        let my_time = util::MeasureTime::new("binary_search in File");
+        if offsets.len() < 2  {
+            return Ok(("".to_string(), -1));
+        }
+        // let mut buffer:Vec<u8> = Vec::with_capacity(50 as usize);
+        // let mut f = File::open(&self.path)?;
+        let mut low = 0;
+        let mut high = offsets.len() - 2;
+        let mut i = 0;
+        while low <= high {
+            i = (low + high) >> 1;
+            self.load_text(i, offsets);
+            // println!("Comparing {:?}", str::from_utf8(&buffer).unwrap());
+        // comparison = comparator(arr[i], find);
+            if str::from_utf8(&self.buffer).unwrap() < term { low = i + 1; continue }
+            if str::from_utf8(&self.buffer).unwrap() > term { high = i - 1; continue }
+            return Ok((str::from_utf8(&self.buffer).unwrap().to_string(), i as i64))
+        }
+        Ok(("".to_string(), -1))
+    }
+}
+
 #[inline(always)]
-fn get_text_lines<F>(folder:&str, path: &str, character: Option<&str>, mut fun: F) -> Result<(), SearchError>
+fn get_text_lines<F>(folder:&str, path: &str, exact_search:Option<String>, character: Option<&str>, mut fun: F) -> Result<(), SearchError>
 where F: FnMut(&str, u32) {
 
-    if character.is_some() {
+    if exact_search.is_some() {
+        let mut faccess = FileAccess::new(&get_file_path(folder, &path, ""));
+        let result = faccess.binary_search(&exact_search.unwrap())?;
+        if result.1 != -1 {
+            fun(&result.0, result.1 as u32 );
+        }
+
+    }else if character.is_some() {
         debug!("Search CharOffset for: {:?}", character.unwrap());
         let char_offset_info_opt = get_create_char_offset_info(folder, path, character.unwrap())?;
         debug!("CharOffset: {:?}", char_offset_info_opt);

@@ -15,7 +15,9 @@ use std::sync::mpsc::sync_channel;
 #[allow(unused_imports)]
 use std::io::SeekFrom;
 use util;
+#[allow(unused_imports)]
 use util::get_file_path;
+#[allow(unused_imports)]
 use fnv::FnvHashSet;
 
 #[allow(unused_imports)]
@@ -24,6 +26,7 @@ use std::sync::{Arc, Mutex};
 use std::cmp::Ordering;
 
 use serde_json;
+#[allow(unused_imports)]
 use serde_json::Value;
 
 #[allow(unused_imports)]
@@ -39,6 +42,13 @@ use std::collections::HashMap;
 #[derive(Serialize, Deserialize, Debug)]
 pub struct MetaData {
     pub id_lists: FnvHashMap<String, IDList>
+}
+
+impl MetaData {
+    pub fn new(path: &str) -> MetaData {
+        let json = util::file_as_string(&(path.to_string()+"/metaData")).unwrap();
+        serde_json::from_str(&json).unwrap()
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -68,6 +78,16 @@ struct Persistence {
 lazy_static! {
     pub static ref INDEX_64_CACHE: RwLock<HashMap<String, Vec<u64>>> = RwLock::new(HashMap::new());
     pub static ref INDEX_32_CACHE: RwLock<HashMap<String, Vec<u32>>> = RwLock::new(HashMap::new());
+}
+
+pub fn loadAll(meta_data: &MetaData) -> Result<(), io::Error> {
+    for (_, ref idlist) in &meta_data.id_lists {
+        match &idlist.id_type {
+            &IDDataType::U32 => load_index_into_cache(&idlist.path)?,
+            &IDDataType::U64 => load_index_64(&idlist.path)?
+        }
+    }
+    Ok(())
 }
 
 pub fn load_index_64(s1: &str) -> Result<(), io::Error> {
