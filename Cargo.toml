@@ -8,8 +8,6 @@ serde_derive = "0.9"
 serde = "0.9.7"
 serde_json = "0.9"
 rand = "0.3"
-futures = "0.1.9"
-futures-cpupool = "0.1"
 tokio-timer = { git = "https://github.com/tokio-rs/tokio-timer" }
 regex = "0.2"
 lazy_static = "0.2.2"
@@ -18,9 +16,6 @@ bit-set = "0.4.0"
 fst = "0.1"
 log = "0.3"
 env_logger = "0.3"
-flate2 = "0.2"
-syn = "0.11"
-quote = "0.3"
 abomonation = "0.4.4"
 csv = "0.15.0"
 
@@ -29,9 +24,9 @@ env_logger = "0.3"
 colored = "1.4"
 pretty_assertions = "0.1.0"
 
-[lib]
-name = "native_search"
-path = "src/main.rs"
+# [lib]
+# name = "native_search"
+# path = "src/main.rs"
 
 [[bin]]
 name = "native_search"

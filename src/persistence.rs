@@ -6,8 +6,6 @@ use std::io::{self, BufRead};
 use std::time::Duration;
 
 #[allow(unused_imports)]
-use futures::sync::{oneshot, mpsc};
-#[allow(unused_imports)]
 use std::thread;
 #[allow(unused_imports)]
 use std::sync::mpsc::sync_channel;
@@ -80,7 +78,7 @@ lazy_static! {
     pub static ref INDEX_32_CACHE: RwLock<HashMap<String, Vec<u32>>> = RwLock::new(HashMap::new());
 }
 
-pub fn loadAll(meta_data: &MetaData) -> Result<(), io::Error> {
+pub fn load_all(meta_data: &MetaData) -> Result<(), io::Error> {
     for (_, ref idlist) in &meta_data.id_lists {
         match &idlist.id_type {
             &IDDataType::U32 => load_index_into_cache(&idlist.path)?,

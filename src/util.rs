@@ -23,7 +23,7 @@ impl MeasureTime {
 
 impl Drop for MeasureTime {
     fn drop(&mut self) {
-        println!("{} took {}ms ",self.name, (self.start.elapsed().as_secs() as f64 * 1_000.0) + (self.start.elapsed().subsec_nanos() as f64 / 1000_000.0));
+        info!("{} took {}ms ",self.name, (self.start.elapsed().as_secs() as f64 * 1_000.0) + (self.start.elapsed().subsec_nanos() as f64 / 1000_000.0));
     }
 }
 

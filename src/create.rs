@@ -7,17 +7,6 @@ use std::io::{self, BufRead};
 use std::time::Duration;
 
 #[allow(unused_imports)]
-use futures_cpupool::CpuPool;
-
-#[allow(unused_imports)]
-use futures::{Poll, Future, Sink, executor};
-#[allow(unused_imports)]
-use futures::future::{ok, err};
-#[allow(unused_imports)]
-use futures::stream::{iter, Peekable, BoxStream, Stream};
-#[allow(unused_imports)]
-use futures::sync::{oneshot, mpsc};
-#[allow(unused_imports)]
 use std::thread;
 #[allow(unused_imports)]
 use std::sync::mpsc::sync_channel;
@@ -44,9 +33,6 @@ use std::env;
 #[allow(unused_imports)]
 use std::io::prelude::*;
 #[allow(unused_imports)]
-use flate2::Compression;
-#[allow(unused_imports)]
-use flate2::write::ZlibEncoder;
 
 use std::str;
 use persistence;
