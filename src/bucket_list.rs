@@ -1,5 +1,8 @@
-extern crate bit_set;
 
+
+use bit_set::BitSet;
+
+use bit_vec::BitVec;
 use std::collections::HashSet;
 use std::collections::HashMap;
 use fnv::FnvHashMap;
@@ -9,8 +12,8 @@ pub fn bench_fnvhashmap_insert(num_hits: u32, token_hits: u32){
     for x in 0..num_hits {
         hits.insert(x * 8, 0.22);
     }
-    for x in 0..token_hits {
-        let stat = hits.entry(x * 15 as u32).or_insert(0.0);
+    for x in num_hits..token_hits {
+        let stat = hits.entry(x * 65 as u32).or_insert(0.0);
         *stat += 2.0;
     }
 }
@@ -20,23 +23,23 @@ pub fn bench_fnvhashmap_insert(num_hits: u32, token_hits: u32){
 //     for x in 0..num_hits {
 //         hits.insert(x * 8, 0.22);
 //     }
-//     for x in 0..token_hits {
-//         let stat = hits.entry(x * 15 as u32).or_insert(0.0);
+//     for x in num_hits..token_hits {
+//         let stat = hits.entry(x * 65 as u32).or_insert(0.0);
 //         *stat += 2.0;
 //     }
 // }
 
-pub fn bench_fnvhashmap_extend(num_hits: u32, token_hits: u32){
-    let mut hits:FnvHashMap<u32, f32> = FnvHashMap::default();
-    for x in 0..num_hits {
-        hits.insert(x * 8, 0.22);
-    }
-    let mut hits2:FnvHashMap<u32, f32> = FnvHashMap::default();
-    for x in 0..token_hits {
-        hits2.insert(x * 15, 0.22);
-    }
-    hits.extend(hits2);
-}
+// pub fn bench_fnvhashmap_extend(num_hits: u32, token_hits: u32){
+//     let mut hits:FnvHashMap<u32, f32> = FnvHashMap::default();
+//     for x in 0..num_hits {
+//         hits.insert(x * 8, 0.22);
+//     }
+//     let mut hits2:FnvHashMap<u32, f32> = FnvHashMap::default();
+//     for x in num_hits..token_hits {
+//         hits2.insert(x * 65, 0.22);
+//     }
+//     hits.extend(hits2);
+// }
 
 pub fn bench_vc_scoreonly_insert(num_hits: u32, token_hits: u32){
 
@@ -49,8 +52,8 @@ pub fn bench_vc_scoreonly_insert(num_hits: u32, token_hits: u32){
         }
         scores[val_id  as usize] = 0.22;
     }
-    for x in 0..token_hits {
-        let val_id = x * 15 as u32;
+    for x in num_hits..token_hits {
+        let val_id = x * 65 as u32;
         if val_id >= scores.len() as u32 {
             scores.resize((val_id as f32 * 1.5) as usize, 0.0);
         }
@@ -60,19 +63,19 @@ pub fn bench_vc_scoreonly_insert(num_hits: u32, token_hits: u32){
 
 pub fn bench_bucketed_insert(num_hits: u32, token_hits: u32){
 
-    let mut scores = BucketedScoreList{arr: vec![]};
+    let mut scores = BucketedScoreList::default();
     for x in 0..num_hits {
         scores.insert((x * 8) as u64, 0.22);
     }
-    for x in 0..token_hits {
-        let val_id = x * 15;
+    for x in num_hits..token_hits {
+        let val_id = x * 65;
         let yop = scores.get(val_id as u64).unwrap_or(0.0) + 2.0;
         scores.insert(val_id as u64, yop);
     }
 }
 
 pub fn bench_bucketed_insert_single_big_value(){
-    let mut scores = BucketedScoreList{arr: vec![]};
+    let mut scores = BucketedScoreList::default();
     scores.insert((120_000_000) as u64, 0.22);
 }
 
@@ -100,12 +103,13 @@ const BUCKET_SIZE:u32 = 131072;
 
 #[derive(Debug, Clone)]
 pub struct BucketedScoreList {
-    arr: Vec<Vec<f32>>
+    arr: Vec<Vec<f32>>,
+    hits: Vec<BitSet>
 }
 use std::f32;
 impl BucketedScoreList {
     pub fn default() -> Self {
-        BucketedScoreList{arr:vec![]}
+        BucketedScoreList{arr:vec![], hits:vec![]}
     }
     fn split_index(index: u64) -> (usize, usize) {
         let pos =     (index & 0b0000000000000000000000000000000000000000000000011111111111111111) as usize;
@@ -123,11 +127,17 @@ impl BucketedScoreList {
         if pos > index as usize { panic!("pos > index {:?}", index);}
         if self.arr.len() <= bucket {
             self.arr.resize(bucket + 1, vec![]);
+            self.hits.resize(bucket + 1, BitSet::new());
         }
-        if self.arr[bucket].len() <= pos + 2 { // @Hack  Fix Iterator
+        if self.arr[bucket].len() <= pos { // @Hack  Fix Iterator
             self.arr[bucket].resize(cmp::min(((pos + 1) as f32 * 1.5) as usize, BUCKET_SIZE as usize + 2) , f32::NEG_INFINITY); // @Hack  +2 
         }
         self.arr[bucket][pos] = value;
+        // if value == f32::NEG_INFINITY {
+        //     self.hits[bucket].remove(pos);
+        // }else{
+        //     self.hits[bucket].insert(pos);
+        // }
     }
 
     pub fn get(&self, index: u64) -> Option<f32> {
@@ -200,6 +210,57 @@ pub struct BucketedScoreListIterator<'a>  {
     pos: usize
 }
 
+// macro_rules! moveToNextBucket {
+//     ($pos:ident, $bucket:ident, $list:ident, $current_bucket:ident, $current_Iter:ident) => (
+//         *$pos=0;
+//         *$bucket+=1;
+//         if *$bucket >= $list.arr.len() { return None; }
+//         $current_bucket = &$list.arr[*$bucket];
+//         $current_Iter = $list.hits[*$bucket].iter().skip(0);
+//     )
+// }
+
+// fn move_in_bucket<'a>(list: &'a BucketedScoreList, bucket: &mut usize, pos:&mut usize) -> Option<(u32, f32)> {
+//     let mut current_bucket = &list.arr[*bucket];
+//     let mut current_Iter = list.hits[*bucket].iter().skip(*pos);
+
+//     let mut nextHit = current_Iter.next();
+//     while nextHit.is_none() {
+//         moveToNextBucket!(pos, bucket, list, current_bucket, current_Iter);
+//         nextHit = current_Iter.next();
+//     }
+//     *pos = nextHit.unwrap();
+
+//     // while current_bucket[*pos] == f32::NEG_INFINITY {
+//     //     *pos+=1;
+//     //     // println!("pos {:?} bucket {:?} ", pos, bucket);
+//     //     if current_bucket.get(*pos).is_none() {
+//     //         moveToNextBucket!(pos, bucket, list, current_bucket);
+//     //         while current_bucket.len() == 0 { // find next filled bucket
+//     //             moveToNextBucket!(pos, bucket, list, current_bucket);
+//     //         }
+//     //     }
+//     // }
+//     let next_val = Some(((*bucket*BUCKET_SIZE as usize+*pos) as u32, current_bucket[*pos]));
+//     *pos+=1;
+//     return next_val
+// }
+
+// fn next_el_in_bucketed<'a>(list: &'a BucketedScoreList, bucket: &mut usize, pos:&mut usize) -> Option<(u32, f32)> {
+//     if *bucket >= list.arr.len() { return None; }
+//     let mut current_bucket = &list.arr[*bucket];
+//     let mut current_Iter = list.hits[*bucket].iter().skip(*pos);
+//     if current_bucket.len() != 0 && *pos < current_bucket.len() {
+//         return move_in_bucket(list, bucket, pos);
+//     }else{
+//         moveToNextBucket!(pos, bucket, list, current_bucket, current_Iter);
+//         while current_bucket.len() == 0 {
+//             moveToNextBucket!(pos, bucket, list, current_bucket, current_Iter);
+//         }
+//         return move_in_bucket(list, bucket, pos);
+//     }
+// }
+
 macro_rules! moveToNextBucket {
     ($pos:ident, $bucket:ident, $list:ident, $current_bucket:ident) => (
         *$pos=0;
@@ -211,6 +272,7 @@ macro_rules! moveToNextBucket {
 
 fn move_in_bucket<'a>(list: &'a BucketedScoreList, bucket: &mut usize, pos:&mut usize) -> Option<(u32, f32)> {
     let mut current_bucket = &list.arr[*bucket];
+    // let mut current_bitvecIter = &list.arr[*bucket].iter();
     while current_bucket[*pos] == f32::NEG_INFINITY {
         *pos+=1;
         // println!("pos {:?} bucket {:?} ", pos, bucket);
@@ -329,7 +391,7 @@ fn test_bucketed_score_list_insert_8() {
 #[test]
 fn test_bucketed_score_list_gap() {
 
-    let mut scores = BucketedScoreList{arr: vec![]};
+    let mut scores = BucketedScoreList::default();
     scores.insert(1_000_000, 0.22);
     let mut yop = scores.iter();
     assert_eq!(yop.next(), Some((1_000_000, 0.22)));
@@ -393,18 +455,18 @@ use super::*;
 
     #[bench]
     fn bench_fnvhashmap_insert_(b: &mut Bencher) {
-        b.iter(|| bench_fnvhashmap_insert(K500K, K500K));
+        b.iter(|| bench_fnvhashmap_insert(K100K, K100K));
     }
 
     // #[bench]
     // fn bench_hashmap_insert_(b: &mut Bencher) {
-    //     b.iter(|| bench_hashmap_insert(K500K, K300K));
+    //     b.iter(|| bench_hashmap_insert(K100K, K300K));
     // }
 
-    #[bench]
-    fn bench_hashmap_extend_(b: &mut Bencher) {
-        b.iter(|| bench_fnvhashmap_extend(K500K, K500K));
-    }
+    // #[bench]
+    // fn bench_hashmap_extend_(b: &mut Bencher) {
+    //     b.iter(|| bench_fnvhashmap_extend(K100K, K100K));
+    // }
 
     #[bench]
     fn bench_bucketed_insert_single_big_value_(b: &mut Bencher) {
@@ -413,7 +475,7 @@ use super::*;
 
     #[bench]
     fn bench_vec_scoreonly_insert_(b: &mut Bencher) {
-        b.iter(|| bench_vc_scoreonly_insert(K500K, K500K));
+        b.iter(|| bench_vc_scoreonly_insert(K100K, K100K));
     }
 
     // #[bench]
@@ -423,8 +485,53 @@ use super::*;
 
     #[bench]
     fn bench_bucketed_insert_(b: &mut Bencher) {
-        b.iter(|| bench_bucketed_insert(K500K, K500K));
+        b.iter(|| bench_bucketed_insert(K100K, K100K));
     }
+
+    #[bench]
+    fn bench_iterate_bit_set_(b: &mut Bencher) {
+        // It's a regular set
+        let mut s = BitSet::new();
+        s.insert(0);
+        s.insert(20001);
+        s.insert(20002);
+        s.insert(50001);
+        s.insert(50002);
+        s.insert(50003);
+        s.insert(50004);
+        s.insert(50005);
+        s.insert(121072);
+        s.insert(121072);
+        s.insert(121072);
+        b.iter(|| {
+            for el in s.iter() {
+                info!("{:?}", el);
+            }
+        });
+    }
+
+    #[bench]
+    fn bench_iterate_bucketedlist_set_(b: &mut Bencher) {
+        // It's a regular set
+        let mut s = BucketedScoreList::default();
+        s.insert(0, 0.22);
+        s.insert(20001, 0.22);
+        s.insert(20002, 0.22);
+        s.insert(50001, 0.22);
+        s.insert(50002, 0.22);
+        s.insert(50003, 0.22);
+        s.insert(50004, 0.22);
+        s.insert(50005, 0.22);
+        s.insert(121072, 0.22);
+        s.insert(121072, 0.22);
+        s.insert(121072, 0.22);
+        b.iter(|| {
+            for el in s.iter() {
+                info!("{:?}", el);
+            }
+        });
+    }
+
 
 
     // #[bench]

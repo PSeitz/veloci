@@ -89,20 +89,20 @@ pub struct Hit {
     pub score: f32
 }
 
-fn hits_to_array_iter<'a, I>(vals: I) -> Vec<Hit>
-    where I: Iterator<Item=(u32, f32)>
-{
-    let search_unrolled_time = util::MeasureTime::new("hits_to_array_iter");
-    let mut res:Vec<Hit> = vals.map(|(id, score)| Hit{id:id, score:score}).collect();
-    res.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(Ordering::Equal)); // Add sort by id
-    res
-}
-
-// fn hits_to_array(hits:BucketedScoreList) -> Vec<Hit> {
-//     let mut res:Vec<Hit> = hits.iter().map(|(id, score)| Hit{id:*id, score:*score}).collect();
+// fn hits_to_array_iter<'a, I>(vals: I) -> Vec<Hit>
+//     where I: Iterator<Item=(u32, f32)>
+// {
+//     let search_unrolled_time = util::util::MeasureTime::new("hits_to_array_iter");
+//     let mut res:Vec<Hit> = vals.map(|(id, score)| Hit{id:id, score:score}).collect();
 //     res.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(Ordering::Equal)); // Add sort by id
 //     res
 // }
+
+fn hits_to_array(hits:FnvHashMap<u32, f32>) -> Vec<Hit> {
+    let mut res:Vec<Hit> = hits.iter().map(|(id, score)| Hit{id:*id, score:*score}).collect();
+    res.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(Ordering::Equal)); // Add sort by id
+    res
+}
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct DocWithHit {
@@ -114,7 +114,7 @@ use std;
 impl std::fmt::Display for DocWithHit {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
         write!(f, "\n{}\t{}", self.hit.id, self.hit.score )?;
-        let val:serde_json::Value = serde_json::from_str(&self.doc).unwrap(); // @Temporary // @Cleanup 
+        let val:serde_json::Value = serde_json::from_str(&self.doc).unwrap(); // @Temporary // @Cleanup
         write!(f, "\n{}", serde_json::to_string_pretty(&val).unwrap() )?;
         Ok(())
     }
@@ -133,17 +133,18 @@ pub fn search(folder:&str, request: Request, skip:usize, mut top:usize) -> Resul
 
     let res = search_unrolled(folder, request)?;
     // println!("{:?}", res);
-    let res = hits_to_array_iter(res.iter());
+    // let res = hits_to_array_iter(res.iter());
+    let res = hits_to_array(res);
     top = cmp::min(top + skip, res.len());
     Ok(res[skip..top].to_vec())
 }
 use bucket_list::BucketedScoreList;
 
-pub fn search_unrolled(folder:&str, request: Request) -> Result<BucketedScoreList, SearchError>{
-    let search_unrolled_time = util::MeasureTime::new("search_unrolled");
+pub fn search_unrolled(folder:&str, request: Request) -> Result<FnvHashMap<u32, f32>, SearchError>{
+    measureTime!("search_unrolled");
     if request.or.is_some() {
         Ok(request.or.unwrap().iter()
-            .fold(BucketedScoreList::default(), |mut acc, x| -> BucketedScoreList {
+            .fold(FnvHashMap::default(), |mut acc, x| -> FnvHashMap<u32, f32> {
                 acc.extend(&search_unrolled(folder, x.clone()).unwrap());
                 acc
             }))
@@ -151,34 +152,49 @@ pub fn search_unrolled(folder:&str, request: Request) -> Result<BucketedScoreLis
         // .then(results => results.reduce((p, c) => Object.assign(p, c)))
     }else if request.and.is_some(){
         let ands = request.and.unwrap();
-        let and_results = ands.iter().map(|x| search_unrolled(folder, x.clone()).unwrap() ).collect::<Vec<BucketedScoreList>>(); // @Hack  unwrap forward errors
+        let mut and_results:Vec<FnvHashMap<u32, f32>> = ands.iter().map(|x| search_unrolled(folder, x.clone()).unwrap() ).collect(); // @Hack  unwrap forward errors
 
-        let mut all_results:BucketedScoreList = BucketedScoreList::default();
-        for res in &and_results {
-            all_results.extend(res); // merge all results
+        infoTime!("and algorithm");
+        let mut all_results:FnvHashMap<u32, f32> = FnvHashMap::default();
+        // get shortest result
+        let mut shortest = (0, std::u64::MAX);
+        for (index, res) in and_results.iter().enumerate(){
+            if (res.len() as u64) < shortest.1 {
+                shortest =  (index, res.len() as u64);
+            }
         }
 
+        let shortestResult = and_results.swap_remove(shortest.0);
+        for (k, v) in shortestResult {
+            if(and_results.iter().all(|ref x| x.contains_key(&k))){
+                all_results.insert(k, v);
+            }
+        }
+        // for res in &and_results {
+        //     all_results.extend(res); // merge all results
+        // }
+
         // all_results.retain(|&k, _| and_results.iter().all(|ref x| x.contains_key(&k)) );
-        all_results.retain(|k, _| and_results.iter().all(|ref x| x.contains_key(k as u64)) );
+        // all_results.retain(|k, _| and_results.iter().all(|ref x| x.contains_key(k as u64)) );
         Ok(all_results)
     }else if request.search.is_some(){
         Ok(search_raw(folder, request.search.unwrap())?)
     }else{
-        Ok(BucketedScoreList::default())
+        Ok(FnvHashMap::default())
     }
 }
 
-fn add_boost(folder: &str, boost: &RequestBoostPart, hits : &mut BucketedScoreList) -> Result<(), SearchError> {
+fn add_boost(folder: &str, boost: &RequestBoostPart, hits : &mut FnvHashMap<u32, f32>) -> Result<(), SearchError> {
     let key = get_file_path_tuple(folder, &boost.path, ".boost.subObjId", ".boost.value");
 
     let boostkv_store = SupiIndexKeyValueStore::new(&key.0, &key.1);
 
     let boost_param = boost.param.unwrap_or(0.0);
-    for (value_id, score) in hits.iter() {
-        if let Some(boost_value) = boostkv_store.get_value(value_id) {
+    for (value_id, score) in hits.iter_mut() {
+        if let Some(boost_value) = boostkv_store.get_value(*value_id) {
             match boost.boost_fun {
                 BoostFunction::Log10 => {
-                    // *score += (boost_value  as f32 + boost_param).log10(); // @Temporary // @Hack // @Cleanup // @FixMe 
+                    *score += (boost_value  as f32 + boost_param).log10(); // @Temporary // @Hack // @Cleanup // @FixMe 
                 }
             }
         }
@@ -207,22 +223,17 @@ impl From<std::str::Utf8Error> for SearchError { // Automatic Conversion
     fn from(err: std::str::Utf8Error) -> SearchError {SearchError::Utf8Error(err) }
 }
 
-macro_rules! measureTime {
-    ($e:expr) => {
-        #[allow(unused_variables)]
-        let time = util::MeasureTime::new($e);
-    }
-}
+
 
 use std::f32;
 
-pub fn search_raw(folder:&str, mut request: RequestSearchPart) -> Result<BucketedScoreList, SearchError> {
+pub fn search_raw(folder:&str, mut request: RequestSearchPart) -> Result<FnvHashMap<u32, f32>, SearchError> {
     let term = util::normalize_text(&request.term);
-    measureTime!("search_raw");
+    measureTime!("search and join");
     let mut hits = get_hits_in_field(folder, &mut request, &term)?;
     add_token_results(folder, &request.path, &mut hits);
 
-    let mut next_level_hits:BucketedScoreList = BucketedScoreList::default();
+    let mut next_level_hits:FnvHashMap<u32, f32> = FnvHashMap::default();
 
     let paths = util::get_steps_to_anchor(&request.path);
     info!("Joining paths::: {:?}", paths);
@@ -234,31 +245,31 @@ pub fn search_raw(folder:&str, mut request: RequestSearchPart) -> Result<Buckete
         // let kv_store = IndexKeyValueStore::new(&get_file_path(folder, &path_name, ".valueIdToParent.valIds") , &get_file_path(folder, &path_name, ".valueIdToParent.mainIds"));
         trace!("kv_store: {:?}", kv_store);
         let cache_lock = persistence::INDEX_32_CACHE.read().unwrap();// @FixMe move to get_values
-        measureTime!("In da loop");
+        measureTime!("Joining to anchor");
         for (value_id, score) in hits.iter() {
-            let values = kv_store.get_values(value_id, &cache_lock);
-            trace!("value_id: {:?} values: {:?} ", value_id, values);
-            // for parent_val_id in values {    // @Temporary 
-            //     match next_level_hits.entry(parent_val_id as u32) {
-            //         Vacant(entry) => { entry.insert(*score); },
-            //         Occupied(entry) => { *entry.into_mut() = score.max(*entry.get()) + 0.1; },
-            //     }
-            // }
-
-            for parent_val_id in values {
-                let hit = next_level_hits.get(parent_val_id as u64);
-                if  hit.map_or(true, |el| el == f32::NEG_INFINITY) {
-                    next_level_hits.insert(parent_val_id as u64, score);
-                }else{
-                    next_level_hits.insert(parent_val_id as u64, score);
+            let values = kv_store.get_values(*value_id, &cache_lock);
+            // trace!("value_id: {:?} values: {:?} ", value_id, values);
+            for parent_val_id in values {    // @Temporary
+                match next_level_hits.entry(parent_val_id as u32) {
+                    Vacant(entry) => { entry.insert(*score); },
+                    Occupied(entry) => { *entry.into_mut() = score.max(*entry.get()) + 0.1; },
                 }
-
             }
+
+            // for parent_val_id in values {
+            //     let hit = next_level_hits.get(parent_val_id as u64);
+            //     if  hit.map_or(true, |el| el == f32::NEG_INFINITY) {
+            //         next_level_hits.insert(parent_val_id as u64, score);
+            //     }else{
+            //         next_level_hits.insert(parent_val_id as u64, score);
+            //     }
+
+            // }
         }
         trace!("next_level_hits: {:?}", next_level_hits);
         // debug!("num next_level_hits: {:?}", next_level_hits.len());
         hits = next_level_hits;
-        next_level_hits = BucketedScoreList::default();
+        next_level_hits = FnvHashMap::default();
     }
 
     Ok(hits)
@@ -332,9 +343,9 @@ fn get_default_score2(distance: u32) -> f32{
     return 2.0/(distance as f32 + 0.2 )
 }
 
-fn get_hits_in_field(folder:&str, mut options: &mut RequestSearchPart, term: &str) -> Result<BucketedScoreList, SearchError> {
+fn get_hits_in_field(folder:&str, mut options: &mut RequestSearchPart, term: &str) -> Result<FnvHashMap<u32, f32>, SearchError> {
     measureTime!("get_hits_in_field");
-    let mut hits:BucketedScoreList = BucketedScoreList::default();
+    let mut hits:FnvHashMap<u32, f32> = FnvHashMap::default();
     // let checks:Vec<Fn(&str) -> bool> = Vec::new();
     let term_chars = term.chars().collect::<Vec<char>>();
     // options.first_char_exact_match = options.exact || options.levenshtein_distance == 0 || options.starts_with.is_some(); // TODO fix
@@ -370,7 +381,7 @@ fn get_hits_in_field(folder:&str, mut options: &mut RequestSearchPart, term: &st
                 // let score = get_default_score(term, line);
                 let score = if distance.is_some() {get_default_score2(distance.unwrap())} else {get_default_score(term, line)};
                 debug!("Hit: {:?}\tid: {:?} score: {:?}", line, line_pos, score);
-                hits.insert(line_pos as u64, score);
+                hits.insert(line_pos, score);
             }
         };
         let exact_search = if options.exact.unwrap_or(false) {Some(term.to_string())} else {None};
@@ -450,7 +461,7 @@ impl TokensIndexKeyValueStore for SupiIndexKeyValueStore {
 }
 
 
-fn add_token_results(folder:&str, path:&str, hits: &mut BucketedScoreList){
+fn add_token_results(folder:&str, path:&str, hits: &mut FnvHashMap<u32, f32>){
     measureTime!("add_token_results");
     let complete_path = &get_file_path(folder, &path, ".textindex.tokens.parentValId");
     let has_tokens = fs::metadata(&complete_path);// @FixMe Replace with lookup in metadata
@@ -459,36 +470,54 @@ fn add_token_results(folder:&str, path:&str, hits: &mut BucketedScoreList){
 
     // var hrstart = process.hrtime()
     let token_kvdata: SupiIndexKeyValueStore = TokensIndexKeyValueStore::new(&get_file_path(folder, &path, "")); // @Temporary Prevent Reodering
-    let value_lengths = persistence::load_index(&get_file_path(folder, &path, ".length")).unwrap();
+    // let value_lengths = persistence::load_index(&get_file_path(folder, &path, ".length")).unwrap();
+    persistence::load_index_into_cache(&get_file_path(folder, &path, ".length"));
 
     let cache_lock = persistence::INDEX_32_CACHE.read().unwrap();  // @Temporary Prevent Reodering
-    let mut token_hits:BucketedScoreList = BucketedScoreList::default();
+    let value_lengths = cache_lock.get(&get_file_path(folder, &path, ".length")).unwrap();
+    // let mut token_hits:BucketedScoreList = FnvHashMap::default();
+    // let mut token_hits = vec![];
+    let mut token_hits:FnvHashMap<u32, f32> = FnvHashMap::default();
+
     for (value_id, _) in hits.iter() {
-        let parent_ids_for_token = token_kvdata.get_parent_val_ids(value_id, &cache_lock);
+        let parent_ids_for_token = token_kvdata.get_parent_val_ids(*value_id, &cache_lock);
         // trace!("value_id {:?}", value_id);
         // trace!("parent_ids_for_token {:?}", parent_ids_for_token);
         if parent_ids_for_token.len() > 0 {
             for token_parentval_id in parent_ids_for_token {
                 let parent_text_length = value_lengths[token_parentval_id as usize];
-                let token_text_length = value_lengths[value_id as usize];
+                let token_text_length = value_lengths[*value_id as usize];
                 let adjusted_score = 2.0/(parent_text_length as f32 - token_text_length as f32) + 0.2;
                 // if (adjusted_score < 0) throw new Error('asdf')
 
-                // let the_score = token_hits.entry(token_parentval_id as u32) // @Temporary
-                //     .or_insert(*hits.get(&token_parentval_id).unwrap_or(&0.0));
-                // *the_score += adjusted_score;
+                let the_score = token_hits.entry(token_parentval_id as u32) // @Temporary
+                    .or_insert(*hits.get(&token_parentval_id).unwrap_or(&0.0));
+                *the_score += adjusted_score;
                 // trace!("PARENTVALID {:?}", token_parentval_id);
-                let hit = hits.get(token_parentval_id as u64);
-                if  hit.map_or(true, |el| el == f32::NEG_INFINITY) { // has not key
-                    token_hits.insert(token_parentval_id as u64, adjusted_score);
-                }else{
-                    token_hits.insert(token_parentval_id as u64, adjusted_score + hit.unwrap());
-                }
+
+
+                // let hit = hits.get(token_parentval_id as u64);
+                // if  hit.map_or(true, |el| el == f32::NEG_INFINITY) { // has not key
+                //     token_hits.insert(token_parentval_id as u64, adjusted_score);
+                // }else{
+                //     token_hits.insert(token_parentval_id as u64, adjusted_score + hit.unwrap());
+                // }
+
+                // token_hits.push(token_parentval_id);
             }
         }
     }
     // debug!("checked {:?}, got num token hits  {:?}",hits.keys().len(), token_hits.len());
-    hits.extend(&token_hits);
+    debug!("checked {:?}, got num token hits  {:?}",hits.iter().count(), token_hits.iter().count());
+    measureTime!("extend");
+    hits.extend(token_hits);
+    // {
+    //     measureTime!("token_hits.sort_by");
+    //     token_hits.sort_by(|a, b| a.0.cmp(&b.0));
+    // }
+    // for hit in token_hits {
+    //     hits.insert(hit, 1.5);
+    // }
     // for hit in hits.iter() {
     //     trace!("NEW HITS {:?}", hit);
     // }

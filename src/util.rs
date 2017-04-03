@@ -12,18 +12,60 @@ use std;
 #[derive(Debug)]
 pub struct MeasureTime {
     name: &'static str,
-    start: std::time::Instant
+    start: std::time::Instant,
+    level: MeasureTimeLogLevel
 }
 
 impl MeasureTime {
-    pub fn new(name: &'static str) -> Self {
-        MeasureTime{name:name, start: std::time::Instant::now()}
+    pub fn new(name: &'static str, level:MeasureTimeLogLevel) -> Self {
+        MeasureTime{name:name, start: std::time::Instant::now(), level:level}
     }
+
+    pub fn new_debug(name: &'static str) -> Self {
+        MeasureTime{name:name, start: std::time::Instant::now(), level:MeasureTimeLogLevel::Debug}
+    }
+    pub fn new_info(name: &'static str) -> Self {
+        MeasureTime{name:name, start: std::time::Instant::now(), level:MeasureTimeLogLevel::Info}
+    }
+
 }
 
 impl Drop for MeasureTime {
     fn drop(&mut self) {
-        info!("{} took {}ms ",self.name, (self.start.elapsed().as_secs() as f64 * 1_000.0) + (self.start.elapsed().subsec_nanos() as f64 / 1000_000.0));
+        match self.level  {
+            MeasureTimeLogLevel::Info => info!("{} took {}ms ",self.name, (self.start.elapsed().as_secs() as f64 * 1_000.0) + (self.start.elapsed().subsec_nanos() as f64 / 1000_000.0)),
+            MeasureTimeLogLevel::Debug => debug!("{} took {}ms ",self.name, (self.start.elapsed().as_secs() as f64 * 1_000.0) + (self.start.elapsed().subsec_nanos() as f64 / 1000_000.0)),
+        }
+    }
+}
+
+#[derive(Debug)]
+pub enum MeasureTimeLogLevel {
+    Info,
+    Debug,
+}
+
+#[macro_export]
+macro_rules! measureTime {
+    ($e:expr) => {
+        #[allow(unused_variables)]
+        let time = util::MeasureTime::new_debug($e);
+    }
+}
+
+#[macro_export]
+macro_rules! infoTime {
+    ($e:expr) => {
+        #[allow(unused_variables)]
+        let time = util::MeasureTime::new_info($e);
+    }
+}
+
+#[macro_export]
+macro_rules! debugTime {
+    ($e:expr) => {
+        #[allow(unused_variables)]
+        let time = util::MeasureTime::new_debug($e);
     }
 }
 

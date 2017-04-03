@@ -238,7 +238,7 @@ use std::time::Instant;
 fn get_allterms_csv(csv_path:&str, attr_pos:usize, options:&FulltextIndexOptions) -> Vec<String>{
     // char escapeChar = 'a';
     // MATNR, ISMTITLE, ISMORIGTITLE, ISMSUBTITLE1, ISMSUBTITLE2, ISMSUBTITLE3, ISMARTIST, ISMLANGUAGES, ISMPUBLDATE, EAN11, ISMORIDCODE
-    let total_time = util::MeasureTime::new("total_time");
+    let total_time = util::MeasureTime::new("total_time", util::MeasureTimeLogLevel::Debug);
     let mut terms:FnvHashSet<String> = FnvHashSet::default();
     let mut rdr = csv::Reader::from_file(csv_path).unwrap().has_headers(false).escape(Some(b'\\'));
     for record in rdr.decode() {
@@ -258,7 +258,7 @@ fn get_allterms_csv(csv_path:&str, attr_pos:usize, options:&FulltextIndexOptions
         }
 
     }
-    let my_time = util::MeasureTime::new("Sort Time");
+    let my_time = util::MeasureTime::new("Sort Time", util::MeasureTimeLogLevel::Debug);
     let mut v: Vec<String> = terms.into_iter().collect::<Vec<String>>();
     v.sort();
     v
@@ -321,6 +321,7 @@ pub fn create_fulltext_index_csv(csv_path: &str, folder: &str, attr_name:&str, a
 
     Ok(())
 }
+
 
 
 pub fn create_fulltext_index(data: &Value, folder: &str, path:&str, options:FulltextIndexOptions,mut meta_data: &mut persistence::MetaData) -> Result<(), io::Error> {
@@ -537,7 +538,7 @@ pub fn create_indices(folder:&str, data_str:&str, indices:&str) -> Result<(), Cr
         }
     }
 
-    write_json_to_disk(&data, folder, "data", &mut meta_data)?;
+    write_json_to_disk(&data.as_array().unwrap(), folder, "data", &mut meta_data)?;
 
     let meta_data_str = serde_json::to_string_pretty(&meta_data).unwrap();
     let mut buffer = File::create(&get_file_path(folder, "metaData", ""))?;
@@ -578,31 +579,52 @@ pub fn create_indices_csv(folder:&str, csv_path: &str, indices:&str) -> Result<(
     // println!("{:?}", indices_json);
     let indices_json:Vec<CreateIndex> = serde_json::from_str(indices)?;
     let mut meta_data = persistence::MetaData {id_lists: FnvHashMap::default()};
-    for el in indices_json {
-        match el {
-            CreateIndex::Fulltext{ fulltext: attr_name, options, attr_pos } =>{
-                create_fulltext_index_csv(csv_path, &folder, &attr_name, attr_pos.unwrap(), options.unwrap_or(Default::default()), &mut meta_data)?
-             },
-            CreateIndex::Boost{ boost: path, options } => {} // @Temporary
-        }
-    }
+    // for el in indices_json {
+    //     match el {
+    //         CreateIndex::Fulltext{ fulltext: attr_name, options, attr_pos } =>{
+    //             create_fulltext_index_csv(csv_path, &folder, &attr_name, attr_pos.unwrap(), options.unwrap_or(Default::default()), &mut meta_data)?
+    //          },
+    //         CreateIndex::Boost{ boost: path, options } => {} // @Temporary
+    //     }
+    // }
 
-    // write_json_to_disk(&data, folder, "data", &mut metaData)?;
+    let json = createJsonFromCSV(csv_path);
+    write_json_to_disk(&json, folder, "data", &mut meta_data)?;
 
-    let meta_data_str = serde_json::to_string_pretty(&meta_data).unwrap();
-    let mut buffer = File::create(&get_file_path(folder, "metaData", ""))?;
-    buffer.write_all(&meta_data_str.as_bytes())?;
+    // let meta_data_str = serde_json::to_string_pretty(&meta_data).unwrap();
+    // let mut buffer = File::create(&get_file_path(folder, "metaData", ""))?;
+    // buffer.write_all(&meta_data_str.as_bytes())?;
 
     Ok(())
 }
 
 
+fn createJsonFromCSV(csv_path: &str) -> Vec<Value> {
+    let mut res = vec![];
+    let mut row: i64 = -1;
 
-fn write_json_to_disk(data: &Value, folder: &str, path:&str,mut meta_data: &mut persistence::MetaData) -> Result<(), io::Error> {
+    let mut rdr = csv::Reader::from_file(csv_path).unwrap().has_headers(false).escape(Some(b'\\'));
+    for record in rdr.decode() {
+        row+=1;
+        let els:Vec<Option<String>> = record.unwrap();
+        let mut map = FnvHashMap::default();
+        // if els[attr_pos].is_none() { continue;}
+
+        map.insert("MATNR".to_string(), els[0].clone().unwrap());
+        let v: Value = serde_json::from_str(&serde_json::to_string(&map).unwrap()).unwrap();
+        res.push(v);
+
+    }
+    res
+}
+
+
+
+fn write_json_to_disk(arro: &Vec<Value>, folder: &str, path:&str,mut meta_data: &mut persistence::MetaData) -> Result<(), io::Error> {
     let mut offsets = vec![];
     let mut buffer = File::create(&get_file_path(folder, &path, ""))?;
     let mut current_offset = 0;
-    let arro = data.as_array().unwrap();
+    // let arro = data.as_array().unwrap();
     for el in arro {
         let el_str = el.to_string().into_bytes();
         buffer.write_all(&el_str)?;
