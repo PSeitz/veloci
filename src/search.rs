@@ -92,7 +92,7 @@ pub struct Hit {
 // fn hits_to_array_iter<'a, I>(vals: I) -> Vec<Hit>
 //     where I: Iterator<Item=(u32, f32)>
 // {
-//     let search_unrolled_time = util::util::MeasureTime::new("hits_to_array_iter");
+//     let search_unrolled_time = util::util::debugTime::new("hits_to_array_iter");
 //     let mut res:Vec<Hit> = vals.map(|(id, score)| Hit{id:id, score:score}).collect();
 //     res.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(Ordering::Equal)); // Add sort by id
 //     res
@@ -141,7 +141,7 @@ pub fn search(folder:&str, request: Request, skip:usize, mut top:usize) -> Resul
 use bucket_list::BucketedScoreList;
 
 pub fn search_unrolled(folder:&str, request: Request) -> Result<FnvHashMap<u32, f32>, SearchError>{
-    measureTime!("search_unrolled");
+    debugTime!("search_unrolled");
     if request.or.is_some() {
         Ok(request.or.unwrap().iter()
             .fold(FnvHashMap::default(), |mut acc, x| -> FnvHashMap<u32, f32> {
@@ -229,11 +229,12 @@ use std::f32;
 
 pub fn search_raw(folder:&str, mut request: RequestSearchPart) -> Result<FnvHashMap<u32, f32>, SearchError> {
     let term = util::normalize_text(&request.term);
-    measureTime!("search and join");
+    debugTime!("search and join");
     let mut hits = get_hits_in_field(folder, &mut request, &term)?;
     add_token_results(folder, &request.path, &mut hits);
 
-    let mut next_level_hits:FnvHashMap<u32, f32> = FnvHashMap::default();
+    // let mut next_level_hits:FnvHashMap<u32, f32> = FnvHashMap::default();
+    let mut next_level_hits:Vec<(u32, f32)> = vec![];
 
     let paths = util::get_steps_to_anchor(&request.path);
     info!("Joining paths::: {:?}", paths);
@@ -245,15 +246,20 @@ pub fn search_raw(folder:&str, mut request: RequestSearchPart) -> Result<FnvHash
         // let kv_store = IndexKeyValueStore::new(&get_file_path(folder, &path_name, ".valueIdToParent.valIds") , &get_file_path(folder, &path_name, ".valueIdToParent.mainIds"));
         trace!("kv_store: {:?}", kv_store);
         let cache_lock = persistence::INDEX_32_CACHE.read().unwrap();// @FixMe move to get_values
-        measureTime!("Joining to anchor");
+        debugTime!("Joining to anchor");
         for (value_id, score) in hits.iter() {
             let values = kv_store.get_values(*value_id, &cache_lock);
+            // next_level_hits.reserve(values.len());
             // trace!("value_id: {:?} values: {:?} ", value_id, values);
+            // for parent_val_id in values {    // @Temporary
+            //     match next_level_hits.entry(parent_val_id as u32) {
+            //         Vacant(entry) => { entry.insert(*score); },
+            //         Occupied(entry) => { *entry.into_mut() = score.max(*entry.get()) + 0.1; },
+            //     }
+            // }
+
             for parent_val_id in values {    // @Temporary
-                match next_level_hits.entry(parent_val_id as u32) {
-                    Vacant(entry) => { entry.insert(*score); },
-                    Occupied(entry) => { *entry.into_mut() = score.max(*entry.get()) + 0.1; },
-                }
+                next_level_hits.push((parent_val_id, *score));
             }
 
             // for parent_val_id in values {
@@ -263,13 +269,26 @@ pub fn search_raw(folder:&str, mut request: RequestSearchPart) -> Result<FnvHash
             //     }else{
             //         next_level_hits.insert(parent_val_id as u64, score);
             //     }
-
             // }
         }
         trace!("next_level_hits: {:?}", next_level_hits);
-        // debug!("num next_level_hits: {:?}", next_level_hits.len());
-        hits = next_level_hits;
-        next_level_hits = FnvHashMap::default();
+        info!("{:?} hits in next_level_hits {:?}", next_level_hits.len(), &key.1);
+        debugTime!("teh stuff");
+
+
+        // next_level_hits.sort_by(|a, b| a.0.cmp(&b.0));
+        next_level_hits.dedup_by_key(|i| i.0); 
+        hits.clear();
+        debugTime!("insssiiiert");
+        hits.reserve(next_level_hits.len());
+        for el in &next_level_hits {
+            hits.insert(el.0, el.1);
+        }
+        next_level_hits.clear();
+
+        // hits.extend(next_level_hits.iter());
+        // hits = next_level_hits;
+        // next_level_hits = FnvHashMap::default();
     }
 
     Ok(hits)
@@ -344,7 +363,7 @@ fn get_default_score2(distance: u32) -> f32{
 }
 
 fn get_hits_in_field(folder:&str, mut options: &mut RequestSearchPart, term: &str) -> Result<FnvHashMap<u32, f32>, SearchError> {
-    measureTime!("get_hits_in_field");
+    debugTime!("get_hits_in_field");
     let mut hits:FnvHashMap<u32, f32> = FnvHashMap::default();
     // let checks:Vec<Fn(&str) -> bool> = Vec::new();
     let term_chars = term.chars().collect::<Vec<char>>();
@@ -363,16 +382,13 @@ fn get_hits_in_field(folder:&str, mut options: &mut RequestSearchPart, term: &st
 
     let value = start_char.as_ref().map(String::as_ref);
 
-    debug!("Will Check distance {:?}", options.levenshtein_distance.unwrap_or(0) != 0);
-    debug!("Will Check exact {:?}", options.exact);
-    debug!("Will Check starts_with {:?}", options.starts_with);
+    trace!("Will Check distance {:?}", options.levenshtein_distance.unwrap_or(0) != 0);
+    trace!("Will Check exact {:?}", options.exact);
+    trace!("Will Check starts_with {:?}", options.starts_with);
     {
         let teh_callback = |line: &str, line_pos: u32| {
             // trace!("Checking {} with {}", line, term);
             let distance = if options.levenshtein_distance.unwrap_or(0) != 0 { Some(distance(term, line))} else { None };
-            // trace!("Exact match {}", (options.exact.unwrap_or(false) &&  line == term));
-            // trace!("Distance {}", (distance.is_some() && distance.unwrap() <= options.levenshtein_distance.unwrap_or(0)));
-            // trace!("starts_with {}", (options.starts_with.is_some() && line.starts_with(options.starts_with.as_ref().unwrap())));
             if (options.exact.unwrap_or(false) &&  line == term)
                 || (distance.is_some() && distance.unwrap() <= options.levenshtein_distance.unwrap_or(0))
                 || (options.starts_with.is_some() && line.starts_with(options.starts_with.as_ref().unwrap())  )
@@ -387,6 +403,7 @@ fn get_hits_in_field(folder:&str, mut options: &mut RequestSearchPart, term: &st
         let exact_search = if options.exact.unwrap_or(false) {Some(term.to_string())} else {None};
         get_text_lines(folder, &options.path, exact_search, value, teh_callback)?; // @Hack // @Cleanup // @FixMe Forward errors
     }
+    info!("{:?} hits in textindex {:?}", hits.len(), &options.path);
     trace!("hits in textindex: {:?}", hits);
     Ok(hits)
 
@@ -417,7 +434,7 @@ impl SupiIndexKeyValueStore {
     }
     #[inline(always)]
     fn get_values(&self, find: u32, cache_lock: &RwLockReadGuard<HashMap<String, Vec<u32>>> ) -> Vec<u32> { // @FixMe return slice
-        // measureTime!("get_values");
+        // debugTime!("get_values");
         // println!("Requesting {:?}", self.path1);
         // println!("Requesting {:?}", self.path2);
         // let cache_lock = persistence::INDEX_32_CACHE.read().unwrap();
@@ -462,7 +479,7 @@ impl TokensIndexKeyValueStore for SupiIndexKeyValueStore {
 
 
 fn add_token_results(folder:&str, path:&str, hits: &mut FnvHashMap<u32, f32>){
-    measureTime!("add_token_results");
+    debugTime!("add_token_results");
     let complete_path = &get_file_path(folder, &path, ".textindex.tokens.parentValId");
     let has_tokens = fs::metadata(&complete_path);// @FixMe Replace with lookup in metadata
     debug!("has_tokens {:?} {:?}", complete_path, has_tokens.is_ok());
@@ -493,8 +510,6 @@ fn add_token_results(folder:&str, path:&str, hits: &mut FnvHashMap<u32, f32>){
                 let the_score = token_hits.entry(token_parentval_id as u32) // @Temporary
                     .or_insert(*hits.get(&token_parentval_id).unwrap_or(&0.0));
                 *the_score += adjusted_score;
-                // trace!("PARENTVALID {:?}", token_parentval_id);
-
 
                 // let hit = hits.get(token_parentval_id as u64);
                 // if  hit.map_or(true, |el| el == f32::NEG_INFINITY) { // has not key
@@ -507,12 +522,10 @@ fn add_token_results(folder:&str, path:&str, hits: &mut FnvHashMap<u32, f32>){
             }
         }
     }
-    // debug!("checked {:?}, got num token hits  {:?}",hits.keys().len(), token_hits.len());
     debug!("checked {:?}, got num token hits  {:?}",hits.iter().count(), token_hits.iter().count());
-    measureTime!("extend");
     hits.extend(token_hits);
     // {
-    //     measureTime!("token_hits.sort_by");
+    //     debugTime!("token_hits.sort_by");
     //     token_hits.sort_by(|a, b| a.0.cmp(&b.0));
     // }
     // for hit in token_hits {
@@ -556,7 +569,7 @@ impl FileAccess {
     fn binary_search(&mut self, term: &str) -> Result<(String, i64), io::Error> {
         let cache_lock = persistence::INDEX_64_CACHE.read().unwrap();
         let offsets = cache_lock.get(&(self.path.to_string()+".offsets")).unwrap();
-        measureTime!("binary_search");
+        debugTime!("binary_search");
         if offsets.len() < 2  {
             return Ok(("".to_string(), -1));
         }

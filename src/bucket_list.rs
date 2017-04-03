@@ -2,8 +2,6 @@
 
 use bit_set::BitSet;
 
-use bit_vec::BitVec;
-use std::collections::HashSet;
 use std::collections::HashMap;
 use fnv::FnvHashMap;
 
@@ -177,15 +175,15 @@ impl BucketedScoreList {
 
     pub fn retain<F>(&mut self, mut fun: F)
         where F: FnMut(u32, f32) -> bool {
-            let mut toBeRemoved = vec![];
+            let mut to_be_removed = vec![];
             for el in self.iter() {
                 if !fun(el.0, el.1){
-                    toBeRemoved.push(el.0);
+                    to_be_removed.push(el.0);
                     // println!("Remove");
                     // self.insert(el.0 as u64, f32::NEG_INFINITY);
                 }
             }
-            for el in toBeRemoved {
+            for el in to_be_removed {
                 self.insert(el as u64, f32::NEG_INFINITY);
             }
     }
@@ -358,7 +356,7 @@ fn test_bucketed_score_list() {
 
     assert_eq!(scores.contains_key(1_000_000), true);
 
-    scores.retain(|key, val| key != 1_000_000);
+    scores.retain(|key, _| key != 1_000_000);
     assert_eq!(scores.contains_key(1_000_000), false);
 
     // let ja = asdf.next();
@@ -447,7 +445,7 @@ static K3MIO: u32 = 3000000;
 static MIO: u32 =   1000000;
 
 
-#[cfg(test)] #[ignore]
+#[cfg(test)]
 mod testo {
 
 use test::Bencher;

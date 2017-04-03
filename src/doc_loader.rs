@@ -23,8 +23,8 @@ impl DocLoader {
     pub fn get_doc(&self, pos: usize) -> Result<String, io::Error> {
 
         let (start, end) = {
-            let cacheLock = persistence::INDEX_64_CACHE.read().unwrap();
-            let offsets = cacheLock.get(&get_file_path(&self.folder, &self.filename, ".offsets")).unwrap();
+            let cache_lock = persistence::INDEX_64_CACHE.read().unwrap();
+            let offsets = cache_lock.get(&get_file_path(&self.folder, &self.filename, ".offsets")).unwrap();
             (offsets[pos] as usize, offsets[pos as usize + 1] as usize)
         };
 

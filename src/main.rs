@@ -94,8 +94,8 @@ fn main() {
 
     // let indices = r#"
     // [
-    //     { "fulltext":"MATNR", "attr_pos" : 0 },
-    //     { "fulltext":"ISMTITLE", "attr_pos" : 1}
+    //     { "fulltext":"MATNR", "attr_pos" : 0 , "options":{"tokenize":true}},
+    //     { "fulltext":"ISMTITLE", "attr_pos" : 1, "options":{"tokenize":true}}
     // ]
     // "#;
     // println!("{:?}", create::create_indices_csv("csv_test", "./data.csv", indices));
@@ -103,52 +103,53 @@ fn main() {
     let meta_data = persistence::MetaData::new("csv_test");
     println!("{:?}", persistence::load_all(&meta_data));
 
-    search::to_documents(&vec!(search::Hit{id:0, score:0.5}), "csv_test");
+    // search::to_documents(&vec!(search::Hit{id:0, score:0.5}), "csv_test");
 
     {
         println!("Ab gehts");
+        #[allow(unused_variables)]
         let my_time = util::MeasureTime::new("search total", util::MeasureTimeLogLevel::Info);
-        let req = json!({
-            "or":[
-                {
-                    "and":[{"search": {"term":"kriege", "path": "MATNR"}}, {"search": {"term":"die", "path": "MATNR"}}, {"search": {"term":"ich", "path": "MATNR"}}, {"search": {"term":"gesehen", "path": "MATNR"}}, {"search": {"term":"habe", "path": "MATNR"}} ]
-                },
-                {
-                    "and":[{"search": {"term":"kriege", "path": "ISMTITLE"}}, {"search": {"term":"die", "path": "ISMTITLE"}}, {"search": {"term":"ich", "path": "ISMTITLE"}}, {"search": {"term":"gesehen", "path": "ISMTITLE"}}, {"search": {"term":"habe", "path": "ISMTITLE"}} ]
-                },
-                {
-                    "and":[{"search": {"term":"kriege", "path": "ISMORIGTITLE"}}, {"search": {"term":"die", "path": "ISMORIGTITLE"}}, {"search": {"term":"ich", "path": "ISMORIGTITLE"}}, {"search": {"term":"gesehen", "path": "ISMORIGTITLE"}}, {"search": {"term":"habe", "path": "ISMORIGTITLE"}} ]
-                },
-                {
-                    "and":[{"search": {"term":"kriege", "path": "ISMSUBTITLE1"}}, {"search": {"term":"die", "path": "ISMSUBTITLE1"}}, {"search": {"term":"ich", "path": "ISMSUBTITLE1"}}, {"search": {"term":"gesehen", "path": "ISMSUBTITLE1"}}, {"search": {"term":"habe", "path": "ISMSUBTITLE1"}} ]
-                },
-                {
-                    "and":[{"search": {"term":"kriege", "path": "ISMSUBTITLE2"}}, {"search": {"term":"die", "path": "ISMSUBTITLE2"}}, {"search": {"term":"ich", "path": "ISMSUBTITLE2"}}, {"search": {"term":"gesehen", "path": "ISMSUBTITLE2"}}, {"search": {"term":"habe", "path": "ISMSUBTITLE2"}} ]
-                },
-                {
-                    "and":[{"search": {"term":"kriege", "path": "ISMSUBTITLE3"}}, {"search": {"term":"die", "path": "ISMSUBTITLE3"}}, {"search": {"term":"ich", "path": "ISMSUBTITLE3"}}, {"search": {"term":"gesehen", "path": "ISMSUBTITLE3"}}, {"search": {"term":"habe", "path": "ISMSUBTITLE3"}} ]
-                },
-                {
-                    "and":[{"search": {"term":"kriege", "path": "ISMARTIST"}}, {"search": {"term":"die", "path": "ISMARTIST"}}, {"search": {"term":"ich", "path": "ISMARTIST"}}, {"search": {"term":"gesehen", "path": "ISMARTIST"}}, {"search": {"term":"habe", "path": "ISMARTIST"}} ]
-                },
-                {
-                    "and":[{"search": {"term":"kriege", "path": "ISMLANGUAGES"}}, {"search": {"term":"die", "path": "ISMLANGUAGES"}}, {"search": {"term":"ich", "path": "ISMLANGUAGES"}}, {"search": {"term":"gesehen", "path": "ISMLANGUAGES"}}, {"search": {"term":"habe", "path": "ISMLANGUAGES"}} ]
-                },
-                {
-                    "and":[{"search": {"term":"kriege", "path": "ISMPUBLDATE"}}, {"search": {"term":"die", "path": "ISMPUBLDATE"}}, {"search": {"term":"ich", "path": "ISMPUBLDATE"}}, {"search": {"term":"gesehen", "path": "ISMPUBLDATE"}}, {"search": {"term":"habe", "path": "ISMPUBLDATE"}} ]
-                },
-                {
-                    "and":[{"search": {"term":"kriege", "path": "EAN11"}}, {"search": {"term":"die", "path": "EAN11"}}, {"search": {"term":"ich", "path": "EAN11"}}, {"search": {"term":"gesehen", "path": "EAN11"}}, {"search": {"term":"habe", "path": "EAN11"}} ]
-                },
-                {
-                    "and":[{"search": {"term":"kriege", "path": "ISMORIDCODE"}}, {"search": {"term":"die", "path": "ISMORIDCODE"}}, {"search": {"term":"ich", "path": "ISMORIDCODE"}}, {"search": {"term":"gesehen", "path": "ISMORIDCODE"}}, {"search": {"term":"habe", "path": "ISMORIDCODE"}} ]
-                }
-            ]
-        });
-
         // let req = json!({
-        //     "and":[{"search": {"term":"kriege", "path": "ISMTITLE"}}, {"search": {"term":"die", "path": "ISMTITLE"}}, {"search": {"term":"ich", "path": "ISMTITLE"}}, {"search": {"term":"gesehen", "path": "ISMTITLE"}}, {"search": {"term":"habe", "path": "ISMTITLE"}} ]
+        //     "or":[
+        //         {
+        //             "and":[{"search": {"term":"kriege", "path": "MATNR"}}, {"search": {"term":"die", "path": "MATNR"}}, {"search": {"term":"ich", "path": "MATNR"}}, {"search": {"term":"gesehen", "path": "MATNR"}}, {"search": {"term":"habe", "path": "MATNR"}} ]
+        //         },
+        //         {
+        //             "and":[{"search": {"term":"kriege", "path": "ISMTITLE"}}, {"search": {"term":"die", "path": "ISMTITLE"}}, {"search": {"term":"ich", "path": "ISMTITLE"}}, {"search": {"term":"gesehen", "path": "ISMTITLE"}}, {"search": {"term":"habe", "path": "ISMTITLE"}} ]
+        //         },
+        //         {
+        //             "and":[{"search": {"term":"kriege", "path": "ISMORIGTITLE"}}, {"search": {"term":"die", "path": "ISMORIGTITLE"}}, {"search": {"term":"ich", "path": "ISMORIGTITLE"}}, {"search": {"term":"gesehen", "path": "ISMORIGTITLE"}}, {"search": {"term":"habe", "path": "ISMORIGTITLE"}} ]
+        //         },
+        //         {
+        //             "and":[{"search": {"term":"kriege", "path": "ISMSUBTITLE1"}}, {"search": {"term":"die", "path": "ISMSUBTITLE1"}}, {"search": {"term":"ich", "path": "ISMSUBTITLE1"}}, {"search": {"term":"gesehen", "path": "ISMSUBTITLE1"}}, {"search": {"term":"habe", "path": "ISMSUBTITLE1"}} ]
+        //         },
+        //         {
+        //             "and":[{"search": {"term":"kriege", "path": "ISMSUBTITLE2"}}, {"search": {"term":"die", "path": "ISMSUBTITLE2"}}, {"search": {"term":"ich", "path": "ISMSUBTITLE2"}}, {"search": {"term":"gesehen", "path": "ISMSUBTITLE2"}}, {"search": {"term":"habe", "path": "ISMSUBTITLE2"}} ]
+        //         },
+        //         {
+        //             "and":[{"search": {"term":"kriege", "path": "ISMSUBTITLE3"}}, {"search": {"term":"die", "path": "ISMSUBTITLE3"}}, {"search": {"term":"ich", "path": "ISMSUBTITLE3"}}, {"search": {"term":"gesehen", "path": "ISMSUBTITLE3"}}, {"search": {"term":"habe", "path": "ISMSUBTITLE3"}} ]
+        //         },
+        //         {
+        //             "and":[{"search": {"term":"kriege", "path": "ISMARTIST"}}, {"search": {"term":"die", "path": "ISMARTIST"}}, {"search": {"term":"ich", "path": "ISMARTIST"}}, {"search": {"term":"gesehen", "path": "ISMARTIST"}}, {"search": {"term":"habe", "path": "ISMARTIST"}} ]
+        //         },
+        //         {
+        //             "and":[{"search": {"term":"kriege", "path": "ISMLANGUAGES"}}, {"search": {"term":"die", "path": "ISMLANGUAGES"}}, {"search": {"term":"ich", "path": "ISMLANGUAGES"}}, {"search": {"term":"gesehen", "path": "ISMLANGUAGES"}}, {"search": {"term":"habe", "path": "ISMLANGUAGES"}} ]
+        //         },
+        //         {
+        //             "and":[{"search": {"term":"kriege", "path": "ISMPUBLDATE"}}, {"search": {"term":"die", "path": "ISMPUBLDATE"}}, {"search": {"term":"ich", "path": "ISMPUBLDATE"}}, {"search": {"term":"gesehen", "path": "ISMPUBLDATE"}}, {"search": {"term":"habe", "path": "ISMPUBLDATE"}} ]
+        //         },
+        //         {
+        //             "and":[{"search": {"term":"kriege", "path": "EAN11"}}, {"search": {"term":"die", "path": "EAN11"}}, {"search": {"term":"ich", "path": "EAN11"}}, {"search": {"term":"gesehen", "path": "EAN11"}}, {"search": {"term":"habe", "path": "EAN11"}} ]
+        //         },
+        //         {
+        //             "and":[{"search": {"term":"kriege", "path": "ISMORIDCODE"}}, {"search": {"term":"die", "path": "ISMORIDCODE"}}, {"search": {"term":"ich", "path": "ISMORIDCODE"}}, {"search": {"term":"gesehen", "path": "ISMORIDCODE"}}, {"search": {"term":"habe", "path": "ISMORIDCODE"}} ]
+        //         }
+        //     ]
         // });
+
+        let req = json!({
+            "and":[{"search": {"term":"kriege", "path": "ISMTITLE"}}, {"search": {"term":"die", "path": "ISMTITLE"}}, {"search": {"term":"ich", "path": "ISMTITLE"}}, {"search": {"term":"gesehen", "path": "ISMTITLE"}}, {"search": {"term":"habe", "path": "ISMTITLE"}} ]
+        });
 
         // let req = json!({
         //     "and":[{"search": {"term":"kriege", "path": "ISMSUBTITLE1"}}, {"search": {"term":"die", "path": "ISMSUBTITLE1"}}, {"search": {"term":"ich", "path": "ISMSUBTITLE1"}}, {"search": {"term":"gesehen", "path": "ISMSUBTITLE1"}}, {"search": {"term":"habe", "path": "ISMSUBTITLE1"}} ]
@@ -160,9 +161,10 @@ fn main() {
 
         let requesto: search::Request = serde_json::from_str(&req.to_string()).unwrap();
         let hits = search::search("csv_test", requesto, 0, 10).unwrap();
-        let doc = search::to_documents(&hits, "csv_test");
+        // let doc = search::to_documents(&hits, "csv_test");
 
-        println!("{:?}", doc);
+        // println!("{:?}", doc);
+        println!("{:?}", hits);
     }
 
 
@@ -216,6 +218,7 @@ fn main() {
 }
 // { "fulltext":"meanings.ger[]", "options":{"tokenize":true, "stopwords": ["stopword"]} }
 
+#[allow(dead_code)]
 fn create_index() -> Result<(), io::Error> {
     let indices = r#"
     [
@@ -255,7 +258,7 @@ fn create_index() -> Result<(), io::Error> {
 }
 
 
-
+#[allow(dead_code)]
 pub fn testfst(term:&str, max_distance:u32) -> Result<(Vec<String>), fst::Error> {
 
     let mut f = try!(File::open("de_full_2.txt"));
@@ -297,6 +300,7 @@ pub fn testfst(term:&str, max_distance:u32) -> Result<(Vec<String>), fst::Error>
 //     File::create("de_full_2.txt")?.write_all(firsts.join("\n").as_bytes());
 // }
 
+#[allow(dead_code)]
 fn test_build_fst() -> Result<(), fst::Error> {
     let now = Instant::now();
 

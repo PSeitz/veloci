@@ -579,33 +579,33 @@ pub fn create_indices_csv(folder:&str, csv_path: &str, indices:&str) -> Result<(
     // println!("{:?}", indices_json);
     let indices_json:Vec<CreateIndex> = serde_json::from_str(indices)?;
     let mut meta_data = persistence::MetaData {id_lists: FnvHashMap::default()};
-    // for el in indices_json {
-    //     match el {
-    //         CreateIndex::Fulltext{ fulltext: attr_name, options, attr_pos } =>{
-    //             create_fulltext_index_csv(csv_path, &folder, &attr_name, attr_pos.unwrap(), options.unwrap_or(Default::default()), &mut meta_data)?
-    //          },
-    //         CreateIndex::Boost{ boost: path, options } => {} // @Temporary
-    //     }
-    // }
+    for el in indices_json {
+        match el {
+            CreateIndex::Fulltext{ fulltext: attr_name, options, attr_pos } =>{
+                create_fulltext_index_csv(csv_path, &folder, &attr_name, attr_pos.unwrap(), options.unwrap_or(Default::default()), &mut meta_data)?
+             },
+            CreateIndex::Boost{ boost: path, options } => {} // @Temporary
+        }
+    }
 
-    let json = createJsonFromCSV(csv_path);
+    let json = create_json_from_c_s_v(csv_path);
     write_json_to_disk(&json, folder, "data", &mut meta_data)?;
 
-    // let meta_data_str = serde_json::to_string_pretty(&meta_data).unwrap();
-    // let mut buffer = File::create(&get_file_path(folder, "metaData", ""))?;
-    // buffer.write_all(&meta_data_str.as_bytes())?;
+    let meta_data_str = serde_json::to_string_pretty(&meta_data).unwrap();
+    let mut buffer = File::create(&get_file_path(folder, "metaData", ""))?;
+    buffer.write_all(&meta_data_str.as_bytes())?;
 
     Ok(())
 }
 
 
-fn createJsonFromCSV(csv_path: &str) -> Vec<Value> {
+fn create_json_from_c_s_v(csv_path: &str) -> Vec<Value> {
     let mut res = vec![];
-    let mut row: i64 = -1;
+    // let mut row: i64 = -1;
 
     let mut rdr = csv::Reader::from_file(csv_path).unwrap().has_headers(false).escape(Some(b'\\'));
     for record in rdr.decode() {
-        row+=1;
+        // row+=1;
         let els:Vec<Option<String>> = record.unwrap();
         let mut map = FnvHashMap::default();
         // if els[attr_pos].is_none() { continue;}

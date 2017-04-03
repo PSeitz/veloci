@@ -1,3 +1,5 @@
+
+#[allow(unused_imports)]
 use std::fs::{self, File};
 use std::io::prelude::*;
 #[allow(unused_imports)]
@@ -66,7 +68,7 @@ pub enum IDDataType {
 #[derive(Debug)]
 struct Persistence {
 	db: String, // folder
-	metaData: MetaData
+	meta_data: MetaData
 }
 
 //TODO Move everything with getFilepath to persistence
@@ -166,7 +168,6 @@ pub fn load_index(s1: &str) -> Result<Vec<u32>, io::Error> {
     }
 
 }
-use std;
 // fn check_is_docid_type<T: std::cmp::PartialEq>(data: &Vec<T>) -> bool {
 //     for (index, value_id) in data.iter().enumerate(){
 //         if *value_id as usize != index  {
