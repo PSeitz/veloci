@@ -124,7 +124,7 @@ impl BucketedScoreList {
         if self.arr.len() <= bucket {
             self.arr.resize(bucket + 1, vec![]);
         }
-        if self.arr[bucket].len() <= pos {
+        if self.arr[bucket].len() <= pos + 2 { // @Hack  Fix Iterator
             self.arr[bucket].resize(cmp::min(((pos + 1) as f32 * 1.5) as usize, BUCKET_SIZE as usize + 2) , f32::NEG_INFINITY); // @Hack  +2 
         }
         self.arr[bucket][pos] = value;
@@ -139,12 +139,12 @@ impl BucketedScoreList {
         }
     }
 
-    pub fn has_key(&self, index: u64) -> bool {
+    pub fn contains_key(&self, index: u64) -> bool {
         let (pos, bucket) = BucketedScoreList::split_index(index);
         if self.arr.len() <= bucket {
             false
         }else{
-            self.arr[bucket].get(pos).map_or(false, |el|*el == f32::NEG_INFINITY)
+            self.arr[bucket].get(pos).map_or(false, |el|*el != f32::NEG_INFINITY)
         }
     }
 
@@ -165,6 +165,25 @@ impl BucketedScoreList {
         BucketedScoreListIterator { list: &self, bucket: 0, pos: 0 }
     }
 
+    pub fn retain<F>(&mut self, mut fun: F)
+        where F: FnMut(u32, f32) -> bool {
+            let mut toBeRemoved = vec![];
+            for el in self.iter() {
+                if !fun(el.0, el.1){
+                    toBeRemoved.push(el.0);
+                    // println!("Remove");
+                    // self.insert(el.0 as u64, f32::NEG_INFINITY);
+                }
+            }
+            for el in toBeRemoved {
+                self.insert(el as u64, f32::NEG_INFINITY);
+            }
+    }
+
+//     fn get_text_lines<F>(folder:&str, path: &str, exact_search:Option<String>, character: Option<&str>, mut fun: F) -> Result<(), SearchError>
+// where F: FnMut(&str, u32) {
+
+
 }
 
 #[derive(Debug, Clone)]
@@ -181,19 +200,24 @@ pub struct BucketedScoreListIterator<'a>  {
     pos: usize
 }
 
+macro_rules! moveToNextBucket {
+    ($pos:ident, $bucket:ident, $list:ident, $current_bucket:ident) => (
+        *$pos=0;
+        *$bucket+=1;
+        if *$bucket >= $list.arr.len() { return None; }
+        $current_bucket = &$list.arr[*$bucket];
+    )
+}
+
 fn move_in_bucket<'a>(list: &'a BucketedScoreList, bucket: &mut usize, pos:&mut usize) -> Option<(u32, f32)> {
     let mut current_bucket = &list.arr[*bucket];
     while current_bucket[*pos] == f32::NEG_INFINITY {
         *pos+=1;
-        if *pos == current_bucket.len() -1 {
-            *pos = 0;
-            *bucket+=1;
-            if *bucket >= list.arr.len() { return None; }
-            current_bucket = &list.arr[*bucket];
+        // println!("pos {:?} bucket {:?} ", pos, bucket);
+        if current_bucket.get(*pos).is_none() {
+            moveToNextBucket!(pos, bucket, list, current_bucket);
             while current_bucket.len() == 0 { // find next filled bucket
-                *bucket+=1;
-                if *bucket >= list.arr.len() { return None; }
-                current_bucket = &list.arr[*bucket];
+                moveToNextBucket!(pos, bucket, list, current_bucket);
             }
         }
     }
@@ -205,14 +229,12 @@ fn move_in_bucket<'a>(list: &'a BucketedScoreList, bucket: &mut usize, pos:&mut 
 fn next_el_in_bucketed<'a>(list: &'a BucketedScoreList, bucket: &mut usize, pos:&mut usize) -> Option<(u32, f32)> {
     if *bucket >= list.arr.len() { return None; }
     let mut current_bucket = &list.arr[*bucket];
-    if current_bucket.len() != 0 && *pos < current_bucket.len() - 1 {
+    if current_bucket.len() != 0 && *pos < current_bucket.len() {
         return move_in_bucket(list, bucket, pos);
     }else{
-        *pos=0; // find next bucket
+        moveToNextBucket!(pos, bucket, list, current_bucket);
         while current_bucket.len() == 0 {
-            *bucket+=1;
-            if *bucket >= list.arr.len() { return None; }
-            current_bucket = &list.arr[*bucket];
+            moveToNextBucket!(pos, bucket, list, current_bucket);
         }
         return move_in_bucket(list, bucket, pos);
     }
@@ -237,7 +259,7 @@ impl Iterator for BucketedScoreListIntoIterator {
 #[test]
 fn test_bucketed_score_list() {
 
-    let mut scores = BucketedScoreList{arr: vec![]};
+    let mut scores = BucketedScoreList::default();
     scores.insert(0, 0.22);
     scores.insert(5, 0.22);
     scores.insert(131071, 0.22);
@@ -245,18 +267,37 @@ fn test_bucketed_score_list() {
     scores.insert(131073, 0.22);
     scores.insert(250_000, 0.22);
     scores.insert(1_000_000, 0.22);
-    let mut yop = scores.iter();
-    assert_eq!(yop.next(), Some((0, 0.22)));
-    assert_eq!(yop.next(), Some((5, 0.22)));
-    assert_eq!(yop.next(), Some((131071, 0.22)));
-    assert_eq!(yop.next(), Some((131072, 0.22)));
-    assert_eq!(yop.next(), Some((131073, 0.22)));
-    assert_eq!(yop.next(), Some((250_000, 0.22)));
-    assert_eq!(yop.next(), Some((1_000_000, 0.22)));
-    assert_eq!(yop.next(), None);
-    assert_eq!(yop.next(), None);
+    {
+        let mut yop = scores.iter();
+        assert_eq!(yop.next(), Some((0, 0.22)));
+        assert_eq!(yop.next(), Some((5, 0.22)));
+        assert_eq!(yop.next(), Some((131071, 0.22)));
+        assert_eq!(yop.next(), Some((131072, 0.22)));
+        assert_eq!(yop.next(), Some((131073, 0.22)));
+        assert_eq!(yop.next(), Some((250_000, 0.22)));
+        assert_eq!(yop.next(), Some((1_000_000, 0.22)));
+        assert_eq!(yop.next(), None);
+        assert_eq!(yop.next(), None);
 
-    // assert_eq!(scores.has_key(1_000_000), true));
+
+        let mut extended = BucketedScoreList::default();
+        extended.extend(&scores);
+        let mut yop = extended.iter();
+        assert_eq!(yop.next(), Some((0, 0.22)));
+        assert_eq!(yop.next(), Some((5, 0.22)));
+        assert_eq!(yop.next(), Some((131071, 0.22)));
+        assert_eq!(yop.next(), Some((131072, 0.22)));
+        assert_eq!(yop.next(), Some((131073, 0.22)));
+        assert_eq!(yop.next(), Some((250_000, 0.22)));
+        assert_eq!(yop.next(), Some((1_000_000, 0.22)));
+        assert_eq!(yop.next(), None);
+        assert_eq!(yop.next(), None);
+    }
+
+    assert_eq!(scores.contains_key(1_000_000), true);
+
+    scores.retain(|key, val| key != 1_000_000);
+    assert_eq!(scores.contains_key(1_000_000), false);
 
     // let ja = asdf.next();
     // ja.next();
@@ -265,6 +306,23 @@ fn test_bucketed_score_list() {
     // }
     // let jaja = vec![];
     // jaja.iter().next();
+
+}
+
+#[test]
+fn test_bucketed_score_list_insert_8() {
+
+    let mut scores = BucketedScoreList::default();
+    scores.insert(6, 0.22);
+    scores.insert(8, 0.22);
+    scores.insert(7, 0.22);
+    scores.insert(9, 0.22);
+    let mut yop = scores.iter();
+    assert_eq!(yop.next(), Some((6, 0.22)));
+    assert_eq!(yop.next(), Some((7, 0.22)));
+    assert_eq!(yop.next(), Some((8, 0.22)));
+    assert_eq!(yop.next(), Some((9, 0.22)));
+    assert_eq!(yop.next(), None);
 
 }
 
@@ -327,7 +385,7 @@ static K3MIO: u32 = 3000000;
 static MIO: u32 =   1000000;
 
 
-#[cfg(test)]
+#[cfg(test)] #[ignore]
 mod testo {
 
 use test::Bencher;
@@ -369,10 +427,10 @@ use super::*;
     }
 
 
-    #[bench]
-    fn quadratic_noo_(b: &mut Bencher) {
-        b.iter(|| quadratic_no(K500K));
-    }
+    // #[bench]
+    // fn quadratic_noo_(b: &mut Bencher) {
+    //     b.iter(|| quadratic_no(K500K));
+    // }
 
 }
 

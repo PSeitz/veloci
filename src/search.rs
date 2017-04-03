@@ -92,6 +92,7 @@ pub struct Hit {
 fn hits_to_array_iter<'a, I>(vals: I) -> Vec<Hit>
     where I: Iterator<Item=(u32, f32)>
 {
+    let search_unrolled_time = util::MeasureTime::new("hits_to_array_iter");
     let mut res:Vec<Hit> = vals.map(|(id, score)| Hit{id:id, score:score}).collect();
     res.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(Ordering::Equal)); // Add sort by id
     res
@@ -129,7 +130,10 @@ pub fn to_documents(hits: &Vec<Hit>, folder:&str) -> Vec<DocWithHit> {
 }
 
 pub fn search(folder:&str, request: Request, skip:usize, mut top:usize) -> Result<Vec<Hit>, SearchError>{
-    let res = hits_to_array_iter(search_unrolled(folder, request)?.iter());
+
+    let res = search_unrolled(folder, request)?;
+    // println!("{:?}", res);
+    let res = hits_to_array_iter(res.iter());
     top = cmp::min(top + skip, res.len());
     Ok(res[skip..top].to_vec())
 }
@@ -155,6 +159,7 @@ pub fn search_unrolled(folder:&str, request: Request) -> Result<BucketedScoreLis
         }
 
         // all_results.retain(|&k, _| and_results.iter().all(|ref x| x.contains_key(&k)) );
+        all_results.retain(|k, _| and_results.iter().all(|ref x| x.contains_key(k as u64)) );
         Ok(all_results)
     }else if request.search.is_some(){
         Ok(search_raw(folder, request.search.unwrap())?)
@@ -232,7 +237,7 @@ pub fn search_raw(folder:&str, mut request: RequestSearchPart) -> Result<Buckete
         measureTime!("In da loop");
         for (value_id, score) in hits.iter() {
             let values = kv_store.get_values(value_id, &cache_lock);
-            // trace!("value_id: {:?} values: {:?} ", value_id, values);
+            trace!("value_id: {:?} values: {:?} ", value_id, values);
             // for parent_val_id in values {    // @Temporary 
             //     match next_level_hits.entry(parent_val_id as u32) {
             //         Vacant(entry) => { entry.insert(*score); },
@@ -242,7 +247,6 @@ pub fn search_raw(folder:&str, mut request: RequestSearchPart) -> Result<Buckete
 
             for parent_val_id in values {
                 let hit = next_level_hits.get(parent_val_id as u64);
-
                 if  hit.map_or(true, |el| el == f32::NEG_INFINITY) {
                     next_level_hits.insert(parent_val_id as u64, score);
                 }else{
@@ -251,7 +255,7 @@ pub fn search_raw(folder:&str, mut request: RequestSearchPart) -> Result<Buckete
 
             }
         }
-        // trace!("next_level_hits: {:?}", next_level_hits);
+        trace!("next_level_hits: {:?}", next_level_hits);
         // debug!("num next_level_hits: {:?}", next_level_hits.len());
         hits = next_level_hits;
         next_level_hits = BucketedScoreList::default();
@@ -353,11 +357,11 @@ fn get_hits_in_field(folder:&str, mut options: &mut RequestSearchPart, term: &st
     debug!("Will Check starts_with {:?}", options.starts_with);
     {
         let teh_callback = |line: &str, line_pos: u32| {
-            trace!("Checking {} with {}", line, term);
+            // trace!("Checking {} with {}", line, term);
             let distance = if options.levenshtein_distance.unwrap_or(0) != 0 { Some(distance(term, line))} else { None };
-            trace!("Exact match {}", (options.exact.unwrap_or(false) &&  line == term));
-            trace!("Distance {}", (distance.is_some() && distance.unwrap() <= options.levenshtein_distance.unwrap_or(0)));
-            trace!("starts_with {}", (options.starts_with.is_some() && line.starts_with(options.starts_with.as_ref().unwrap())));
+            // trace!("Exact match {}", (options.exact.unwrap_or(false) &&  line == term));
+            // trace!("Distance {}", (distance.is_some() && distance.unwrap() <= options.levenshtein_distance.unwrap_or(0)));
+            // trace!("starts_with {}", (options.starts_with.is_some() && line.starts_with(options.starts_with.as_ref().unwrap())));
             if (options.exact.unwrap_or(false) &&  line == term)
                 || (distance.is_some() && distance.unwrap() <= options.levenshtein_distance.unwrap_or(0))
                 || (options.starts_with.is_some() && line.starts_with(options.starts_with.as_ref().unwrap())  )
@@ -365,7 +369,7 @@ fn get_hits_in_field(folder:&str, mut options: &mut RequestSearchPart, term: &st
                 {
                 // let score = get_default_score(term, line);
                 let score = if distance.is_some() {get_default_score2(distance.unwrap())} else {get_default_score(term, line)};
-                debug!("Hit: {:?} score: {:?}", line, score);
+                debug!("Hit: {:?}\tid: {:?} score: {:?}", line, line_pos, score);
                 hits.insert(line_pos as u64, score);
             }
         };
@@ -470,14 +474,25 @@ fn add_token_results(folder:&str, path:&str, hits: &mut BucketedScoreList){
                 let adjusted_score = 2.0/(parent_text_length as f32 - token_text_length as f32) + 0.2;
                 // if (adjusted_score < 0) throw new Error('asdf')
 
-                // let the_score = token_hits.entry(token_parentval_id as u32) // @Temporary 
+                // let the_score = token_hits.entry(token_parentval_id as u32) // @Temporary
                 //     .or_insert(*hits.get(&token_parentval_id).unwrap_or(&0.0));
                 // *the_score += adjusted_score;
+                // trace!("PARENTVALID {:?}", token_parentval_id);
+                let hit = hits.get(token_parentval_id as u64);
+                if  hit.map_or(true, |el| el == f32::NEG_INFINITY) { // has not key
+                    token_hits.insert(token_parentval_id as u64, adjusted_score);
+                }else{
+                    token_hits.insert(token_parentval_id as u64, adjusted_score + hit.unwrap());
+                }
             }
         }
     }
     // debug!("checked {:?}, got num token hits  {:?}",hits.keys().len(), token_hits.len());
     hits.extend(&token_hits);
+    // for hit in hits.iter() {
+    //     trace!("NEW HITS {:?}", hit);
+    // }
+
 }
 
 
@@ -559,7 +574,7 @@ where F: FnMut(&str, u32) {
 
         f.seek(SeekFrom::Start(char_offset_info.byte_range_start as u64))?;
         f.read_exact(&mut buffer)?;
-        // let s = unsafe {str::from_utf8_unchecked(&buffer)}; 
+        // let s = unsafe {str::from_utf8_unchecked(&buffer)};
         let s = str::from_utf8(&buffer)?; // @Temporary  -> use unchecked if stable
         // trace!("Loaded Text: {}", s);
         let lines = s.lines();

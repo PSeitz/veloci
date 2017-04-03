@@ -254,13 +254,13 @@ mod tests {
                 }
             });
             let hits = search_test_to_doc(req).unwrap();
-    
+
             // println!("hits {:?}", hits);
             assert_eq!(hits.len(), 1);
         }
 
         { // 'should prefer exact matches to tokenmatches'
-            
+
             let req = json!({
                 "search": {
                     "term":"will",
@@ -269,7 +269,7 @@ mod tests {
                 }
             });
             let wa = search_test_to_doc(req).unwrap();
-    
+
             // serde_json::from_str(data_str).unwrap();
             // println!("wa {}", wa[0]);
             let doc1:Value = serde_json::from_str(&wa[0].doc).unwrap();
