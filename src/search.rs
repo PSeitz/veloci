@@ -34,6 +34,10 @@ use fnv::FnvHashMap;
 #[allow(unused_imports)]
 use std::time::Instant;
 
+#[allow(unused_imports)]
+use bucket_list::BucketedScoreList;
+
+#[allow(unused_imports)]
 use std::collections::hash_map::Entry::{Occupied, Vacant};
 use std::cmp::Ordering;
 
@@ -99,6 +103,7 @@ pub struct Hit {
 // }
 
 fn hits_to_array(hits:FnvHashMap<u32, f32>) -> Vec<Hit> {
+    debugTime!("hits_to_array");
     let mut res:Vec<Hit> = hits.iter().map(|(id, score)| Hit{id:*id, score:*score}).collect();
     res.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(Ordering::Equal)); // Add sort by id
     res
@@ -130,7 +135,7 @@ pub fn to_documents(hits: &Vec<Hit>, folder:&str) -> Vec<DocWithHit> {
 }
 
 pub fn search(folder:&str, request: Request, skip:usize, mut top:usize) -> Result<Vec<Hit>, SearchError>{
-
+    infoTime!("search");
     let res = search_unrolled(folder, request)?;
     // println!("{:?}", res);
     // let res = hits_to_array_iter(res.iter());
@@ -138,10 +143,10 @@ pub fn search(folder:&str, request: Request, skip:usize, mut top:usize) -> Resul
     top = cmp::min(top + skip, res.len());
     Ok(res[skip..top].to_vec())
 }
-use bucket_list::BucketedScoreList;
+
 
 pub fn search_unrolled(folder:&str, request: Request) -> Result<FnvHashMap<u32, f32>, SearchError>{
-    debugTime!("search_unrolled");
+    infoTime!("search_unrolled");
     if request.or.is_some() {
         Ok(request.or.unwrap().iter()
             .fold(FnvHashMap::default(), |mut acc, x| -> FnvHashMap<u32, f32> {
@@ -154,7 +159,7 @@ pub fn search_unrolled(folder:&str, request: Request) -> Result<FnvHashMap<u32, 
         let ands = request.and.unwrap();
         let mut and_results:Vec<FnvHashMap<u32, f32>> = ands.iter().map(|x| search_unrolled(folder, x.clone()).unwrap() ).collect(); // @Hack  unwrap forward errors
 
-        infoTime!("and algorithm");
+        debugTime!("and algorithm");
         let mut all_results:FnvHashMap<u32, f32> = FnvHashMap::default();
         // get shortest result
         let mut shortest = (0, std::u64::MAX);
@@ -164,9 +169,9 @@ pub fn search_unrolled(folder:&str, request: Request) -> Result<FnvHashMap<u32, 
             }
         }
 
-        let shortestResult = and_results.swap_remove(shortest.0);
-        for (k, v) in shortestResult {
-            if(and_results.iter().all(|ref x| x.contains_key(&k))){
+        let shortest_result = and_results.swap_remove(shortest.0);
+        for (k, v) in shortest_result {
+            if and_results.iter().all(|ref x| x.contains_key(&k)){
                 all_results.insert(k, v);
             }
         }
@@ -184,6 +189,7 @@ pub fn search_unrolled(folder:&str, request: Request) -> Result<FnvHashMap<u32, 
     }
 }
 
+#[allow(dead_code)]
 fn add_boost(folder: &str, boost: &RequestBoostPart, hits : &mut FnvHashMap<u32, f32>) -> Result<(), SearchError> {
     let key = get_file_path_tuple(folder, &boost.path, ".boost.subObjId", ".boost.value");
 
@@ -229,15 +235,15 @@ use std::f32;
 
 pub fn search_raw(folder:&str, mut request: RequestSearchPart) -> Result<FnvHashMap<u32, f32>, SearchError> {
     let term = util::normalize_text(&request.term);
-    debugTime!("search and join");
+    infoTime!("search and join to anchor");
     let mut hits = get_hits_in_field(folder, &mut request, &term)?;
     add_token_results(folder, &request.path, &mut hits);
-
-    // let mut next_level_hits:FnvHashMap<u32, f32> = FnvHashMap::default();
-    let mut next_level_hits:Vec<(u32, f32)> = vec![];
+    if hits.len() == 0 {return Ok(hits)};
+    let mut next_level_hits:FnvHashMap<u32, f32> = FnvHashMap::default();
+    // let mut next_level_hits:Vec<(u32, f32)> = vec![];
 
     let paths = util::get_steps_to_anchor(&request.path);
-    info!("Joining paths::: {:?}", paths);
+    info!("Joining {:?} hits from {:?} for {:?}", hits.len(), paths, term);
     for i in (0..paths.len()).rev() {
         let is_text_index = i == (paths.len() -1);
         let path_name = util::get_path_name(&paths[i], is_text_index);
@@ -247,48 +253,60 @@ pub fn search_raw(folder:&str, mut request: RequestSearchPart) -> Result<FnvHash
         trace!("kv_store: {:?}", kv_store);
         let cache_lock = persistence::INDEX_32_CACHE.read().unwrap();// @FixMe move to get_values
         debugTime!("Joining to anchor");
-        for (value_id, score) in hits.iter() {
-            let values = kv_store.get_values(*value_id, &cache_lock);
-            // next_level_hits.reserve(values.len());
-            // trace!("value_id: {:?} values: {:?} ", value_id, values);
-            // for parent_val_id in values {    // @Temporary
-            //     match next_level_hits.entry(parent_val_id as u32) {
-            //         Vacant(entry) => { entry.insert(*score); },
-            //         Occupied(entry) => { *entry.into_mut() = score.max(*entry.get()) + 0.1; },
-            //     }
-            // }
 
-            for parent_val_id in values {    // @Temporary
-                next_level_hits.push((parent_val_id, *score));
+        {
+            debugTime!("Adding all values");
+            next_level_hits.reserve(hits.len());
+            for (value_id, score) in hits.iter() {
+                // kv_store.add_values(*value_id, &cache_lock, *score, &mut next_level_hits);
+
+                let values = kv_store.get_values(*value_id, &cache_lock);
+                next_level_hits.reserve(values.len());
+                trace!("value_id: {:?} values: {:?} ", value_id, values);
+                for parent_val_id in values {    // @Temporary
+                    match next_level_hits.entry(parent_val_id as u32) {
+                        Vacant(entry) => { entry.insert(*score); },
+                        Occupied(entry) => {
+                            if *entry.get() < *score {
+                                *entry.into_mut() = score.max(*entry.get()) + 0.1;
+                            }
+                        },
+                    }
+                }
+
+                // for parent_val_id in values {    // @Temporary
+                //     next_level_hits.place_back() <- (parent_val_id, *score);
+                //     // next_level_hits.push((parent_val_id, *score));
+                // }
+
+                // for parent_val_id in values {
+                //     let hit = next_level_hits.get(parent_val_id as u64);
+                //     if  hit.map_or(true, |el| el == f32::NEG_INFINITY) {
+                //         next_level_hits.insert(parent_val_id as u64, score);
+                //     }else{
+                //         next_level_hits.insert(parent_val_id as u64, score);
+                //     }
+                // }
             }
-
-            // for parent_val_id in values {
-            //     let hit = next_level_hits.get(parent_val_id as u64);
-            //     if  hit.map_or(true, |el| el == f32::NEG_INFINITY) {
-            //         next_level_hits.insert(parent_val_id as u64, score);
-            //     }else{
-            //         next_level_hits.insert(parent_val_id as u64, score);
-            //     }
-            // }
         }
-        trace!("next_level_hits: {:?}", next_level_hits);
-        info!("{:?} hits in next_level_hits {:?}", next_level_hits.len(), &key.1);
-        debugTime!("teh stuff");
 
+        trace!("next_level_hits: {:?}", next_level_hits);
+        debug!("{:?} hits in next_level_hits {:?}", next_level_hits.len(), &key.1);
+        debugTime!("sort and dedup");
 
         // next_level_hits.sort_by(|a, b| a.0.cmp(&b.0));
-        next_level_hits.dedup_by_key(|i| i.0); 
-        hits.clear();
-        debugTime!("insssiiiert");
-        hits.reserve(next_level_hits.len());
-        for el in &next_level_hits {
-            hits.insert(el.0, el.1);
-        }
-        next_level_hits.clear();
+        // next_level_hits.dedup_by_key(|i| i.0);
+        // hits.clear();
+        // debugTime!("insert to next level");
+        // hits.reserve(next_level_hits.len());
+        // for el in &next_level_hits {
+        //     hits.insert(el.0, el.1);
+        // }
+        // next_level_hits.clear();
 
         // hits.extend(next_level_hits.iter());
-        // hits = next_level_hits;
-        // next_level_hits = FnvHashMap::default();
+        hits = next_level_hits;
+        next_level_hits = FnvHashMap::default();
     }
 
     Ok(hits)
@@ -403,7 +421,7 @@ fn get_hits_in_field(folder:&str, mut options: &mut RequestSearchPart, term: &st
         let exact_search = if options.exact.unwrap_or(false) {Some(term.to_string())} else {None};
         get_text_lines(folder, &options.path, exact_search, value, teh_callback)?; // @Hack // @Cleanup // @FixMe Forward errors
     }
-    info!("{:?} hits in textindex {:?}", hits.len(), &options.path);
+    debug!("{:?} hits in textindex {:?}", hits.len(), &options.path);
     trace!("hits in textindex: {:?}", hits);
     Ok(hits)
 
@@ -417,8 +435,8 @@ struct SupiIndexKeyValueStore {
 use std::sync::RwLockReadGuard;
 impl SupiIndexKeyValueStore {
     fn new(path1:&str, path2:&str) -> SupiIndexKeyValueStore {
-        persistence::load_index_into_cache(&path1);
-        persistence::load_index_into_cache(&path2);
+        persistence::load_index_into_cache(&path1).unwrap();
+        persistence::load_index_into_cache(&path2).unwrap();
         let new_store = SupiIndexKeyValueStore { path1: path1.to_string(), path2:path2.to_string()};
         new_store
     }
@@ -452,6 +470,29 @@ impl SupiIndexKeyValueStore {
             },Err(_) => {},
         }
         result
+    }
+
+    #[inline(always)]
+    fn add_values(&self, find: u32, cache_lock: &RwLockReadGuard<HashMap<String, Vec<u32>>>, score:f32, target: &mut Vec<(u32, f32)> ) {
+        // debugTime!("get_values");
+        // println!("Requesting {:?}", self.path1);
+        // println!("Requesting {:?}", self.path2);
+        // let cache_lock = persistence::INDEX_32_CACHE.read().unwrap();
+        let values1 = cache_lock.get(&self.path1).unwrap();
+        let values2 = cache_lock.get(&self.path2).unwrap();
+
+        // let mut result = Vec::new();
+        match values1.binary_search(&find) {
+            Ok(mut pos) => {
+                let val_len = values1.len();
+                while pos < val_len && values1[pos] == find{
+                    // result.push(values2[pos]);
+                    target.place_back() <- (values2[pos], score);
+                    pos+=1;
+                }
+            },Err(_) => {},
+        }
+        // result
     }
 }
 
@@ -488,19 +529,19 @@ fn add_token_results(folder:&str, path:&str, hits: &mut FnvHashMap<u32, f32>){
     // var hrstart = process.hrtime()
     let token_kvdata: SupiIndexKeyValueStore = TokensIndexKeyValueStore::new(&get_file_path(folder, &path, "")); // @Temporary Prevent Reodering
     // let value_lengths = persistence::load_index(&get_file_path(folder, &path, ".length")).unwrap();
-    persistence::load_index_into_cache(&get_file_path(folder, &path, ".length"));
+    persistence::load_index_into_cache(&get_file_path(folder, &path, ".length")).unwrap();
 
     let cache_lock = persistence::INDEX_32_CACHE.read().unwrap();  // @Temporary Prevent Reodering
     let value_lengths = cache_lock.get(&get_file_path(folder, &path, ".length")).unwrap();
     // let mut token_hits:BucketedScoreList = FnvHashMap::default();
     // let mut token_hits = vec![];
     let mut token_hits:FnvHashMap<u32, f32> = FnvHashMap::default();
-
     for (value_id, _) in hits.iter() {
         let parent_ids_for_token = token_kvdata.get_parent_val_ids(*value_id, &cache_lock);
         // trace!("value_id {:?}", value_id);
         // trace!("parent_ids_for_token {:?}", parent_ids_for_token);
         if parent_ids_for_token.len() > 0 {
+            token_hits.reserve(parent_ids_for_token.len());
             for token_parentval_id in parent_ids_for_token {
                 let parent_text_length = value_lengths[token_parentval_id as usize];
                 let token_text_length = value_lengths[*value_id as usize];
@@ -522,7 +563,7 @@ fn add_token_results(folder:&str, path:&str, hits: &mut FnvHashMap<u32, f32>){
             }
         }
     }
-    debug!("checked {:?}, got num token hits  {:?}",hits.iter().count(), token_hits.iter().count());
+    debug!("checked {:?}, got {:?} token hits",hits.iter().count(), token_hits.iter().count());
     hits.extend(token_hits);
     // {
     //     debugTime!("token_hits.sort_by");
@@ -577,7 +618,7 @@ impl FileAccess {
         // let mut f = File::open(&self.path)?;
         let mut low = 0;
         let mut high = offsets.len() - 2;
-        let mut i = 0;
+        let mut i;
         while low <= high {
             i = (low + high) >> 1;
             self.load_text(i, offsets);

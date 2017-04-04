@@ -238,7 +238,7 @@ use std::time::Instant;
 fn get_allterms_csv(csv_path:&str, attr_pos:usize, options:&FulltextIndexOptions) -> Vec<String>{
     // char escapeChar = 'a';
     // MATNR, ISMTITLE, ISMORIGTITLE, ISMSUBTITLE1, ISMSUBTITLE2, ISMSUBTITLE3, ISMARTIST, ISMLANGUAGES, ISMPUBLDATE, EAN11, ISMORIDCODE
-    let total_time = util::MeasureTime::new("total_time", util::MeasureTimeLogLevel::Debug);
+    infoTime!("get_allterms_csv total");
     let mut terms:FnvHashSet<String> = FnvHashSet::default();
     let mut rdr = csv::Reader::from_file(csv_path).unwrap().has_headers(false).escape(Some(b'\\'));
     for record in rdr.decode() {
@@ -258,7 +258,7 @@ fn get_allterms_csv(csv_path:&str, attr_pos:usize, options:&FulltextIndexOptions
         }
 
     }
-    let my_time = util::MeasureTime::new("Sort Time", util::MeasureTimeLogLevel::Debug);
+    infoTime!("get_allterms_csv sort");
     let mut v: Vec<String> = terms.into_iter().collect::<Vec<String>>();
     v.sort();
     v
@@ -533,7 +533,9 @@ pub fn create_indices(folder:&str, data_str:&str, indices:&str) -> Result<(), Cr
     let mut meta_data = persistence::MetaData {id_lists: FnvHashMap::default()};
     for el in indices_json {
         match el {
+            #[allow(unused_variables)]
             CreateIndex::Fulltext{ fulltext: path, options, attr_pos } => create_fulltext_index(&data, &folder, &path, options.unwrap_or(Default::default()), &mut meta_data)?,
+            #[allow(unused_variables)]
             CreateIndex::Boost{ boost: path, options } => create_boost_index(&data, &folder, &path, options, &mut meta_data)?
         }
     }
@@ -581,9 +583,11 @@ pub fn create_indices_csv(folder:&str, csv_path: &str, indices:&str) -> Result<(
     let mut meta_data = persistence::MetaData {id_lists: FnvHashMap::default()};
     for el in indices_json {
         match el {
+            #[allow(unused_variables)]
             CreateIndex::Fulltext{ fulltext: attr_name, options, attr_pos } =>{
                 create_fulltext_index_csv(csv_path, &folder, &attr_name, attr_pos.unwrap(), options.unwrap_or(Default::default()), &mut meta_data)?
-             },
+            },
+            #[allow(unused_variables)]
             CreateIndex::Boost{ boost: path, options } => {} // @Temporary
         }
     }

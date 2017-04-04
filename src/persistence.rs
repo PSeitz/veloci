@@ -78,6 +78,7 @@ struct Persistence {
 lazy_static! {
     pub static ref INDEX_64_CACHE: RwLock<HashMap<String, Vec<u64>>> = RwLock::new(HashMap::new());
     pub static ref INDEX_32_CACHE: RwLock<HashMap<String, Vec<u32>>> = RwLock::new(HashMap::new());
+    pub static ref INDEX_ID_TO_PARENT: RwLock<HashMap<String, Vec<Vec<u32>>>> = RwLock::new(HashMap::new()); // attr -> [[1,2], [22]]
 }
 
 pub fn load_all(meta_data: &MetaData) -> Result<(), io::Error> {
