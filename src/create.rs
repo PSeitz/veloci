@@ -184,9 +184,9 @@ pub fn get_allterms(data:&Value, path:&str, options:&FulltextIndexOptions) -> Ve
 
 
 #[derive(Debug)]
-struct ValIdPair {
-    valid: u32,
-    parent_val_id:u32
+pub struct ValIdPair {
+    pub valid: u32,
+    pub parent_val_id:u32
 }
 
 impl std::fmt::Display for ValIdPair {
@@ -298,17 +298,11 @@ pub fn create_fulltext_index_csv(csv_path: &str, folder: &str, attr_name:&str, a
     }
 
     let is_text_index = true;
-    tuples.sort_by(|a, b| a.valid.partial_cmp(&b.valid).unwrap_or(Ordering::Equal));
     let path_name = util::get_path_name(attr_name, is_text_index);
-    trace!("\nValueIdToParent {:?}: {}", path_name, print_vec(&tuples));
-    persistence::write_index(&tuples.iter().map(|ref el| el.valid      ).collect::<Vec<_>>(),   &get_file_path(folder, &path_name, ".valueIdToParent.valIds"), &mut meta_data)?;
-    persistence::write_index(&tuples.iter().map(|ref el| el.parent_val_id).collect::<Vec<_>>(), &get_file_path(folder, &path_name, ".valueIdToParent.mainIds"), &mut meta_data)?;
+    persistence::write_tuple_pair(&mut tuples, get_file_path(folder, &path_name, ".valueIdToParent.valIds"), get_file_path(folder, &path_name, ".valueIdToParent.mainIds"), &mut meta_data)?;
 
     if tokens.len() > 0 {
-        tokens.sort_by(|a, b| a.valid.partial_cmp(&b.valid).unwrap_or(Ordering::Equal));
-        trace!("\nTokens {:?}: {}", &path_name, print_vec(&tokens));
-        persistence::write_index(&tokens.iter().map(|ref el| el.valid      ).collect::<Vec<_>>(),  &get_file_path(folder, &path_name, ".tokens.tokenValIds"), &mut meta_data)?;
-        persistence::write_index(&tokens.iter().map(|ref el| el.parent_val_id).collect::<Vec<_>>(), &get_file_path(folder, &path_name, ".tokens.parentValId"), &mut meta_data)?;
+        persistence::write_tuple_pair(&mut tokens, get_file_path(folder, &path_name, ".tokens.tokenValIds"), get_file_path(folder, &path_name, ".tokens.parentValId"), &mut meta_data)?;
     }
 
     persistence::write_index64(&get_string_offsets(&all_terms), &get_file_path(folder, &attr_name, ".offsets"), &mut meta_data)?; // String offsets
@@ -318,10 +312,8 @@ pub fn create_fulltext_index_csv(csv_path: &str, folder: &str, attr_name:&str, a
 
     println!("createIndexComplete {} {}ms" , attr_name, (now.elapsed().as_secs() as f64 * 1_000.0) + (now.elapsed().subsec_nanos() as f64 / 1000_000.0));
 
-
     Ok(())
 }
-
 
 
 pub fn create_fulltext_index(data: &Value, folder: &str, path:&str, options:FulltextIndexOptions,mut meta_data: &mut persistence::MetaData) -> Result<(), io::Error> {
@@ -375,18 +367,11 @@ pub fn create_fulltext_index(data: &Value, folder: &str, path:&str, options:Full
             for_each_element_in_path(&data, &mut opt, &paths[i], &mut callback);
         }
 
-        tuples.sort_by(|a, b| a.valid.partial_cmp(&b.valid).unwrap_or(Ordering::Equal));
         let path_name = util::get_path_name(&paths[i], is_text_index);
-        trace!("\nValueIdToParent {:?}: {}", path_name, print_vec(&tuples));
-        persistence::write_index(&tuples.iter().map(|ref el| el.valid      ).collect::<Vec<_>>(),   &get_file_path(folder, &path_name, ".valueIdToParent.valIds"), &mut meta_data)?;
-        persistence::write_index(&tuples.iter().map(|ref el| el.parent_val_id).collect::<Vec<_>>(), &get_file_path(folder, &path_name, ".valueIdToParent.mainIds"), &mut meta_data)?;
-
+        persistence::write_tuple_pair(&mut tuples, get_file_path(folder, &path_name, ".valueIdToParent.valIds"), get_file_path(folder, &path_name, ".valueIdToParent.mainIds"), &mut meta_data)?;
 
         if tokens.len() > 0 {
-            tokens.sort_by(|a, b| a.valid.partial_cmp(&b.valid).unwrap_or(Ordering::Equal));
-            trace!("\nTokens {:?}: {}", &path_name, print_vec(&tokens));
-            persistence::write_index(&tokens.iter().map(|ref el| el.valid      ).collect::<Vec<_>>(),  &get_file_path(folder, &path_name, ".tokens.tokenValIds"), &mut meta_data)?;
-            persistence::write_index(&tokens.iter().map(|ref el| el.parent_val_id).collect::<Vec<_>>(), &get_file_path(folder, &path_name, ".tokens.parentValId"), &mut meta_data)?;
+            persistence::write_tuple_pair(&mut tokens, get_file_path(folder, &path_name, ".tokens.tokenValIds"), get_file_path(folder, &path_name, ".tokens.parentValId"), &mut meta_data)?;
         }
 
     }
@@ -530,7 +515,7 @@ pub fn create_indices(folder:&str, data_str:&str, indices:&str) -> Result<(), Cr
     let data: Value = serde_json::from_str(data_str).unwrap();
 
     let indices_json:Vec<CreateIndex> = serde_json::from_str(indices).unwrap();
-    let mut meta_data = persistence::MetaData {id_lists: FnvHashMap::default()};
+    let mut meta_data = persistence::MetaData {key_value_stores:vec![], id_lists: FnvHashMap::default()};
     for el in indices_json {
         match el {
             #[allow(unused_variables)]
@@ -580,7 +565,7 @@ pub fn create_indices_csv(folder:&str, csv_path: &str, indices:&str) -> Result<(
     // let indices_json:Result<Vec<CreateIndex>> = serde_json::from_str(indices);
     // println!("{:?}", indices_json);
     let indices_json:Vec<CreateIndex> = serde_json::from_str(indices)?;
-    let mut meta_data = persistence::MetaData {id_lists: FnvHashMap::default()};
+    let mut meta_data = persistence::MetaData {key_value_stores:vec![], id_lists: FnvHashMap::default()};
     for el in indices_json {
         match el {
             #[allow(unused_variables)]
@@ -621,8 +606,6 @@ fn create_json_from_c_s_v(csv_path: &str) -> Vec<Value> {
     }
     res
 }
-
-
 
 fn write_json_to_disk(arro: &Vec<Value>, folder: &str, path:&str,mut meta_data: &mut persistence::MetaData) -> Result<(), io::Error> {
     let mut offsets = vec![];

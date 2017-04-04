@@ -4,7 +4,9 @@ mod tests {
 
     #[allow(unused_imports)]
     use doc_loader;
+    #[allow(unused_imports)]
     use util;
+    #[allow(unused_imports)]
     use persistence;
     #[allow(unused_imports)]
     use util::normalize_text;
@@ -211,6 +213,9 @@ mod tests {
             // ]
             // "#;
             println!("{:?}", create::create_indices(TEST_FOLDER, TEST_DATA, indices));
+
+            let meta_data = persistence::MetaData::new(TEST_FOLDER);
+            println!("{:?}", persistence::load_all(&meta_data));
 
         }
 

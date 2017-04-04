@@ -251,20 +251,22 @@ pub fn search_raw(folder:&str, mut request: RequestSearchPart) -> Result<FnvHash
         let kv_store = SupiIndexKeyValueStore::new(&key.0, &key.1);
         // let kv_store = IndexKeyValueStore::new(&get_file_path(folder, &path_name, ".valueIdToParent.valIds") , &get_file_path(folder, &path_name, ".valueIdToParent.mainIds"));
         trace!("kv_store: {:?}", kv_store);
-        let cache_lock = persistence::INDEX_32_CACHE.read().unwrap();// @FixMe move to get_values
+        // let cache_lock = persistence::INDEX_32_CACHE.read().unwrap();// @FixMe move to get_values
         debugTime!("Joining to anchor");
 
+        let cache_locker = persistence::INDEX_ID_TO_PARENT.read().unwrap();
+        let kv_store = cache_locker.get(&key).unwrap();
         {
             debugTime!("Adding all values");
             next_level_hits.reserve(hits.len());
             for (value_id, score) in hits.iter() {
                 // kv_store.add_values(*value_id, &cache_lock, *score, &mut next_level_hits);
-
-                let values = kv_store.get_values(*value_id, &cache_lock);
+                let ref values = kv_store[*value_id as usize];
+                // let values = kv_store.get_values(*value_id, &cache_lock);
                 next_level_hits.reserve(values.len());
                 trace!("value_id: {:?} values: {:?} ", value_id, values);
                 for parent_val_id in values {    // @Temporary
-                    match next_level_hits.entry(parent_val_id as u32) {
+                    match next_level_hits.entry(*parent_val_id as u32) {
                         Vacant(entry) => { entry.insert(*score); },
                         Occupied(entry) => {
                             if *entry.get() < *score {
@@ -428,19 +430,19 @@ fn get_hits_in_field(folder:&str, mut options: &mut RequestSearchPart, term: &st
 }
 
 #[derive(Debug)]
-struct SupiIndexKeyValueStore {
-    path1:String,
-    path2:String
+pub struct SupiIndexKeyValueStore {
+    pub path1:String,
+    pub path2:String
 }
 use std::sync::RwLockReadGuard;
 impl SupiIndexKeyValueStore {
-    fn new(path1:&str, path2:&str) -> SupiIndexKeyValueStore {
+    pub fn new(path1:&str, path2:&str) -> SupiIndexKeyValueStore {
         persistence::load_index_into_cache(&path1).unwrap();
         persistence::load_index_into_cache(&path2).unwrap();
         let new_store = SupiIndexKeyValueStore { path1: path1.to_string(), path2:path2.to_string()};
         new_store
     }
-    fn get_value(&self, find: u32) -> Option<u32> {
+    pub fn get_value(&self, find: u32) -> Option<u32> {
         let cache_lock = persistence::INDEX_32_CACHE.read().unwrap();
         let values1 = cache_lock.get(&self.path1).unwrap();
         let values2 = cache_lock.get(&self.path2).unwrap();
@@ -451,7 +453,7 @@ impl SupiIndexKeyValueStore {
         }
     }
     #[inline(always)]
-    fn get_values(&self, find: u32, cache_lock: &RwLockReadGuard<HashMap<String, Vec<u32>>> ) -> Vec<u32> { // @FixMe return slice
+    pub fn get_values(&self, find: u32, cache_lock: &RwLockReadGuard<HashMap<String, Vec<u32>>> ) -> Vec<u32> { // @FixMe return slice
         // debugTime!("get_values");
         // println!("Requesting {:?}", self.path1);
         // println!("Requesting {:?}", self.path2);

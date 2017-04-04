@@ -41,7 +41,8 @@ use std::collections::HashMap;
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct MetaData {
-    pub id_lists: FnvHashMap<String, IDList>
+    pub id_lists: FnvHashMap<String, IDList>,
+    pub key_value_stores: Vec<(String, String)>
 }
 
 impl MetaData {
@@ -78,9 +79,9 @@ struct Persistence {
 lazy_static! {
     pub static ref INDEX_64_CACHE: RwLock<HashMap<String, Vec<u64>>> = RwLock::new(HashMap::new());
     pub static ref INDEX_32_CACHE: RwLock<HashMap<String, Vec<u32>>> = RwLock::new(HashMap::new());
-    pub static ref INDEX_ID_TO_PARENT: RwLock<HashMap<String, Vec<Vec<u32>>>> = RwLock::new(HashMap::new()); // attr -> [[1,2], [22]]
+    pub static ref INDEX_ID_TO_PARENT: RwLock<HashMap<(String,String), Vec<Vec<u32>>>> = RwLock::new(HashMap::new()); // attr -> [[1,2], [22]]
 }
-
+use search;
 pub fn load_all(meta_data: &MetaData) -> Result<(), io::Error> {
     for (_, ref idlist) in &meta_data.id_lists {
         match &idlist.id_type {
@@ -88,6 +89,27 @@ pub fn load_all(meta_data: &MetaData) -> Result<(), io::Error> {
             &IDDataType::U64 => load_index_64(&idlist.path)?
         }
     }
+
+    for &(ref valid, ref parentid) in &meta_data.key_value_stores {
+
+        let mut data = vec![];
+        let cachee = INDEX_32_CACHE.read().unwrap();
+        let mut valids = cachee.get(valid).unwrap().clone();
+        valids.dedup();
+        if valids.len() == 0 { continue; }
+        data.resize(*valids.last().unwrap() as usize + 1, vec![]);
+
+        let store = search::SupiIndexKeyValueStore {path1: valid.clone(), path2: parentid.clone()};
+
+        for valid in valids {
+            data[valid as usize] = store.get_values(valid, &cachee);
+        }
+
+        let mut cache = INDEX_ID_TO_PARENT.write().unwrap();
+        cache.insert((valid.clone(), parentid.clone()), data);
+
+    }
+
     Ok(())
 }
 
@@ -196,7 +218,22 @@ fn check_is_docid_type64(data: &Vec<u64>) -> bool {
     return true
 }
 
-pub fn write_index(data:&Vec<u32>, path:&str, metadata: &mut MetaData) -> Result<(), io::Error> {
+use create;
+
+pub fn write_tuple_pair(tuples: &mut Vec<create::ValIdPair>, path_valid: String, path_parentid:String, meta_data: &mut MetaData) -> Result<(), io::Error> {
+
+    tuples.sort_by(|a, b| a.valid.partial_cmp(&b.valid).unwrap_or(Ordering::Equal));
+    // let path_name = util::get_path_name(attr_name, is_text_index);
+    // trace!("\nValueIdToParent {:?}: {}", path_name, print_vec(&tuples));
+    write_index(&tuples.iter().map(|ref el| el.valid      ).collect::<Vec<_>>(),   &path_valid, meta_data)?;
+    write_index(&tuples.iter().map(|ref el| el.parent_val_id).collect::<Vec<_>>(), &path_parentid, meta_data)?;
+
+    meta_data.key_value_stores.push((path_valid, path_parentid));
+    Ok(())
+    
+}
+
+pub fn write_index(data:&Vec<u32>, path:&str, meta_data: &mut MetaData) -> Result<(), io::Error> {
 
     let mut bytes:Vec<u8> = Vec::new();
     unsafe { encode(data, &mut bytes); }
@@ -204,11 +241,11 @@ pub fn write_index(data:&Vec<u32>, path:&str, metadata: &mut MetaData) -> Result
     // unsafe { File::create(path)?.write_all(typed_to_bytes(data))?; }
     info!("Wrote Index32 {} With size {:?}", path, data.len());
     trace!("{:?}", data);
-    metadata.id_lists.insert(path.to_string(), IDList{path: path.to_string(), size: data.len() as u64, id_type: IDDataType::U32, doc_id_type:check_is_docid_type32(&data)});
+    meta_data.id_lists.insert(path.to_string(), IDList{path: path.to_string(), size: data.len() as u64, id_type: IDDataType::U32, doc_id_type:check_is_docid_type32(&data)});
     Ok(())
 }
 
-pub fn write_index64(data:&Vec<u64>, path:&str, metadata: &mut MetaData) -> Result<(), io::Error> {
+pub fn write_index64(data:&Vec<u64>, path:&str, meta_data: &mut MetaData) -> Result<(), io::Error> {
     let mut bytes:Vec<u8> = Vec::new();
     unsafe { encode(data, &mut bytes); }
     File::create(path)?.write_all(&bytes)?;
@@ -216,6 +253,6 @@ pub fn write_index64(data:&Vec<u64>, path:&str, metadata: &mut MetaData) -> Resu
     // unsafe { File::create(path)?.write_all(typed_to_bytes(data))?; }
     info!("Wrote Index64 {} With size {:?}", path, data.len());
     trace!("{:?}", data);
-    metadata.id_lists.insert(path.to_string(), IDList{path: path.to_string(), size: data.len() as u64, id_type: IDDataType::U64, doc_id_type:check_is_docid_type64(&data)});
+    meta_data.id_lists.insert(path.to_string(), IDList{path: path.to_string(), size: data.len() as u64, id_type: IDDataType::U64, doc_id_type:check_is_docid_type64(&data)});
     Ok(())
 }

@@ -16,7 +16,7 @@ pub struct DocLoader {
 
 impl DocLoader {
     pub fn new(folder:&str, filename:&str) -> DocLoader {
-        persistence::load_index_64(&get_file_path(folder, filename, ".offsets"));
+        persistence::load_index_64(&get_file_path(folder, filename, ".offsets")).unwrap();
         DocLoader{folder : folder.to_string(), filename: filename.to_string()}
     }
 
