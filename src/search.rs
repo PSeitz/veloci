@@ -248,9 +248,9 @@ pub fn search_raw(folder:&str, mut request: RequestSearchPart) -> Result<FnvHash
         let is_text_index = i == (paths.len() -1);
         let path_name = util::get_path_name(&paths[i], is_text_index);
         let key = get_file_path_tuple(folder, &path_name, ".valueIdToParent.valIds", ".valueIdToParent.mainIds");
-        let kv_store = SupiIndexKeyValueStore::new(&key.0, &key.1);
+        // let kv_store = SupiIndexKeyValueStore::new(&key.0, &key.1);
         // let kv_store = IndexKeyValueStore::new(&get_file_path(folder, &path_name, ".valueIdToParent.valIds") , &get_file_path(folder, &path_name, ".valueIdToParent.mainIds"));
-        trace!("kv_store: {:?}", kv_store);
+        // trace!("kv_store: {:?}", kv_store);
         // let cache_lock = persistence::INDEX_32_CACHE.read().unwrap();// @FixMe move to get_values
         debugTime!("Joining to anchor");
 
@@ -529,29 +529,35 @@ fn add_token_results(folder:&str, path:&str, hits: &mut FnvHashMap<u32, f32>){
     if has_tokens.is_err() { return; }
 
     // var hrstart = process.hrtime()
-    let token_kvdata: SupiIndexKeyValueStore = TokensIndexKeyValueStore::new(&get_file_path(folder, &path, "")); // @Temporary Prevent Reodering
+    // let token_kvdata: SupiIndexKeyValueStore = TokensIndexKeyValueStore::new(&get_file_path(folder, &path, "")); // @Temporary Prevent Reodering
     // let value_lengths = persistence::load_index(&get_file_path(folder, &path, ".length")).unwrap();
-    persistence::load_index_into_cache(&get_file_path(folder, &path, ".length")).unwrap();
+    // persistence::load_index_into_cache(&get_file_path(folder, &path, ".length")).unwrap();
 
     let cache_lock = persistence::INDEX_32_CACHE.read().unwrap();  // @Temporary Prevent Reodering
     let value_lengths = cache_lock.get(&get_file_path(folder, &path, ".length")).unwrap();
+
+    let key = (get_file_path(folder, &path, ".textindex.tokens.tokenValIds"), get_file_path(folder, &path, ".textindex.tokens.parentValId"));
+    let cache_locker = persistence::INDEX_ID_TO_PARENT.read().unwrap();
+    let token_kvdata = cache_locker.get(&key).unwrap();
+
     // let mut token_hits:BucketedScoreList = FnvHashMap::default();
     // let mut token_hits = vec![];
     let mut token_hits:FnvHashMap<u32, f32> = FnvHashMap::default();
     for (value_id, _) in hits.iter() {
-        let parent_ids_for_token = token_kvdata.get_parent_val_ids(*value_id, &cache_lock);
+        // let parent_ids_for_token = token_kvdata.get_parent_val_ids(*value_id, &cache_lock);
+        let ref parent_ids_for_token = token_kvdata[*value_id as usize];
         // trace!("value_id {:?}", value_id);
         // trace!("parent_ids_for_token {:?}", parent_ids_for_token);
         if parent_ids_for_token.len() > 0 {
             token_hits.reserve(parent_ids_for_token.len());
             for token_parentval_id in parent_ids_for_token {
-                let parent_text_length = value_lengths[token_parentval_id as usize];
+                let parent_text_length = value_lengths[*token_parentval_id as usize];
                 let token_text_length = value_lengths[*value_id as usize];
                 let adjusted_score = 2.0/(parent_text_length as f32 - token_text_length as f32) + 0.2;
                 // if (adjusted_score < 0) throw new Error('asdf')
 
-                let the_score = token_hits.entry(token_parentval_id as u32) // @Temporary
-                    .or_insert(*hits.get(&token_parentval_id).unwrap_or(&0.0));
+                let the_score = token_hits.entry(*token_parentval_id as u32) // @Temporary
+                    .or_insert(*hits.get(token_parentval_id).unwrap_or(&0.0));
                 *the_score += adjusted_score;
 
                 // let hit = hits.get(token_parentval_id as u64);
@@ -612,7 +618,7 @@ impl FileAccess {
     fn binary_search(&mut self, term: &str) -> Result<(String, i64), io::Error> {
         let cache_lock = persistence::INDEX_64_CACHE.read().unwrap();
         let offsets = cache_lock.get(&(self.path.to_string()+".offsets")).unwrap();
-        debugTime!("binary_search");
+        debugTime!("term binary_search");
         if offsets.len() < 2  {
             return Ok(("".to_string(), -1));
         }

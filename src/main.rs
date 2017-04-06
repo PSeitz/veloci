@@ -148,21 +148,21 @@ fn main() {
         //     ]
         // });
 
-        // let req = json!({
-        //     "or":[
-        //         {"search": {"term":"krieg", "path": "MATNR"} },
-        //         {"search": {"term":"krieg", "path": "ISMTITLE"} },
-        //         {"search": {"term":"krieg", "path": "ISMORIGTITLE"} },
-        //         {"search": {"term":"krieg", "path": "ISMSUBTITLE1"} },
-        //         {"search": {"term":"krieg", "path": "ISMSUBTITLE2"} },
-        //         {"search": {"term":"krieg", "path": "ISMSUBTITLE3"} },
-        //         {"search": {"term":"krieg", "path": "ISMARTIST"} },
-        //         {"search": {"term":"krieg", "path": "ISMLANGUAGES"} },
-        //         {"search": {"term":"krieg", "path": "ISMPUBLDATE"} },
-        //         {"search": {"term":"krieg", "path": "EAN11"} },
-        //         {"search": {"term":"krieg", "path": "ISMORIDCODE"} }
-        //     ]
-        // });
+        let req = json!({
+            "or":[
+                {"search": {"term":"die", "path": "MATNR"} },
+                {"search": {"term":"die", "path": "ISMTITLE"} },
+                {"search": {"term":"die", "path": "ISMORIGTITLE"} },
+                {"search": {"term":"die", "path": "ISMSUBTITLE1"} },
+                {"search": {"term":"die", "path": "ISMSUBTITLE2"} },
+                {"search": {"term":"die", "path": "ISMSUBTITLE3"} },
+                {"search": {"term":"die", "path": "ISMARTIST"} },
+                {"search": {"term":"die", "path": "ISMLANGUAGES"} },
+                {"search": {"term":"die", "path": "ISMPUBLDATE"} },
+                {"search": {"term":"die", "path": "EAN11"} },
+                {"search": {"term":"die", "path": "ISMORIDCODE"} }
+            ]
+        });
 
         // let req = json!({
         //     "and":[{"search": {"term":"kriege", "path": "ISMTITLE"}}, {"search": {"term":"die", "path": "ISMTITLE"}}, {"search": {"term":"ich", "path": "ISMTITLE"}}, {"search": {"term":"gesehen", "path": "ISMTITLE"}}, {"search": {"term":"habe", "path": "ISMTITLE"}} ]
@@ -173,9 +173,9 @@ fn main() {
         //     "and":[{"search": {"term":"kriege", "path": "ISMSUBTITLE1"}}, {"search": {"term":"die", "path": "ISMSUBTITLE1"}}, {"search": {"term":"ich", "path": "ISMSUBTITLE1"}}, {"search": {"term":"gesehen", "path": "ISMSUBTITLE1"}}, {"search": {"term":"habe", "path": "ISMSUBTITLE1"}} ]
         // });
 
-        let req = json!({
-            "search": {"term":"die", "path": "ISMTITLE"}
-        });
+        // let req = json!({
+        //     "search": {"term":"die", "path": "ISMTITLE"}
+        // });
 
         let requesto: search::Request = serde_json::from_str(&req.to_string()).unwrap();
         let hits = search::search("csv_test", requesto, 0, 10).unwrap();

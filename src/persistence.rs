@@ -81,9 +81,18 @@ lazy_static! {
     pub static ref INDEX_32_CACHE: RwLock<HashMap<String, Vec<u32>>> = RwLock::new(HashMap::new());
     pub static ref INDEX_ID_TO_PARENT: RwLock<HashMap<(String,String), Vec<Vec<u32>>>> = RwLock::new(HashMap::new()); // attr -> [[1,2], [22]]
 }
-use search;
+// use search;
 pub fn load_all(meta_data: &MetaData) -> Result<(), io::Error> {
+    let mut all_tuple_paths = vec![];
+    for &(ref valid, ref parentid) in &meta_data.key_value_stores {
+        all_tuple_paths.push(valid.to_string());
+        all_tuple_paths.push(parentid.to_string());
+    }
+
     for (_, ref idlist) in &meta_data.id_lists {
+        if all_tuple_paths.contains(&idlist.path) {
+            continue;
+        }
         match &idlist.id_type {
             &IDDataType::U32 => load_index_into_cache(&idlist.path)?,
             &IDDataType::U64 => load_index_64(&idlist.path)?
@@ -91,18 +100,17 @@ pub fn load_all(meta_data: &MetaData) -> Result<(), io::Error> {
     }
 
     for &(ref valid, ref parentid) in &meta_data.key_value_stores {
-
+        infoTime!("create key_value_store");
         let mut data = vec![];
-        let cachee = INDEX_32_CACHE.read().unwrap();
-        let mut valids = cachee.get(valid).unwrap().clone();
+        let mut valids = load_index(valid).unwrap();
         valids.dedup();
         if valids.len() == 0 { continue; }
         data.resize(*valids.last().unwrap() as usize + 1, vec![]);
 
-        let store = search::SupiIndexKeyValueStore {path1: valid.clone(), path2: parentid.clone()};
-
+        let store = IndexKeyValueStore::new(&(valid.clone(), parentid.clone()));
+        infoTime!("create insert key_value_store");
         for valid in valids {
-            data[valid as usize] = store.get_values(valid, &cachee);
+            data[valid as usize] = store.get_values(valid);
         }
 
         let mut cache = INDEX_ID_TO_PARENT.write().unwrap();
@@ -230,7 +238,7 @@ pub fn write_tuple_pair(tuples: &mut Vec<create::ValIdPair>, path_valid: String,
 
     meta_data.key_value_stores.push((path_valid, path_parentid));
     Ok(())
-    
+
 }
 
 pub fn write_index(data:&Vec<u32>, path:&str, meta_data: &mut MetaData) -> Result<(), io::Error> {
@@ -256,3 +264,44 @@ pub fn write_index64(data:&Vec<u64>, path:&str, meta_data: &mut MetaData) -> Res
     meta_data.id_lists.insert(path.to_string(), IDList{path: path.to_string(), size: data.len() as u64, id_type: IDDataType::U64, doc_id_type:check_is_docid_type64(&data)});
     Ok(())
 }
+
+
+
+#[derive(Debug)]
+struct IndexKeyValueStore {
+    values1: Vec<u32>,
+    values2: Vec<u32>,
+}
+
+impl IndexKeyValueStore {
+    fn new(key:&(String, String)) -> Self {
+        IndexKeyValueStore { values1: load_index(&key.0).unwrap(), values2: load_index(&key.1).unwrap() }
+    }
+    fn get_value(&self, find: u32) -> Option<u32> {
+        match self.values1.binary_search(&find) {
+            Ok(pos) => { Some(self.values2[pos]) },
+            Err(_) => {None},
+        }
+    }
+    fn get_values(&self, find: u32) -> Vec<u32> {
+        let mut result = Vec::new();
+        match self.values1.binary_search(&find) {
+            Ok(mut pos) => {
+                let val_len = self.values1.len();
+                while pos < val_len && self.values1[pos] == find{
+                    result.push(self.values2[pos]);
+                    pos+=1;
+                }
+            },Err(_) => {},
+        }
+        result
+    }
+}
+
+
+
+
+
+
+
+

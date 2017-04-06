@@ -14,19 +14,10 @@ pub struct MeasureTime {
     start: std::time::Instant,
     level: MeasureTimeLogLevel
 }
-
 impl MeasureTime {
-    pub fn new(name: &'static str, level:MeasureTimeLogLevel) -> Self {
-        MeasureTime{name:name, start: std::time::Instant::now(), level:level}
-    }
-
-    pub fn new_debug(name: &'static str) -> Self {
-        MeasureTime{name:name, start: std::time::Instant::now(), level:MeasureTimeLogLevel::Debug}
-    }
-    pub fn new_info(name: &'static str) -> Self {
-        MeasureTime{name:name, start: std::time::Instant::now(), level:MeasureTimeLogLevel::Info}
-    }
-
+    pub fn new(name: &'static str, level:MeasureTimeLogLevel) -> Self {MeasureTime{name:name, start: std::time::Instant::now(), level:level} }
+    pub fn new_debug(name: &'static str) -> Self {MeasureTime{name:name, start: std::time::Instant::now(), level:MeasureTimeLogLevel::Debug} }
+    pub fn new_info(name: &'static str) -> Self {MeasureTime{name:name, start: std::time::Instant::now(), level:MeasureTimeLogLevel::Info} }
 }
 
 impl Drop for MeasureTime {
@@ -39,34 +30,11 @@ impl Drop for MeasureTime {
 }
 
 #[derive(Debug)]
-pub enum MeasureTimeLogLevel {
-    Info,
-    Debug,
-}
-
+pub enum MeasureTimeLogLevel {Info, Debug, }
 #[macro_export]
-macro_rules! measureTime {
-    ($e:expr) => {
-        #[allow(unused_variables)]
-        let time = util::MeasureTime::new_debug($e);
-    }
-}
-
+macro_rules! infoTime {($e:expr) => {#[allow(unused_variables)] let time = util::MeasureTime::new_info($e); } }
 #[macro_export]
-macro_rules! infoTime {
-    ($e:expr) => {
-        #[allow(unused_variables)]
-        let time = util::MeasureTime::new_info($e);
-    }
-}
-
-#[macro_export]
-macro_rules! debugTime {
-    ($e:expr) => {
-        #[allow(unused_variables)]
-        let time = util::MeasureTime::new_debug($e);
-    }
-}
+macro_rules! debugTime {($e:expr) => {#[allow(unused_variables)] let time = util::MeasureTime::new_debug($e); } }
 
 
 pub fn normalize_text(text:&str) -> String {
