@@ -534,7 +534,7 @@ fn add_token_results(folder:&str, path:&str, hits: &mut FnvHashMap<u32, f32>){
     // persistence::load_index_into_cache(&get_file_path(folder, &path, ".length")).unwrap();
 
     let cache_lock = persistence::INDEX_32_CACHE.read().unwrap();  // @Temporary Prevent Reodering
-    let value_lengths = cache_lock.get(&get_file_path(folder, &path, ".length")).unwrap();
+    let value_lengths = cache_lock.get(&get_file_path(folder, &path, ".length")).expect(&("Could not find ".to_string() + &get_file_path(folder, &path, ".length")) );
 
     let key = (get_file_path(folder, &path, ".textindex.tokens.tokenValIds"), get_file_path(folder, &path, ".textindex.tokens.parentValId"));
     let cache_locker = persistence::INDEX_ID_TO_PARENT.read().unwrap();

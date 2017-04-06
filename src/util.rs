@@ -58,8 +58,16 @@ pub fn normalize_text(text:&str) -> String {
 
 }
 
+pub fn concat(path:&str, suffix:&str) -> String {
+    path.to_string()+suffix
+}
+
 pub fn get_file_path(folder: &str, path:&str, suffix:&str) -> String {
     folder.to_string()+"/"+path+suffix
+}
+
+pub fn get_file_path_2(folder: &str, path:&str) -> String {
+    folder.to_string()+"/"+path
 }
 
 pub fn get_file_path_tuple(folder: &str, path:&str, suffix:&str, suffix2:&str) -> (String, String) {

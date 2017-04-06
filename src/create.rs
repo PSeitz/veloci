@@ -1,6 +1,4 @@
 
-use std::fs::File;
-use std::io::prelude::*;
 #[allow(unused_imports)]
 use std::io::{self, BufRead};
 #[allow(unused_imports)]
@@ -14,7 +12,7 @@ use std::sync::mpsc::sync_channel;
 #[allow(unused_imports)]
 use std::io::SeekFrom;
 use util;
-use util::get_file_path;
+use util::concat;
 use fnv::FnvHashSet;
 use fnv::FnvHashMap;
 #[allow(unused_imports)]
@@ -266,7 +264,7 @@ fn get_allterms_csv(csv_path:&str, attr_pos:usize, options:&FulltextIndexOptions
 
 
 use csv;
-pub fn create_fulltext_index_csv(csv_path: &str, folder: &str, attr_name:&str, attr_pos: usize ,options:FulltextIndexOptions, mut meta_data: &mut persistence::MetaData) -> Result<(), io::Error> {
+pub fn create_fulltext_index_csv(csv_path: &str, attr_name:&str, attr_pos: usize ,options:FulltextIndexOptions, mut persistence: &mut persistence::Persistence) -> Result<(), io::Error> {
     let now = Instant::now();
     let all_terms = get_allterms_csv(csv_path, attr_pos, &options);
     println!("all_terms {} {}ms" , csv_path, (now.elapsed().as_secs() as f64 * 1_000.0) + (now.elapsed().subsec_nanos() as f64 / 1000_000.0));
@@ -299,16 +297,16 @@ pub fn create_fulltext_index_csv(csv_path: &str, folder: &str, attr_name:&str, a
 
     let is_text_index = true;
     let path_name = util::get_path_name(attr_name, is_text_index);
-    persistence::write_tuple_pair(&mut tuples, get_file_path(folder, &path_name, ".valueIdToParent.valIds"), get_file_path(folder, &path_name, ".valueIdToParent.mainIds"), &mut meta_data)?;
+    persistence.write_tuple_pair(&mut tuples, concat(&path_name, ".valueIdToParent.valIds"), concat(&path_name, ".valueIdToParent.mainIds"))?;
 
     if tokens.len() > 0 {
-        persistence::write_tuple_pair(&mut tokens, get_file_path(folder, &path_name, ".tokens.tokenValIds"), get_file_path(folder, &path_name, ".tokens.parentValId"), &mut meta_data)?;
+        persistence.write_tuple_pair(&mut tokens, concat(&path_name, ".tokens.tokenValIds"), concat(&path_name, ".tokens.parentValId"))?;
     }
 
-    persistence::write_index64(&get_string_offsets(&all_terms), &get_file_path(folder, &attr_name, ".offsets"), &mut meta_data)?; // String offsets
-    File::create(&get_file_path(folder, &attr_name, ""))?.write_all(all_terms.join("\n").as_bytes())?;
-    persistence::write_index(&all_terms.iter().map(|ref el| el.len() as u32).collect::<Vec<_>>(), &get_file_path(folder, attr_name, ".length"), &mut meta_data)?;
-    create_char_offsets(all_terms, &get_file_path(folder, &attr_name, ""), &mut meta_data)?;
+    persistence.write_index64(&get_string_offsets(&all_terms), &concat(&attr_name, ".offsets"))?; // String offsets
+    persistence.write_data(&attr_name, all_terms.join("\n").as_bytes())?;
+    persistence.write_index(&all_terms.iter().map(|ref el| el.len() as u32).collect::<Vec<_>>(), &concat(attr_name, ".length"))?;
+    create_char_offsets(all_terms, &concat(&attr_name, ""), &mut persistence)?;
 
     println!("createIndexComplete {} {}ms" , attr_name, (now.elapsed().as_secs() as f64 * 1_000.0) + (now.elapsed().subsec_nanos() as f64 / 1000_000.0));
 
@@ -316,7 +314,7 @@ pub fn create_fulltext_index_csv(csv_path: &str, folder: &str, attr_name:&str, a
 }
 
 
-pub fn create_fulltext_index(data: &Value, folder: &str, path:&str, options:FulltextIndexOptions,mut meta_data: &mut persistence::MetaData) -> Result<(), io::Error> {
+pub fn create_fulltext_index(data: &Value, path:&str, options:FulltextIndexOptions,mut persistence: &mut persistence::Persistence) -> Result<(), io::Error> {
     let now = Instant::now();
 
     // let data: Value = serde_json::from_str(data_str).unwrap();
@@ -368,10 +366,10 @@ pub fn create_fulltext_index(data: &Value, folder: &str, path:&str, options:Full
         }
 
         let path_name = util::get_path_name(&paths[i], is_text_index);
-        persistence::write_tuple_pair(&mut tuples, get_file_path(folder, &path_name, ".valueIdToParent.valIds"), get_file_path(folder, &path_name, ".valueIdToParent.mainIds"), &mut meta_data)?;
+        persistence.write_tuple_pair(&mut tuples, concat(&path_name, ".valueIdToParent.valIds"), concat(&path_name, ".valueIdToParent.mainIds"))?;
 
         if tokens.len() > 0 {
-            persistence::write_tuple_pair(&mut tokens, get_file_path(folder, &path_name, ".tokens.tokenValIds"), get_file_path(folder, &path_name, ".tokens.parentValId"), &mut meta_data)?;
+            persistence.write_tuple_pair(&mut tokens, concat(&path_name, ".tokens.tokenValIds"), concat(&path_name, ".tokens.parentValId"))?;
         }
 
     }
@@ -380,10 +378,10 @@ pub fn create_fulltext_index(data: &Value, folder: &str, path:&str, options:Full
 
     // println!("{:?}", all_terms);
     // println!("{:?}", all_terms.join("\n"));
-    persistence::write_index64(&get_string_offsets(&all_terms), &get_file_path(folder, &path, ".offsets"), &mut meta_data)?; // String offsets
-    File::create(&get_file_path(folder, &path, ""))?.write_all(all_terms.join("\n").as_bytes())?;
-    persistence::write_index(&all_terms.iter().map(|ref el| el.len() as u32).collect::<Vec<_>>(), &get_file_path(folder, path, ".length"), &mut meta_data)?;
-    create_char_offsets(all_terms, &get_file_path(folder, &path, ""), &mut meta_data)?;
+    persistence.write_index64(&get_string_offsets(&all_terms), &concat(&path, ".offsets"))?; // String offsets
+    persistence.write_data(path, all_terms.join("\n").as_bytes())?;
+    persistence.write_index(&all_terms.iter().map(|ref el| el.len() as u32).collect::<Vec<_>>(), &concat(path, ".length"))?;
+    create_char_offsets(all_terms, &concat(&path, ""), &mut persistence)?;
 
     println!("createIndexComplete {} {}ms" , path, (now.elapsed().as_secs() as f64 * 1_000.0) + (now.elapsed().subsec_nanos() as f64 / 1000_000.0));
     Ok(())
@@ -402,7 +400,7 @@ fn get_string_offsets(data:&Vec<String>) -> Vec<u64> {
     offsets
 }
 
-fn create_boost_index(data: &Value, folder: &str, path:&str, options:BoostIndexOptions,mut meta_data: &mut persistence::MetaData) -> Result<(), io::Error> {
+fn create_boost_index(data: &Value, path:&str, options:BoostIndexOptions,mut persistence: &mut persistence::Persistence) -> Result<(), io::Error> {
     let now = Instant::now();
     let mut opt = ForEachOpt {
         parent_pos_in_path: 0,
@@ -422,8 +420,8 @@ fn create_boost_index(data: &Value, folder: &str, path:&str, options:BoostIndexO
     }
     tuples.sort_by(|a, b| a.valid.partial_cmp(&b.valid).unwrap_or(Ordering::Equal));
 
-    persistence::write_index(&tuples.iter().map(|ref el| el.parent_val_id).collect::<Vec<_>>(),&get_file_path(folder, path, ".boost.subObjId"), &mut meta_data)?;
-    persistence::write_index(&tuples.iter().map(|ref el| el.valid      ).collect::<Vec<_>>(),  &get_file_path(folder, path, ".boost.value"), &mut meta_data)?;
+    persistence.write_index(&tuples.iter().map(|ref el| el.parent_val_id).collect::<Vec<_>>(),&concat(path, ".boost.subObjId"))?;
+    persistence.write_index(&tuples.iter().map(|ref el| el.valid      ).collect::<Vec<_>>(),  &concat(path, ".boost.value"))?;
     println!("create_boost_index {} {}ms" , path, (now.elapsed().as_secs() as f64 * 1_000.0) + (now.elapsed().subsec_nanos() as f64 / 1000_000.0));
 
     Ok(())
@@ -460,7 +458,7 @@ fn print_vec_chardata(vec: &Vec<CharDataComplete>) -> String{
 }
 
 
-pub fn create_char_offsets(data:Vec<String>, path:&str,mut meta_data: &mut persistence::MetaData) -> Result<(), io::Error> {
+pub fn create_char_offsets(data:Vec<String>, path:&str,mut persistence: &mut persistence::Persistence) -> Result<(), io::Error> {
     let now = Instant::now();
     let mut char_offsets:Vec<CharData> = vec![];
 
@@ -499,37 +497,34 @@ pub fn create_char_offsets(data:Vec<String>, path:&str,mut meta_data: &mut persi
 
 
     // path!PWN test macro
-    persistence::write_index64(&char_offsets_complete.iter().map(|ref el| el.byte_offset_start).collect::<Vec<_>>(), &(path.to_string()+".char_offsets.byteOffsetsStart"), &mut meta_data)?;
-    persistence::write_index64(&char_offsets_complete.iter().map(|ref el| el.byte_offset_end  ).collect::<Vec<_>>(), &(path.to_string()+".char_offsets.byteOffsetsEnd"), &mut meta_data)?;
-    persistence::write_index64(&char_offsets_complete.iter().map(|ref el| el.line_num         ).collect::<Vec<_>>(), &(path.to_string()+".char_offsets.lineOffset"), &mut meta_data)?;
+    persistence.write_index64(&char_offsets_complete.iter().map(|ref el| el.byte_offset_start).collect::<Vec<_>>(), &(path.to_string()+".char_offsets.byteOffsetsStart"))?;
+    persistence.write_index64(&char_offsets_complete.iter().map(|ref el| el.byte_offset_end  ).collect::<Vec<_>>(), &(path.to_string()+".char_offsets.byteOffsetsEnd"))?;
+    persistence.write_index64(&char_offsets_complete.iter().map(|ref el| el.line_num         ).collect::<Vec<_>>(), &(path.to_string()+".char_offsets.lineOffset"))?;
 
+    persistence.write_data(&(path.to_string()+".char_offsets.chars"), &char_offsets_complete.iter().map(|ref el| el.suffix.to_string()).collect::<Vec<_>>().join("\n").as_bytes())?;
 
-    File::create(&(path.to_string()+".char_offsets.chars"))?.write_all(&char_offsets_complete.iter().map(|ref el| el.suffix.to_string()).collect::<Vec<_>>().join("\n").as_bytes())?;
     info!("create_char_offsets_complete {} {}ms" , path, (now.elapsed().as_secs() as f64 * 1_000.0) + (now.elapsed().subsec_nanos() as f64 / 1000_000.0));
     Ok(())
 }
 
 pub fn create_indices(folder:&str, data_str:&str, indices:&str) -> Result<(), CreateError>{
 
-    fs::create_dir_all(folder)?;
+    
     let data: Value = serde_json::from_str(data_str).unwrap();
 
     let indices_json:Vec<CreateIndex> = serde_json::from_str(indices).unwrap();
-    let mut meta_data = persistence::MetaData {key_value_stores:vec![], id_lists: FnvHashMap::default()};
+    let mut persistence = persistence::Persistence::create(folder.to_string())?;
     for el in indices_json {
         match el {
             #[allow(unused_variables)]
-            CreateIndex::Fulltext{ fulltext: path, options, attr_pos } => create_fulltext_index(&data, &folder, &path, options.unwrap_or(Default::default()), &mut meta_data)?,
+            CreateIndex::Fulltext{ fulltext: path, options, attr_pos } => create_fulltext_index(&data, &path, options.unwrap_or(Default::default()), &mut persistence)?,
             #[allow(unused_variables)]
-            CreateIndex::Boost{ boost: path, options } => create_boost_index(&data, &folder, &path, options, &mut meta_data)?
+            CreateIndex::Boost{ boost: path, options } => create_boost_index(&data, &path, options, &mut persistence)?
         }
     }
 
-    write_json_to_disk(&data.as_array().unwrap(), folder, "data", &mut meta_data)?;
-
-    let meta_data_str = serde_json::to_string_pretty(&meta_data).unwrap();
-    let mut buffer = File::create(&get_file_path(folder, "metaData", ""))?;
-    buffer.write_all(&meta_data_str.as_bytes())?;
+    persistence.write_json_to_disk(&data.as_array().unwrap(), "data")?;
+    persistence.write_meta_data()?;
 
     Ok(())
 }
@@ -561,16 +556,15 @@ impl From<std::str::Utf8Error> for CreateError { // Automatic Conversion
 
 pub fn create_indices_csv(folder:&str, csv_path: &str, indices:&str) -> Result<(), CreateError>{
 
-    fs::create_dir_all(folder)?;
     // let indices_json:Result<Vec<CreateIndex>> = serde_json::from_str(indices);
     // println!("{:?}", indices_json);
     let indices_json:Vec<CreateIndex> = serde_json::from_str(indices)?;
-    let mut meta_data = persistence::MetaData {key_value_stores:vec![], id_lists: FnvHashMap::default()};
+    let mut persistence = persistence::Persistence::create(folder.to_string())?;
     for el in indices_json {
         match el {
             #[allow(unused_variables)]
             CreateIndex::Fulltext{ fulltext: attr_name, options, attr_pos } =>{
-                create_fulltext_index_csv(csv_path, &folder, &attr_name, attr_pos.unwrap(), options.unwrap_or(Default::default()), &mut meta_data)?
+                create_fulltext_index_csv(csv_path, &attr_name, attr_pos.unwrap(), options.unwrap_or(Default::default()), &mut persistence)?
             },
             #[allow(unused_variables)]
             CreateIndex::Boost{ boost: path, options } => {} // @Temporary
@@ -578,11 +572,9 @@ pub fn create_indices_csv(folder:&str, csv_path: &str, indices:&str) -> Result<(
     }
 
     let json = create_json_from_c_s_v(csv_path);
-    write_json_to_disk(&json, folder, "data", &mut meta_data)?;
+    persistence.write_json_to_disk(&json, "data")?;
 
-    let meta_data_str = serde_json::to_string_pretty(&meta_data).unwrap();
-    let mut buffer = File::create(&get_file_path(folder, "metaData", ""))?;
-    buffer.write_all(&meta_data_str.as_bytes())?;
+    persistence.write_meta_data()?;
 
     Ok(())
 }
@@ -607,21 +599,6 @@ fn create_json_from_c_s_v(csv_path: &str) -> Vec<Value> {
     res
 }
 
-fn write_json_to_disk(arro: &Vec<Value>, folder: &str, path:&str,mut meta_data: &mut persistence::MetaData) -> Result<(), io::Error> {
-    let mut offsets = vec![];
-    let mut buffer = File::create(&get_file_path(folder, &path, ""))?;
-    let mut current_offset = 0;
-    // let arro = data.as_array().unwrap();
-    for el in arro {
-        let el_str = el.to_string().into_bytes();
-        buffer.write_all(&el_str)?;
-        offsets.push(current_offset as u64);
-        current_offset += el_str.len();
-    }
-    // println!("json offsets: {:?}", offsets);
-    persistence::write_index64(&offsets, &get_file_path(folder, &path, ".offsets"), &mut meta_data)?;
-    Ok(())
-}
 
 
 
