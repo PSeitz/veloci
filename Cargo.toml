@@ -19,6 +19,13 @@ log = "0.3"
 env_logger = "0.3"
 abomonation = "0.4.4"
 csv = "0.15.0"
+iron = "0.5.1"
+time = "0.1"
+router = "*"
+hyper = "0.10.7"
+
+[dependencies.bodyparser]
+git = "https://github.com/iron/body-parser.git"
 
 [dev-dependencies]
 env_logger = "0.3"

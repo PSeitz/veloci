@@ -26,6 +26,13 @@ extern crate test;
 extern crate bit_set;
 extern crate bit_vec;
 
+
+extern crate hyper;
+extern crate iron;
+extern crate bodyparser;
+extern crate router;
+extern crate time;
+
 // use fst::{IntoStreamer, Streamer, Levenshtein, Set, MapBuilder};
 #[allow(unused_imports)]
 use fst::{IntoStreamer, Levenshtein, Set, MapBuilder};
@@ -56,6 +63,7 @@ pub mod create;
 pub mod doc_loader;
 pub mod persistence;
 pub mod bucket_list;
+mod server;
 
 #[cfg(test)]
 mod tests;
@@ -65,6 +73,11 @@ use std::str;
 
 fn main() {
     env_logger::init().unwrap();
+
+
+    
+
+
 
     // let all_terms = loadcsv("./data.csv", 0);
     // println!("{:?}", all_terms.len());
@@ -93,13 +106,13 @@ fn main() {
     // ]
     // "#;
 
-    // let indices = r#"
-    // [
-    //     { "fulltext":"MATNR", "attr_pos" : 0 , "options":{"tokenize":true}},
-    //     { "fulltext":"ISMTITLE", "attr_pos" : 1, "options":{"tokenize":true}}
-    // ]
-    // "#;
-    // println!("{:?}", create::create_indices_csv("csv_test", "./data.csv", indices));
+    let indices = r#"
+    [
+        { "fulltext":"MATNR", "attr_pos" : 0 , "options":{"tokenize":true}},
+        { "fulltext":"ISMTITLE", "attr_pos" : 1, "options":{"tokenize":true}}
+    ]
+    "#;
+    println!("{:?}", create::create_indices_csv("csv_test", "./data.csv", indices));
 
     let meta_data = persistence::MetaData::new("csv_test");
     println!("{:?}", persistence::load_all(&meta_data));
@@ -177,13 +190,15 @@ fn main() {
         //     "search": {"term":"die", "path": "ISMTITLE"}
         // });
 
-        let requesto: search::Request = serde_json::from_str(&req.to_string()).unwrap();
-        let hits = search::search("csv_test", requesto, 0, 10).unwrap();
-        let doc = search::to_documents(&hits, "csv_test");
+        // let requesto: search::Request = serde_json::from_str(&req.to_string()).unwrap();
+        // let hits = search::search("csv_test", requesto, 0, 10).unwrap();
+        // let doc = search::to_documents(&hits, "csv_test");
 
-        println!("{:?}", doc);
+        // println!("{:?}", doc);
         // println!("{:?}", hits);
     }
+
+    server::start_server();
 
 
     // {

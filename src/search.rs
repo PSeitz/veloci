@@ -111,7 +111,7 @@ fn hits_to_array(hits:FnvHashMap<u32, f32>) -> Vec<Hit> {
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct DocWithHit {
-    pub doc: String,
+    pub doc: serde_json::Value,
     pub hit: Hit
 }
 
@@ -119,8 +119,7 @@ use std;
 impl std::fmt::Display for DocWithHit {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
         write!(f, "\n{}\t{}", self.hit.id, self.hit.score )?;
-        let val:serde_json::Value = serde_json::from_str(&self.doc).unwrap(); // @Temporary // @Cleanup
-        write!(f, "\n{}", serde_json::to_string_pretty(&val).unwrap() )?;
+        write!(f, "\n{}", serde_json::to_string_pretty(&self.doc).unwrap() )?;
         Ok(())
     }
 }
@@ -130,7 +129,7 @@ pub fn to_documents(hits: &Vec<Hit>, folder:&str) -> Vec<DocWithHit> {
     let doc_loader = doc_loader::DocLoader::new(folder, "data");
     hits.iter().map(|ref hit| {
         let doc = doc_loader.get_doc(hit.id as usize).unwrap();
-        DocWithHit{doc:doc, hit:*hit.clone()}
+        DocWithHit{doc:serde_json::from_str(&doc).unwrap(), hit:*hit.clone()}
     }).collect::<Vec<_>>()
 }
 
