@@ -3,7 +3,7 @@ use search;
 // use create;
 // use doc_loader;
 // use persistence;
-
+use persistence::Persistence;
 use iron;
 use iron::prelude::*;
 use iron::{BeforeMiddleware, AfterMiddleware, typemap};
@@ -37,7 +37,6 @@ impl AfterMiddleware for ResponseTime {
 
 const MAX_BODY_LENGTH: usize = 1024 * 1024 * 10;
 
-use iron::headers::ContentType;
 use iron::{headers, status};
 use iron::modifiers::Header;
 
@@ -62,8 +61,9 @@ pub fn start_server() {
         match struct_body {
             Ok(Some(struct_body)) => {
                 println!("Parsed body:\n{:?}", struct_body);
-                let hits = search::search("csv_test", struct_body, 0, 10).unwrap();
-                let doc = search::to_documents(&hits, "csv_test");
+                let mut pers = Persistence::load("csv_test".to_string()).expect("Could not load persistence");
+                let hits = search::search("csv_test", struct_body, 0, 10, &pers).unwrap();
+                let doc = search::to_documents(&mut pers, &hits);
                 Ok(Response::with((status::Ok, Header(headers::ContentType::json()), serde_json::to_string(&doc).unwrap())))
             },
             Ok(None) => {

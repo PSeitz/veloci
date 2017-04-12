@@ -214,27 +214,29 @@ mod tests {
             // "#;
             println!("{:?}", create::create_indices(TEST_FOLDER, TEST_DATA, indices));
 
-            let meta_data = persistence::MetaData::new(TEST_FOLDER);
-            println!("{:?}", persistence::load_all(&meta_data));
+            // let meta_data = persistence::MetaData::new(TEST_FOLDER);
+            // println!("{:?}", persistence::load_all(&meta_data));
 
         }
 
-    //     assert_eq!(normalize_text("Hello"), "Hello");
-    // }
+        let mut pers = persistence::Persistence::load(TEST_FOLDER.to_string()).expect("Could not load persistence");
 
-    // #[test]
-    // fn should_search_tokenized_and_levensthein() {
+        //     assert_eq!(normalize_text("Hello"), "Hello");
+        // }
 
-    // fn search_test(req: Value) -> Vec<search::Hit> {
-    //     let requesto: search::Request = serde_json::from_str(&req.to_string()).unwrap();
-    //     search::search(TEST_FOLDER, requesto, 0, 10).unwrap()
-    // }
+        // #[test]
+        // fn should_search_tokenized_and_levensthein() {
 
-    fn search_test_to_doc(req: Value) -> Result<Vec<search::DocWithHit>, search::SearchError>  {
-        let requesto: search::Request = serde_json::from_str(&req.to_string()).unwrap();
-        let hits = search::search(TEST_FOLDER, requesto, 0, 10)?;
-        Ok(search::to_documents(&hits, TEST_FOLDER))
-    }
+        // fn search_test(req: Value) -> Vec<search::Hit> {
+        //     let requesto: search::Request = serde_json::from_str(&req.to_string()).unwrap();
+        //     search::search(TEST_FOLDER, requesto, 0, 10).unwrap()
+        // }
+
+        fn search_test_to_doc(req: Value, pers : &mut persistence::Persistence) -> Result<Vec<search::DocWithHit>, search::SearchError>  {
+            let requesto: search::Request = serde_json::from_str(&req.to_string()).unwrap();
+            let hits = search::search(TEST_FOLDER, requesto, 0, 10, pers)?;
+            Ok(search::to_documents(pers, &hits))
+        }
 
         {
             let req = json!({
@@ -246,7 +248,7 @@ mod tests {
                 }
             });
 
-            let hits = search_test_to_doc(req).unwrap();
+            let hits = search_test_to_doc(req, &mut pers).unwrap();
             assert_eq!(hits.len(), 1);
         }
 
@@ -258,7 +260,7 @@ mod tests {
                     "levenshtein_distance": 1
                 }
             });
-            let hits = search_test_to_doc(req).unwrap();
+            let hits = search_test_to_doc(req, &mut pers).unwrap();
 
             // println!("hits {:?}", hits);
             assert_eq!(hits.len(), 1);
@@ -273,12 +275,12 @@ mod tests {
                     "levenshtein_distance": 1
                 }
             });
-            let wa = search_test_to_doc(req).unwrap();
+            let wa = search_test_to_doc(req, &mut pers).unwrap();
 
             // serde_json::from_str(data_str).unwrap();
             // println!("wa {}", wa[0]);
-            let doc1:Value = serde_json::from_str(&wa[0].doc).unwrap();
-            assert_eq!(doc1["meanings"]["eng"][0], "will");
+            // let doc1:Value = serde_json::from_str(&wa[0].doc).unwrap();
+            assert_eq!(wa[0].doc["meanings"]["eng"][0], "will");
         }
 
         { // 'should search word non tokenized'
@@ -291,7 +293,7 @@ mod tests {
                 }
             });
 
-            let hits = search_test_to_doc(req);
+            let hits = search_test_to_doc(req, &mut pers);
             assert_eq!(hits.unwrap().len(), 1);
         }
 
@@ -305,7 +307,7 @@ mod tests {
                 }
             });
 
-            let hits = search_test_to_doc(req);
+            let hits = search_test_to_doc(req, &mut pers);
             assert_eq!(hits.unwrap().len(), 1);
         }
 
@@ -325,7 +327,7 @@ mod tests {
                 ]
             });
 
-            let hits = search_test_to_doc(req);
+            let hits = search_test_to_doc(req, &mut pers);
             assert_eq!(hits.unwrap().len(), 1);
         }
 
@@ -345,7 +347,7 @@ mod tests {
                 ]
             });
 
-            let hits = search_test_to_doc(req);
+            let hits = search_test_to_doc(req, &mut pers);
             assert_eq!(hits.unwrap().len(), 1);
         }
 
@@ -365,7 +367,7 @@ mod tests {
                 ]
             });
 
-            let hits = search_test_to_doc(req);
+            let hits = search_test_to_doc(req, &mut pers);
             assert_eq!(hits.unwrap().len(), 0);
         }
 
@@ -386,7 +388,7 @@ mod tests {
                 ]
             });
 
-            let hits = search_test_to_doc(req);
+            let hits = search_test_to_doc(req, &mut pers);
             assert_eq!(hits.unwrap().len(), 2);
         }
 

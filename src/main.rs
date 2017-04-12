@@ -114,10 +114,9 @@ fn main() {
     "#;
     println!("{:?}", create::create_indices_csv("csv_test", "./data.csv", indices));
 
-    let meta_data = persistence::MetaData::new("csv_test");
-    println!("{:?}", persistence::load_all(&meta_data));
-
-    search::to_documents(&vec!(search::Hit{id:0, score:0.5}), "csv_test");
+    let mut pers:persistence::Persistence = persistence::Persistence::load("csv_test".to_string()).expect("could not load persistence");
+    doc_loader::DocLoader::load(&mut pers);
+    // search::to_documents(&pers, &vec!(search::Hit{id:0, score:0.5}));
 
     {
         println!("Ab gehts");
