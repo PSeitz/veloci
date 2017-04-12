@@ -70,8 +70,8 @@ pub fn get_file_path_2(folder: &str, path:&str) -> String {
     folder.to_string()+"/"+path
 }
 
-pub fn get_file_path_tuple(folder: &str, path:&str, suffix:&str, suffix2:&str) -> (String, String) {
-    (get_file_path(folder, path, suffix), get_file_path(folder, path, suffix2))
+pub fn get_file_path_tuple(path:&str, suffix:&str, suffix2:&str) -> (String, String) {
+    (concat(path, suffix), concat(path, suffix2))
 }
 
 pub fn get_path_name(path_to_anchor: &str, is_text_index_part:bool) -> String{

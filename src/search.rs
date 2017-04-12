@@ -247,7 +247,7 @@ pub fn search_raw(persistence:&Persistence, folder:&str, mut request: RequestSea
     for i in (0..paths.len()).rev() {
         let is_text_index = i == (paths.len() -1);
         let path_name = util::get_path_name(&paths[i], is_text_index);
-        let key = get_file_path_tuple(folder, &path_name, ".valueIdToParent.valIds", ".valueIdToParent.mainIds");
+        let key = get_file_path_tuple(&path_name, ".valueIdToParent.valIds", ".valueIdToParent.mainIds");
         debugTime!("Joining to anchor");
         let kv_store = persistence.index_id_to_parent.get(&key).expect(&format!("Could not find {:?} in index_id_to_parent cache", key));
         {
@@ -424,7 +424,7 @@ fn get_hits_in_field(persistence:&Persistence, mut options: &mut RequestSearchPa
 //     fn get_parent_val_ids(&self, find: u32, cache_lock: &RwLockReadGuard<HashMap<String, Vec<u32>>>) -> Vec<u32>{  return self.get_values(find, &cache_lock); }
 // }
 
-
+use util::concat;
 fn add_token_results(persistence:&Persistence, folder:&str, path:&str, hits: &mut FnvHashMap<u32, f32>){
     debugTime!("add_token_results");
     let complete_path = &get_file_path(folder, &path, ".textindex.tokens.parentValId");
@@ -433,10 +433,11 @@ fn add_token_results(persistence:&Persistence, folder:&str, path:&str, hits: &mu
     if has_tokens.is_err() { return; }
 
     // var hrstart = process.hrtime()
-    let cache_lock = persistence::INDEX_64_CACHE.read().unwrap();
-    let text_offsets = cache_lock.get(&get_file_path(folder, &path, ".offsets")).unwrap();
+    // let cache_lock = persistence::INDEX_64_CACHE.read().unwrap();
+    let text_offsets = persistence.index_64.get(&concat(&path, ".offsets"))
+        .expect(&format!("Could not find {:?} in index_64 cache", concat(&path, ".offsets")));
 
-    let key = (get_file_path(folder, &path, ".textindex.tokens.tokenValIds"), get_file_path(folder, &path, ".textindex.tokens.parentValId"));
+    let key = (concat(&path, ".textindex.tokens.tokenValIds"), concat(&path, ".textindex.tokens.parentValId"));
     let token_kvdata = persistence.index_id_to_parent.get(&key).expect(&format!("Could not find {:?} in index_id_to_parent cache", key));
     let mut token_hits:FnvHashMap<u32, f32> = FnvHashMap::default();
     for (value_id, _) in hits.iter() {
@@ -490,7 +491,7 @@ where F: FnMut(&str, u32) {
 
     if exact_search.is_some() {
         let mut faccess:persistence::FileSearch = persistence.get_file_access(path);
-        let result = faccess.binary_search(&exact_search.unwrap())?;
+        let result = faccess.binary_search(&exact_search.unwrap(), persistence)?;
         if result.1 != -1 {
             fun(&result.0, result.1 as u32 );
         }

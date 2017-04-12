@@ -23,6 +23,7 @@ iron = "0.5.1"
 time = "0.1"
 router = "*"
 hyper = "0.10.7"
+num = "0.1"
 
 [dependencies.bodyparser]
 git = "https://github.com/iron/body-parser.git"

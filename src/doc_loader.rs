@@ -22,8 +22,6 @@ impl DocLoader {
     pub fn get_doc(persistence:&Persistence, pos: usize) -> Result<String, io::Error> {
 
         let (start, end) = {
-            // let cache_lock = persistence::INDEX_64_CACHE.read().unwrap();
-            // let offsets = cache_lock.get(&get_file_path(&self.folder, &self.filename, ".offsets")).unwrap();
             let offsets = persistence.index_64.get("data.offsets").unwrap();
             (offsets[pos] as usize, offsets[pos as usize + 1] as usize)
         };

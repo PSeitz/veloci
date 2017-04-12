@@ -26,6 +26,7 @@ extern crate test;
 extern crate bit_set;
 extern crate bit_vec;
 
+extern crate num;
 
 extern crate hyper;
 extern crate iron;
