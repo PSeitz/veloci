@@ -40,13 +40,14 @@ use abomonation::{encode, decode, Abomonation};
 use std::sync::RwLock;
 use std::collections::HashMap;
 
+use create;
+
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
 pub struct MetaData {
     pub id_lists: FnvHashMap<String, IDList>,
-    pub key_value_stores: Vec<(String, String)>
+    pub key_value_stores: Vec<(String, String)>,
+    pub fulltext_indices: FnvHashMap<String, create::FulltextIndexOptions>
 }
-
-use create;
 
 impl MetaData {
     pub fn new(path: &str) -> MetaData {
@@ -62,6 +63,7 @@ pub struct IDList {
     pub id_type: IDDataType,
     pub doc_id_type:bool
 }
+
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum IDDataType {
@@ -82,7 +84,7 @@ use num::{Integer, NumCast};
 #[derive(Debug, Clone, Default)]
 pub struct Persistence {
     db: String, // folder
-    meta_data: MetaData,
+    pub meta_data: MetaData,
     pub index_id_to_parent: HashMap<(String,String), Vec<Vec<u32>>>,
     pub index_64: HashMap<String, Vec<u64>>,
     pub index_32: HashMap<String, Vec<u32>>
@@ -97,8 +99,8 @@ impl Persistence {
 
     pub fn create(db: String) -> Result<Self, io::Error>  {
         fs::create_dir_all(&db)?;
-        let meta_data = MetaData {key_value_stores:vec![], id_lists: FnvHashMap::default()};
-        Ok(Persistence{meta_data, db, index_id_to_parent:HashMap::default(), ..Default::default()})
+        let meta_data = MetaData { ..Default::default()};
+        Ok(Persistence{meta_data, db, ..Default::default()})
     }
 
     pub fn write_tuple_pair(&mut self, tuples: &mut Vec<create::ValIdPair>, path_valid: String, path_parentid:String) -> Result<(), io::Error> {
@@ -331,11 +333,6 @@ impl FileSearch {
     }
 }
 
-
-
-lazy_static! {
-    pub static ref INDEX_ID_TO_PARENT: RwLock<HashMap<(String,String), Vec<Vec<u32>>>> = RwLock::new(HashMap::new()); // attr -> [[1,2], [22]]
-}
 
 
 

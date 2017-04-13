@@ -35,17 +35,10 @@ use std::io::prelude::*;
 use std::str;
 use persistence;
 
-// #[derive(Serialize, Deserialize, Debug, Default)]
-// pub struct IndexKeyValueMetaData {
-//     path1: IDList,
-//     path2: IDList,
-//     size: u64
-// }
-// #[derive(Serialize, Deserialize, Debug, Default)]
-// pub struct CharOffsetMetaData {
-//     path: String,
-// }
 
+use std;
+use std::time::Instant;
+use csv;
 
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -55,10 +48,10 @@ pub enum CreateIndex {
     Boost { boost: String, options: BoostIndexOptions },
 }
 
-#[derive(Serialize, Deserialize, Debug, Default)]
+#[derive(Serialize, Deserialize, Debug, Default, Clone)]
 pub struct FulltextIndexOptions {
-    tokenize: bool,
-    stopwords: Option<Vec<String>>
+    pub tokenize: bool,
+    pub stopwords: Option<Vec<String>>
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -194,7 +187,7 @@ impl std::fmt::Display for ValIdPair {
     }
 }
 
-use std;
+
 // use std::fmt;
 // use std::fmt::{Display, Formatter, Error};
 
@@ -230,9 +223,6 @@ fn print_vec(vec: &Vec<ValIdPair>) -> String{
         .join("")
 }
 
-use std::time::Instant;
-
-
 fn get_allterms_csv(csv_path:&str, attr_pos:usize, options:&FulltextIndexOptions) -> Vec<String>{
     // char escapeChar = 'a';
     // MATNR, ISMTITLE, ISMORIGTITLE, ISMSUBTITLE1, ISMSUBTITLE2, ISMSUBTITLE3, ISMARTIST, ISMLANGUAGES, ISMPUBLDATE, EAN11, ISMORIDCODE
@@ -262,9 +252,7 @@ fn get_allterms_csv(csv_path:&str, attr_pos:usize, options:&FulltextIndexOptions
     v
 }
 
-
-use csv;
-pub fn create_fulltext_index_csv(csv_path: &str, attr_name:&str, attr_pos: usize ,options:FulltextIndexOptions, mut persistence: &mut persistence::Persistence) -> Result<(), io::Error> {
+pub fn create_fulltext_index_csv(csv_path: &str, attr_name:&str, attr_pos: usize , options:FulltextIndexOptions, mut persistence: &mut persistence::Persistence) -> Result<(), io::Error> {
     let now = Instant::now();
     let all_terms = get_allterms_csv(csv_path, attr_pos, &options);
     println!("all_terms {} {}ms" , csv_path, (now.elapsed().as_secs() as f64 * 1_000.0) + (now.elapsed().subsec_nanos() as f64 / 1000_000.0));
@@ -303,16 +291,22 @@ pub fn create_fulltext_index_csv(csv_path: &str, attr_name:&str, attr_pos: usize
         persistence.write_tuple_pair(&mut tokens, concat(&path_name, ".tokens.tokenValIds"), concat(&path_name, ".tokens.parentValId"))?;
     }
 
-    persistence.write_index64(&get_string_offsets(&all_terms), &concat(&attr_name, ".offsets"))?; // String offsets
-    persistence.write_data(&attr_name, all_terms.join("\n").as_bytes())?;
-    persistence.write_index(&all_terms.iter().map(|ref el| el.len() as u32).collect::<Vec<_>>(), &concat(attr_name, ".length"))?;
-    create_char_offsets(all_terms, &concat(&attr_name, ""), &mut persistence)?;
+    store_full_text_info(&mut persistence, all_terms, &attr_name, &options)?;
 
     println!("createIndexComplete {} {}ms" , attr_name, (now.elapsed().as_secs() as f64 * 1_000.0) + (now.elapsed().subsec_nanos() as f64 / 1000_000.0));
 
     Ok(())
 }
 
+
+fn store_full_text_info(mut persistence: &mut persistence::Persistence, all_terms: Vec<String>, path:&str, options:&FulltextIndexOptions) -> Result<(), io::Error> {
+    persistence.write_index64(&get_string_offsets(&all_terms), &concat(&path, ".offsets"))?; // String byte offsets
+    persistence.write_data(path, all_terms.join("\n").as_bytes())?;
+    persistence.write_index(&all_terms.iter().map(|ref el| el.len() as u32).collect::<Vec<_>>(), &concat(path, ".length"))?;
+    create_char_offsets(all_terms, &concat(&path, ""), &mut persistence)?;
+    persistence.meta_data.fulltext_indices.insert(path.to_string(), options.clone());
+    Ok(())
+}
 
 pub fn create_fulltext_index(data: &Value, path:&str, options:FulltextIndexOptions,mut persistence: &mut persistence::Persistence) -> Result<(), io::Error> {
     let now = Instant::now();
@@ -376,12 +370,7 @@ pub fn create_fulltext_index(data: &Value, path:&str, options:FulltextIndexOptio
 
     println!("createIndex {} {}ms" , path, (now.elapsed().as_secs() as f64 * 1_000.0) + (now.elapsed().subsec_nanos() as f64 / 1000_000.0));
 
-    // println!("{:?}", all_terms);
-    // println!("{:?}", all_terms.join("\n"));
-    persistence.write_index64(&get_string_offsets(&all_terms), &concat(&path, ".offsets"))?; // String offsets
-    persistence.write_data(path, all_terms.join("\n").as_bytes())?;
-    persistence.write_index(&all_terms.iter().map(|ref el| el.len() as u32).collect::<Vec<_>>(), &concat(path, ".length"))?;
-    create_char_offsets(all_terms, &concat(&path, ""), &mut persistence)?;
+    store_full_text_info(&mut persistence, all_terms, path, &options)?;
 
     println!("createIndexComplete {} {}ms" , path, (now.elapsed().as_secs() as f64 * 1_000.0) + (now.elapsed().subsec_nanos() as f64 / 1000_000.0));
     Ok(())

@@ -234,7 +234,7 @@ mod tests {
 
         fn search_test_to_doc(req: Value, pers : &mut persistence::Persistence) -> Result<Vec<search::DocWithHit>, search::SearchError>  {
             let requesto: search::Request = serde_json::from_str(&req.to_string()).unwrap();
-            let hits = search::search(TEST_FOLDER, requesto, 0, 10, pers)?;
+            let hits = search::search(requesto, 0, 10, pers)?;
             Ok(search::to_documents(pers, &hits))
         }
 

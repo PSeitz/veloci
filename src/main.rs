@@ -191,7 +191,7 @@ fn main() {
         // });
 
         // let requesto: search::Request = serde_json::from_str(&req.to_string()).unwrap();
-        // let hits = search::search("csv_test", requesto, 0, 10).unwrap();
+        // let hits = search::search(requesto, 0, 10).unwrap();
         // let doc = search::to_documents(&hits, "csv_test");
 
         // println!("{:?}", doc);

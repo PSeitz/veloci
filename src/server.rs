@@ -55,14 +55,13 @@ pub fn start_server() {
     }
 
     fn post_handler(req: &mut Request) -> IronResult<Response> {
-        let body = req.get::<bodyparser::Raw>();
 
         let struct_body = req.get::<bodyparser::Struct<search::Request>>();
         match struct_body {
             Ok(Some(struct_body)) => {
                 println!("Parsed body:\n{:?}", struct_body);
                 let mut pers = Persistence::load("csv_test".to_string()).expect("Could not load persistence");
-                let hits = search::search("csv_test", struct_body, 0, 10, &pers).unwrap();
+                let hits = search::search(struct_body, 0, 10, &pers).unwrap();
                 let doc = search::to_documents(&mut pers, &hits);
                 Ok(Response::with((status::Ok, Header(headers::ContentType::json()), serde_json::to_string(&doc).unwrap())))
             },
