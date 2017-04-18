@@ -180,6 +180,15 @@ pub struct ValIdPair {
     pub parent_val_id:u32
 }
 
+/// Used for boost
+/// e.g. boost value 5000 for id 5
+/// 5 -> 5000
+#[derive(Debug)]
+pub struct ValIdToValue {
+    pub valid:u32,
+    pub value:u32
+}
+
 impl std::fmt::Display for ValIdPair {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
         write!(f, "\n{}\t{}", self.valid, self.parent_val_id )?;
@@ -195,24 +204,6 @@ impl std::fmt::Display for ValIdPair {
 //     fn fmt(&self, f: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
 //         write!(f, "(a, b)",)
 //         Ok(())
-//     }
-// }
-
-// #[derive(Debug)]
-// struct ValIdPairVec<'a>(& 'a Vec<ValIdPair>);
-
-// impl std::fmt::Display<'a> for ValIdPairVec<'a> {
-//     fn fmt(&self, f: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
-//         write!(f, "\nvalid\tparent_val_id")?;
-//         for el in &self.0{
-//             write!(f, "\n{}\t{}", el.valid, el.parent_val_id )?;
-//         }
-//         Ok(())
-//     }
-// }
-
-//     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-//         write!(f, "({}, {})", self.x, self.y)
 //     }
 // }
 
@@ -397,22 +388,20 @@ fn create_boost_index(data: &Value, path:&str, options:BoostIndexOptions,mut per
         value_id_counter: 0
     };
 
-    let mut tuples:Vec<ValIdPair> = vec![];
+    let mut tuples:Vec<ValIdToValue> = vec![];
     {
-        let mut callback = |value: &str, _value_id: u32, parent_val_id: u32| {
+        let mut callback = |value: &str, value_id: u32, _parent_val_id: u32| {
             if options.boost_type == "int" {
                 let my_int = value.parse::<u32>().unwrap();
-                tuples.push(ValIdPair{valid:my_int, parent_val_id:parent_val_id});
+                tuples.push(ValIdToValue{valid:value_id, value:my_int});
             } // TODO More cases
         };
         for_each_element_in_path(&data, &mut opt, &path, &mut callback);
     }
-    tuples.sort_by(|a, b| a.valid.partial_cmp(&b.valid).unwrap_or(Ordering::Equal));
 
-    persistence.write_index(&tuples.iter().map(|ref el| el.parent_val_id).collect::<Vec<_>>(),&concat(path, ".boost.subObjId"))?;
-    persistence.write_index(&tuples.iter().map(|ref el| el.valid      ).collect::<Vec<_>>(),  &concat(path, ".boost.value"))?;
+    persistence.write_boost_tuple_pair(&mut tuples, path)?;
+
     println!("create_boost_index {} {}ms" , path, (now.elapsed().as_secs() as f64 * 1_000.0) + (now.elapsed().subsec_nanos() as f64 / 1000_000.0));
-
     Ok(())
 
 }

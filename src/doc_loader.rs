@@ -1,12 +1,7 @@
-use std::fs::File;
 use std::io::prelude::*;
 use std::io;
 use std::io::SeekFrom;
 use std::str;
-
-use util::get_file_path;
-use util::get_file_path_2;
-use persistence;
 
 #[derive(Debug)]
 pub struct DocLoader {
@@ -27,7 +22,6 @@ impl DocLoader {
         };
 
         let mut f = persistence.get_file_handle("data")?;
-        // let mut f = File::open(&get_file_path(&self.folder, &self.filename, ""))?;
         // println!("OPen Time: {}", (now.elapsed().as_secs() as f64 * 1_000.0) + (now.elapsed().subsec_nanos() as f64 / 1000_000.0));
         // let start = offsets[pos] as usize;
         // let end = offsets[pos as usize + 1] as usize;

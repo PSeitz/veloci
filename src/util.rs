@@ -23,7 +23,7 @@ impl MeasureTime {
 impl Drop for MeasureTime {
     fn drop(&mut self) {
         match self.level  {
-            MeasureTimeLogLevel::Info => info!("{} took {}ms ",self.name, (self.start.elapsed().as_secs() as f64 * 1_000.0) + (self.start.elapsed().subsec_nanos() as f64 / 1000_000.0)),
+            MeasureTimeLogLevel::Info  =>  info!("{} took {}ms ",self.name, (self.start.elapsed().as_secs() as f64 * 1_000.0) + (self.start.elapsed().subsec_nanos() as f64 / 1000_000.0)),
             MeasureTimeLogLevel::Debug => debug!("{} took {}ms ",self.name, (self.start.elapsed().as_secs() as f64 * 1_000.0) + (self.start.elapsed().subsec_nanos() as f64 / 1000_000.0)),
         }
     }
@@ -58,19 +58,19 @@ pub fn normalize_text(text:&str) -> String {
 
 }
 
+pub fn boost_path(path: &str) -> (String, String) {
+    concat_tuple(path, ".boost.subObjId", ".boost.value")
+}
+
 pub fn concat(path:&str, suffix:&str) -> String {
     path.to_string()+suffix
 }
 
-pub fn get_file_path(folder: &str, path:&str, suffix:&str) -> String {
-    folder.to_string()+"/"+path+suffix
-}
-
-pub fn get_file_path_2(folder: &str, path:&str) -> String {
+pub fn get_file_path(folder: &str, path:&str) -> String {
     folder.to_string()+"/"+path
 }
 
-pub fn get_file_path_tuple(path:&str, suffix:&str, suffix2:&str) -> (String, String) {
+pub fn concat_tuple(path:&str, suffix:&str, suffix2:&str) -> (String, String) {
     (concat(path, suffix), concat(path, suffix2))
 }
 

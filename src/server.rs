@@ -4,7 +4,6 @@ use search;
 // use doc_loader;
 // use persistence;
 use persistence::Persistence;
-use iron;
 use iron::prelude::*;
 use iron::{BeforeMiddleware, AfterMiddleware, typemap};
 use time::precise_time_ns;
@@ -35,7 +34,7 @@ impl AfterMiddleware for ResponseTime {
 //     Ok(Response::with((iron::status::Ok, "Hello World")))
 // }
 
-const MAX_BODY_LENGTH: usize = 1024 * 1024 * 10;
+// const MAX_BODY_LENGTH: usize = 1024 * 1024 * 10;
 
 use iron::{headers, status};
 use iron::modifiers::Header;

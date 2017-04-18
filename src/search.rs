@@ -1,5 +1,4 @@
 
-use std::fs::File;
 use std::io::prelude::*;
 #[allow(unused_imports)]
 use std::io::{self, BufRead};
@@ -20,7 +19,6 @@ use std::str;
 use std::thread;
 #[allow(unused_imports)]
 use std::sync::mpsc::sync_channel;
-use std::fs;
 
 use std::io::SeekFrom;
 #[allow(unused_imports)]
@@ -113,9 +111,9 @@ impl std::fmt::Display for DocWithHit {
     }
 }
 
-use doc_loader;
 use persistence::Persistence;
 use doc_loader::DocLoader;
+
 pub fn to_documents(persistence:&mut Persistence, hits: &Vec<Hit>) -> Vec<DocWithHit> {
     DocLoader::load(persistence);
     hits.iter().map(|ref hit| {
@@ -133,6 +131,16 @@ pub fn search(request: Request, skip:usize, mut top:usize, persistence:&Persiste
     Ok(res[skip..top].to_vec())
 }
 
+fn get_shortest_result<T: std::iter::ExactSizeIterator>(results: &Vec<T>) -> usize {
+    let mut shortest = (0, std::u64::MAX);
+    for (index, res) in results.iter().enumerate(){
+        if (res.len() as u64) < shortest.1 {
+            shortest =  (index, res.len() as u64);
+        }
+    }
+    shortest.0
+}
+
 pub fn search_unrolled(persistence:&Persistence, request: Request) -> Result<FnvHashMap<u32, f32>, SearchError>{
     infoTime!("search_unrolled");
     if request.or.is_some() {
@@ -147,15 +155,9 @@ pub fn search_unrolled(persistence:&Persistence, request: Request) -> Result<Fnv
 
         debugTime!("and algorithm");
         let mut all_results:FnvHashMap<u32, f32> = FnvHashMap::default();
-        // get shortest result
-        let mut shortest = (0, std::u64::MAX);
-        for (index, res) in and_results.iter().enumerate(){
-            if (res.len() as u64) < shortest.1 {
-                shortest =  (index, res.len() as u64);
-            }
-        }
+        let mut index_shortest = get_shortest_result(&and_results.iter().map(|el| el.iter()).collect());
 
-        let shortest_result = and_results.swap_remove(shortest.0);
+        let shortest_result = and_results.swap_remove(index_shortest);
         for (k, v) in shortest_result {
             if and_results.iter().all(|ref x| x.contains_key(&k)){
                 all_results.insert(k, v);
@@ -165,8 +167,6 @@ pub fn search_unrolled(persistence:&Persistence, request: Request) -> Result<Fnv
         //     all_results.extend(res); // merge all results
         // }
 
-        // all_results.retain(|&k, _| and_results.iter().all(|ref x| x.contains_key(&k)) );
-        // all_results.retain(|k, _| and_results.iter().all(|ref x| x.contains_key(k as u64)) );
         Ok(all_results)
     }else if request.search.is_some(){
         Ok(search_raw(persistence, request.search.unwrap())?)
@@ -175,22 +175,31 @@ pub fn search_unrolled(persistence:&Persistence, request: Request) -> Result<Fnv
     }
 }
 
-// #[allow(dead_code)]
-// fn add_boost(folder: &str, boost: &RequestBoostPart, hits : &mut FnvHashMap<u32, f32>) -> Result<(), SearchError> {
-//     let key = get_file_path_tuple(folder, &boost.path, ".boost.subObjId", ".boost.value");
-//     let boostkv_store = SupiIndexKeyValueStore::new(&key.0, &key.1);
-//     let boost_param = boost.param.unwrap_or(0.0);
-//     for (value_id, score) in hits.iter_mut() {
-//         if let Some(boost_value) = boostkv_store.get_value(*value_id) {
-//             match boost.boost_fun {
-//                 BoostFunction::Log10 => {
-//                     *score += (boost_value  as f32 + boost_param).log10(); // @Temporary // @Hack // @Cleanup // @FixMe
-//                 }
-//             }
-//         }
-//     }
-//     Ok(())
-// }
+#[allow(dead_code)]
+fn add_boost(persistence: &Persistence, boost: &RequestBoostPart, hits : &mut FnvHashMap<u32, f32>) -> Result<(), SearchError> {
+    let key = util::boost_path(&boost.path);
+    let boostkv_store = persistence.index_id_to_parent.get(&key).expect(&format!("Could not find {:?} in index_id_to_parent cache", key));
+    let boost_param = boost.param.unwrap_or(0.0);
+    for (value_id, score) in hits.iter_mut() {
+        let ref values = boostkv_store[*value_id as usize];
+        if values.len() > 0 {
+            let boost_value = values[0]; // @Temporary // @Hack this should not be an array for this case
+            match boost.boost_fun {
+                BoostFunction::Log10 => {
+                    *score += ( boost_value as f32 + boost_param).log10(); // @Temporary // @Hack // @Cleanup // @FixMe
+                }
+            }
+        }
+        // if let Some(boost_value) = boostkv_store.get_value(*value_id) {
+        //     match boost.boost_fun {
+        //         BoostFunction::Log10 => {
+        //             *score += (boost_value  as f32 + boost_param).log10(); // @Temporary // @Hack // @Cleanup // @FixMe
+        //         }
+        //     }
+        // }
+    }
+    Ok(())
+}
 
 
 #[derive(Debug)]
@@ -228,7 +237,7 @@ pub fn search_raw(persistence:&Persistence, mut request: RequestSearchPart) -> R
     for i in (0..paths.len()).rev() {
         let is_text_index = i == (paths.len() -1);
         let path_name = util::get_path_name(&paths[i], is_text_index);
-        let key = util::get_file_path_tuple(&path_name, ".valueIdToParent.valIds", ".valueIdToParent.mainIds");
+        let key = util::concat_tuple(&path_name, ".valueIdToParent.valIds", ".valueIdToParent.mainIds");
         debugTime!("Joining to anchor");
         let kv_store = persistence.index_id_to_parent.get(&key).expect(&format!("Could not find {:?} in index_id_to_parent cache", key));
         {
@@ -375,13 +384,6 @@ fn add_token_results(persistence:&Persistence, path:&str, hits: &mut FnvHashMap<
                     .or_insert(*hits.get(token_parentval_id).unwrap_or(&0.0));
                 *the_score += adjusted_score;
 
-                // let hit = hits.get(token_parentval_id as u64);
-                // if  hit.map_or(true, |el| el == f32::NEG_INFINITY) { // has not key
-                //     token_hits.insert(token_parentval_id as u64, adjusted_score);
-                // }else{
-                //     token_hits.insert(token_parentval_id as u64, adjusted_score + hit.unwrap());
-                // }
-
                 // token_hits.push(token_parentval_id);
             }
         }
@@ -408,7 +410,7 @@ fn get_text_lines<F>(persistence:&Persistence, path: &str, exact_search:Option<S
 where F: FnMut(&str, u32) {
 
     if exact_search.is_some() {
-        let mut faccess:persistence::FileSearch = persistence.get_file_access(path);
+        let mut faccess:persistence::FileSearch = persistence.get_file_search(path);
         let result = faccess.binary_search(&exact_search.unwrap(), persistence)?;
         if result.1 != -1 {
             fun(&result.0, result.1 as u32 );
