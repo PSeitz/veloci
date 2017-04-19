@@ -2,42 +2,36 @@
 use std::io::prelude::*;
 #[allow(unused_imports)]
 use std::io::{self, BufRead};
-// use std::io::Error;
 #[allow(unused_imports)]
 use std::path::Path;
 use std::char;
 use std::cmp;
 
-use serde_json;
+use std;
 #[allow(unused_imports)]
-use std::time::Duration;
-#[allow(unused_imports)]
-use tokio_timer::Timer;
-
-use std::str;
-#[allow(unused_imports)]
-use std::thread;
+use std::{str, f32, thread};
 #[allow(unused_imports)]
 use std::sync::mpsc::sync_channel;
 
 use std::io::SeekFrom;
-#[allow(unused_imports)]
-use std::collections::HashMap;
-use util;
-#[allow(unused_imports)]
 use std::collections::hash_map::Entry;
-use fnv::FnvHashMap;
-#[allow(unused_imports)]
-use std::time::Instant;
-
-#[allow(unused_imports)]
-use bucket_list::BucketedScoreList;
-
 #[allow(unused_imports)]
 use std::collections::hash_map::Entry::{Occupied, Vacant};
 use std::cmp::Ordering;
 
+#[allow(unused_imports)]
+use fnv::FnvHashMap;
+
+use serde_json;
+#[allow(unused_imports)]
+use std::time::Duration;
+
 use persistence;
+use persistence::Persistence;
+use doc_loader::DocLoader;
+use util;
+use util::concat;
+
 
 #[derive(Serialize, Deserialize, Default, Clone, Debug)]
 pub struct Request {
@@ -73,7 +67,6 @@ impl Default for BoostFunction {
     fn default() -> BoostFunction { BoostFunction::Log10 }
 }
 
-
 // pub enum CheckOperators {
 //     All,
 //     One
@@ -102,7 +95,7 @@ pub struct DocWithHit {
     pub hit: Hit
 }
 
-use std;
+
 impl std::fmt::Display for DocWithHit {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
         write!(f, "\n{}\t{}", self.hit.id, self.hit.score )?;
@@ -110,9 +103,6 @@ impl std::fmt::Display for DocWithHit {
         Ok(())
     }
 }
-
-use persistence::Persistence;
-use doc_loader::DocLoader;
 
 pub fn to_documents(persistence:&mut Persistence, hits: &Vec<Hit>) -> Vec<DocWithHit> {
     DocLoader::load(persistence);
@@ -155,7 +145,7 @@ pub fn search_unrolled(persistence:&Persistence, request: Request) -> Result<Fnv
 
         debugTime!("and algorithm");
         let mut all_results:FnvHashMap<u32, f32> = FnvHashMap::default();
-        let mut index_shortest = get_shortest_result(&and_results.iter().map(|el| el.iter()).collect());
+        let index_shortest = get_shortest_result(&and_results.iter().map(|el| el.iter()).collect());
 
         let shortest_result = and_results.swap_remove(index_shortest);
         for (k, v) in shortest_result {
@@ -208,20 +198,10 @@ pub enum SearchError{
     MetaData(serde_json::Error),
     Utf8Error(std::str::Utf8Error)
 }
-
-impl From<io::Error> for SearchError { // Automatic Conversion
-    fn from(err: io::Error) -> SearchError {SearchError::Io(err) }
-}
-
-impl From<serde_json::Error> for SearchError { // Automatic Conversion
-    fn from(err: serde_json::Error) -> SearchError {SearchError::MetaData(err) }
-}
-
-impl From<std::str::Utf8Error> for SearchError { // Automatic Conversion
-    fn from(err: std::str::Utf8Error) -> SearchError {SearchError::Utf8Error(err) }
-}
-
-use std::f32;
+// Automatic Conversion
+impl From<io::Error>            for SearchError {fn from(err: io::Error) -> SearchError {SearchError::Io(err) } }
+impl From<serde_json::Error>    for SearchError {fn from(err: serde_json::Error) -> SearchError {SearchError::MetaData(err) } }
+impl From<std::str::Utf8Error>  for SearchError {fn from(err: std::str::Utf8Error) -> SearchError {SearchError::Utf8Error(err) } }
 
 pub fn search_raw(persistence:&Persistence, mut request: RequestSearchPart) -> Result<FnvHashMap<u32, f32>, SearchError> {
     let term = util::normalize_text(&request.term);
@@ -277,8 +257,8 @@ pub fn search_raw(persistence:&Persistence, mut request: RequestSearchPart) -> R
 
         trace!("next_level_hits: {:?}", next_level_hits);
         debug!("{:?} hits in next_level_hits {:?}", next_level_hits.len(), &key.1);
-        debugTime!("sort and dedup");
 
+        // debugTime!("sort and dedup");
         // next_level_hits.sort_by(|a, b| a.0.cmp(&b.0));
         // next_level_hits.dedup_by_key(|i| i.0);
         // hits.clear();
@@ -352,7 +332,7 @@ fn get_hits_in_field(persistence:&Persistence, mut options: &mut RequestSearchPa
 
 }
 
-use util::concat;
+
 fn add_token_results(persistence:&Persistence, path:&str, hits: &mut FnvHashMap<u32, f32>){
     debugTime!("add_token_results");
 
