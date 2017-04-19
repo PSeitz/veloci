@@ -154,14 +154,14 @@ pub fn search_unrolled(persistence:&Persistence, request: Request) -> Result<Fnv
 
         Ok(all_results)
     }else if request.search.is_some(){
-        Ok(search_raw(persistence, request.search.unwrap())?)
+        Ok(search_raw(persistence, request.search.unwrap(), request.boost)?)
     }else{
         Ok(FnvHashMap::default())
     }
 }
 
 #[allow(dead_code)]
-fn add_boost(persistence: &Persistence, boost: &RequestBoostPart, hits : &mut FnvHashMap<u32, f32>) -> Result<(), SearchError> {
+fn add_boost(persistence: &Persistence, boost: &RequestBoostPart, hits: &mut FnvHashMap<u32, f32>) -> Result<(), SearchError> {
     let key = util::boost_path(&boost.path);
     let boostkv_store = persistence.index_id_to_parent.get(&key).expect(&format!("Could not find {:?} in index_id_to_parent cache", key));
     let boost_param = boost.param.unwrap_or(0.0);
@@ -198,7 +198,15 @@ impl From<io::Error>            for SearchError {fn from(err: io::Error) -> Sear
 impl From<serde_json::Error>    for SearchError {fn from(err: serde_json::Error) -> SearchError {SearchError::MetaData(err) } }
 impl From<std::str::Utf8Error>  for SearchError {fn from(err: std::str::Utf8Error) -> SearchError {SearchError::Utf8Error(err) } }
 
-pub fn search_raw(persistence:&Persistence, mut request: RequestSearchPart) -> Result<FnvHashMap<u32, f32>, SearchError> {
+fn check_apply_boost(persistence:&Persistence, boost: &RequestBoostPart, path_name:&str, hits: &mut FnvHashMap<u32, f32>) -> bool {
+    let will_apply_boost = boost.path.starts_with(path_name);
+    if will_apply_boost{
+        add_boost(persistence, boost, hits);
+    }
+    will_apply_boost
+}
+
+pub fn search_raw(persistence:&Persistence, mut request: RequestSearchPart, mut boost: Option<Vec<RequestBoostPart>>) -> Result<FnvHashMap<u32, f32>, SearchError> {
     let term = util::normalize_text(&request.term);
     infoTime!("search and join to anchor");
     let mut hits = search_field::get_hits_in_field(persistence, &mut request, &term)?;
@@ -212,42 +220,45 @@ pub fn search_raw(persistence:&Persistence, mut request: RequestSearchPart) -> R
     for i in (0..paths.len()).rev() {
         let is_text_index = i == (paths.len() -1);
         let path_name = util::get_path_name(&paths[i], is_text_index);
+
+        if boost.is_some() {
+            boost.as_mut().unwrap().retain(|boost| check_apply_boost(persistence, boost, &path_name,&mut hits));
+        }
+
         let key = util::concat_tuple(&path_name, ".valueIdToParent.valIds", ".valueIdToParent.mainIds");
         debugTime!("Joining to anchor");
         let kv_store = persistence.index_id_to_parent.get(&key).expect(&format!("Could not find {:?} in index_id_to_parent cache", key));
-        {
-            debugTime!("Adding all values");
-            next_level_hits.reserve(hits.len());
-            for (value_id, score) in hits.iter() {
-                // kv_store.add_values(*value_id, &cache_lock, *score, &mut next_level_hits);
-                let ref values = kv_store[*value_id as usize];
-                next_level_hits.reserve(values.len());
-                trace!("value_id: {:?} values: {:?} ", value_id, values);
-                for parent_val_id in values {    // @Temporary
-                    match next_level_hits.entry(*parent_val_id as u32) {
-                        Vacant(entry) => { entry.insert(*score); },
-                        Occupied(entry) => {
-                            if *entry.get() < *score {
-                                *entry.into_mut() = score.max(*entry.get()) + 0.1;
-                            }
-                        },
-                    }
+        debugTime!("Adding all values");
+        next_level_hits.reserve(hits.len());
+        for (value_id, score) in hits.iter() {
+            // kv_store.add_values(*value_id, &cache_lock, *score, &mut next_level_hits);
+            let ref values = kv_store[*value_id as usize];
+            next_level_hits.reserve(values.len());
+            trace!("value_id: {:?} values: {:?} ", value_id, values);
+            for parent_val_id in values {    // @Temporary
+                match next_level_hits.entry(*parent_val_id as u32) {
+                    Vacant(entry) => { entry.insert(*score); },
+                    Occupied(entry) => {
+                        if *entry.get() < *score {
+                            *entry.into_mut() = score.max(*entry.get()) + 0.1;
+                        }
+                    },
                 }
-
-                // for parent_val_id in values {    // @Temporary
-                //     next_level_hits.place_back() <- (parent_val_id, *score);
-                //     // next_level_hits.push((parent_val_id, *score));
-                // }
-
-                // for parent_val_id in values {
-                //     let hit = next_level_hits.get(parent_val_id as u64);
-                //     if  hit.map_or(true, |el| el == f32::NEG_INFINITY) {
-                //         next_level_hits.insert(parent_val_id as u64, score);
-                //     }else{
-                //         next_level_hits.insert(parent_val_id as u64, score);
-                //     }
-                // }
             }
+
+            // for parent_val_id in values {    // @Temporary
+            //     next_level_hits.place_back() <- (parent_val_id, *score);
+            //     // next_level_hits.push((parent_val_id, *score));
+            // }
+
+            // for parent_val_id in values {
+            //     let hit = next_level_hits.get(parent_val_id as u64);
+            //     if  hit.map_or(true, |el| el == f32::NEG_INFINITY) {
+            //         next_level_hits.insert(parent_val_id as u64, score);
+            //     }else{
+            //         next_level_hits.insert(parent_val_id as u64, score);
+            //     }
+            // }
         }
 
         trace!("next_level_hits: {:?}", next_level_hits);
