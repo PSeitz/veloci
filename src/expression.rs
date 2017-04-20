@@ -1,7 +1,7 @@
 
 
 #[derive(Debug)]
-struct ScoreExpression {
+pub struct ScoreExpression {
     expression: String,
     ops : Vec<OperatorType>
 }
@@ -38,7 +38,7 @@ use std;
 
 impl ScoreExpression {
 
-    fn new(expression: String) -> Self {
+    pub fn new(expression: String) -> Self {
         let ops = ScoreExpression::parse(&expression);
         ScoreExpression{expression:expression, ops:ops}
     }
@@ -82,7 +82,7 @@ impl ScoreExpression {
 
     }
 
-    fn get_score(&self, rank: f32) -> f32 {
+    pub fn get_score(&self, rank: f32) -> f32 {
         let mut newRank = 0.0;
         let left = match self.ops[0] {
             OperatorType::_Score_ => rank,

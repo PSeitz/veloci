@@ -48,7 +48,7 @@ pub struct RequestSearchPart {
 #[derive(Serialize, Deserialize, Default, Clone, Debug)]
 pub struct RequestBoostPart {
     pub path: String,
-    pub boost_fun: BoostFunction,
+    pub boost_fun: Option<BoostFunction>,
     pub param: Option<f32>,
     pub skip_when_score:Option<Vec<f32>>,
     pub expression:Option<String>
@@ -56,7 +56,7 @@ pub struct RequestBoostPart {
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub enum BoostFunction {
-    Log10,
+    Log10
 }
 
 impl Default for BoostFunction {
@@ -161,28 +161,35 @@ pub fn search_unrolled(persistence:&Persistence, request: Request) -> Result<Fnv
     }
 }
 
+use expression::ScoreExpression;
+
 #[allow(dead_code)]
 fn add_boost(persistence: &Persistence, boost: &RequestBoostPart, hits: &mut FnvHashMap<u32, f32>) -> Result<(), SearchError> {
     let key = util::boost_path(&boost.path);
     let boostkv_store = persistence.index_id_to_parent.get(&key).expect(&format!("Could not find {:?} in index_id_to_parent cache", key));
     let boost_param = boost.param.unwrap_or(0.0);
+
+    let expre = boost.expression.as_ref().map(|expression| ScoreExpression::new(expression.clone()));
+    let default = vec![];
+    let skip_when_score = boost.skip_when_score.as_ref().unwrap_or(&default);
     for (value_id, score) in hits.iter_mut() {
-        let ref values = boostkv_store[*value_id as usize];
-        if values.len() > 0 {
-            let boost_value = values[0]; // @Temporary // @Hack this should not be an array for this case
-            match boost.boost_fun {
-                BoostFunction::Log10 => {
-                    *score += ( boost_value as f32 + boost_param).log10(); // @Temporary // @Hack // @Cleanup // @FixMe
-                }
-            }
+        if skip_when_score.len()>0 && skip_when_score.iter().find(|x| *x == score).is_some() {
+            continue;
         }
-        // if let Some(boost_value) = boostkv_store.get_value(*value_id) {
-        //     match boost.boost_fun {
-        //         BoostFunction::Log10 => {
-        //             *score += (boost_value  as f32 + boost_param).log10(); // @Temporary // @Hack // @Cleanup // @FixMe
-        //         }
-        //     }
-        // }
+        let ref vals_opt = boostkv_store.get(*value_id as usize);
+        vals_opt.map(|values|{
+            if values.len() > 0 {
+                let boost_value = values[0]; // @Temporary // @Hack this should not be an array for this case
+                match boost.boost_fun {
+                    Some(BoostFunction::Log10) => {
+                        *score += ( boost_value as f32 + boost_param).log10(); // @Temporary // @Hack // @Cleanup // @FixMe
+                    },
+                    None => {}
+                }
+                expre.as_ref().map(|exp| exp.get_score(*score));
+            }
+        });
+
     }
     Ok(())
 }

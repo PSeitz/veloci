@@ -432,9 +432,9 @@ mod tests {
                 }]
             });
 
-            // let hits = search_test_to_doc(req, &mut pers);
-            // println!("{:?}", hits);
-            // assert_eq!(hits.unwrap().len(), 2);
+            let hits = search_test_to_doc(req, &mut pers);
+            println!("{:?}", hits);
+            // assert_eq!(hits.unwrap().len(), 2); // @FixMe 
         }
 
     }
