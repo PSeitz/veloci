@@ -191,7 +191,6 @@ mod tests {
 
     #[test]
     fn create_indices_1() {
-        let _ = env_logger::init();
         {
 
             let indices = r#"
@@ -233,7 +232,7 @@ mod tests {
         // }
 
         fn search_test_to_doc(req: Value, pers : &mut persistence::Persistence) -> Result<Vec<search::DocWithHit>, search::SearchError>  {
-            let requesto: search::Request = serde_json::from_str(&req.to_string()).unwrap();
+            let requesto: search::Request = serde_json::from_str(&req.to_string()).expect("Can't parse json");
             let hits = search::search(requesto, 0, 10, pers)?;
             Ok(search::to_documents(pers, &hits))
         }
@@ -372,7 +371,6 @@ mod tests {
         }
 
         { // OR connect hits
-            let _ = env_logger::init();
             let req = json!({
                 "or":[
                     {"search": {
@@ -392,11 +390,57 @@ mod tests {
             assert_eq!(hits.unwrap().len(), 2);
         }
 
+        { // should search and boost
+            let _ = env_logger::init();
+            let req = json!({
+                "search": {
+                    "term":"意慾",
+                    "path": "kanji[].text",
+                    "levenshtein_distance": 0,
+                    "firstCharExactMatch":true
+                },
+                "boost" : [{
+                    "path":"kanji[].commonness",
+                    "boost_fun": "Log10",
+                    "param": 1
+                }]
+            });
+
+            let hits = search_test_to_doc(req, &mut pers);
+            println!("{:?}", hits);
+            assert_eq!(hits.unwrap().len(), 2);
+        }
+
+        { // should search and double boost
+            let _ = env_logger::init();
+            let req = json!({
+                "search": {
+                    "term":"awesome",
+                    "path": "field1[].text",
+                    "levenshtein_distance": 0,
+                    "firstCharExactMatch":true
+                },
+                "boost" : [{
+                    "path":"commonness",
+                    "boost_fun": "Log10",
+                    "param": 1
+                },
+                {
+                    "path":"field1[].rank",
+                    "expression": "10 / $SCORE",
+                    "skip_when_score" : [0]
+                }]
+            });
+
+            // let hits = search_test_to_doc(req, &mut pers);
+            // println!("{:?}", hits);
+            // assert_eq!(hits.unwrap().len(), 2);
+        }
+
     }
 
     // #[test]
     // fn checked_was_abgehst_22() {
-        
     //     let small_test_json:&str = r#"[
     //         {
     //             "meanings": {

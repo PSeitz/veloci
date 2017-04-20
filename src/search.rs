@@ -27,11 +27,10 @@ use persistence::Persistence;
 use doc_loader::DocLoader;
 use util;
 
-
 #[derive(Serialize, Deserialize, Default, Clone, Debug)]
 pub struct Request {
-    pub or : Option<Vec<Request>>,
-    pub and : Option<Vec<Request>>,
+    pub or: Option<Vec<Request>>,
+    pub and: Option<Vec<Request>>,
     pub search: Option<RequestSearchPart>,
     pub boost: Option<Vec<RequestBoostPart>>
 }
@@ -51,6 +50,8 @@ pub struct RequestBoostPart {
     pub path: String,
     pub boost_fun: BoostFunction,
     pub param: Option<f32>,
+    pub skip_when_score:Option<Vec<f32>>,
+    pub expression:Option<String>
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -127,7 +128,7 @@ fn get_shortest_result<T: std::iter::ExactSizeIterator>(results: &Vec<T>) -> usi
 }
 
 pub fn search_unrolled(persistence:&Persistence, request: Request) -> Result<FnvHashMap<u32, f32>, SearchError>{
-    infoTime!("search_unrolled");
+    debugTime!("search_unrolled");
     if request.or.is_some() {
         Ok(request.or.unwrap().iter()
             .fold(FnvHashMap::default(), |mut acc, x| -> FnvHashMap<u32, f32> {
@@ -201,16 +202,17 @@ impl From<std::str::Utf8Error>  for SearchError {fn from(err: std::str::Utf8Erro
 fn check_apply_boost(persistence:&Persistence, boost: &RequestBoostPart, path_name:&str, hits: &mut FnvHashMap<u32, f32>) -> bool {
     let will_apply_boost = boost.path.starts_with(path_name);
     if will_apply_boost{
+        info!("will_apply_boost: boost.path {:?} path_name {:?}", boost.path, path_name);
         add_boost(persistence, boost, hits);
     }
-    will_apply_boost
+    !will_apply_boost
 }
 
 pub fn search_raw(persistence:&Persistence, mut request: RequestSearchPart, mut boost: Option<Vec<RequestBoostPart>>) -> Result<FnvHashMap<u32, f32>, SearchError> {
     let term = util::normalize_text(&request.term);
-    infoTime!("search and join to anchor");
+    debugTime!("search and join to anchor");
     let mut hits = search_field::get_hits_in_field(persistence, &mut request, &term)?;
-    
+
     if hits.len() == 0 {return Ok(hits)};
     let mut next_level_hits:FnvHashMap<u32, f32> = FnvHashMap::default();
     // let mut next_level_hits:Vec<(u32, f32)> = vec![];
@@ -278,6 +280,10 @@ pub fn search_raw(persistence:&Persistence, mut request: RequestSearchPart, mut 
         // hits.extend(next_level_hits.iter());
         hits = next_level_hits;
         next_level_hits = FnvHashMap::default();
+    }
+
+    if boost.is_some() { //remaining boosts
+        boost.as_mut().unwrap().retain(|boost| check_apply_boost(persistence, boost, "",&mut hits));
     }
 
     Ok(hits)

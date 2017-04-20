@@ -64,6 +64,7 @@ pub mod create;
 pub mod doc_loader;
 pub mod persistence;
 pub mod search_field;
+pub mod expression;
 pub mod bucket_list;
 mod server;
 

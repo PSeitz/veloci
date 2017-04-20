@@ -174,7 +174,6 @@ impl Persistence {
     }
 
     pub fn load_all_to_cache(&mut self) -> Result<(), io::Error> {
-        println!("{:?}", self.meta_data);
         let mut all_tuple_paths = vec![];
         for &(ref valid, ref parentid) in &self.meta_data.key_value_stores {
             all_tuple_paths.push(valid.to_string());

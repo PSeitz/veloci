@@ -35,11 +35,9 @@ use std::io::prelude::*;
 use std::str;
 use persistence;
 
-
 use std;
 use std::time::Instant;
 use csv;
-
 
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(untagged)]
@@ -51,7 +49,8 @@ pub enum CreateIndex {
 #[derive(Serialize, Deserialize, Debug, Default, Clone)]
 pub struct FulltextIndexOptions {
     pub tokenize: bool,
-    pub stopwords: Option<Vec<String>>
+    pub stopwords: Option<Vec<String>>,
+    pub language:Option<String>
 }
 
 #[derive(Serialize, Deserialize, Debug)]
