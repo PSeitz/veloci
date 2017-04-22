@@ -163,21 +163,21 @@ fn main() {
         //     ]
         // });
 
-        let req = json!({
-            "or":[
-                {"search": {"term":"die", "path": "MATNR"} },
-                {"search": {"term":"die", "path": "ISMTITLE"} },
-                {"search": {"term":"die", "path": "ISMORIGTITLE"} },
-                {"search": {"term":"die", "path": "ISMSUBTITLE1"} },
-                {"search": {"term":"die", "path": "ISMSUBTITLE2"} },
-                {"search": {"term":"die", "path": "ISMSUBTITLE3"} },
-                {"search": {"term":"die", "path": "ISMARTIST"} },
-                {"search": {"term":"die", "path": "ISMLANGUAGES"} },
-                {"search": {"term":"die", "path": "ISMPUBLDATE"} },
-                {"search": {"term":"die", "path": "EAN11"} },
-                {"search": {"term":"die", "path": "ISMORIDCODE"} }
-            ]
-        });
+        // let req = json!({
+        //     "or":[
+        //         {"search": {"term":"die", "path": "MATNR"} },
+        //         {"search": {"term":"die", "path": "ISMTITLE"} },
+        //         {"search": {"term":"die", "path": "ISMORIGTITLE"} },
+        //         {"search": {"term":"die", "path": "ISMSUBTITLE1"} },
+        //         {"search": {"term":"die", "path": "ISMSUBTITLE2"} },
+        //         {"search": {"term":"die", "path": "ISMSUBTITLE3"} },
+        //         {"search": {"term":"die", "path": "ISMARTIST"} },
+        //         {"search": {"term":"die", "path": "ISMLANGUAGES"} },
+        //         {"search": {"term":"die", "path": "ISMPUBLDATE"} },
+        //         {"search": {"term":"die", "path": "EAN11"} },
+        //         {"search": {"term":"die", "path": "ISMORIDCODE"} }
+        //     ]
+        // });
 
         // let req = json!({
         //     "and":[{"search": {"term":"kriege", "path": "ISMTITLE"}}, {"search": {"term":"die", "path": "ISMTITLE"}}, {"search": {"term":"ich", "path": "ISMTITLE"}}, {"search": {"term":"gesehen", "path": "ISMTITLE"}}, {"search": {"term":"habe", "path": "ISMTITLE"}} ]

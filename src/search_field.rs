@@ -101,7 +101,8 @@ pub fn get_hits_in_field(persistence:&Persistence, mut options: &mut RequestSear
                 // || (options.customCompare.is_some() && options.customCompare.unwrap(line, term))
                 {
                 // let score = get_default_score(term, line);
-                let score = if distance.is_some() {get_default_score2(distance.unwrap())} else {get_default_score(term, line)};
+                let mut score = if distance.is_some() {get_default_score2(distance.unwrap())} else {get_default_score(term, line)};
+                options.boost.map(|boost_val| score = score * boost_val);
                 debug!("Hit: {:?}\tid: {:?} score: {:?}", line, line_pos, score);
                 hits.insert(line_pos, score);
             }

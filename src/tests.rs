@@ -478,7 +478,6 @@ mod tests {
 
 
         { // should rank exact matches pretty good
-            let _ = env_logger::init();
             let req = json!({
                 "search": {
                     "term":"weich", // hits welche and weich
@@ -494,8 +493,32 @@ mod tests {
             });
 
             let hits = search_test_to_doc(req, &mut pers);
-            // println!("{:?}", hits);
-            // assert_eq!(hits.unwrap()[0].doc["meanings"]["ger"][0], "(1) weich");
+            println!("{:?}", hits);
+            assert_eq!(hits.unwrap()[0].doc["meanings"]["ger"][0], "(1) weich");
+        }
+
+        { // OR connect hits, but boost one term
+            let _ = env_logger::init();
+            let req = json!({
+                "or":[
+                    {"search": {
+                        "term":"majestät",
+                        "path": "meanings.ger[]",
+                        "levenshtein_distance":0,
+                        "boost": 2
+                    }},
+                    {"search": {
+                        "term":"urge",
+                        "path": "meanings.eng[]",
+                        "levenshtein_distance":0
+                    }}
+                ]
+            });
+
+            let hits = search_test_to_doc(req, &mut pers);
+            println!("{:?}", hits);
+            assert_eq!(hits.as_ref().unwrap().len(), 2);
+            assert_eq!(hits.unwrap()[0].doc["meanings"]["ger"][0], "majestätischer Anblick (m)");
         }
 
     }

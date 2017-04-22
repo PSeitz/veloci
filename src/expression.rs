@@ -34,7 +34,6 @@ enum OperationStep {
 //         Operator {x: self.x + other.x}
 //     }
 // }
-use std;
 
 impl ScoreExpression {
 
@@ -47,9 +46,9 @@ impl ScoreExpression {
         let mut operations:Vec<OperatorType> = vec![];
         let mut current = "".to_string();
         // let currVal = None;
-        for nextChar in expression.chars() {
+        for next_char in expression.chars() {
 
-            match nextChar {
+            match next_char {
                 ' ' => {
                     let val = current.parse::<f32>();
                     // println!("{:?}", val);
@@ -61,7 +60,7 @@ impl ScoreExpression {
                 _ => {},
             }
 
-            if(nextChar != ' ') {current += &nextChar.to_string();}
+            if next_char != ' ' {current += &next_char.to_string();}
             match current.as_ref() {
                 "+" => {operations.push(OperatorType::Add);current.clear();},
                 "-" => {operations.push(OperatorType::Sub);current.clear();},
@@ -83,7 +82,6 @@ impl ScoreExpression {
     }
 
     pub fn get_score(&self, rank: f32) -> f32 {
-        let mut newRank = 0.0;
         let left = match self.ops[0] {
             OperatorType::_Score_ => rank,
             OperatorType::Float(val) => val,
@@ -137,7 +135,6 @@ mod tests {
 
     #[bench]
     fn bench_mult(b: &mut Bencher) {
-        let expre = ScoreExpression::new("$SCORE * $SCORE".to_string());
         b.iter(|| mult(10.0));
     }
 

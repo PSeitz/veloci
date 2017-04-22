@@ -42,7 +42,9 @@ pub struct RequestSearchPart {
     pub levenshtein_distance: Option<u32>,
     pub starts_with: Option<String>,
     pub exact: Option<bool>,
-    pub first_char_exact_match: Option<bool>
+    pub first_char_exact_match: Option<bool>,
+    /// boosts the search part with this value
+    pub boost:Option<f32>
 }
 
 #[derive(Serialize, Deserialize, Default, Clone, Debug)]
@@ -163,8 +165,7 @@ pub fn search_unrolled(persistence:&Persistence, request: Request) -> Result<Fnv
 
 use expression::ScoreExpression;
 
-#[allow(dead_code)]
-fn add_boost(persistence: &Persistence, boost: &RequestBoostPart, hits: &mut FnvHashMap<u32, f32>) -> Result<(), SearchError> {
+fn add_boost(persistence: &Persistence, boost: &RequestBoostPart, hits: &mut FnvHashMap<u32, f32>) {
     let key = util::boost_path(&boost.path);
     let boostkv_store = persistence.index_id_to_parent.get(&key).expect(&format!("Could not find {:?} in index_id_to_parent cache", key));
     let boost_param = boost.param.unwrap_or(0.0);
@@ -191,7 +192,6 @@ fn add_boost(persistence: &Persistence, boost: &RequestBoostPart, hits: &mut Fnv
         });
 
     }
-    Ok(())
 }
 
 
