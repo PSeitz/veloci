@@ -155,6 +155,7 @@ impl Persistence {
             offsets.push(current_offset as u64);
             current_offset += el_str.len();
         }
+        offsets.push(current_offset as u64);
         // println!("json offsets: {:?}", offsets);
         self.write_index64(&offsets, &(path.to_string()+".offsets"))?;
         Ok(())
@@ -361,6 +362,8 @@ impl IndexKeyValueStore {
         let mut result = Vec::new();
         match self.values1.binary_search(&find) {
             Ok(mut pos) => {
+                //this is not a lower_bounds search so we MUST move to the first hit
+                while pos != 0 && self.values1[pos - 1] == find {pos-=1;}
                 let val_len = self.values1.len();
                 while pos < val_len && self.values1[pos] == find{
                     result.push(self.values2[pos]);
@@ -372,6 +375,10 @@ impl IndexKeyValueStore {
     }
 }
 
-
+#[test]
+fn test_index_kv() {
+    let ix = IndexKeyValueStore{values1: vec![0,0,1], values2: vec![0,1,2]};
+    assert_eq!(ix.get_values(0), vec![0,1]);
+}
 
 

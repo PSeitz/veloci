@@ -186,7 +186,7 @@ fn add_boost(persistence: &Persistence, boost: &RequestBoostPart, hits: &mut Fnv
                     },
                     None => {}
                 }
-                expre.as_ref().map(|exp| exp.get_score(*score));
+                expre.as_ref().map(|exp| *score = exp.get_score(*score));
             }
         });
 

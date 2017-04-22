@@ -192,7 +192,6 @@ mod tests {
     #[test]
     fn create_indices_1() {
         {
-
             let indices = r#"
             [
                 { "boost":"commonness" , "options":{"boost_type":"int"}},
@@ -391,7 +390,6 @@ mod tests {
         }
 
         { // should search and boost
-            let _ = env_logger::init();
             let req = json!({
                 "search": {
                     "term":"意慾",
@@ -407,12 +405,11 @@ mod tests {
             });
 
             let hits = search_test_to_doc(req, &mut pers);
-            println!("{:?}", hits);
             assert_eq!(hits.unwrap().len(), 2);
         }
 
         { // should search and double boost
-            let _ = env_logger::init();
+            // let _ = env_logger::init();
             let req = json!({
                 "search": {
                     "term":"awesome",
@@ -433,8 +430,72 @@ mod tests {
             });
 
             let hits = search_test_to_doc(req, &mut pers);
-            println!("{:?}", hits);
-            // assert_eq!(hits.unwrap().len(), 2); // @FixMe 
+            assert_eq!(hits.unwrap().len(), 2);
+        }
+
+        { // should search and boost anchor
+            let req = json!({
+                "search": {
+                    "term":"意慾",
+                    "path": "kanji[].text",
+                    "levenshtein_distance": 0,
+                    "firstCharExactMatch":true
+                },
+                "boost" : [{
+                    "path":"commonness",
+                    "boost_fun": "Log10",
+                    "param": 1
+                }]
+            });
+
+            let hits = search_test_to_doc(req, &mut pers);
+            assert_eq!(hits.unwrap()[0].doc["commonness"], 500);
+        }
+
+        // it('should suggest', function() {
+        //     return searchindex.suggest({path:'meanings.ger[]', term:'majes'}).then(res => {
+        //         // console.log(JSON.stringify(res, null, 2))
+        //         return Object.keys(res)
+        //     })
+        //     .should.eventually.have.length(5)
+        // })
+
+        // { // should or connect the checks
+        //     let req = json!({
+        //         "search": {
+        //             "term":"having a long",
+        //             "path": "meanings.eng[]",
+        //             "levenshtein_distance": 1,
+        //             "firstCharExactMatch":true,
+        //             startsWith:true,
+        //             operator:"some"
+        //         }]
+        //     });
+
+        //     let hits = search_test_to_doc(req, &mut pers);
+        //     assert_eq!(hits.unwrap().len(), 1);
+        // }
+
+
+        { // should rank exact matches pretty good
+            let _ = env_logger::init();
+            let req = json!({
+                "search": {
+                    "term":"weich", // hits welche and weich
+                    "path": "meanings.ger[]",
+                    "levenshtein_distance": 1,
+                    "firstCharExactMatch":true
+                },
+                "boost" : [{
+                    "path":"commonness",
+                    "boost_fun": "Log10",
+                    "param": 1
+                }]
+            });
+
+            let hits = search_test_to_doc(req, &mut pers);
+            // println!("{:?}", hits);
+            // assert_eq!(hits.unwrap()[0].doc["meanings"]["ger"][0], "(1) weich");
         }
 
     }
