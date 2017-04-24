@@ -200,7 +200,7 @@ fn main() {
         // println!("{:?}", hits);
     }
 
-    server::start_server();
+    
 
 
     // {
@@ -216,7 +216,7 @@ fn main() {
     // println!("{:?}",testfst("anschauen", 2));
     // println!("{:?}",search::test_levenshtein("anschauen", 2));
 
-    // println!("{:?}",create_index());
+    println!("{:?}",create_jmdict_index());
 
 
     // let _ = env_logger::init();
@@ -250,11 +250,13 @@ fn main() {
 
     // println!("{:?}",test_build_fst());
 
+    server::start_server();
+
 }
 // { "fulltext":"meanings.ger[]", "options":{"tokenize":true, "stopwords": ["stopword"]} }
 
 #[allow(dead_code)]
-fn create_index() -> Result<(), io::Error> {
+fn create_jmdict_index() -> Result<(), io::Error> {
     let indices = r#"
     [
     {

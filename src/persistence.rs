@@ -115,10 +115,6 @@ impl Persistence {
         Ok(())
     }
 
-    pub fn write_index64(&mut self, data:&Vec<u64>, path:&str) -> Result<(), io::Error> {
-        self.write_index(data, path)
-    }
-
     pub fn write_index<T: Abomonation + Clone + Integer + NumCast + Copy + Debug>(&mut self, data:&Vec<T>, path:&str) -> Result<(), io::Error> {
         let mut bytes:Vec<u8> = Vec::new();
         unsafe { encode(data, &mut bytes); }
@@ -135,6 +131,24 @@ impl Persistence {
         Ok(())
     }
 
+    // fn store_fst(all_terms: &Vec<String>, path:&str) -> Result<(), fst::Error> {
+    //     infoTime!("store_fst");
+    //     let now = Instant::now();
+
+    //     let wtr = io::BufWriter::new(File::create("map.fst")?);
+    //     // Create a builder that can be used to insert new key-value pairs.
+    //     let mut build = MapBuilder::new(wtr)?;
+
+    //     for (i, line) in all_terms.iter().enumerate() {
+    //         build.insert(line, i).unwrap();
+    //     }
+    //     build.finish()?;
+
+    //     println!("test_build_fst ms: {}", (now.elapsed().as_secs() as f64 * 1_000.0) + (now.elapsed().subsec_nanos() as f64 / 1000_000.0));
+
+    //     Ok(())
+    // }
+
     pub fn write_meta_data(&self) -> Result<(), io::Error> {
         self.write_data("metaData", serde_json::to_string_pretty(&self.meta_data).unwrap().as_bytes())
     }
@@ -142,6 +156,10 @@ impl Persistence {
     pub fn write_data(&self, path: &str, data:&[u8]) -> Result<(), io::Error> {
         File::create(&get_file_path(&self.db, path))?.write_all(data)?;
         Ok(())
+    }
+
+    pub fn get_buffered_writer(&self, path: &str) -> Result<io::BufWriter<fs::File>, io::Error> {
+        Ok(io::BufWriter::new(File::create(&get_file_path(&self.db, path))?))
     }
 
     pub fn write_json_to_disk(&mut self, arro: &Vec<Value>, path:&str) -> Result<(), io::Error> {
@@ -157,7 +175,7 @@ impl Persistence {
         }
         offsets.push(current_offset as u64);
         // println!("json offsets: {:?}", offsets);
-        self.write_index64(&offsets, &(path.to_string()+".offsets"))?;
+        self.write_index(&offsets, &(path.to_string()+".offsets"))?;
         Ok(())
     }
 

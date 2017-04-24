@@ -58,7 +58,8 @@ pub struct RequestBoostPart {
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub enum BoostFunction {
-    Log10
+    Log10,
+    Linear
 }
 
 impl Default for BoostFunction {
@@ -185,6 +186,9 @@ fn add_boost(persistence: &Persistence, boost: &RequestBoostPart, hits: &mut Fnv
                     Some(BoostFunction::Log10) => {
                         *score += ( boost_value as f32 + boost_param).log10(); // @Temporary // @Hack // @Cleanup // @FixMe
                     },
+                    Some(BoostFunction::Linear) => {
+                        *score *= ( boost_value as f32 + boost_param); // @Temporary // @Hack // @Cleanup // @FixMe
+                    }
                     None => {}
                 }
                 expre.as_ref().map(|exp| *score = exp.get_score(*score));
