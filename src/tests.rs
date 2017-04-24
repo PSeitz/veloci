@@ -274,10 +274,6 @@ mod tests {
                 }
             });
             let wa = search_test_to_doc(req, &mut pers).unwrap();
-
-            // serde_json::from_str(data_str).unwrap();
-            // println!("wa {}", wa[0]);
-            // let doc1:Value = serde_json::from_str(&wa[0].doc).unwrap();
             assert_eq!(wa[0].doc["meanings"]["eng"][0], "will");
         }
 
@@ -285,9 +281,7 @@ mod tests {
             let req = json!({
                 "search": {
                     "term":"偉容",
-                    "path": "kanji[].text",
-                    "levenshtein_distance": 0,
-                    "firstCharExactMatch":true
+                    "path": "kanji[].text"
                 }
             });
 
@@ -299,9 +293,7 @@ mod tests {
             let req = json!({
                 "search": {
                     "term":"1587690",
-                    "path": "ent_seq",
-                    "levenshtein_distance": 0,
-                    "firstCharExactMatch":true
+                    "path": "ent_seq"
                 }
             });
 
@@ -312,16 +304,8 @@ mod tests {
         { // 'AND connect hits same field'
             let req = json!({
                 "and":[
-                    {"search": {
-                        "term":"aussehen",
-                        "path": "meanings.ger[]",
-                        "levenshtein_distance":0
-                    }},
-                    {"search": {
-                        "term":"majestätisches",
-                        "path": "meanings.ger[]",
-                        "levenshtein_distance":0
-                    }}
+                    {"search": {"term":"aussehen",       "path": "meanings.ger[]"}},
+                    {"search": {"term":"majestätisches", "path": "meanings.ger[]"}}
                 ]
             });
 
@@ -332,16 +316,8 @@ mod tests {
         { // AND connect hits different fields
             let req = json!({
                 "and":[
-                    {"search": {
-                        "term":"majestät",
-                        "path": "meanings.ger[]",
-                        "levenshtein_distance":0
-                    }},
-                    {"search": {
-                        "term":"majestic",
-                        "path": "meanings.eng[]",
-                        "levenshtein_distance":0
-                    }}
+                    {"search": {"term":"majestät", "path": "meanings.ger[]"}},
+                    {"search": {"term":"majestic", "path": "meanings.eng[]"}}
                 ]
             });
 
@@ -354,13 +330,11 @@ mod tests {
                 "and":[
                     {"search": {
                         "term":"majestät",
-                        "path": "meanings.ger[]",
-                        "levenshtein_distance":0
+                        "path": "meanings.ger[]"
                     }},
                     {"search": {
                         "term":"urge",
-                        "path": "meanings.eng[]",
-                        "levenshtein_distance":0
+                        "path": "meanings.eng[]"
                     }}
                 ]
             });
@@ -374,13 +348,11 @@ mod tests {
                 "or":[
                     {"search": {
                         "term":"majestät",
-                        "path": "meanings.ger[]",
-                        "levenshtein_distance":0
+                        "path": "meanings.ger[]"
                     }},
                     {"search": {
                         "term":"urge",
-                        "path": "meanings.eng[]",
-                        "levenshtein_distance":0
+                        "path": "meanings.eng[]"
                     }}
                 ]
             });
@@ -393,9 +365,7 @@ mod tests {
             let req = json!({
                 "search": {
                     "term":"意慾",
-                    "path": "kanji[].text",
-                    "levenshtein_distance": 0,
-                    "firstCharExactMatch":true
+                    "path": "kanji[].text"
                 },
                 "boost" : [{
                     "path":"kanji[].commonness",
@@ -413,9 +383,7 @@ mod tests {
             let req = json!({
                 "search": {
                     "term":"awesome",
-                    "path": "field1[].text",
-                    "levenshtein_distance": 0,
-                    "firstCharExactMatch":true
+                    "path": "field1[].text"
                 },
                 "boost" : [{
                     "path":"commonness",
@@ -501,17 +469,8 @@ mod tests {
             let _ = env_logger::init();
             let req = json!({
                 "or":[
-                    {"search": {
-                        "term":"majestät",
-                        "path": "meanings.ger[]",
-                        "levenshtein_distance":0,
-                        "boost": 2
-                    }},
-                    {"search": {
-                        "term":"urge",
-                        "path": "meanings.eng[]",
-                        "levenshtein_distance":0
-                    }}
+                    {"search": {"term":"majestät", "path": "meanings.ger[]", "boost": 2}},
+                    {"search": {"term":"urge", "path": "meanings.eng[]"}}
                 ]
             });
 

@@ -187,7 +187,7 @@ fn add_boost(persistence: &Persistence, boost: &RequestBoostPart, hits: &mut Fnv
                         *score += ( boost_value as f32 + boost_param).log10(); // @Temporary // @Hack // @Cleanup // @FixMe
                     },
                     Some(BoostFunction::Linear) => {
-                        *score *= ( boost_value as f32 + boost_param); // @Temporary // @Hack // @Cleanup // @FixMe
+                        *score *= boost_value as f32 + boost_param; // @Temporary // @Hack // @Cleanup // @FixMe
                     }
                     None => {}
                 }

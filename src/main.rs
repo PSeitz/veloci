@@ -73,34 +73,26 @@ mod tests;
 
 use std::str;
 
-
-fn main() {
-    env_logger::init().unwrap();
-
-
-    
-
-
-
+fn create_thalia_index() {
     // let all_terms = loadcsv("./data.csv", 0);
     // println!("{:?}", all_terms.len());
 
     // File::create("MATNR").unwrap().write_all(all_terms.join("\n").as_bytes()).unwrap();
-    // let indices = r#"
-    // [
-    //     { "fulltext":"MATNR", "attr_pos" : 0 },
-    //     { "fulltext":"ISMTITLE", "attr_pos" : 1, "options":{"tokenize":true}},
-    //     { "fulltext":"ISMORIGTITLE", "attr_pos" : 2, "options":{"tokenize":true}},
-    //     { "fulltext":"ISMSUBTITLE1", "attr_pos" : 3, "options":{"tokenize":true}},
-    //     { "fulltext":"ISMSUBTITLE2", "attr_pos" : 4, "options":{"tokenize":true}},
-    //     { "fulltext":"ISMSUBTITLE3", "attr_pos" : 5, "options":{"tokenize":true}},
-    //     { "fulltext":"ISMARTIST", "attr_pos" : 6, "options":{"tokenize":true}},
-    //     { "fulltext":"ISMLANGUAGES", "attr_pos" : 7},
-    //     { "fulltext":"ISMPUBLDATE", "attr_pos" : 8},
-    //     { "fulltext":"EAN11", "attr_pos" : 9},
-    //     { "fulltext":"ISMORIDCODE", "attr_pos" : 10}
-    // ]
-    // "#;
+    let indices = r#"
+    [
+        { "fulltext":"MATNR", "attr_pos" : 0 },
+        { "fulltext":"ISMTITLE", "attr_pos" : 1, "options":{"tokenize":true}},
+        { "fulltext":"ISMORIGTITLE", "attr_pos" : 2, "options":{"tokenize":true}},
+        { "fulltext":"ISMSUBTITLE1", "attr_pos" : 3, "options":{"tokenize":true}},
+        { "fulltext":"ISMSUBTITLE2", "attr_pos" : 4, "options":{"tokenize":true}},
+        { "fulltext":"ISMSUBTITLE3", "attr_pos" : 5, "options":{"tokenize":true}},
+        { "fulltext":"ISMARTIST", "attr_pos" : 6, "options":{"tokenize":true}},
+        { "fulltext":"ISMLANGUAGES", "attr_pos" : 7},
+        { "fulltext":"ISMPUBLDATE", "attr_pos" : 8},
+        { "fulltext":"EAN11", "attr_pos" : 9},
+        { "fulltext":"ISMORIDCODE", "attr_pos" : 10}
+    ]
+    "#;
 
     // let indices = r#"
     // [
@@ -109,13 +101,19 @@ fn main() {
     // ]
     // "#;
 
-    let indices = r#"
-    [
-        { "fulltext":"MATNR", "attr_pos" : 0 , "options":{"tokenize":true}},
-        { "fulltext":"ISMTITLE", "attr_pos" : 1, "options":{"tokenize":true}}
-    ]
-    "#;
+    // let indices = r#"
+    // [
+    //     { "fulltext":"MATNR", "attr_pos" : 0 , "options":{"tokenize":true}},
+    //     { "fulltext":"ISMTITLE", "attr_pos" : 1, "options":{"tokenize":true}}
+    // ]
+    // "#;
     println!("{:?}", create::create_indices_csv("csv_test", "./data.csv", indices));
+}
+
+fn main() {
+    env_logger::init().unwrap();
+
+    create_thalia_index();
 
     let mut pers:persistence::Persistence = persistence::Persistence::load("csv_test".to_string()).expect("could not load persistence");
     doc_loader::DocLoader::load(&mut pers);

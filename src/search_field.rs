@@ -143,7 +143,6 @@ pub fn add_token_results(persistence:&Persistence, path:&str, hits: &mut FnvHash
                     let parent_text_length = text_offsets[1 + *token_parentval_id as usize] - text_offsets[*token_parentval_id as usize];
                     let token_text_length  = text_offsets[1 + *value_id as usize] - text_offsets[*value_id as usize];
                     let adjusted_score = 2.0/(parent_text_length as f32 - token_text_length as f32) + 0.2;
-                    // if (adjusted_score < 0) throw new Error('asdf')
 
                     let the_score = token_hits.entry(*token_parentval_id as u32) // @Temporary
                         .or_insert(*hits.get(token_parentval_id).unwrap_or(&0.0));
