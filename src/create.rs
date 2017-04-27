@@ -30,16 +30,16 @@ use std::env;
 
 #[allow(unused_imports)]
 use std::io::prelude::*;
-#[allow(unused_imports)]
 
 use std::str;
-use persistence;
 use persistence::Persistence;
 
 use std;
 use std::time::Instant;
 use csv;
 
+#[allow(unused_imports)]
+use fst::{self, IntoStreamer, Levenshtein, Set, MapBuilder};
 
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(untagged)]
@@ -292,17 +292,16 @@ pub fn create_fulltext_index_csv(csv_path: &str, attr_name:&str, attr_pos: usize
 
 fn store_full_text_info(mut persistence: &mut Persistence, all_terms: Vec<String>, path:&str, options:&FulltextIndexOptions) -> Result<(), io::Error> {
     persistence.write_index(&get_string_offsets(&all_terms), &concat(&path, ".offsets"))?; // String byte offsets
-    persistence.write_data(path, all_terms.join("\n").as_bytes())?;
-    persistence.write_index(&all_terms.iter().map(|ref el| el.len() as u32).collect::<Vec<_>>(), &concat(path, ".length"))?;
-    store_fst(persistence, &all_terms, path);
-    create_char_offsets(&all_terms, &concat(&path, ""), &mut persistence)?;
+    // persistence.write_data(path, all_terms.join("\n").as_bytes())?;
+    // persistence.write_index(&all_terms.iter().map(|ref el| el.len() as u32).collect::<Vec<_>>(), &concat(path, ".length"))?;
+    store_fst(persistence, &all_terms, path).expect("Could not store fst"); // @FixMe handle result
+    // create_char_offsets(&all_terms, &concat(&path, ""), &mut persistence)?;
     persistence.meta_data.fulltext_indices.insert(path.to_string(), options.clone());
     Ok(())
 }
-use fst::{self, IntoStreamer, Levenshtein, Set, MapBuilder};
-fn store_fst(mut persistence: &mut Persistence,all_terms: &Vec<String>, path:&str) -> Result<(), fst::Error> {
+
+fn store_fst(persistence: &mut Persistence,all_terms: &Vec<String>, path:&str) -> Result<(), fst::Error> {
     infoTime!("store_fst");
-    let now = Instant::now();
     let wtr = persistence.get_buffered_writer(&concat(&path, ".fst"))?;
     // Create a builder that can be used to insert new key-value pairs.
     let mut build = MapBuilder::new(wtr)?;
@@ -511,7 +510,7 @@ pub fn create_indices(folder:&str, data_str:&str, indices:&str) -> Result<(), Cr
     for el in indices_json {
         match el {
             #[allow(unused_variables)]
-            CreateIndex::Fulltext{ fulltext: path, options, attr_pos } => create_fulltext_index(&data, &path, options.unwrap_or(Default::default()), &mut persistence)?,
+            CreateIndex::Fulltext{ fulltext: path, options, attr_pos : _ } => create_fulltext_index(&data, &path, options.unwrap_or(Default::default()), &mut persistence)?,
             #[allow(unused_variables)]
             CreateIndex::Boost{ boost: path, options } => create_boost_index(&data, &path, options, &mut persistence)?
         }
@@ -530,23 +529,9 @@ pub enum CreateError{
     Utf8Error(std::str::Utf8Error)
 }
 
-impl From<io::Error> for CreateError { // Automatic Conversion
-    fn from(err: io::Error) -> CreateError {
-        CreateError::Io(err)
-    }
-}
-
-impl From<serde_json::Error> for CreateError { // Automatic Conversion
-    fn from(err: serde_json::Error) -> CreateError {
-        CreateError::InvalidJson(err)
-    }
-}
-
-impl From<std::str::Utf8Error> for CreateError { // Automatic Conversion
-    fn from(err: std::str::Utf8Error) -> CreateError {
-        CreateError::Utf8Error(err)
-    }
-}
+impl From<io::Error> for CreateError {fn from(err: io::Error) -> CreateError {CreateError::Io(err) } }
+impl From<serde_json::Error> for CreateError {fn from(err: serde_json::Error) -> CreateError {CreateError::InvalidJson(err) } }
+impl From<std::str::Utf8Error> for CreateError {fn from(err: std::str::Utf8Error) -> CreateError {CreateError::Utf8Error(err) } }
 
 pub fn create_indices_csv(folder:&str, csv_path: &str, indices:&str) -> Result<(), CreateError>{
 
@@ -561,7 +546,7 @@ pub fn create_indices_csv(folder:&str, csv_path: &str, indices:&str) -> Result<(
                 create_fulltext_index_csv(csv_path, &attr_name, attr_pos.unwrap(), options.unwrap_or(Default::default()), &mut persistence)?
             },
             #[allow(unused_variables)]
-            CreateIndex::Boost{ boost: path, options } => {} // @Temporary
+            CreateIndex::Boost{ boost: _, options:_ } => {} // @Temporary // @FixMe
         }
     }
 

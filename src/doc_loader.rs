@@ -16,7 +16,7 @@ impl DocLoader {
 
     pub fn get_doc(persistence:&Persistence, pos: usize) -> Result<String, io::Error> {
         let (start, end) = {
-            let offsets = persistence.index_64.get("data.offsets").unwrap();
+            let offsets = persistence.cache.index_64.get("data.offsets").unwrap();
             (offsets[pos] as usize, offsets[pos as usize + 1] as usize) // @Temporary array access by get - option
         };
 

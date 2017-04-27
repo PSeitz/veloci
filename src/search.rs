@@ -26,6 +26,7 @@ use search_field;
 use persistence::Persistence;
 use doc_loader::DocLoader;
 use util;
+use fst;
 
 #[derive(Serialize, Deserialize, Default, Clone, Debug)]
 pub struct Request {
@@ -168,7 +169,7 @@ use expression::ScoreExpression;
 
 fn add_boost(persistence: &Persistence, boost: &RequestBoostPart, hits: &mut FnvHashMap<u32, f32>) {
     let key = util::boost_path(&boost.path);
-    let boostkv_store = persistence.index_id_to_parent.get(&key).expect(&format!("Could not find {:?} in index_id_to_parent cache", key));
+    let boostkv_store = persistence.cache.index_id_to_parent.get(&key).expect(&format!("Could not find {:?} in index_id_to_parent cache", key));
     let boost_param = boost.param.unwrap_or(0.0);
 
     let expre = boost.expression.as_ref().map(|expression| ScoreExpression::new(expression.clone()));
@@ -203,12 +204,14 @@ fn add_boost(persistence: &Persistence, boost: &RequestBoostPart, hits: &mut Fnv
 pub enum SearchError{
     Io(io::Error),
     MetaData(serde_json::Error),
-    Utf8Error(std::str::Utf8Error)
+    Utf8Error(std::str::Utf8Error),
+    FstError(fst::Error)
 }
 // Automatic Conversion
 impl From<io::Error>            for SearchError {fn from(err: io::Error) -> SearchError {SearchError::Io(err) } }
 impl From<serde_json::Error>    for SearchError {fn from(err: serde_json::Error) -> SearchError {SearchError::MetaData(err) } }
 impl From<std::str::Utf8Error>  for SearchError {fn from(err: std::str::Utf8Error) -> SearchError {SearchError::Utf8Error(err) } }
+impl From<fst::Error>           for SearchError {fn from(err: fst::Error) -> SearchError {SearchError::FstError(err) } }
 
 fn check_apply_boost(persistence:&Persistence, boost: &RequestBoostPart, path_name:&str, hits: &mut FnvHashMap<u32, f32>) -> bool {
     let will_apply_boost = boost.path.starts_with(path_name);
@@ -220,16 +223,16 @@ fn check_apply_boost(persistence:&Persistence, boost: &RequestBoostPart, path_na
 }
 
 pub fn search_raw(persistence:&Persistence, mut request: RequestSearchPart, mut boost: Option<Vec<RequestBoostPart>>) -> Result<FnvHashMap<u32, f32>, SearchError> {
-    let term = util::normalize_text(&request.term);
+    request.term = util::normalize_text(&request.term);
     debugTime!("search and join to anchor");
-    let mut hits = search_field::get_hits_in_field(persistence, &mut request, &term)?;
+    let mut hits = search_field::get_hits_in_field(persistence, &mut request)?;
 
     if hits.len() == 0 {return Ok(hits)};
     let mut next_level_hits:FnvHashMap<u32, f32> = FnvHashMap::default();
     // let mut next_level_hits:Vec<(u32, f32)> = vec![];
 
     let paths = util::get_steps_to_anchor(&request.path);
-    info!("Joining {:?} hits from {:?} for {:?}", hits.len(), paths, term);
+    info!("Joining {:?} hits from {:?} for {:?}", hits.len(), paths, &request.term);
     for i in (0..paths.len()).rev() {
         let is_text_index = i == (paths.len() -1);
         let path_name = util::get_path_name(&paths[i], is_text_index);
@@ -240,7 +243,7 @@ pub fn search_raw(persistence:&Persistence, mut request: RequestSearchPart, mut 
 
         let key = util::concat_tuple(&path_name, ".valueIdToParent.valIds", ".valueIdToParent.mainIds");
         debugTime!("Joining to anchor");
-        let kv_store = persistence.index_id_to_parent.get(&key).expect(&format!("Could not find {:?} in index_id_to_parent cache", key));
+        let kv_store = persistence.cache.index_id_to_parent.get(&key).expect(&format!("Could not find {:?} in index_id_to_parent cache", key));
         debugTime!("Adding all values");
         next_level_hits.reserve(hits.len());
         for (value_id, score) in hits.iter() {

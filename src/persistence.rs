@@ -41,6 +41,9 @@ use std::collections::HashMap;
 
 use create;
 
+#[allow(unused_imports)]
+use fst::{IntoStreamer, Levenshtein, Set, Map, MapBuilder};
+
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
 pub struct MetaData {
     pub id_lists: FnvHashMap<String, IDList>,
@@ -50,7 +53,7 @@ pub struct MetaData {
 
 impl MetaData {
     pub fn new(folder: &str) -> MetaData {
-        let json = util::file_as_string(&(folder.to_string()+"/metaData")).unwrap();
+        let json = util::file_as_string(&(folder.to_string()+"/metaData.json")).unwrap();
         serde_json::from_str(&json).unwrap()
     }
 }
@@ -77,18 +80,25 @@ use search::SearchError;
 use num;
 use num::{Integer, NumCast};
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Default)]
+pub struct PersistenceCache {
+    pub index_id_to_parent: HashMap<(String,String), Vec<Vec<u32>>>,
+    pub index_64: HashMap<String, Vec<u64>>,
+    pub index_32: HashMap<String, Vec<u32>>,
+    pub fst: HashMap<String, Map>
+}
+
+#[derive(Debug, Default)]
 pub struct Persistence {
     db: String, // folder
     pub meta_data: MetaData,
-    pub index_id_to_parent: HashMap<(String,String), Vec<Vec<u32>>>,
-    pub index_64: HashMap<String, Vec<u64>>,
-    pub index_32: HashMap<String, Vec<u32>>
+    pub cache: PersistenceCache
 }
 impl Persistence {
     pub fn load(db: String) -> Result<Self, io::Error> {
         let meta_data = MetaData::new(&db);
-        let mut pers = Persistence{meta_data, db, index_id_to_parent:HashMap::default(), ..Default::default()};
+        // let mut pers = Persistence{meta_data, db, index_id_to_parent:HashMap::default(), ..Default::default()};
+        let mut pers = Persistence{meta_data, db, ..Default::default()};
         pers.load_all_to_cache()?;
         Ok(pers)
     }
@@ -150,7 +160,7 @@ impl Persistence {
     // }
 
     pub fn write_meta_data(&self) -> Result<(), io::Error> {
-        self.write_data("metaData", serde_json::to_string_pretty(&self.meta_data).unwrap().as_bytes())
+        self.write_data("metaData.json", serde_json::to_string_pretty(&self.meta_data).unwrap().as_bytes())
     }
 
     pub fn write_data(&self, path: &str, data:&[u8]) -> Result<(), io::Error> {
@@ -187,9 +197,17 @@ impl Persistence {
         Ok(File::open(&get_file_path(&self.db, path))?)
     }
 
+    pub fn get_fst(&self, path: &str) -> Result<Map, search::SearchError> {
+        let mut f = self.get_file_handle(&(path.to_string()+".fst"))?;
+        let mut buffer: Vec<u8> = Vec::new();
+        f.read_to_end(&mut buffer)?;
+        buffer.shrink_to_fit();
+        Ok(Map::from_bytes(buffer)?)
+    }
+
     pub fn get_create_char_offset_info(&self, path: &str,character: &str) -> Result<Option<OffsetInfo>, search::SearchError> { // @Temporary - replace SearchError
         let char_offset = CharOffset::new(path)?;
-        return Ok(char_offset.get_char_offset_info(character, &self.index_64).ok());
+        return Ok(char_offset.get_char_offset_info(character, &self.cache.index_64).ok());
     }
 
     pub fn load_all_to_cache(&mut self) -> Result<(), io::Error> {
@@ -223,7 +241,7 @@ impl Persistence {
                 data[valid as usize] = store.get_values(valid);
             }
 
-            self.index_id_to_parent.insert((valid.clone(), parentid.clone()), data);
+            self.cache.index_id_to_parent.insert((valid.clone(), parentid.clone()), data);
 
         }
 
@@ -231,13 +249,13 @@ impl Persistence {
     }
 
     pub fn load_index_64(&mut self, s1: &str) -> Result<(), io::Error> {
-        if self.index_64.contains_key(s1){return Ok(()); }
-        self.index_64.insert(s1.to_string(), load_indexo(&get_file_path(&self.db, s1))?);
+        if self.cache.index_64.contains_key(s1){return Ok(()); }
+        self.cache.index_64.insert(s1.to_string(), load_indexo(&get_file_path(&self.db, s1))?);
         Ok(())
     }
     pub fn load_index_32(&mut self, s1: &str) -> Result<(), io::Error> {
-        if self.index_32.contains_key(s1){return Ok(()); }
-        self.index_32.insert(s1.to_string(), load_indexo(&get_file_path(&self.db, s1))?);
+        if self.cache.index_32.contains_key(s1){return Ok(()); }
+        self.cache.index_32.insert(s1.to_string(), load_indexo(&get_file_path(&self.db, s1))?);
         Ok(())
     }
 }
@@ -315,7 +333,7 @@ impl FileSearch {
     pub fn binary_search(&mut self, term: &str, persistence:&Persistence) -> Result<(String, i64), io::Error> {
         // let cache_lock = INDEX_64_CACHE.read().unwrap();
         // let offsets = cache_lock.get(&(self.path.to_string()+".offsets")).unwrap();
-        let offsets = persistence.index_64.get(&(self.path.to_string()+".offsets")).unwrap();
+        let offsets = persistence.cache.index_64.get(&(self.path.to_string()+".offsets")).unwrap();
         debugTime!("term binary_search");
         if offsets.len() < 2  {
             return Ok(("".to_string(), -1));
