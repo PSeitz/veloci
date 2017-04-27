@@ -33,10 +33,6 @@ env_logger = "0.3"
 colored = "1.4"
 pretty_assertions = "0.1.2"
 
-# [lib]
-# name = "native_search"
-# path = "src/main.rs"
-
 [[bin]]
 name = "native_search"
 path = "src/main.rs"

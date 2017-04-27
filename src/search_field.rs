@@ -32,8 +32,9 @@ where F: FnMut(&str, u32) {
     // buffer.shrink_to_fit();
     // let map = try!(Map::from_bytes(buffer));
 
-    let map = persistence.get_fst(&options.path)?;
+    // let map = persistence.get_fst(&options.path)?;
 
+    let map = persistence.cache.fst.get(&options.path).expect("load fst no found");
     let lev = try!(Levenshtein::new(&options.term, options.levenshtein_distance.unwrap_or(0)));
     let stream = map.search(lev).into_stream();
     let hits = try!(stream.into_str_vec());

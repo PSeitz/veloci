@@ -84,7 +84,7 @@ use num::{Integer, NumCast};
 pub struct PersistenceCache {
     pub index_id_to_parent: HashMap<(String,String), Vec<Vec<u32>>>,
     pub index_64: HashMap<String, Vec<u64>>,
-    pub index_32: HashMap<String, Vec<u32>>,
+    // index_32: HashMap<String, Vec<u32>>,
     pub fst: HashMap<String, Map>
 }
 
@@ -197,12 +197,16 @@ impl Persistence {
         Ok(File::open(&get_file_path(&self.db, path))?)
     }
 
-    pub fn get_fst(&self, path: &str) -> Result<Map, search::SearchError> {
+    pub fn load_fst(&self, path: &str) -> Result<Map, search::SearchError> {
         let mut f = self.get_file_handle(&(path.to_string()+".fst"))?;
         let mut buffer: Vec<u8> = Vec::new();
         f.read_to_end(&mut buffer)?;
         buffer.shrink_to_fit();
         Ok(Map::from_bytes(buffer)?)
+    }
+
+    pub fn get_fst(&self, path: &str) -> Result<&Map, search::SearchError> {
+       Ok(self.cache.fst.get(path).expect("load fst no found"))
     }
 
     pub fn get_create_char_offset_info(&self, path: &str,character: &str) -> Result<Option<OffsetInfo>, search::SearchError> { // @Temporary - replace SearchError
@@ -222,7 +226,7 @@ impl Persistence {
                 continue;
             }
             match &idlist.id_type {
-                &IDDataType::U32 => self.load_index_32(&idlist.path).expect(&("Could not load ".to_string() + &idlist.path)),
+                &IDDataType::U32 => {},
                 &IDDataType::U64 => self.load_index_64(&idlist.path)?
             }
         }
@@ -242,9 +246,13 @@ impl Persistence {
             }
 
             self.cache.index_id_to_parent.insert((valid.clone(), parentid.clone()), data);
-
         }
 
+        // Load FST
+        for (ref path, _) in &self.meta_data.fulltext_indices {
+            let map = self.load_fst(path).expect("Could not load FST");
+            self.cache.fst.insert(path.to_string(), map);
+        }
         Ok(())
     }
 
@@ -253,11 +261,11 @@ impl Persistence {
         self.cache.index_64.insert(s1.to_string(), load_indexo(&get_file_path(&self.db, s1))?);
         Ok(())
     }
-    pub fn load_index_32(&mut self, s1: &str) -> Result<(), io::Error> {
-        if self.cache.index_32.contains_key(s1){return Ok(()); }
-        self.cache.index_32.insert(s1.to_string(), load_indexo(&get_file_path(&self.db, s1))?);
-        Ok(())
-    }
+    // pub fn load_index_32(&mut self, s1: &str) -> Result<(), io::Error> {
+    //     if self.cache.index_32.contains_key(s1){return Ok(()); }
+    //     self.cache.index_32.insert(s1.to_string(), load_indexo(&get_file_path(&self.db, s1))?);
+    //     Ok(())
+    // }
 }
 
 

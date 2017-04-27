@@ -113,10 +113,10 @@ fn create_thalia_index() {
 fn main() {
     env_logger::init().unwrap();
 
-    create_thalia_index();
+    // create_thalia_index();
 
     let mut pers:persistence::Persistence = persistence::Persistence::load("csv_test".to_string()).expect("could not load persistence");
-    doc_loader::DocLoader::load(&mut pers);
+    // doc_loader::DocLoader::load(&mut pers);
     // search::to_documents(&pers, &vec!(search::Hit{id:0, score:0.5}));
 
     {
@@ -214,7 +214,7 @@ fn main() {
     // println!("{:?}",testfst("anschauen", 2));
     // println!("{:?}",search::test_levenshtein("anschauen", 2));
 
-    println!("{:?}",create_jmdict_index());
+    // println!("{:?}",create_jmdict_index());
 
 
     // let _ = env_logger::init();
