@@ -1,9 +1,5 @@
 
-
-use std::io::prelude::*;
-use std::io::SeekFrom;
 use str;
-use persistence;
 use persistence::Persistence;
 use search::RequestSearchPart;
 use search::SearchError;
@@ -23,7 +19,7 @@ fn get_default_score2(distance: u32) -> f32{
 }
 
 #[inline(always)]
-fn get_text_lines<F>(persistence:&Persistence, options: &RequestSearchPart, exact_search:Option<String>, character: Option<&str>, mut fun: F) -> Result<(), SearchError>
+fn get_text_lines<F>(persistence:&Persistence, options: &RequestSearchPart, _exact_search:Option<String>, _character: Option<&str>, mut fun: F) -> Result<(), SearchError>
 where F: FnMut(&str, u32) {
 
     // let mut f = persistence.get_file_handle(&(options.path.to_string()+".fst"))?;
@@ -150,13 +146,17 @@ pub fn add_token_results(persistence:&Persistence, path:&str, hits: &mut FnvHash
         .expect(&format!("Could not find {:?} in index_64 cache", concat(&path, ".offsets")));
 
     let key = (concat(&path, ".textindex.tokens.tokenValIds"), concat(&path, ".textindex.tokens.parentValId"));
-    let token_kvdata = persistence.cache.index_id_to_parent.get(&key).expect(&format!("Could not find {:?} in index_id_to_parent cache", key));
+
+    let token_kvdata = persistence.get_valueid_to_parent(&key);
+
+    // let token_kvdata = persistence.cache.index_id_to_parent.get(&key).expect(&format!("Could not find {:?} in index_id_to_parent cache", key));
     let mut token_hits:FnvHashMap<u32, f32> = FnvHashMap::default();
     for (value_id, _) in hits.iter() {
         // let parent_ids_for_token = token_kvdata.get_parent_val_ids(*value_id, &cache_lock);
 
-        let ref parent_ids_for_token_opt = token_kvdata.get(*value_id as usize);
-        parent_ids_for_token_opt.map(|parent_ids_for_token|{
+        // let ref parent_ids_for_token_opt = token_kvdata.get(*value_id as usize);
+        let ref parent_ids_for_token_opt = token_kvdata.get_values(*value_id as u64);
+        parent_ids_for_token_opt.as_ref().map(|parent_ids_for_token|{
             if parent_ids_for_token.len() > 0 {
                 token_hits.reserve(parent_ids_for_token.len());
                 for token_parentval_id in parent_ids_for_token {

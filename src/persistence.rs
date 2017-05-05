@@ -1,42 +1,21 @@
-
-#[allow(unused_imports)]
 use std::fs::{self, File};
 use std::io::prelude::*;
-#[allow(unused_imports)]
-use std::io::{self, BufRead};
-#[allow(unused_imports)]
-use std::time::Duration;
+use std::io::{self};
 
-#[allow(unused_imports)]
-use std::thread;
-#[allow(unused_imports)]
-use std::sync::mpsc::sync_channel;
-
-#[allow(unused_imports)]
 use std::io::SeekFrom;
 use util;
 use util::get_file_path;
-#[allow(unused_imports)]
-use fnv::FnvHashSet;
 
-#[allow(unused_imports)]
-use std::sync::{Arc, Mutex};
-#[allow(unused_imports)]
 use std::cmp::Ordering;
 
 use serde_json;
-#[allow(unused_imports)]
 use serde_json::Value;
 
-#[allow(unused_imports)]
-use std::env;
 use fnv::FnvHashMap;
 
 use std::str;
 use abomonation::{encode, decode, Abomonation};
 
-#[allow(unused_imports)]
-use std::sync::RwLock;
 use std::collections::HashMap;
 
 use create;
@@ -47,7 +26,7 @@ use fst::{IntoStreamer, Levenshtein, Set, Map, MapBuilder};
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
 pub struct MetaData {
     pub id_lists: FnvHashMap<String, IDList>,
-    pub key_value_stores: Vec<(String, String)>,
+    pub key_value_stores: Vec<KVStoreMetaData>,
     pub fulltext_indices: FnvHashMap<String, create::FulltextIndexOptions>
 }
 
@@ -56,6 +35,13 @@ impl MetaData {
         let json = util::file_as_string(&(folder.to_string()+"/metaData.json")).unwrap();
         serde_json::from_str(&json).unwrap()
     }
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct KVStoreMetaData {
+    pub valid_path: String,
+    pub parentid_path: String,
+    pub key_has_duplicates: bool, // In the sense of 1:n   1key, n values
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -80,9 +66,47 @@ use search::SearchError;
 use num;
 use num::{Integer, NumCast};
 
+pub trait IndexIdToParent: Debug {
+    fn get_values(&self, id: u64) -> Option<Vec<u32>>;
+    fn get_value(&self, id: u64) -> Option<u32>;
+}
+
+#[derive(Debug)]
+struct IndexIdToMultipleParent {data: Vec<Vec<u32>> }
+impl IndexIdToParent for IndexIdToMultipleParent {
+    fn get_values(&self, id: u64) -> Option<Vec<u32>>{
+        self.data.get(id as usize).map(|el| el.clone())
+    }
+    fn get_value(&self, id: u64) -> Option<u32>{
+        self.data.get(id as usize).as_ref().map(|el| el[0])
+    }
+}
+
+static NOT_FOUND:i32 = -1;
+
+#[derive(Debug)]
+struct IndexIdToOneParent {data: Vec<i32> }
+impl IndexIdToParent for IndexIdToOneParent {
+    fn get_values(&self, id: u64) -> Option<Vec<u32>>{
+        self.get_value(id).map(|el| vec![el])
+    }
+    fn get_value(&self, id: u64) -> Option<u32>{
+        let val = self.data.get(id as usize);
+        match val {
+            Some(val) => {
+                if *val == NOT_FOUND {None}
+                else {Some(val.clone() as u32)}
+            },
+            None => None,
+        }
+        // self.data.get(id as usize).map(|el| if(*el == NOT_FOUND){ None} else{ el.clone() as u32 })
+    }
+}
+
 #[derive(Debug, Default)]
 pub struct PersistenceCache {
-    pub index_id_to_parent: HashMap<(String,String), Vec<Vec<u32>>>,
+    // pub index_id_to_parent: HashMap<(String,String), Vec<Vec<u32>>>,
+    pub index_id_to_parento: HashMap<(String,String), Box<IndexIdToParent>>,
     pub index_64: HashMap<String, Vec<u64>>,
     // index_32: HashMap<String, Vec<u32>>,
     pub fst: HashMap<String, Map>
@@ -94,6 +118,16 @@ pub struct Persistence {
     pub meta_data: MetaData,
     pub cache: PersistenceCache
 }
+fn has_duplicates<T: Copy + Clone + Integer>(data: &Vec<T>) -> bool {
+    if data.len() == 0 {return false;}
+    let mut prev = data[0];
+    for el in data[1..].iter() {
+        if *el == prev {return true; }
+        prev = *el;
+    }
+    return false;
+}
+
 impl Persistence {
     pub fn load(db: String) -> Result<Self, io::Error> {
         let meta_data = MetaData::new(&db);
@@ -111,17 +145,22 @@ impl Persistence {
 
     pub fn write_tuple_pair(&mut self, tuples: &mut Vec<create::ValIdPair>, path_valid: String, path_parentid:String) -> Result<(), io::Error> {
         tuples.sort_by(|a, b| a.valid.partial_cmp(&b.valid).unwrap_or(Ordering::Equal));
-        self.write_index(&tuples.iter().map(|ref el| el.valid      ).collect::<Vec<_>>(),   &path_valid)?;
+        let valids = tuples.iter().map(|ref el| el.valid      ).collect::<Vec<_>>();
+        let has_duplicates = has_duplicates(&valids);
+        self.write_index(&valids,   &path_valid)?;
         self.write_index(&tuples.iter().map(|ref el| el.parent_val_id).collect::<Vec<_>>(), &path_parentid)?;
-        self.meta_data.key_value_stores.push((path_valid, path_parentid));
+        self.meta_data.key_value_stores.push(KVStoreMetaData{key_has_duplicates:has_duplicates, valid_path: path_valid.clone(), parentid_path:path_parentid.clone()});
         Ok(())
     }
     pub fn write_boost_tuple_pair(&mut self, tuples: &mut Vec<create::ValIdToValue>, path: &str) -> Result<(), io::Error> {
         let paths = util::boost_path(path);
         tuples.sort_by(|a, b| a.valid.partial_cmp(&b.valid).unwrap_or(Ordering::Equal));
-        self.write_index(&tuples.iter().map(|ref el| el.valid).collect::<Vec<_>>(), &paths.0)?;
+        let valids = tuples.iter().map(|ref el| el.valid      ).collect::<Vec<_>>();
+        let has_duplicates = has_duplicates(&valids);
+        self.write_index(&valids, &paths.0)?;
         self.write_index(&tuples.iter().map(|ref el| el.value      ).collect::<Vec<_>>(), &paths.1)?;
-        self.meta_data.key_value_stores.push((paths.0, paths.1)); // @Temporary create own datastructure for boost
+        // self.meta_data.key_value_stores.push((paths.0, paths.1)); // @Temporary create own datastructure for boost
+        self.meta_data.key_value_stores.push(KVStoreMetaData{key_has_duplicates:has_duplicates, valid_path: paths.0.clone(), parentid_path:paths.1.clone()});
         Ok(())
     }
 
@@ -189,6 +228,10 @@ impl Persistence {
         Ok(())
     }
 
+    pub fn get_valueid_to_parent(&self, path: &(String, String)) -> &Box<IndexIdToParent> { // @Temporary Check if in cache
+        self.cache.index_id_to_parento.get(path).unwrap()
+    }
+
     pub fn get_file_search(&self, path: &str) -> FileSearch{
         FileSearch::new(path, self.get_file_handle(path).unwrap())
     }
@@ -216,9 +259,9 @@ impl Persistence {
 
     pub fn load_all_to_cache(&mut self) -> Result<(), io::Error> {
         let mut all_tuple_paths = vec![];
-        for &(ref valid, ref parentid) in &self.meta_data.key_value_stores {
-            all_tuple_paths.push(valid.to_string());
-            all_tuple_paths.push(parentid.to_string());
+        for el in &self.meta_data.key_value_stores {
+            all_tuple_paths.push(el.valid_path.to_string());
+            all_tuple_paths.push(el.parentid_path.to_string());
         }
 
         for (_, ref idlist) in &self.meta_data.id_lists.clone() {
@@ -231,21 +274,32 @@ impl Persistence {
             }
         }
 
-        for &(ref valid, ref parentid) in &self.meta_data.key_value_stores {
+        for el in &self.meta_data.key_value_stores {
+            let ref valid = el.valid_path;
+            let ref parentid = el.parentid_path;
             infoTime!("create key_value_store");
             let mut data = vec![];
-            let mut valids = load_indexo(&get_file_path(&self.db, valid)).unwrap();
+            let mut valids = load_indexo(&get_file_path(&self.db, &valid)).unwrap();
             valids.dedup();
             if valids.len() == 0 { continue; }
             data.resize(*valids.last().unwrap() as usize + 1, vec![]);
 
-            let store = IndexKeyValueStore::new(&(get_file_path(&self.db, valid), get_file_path(&self.db, parentid)));
+            let store = IndexKeyValueStore::new(&(get_file_path(&self.db, &valid), get_file_path(&self.db, &parentid)));
             infoTime!("create insert key_value_store");
             for valid in valids {
                 data[valid as usize] = store.get_values(valid);
             }
 
-            self.cache.index_id_to_parent.insert((valid.clone(), parentid.clone()), data);
+            // self.cache.index_id_to_parent.insert((valid.clone(), parentid.clone()), data.clone());
+
+            if el.key_has_duplicates {
+                self.cache.index_id_to_parento.insert((valid.clone(), parentid.clone()), Box::new(IndexIdToMultipleParent {data}));
+            } else {
+                let data = data.iter().map(|el| if el.len() >0 { el[0] as i32 } else{ NOT_FOUND }).collect();
+                self.cache.index_id_to_parento.insert((valid.clone(), parentid.clone()), Box::new(IndexIdToOneParent {data}));
+                // IndexIdToOneParent {data:data.map(|el| el[0])}
+            }
+            // self.cache.index_id_to_parento.insert((valid.clone(), parentid.clone()), yep));
         }
 
         // Load FST
@@ -393,9 +447,9 @@ fn check_is_docid_type<T: Integer + NumCast + Copy>(data: &Vec<T>) -> bool {
 
 
 #[derive(Debug)]
-struct IndexKeyValueStore {
-    values1: Vec<u32>,
-    values2: Vec<u32>,
+pub struct IndexKeyValueStore {
+    pub values1: Vec<u32>,
+    pub values2: Vec<u32>,
 }
 
 impl IndexKeyValueStore {

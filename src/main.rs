@@ -1,6 +1,8 @@
 #![feature(test)]
 #![feature(collection_placement)]
 #![feature(placement_in_syntax)]
+#![feature(box_syntax, box_patterns)]
+#![cfg_attr(feature= "unstable", feature(alloc, heap_api, repr_simd))]
 
 #[macro_use]
 extern crate serde_derive;
@@ -33,6 +35,10 @@ extern crate iron;
 extern crate bodyparser;
 extern crate router;
 extern crate time;
+
+// extern crate heapsize;
+// use heapsize::{HeapSizeOf, heap_size_of};
+
 
 // use fst::{IntoStreamer, Streamer, Levenshtein, Set, MapBuilder};
 #[allow(unused_imports)]
@@ -73,6 +79,7 @@ mod tests;
 
 use std::str;
 
+#[allow(dead_code)]
 fn create_thalia_index() {
     // let all_terms = loadcsv("./data.csv", 0);
     // println!("{:?}", all_terms.len());
@@ -115,10 +122,11 @@ fn main() {
 
     // create_thalia_index();
 
-    let mut pers:persistence::Persistence = persistence::Persistence::load("csv_test".to_string()).expect("could not load persistence");
+    let _pers:persistence::Persistence = persistence::Persistence::load("csv_test".to_string()).expect("could not load persistence");
     // doc_loader::DocLoader::load(&mut pers);
     // search::to_documents(&pers, &vec!(search::Hit{id:0, score:0.5}));
 
+    // println!("_pers {:?}mb", _pers.heap_size_of_children()/1_000_000);
     {
         println!("Ab gehts");
         #[allow(unused_variables)]
@@ -197,8 +205,6 @@ fn main() {
         // println!("{:?}", doc);
         // println!("{:?}", hits);
     }
-
-    
 
 
     // {
@@ -368,6 +374,196 @@ fn test_build_fst() -> Result<(), fst::Error> {
     Ok(())
 }
 
+// use std::collections::BTreeMap;
+// use fst::raw::{Builder, Fst, Output};
+
+// #[cfg(test)]
+// mod testero {
+
+// use test::Bencher;
+// use super::*;
+
+//     #[bench]
+//     fn bench_teh_stuff_btree(b: &mut Bencher) {
+//         let mut map = BTreeMap::new();
+//         for n in 1..15555555 {
+//             map.insert(n, n * 30);
+//         }
+//         b.iter(|| {
+//             // let mut hits = vec![];
+//             // for i in 100000..200000 {
+//             //     hits.push(map.get(&(i*50)));
+//             // }
+//             map.get(&1_234_567);
+//             map.get(&60_000_000);
+//             map.get(&12_345_678);
+//             map.get(&80_345_678);
+//             map.get(&123_456_789);
+//         });
+//     }
+
+//     #[bench]
+//     fn bench_teh_stuff_hashmap(b: &mut Bencher) {
+//         let mut map = FnvHashMap::default();
+//         for n in 1..15555555 {
+//             map.insert(n, n * 30);
+//         }
+//         b.iter(|| {
+//             // let mut hits = vec![];
+//             // for i in 100000..200000 {
+//             //     hits.push(map.get(&(i*50)));
+//             // }
+//             map.get(&1_234_567);
+//             map.get(&60_000_000);
+//             map.get(&12_345_678);
+//             map.get(&80_345_678);
+//             map.get(&123_456_789);
+//         });
+//     }
+
+//     #[bench]
+//     fn bench_teh_stuff_fst(b: &mut Bencher) {
+//         let wtr = io::BufWriter::new(File::create("bencho.fst").unwrap());
+//         let mut build2 = MapBuilder::new(wtr).unwrap();
+//         let mut ids = vec![];
+//         let mut build = Builder::memory();
+//         for n in 1..15555555 {
+//             // map.insert(n, n);
+//             let raw_bytes : [u8; 8] = unsafe {std::mem::transmute(n as u64)};
+//             // build.insert(raw_bytes, n).unwrap();
+//             // build.insert(n.to_string(), n).unwrap();
+//             // ids.push(format!("{:09}", n));
+//             // ids.push(n.to_string());
+//             ids.push((raw_bytes, n * 30));
+//         }
+//         // ids.sort();
+//         ids.sort_by_key(|&(k, ref v)| k);
+//         for (ref el, ref v) in ids {
+//             build.insert(el.clone(), *v  ).unwrap();
+//             build2.insert(el.clone(), *v ).unwrap();
+//         }
+//         let fst_bytes = build.into_inner().unwrap();
+//         build2.finish().unwrap();
+//         // Create an Fst that we can query.
+//         let fst = Fst::from_bytes(fst_bytes).unwrap();
+//         let raw_bytes1 : [u8; 8] = unsafe {std::mem::transmute(1_234_567 as u64)};
+//         let raw_bytes2 : [u8; 8] = unsafe {std::mem::transmute(60_000_000 as u64)};
+//         let raw_bytes3 : [u8; 8] = unsafe {std::mem::transmute(12_345_678 as u64)};
+//         let raw_bytes4 : [u8; 8] = unsafe {std::mem::transmute(80_345_678 as u64)};
+//         let raw_bytes5 : [u8; 8] = unsafe {std::mem::transmute(123_456_789 as u64)};
+//         b.iter(|| {
+//             // for i in 100000..200000 {
+//             //     // fst.get(format!("{:09}", i*50));
+//             //     // fst.get((i*50).to_string());
+//             //     let raw_bytes : [u8; 8] = unsafe {std::mem::transmute((i*50) as u32)};
+//             //     fst.get(raw_bytes);
+//             // }
+//             fst.get(raw_bytes1);
+//             fst.get(raw_bytes2);
+//             fst.get(raw_bytes3);
+//             fst.get(raw_bytes4);
+//             fst.get(raw_bytes5);
+//         });
+//     }
+
+//     #[bench]
+//     fn bench_teh_stuff_fst_string_based(b: &mut Bencher) {
+//         let mut ids = vec![];
+//         let mut build = Builder::memory();
+//         for n in 1..15555555 {
+//             ids.push((format!("{:09}", n), n * 30));
+//         }
+//         ids.sort_by_key(|&(ref k, ref v)| k.clone());
+//         for (ref el, ref v) in ids {
+//             build.insert(el.clone(),  *v ).unwrap();
+//         }
+//         let fst_bytes = build.into_inner().unwrap();
+//         // Create an Fst that we can query.
+//         let fst = Fst::from_bytes(fst_bytes).unwrap();
+//         b.iter(|| {
+//             // for i in 100000..200000 {
+//             //     // fst.get(format!("{:09}", i*50));
+//             //     // fst.get((i*50).to_string());
+//             //     let raw_bytes : [u8; 8] = unsafe {std::mem::transmute((i*50) as u32)};
+//             //     fst.get(raw_bytes);
+//             // }
+//             fst.get(format!("{:09}", 1_234_567));
+//             fst.get(format!("{:09}", 60_000_000));
+//             fst.get(format!("{:09}", 12_345_678));
+//             fst.get(format!("{:09}", 80_345_678));
+//             fst.get(format!("{:09}", 123_456_789));
+//         });
+//     }
+
+//     #[bench]
+//     fn bench_teh_stuff_vec(b: &mut Bencher) {
+//         let mut vec = vec![];
+//         vec.resize(15555555, 0);
+//         for n in 1..15555555 {
+//             // vec.insert(n, n * 30);
+//             vec[n] = n * 30;
+//         }
+//         b.iter(|| {
+//             // let mut hits = vec![];
+//             // for i in 100000..200000 {
+//             //     hits.push(vec.get(i*50));
+//             // }
+//             vec.get(1_234_567);
+//             vec.get(60_000_000);
+//             vec.get(12_345_678);
+//             vec.get(80_345_678);
+//             vec.get(123_456_789);
+//         });
+//     }
+
+//     #[bench]
+//     fn bench_teh_stuff_vec_binary_search(b: &mut Bencher) {
+//         let mut vec1 = vec![];
+//         let mut vec2 = vec![];
+//         // vec.resize(15555555, 0);
+//         for n in 1..15555555 {
+//             vec1.push(n);
+//             vec2.push(n * 30);
+//         }
+//         b.iter(|| {
+//             // let mut hits = vec![];
+//             // for i in 100000..200000 {
+//             //     hits.push(vec.get(i*50));
+//             // }
+//             match vec1.binary_search(&1_234_567) {
+//                 Ok(mut pos) => {
+//                     vec2[pos];
+//                 },Err(_) => {},
+//             }
+//             match vec1.binary_search(&60_000_000) {
+//                 Ok(mut pos) => {
+//                     vec2[pos];
+//                 },Err(_) => {},
+//             }
+//             match vec1.binary_search(&12_345_678) {
+//                 Ok(mut pos) => {
+//                     vec2[pos];
+//                 },Err(_) => {},
+//             }
+//             match vec1.binary_search(&80_345_678) {
+//                 Ok(mut pos) => {
+//                     vec2[pos];
+//                 },Err(_) => {},
+//             }
+//             match vec1.binary_search(&123_456_789) {
+//                 Ok(mut pos) => {
+//                     vec2[pos];
+//                 },Err(_) => {},
+//             }
+//             // vec1.binary_search(&1_234_567);
+//             // vec1.binary_search(&60_000_000);
+//             // vec1.binary_search(&12_345_678);
+//             // vec1.binary_search(&80_345_678);
+//             // vec1.binary_search(&123_456_789);
+//         });
+//     }
+
+// }
 
 // #[test]
 // fn it_works() {

@@ -169,7 +169,9 @@ use expression::ScoreExpression;
 
 fn add_boost(persistence: &Persistence, boost: &RequestBoostPart, hits: &mut FnvHashMap<u32, f32>) {
     let key = util::boost_path(&boost.path);
-    let boostkv_store = persistence.cache.index_id_to_parent.get(&key).expect(&format!("Could not find {:?} in index_id_to_parent cache", key));
+
+    let boostkv_store = persistence.get_valueid_to_parent(&key);
+    // let boostkv_store = persistence.cache.index_id_to_parent.get(&key).expect(&format!("Could not find {:?} in index_id_to_parent cache", key));
     let boost_param = boost.param.unwrap_or(0.0);
 
     let expre = boost.expression.as_ref().map(|expression| ScoreExpression::new(expression.clone()));
@@ -179,8 +181,9 @@ fn add_boost(persistence: &Persistence, boost: &RequestBoostPart, hits: &mut Fnv
         if skip_when_score.len()>0 && skip_when_score.iter().find(|x| *x == score).is_some() {
             continue;
         }
-        let ref vals_opt = boostkv_store.get(*value_id as usize);
-        vals_opt.map(|values|{
+        // let ref vals_opt = boostkv_store.get(*value_id as usize);
+        let ref vals_opt = boostkv_store.get_values(*value_id as u64);
+        vals_opt.as_ref().map(|values|{
             if values.len() > 0 {
                 let boost_value = values[0]; // @Temporary // @Hack this should not be an array for this case
                 match boost.boost_fun {
@@ -243,24 +246,29 @@ pub fn search_raw(persistence:&Persistence, mut request: RequestSearchPart, mut 
 
         let key = util::concat_tuple(&path_name, ".valueIdToParent.valIds", ".valueIdToParent.mainIds");
         debugTime!("Joining to anchor");
-        let kv_store = persistence.cache.index_id_to_parent.get(&key).expect(&format!("Could not find {:?} in index_id_to_parent cache", key));
+        let kv_store = persistence.get_valueid_to_parent(&key);
+        // let kv_store = persistence.cache.index_id_to_parent.get(&key).expect(&format!("Could not find {:?} in index_id_to_parent cache", key));
         debugTime!("Adding all values");
         next_level_hits.reserve(hits.len());
         for (value_id, score) in hits.iter() {
             // kv_store.add_values(*value_id, &cache_lock, *score, &mut next_level_hits);
-            let ref values = kv_store[*value_id as usize];
-            next_level_hits.reserve(values.len());
-            trace!("value_id: {:?} values: {:?} ", value_id, values);
-            for parent_val_id in values {    // @Temporary
-                match next_level_hits.entry(*parent_val_id as u32) {
-                    Vacant(entry) => { entry.insert(*score); },
-                    Occupied(entry) => {
-                        if *entry.get() < *score {
-                            *entry.into_mut() = score.max(*entry.get()) + 0.1;
-                        }
-                    },
+            // let ref values = kv_store[*value_id as usize];
+            let ref values = kv_store.get_values(*value_id as u64);
+            values.as_ref().map(|values| {
+                next_level_hits.reserve(values.len());
+                trace!("value_id: {:?} values: {:?} ", value_id, values);
+                for parent_val_id in values {    // @Temporary
+                    match next_level_hits.entry(*parent_val_id as u32) {
+                        Vacant(entry) => { entry.insert(*score); },
+                        Occupied(entry) => {
+                            if *entry.get() < *score {
+                                *entry.into_mut() = score.max(*entry.get()) + 0.1;
+                            }
+                        },
+                    }
                 }
-            }
+            });
+
 
             // for parent_val_id in values {    // @Temporary
             //     next_level_hits.place_back() <- (parent_val_id, *score);
