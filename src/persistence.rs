@@ -66,8 +66,9 @@ use std::mem;
 use search::SearchError;
 use num;
 use num::{Integer, NumCast};
+use heapsize::{HeapSizeOf, heap_size_of};
 
-pub trait IndexIdToParent: Debug {
+pub trait IndexIdToParent: Debug + HeapSizeOf {
     fn get_values(&self, id: u64) -> Option<Vec<u32>>;
     fn get_value(&self, id: u64) -> Option<u32>;
 }
@@ -86,6 +87,10 @@ impl IndexIdToParent for IndexIdToMultipleParent {
         // self.data.get(id as usize).as_ref().map(|el| el[0])
         self.get_values(id).map(|el| el[0])
     }
+}
+
+impl HeapSizeOf for IndexIdToMultipleParent {
+    fn heap_size_of_children(&self) -> usize{self.data.heap_size_of_children() }
 }
 
 static NOT_FOUND:i32 = -1;
@@ -107,6 +112,9 @@ impl IndexIdToParent for IndexIdToOneParent {
         }
         // self.data.get(id as usize).map(|el| if(*el == NOT_FOUND){ None} else{ el.clone() as u32 })
     }
+}
+impl HeapSizeOf for IndexIdToOneParent {
+    fn heap_size_of_children(&self) -> usize{self.data.heap_size_of_children() }
 }
 
 #[derive(Debug, Default)]
@@ -134,7 +142,14 @@ fn has_duplicates<T: Copy + Clone + Integer>(data: &Vec<T>) -> bool {
     return false;
 }
 
+
 impl Persistence {
+    pub fn print_heap_sizes(&self) {
+        println!("cache.index_64 {:?}mb", self.cache.index_64.heap_size_of_children()/1_000_000);
+        println!("cache.index_id_to_parento {:?}mb", self.cache.index_id_to_parento.heap_size_of_children()/1_000_000);
+        // println!("cache.fst {:?}mb", self.cache.fst.heap_size_of_children()/1_000_000);
+    }
+
     pub fn load(db: String) -> Result<Self, io::Error> {
         let meta_data = MetaData::new(&db);
         // let mut pers = Persistence{meta_data, db, index_id_to_parent:HashMap::default(), ..Default::default()};
@@ -300,7 +315,9 @@ impl Persistence {
 
             if el.key_has_duplicates {
                 let data = data.iter().map(|el| {
-                    encoder.compress_vec(&vec_to_bytes(el)).unwrap()
+                    let mut el = el.clone();
+                    el.sort();
+                    encoder.compress_vec(&vec_to_bytes(&el)).unwrap()
                 }).collect();
                 self.cache.index_id_to_parento.insert((valid.clone(), parentid.clone()), Box::new(IndexIdToMultipleParent {data}));
             } else {

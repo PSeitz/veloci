@@ -37,8 +37,8 @@ extern crate router;
 extern crate time;
 extern crate snap;
 
-// extern crate heapsize;
-// use heapsize::{HeapSizeOf, heap_size_of};
+extern crate heapsize;
+use heapsize::{HeapSizeOf, heap_size_of};
 
 
 // use fst::{IntoStreamer, Streamer, Levenshtein, Set, MapBuilder};
@@ -128,6 +128,7 @@ fn main() {
     // search::to_documents(&pers, &vec!(search::Hit{id:0, score:0.5}));
 
     // println!("_pers {:?}mb", _pers.heap_size_of_children()/1_000_000);
+    _pers.print_heap_sizes();
     {
         println!("Ab gehts");
         #[allow(unused_variables)]
