@@ -19,6 +19,7 @@ use abomonation::{encode, decode, Abomonation};
 use std::collections::HashMap;
 
 use create;
+use snap;
 
 #[allow(unused_imports)]
 use fst::{IntoStreamer, Levenshtein, Set, Map, MapBuilder};
@@ -72,13 +73,18 @@ pub trait IndexIdToParent: Debug {
 }
 
 #[derive(Debug)]
-struct IndexIdToMultipleParent {data: Vec<Vec<u32>> }
+struct IndexIdToMultipleParent {data: Vec<Vec<u8>> }
 impl IndexIdToParent for IndexIdToMultipleParent {
     fn get_values(&self, id: u64) -> Option<Vec<u32>>{
-        self.data.get(id as usize).map(|el| el.clone())
+        self.data.get(id as usize).map(|el| {
+            // el.clone()
+            let mut decoder = snap::Decoder::new();
+            bytes_to_vec(&mut decoder.decompress_vec(el).unwrap())
+        })
     }
     fn get_value(&self, id: u64) -> Option<u32>{
-        self.data.get(id as usize).as_ref().map(|el| el[0])
+        // self.data.get(id as usize).as_ref().map(|el| el[0])
+        self.get_values(id).map(|el| el[0])
     }
 }
 
@@ -165,8 +171,7 @@ impl Persistence {
     }
 
     pub fn write_index<T: Abomonation + Clone + Integer + NumCast + Copy + Debug>(&mut self, data:&Vec<T>, path:&str) -> Result<(), io::Error> {
-        let mut bytes:Vec<u8> = Vec::new();
-        unsafe { encode(data, &mut bytes); }
+        let bytes = vec_to_bytes(&data);
         File::create(util::get_file_path(&self.db, path))?.write_all(&bytes)?;
         // unsafe { File::create(path)?.write_all(typed_to_bytes(data))?; }
         info!("Wrote Index {} With size {:?}", path, data.len());
@@ -274,6 +279,7 @@ impl Persistence {
             }
         }
 
+        let mut encoder = snap::Encoder::new();
         for el in &self.meta_data.key_value_stores {
             let ref valid = el.valid_path;
             let ref parentid = el.parentid_path;
@@ -293,6 +299,9 @@ impl Persistence {
             // self.cache.index_id_to_parent.insert((valid.clone(), parentid.clone()), data.clone());
 
             if el.key_has_duplicates {
+                let data = data.iter().map(|el| {
+                    encoder.compress_vec(&vec_to_bytes(el)).unwrap()
+                }).collect();
                 self.cache.index_id_to_parento.insert((valid.clone(), parentid.clone()), Box::new(IndexIdToMultipleParent {data}));
             } else {
                 let data = data.iter().map(|el| if el.len() >0 { el[0] as i32 } else{ NOT_FOUND }).collect();
@@ -417,7 +426,20 @@ impl FileSearch {
 }
 
 
+fn bytes_to_vec<T: Abomonation + Clone>(mut data: &mut Vec<u8>) -> Vec<T> {
+    if let Some((result, remaining)) = unsafe { decode::<Vec<T>>(&mut data) } {
+        assert!(remaining.len() == 0);
+        result.clone()
+    }else{
+        panic!("Could no load Vector");
+    }
+}
 
+fn vec_to_bytes<T: Abomonation + Clone + Integer + NumCast + Copy + Debug>(data:&Vec<T>) -> Vec<u8> {
+    let mut bytes:Vec<u8> = Vec::new();
+    unsafe { encode(data, &mut bytes); };
+    bytes
+}
 
 fn load_indexo<T: Abomonation + Clone>(s1: &str) -> Result<Vec<T>, io::Error> {
     info!("Loading Index32 {} ", s1);
@@ -426,13 +448,7 @@ fn load_indexo<T: Abomonation + Clone>(s1: &str) -> Result<Vec<T>, io::Error> {
     f.read_to_end(&mut buffer)?;
     buffer.shrink_to_fit();
     // let buf_len = buffer.len();
-
-    if let Some((result, remaining)) = unsafe { decode::<Vec<T>>(&mut buffer) } {
-        assert!(remaining.len() == 0);
-        Ok(result.clone())
-    }else{
-        panic!("Could no load Vector");
-    }
+    Ok(bytes_to_vec::<T>(&mut buffer))
 }
 
 fn check_is_docid_type<T: Integer + NumCast + Copy>(data: &Vec<T>) -> bool {

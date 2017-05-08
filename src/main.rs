@@ -35,6 +35,7 @@ extern crate iron;
 extern crate bodyparser;
 extern crate router;
 extern crate time;
+extern crate snap;
 
 // extern crate heapsize;
 // use heapsize::{HeapSizeOf, heap_size_of};
