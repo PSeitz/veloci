@@ -288,10 +288,11 @@ pub fn create_fulltext_index_csv(csv_path: &str, attr_name:&str, attr_pos: usize
 
     Ok(())
 }
-
+use persistence;
 
 fn store_full_text_info(mut persistence: &mut Persistence, all_terms: Vec<String>, path:&str, options:&FulltextIndexOptions) -> Result<(), io::Error> {
-    persistence.write_index(&get_string_offsets(&all_terms), &concat(&path, ".offsets"))?; // String byte offsets
+    let offsets = get_string_offsets(&all_terms);
+    persistence.write_index(&persistence::vec_to_bytes_u64(&offsets), &offsets, &concat(&path, ".offsets"))?; // String byte offsets
     // persistence.write_data(path, all_terms.join("\n").as_bytes())?;
     // persistence.write_index(&all_terms.iter().map(|ref el| el.len() as u32).collect::<Vec<_>>(), &concat(path, ".length"))?;
     store_fst(persistence, &all_terms, path).expect("Could not store fst"); // @FixMe handle result
@@ -451,54 +452,54 @@ fn print_vec_chardata(vec: &Vec<CharDataComplete>) -> String{
 }
 
 
-pub fn create_char_offsets(data:&Vec<String>, path:&str,mut persistence: &mut Persistence) -> Result<(), io::Error> {
-    let now = Instant::now();
-    let mut char_offsets:Vec<CharData> = vec![];
+// pub fn create_char_offsets(data:&Vec<String>, path:&str,mut persistence: &mut Persistence) -> Result<(), io::Error> {
+//     let now = Instant::now();
+//     let mut char_offsets:Vec<CharData> = vec![];
 
-    let mut current_byte_offset = 0;
-    let mut line_num = 0;
-    for text in data {
-        let mut chars = text.chars();
-        let char1 = chars.next().map_or("".to_string(), |c| c.to_string());
-        let char12 = char1.clone() + &chars.next().map_or("".to_string(), |c| c.to_string());
+//     let mut current_byte_offset = 0;
+//     let mut line_num = 0;
+//     for text in data {
+//         let mut chars = text.chars();
+//         let char1 = chars.next().map_or("".to_string(), |c| c.to_string());
+//         let char12 = char1.clone() + &chars.next().map_or("".to_string(), |c| c.to_string());
 
-        if char_offsets.binary_search_by(|ref x| x.suffix.cmp(&char1)).is_err(){
-            char_offsets.push(CharData{suffix:char1, byte_offset_start:current_byte_offset, line_num:line_num});
-        }
+//         if char_offsets.binary_search_by(|ref x| x.suffix.cmp(&char1)).is_err(){
+//             char_offsets.push(CharData{suffix:char1, byte_offset_start:current_byte_offset, line_num:line_num});
+//         }
 
-        if char_offsets.binary_search_by(|ref x| x.suffix.cmp(&char12)).is_err() {
-            char_offsets.push(CharData{suffix:char12, byte_offset_start:current_byte_offset, line_num:line_num});
-        }
+//         if char_offsets.binary_search_by(|ref x| x.suffix.cmp(&char12)).is_err() {
+//             char_offsets.push(CharData{suffix:char12, byte_offset_start:current_byte_offset, line_num:line_num});
+//         }
 
-        current_byte_offset += text.len() as u64 + 1;
-        line_num+=1;
-    }
-    let mut char_offsets_complete:Vec<CharDataComplete> = vec![];
+//         current_byte_offset += text.len() as u64 + 1;
+//         line_num+=1;
+//     }
+//     let mut char_offsets_complete:Vec<CharDataComplete> = vec![];
 
-    for (i,ref mut char_offset) in char_offsets.iter().enumerate() {
-        let forward_look_next_el = char_offsets.iter().skip(i+1).find(|&r| r.suffix.len() == char_offset.suffix.len());
-        // println!("{:?}", forward_look_next_el);
-        let byte_offset_end = forward_look_next_el.map_or(current_byte_offset, |v| v.byte_offset_start-1);
-        char_offsets_complete.push(CharDataComplete{
-            suffix:char_offset.suffix.to_string(),
-            line_num:char_offset.line_num,
-            byte_offset_start:char_offset.byte_offset_start,
-            byte_offset_end:byte_offset_end});
-    }
+//     for (i,ref mut char_offset) in char_offsets.iter().enumerate() {
+//         let forward_look_next_el = char_offsets.iter().skip(i+1).find(|&r| r.suffix.len() == char_offset.suffix.len());
+//         // println!("{:?}", forward_look_next_el);
+//         let byte_offset_end = forward_look_next_el.map_or(current_byte_offset, |v| v.byte_offset_start-1);
+//         char_offsets_complete.push(CharDataComplete{
+//             suffix:char_offset.suffix.to_string(),
+//             line_num:char_offset.line_num,
+//             byte_offset_start:char_offset.byte_offset_start,
+//             byte_offset_end:byte_offset_end});
+//     }
 
-    trace!("{}", print_vec_chardata(&char_offsets_complete));
+//     trace!("{}", print_vec_chardata(&char_offsets_complete));
 
 
-    // path!PWN test macro
-    persistence.write_index(&char_offsets_complete.iter().map(|ref el| el.byte_offset_start).collect::<Vec<_>>(), &(path.to_string()+".char_offsets.byteOffsetsStart"))?;
-    persistence.write_index(&char_offsets_complete.iter().map(|ref el| el.byte_offset_end  ).collect::<Vec<_>>(), &(path.to_string()+".char_offsets.byteOffsetsEnd"))?;
-    persistence.write_index(&char_offsets_complete.iter().map(|ref el| el.line_num         ).collect::<Vec<_>>(), &(path.to_string()+".char_offsets.lineOffset"))?;
+//     // path!PWN test macro
+//     persistence.write_index(&char_offsets_complete.iter().map(|ref el| el.byte_offset_start).collect::<Vec<_>>(), &(path.to_string()+".char_offsets.byteOffsetsStart"))?;
+//     persistence.write_index(&char_offsets_complete.iter().map(|ref el| el.byte_offset_end  ).collect::<Vec<_>>(), &(path.to_string()+".char_offsets.byteOffsetsEnd"))?;
+//     persistence.write_index(&char_offsets_complete.iter().map(|ref el| el.line_num         ).collect::<Vec<_>>(), &(path.to_string()+".char_offsets.lineOffset"))?;
 
-    persistence.write_data(&(path.to_string()+".char_offsets.chars"), &char_offsets_complete.iter().map(|ref el| el.suffix.to_string()).collect::<Vec<_>>().join("\n").as_bytes())?;
+//     persistence.write_data(&(path.to_string()+".char_offsets.chars"), &char_offsets_complete.iter().map(|ref el| el.suffix.to_string()).collect::<Vec<_>>().join("\n").as_bytes())?;
 
-    info!("create_char_offsets_complete {} {}ms" , path, (now.elapsed().as_secs() as f64 * 1_000.0) + (now.elapsed().subsec_nanos() as f64 / 1000_000.0));
-    Ok(())
-}
+//     info!("create_char_offsets_complete {} {}ms" , path, (now.elapsed().as_secs() as f64 * 1_000.0) + (now.elapsed().subsec_nanos() as f64 / 1000_000.0));
+//     Ok(())
+// }
 
 pub fn create_indices(folder:&str, data_str:&str, indices:&str) -> Result<(), CreateError>{
 

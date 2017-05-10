@@ -25,12 +25,13 @@ impl Drop for MeasureTime {
         match self.level  {
             MeasureTimeLogLevel::Info  =>  info!("{} took {}ms ",self.name, (self.start.elapsed().as_secs() as f64 * 1_000.0) + (self.start.elapsed().subsec_nanos() as f64 / 1000_000.0)),
             MeasureTimeLogLevel::Debug => debug!("{} took {}ms ",self.name, (self.start.elapsed().as_secs() as f64 * 1_000.0) + (self.start.elapsed().subsec_nanos() as f64 / 1000_000.0)),
+            MeasureTimeLogLevel::Print => println!("{} took {}ms ",self.name, (self.start.elapsed().as_secs() as f64 * 1_000.0) + (self.start.elapsed().subsec_nanos() as f64 / 1000_000.0)),
         }
     }
 }
 
 #[derive(Debug)]
-pub enum MeasureTimeLogLevel {Info, Debug, }
+pub enum MeasureTimeLogLevel {Info, Debug, Print}
 #[macro_export]
 macro_rules! infoTime {($e:expr) => {#[allow(unused_variables)] let time = util::MeasureTime::new_info($e); } }
 #[macro_export]

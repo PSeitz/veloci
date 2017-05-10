@@ -84,9 +84,10 @@ where F: FnMut(&str, u32) {
 }
 
 
-pub fn get_hits_in_field(persistence:&Persistence, mut options: &mut RequestSearchPart) -> Result<FnvHashMap<u32, f32>, SearchError> {
+pub fn get_hits_in_field(persistence:&Persistence, mut options: &mut RequestSearchPart) -> Result<Vec<(u32, f32)>, SearchError> {
     debugTime!("get_hits_in_field");
-    let mut hits:FnvHashMap<u32, f32> = FnvHashMap::default();
+    // let mut hits:FnvHashMap<u32, f32> = FnvHashMap::default();
+    let mut hits:Vec<(u32, f32)> = vec![];
     // let checks:Vec<Fn(&str) -> bool> = Vec::new();
     let term_chars = options.term.chars().collect::<Vec<char>>();
     // options.first_char_exact_match = options.exact || options.levenshtein_distance == 0 || options.starts_with.is_some(); // TODO fix
@@ -120,7 +121,8 @@ pub fn get_hits_in_field(persistence:&Persistence, mut options: &mut RequestSear
                 let mut score = if distance.is_some() {get_default_score2(distance.unwrap())} else {get_default_score(&options.term, line)};
                 options.boost.map(|boost_val| score = score * boost_val);
                 debug!("Hit: {:?}\tid: {:?} score: {:?}", line, line_pos, score);
-                hits.insert(line_pos, score);
+                // hits.insert(line_pos, score);
+                hits.push((line_pos, score));
             }
         };
         let exact_search = if options.exact.unwrap_or(false) {Some(options.term.to_string())} else {None};
@@ -134,7 +136,7 @@ pub fn get_hits_in_field(persistence:&Persistence, mut options: &mut RequestSear
 }
 
 
-pub fn add_token_results(persistence:&Persistence, path:&str, hits: &mut FnvHashMap<u32, f32>){
+pub fn add_token_results(persistence:&Persistence, path:&str, hits: &mut Vec<(u32, f32)> ){
     debugTime!("add_token_results");
 
     let has_tokens = persistence.meta_data.fulltext_indices.get(path).map_or(false, |fulltext_info| fulltext_info.tokenize);
@@ -151,23 +153,26 @@ pub fn add_token_results(persistence:&Persistence, path:&str, hits: &mut FnvHash
 
     // let token_kvdata = persistence.cache.index_id_to_parent.get(&key).expect(&format!("Could not find {:?} in index_id_to_parent cache", key));
     let mut token_hits:FnvHashMap<u32, f32> = FnvHashMap::default();
-    for (value_id, _) in hits.iter() {
+    let mut token_hits:Vec<(u32, f32, u32)> = vec![];
+    for &(value_id, score) in hits.iter() {
         // let parent_ids_for_token = token_kvdata.get_parent_val_ids(*value_id, &cache_lock);
 
         // let ref parent_ids_for_token_opt = token_kvdata.get(*value_id as usize);
-        let ref parent_ids_for_token_opt = token_kvdata.get_values(*value_id as u64);
+        let ref parent_ids_for_token_opt = token_kvdata.get_values(value_id as u64);
+        debugTime!("add_token_results to map");
         parent_ids_for_token_opt.as_ref().map(|parent_ids_for_token|{
             if parent_ids_for_token.len() > 0 {
                 token_hits.reserve(parent_ids_for_token.len());
                 for token_parentval_id in parent_ids_for_token {
-                    let parent_text_length = text_offsets[1 + *token_parentval_id as usize] - text_offsets[*token_parentval_id as usize];
-                    let token_text_length  = text_offsets[1 + *value_id as usize] - text_offsets[*value_id as usize];
-                    let adjusted_score = 2.0/(parent_text_length as f32 - token_text_length as f32) + 0.2;
+                    // let parent_text_length = text_offsets[1 + *token_parentval_id as usize] - text_offsets[*token_parentval_id as usize];
+                    // let token_text_length  = text_offsets[1 + *value_id as usize] - text_offsets[*value_id as usize];
+                    // let adjusted_score = 2.0/(parent_text_length as f32 - token_text_length as f32) + 0.2;
 
-                    let the_score = token_hits.entry(*token_parentval_id as u32) // @Temporary
-                        .or_insert(*hits.get(token_parentval_id).unwrap_or(&0.0));
-                    *the_score += adjusted_score;
-                    // token_hits.push(token_parentval_id);
+                    // let the_score = token_hits.entry(*token_parentval_id as u32) // @Temporary
+                    //     .or_insert(*hits.get(token_parentval_id).unwrap_or(&0.0));
+                    // *the_score += adjusted_score;
+                    // token_hits.push((*token_parentval_id, adjusted_score));
+                    token_hits.push((*token_parentval_id, score, value_id));
                 }
             }
         });
@@ -177,14 +182,31 @@ pub fn add_token_results(persistence:&Persistence, path:&str, hits: &mut FnvHash
         // trace!("parent_ids_for_token {:?}", parent_ids_for_token);
     }
     debug!("checked {:?}, got {:?} token hits",hits.iter().count(), token_hits.iter().count());
-    hits.extend(token_hits);
-    // {
-    //     debugTime!("token_hits.sort_by");
-    //     token_hits.sort_by(|a, b| a.0.cmp(&b.0));
-    // }
-    // for hit in token_hits {
-    //     hits.insert(hit, 1.5);
-    // }
+    {
+        // println!("{:?}", token_hits);
+        debugTime!("token_hits.sort_by");
+        token_hits.sort_by(|a, b| a.0.cmp(&b.0));
+    }
+    debugTime!("extend token_results");
+    // hits.extend(token_hits);
+    if token_hits.len() > 0 {
+        hits.reserve(token_hits.len());
+        let mut current_group_id = token_hits[0].0;
+        let mut current_score = token_hits[0].1;
+        for hit in token_hits {
+            if hit.0 != current_group_id {
+                hits.push((current_group_id, current_score));
+                current_group_id = hit.0;
+                current_score = hit.1;
+            }else{
+                // in group
+            }
+            // hits.insert(hit.0, hit.1);
+        }
+        // hits.insert(current_group_id, current_score);
+        hits.push((current_group_id, current_score));
+
+    }
     // for hit in hits.iter() {
     //     trace!("NEW HITS {:?}", hit);
     // }

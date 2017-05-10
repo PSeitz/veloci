@@ -40,6 +40,7 @@ extern crate snap;
 extern crate heapsize;
 use heapsize::{HeapSizeOf, heap_size_of};
 
+extern crate byteorder;
 
 // use fst::{IntoStreamer, Streamer, Levenshtein, Set, MapBuilder};
 #[allow(unused_imports)]
@@ -123,16 +124,16 @@ fn main() {
 
     // create_thalia_index();
 
-    let _pers:persistence::Persistence = persistence::Persistence::load("csv_test".to_string()).expect("could not load persistence");
+    // let mut _pers:persistence::Persistence = persistence::Persistence::load("csv_test".to_string()).expect("could not load persistence");
     // doc_loader::DocLoader::load(&mut pers);
     // search::to_documents(&pers, &vec!(search::Hit{id:0, score:0.5}));
 
     // println!("_pers {:?}mb", _pers.heap_size_of_children()/1_000_000);
-    _pers.print_heap_sizes();
+    // _pers.print_heap_sizes();
     {
         println!("Ab gehts");
         #[allow(unused_variables)]
-        let my_time = util::MeasureTime::new("search total", util::MeasureTimeLogLevel::Info);
+        let my_time = util::MeasureTime::new("search total", util::MeasureTimeLogLevel::Print);
         // let req = json!({
         //     "or":[
         //         {
@@ -187,9 +188,9 @@ fn main() {
         //     ]
         // });
 
-        // let req = json!({
-        //     "and":[{"search": {"term":"kriege", "path": "ISMTITLE"}}, {"search": {"term":"die", "path": "ISMTITLE"}}, {"search": {"term":"ich", "path": "ISMTITLE"}}, {"search": {"term":"gesehen", "path": "ISMTITLE"}}, {"search": {"term":"habe", "path": "ISMTITLE"}} ]
-        // });
+        let req = json!({
+            "and":[{"search": {"term":"kriege", "path": "ISMTITLE"}}, {"search": {"term":"die", "path": "ISMTITLE"}}, {"search": {"term":"ich", "path": "ISMTITLE"}}, {"search": {"term":"gesehen", "path": "ISMTITLE"}}, {"search": {"term":"habe", "path": "ISMTITLE"}} ]
+        });
 
 
         // let req = json!({
@@ -201,8 +202,8 @@ fn main() {
         // });
 
         // let requesto: search::Request = serde_json::from_str(&req.to_string()).unwrap();
-        // let hits = search::search(requesto, 0, 10).unwrap();
-        // let doc = search::to_documents(&hits, "csv_test");
+        // let hits = search::search(requesto, 0, 10, &_pers).unwrap();
+        // let doc = search::to_documents(&mut _pers, &hits);
 
         // println!("{:?}", doc);
         // println!("{:?}", hits);
