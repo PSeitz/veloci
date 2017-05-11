@@ -96,6 +96,14 @@ impl HeapSizeOf for IndexIdToMultipleParent {
     fn heap_size_of_children(&self) -> usize{self.data.heap_size_of_children() }
 }
 
+use std::sync::Mutex;
+
+lazy_static! {
+    static ref SNAP_DECODER: Mutex<snap::Decoder> = {
+        Mutex::new(snap::Decoder::new())
+    };
+}
+
 
 #[derive(Debug)]
 struct IndexIdToMultipleParentCompressed {data: Vec<Vec<u8>> }
@@ -103,12 +111,11 @@ impl IndexIdToParent for IndexIdToMultipleParentCompressed {
     fn get_values(&self, id: u64) -> Option<Vec<u32>>{
         self.data.get(id as usize).map(|el| {
             // el.clone()
-            let mut decoder = snap::Decoder::new();
-            bytes_to_vec_u32(decoder.decompress_vec(el).unwrap())
+            // let mut decoder = snap::Decoder::new();
+            bytes_to_vec_u32(SNAP_DECODER.lock().unwrap().decompress_vec(el).unwrap())
         })
     }
     fn get_value(&self, id: u64) -> Option<u32>{
-        // self.data.get(id as usize).as_ref().map(|el| el[0])
         self.get_values(id).map(|el| el[0])
     }
 }
@@ -133,7 +140,6 @@ impl IndexIdToParent for IndexIdToOneParent {
             },
             None => None,
         }
-        // self.data.get(id as usize).map(|el| if(*el == NOT_FOUND){ None} else{ el.clone() as u32 })
     }
 }
 impl HeapSizeOf for IndexIdToOneParent {
