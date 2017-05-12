@@ -203,35 +203,35 @@ fn add_boost(persistence: &Persistence, boost: &RequestBoostPart, hits: &mut Fnv
 }
 
 
-trait HitCollector: Sized + Sync + Clone  {
-    fn add(&mut self, hits: u32, score:f32);
-    fn union(&mut self, other:&Self);
-    fn intersect(&mut self, other:&Self);
-    fn iter() -> Iterator<Item=(u32, f32)>;
-}
+// trait HitCollector: Sized + Sync + Clone  {
+//     fn add(&mut self, hits: u32, score:f32);
+//     fn union(&mut self, other:&Self);
+//     fn intersect(&mut self, other:&Self);
+//     fn iter() -> Iterator<Item=(u32, f32)>;
+// }
 
-#[derive(Debug, Clone)]
-struct MyHitCollector {
-    hits_vec: Vec<(u32, f32)>
-}
-impl HitCollector for MyHitCollector {
-    fn add(&mut self, hits: u32, score:f32)
-    {
+// #[derive(Debug, Clone)]
+// struct MyHitCollector {
+//     hits_vec: Vec<(u32, f32)>
+// }
+// impl HitCollector for MyHitCollector {
+//     fn add(&mut self, hits: u32, score:f32)
+//     {
 
-    }
-    fn union(&mut self, other:&Self)
-    {
+//     }
+//     fn union(&mut self, other:&Self)
+//     {
 
-    }
-    fn intersect(&mut self, other:&Self)
-    {
+//     }
+//     fn intersect(&mut self, other:&Self)
+//     {
 
-    }
-    fn iter() -> Iterator<Item=(u32, f32)>
-    {
+//     }
+//     fn iter() -> Iterator<Item=(u32, f32)>
+//     {
 
-    }
-}
+//     }
+// }
 
 #[derive(Debug)]
 pub enum SearchError{
