@@ -41,6 +41,12 @@ use csv;
 #[allow(unused_imports)]
 use fst::{self, IntoStreamer, Levenshtein, Set, MapBuilder};
 
+// #[derive(Debug)]
+// enum FulltextType {
+//     InMemory,
+//     Variant2,
+// }
+
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(untagged)]
 pub enum CreateIndex {

@@ -46,6 +46,12 @@ pub struct KVStoreMetaData {
     pub valid_path: String,
     pub parentid_path: String,
     pub key_has_duplicates: bool, // In the sense of 1:n   1key, n values
+    pub persistence_type: KVStoreType
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub enum KVStoreType {
+    TwoArrays
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -204,7 +210,7 @@ impl Persistence {
         let has_duplicates = has_duplicates(&valids);
         self.write_index(&vec_to_bytes_u32(&valids), &valids,   &path_valid)?;
         self.write_index(&vec_to_bytes_u32(&parent_val_ids), &parent_val_ids, &path_parentid)?;
-        self.meta_data.key_value_stores.push(KVStoreMetaData{key_has_duplicates:has_duplicates, valid_path: path_valid.clone(), parentid_path:path_parentid.clone()});
+        self.meta_data.key_value_stores.push(KVStoreMetaData{persistence_type:KVStoreType::TwoArrays, key_has_duplicates:has_duplicates, valid_path: path_valid.clone(), parentid_path:path_parentid.clone()});
         Ok(())
     }
     pub fn write_boost_tuple_pair(&mut self, tuples: &mut Vec<create::ValIdToValue>, path: &str) -> Result<(), io::Error> {
@@ -216,7 +222,7 @@ impl Persistence {
         self.write_index(&vec_to_bytes_u32(&valids), &valids, &paths.0)?;
         self.write_index(&vec_to_bytes_u32(&values), &values, &paths.1)?;
         // self.meta_data.key_value_stores.push((paths.0, paths.1)); // @Temporary create own datastructure for boost
-        self.meta_data.key_value_stores.push(KVStoreMetaData{key_has_duplicates:has_duplicates, valid_path: paths.0.clone(), parentid_path:paths.1.clone()});
+        self.meta_data.key_value_stores.push(KVStoreMetaData{persistence_type:KVStoreType::TwoArrays, key_has_duplicates:has_duplicates, valid_path: paths.0.clone(), parentid_path:paths.1.clone()});
         Ok(())
     }
 

@@ -203,16 +203,29 @@ fn add_boost(persistence: &Persistence, boost: &RequestBoostPart, hits: &mut Fnv
 }
 
 
-// trait HitCollector: Sized + Sync + Clone  {
+// trait Iter: Sync + Clone {
+//     fn next() -> Iterator<Item=(u32, f32)>{
+        
+//     }
+// }
+
+// trait HitCollector: Sync + Clone  {
 //     fn add(&mut self, hits: u32, score:f32);
 //     fn union(&mut self, other:&Self);
 //     fn intersect(&mut self, other:&Self);
-//     fn iter() -> Iterator<Item=(u32, f32)>;
+//     fn iter() -> Iter;
 // }
 
 // #[derive(Debug, Clone)]
 // struct MyHitCollector {
 //     hits_vec: Vec<(u32, f32)>
+// }
+
+// #[derive(Debug, Clone)]
+// struct MyHitCollectorIter {
+// }
+// impl Iter for MyHitCollectorIter {
+//     // add code here
 // }
 // impl HitCollector for MyHitCollector {
 //     fn add(&mut self, hits: u32, score:f32)
@@ -227,11 +240,13 @@ fn add_boost(persistence: &Persistence, boost: &RequestBoostPart, hits: &mut Fnv
 //     {
 
 //     }
-//     fn iter() -> Iterator<Item=(u32, f32)>
+//     fn iter() -> Box<MyHitCollectorIter>
 //     {
 
 //     }
 // }
+
+
 
 #[derive(Debug)]
 pub enum SearchError{
