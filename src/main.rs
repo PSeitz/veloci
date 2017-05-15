@@ -123,6 +123,8 @@ fn main() {
     env_logger::init().unwrap();
 
     // create_thalia_index();
+    // println!("{:?}",create_jmdict_index());
+
 
     // let mut _pers:persistence::Persistence = persistence::Persistence::load("csv_test".to_string()).expect("could not load persistence");
     // doc_loader::DocLoader::load(&mut pers);
@@ -222,8 +224,6 @@ fn main() {
     // println!("{:?}",test_build_f_s_t());
     // println!("{:?}",testfst("anschauen", 2));
     // println!("{:?}",search::test_levenshtein("anschauen", 2));
-
-    // println!("{:?}",create_jmdict_index());
 
 
     // let _ = env_logger::init();
