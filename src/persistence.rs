@@ -46,12 +46,30 @@ pub struct KVStoreMetaData {
     pub valid_path: String,
     pub parentid_path: String,
     pub key_has_duplicates: bool, // In the sense of 1:n   1key, n values
-    pub persistence_type: KVStoreType
+    pub persistence_type: KVStoreType,
+    pub loading_type: LoadingType
+}
+
+// impl KVStoreMetaData {
+//     fn new(valid_path: &str, parentid_path: &str, key_has_duplicates: bool, persistence_type: KVStoreType, loading_type: LoadingType) -> KVStoreMetaData {
+//         KVStoreMetaData{persistence_type:KVStoreType::ParallelArrays, key_has_duplicates:has_duplicates, valid_path: valid_path.clone(), parentid_path:parentid_path.clone()}
+//     }
+// }
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub enum LoadingType {
+    InMemory,
+    Disk,
+}
+
+impl Default for LoadingType {
+    fn default() -> LoadingType { LoadingType::InMemory }
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum KVStoreType {
-    TwoArrays
+    ParallelArrays,
+    PointingArrays
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -152,6 +170,7 @@ impl HeapSizeOf for IndexIdToOneParent {
     fn heap_size_of_children(&self) -> usize{self.data.heap_size_of_children() }
 }
 
+
 #[derive(Debug, Default)]
 pub struct PersistenceCache {
     // pub index_id_to_parent: HashMap<(String,String), Vec<Vec<u32>>>,
@@ -176,7 +195,6 @@ fn has_duplicates<T: Copy + Clone + Integer>(data: &Vec<T>) -> bool {
     }
     return false;
 }
-
 
 impl Persistence {
     pub fn print_heap_sizes(&self) {
@@ -210,7 +228,7 @@ impl Persistence {
         let has_duplicates = has_duplicates(&valids);
         self.write_index(&vec_to_bytes_u32(&valids), &valids,   &path_valid)?;
         self.write_index(&vec_to_bytes_u32(&parent_val_ids), &parent_val_ids, &path_parentid)?;
-        self.meta_data.key_value_stores.push(KVStoreMetaData{persistence_type:KVStoreType::TwoArrays, key_has_duplicates:has_duplicates, valid_path: path_valid.clone(), parentid_path:path_parentid.clone()});
+        self.meta_data.key_value_stores.push(KVStoreMetaData{loading_type:LoadingType::InMemory,persistence_type:KVStoreType::ParallelArrays, key_has_duplicates:has_duplicates, valid_path: path_valid.clone(), parentid_path:path_parentid.clone()});
         Ok(())
     }
     pub fn write_boost_tuple_pair(&mut self, tuples: &mut Vec<create::ValIdToValue>, path: &str) -> Result<(), io::Error> {
@@ -222,7 +240,7 @@ impl Persistence {
         self.write_index(&vec_to_bytes_u32(&valids), &valids, &paths.0)?;
         self.write_index(&vec_to_bytes_u32(&values), &values, &paths.1)?;
         // self.meta_data.key_value_stores.push((paths.0, paths.1)); // @Temporary create own datastructure for boost
-        self.meta_data.key_value_stores.push(KVStoreMetaData{persistence_type:KVStoreType::TwoArrays, key_has_duplicates:has_duplicates, valid_path: paths.0.clone(), parentid_path:paths.1.clone()});
+        self.meta_data.key_value_stores.push(KVStoreMetaData{loading_type:LoadingType::InMemory,persistence_type:KVStoreType::ParallelArrays, key_has_duplicates:has_duplicates, valid_path: paths.0.clone(), parentid_path:paths.1.clone()});
         Ok(())
     }
 
@@ -244,18 +262,14 @@ impl Persistence {
     // fn store_fst(all_terms: &Vec<String>, path:&str) -> Result<(), fst::Error> {
     //     infoTime!("store_fst");
     //     let now = Instant::now();
-
     //     let wtr = io::BufWriter::new(File::create("map.fst")?);
     //     // Create a builder that can be used to insert new key-value pairs.
     //     let mut build = MapBuilder::new(wtr)?;
-
     //     for (i, line) in all_terms.iter().enumerate() {
     //         build.insert(line, i).unwrap();
     //     }
     //     build.finish()?;
-
     //     println!("test_build_fst ms: {}", (now.elapsed().as_secs() as f64 * 1_000.0) + (now.elapsed().subsec_nanos() as f64 / 1000_000.0));
-
     //     Ok(())
     // }
 
@@ -483,8 +497,19 @@ fn test_snap() {
 //         trace!("get_offset_info path:{}\tindex:{}\toffsetSize: {}", self.path, index, byte_offsets_start.len());
 //         return OffsetInfo{byte_range_start: byte_offsets_start[index], byte_range_end: byte_offsets_end[index], line_offset: line_offsets[index]};
 //     }
-
 // }
+
+fn load_bytes(buffer:&mut Vec<u8>, file:&mut File, offset:u64) { // @Temporary Use Result
+    // let string_size = offsets[pos+1] - offsets[pos] - 1;
+    // let mut buffer:Vec<u8> = Vec::with_capacity(string_size as usize);
+    // unsafe { buffer.set_len(string_size as usize); }
+    // buffer.resize(string_size as usize, 0);
+    file.seek(SeekFrom::Start(offset)).unwrap();
+    file.read_exact(buffer).unwrap();
+    // unsafe {str::from_utf8_unchecked(&buffer)}
+    // let s = unsafe {str::from_utf8_unchecked(&buffer)};
+    // str::from_utf8(&buffer).unwrap() // @Temporary  -> use unchecked if stable
+}
 
 #[derive(Debug)]
 pub struct FileSearch {

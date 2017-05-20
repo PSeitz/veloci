@@ -33,6 +33,7 @@ use std::io::prelude::*;
 
 use std::str;
 use persistence::Persistence;
+use persistence::LoadingType;
 
 use std;
 use std::time::Instant;
@@ -42,32 +43,23 @@ use csv;
 use fst::{self, IntoStreamer, Levenshtein, Set, MapBuilder};
 
 #[derive(Serialize, Deserialize, Debug)]
-enum LoadingType {
-    InMemory,
-    Disk,
-}
-impl Default for LoadingType {
-    fn default() -> LoadingType { LoadingType::InMemory }
-}
-
-#[derive(Serialize, Deserialize, Debug)]
 #[serde(untagged)]
 pub enum CreateIndex {
-    Fulltext(FullTextData),
-    Boost(BoostData),
+    FulltextInfo(Fulltext),
+    BoostInfo(Boost),
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-pub struct FullTextData { 
-    fulltext: String, 
-    options: Option<FulltextIndexOptions>, 
+pub struct Fulltext {
+    fulltext: String,
+    options: Option<FulltextIndexOptions>,
     attr_pos:Option<usize>,
     loading_type: Option<LoadingType>
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-pub struct BoostData { 
-    boost: String, 
+pub struct Boost {
+    boost: String,
     options: BoostIndexOptions
 }
 
@@ -533,8 +525,8 @@ pub fn create_indices(folder:&str, data_str:&str, indices:&str) -> Result<(), Cr
     let mut persistence = Persistence::create(folder.to_string())?;
     for el in indices_json {
         match el {
-            CreateIndex::Fulltext(fullTextData) => create_fulltext_index(&data, &fullTextData.fulltext, fullTextData.options.unwrap_or(Default::default()), &mut persistence)?,
-            CreateIndex::Boost(boost) => create_boost_index(&data, &boost.boost, boost.options, &mut persistence)?
+            CreateIndex::FulltextInfo(fullText) => create_fulltext_index(&data, &fullText.fulltext, fullText.options.unwrap_or(Default::default()), &mut persistence)?,
+            CreateIndex::BoostInfo(boost) => create_boost_index(&data, &boost.boost, boost.options, &mut persistence)?
         }
     }
 
@@ -563,8 +555,8 @@ pub fn create_indices_csv(folder:&str, csv_path: &str, indices:&str) -> Result<(
     let mut persistence = Persistence::create(folder.to_string())?;
     for el in indices_json {
         match el {
-            CreateIndex::Fulltext(fullTextData)/*{ fulltext: path, options, attr_pos : _ }*/ => create_fulltext_index_csv(csv_path, &fullTextData.fulltext, fullTextData.attr_pos.unwrap(), fullTextData.options.unwrap_or(Default::default()), &mut persistence)?,
-            CreateIndex::Boost(boost) => {} // @Temporary // @FixMe
+            CreateIndex::FulltextInfo(fullText)/*{ fulltext: path, options, attr_pos : _ }*/ => create_fulltext_index_csv(csv_path, &fullText.fulltext, fullText.attr_pos.unwrap(), fullText.options.unwrap_or(Default::default()), &mut persistence)?,
+            CreateIndex::BoostInfo(boost) => {} // @Temporary // @FixMe
         }
     }
 
