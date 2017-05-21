@@ -27,6 +27,8 @@ use byteorder::{LittleEndian, WriteBytesExt, ReadBytesExt};
 #[allow(unused_imports)]
 use fst::{IntoStreamer, Levenshtein, Set, Map, MapBuilder};
 
+use persistence_data::*;
+
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
 pub struct MetaData {
     pub id_lists: FnvHashMap<String, IDList>,
@@ -196,6 +198,7 @@ fn has_duplicates<T: Copy + Clone + Integer>(data: &Vec<T>) -> bool {
     return false;
 }
 
+
 impl Persistence {
     pub fn print_heap_sizes(&self) {
         println!("cache.index_64 {:?}mb", self.cache.index_64.heap_size_of_children()/1_000_000);
@@ -222,23 +225,19 @@ impl Persistence {
     }
 
     pub fn write_tuple_pair(&mut self, tuples: &mut Vec<create::ValIdPair>, path_valid: String, path_parentid:String) -> Result<(), io::Error> {
-        tuples.sort_by(|a, b| a.valid.partial_cmp(&b.valid).unwrap_or(Ordering::Equal));
-        let valids = tuples.iter().map(|ref el| el.valid      ).collect::<Vec<_>>();
-        let parent_val_ids = tuples.iter().map(|ref el| el.parent_val_id).collect::<Vec<_>>();
-        let has_duplicates = has_duplicates(&valids);
-        self.write_index(&vec_to_bytes_u32(&valids), &valids,   &path_valid)?;
-        self.write_index(&vec_to_bytes_u32(&parent_val_ids), &parent_val_ids, &path_parentid)?;
+        let data:ParallelArrays = valid_pair_to_parallel_arrays(tuples);
+        let has_duplicates = has_duplicates(&data.values1);
+        self.write_index(&vec_to_bytes_u32(&data.values1), &data.values1,   &path_valid)?;
+        self.write_index(&vec_to_bytes_u32(&data.values2), &data.values2, &path_parentid)?;
         self.meta_data.key_value_stores.push(KVStoreMetaData{loading_type:LoadingType::InMemory,persistence_type:KVStoreType::ParallelArrays, key_has_duplicates:has_duplicates, valid_path: path_valid.clone(), parentid_path:path_parentid.clone()});
         Ok(())
     }
     pub fn write_boost_tuple_pair(&mut self, tuples: &mut Vec<create::ValIdToValue>, path: &str) -> Result<(), io::Error> {
         let paths = util::boost_path(path);
-        tuples.sort_by(|a, b| a.valid.partial_cmp(&b.valid).unwrap_or(Ordering::Equal));
-        let valids = tuples.iter().map(|ref el| el.valid      ).collect::<Vec<_>>();
-        let values = tuples.iter().map(|ref el| el.value).collect::<Vec<_>>();
-        let has_duplicates = has_duplicates(&valids);
-        self.write_index(&vec_to_bytes_u32(&valids), &valids, &paths.0)?;
-        self.write_index(&vec_to_bytes_u32(&values), &values, &paths.1)?;
+        let data:ParallelArrays = boost_pair_to_parallel_arrays(tuples);
+        let has_duplicates = has_duplicates(&data.values1);
+        self.write_index(&vec_to_bytes_u32(&data.values1), &data.values1, &paths.0)?;
+        self.write_index(&vec_to_bytes_u32(&data.values2), &data.values2, &paths.1)?;
         // self.meta_data.key_value_stores.push((paths.0, paths.1)); // @Temporary create own datastructure for boost
         self.meta_data.key_value_stores.push(KVStoreMetaData{loading_type:LoadingType::InMemory,persistence_type:KVStoreType::ParallelArrays, key_has_duplicates:has_duplicates, valid_path: paths.0.clone(), parentid_path:paths.1.clone()});
         Ok(())
@@ -360,7 +359,7 @@ impl Persistence {
             if valids.len() == 0 { continue; }
             data.resize(*valids.last().unwrap() as usize + 1, vec![]);
 
-            let store = IndexKeyValueStore::new(&(get_file_path(&self.db, &valid), get_file_path(&self.db, &parentid)));
+            let store = ParallelArraysInMemoryReader::new(&(get_file_path(&self.db, &valid), get_file_path(&self.db, &parentid)));
             infoTime!("create insert key_value_store");
             for valid in valids {
                 let mut vals = store.get_values(valid);
@@ -499,17 +498,7 @@ fn test_snap() {
 //     }
 // }
 
-fn load_bytes(buffer:&mut Vec<u8>, file:&mut File, offset:u64) { // @Temporary Use Result
-    // let string_size = offsets[pos+1] - offsets[pos] - 1;
-    // let mut buffer:Vec<u8> = Vec::with_capacity(string_size as usize);
-    // unsafe { buffer.set_len(string_size as usize); }
-    // buffer.resize(string_size as usize, 0);
-    file.seek(SeekFrom::Start(offset)).unwrap();
-    file.read_exact(buffer).unwrap();
-    // unsafe {str::from_utf8_unchecked(&buffer)}
-    // let s = unsafe {str::from_utf8_unchecked(&buffer)};
-    // str::from_utf8(&buffer).unwrap() // @Temporary  -> use unchecked if stable
-}
+
 
 #[derive(Debug)]
 pub struct FileSearch {
@@ -619,12 +608,12 @@ fn file_to_bytes(s1: &str) -> Result<Vec<u8>, io::Error> {
     Ok(buffer)
 }
 
-fn load_index_u32(s1: &str) -> Result<Vec<u32>, io::Error> {
+pub fn load_index_u32(s1: &str) -> Result<Vec<u32>, io::Error> {
     info!("Loading Index32 {} ", s1);
     Ok(bytes_to_vec_u32(file_to_bytes(s1)?))
 }
 
-fn load_index_u64(s1: &str) -> Result<Vec<u64>, io::Error> {
+pub fn load_index_u64(s1: &str) -> Result<Vec<u64>, io::Error> {
     info!("Loading Index64 {} ", s1);
     Ok(bytes_to_vec_u64(file_to_bytes(s1)?))
 }
@@ -643,40 +632,6 @@ fn check_is_docid_type<T: Integer + NumCast + Copy>(data: &Vec<T>) -> bool {
         }
     }
     return true
-}
-
-
-#[derive(Debug)]
-pub struct IndexKeyValueStore {
-    pub values1: Vec<u32>,
-    pub values2: Vec<u32>,
-}
-
-impl IndexKeyValueStore {
-    fn new(key:&(String, String)) -> Self {
-        IndexKeyValueStore { values1: load_index_u32(&key.0).unwrap(), values2: load_index_u32(&key.1).unwrap() }
-    }
-    fn get_values(&self, find: u32) -> Vec<u32> {
-        let mut result = Vec::new();
-        match self.values1.binary_search(&find) {
-            Ok(mut pos) => {
-                //this is not a lower_bounds search so we MUST move to the first hit
-                while pos != 0 && self.values1[pos - 1] == find {pos-=1;}
-                let val_len = self.values1.len();
-                while pos < val_len && self.values1[pos] == find{
-                    result.push(self.values2[pos]);
-                    pos+=1;
-                }
-            },Err(_) => {},
-        }
-        result
-    }
-}
-
-#[test]
-fn test_index_kv() {
-    let ix = IndexKeyValueStore{values1: vec![0,0,1], values2: vec![0,1,2]};
-    assert_eq!(ix.get_values(0), vec![0,1]);
 }
 
 

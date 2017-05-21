@@ -71,6 +71,7 @@ pub mod search;
 pub mod create;
 pub mod doc_loader;
 pub mod persistence;
+pub mod persistence_data;
 pub mod search_field;
 pub mod expression;
 pub mod bucket_list;
@@ -125,6 +126,10 @@ fn main() {
     // create_thalia_index();
     // println!("{:?}",create_jmdict_index());
 
+    // {
+    //     let my_time = util::MeasureTime::new("jmdict load time", util::MeasureTimeLogLevel::Print);
+    //     let mut _pers:persistence::Persistence = persistence::Persistence::load("jmdict".to_string()).expect("could not load jmdict");
+    // }
 
     // let mut _pers:persistence::Persistence = persistence::Persistence::load("csv_test".to_string()).expect("could not load persistence");
     // doc_loader::DocLoader::load(&mut pers);
