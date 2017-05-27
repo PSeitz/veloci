@@ -291,10 +291,10 @@ pub fn create_fulltext_index_csv(csv_path: &str, attr_name:&str, attr_pos: usize
 
     let is_text_index = true;
     let path_name = util::get_path_name(attr_name, is_text_index);
-    persistence.write_tuple_pair(&mut tuples, concat(&path_name, ".valueIdToParent.valIds"), concat(&path_name, ".valueIdToParent.mainIds"))?;
+    persistence.write_tuple_pair(&mut tuples, &concat(&path_name, ".valueIdToParent"))?;
 
     if tokens.len() > 0 {
-        persistence.write_tuple_pair(&mut tokens, concat(&path_name, ".tokens.tokenValIds"), concat(&path_name, ".tokens.parentValId"))?;
+        persistence.write_tuple_pair(&mut tokens, &concat(&path_name, ".tokens"))?;
     }
 
     store_full_text_info(&mut persistence, all_terms, &attr_name, &options)?;
@@ -382,10 +382,10 @@ pub fn create_fulltext_index(data: &Value, path:&str, options:FulltextIndexOptio
         }
 
         let path_name = util::get_path_name(&paths[i], is_text_index);
-        persistence.write_tuple_pair(&mut tuples, concat(&path_name, ".valueIdToParent.valIds"), concat(&path_name, ".valueIdToParent.mainIds"))?;
+        persistence.write_tuple_pair(&mut tuples, &concat(&path_name, ".valueIdToParent"))?;
 
         if tokens.len() > 0 {
-            persistence.write_tuple_pair(&mut tokens, concat(&path_name, ".tokens.tokenValIds"), concat(&path_name, ".tokens.parentValId"))?;
+            persistence.write_tuple_pair(&mut tokens, &concat(&path_name, ".tokens"))?;
         }
 
     }

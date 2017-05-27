@@ -144,15 +144,15 @@ pub fn add_token_results(persistence:&Persistence, path:&str, hits: &mut Vec<(u3
     if !has_tokens { return; }
     // var hrstart = process.hrtime()
     // let cache_lock = persistence::INDEX_64_CACHE.read().unwrap();
-    let text_offsets = persistence.cache.index_64.get(&concat(&path, ".offsets"))
-        .expect(&format!("Could not find {:?} in index_64 cache", concat(&path, ".offsets")));
+    // let text_offsets = persistence.cache.index_64.get(&concat(&path, ".offsets"))
+    //     .expect(&format!("Could not find {:?} in index_64 cache", concat(&path, ".offsets")));
 
-    let key = (concat(&path, ".textindex.tokens.tokenValIds"), concat(&path, ".textindex.tokens.parentValId"));
+    // let key = (concat(&path, ".textindex.tokens.tokenValIds"), concat(&path, ".textindex.tokens.parentValId"));
 
-    let token_kvdata = persistence.get_valueid_to_parent(&key);
+    let token_kvdata = persistence.get_valueid_to_parent(&concat(&path, ".textindex.tokens"));
 
     // let token_kvdata = persistence.cache.index_id_to_parent.get(&key).expect(&format!("Could not find {:?} in index_id_to_parent cache", key));
-    let mut token_hits:FnvHashMap<u32, f32> = FnvHashMap::default();
+    // let mut token_hits:FnvHashMap<u32, f32> = FnvHashMap::default();
     let mut token_hits:Vec<(u32, f32, u32)> = vec![];
     for &(value_id, score) in hits.iter() {
         // let parent_ids_for_token = token_kvdata.get_parent_val_ids(*value_id, &cache_lock);

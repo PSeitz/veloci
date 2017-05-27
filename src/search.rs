@@ -1,4 +1,3 @@
-
 #[allow(unused_imports)]
 use std::io::{self, BufRead};
 #[allow(unused_imports)]
@@ -26,6 +25,7 @@ use search_field;
 use persistence::Persistence;
 use doc_loader::DocLoader;
 use util;
+use util::concat;
 use fst;
 
 #[derive(Serialize, Deserialize, Default, Clone, Debug)]
@@ -168,9 +168,9 @@ pub fn search_unrolled(persistence:&Persistence, request: Request) -> Result<Fnv
 use expression::ScoreExpression;
 
 fn add_boost(persistence: &Persistence, boost: &RequestBoostPart, hits: &mut FnvHashMap<u32, f32>) {
-    let key = util::boost_path(&boost.path);
-
-    let boostkv_store = persistence.get_valueid_to_parent(&key);
+    // let key = util::boost_path(&boost.path);
+    let boost_path = boost.path.to_string()+".boost_valid_to_value";
+    let boostkv_store = persistence.get_boost(&boost_path);
     // let boostkv_store = persistence.cache.index_id_to_parent.get(&key).expect(&format!("Could not find {:?} in index_id_to_parent cache", key));
     let boost_param = boost.param.unwrap_or(0.0);
 
@@ -205,7 +205,6 @@ fn add_boost(persistence: &Persistence, boost: &RequestBoostPart, hits: &mut Fnv
 
 // trait Iter: Sync + Clone {
 //     fn next() -> Iterator<Item=(u32, f32)>{
-        
 //     }
 // }
 
@@ -286,8 +285,9 @@ pub fn search_raw(persistence:&Persistence, mut request: RequestSearchPart, mut 
 
     // text to "rows"
     let path_name = util::get_path_name(paths.last().unwrap(), true);
-    let key = util::concat_tuple(&path_name, ".valueIdToParent.valIds", ".valueIdToParent.mainIds");
-    let kv_store = persistence.get_valueid_to_parent(&key);
+    // let key = util::concat_tuple(&path_name, ".valueIdToParent.valIds", ".valueIdToParent.mainIds");
+    // let kv_store = persistence.get_valueid_to_parent(&key);
+    let kv_store = persistence.get_valueid_to_parent(&concat(&path_name, ".valueIdToParent"));
     let mut total_values = 0;
     {
         hits.reserve(term_hits.len());
@@ -323,9 +323,9 @@ pub fn search_raw(persistence:&Persistence, mut request: RequestSearchPart, mut 
             boost.as_mut().unwrap().retain(|boost| check_apply_boost(persistence, boost, &path_name,&mut hits));
         }
 
-        let key = util::concat_tuple(&path_name, ".valueIdToParent.valIds", ".valueIdToParent.mainIds");
+        // let key = util::concat_tuple(&path_name, ".valueIdToParent.valIds", ".valueIdToParent.mainIds");
         debugTime!("Joining to anchor");
-        let kv_store = persistence.get_valueid_to_parent(&key);
+        let kv_store = persistence.get_valueid_to_parent(&concat(&path_name, ".valueIdToParent"));
         // let kv_store = persistence.cache.index_id_to_parent.get(&key).expect(&format!("Could not find {:?} in index_id_to_parent cache", key));
         debugTime!("Adding all values");
         next_level_hits.reserve(hits.len());
@@ -365,7 +365,7 @@ pub fn search_raw(persistence:&Persistence, mut request: RequestSearchPart, mut 
         }
 
         trace!("next_level_hits: {:?}", next_level_hits);
-        debug!("{:?} hits in next_level_hits {:?}", next_level_hits.len(), &key.1);
+        debug!("{:?} hits in next_level_hits {:?}", next_level_hits.len(), &concat(&path_name, ".valueIdToParent"));
 
         // debugTime!("sort and dedup");
         // next_level_hits.sort_by(|a, b| a.0.cmp(&b.0));

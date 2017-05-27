@@ -12,7 +12,7 @@ extern crate serde_json;
 
 extern crate serde;
 extern crate rand;
-extern crate tokio_timer;
+// extern crate tokio_timer;
 extern crate regex;
 extern crate fnv;
 extern crate fst;
@@ -20,7 +20,7 @@ extern crate fst;
 #[macro_use] extern crate log;
 extern crate env_logger;
 
-extern crate abomonation;
+// extern crate abomonation;
 extern crate csv;
 
 extern crate test;
@@ -37,8 +37,10 @@ extern crate router;
 extern crate time;
 extern crate snap;
 
+extern crate bincode;
+
+
 extern crate heapsize;
-use heapsize::{HeapSizeOf, heap_size_of};
 
 extern crate byteorder;
 

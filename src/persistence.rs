@@ -1,27 +1,27 @@
 use std::fs::{self, File};
 use std::io::prelude::*;
-use std::io::{self};
+use std::io::{Cursor, SeekFrom, self};
+use std::str;
+use std::collections::HashMap;
+use std::fmt::Debug;
+use std::mem;
+use std::marker::Sync;
+use std::sync::Mutex;
+use std::cmp::Ordering;
 
-use std::io::SeekFrom;
 use util;
 use util::get_file_path;
-
-use std::cmp::Ordering;
+use util::concat;
 
 use serde_json;
 use serde_json::Value;
 
 use fnv::FnvHashMap;
+use bincode::{serialize, deserialize, Infinite};
 
-use std::str;
-use abomonation::{encode, decode, Abomonation};
-
-use std::collections::HashMap;
-
+// use abomonation::{encode, decode, Abomonation};
 use create;
 use snap;
-use std::io::Cursor;
-
 use byteorder::{LittleEndian, WriteBytesExt, ReadBytesExt};
 
 #[allow(unused_imports)]
@@ -29,10 +29,15 @@ use fst::{IntoStreamer, Levenshtein, Set, Map, MapBuilder};
 
 use persistence_data::*;
 
+use search::{self, SearchError};
+use num::{self, Integer, NumCast};
+use heapsize::{HeapSizeOf, heap_size_of};
+
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
 pub struct MetaData {
     pub id_lists: FnvHashMap<String, IDList>,
     pub key_value_stores: Vec<KVStoreMetaData>,
+    pub boost_stores: Vec<KVStoreMetaData>,
     pub fulltext_indices: FnvHashMap<String, create::FulltextIndexOptions>
 }
 
@@ -45,8 +50,9 @@ impl MetaData {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct KVStoreMetaData {
-    pub valid_path: String,
-    pub parentid_path: String,
+    pub path : String,
+    // pub valid_path: String,
+    // pub parentid_path: String,
     pub key_has_duplicates: bool, // In the sense of 1:n   1key, n values
     pub persistence_type: KVStoreType,
     pub loading_type: LoadingType
@@ -89,15 +95,6 @@ pub enum IDDataType {
     U64,
 }
 
-use std::fmt::Debug;
-use search;
-use std::mem;
-use search::SearchError;
-use num;
-use num::{Integer, NumCast};
-use heapsize::{HeapSizeOf, heap_size_of};
-use std::marker::Sync;
-
 pub trait IndexIdToParent: Debug + HeapSizeOf + Sync {
     fn get_values(&self, id: u64) -> Option<Vec<u32>>;
     fn get_value(&self, id: u64) -> Option<u32>;
@@ -121,8 +118,6 @@ impl IndexIdToParent for IndexIdToMultipleParent {
 impl HeapSizeOf for IndexIdToMultipleParent {
     fn heap_size_of_children(&self) -> usize{self.data.heap_size_of_children() }
 }
-
-use std::sync::Mutex;
 
 lazy_static! {
     static ref SNAP_DECODER: Mutex<snap::Decoder> = {
@@ -172,11 +167,11 @@ impl HeapSizeOf for IndexIdToOneParent {
     fn heap_size_of_children(&self) -> usize{self.data.heap_size_of_children() }
 }
 
-
 #[derive(Debug, Default)]
 pub struct PersistenceCache {
     // pub index_id_to_parent: HashMap<(String,String), Vec<Vec<u32>>>,
-    pub index_id_to_parento: HashMap<(String,String), Box<IndexIdToParent>>,
+    pub index_id_to_parento: HashMap<String, Box<IndexIdToParent>>,
+    pub boost_valueid_to_value: HashMap<String, Box<IndexIdToParent>>,
     pub index_64: HashMap<String, Vec<u64>>,
     // index_32: HashMap<String, Vec<u32>>,
     pub fst: HashMap<String, Map>
@@ -203,7 +198,7 @@ impl Persistence {
     pub fn print_heap_sizes(&self) {
         println!("cache.index_64 {:?}mb", self.cache.index_64.heap_size_of_children()/1_000_000);
         println!("cache.index_id_to_parento {:?}mb", self.cache.index_id_to_parento.heap_size_of_children()/1_000_000);
-
+        println!("cache.boost_valueid_to_value {:?}mb", self.cache.boost_valueid_to_value.heap_size_of_children()/1_000_000);
         for (k,v) in &self.cache.index_id_to_parento {
             println!("{:?} {:?}mb", k, v.heap_size_of_children()/1_000_000);
         }
@@ -224,26 +219,32 @@ impl Persistence {
         Ok(Persistence{meta_data, db, ..Default::default()})
     }
 
-    pub fn write_tuple_pair(&mut self, tuples: &mut Vec<create::ValIdPair>, path_valid: String, path_parentid:String) -> Result<(), io::Error> {
+    pub fn write_tuple_pair(&mut self, tuples: &mut Vec<create::ValIdPair>, path: &str) -> Result<(), io::Error> {
         let data:ParallelArrays = valid_pair_to_parallel_arrays(tuples);
+        let encoded: Vec<u8> = serialize(&data, Infinite).unwrap();
+        File::create(util::get_file_path(&self.db, &path.to_string()))?.write_all(&encoded)?;
+
         let has_duplicates = has_duplicates(&data.values1);
-        self.write_index(&vec_to_bytes_u32(&data.values1), &data.values1,   &path_valid)?;
-        self.write_index(&vec_to_bytes_u32(&data.values2), &data.values2, &path_parentid)?;
-        self.meta_data.key_value_stores.push(KVStoreMetaData{loading_type:LoadingType::InMemory,persistence_type:KVStoreType::ParallelArrays, key_has_duplicates:has_duplicates, valid_path: path_valid.clone(), parentid_path:path_parentid.clone()});
+        // self.write_index(&vec_to_bytes_u32(&data.values1), &data.values1, &concat(&path, ".valIds") )?;
+        // self.write_index(&vec_to_bytes_u32(&data.values2), &data.values2, &concat(&path, ".parentIds"))?;
+        self.meta_data.key_value_stores.push(KVStoreMetaData{loading_type:LoadingType::InMemory,persistence_type:KVStoreType::ParallelArrays, key_has_duplicates:has_duplicates, path: path.to_string()});
         Ok(())
     }
     pub fn write_boost_tuple_pair(&mut self, tuples: &mut Vec<create::ValIdToValue>, path: &str) -> Result<(), io::Error> {
-        let paths = util::boost_path(path);
+        // let boost_paths = util::boost_path(path);
         let data:ParallelArrays = boost_pair_to_parallel_arrays(tuples);
+        let encoded: Vec<u8> = serialize(&data, Infinite).unwrap();
+        let boost_path = path.to_string()+".boost_valid_to_value";
+        File::create(util::get_file_path(&self.db, &boost_path))?.write_all(&encoded)?;
+
         let has_duplicates = has_duplicates(&data.values1);
-        self.write_index(&vec_to_bytes_u32(&data.values1), &data.values1, &paths.0)?;
-        self.write_index(&vec_to_bytes_u32(&data.values2), &data.values2, &paths.1)?;
-        // self.meta_data.key_value_stores.push((paths.0, paths.1)); // @Temporary create own datastructure for boost
-        self.meta_data.key_value_stores.push(KVStoreMetaData{loading_type:LoadingType::InMemory,persistence_type:KVStoreType::ParallelArrays, key_has_duplicates:has_duplicates, valid_path: paths.0.clone(), parentid_path:paths.1.clone()});
+        // self.write_index(&vec_to_bytes_u32(&data.values1), &data.values1, &boost_paths.0)?;
+        // self.write_index(&vec_to_bytes_u32(&data.values2), &data.values2, &boost_paths.1)?;
+        self.meta_data.boost_stores.push(KVStoreMetaData{loading_type:LoadingType::InMemory,persistence_type:KVStoreType::ParallelArrays, key_has_duplicates:has_duplicates, path: boost_path.to_string()});
         Ok(())
     }
 
-    pub fn write_index<T: Abomonation + Clone + Integer + NumCast + Copy + Debug>(&mut self, bytes:&Vec<u8>, data:&Vec<T>, path:&str) -> Result<(), io::Error> {
+    pub fn write_index<T: Clone + Integer + NumCast + Copy + Debug>(&mut self, bytes:&Vec<u8>, data:&Vec<T>, path:&str) -> Result<(), io::Error> {
         // let bytes = vec_to_bytes(&data);
         File::create(util::get_file_path(&self.db, path))?.write_all(&bytes)?;
         // unsafe { File::create(path)?.write_all(typed_to_bytes(data))?; }
@@ -302,8 +303,12 @@ impl Persistence {
         Ok(())
     }
 
-    pub fn get_valueid_to_parent(&self, path: &(String, String)) -> &Box<IndexIdToParent> { // @Temporary Check if in cache
+    pub fn get_valueid_to_parent(&self, path: &str) -> &Box<IndexIdToParent> { // @Temporary Check if in cache
         self.cache.index_id_to_parento.get(path).expect(&format!("Did not found path in cache {:?}", path))
+    }
+
+    pub fn get_boost(&self, path: &str) -> &Box<IndexIdToParent> { // @Temporary Check if in cache
+        self.cache.boost_valueid_to_value.get(path).expect(&format!("Did not found path in cache {:?}", path))
     }
 
     pub fn get_file_search(&self, path: &str) -> FileSearch{
@@ -332,16 +337,7 @@ impl Persistence {
     // }
 
     pub fn load_all_to_cache(&mut self) -> Result<(), io::Error> {
-        let mut all_tuple_paths = vec![];
-        for el in &self.meta_data.key_value_stores {
-            all_tuple_paths.push(el.valid_path.to_string());
-            all_tuple_paths.push(el.parentid_path.to_string());
-        }
-
         for (_, ref idlist) in &self.meta_data.id_lists.clone() {
-            if all_tuple_paths.contains(&idlist.path) {
-                continue;
-            }
             match &idlist.id_type {
                 &IDDataType::U32 => {},
                 &IDDataType::U64 => self.load_index_64(&idlist.path)?
@@ -350,23 +346,11 @@ impl Persistence {
 
         let mut encoder = snap::Encoder::new();
         for el in &self.meta_data.key_value_stores {
-            let ref valid = el.valid_path;
-            let ref parentid = el.parentid_path;
             infoTime!("create key_value_store");
-            let mut data = vec![];
-            let mut valids = load_index_u32(&get_file_path(&self.db, &valid)).unwrap();
-            valids.dedup();
-            if valids.len() == 0 { continue; }
-            data.resize(*valids.last().unwrap() as usize + 1, vec![]);
 
-            let store = ParallelArraysInMemoryReader::new(&(get_file_path(&self.db, &valid), get_file_path(&self.db, &parentid)));
-            infoTime!("create insert key_value_store");
-            for valid in valids {
-                let mut vals = store.get_values(valid);
-                vals.sort();
-                data[valid as usize] = vals;
-            }
-            // self.cache.index_id_to_parent.insert((valid.clone(), parentid.clone()), data.clone());
+            let encoded = file_to_bytes(&get_file_path(&self.db, &el.path)).expect(&format!("Could not Load {:?}", get_file_path(&self.db, &el.path)));
+            let store: ParallelArrays = deserialize(&encoded[..]).unwrap();
+            let data = parrallel_arrays_to_array_of_array(&store);
 
             if el.key_has_duplicates {
                 // let mut data:Vec<Vec<u8>> = data.iter().map(|el| {
@@ -377,15 +361,25 @@ impl Persistence {
                 // data.shrink_to_fit();
                 // self.cache.index_id_to_parento.insert((valid.clone(), parentid.clone()), Box::new(IndexIdToMultipleParentCompressed {data}));
 
-                self.cache.index_id_to_parento.insert((valid.clone(), parentid.clone()), Box::new(IndexIdToMultipleParent {data}));
+                self.cache.index_id_to_parento.insert(el.path.to_string(), Box::new(IndexIdToMultipleParent {data}));
 
             } else {
                 let data = data.iter().map(|el| if el.len() >0 { el[0] as i32 } else{ NOT_FOUND }).collect();
-                self.cache.index_id_to_parento.insert((valid.clone(), parentid.clone()), Box::new(IndexIdToOneParent {data}));
+                self.cache.index_id_to_parento.insert(el.path.to_string(), Box::new(IndexIdToOneParent {data}));
                 // IndexIdToOneParent {data:data.map(|el| el[0])}
             }
             // self.cache.index_id_to_parento.insert((valid.clone(), parentid.clone()), yep));
         }
+
+        // Load Boost Indices
+        for el in &self.meta_data.boost_stores {
+            let encoded = file_to_bytes(&get_file_path(&self.db, &el.path)).expect(&format!("Could not Load {:?}", get_file_path(&self.db, &el.path)));
+            let store: ParallelArrays = deserialize(&encoded[..]).unwrap();
+            let data = parrallel_arrays_to_array_of_array(&store);
+            let data = data.iter().map(|el| if el.len() >0 { el[0] as i32 } else{ NOT_FOUND }).collect();
+            self.cache.boost_valueid_to_value.insert(el.path.to_string(), Box::new(IndexIdToOneParent {data}));
+        }
+
 
         // Load FST
         for (ref path, _) in &self.meta_data.fulltext_indices {
@@ -415,22 +409,22 @@ fn test_snap() {
     data.push(vec![10, 11, 12, 13, 14, 15]);
     data.push(vec![10]);
     println!("data orig {:?}", data.heap_size_of_children());
-    let data2:Vec<Vec<u8>> = data.iter().map(|el| {
-        let mut el = el.clone();
-        el.sort();
-        let mut dat = encoder.compress_vec(&vec_to_bytes(&el)).unwrap();
-        dat.shrink_to_fit();
-        dat
-    }).collect();
-    println!("data abono compressed {:?}", data2.heap_size_of_children());
+    // let data2:Vec<Vec<u8>> = data.iter().map(|el| {
+    //     let mut el = el.clone();
+    //     el.sort();
+    //     let mut dat = encoder.compress_vec(&vec_to_bytes(&el)).unwrap();
+    //     dat.shrink_to_fit();
+    //     dat
+    // }).collect();
+    // println!("data abono compressed {:?}", data2.heap_size_of_children());
 
-    let data3:Vec<Vec<u8>> = data.iter().map(|el| {
-        let el = el.clone();
-        let mut dat = vec_to_bytes(&el);
-        dat.shrink_to_fit();
-        dat
-    }).collect();
-    println!("data abono bytes {:?}", data3.heap_size_of_children());
+    // let data3:Vec<Vec<u8>> = data.iter().map(|el| {
+    //     let el = el.clone();
+    //     let mut dat = vec_to_bytes(&el);
+    //     dat.shrink_to_fit();
+    //     dat
+    // }).collect();
+    // println!("data abono bytes {:?}", data3.heap_size_of_children());
 
     let data4:Vec<Vec<u8>> = data.iter().map(|el| {
         vec_to_bytes_u32(el)
@@ -444,13 +438,13 @@ fn test_snap() {
     }).collect();
     println!("data byteorder compressed {:?}", data5.heap_size_of_children());
 
-    let mut test_vec:Vec<u32> = vec![10];
-    test_vec.shrink_to_fit();
-    let mut bytes:Vec<u8> = Vec::new();
-    unsafe { encode(&test_vec, &mut bytes); };
-    bytes.shrink_to_fit();
-    println!("{:?}", test_vec);
-    println!("{:?}", bytes);
+    // let mut test_vec:Vec<u32> = vec![10];
+    // test_vec.shrink_to_fit();
+    // let mut bytes:Vec<u8> = Vec::new();
+    // unsafe { encode(&test_vec, &mut bytes); };
+    // bytes.shrink_to_fit();
+    // println!("{:?}", test_vec);
+    // println!("{:?}", bytes);
 
     let mut wtr:Vec<u8> = vec![];
     wtr.write_u32::<LittleEndian>(10).unwrap();
@@ -553,20 +547,20 @@ impl FileSearch {
 }
 
 
-fn bytes_to_vec<T: Abomonation + Clone>(mut data: &mut Vec<u8>) -> Vec<T> {
-    if let Some((result, remaining)) = unsafe { decode::<Vec<T>>(&mut data) } {
-        assert!(remaining.len() == 0);
-        result.clone()
-    }else{
-        panic!("Could no load Vector");
-    }
-}
+// fn bytes_to_vec<T: Clone>(mut data: &mut Vec<u8>) -> Vec<T> {
+//     if let Some((result, remaining)) = unsafe { decode::<Vec<T>>(&mut data) } {
+//         assert!(remaining.len() == 0);
+//         result.clone()
+//     }else{
+//         panic!("Could no load Vector");
+//     }
+// }
 
-fn vec_to_bytes<T: Abomonation + Clone + Integer + NumCast + Copy + Debug>(data:&Vec<T>) -> Vec<u8> {
-    let mut bytes:Vec<u8> = Vec::new();
-    unsafe { encode(data, &mut bytes); };
-    bytes
-}
+// fn vec_to_bytes<T: Clone + Integer + NumCast + Copy + Debug>(data:&Vec<T>) -> Vec<u8> {
+//     let mut bytes:Vec<u8> = Vec::new();
+//     unsafe { encode(data, &mut bytes); };
+//     bytes
+// }
 
 
 pub fn vec_to_bytes_u32(data:&Vec<u32>) -> Vec<u8> {
@@ -618,11 +612,11 @@ pub fn load_index_u64(s1: &str) -> Result<Vec<u64>, io::Error> {
     Ok(bytes_to_vec_u64(file_to_bytes(s1)?))
 }
 
-fn load_indexo<T: Abomonation + Clone>(s1: &str) -> Result<Vec<T>, io::Error> {
-    info!("Loading Index32 {} ", s1);
-    let mut buffer = file_to_bytes(s1)?;
-    Ok(bytes_to_vec::<T>(&mut buffer))
-}
+// fn load_indexo<T: Clone>(s1: &str) -> Result<Vec<T>, io::Error> {
+//     info!("Loading Index32 {} ", s1);
+//     let mut buffer = file_to_bytes(s1)?;
+//     Ok(bytes_to_vec::<T>(&mut buffer))
+// }
 
 fn check_is_docid_type<T: Integer + NumCast + Copy>(data: &Vec<T>) -> bool {
     for (index, value_id) in data.iter().enumerate(){

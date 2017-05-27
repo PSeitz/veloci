@@ -33,12 +33,7 @@ impl AfterMiddleware for ResponseTime {
 // fn hello_world(_: &mut Request) -> IronResult<Response> {
 //     Ok(Response::with((iron::status::Ok, "Hello World")))
 // }
-
 // const MAX_BODY_LENGTH: usize = 1024 * 1024 * 10;
-
-use std::sync::RwLock;
-
-
 
 lazy_static! {
     static ref CSV_PERSISTENCE: Persistence = {
