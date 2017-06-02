@@ -83,7 +83,7 @@ pub struct Hit {
 }
 
 fn hits_to_array(hits:FnvHashMap<u32, f32>) -> Vec<Hit> {
-    debugTime!("hits_to_array");
+    debug_time!("hits_to_array");
     let mut res:Vec<Hit> = hits.iter().map(|(id, score)| Hit{id:*id, score:*score}).collect();
     res.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(Ordering::Equal)); // Add sort by id
     res
@@ -112,7 +112,7 @@ pub fn to_documents(persistence:&Persistence, hits: &Vec<Hit>) -> Vec<DocWithHit
     }).collect::<Vec<_>>()
 }
 pub fn search(request: Request, skip:usize, mut top:usize, persistence:&Persistence) -> Result<Vec<Hit>, SearchError>{
-    infoTime!("search");
+    info_time!("search");
     let res = search_unrolled(&persistence, request)?;
     // println!("{:?}", res);
     // let res = hits_to_array_iter(res.iter());
@@ -132,7 +132,7 @@ fn get_shortest_result<T: std::iter::ExactSizeIterator>(results: &Vec<T>) -> usi
 }
 
 pub fn search_unrolled(persistence:&Persistence, request: Request) -> Result<FnvHashMap<u32, f32>, SearchError>{
-    debugTime!("search_unrolled");
+    debug_time!("search_unrolled");
     if request.or.is_some() {
         Ok(request.or.unwrap().iter()
             .fold(FnvHashMap::default(), |mut acc, x| -> FnvHashMap<u32, f32> {
@@ -143,7 +143,7 @@ pub fn search_unrolled(persistence:&Persistence, request: Request) -> Result<Fnv
         let ands = request.and.unwrap();
         let mut and_results:Vec<FnvHashMap<u32, f32>> = ands.iter().map(|x| search_unrolled(persistence, x.clone()).unwrap()).collect(); // @Hack  unwrap forward errors
 
-        debugTime!("and algorithm");
+        debug_time!("and algorithm");
         let mut all_results:FnvHashMap<u32, f32> = FnvHashMap::default();
         let index_shortest = get_shortest_result(&and_results.iter().map(|el| el.iter()).collect());
 
@@ -271,7 +271,7 @@ fn check_apply_boost(persistence:&Persistence, boost: &RequestBoostPart, path_na
 
 pub fn search_raw(persistence:&Persistence, mut request: RequestSearchPart, mut boost: Option<Vec<RequestBoostPart>>) -> Result<FnvHashMap<u32, f32>, SearchError> {
     request.term = util::normalize_text(&request.term);
-    debugTime!("search and join to anchor");
+    debug_time!("search and join to anchor");
     let mut term_hits = search_field::get_hits_in_field(persistence, &mut request)?;
 
     let num_term_hits = term_hits.len();
@@ -291,7 +291,7 @@ pub fn search_raw(persistence:&Persistence, mut request: RequestSearchPart, mut 
     let mut total_values = 0;
     {
         hits.reserve(term_hits.len());
-        debugTime!("term hits hit to column");
+        debug_time!("term hits hit to column");
         for (value_id, score) in term_hits {
             let ref values = kv_store.get_values(value_id as u64);
             values.as_ref().map(|values| {
@@ -324,10 +324,10 @@ pub fn search_raw(persistence:&Persistence, mut request: RequestSearchPart, mut 
         }
 
         // let key = util::concat_tuple(&path_name, ".valueIdToParent.valIds", ".valueIdToParent.mainIds");
-        debugTime!("Joining to anchor");
+        debug_time!("Joining to anchor");
         let kv_store = persistence.get_valueid_to_parent(&concat(&path_name, ".valueIdToParent"));
         // let kv_store = persistence.cache.index_id_to_parent.get(&key).expect(&format!("Could not find {:?} in index_id_to_parent cache", key));
-        debugTime!("Adding all values");
+        debug_time!("Adding all values");
         next_level_hits.reserve(hits.len());
         for (value_id, score) in hits.iter() {
             // kv_store.add_values(*value_id, &cache_lock, *score, &mut next_level_hits);
@@ -367,11 +367,11 @@ pub fn search_raw(persistence:&Persistence, mut request: RequestSearchPart, mut 
         trace!("next_level_hits: {:?}", next_level_hits);
         debug!("{:?} hits in next_level_hits {:?}", next_level_hits.len(), &concat(&path_name, ".valueIdToParent"));
 
-        // debugTime!("sort and dedup");
+        // debug_time!("sort and dedup");
         // next_level_hits.sort_by(|a, b| a.0.cmp(&b.0));
         // next_level_hits.dedup_by_key(|i| i.0);
         // hits.clear();
-        // debugTime!("insert to next level");
+        // debug_time!("insert to next level");
         // hits.reserve(next_level_hits.len());
         // for el in &next_level_hits {
         //     hits.insert(el.0, el.1);

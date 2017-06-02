@@ -3,9 +3,7 @@ use str;
 use persistence::Persistence;
 use search::RequestSearchPart;
 use search::SearchError;
-use fnv::FnvHashMap;
 use util::concat;
-use util;
 use std::cmp;
 
 #[allow(unused_imports)]
@@ -85,7 +83,7 @@ where F: FnMut(&str, u32) {
 
 
 pub fn get_hits_in_field(persistence:&Persistence, mut options: &mut RequestSearchPart) -> Result<Vec<(u32, f32)>, SearchError> {
-    debugTime!("get_hits_in_field");
+    debug_time!("get_hits_in_field");
     // let mut hits:FnvHashMap<u32, f32> = FnvHashMap::default();
     let mut hits:Vec<(u32, f32)> = vec![];
     // let checks:Vec<Fn(&str) -> bool> = Vec::new();
@@ -137,7 +135,7 @@ pub fn get_hits_in_field(persistence:&Persistence, mut options: &mut RequestSear
 
 
 pub fn add_token_results(persistence:&Persistence, path:&str, hits: &mut Vec<(u32, f32)> ){
-    debugTime!("add_token_results");
+    debug_time!("add_token_results");
 
     let has_tokens = persistence.meta_data.fulltext_indices.get(path).map_or(false, |fulltext_info| fulltext_info.tokenize);
     debug!("has_tokens {:?} {:?}", path, has_tokens);
@@ -159,7 +157,7 @@ pub fn add_token_results(persistence:&Persistence, path:&str, hits: &mut Vec<(u3
 
         // let ref parent_ids_for_token_opt = token_kvdata.get(*value_id as usize);
         let ref parent_ids_for_token_opt = token_kvdata.get_values(value_id as u64);
-        debugTime!("add_token_results to map");
+        debug_time!("add_token_results to map");
         parent_ids_for_token_opt.as_ref().map(|parent_ids_for_token|{
             if parent_ids_for_token.len() > 0 {
                 token_hits.reserve(parent_ids_for_token.len());
@@ -184,11 +182,12 @@ pub fn add_token_results(persistence:&Persistence, path:&str, hits: &mut Vec<(u3
     debug!("checked {:?}, got {:?} token hits",hits.iter().count(), token_hits.iter().count());
     {
         // println!("{:?}", token_hits);
-        debugTime!("token_hits.sort_by");
-        token_hits.sort_by(|a, b| a.0.cmp(&b.0));
+        debug_time!("token_hits.sort_by");
+        token_hits.sort_by(|a, b| a.0.cmp(&b.0)); // sort by parent id
     }
-    debugTime!("extend token_results");
+    debug_time!("extend token_results");
     // hits.extend(token_hits);
+    trace!("token_hits in textindex: {:?}", token_hits);
     if token_hits.len() > 0 {
         hits.reserve(token_hits.len());
         let mut current_group_id = token_hits[0].0;
@@ -199,7 +198,7 @@ pub fn add_token_results(persistence:&Persistence, path:&str, hits: &mut Vec<(u3
                 current_group_id = hit.0;
                 current_score = hit.1;
             }else{
-                // in group
+                // in group // @FixMe Alter Ranking
             }
             // hits.insert(hit.0, hit.1);
         }
@@ -207,6 +206,7 @@ pub fn add_token_results(persistence:&Persistence, path:&str, hits: &mut Vec<(u3
         hits.push((current_group_id, current_score));
 
     }
+    trace!("hits with tokens: {:?}", hits);
     // for hit in hits.iter() {
     //     trace!("NEW HITS {:?}", hit);
     // }

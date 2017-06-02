@@ -216,7 +216,6 @@ mod tests {
             // println!("{:?}", persistence::load_all(&meta_data));
 
         }
-
         let mut pers = persistence::Persistence::load(TEST_FOLDER.to_string()).expect("Could not load persistence");
 
         //     assert_eq!(normalize_text("Hello"), "Hello");
@@ -248,6 +247,8 @@ mod tests {
 
             let hits = search_test_to_doc(req, &mut pers).unwrap();
             assert_eq!(hits.len(), 1);
+            // assert_eq!(hits.len(), 10);
+
         }
 
         { // should search without firstCharExactMatch
@@ -266,6 +267,7 @@ mod tests {
 
         { // 'should prefer exact matches to tokenmatches'
 
+            let _ = env_logger::init();
             let req = json!({
                 "search": {
                     "term":"will",
@@ -274,6 +276,7 @@ mod tests {
                 }
             });
             let wa = search_test_to_doc(req, &mut pers).unwrap();
+            // assert_eq!(wa.len(), 11);
             assert_eq!(wa[0].doc["meanings"]["eng"][0], "will");
         }
 

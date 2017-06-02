@@ -11,6 +11,10 @@ use router::Router;
 use bodyparser;
 use serde_json;
 
+use iron::{headers, status};
+use iron::modifiers::Header;
+use persistence;
+
 struct ResponseTime;
 
 impl typemap::Key for ResponseTime { type Value = u64; }
@@ -36,17 +40,17 @@ impl AfterMiddleware for ResponseTime {
 // const MAX_BODY_LENGTH: usize = 1024 * 1024 * 10;
 
 lazy_static! {
-    static ref CSV_PERSISTENCE: Persistence = {
-        persistence::Persistence::load("csv_test".to_string()).expect("could not load persistence")
+    // static ref CSV_PERSISTENCE: Persistence = {
+    //     persistence::Persistence::load("csv_test".to_string()).expect("could not load persistence")
+    // };
+    static ref JMDICT_PERSISTENCE: Persistence = {
+        persistence::Persistence::load("jmdict".to_string()).expect("could not load persistence")
     };
 }
 
-use iron::{headers, status};
-use iron::modifiers::Header;
-use util;
-use persistence;
+
 pub fn start_server() {
-    &CSV_PERSISTENCE.print_heap_sizes();
+    &JMDICT_PERSISTENCE.print_heap_sizes();
     let mut router = Router::new();                     // Alternative syntax:
     router.get("/", handler, "index");                  // let router = router!(index: get "/" => handler,
     router.get("/:query", handler, "query");            //                      query: get "/:query" => handler);
@@ -81,11 +85,10 @@ pub fn start_server() {
                 // req.get::<Persistence>()
 
                 // let pers:persistence::Persistence = persistence::Persistence::load("csv_test".to_string()).expect("could not load persistence");
+                info_time!("search total");
 
-                let my_time = util::MeasureTime::new("search total", util::MeasureTimeLogLevel::Info);
-
-                let hits = search::search(struct_body, 0, 10, &CSV_PERSISTENCE).unwrap();
-                let doc = search::to_documents(&CSV_PERSISTENCE, &hits);
+                let hits = search::search(struct_body, 0, 10, &JMDICT_PERSISTENCE).unwrap();
+                let doc = search::to_documents(&JMDICT_PERSISTENCE, &hits);
                 Ok(Response::with((status::Ok, Header(headers::ContentType::json()), serde_json::to_string(&doc).unwrap())))
             },
             Ok(None) => {

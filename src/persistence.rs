@@ -51,8 +51,6 @@ impl MetaData {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct KVStoreMetaData {
     pub path : String,
-    // pub valid_path: String,
-    // pub parentid_path: String,
     pub key_has_duplicates: bool, // In the sense of 1:n   1key, n values
     pub persistence_type: KVStoreType,
     pub loading_type: LoadingType
@@ -88,7 +86,6 @@ pub struct IDList {
     pub doc_id_type:bool
 }
 
-
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum IDDataType {
     U32,
@@ -97,22 +94,30 @@ pub enum IDDataType {
 
 pub trait IndexIdToParent: Debug + HeapSizeOf + Sync {
     fn get_values(&self, id: u64) -> Option<Vec<u32>>;
-    fn get_value(&self, id: u64) -> Option<u32>;
+    fn get_value(&self, id: u64) -> Option<u32>{
+        self.get_values(id).map(|el| el[0])
+    }
+    fn get_keys(&self) -> Vec<u32>;
 }
 
 static NOT_FOUND:i32 = -1;
 
 #[derive(Debug)]
 struct IndexIdToMultipleParent {data: Vec<Vec<u32>> }
+impl IndexIdToMultipleParent{
+    fn new(data: &IndexIdToParent) -> IndexIdToMultipleParent {
+        let data = id_to_parent_to_array_of_array(data);
+        // let data = data.iter().map(|el| if el.len() >0 { el[0] as i32 } else{ NOT_FOUND }).collect();
+        IndexIdToMultipleParent{data}
+    }
+}
 impl IndexIdToParent for IndexIdToMultipleParent {
     fn get_values(&self, id: u64) -> Option<Vec<u32>>{
         self.data.get(id as usize).map(|el| {
             el.clone()
         })
     }
-    fn get_value(&self, id: u64) -> Option<u32>{
-        self.get_values(id).map(|el| el[0])
-    }
+    fn get_keys(&self) -> Vec<u32>{ (0..self.data.len() as u32).collect() }
 }
 
 impl HeapSizeOf for IndexIdToMultipleParent {
@@ -125,29 +130,46 @@ lazy_static! {
     };
 }
 
-
 #[derive(Debug)]
 struct IndexIdToMultipleParentCompressed {data: Vec<Vec<u8>> }
+impl IndexIdToMultipleParentCompressed{
+    fn new(store: &IndexIdToParent) -> IndexIdToMultipleParentCompressed {
+        let mut encoder = snap::Encoder::new();
+        let mut data:Vec<Vec<u8>> = store.get_keys().iter().map(|el| {
+            let el = store.get_values(*el as u64).unwrap_or_else(|| vec![]);
+            let mut dat = encoder.compress_vec(&vec_to_bytes_u32(&el.clone())).unwrap();
+            dat.shrink_to_fit();
+            dat
+        }).collect();
+        data.shrink_to_fit();
+        IndexIdToMultipleParentCompressed{data}
+    }
+}
+
 impl IndexIdToParent for IndexIdToMultipleParentCompressed {
     fn get_values(&self, id: u64) -> Option<Vec<u32>>{
         self.data.get(id as usize).map(|el| {
             // el.clone()
             // let mut decoder = snap::Decoder::new();
-            bytes_to_vec_u32(SNAP_DECODER.lock().unwrap().decompress_vec(el).unwrap())
+            bytes_to_vec_u32(&SNAP_DECODER.lock().unwrap().decompress_vec(el).unwrap())
         })
     }
-    fn get_value(&self, id: u64) -> Option<u32>{
-        self.get_values(id).map(|el| el[0])
-    }
+    fn get_keys(&self) -> Vec<u32>{ (0..self.data.len() as u32).collect() }
 }
 
 impl HeapSizeOf for IndexIdToMultipleParentCompressed {
     fn heap_size_of_children(&self) -> usize{self.data.heap_size_of_children() }
 }
 
-
 #[derive(Debug)]
 struct IndexIdToOneParent {data: Vec<i32> }
+impl IndexIdToOneParent{
+    fn new(data: &IndexIdToParent) -> IndexIdToOneParent {
+        let data = id_to_parent_to_array_of_array(data);
+        let data = data.iter().map(|el| if el.len() >0 { el[0] as i32 } else{ NOT_FOUND }).collect();
+        IndexIdToOneParent{data}
+    }
+}
 impl IndexIdToParent for IndexIdToOneParent {
     fn get_values(&self, id: u64) -> Option<Vec<u32>>{
         self.get_value(id).map(|el| vec![el])
@@ -162,6 +184,7 @@ impl IndexIdToParent for IndexIdToOneParent {
             None => None,
         }
     }
+    fn get_keys(&self) -> Vec<u32>{ (0..self.data.len() as u32).collect() }
 }
 impl HeapSizeOf for IndexIdToOneParent {
     fn heap_size_of_children(&self) -> usize{self.data.heap_size_of_children() }
@@ -183,6 +206,7 @@ pub struct Persistence {
     pub meta_data: MetaData,
     pub cache: PersistenceCache
 }
+
 fn has_duplicates<T: Copy + Clone + Integer>(data: &Vec<T>) -> bool {
     if data.len() == 0 {return false;}
     let mut prev = data[0];
@@ -193,6 +217,25 @@ fn has_duplicates<T: Copy + Clone + Integer>(data: &Vec<T>) -> bool {
     return false;
 }
 
+fn has_valid_duplicates(data: &Vec<&create::GetValueId>) -> bool {
+    if data.len() == 0 {return false;}
+    let mut prev = data[0].get_value_id();
+    for el in data[1..].iter() {
+        if el.get_value_id() == prev {return true; }
+        prev = el.get_value_id();
+    }
+    return false;
+}
+
+// fn has_valid_pair_duplicates(data: &Vec<ValIdToValue>) -> bool {
+//     if data.len() == 0 {return false;}
+//     let mut prev = data[0].valid;
+//     for el in data[1..].iter() {
+//         if *el.valid == prev {return true; }
+//         prev = *el;
+//     }
+//     return false;
+// }
 
 impl Persistence {
     pub fn print_heap_sizes(&self) {
@@ -207,7 +250,6 @@ impl Persistence {
 
     pub fn load(db: String) -> Result<Self, io::Error> {
         let meta_data = MetaData::new(&db);
-        // let mut pers = Persistence{meta_data, db, index_id_to_parent:HashMap::default(), ..Default::default()};
         let mut pers = Persistence{meta_data, db, ..Default::default()};
         pers.load_all_to_cache()?;
         Ok(pers)
@@ -220,26 +262,24 @@ impl Persistence {
     }
 
     pub fn write_tuple_pair(&mut self, tuples: &mut Vec<create::ValIdPair>, path: &str) -> Result<(), io::Error> {
-        let data:ParallelArrays = valid_pair_to_parallel_arrays(tuples);
+        let has_duplicates = has_valid_duplicates(&tuples.iter().map(|el| el as &create::GetValueId).collect());
+        let data = valid_pair_to_parallel_arrays(tuples);
+        // let has_duplicates = has_duplicates(&data.values1);
         let encoded: Vec<u8> = serialize(&data, Infinite).unwrap();
         File::create(util::get_file_path(&self.db, &path.to_string()))?.write_all(&encoded)?;
 
-        let has_duplicates = has_duplicates(&data.values1);
-        // self.write_index(&vec_to_bytes_u32(&data.values1), &data.values1, &concat(&path, ".valIds") )?;
-        // self.write_index(&vec_to_bytes_u32(&data.values2), &data.values2, &concat(&path, ".parentIds"))?;
         self.meta_data.key_value_stores.push(KVStoreMetaData{loading_type:LoadingType::InMemory,persistence_type:KVStoreType::ParallelArrays, key_has_duplicates:has_duplicates, path: path.to_string()});
         Ok(())
     }
     pub fn write_boost_tuple_pair(&mut self, tuples: &mut Vec<create::ValIdToValue>, path: &str) -> Result<(), io::Error> {
         // let boost_paths = util::boost_path(path);
-        let data:ParallelArrays = boost_pair_to_parallel_arrays(tuples);
+        let has_duplicates = has_valid_duplicates(&tuples.iter().map(|el| el as &create::GetValueId).collect());
+        let data = boost_pair_to_parallel_arrays(tuples);
+        // let data = parrallel_arrays_to_pointing_array(data.values1, data.values2);
         let encoded: Vec<u8> = serialize(&data, Infinite).unwrap();
         let boost_path = path.to_string()+".boost_valid_to_value";
         File::create(util::get_file_path(&self.db, &boost_path))?.write_all(&encoded)?;
 
-        let has_duplicates = has_duplicates(&data.values1);
-        // self.write_index(&vec_to_bytes_u32(&data.values1), &data.values1, &boost_paths.0)?;
-        // self.write_index(&vec_to_bytes_u32(&data.values2), &data.values2, &boost_paths.1)?;
         self.meta_data.boost_stores.push(KVStoreMetaData{loading_type:LoadingType::InMemory,persistence_type:KVStoreType::ParallelArrays, key_has_duplicates:has_duplicates, path: boost_path.to_string()});
         Ok(())
     }
@@ -260,7 +300,7 @@ impl Persistence {
     }
 
     // fn store_fst(all_terms: &Vec<String>, path:&str) -> Result<(), fst::Error> {
-    //     infoTime!("store_fst");
+    //     info_time!("store_fst");
     //     let now = Instant::now();
     //     let wtr = io::BufWriter::new(File::create("map.fst")?);
     //     // Create a builder that can be used to insert new key-value pairs.
@@ -344,42 +384,30 @@ impl Persistence {
             }
         }
 
-        let mut encoder = snap::Encoder::new();
         for el in &self.meta_data.key_value_stores {
-            infoTime!("create key_value_store");
+            info_time!("create key_value_store");
 
             let encoded = file_to_bytes(&get_file_path(&self.db, &el.path)).expect(&format!("Could not Load {:?}", get_file_path(&self.db, &el.path)));
             let store: ParallelArrays = deserialize(&encoded[..]).unwrap();
-            let data = parrallel_arrays_to_array_of_array(&store);
-
+            // let store = parrallel_arrays_to_pointing_array(store.values1, store.values2);
             if el.key_has_duplicates {
-                // let mut data:Vec<Vec<u8>> = data.iter().map(|el| {
-                //     let mut dat = encoder.compress_vec(&vec_to_bytes_u32(&el.clone())).unwrap();
-                //     dat.shrink_to_fit();
-                //     dat
-                // }).collect();
-                // data.shrink_to_fit();
-                // self.cache.index_id_to_parento.insert((valid.clone(), parentid.clone()), Box::new(IndexIdToMultipleParentCompressed {data}));
-
-                self.cache.index_id_to_parento.insert(el.path.to_string(), Box::new(IndexIdToMultipleParent {data}));
+                // self.cache.index_id_to_parento.insert(el.path.to_string(), Box::new(IndexIdToMultipleParentCompressed::new(&store)));
+                self.cache.index_id_to_parento.insert(el.path.to_string(), Box::new(IndexIdToMultipleParent::new(&store)));
 
             } else {
-                let data = data.iter().map(|el| if el.len() >0 { el[0] as i32 } else{ NOT_FOUND }).collect();
-                self.cache.index_id_to_parento.insert(el.path.to_string(), Box::new(IndexIdToOneParent {data}));
-                // IndexIdToOneParent {data:data.map(|el| el[0])}
+                self.cache.index_id_to_parento.insert(el.path.to_string(), Box::new(IndexIdToOneParent::new(&store)));
             }
-            // self.cache.index_id_to_parento.insert((valid.clone(), parentid.clone()), yep));
         }
 
         // Load Boost Indices
         for el in &self.meta_data.boost_stores {
             let encoded = file_to_bytes(&get_file_path(&self.db, &el.path)).expect(&format!("Could not Load {:?}", get_file_path(&self.db, &el.path)));
             let store: ParallelArrays = deserialize(&encoded[..]).unwrap();
-            let data = parrallel_arrays_to_array_of_array(&store);
+            // let store = parrallel_arrays_to_pointing_array(store.values1, store.values2);
+            let data = id_to_parent_to_array_of_array(&store);
             let data = data.iter().map(|el| if el.len() >0 { el[0] as i32 } else{ NOT_FOUND }).collect();
             self.cache.boost_valueid_to_value.insert(el.path.to_string(), Box::new(IndexIdToOneParent {data}));
         }
-
 
         // Load FST
         for (ref path, _) in &self.meta_data.fulltext_indices {
@@ -449,6 +477,23 @@ fn test_snap() {
     let mut wtr:Vec<u8> = vec![];
     wtr.write_u32::<LittleEndian>(10).unwrap();
     println!("wtr {:?}", wtr);
+}
+
+
+pub fn id_to_parent_to_array_of_array(store: &IndexIdToParent) -> Vec<Vec<u32>> {
+    let mut data = vec![];
+    let mut valids = store.get_keys();
+    valids.dedup();
+    if valids.len() == 0 { return data; }
+    data.resize(*valids.last().unwrap() as usize + 1, vec![]);
+
+    info_time!("create insert key_value_store");
+    for valid in valids {
+        let mut vals = store.get_values(valid as u64).unwrap();
+        vals.sort();
+        data[valid as usize] = vals;
+    }
+    data
 }
 
 
@@ -526,7 +571,7 @@ impl FileSearch {
         // let cache_lock = INDEX_64_CACHE.read().unwrap();
         // let offsets = cache_lock.get(&(self.path.to_string()+".offsets")).unwrap();
         let offsets = persistence.cache.index_64.get(&(self.path.to_string()+".offsets")).unwrap();
-        debugTime!("term binary_search");
+        debug_time!("term binary_search");
         if offsets.len() < 2  {
             return Ok(("".to_string(), -1));
         }
@@ -575,7 +620,7 @@ pub fn vec_to_bytes_u64(data:&Vec<u64>) -> Vec<u8> {
     wtr.shrink_to_fit();
     wtr
 }
-pub fn bytes_to_vec_u32(data: Vec<u8>) -> Vec<u32> {
+pub fn bytes_to_vec_u32(data: &[u8]) -> Vec<u32> {
     let mut out_dat = vec![];
     let mut rdr = Cursor::new(data);
     while let Ok(el) = rdr.read_u32::<LittleEndian>() {
@@ -584,7 +629,7 @@ pub fn bytes_to_vec_u32(data: Vec<u8>) -> Vec<u32> {
     out_dat.shrink_to_fit();
     out_dat
 }
-pub fn bytes_to_vec_u64(data: Vec<u8>) -> Vec<u64> {
+pub fn bytes_to_vec_u64(data: &[u8]) -> Vec<u64> {
     let mut out_dat = vec![];
     let mut rdr = Cursor::new(data);
     while let Ok(el) = rdr.read_u64::<LittleEndian>() {
@@ -604,12 +649,12 @@ fn file_to_bytes(s1: &str) -> Result<Vec<u8>, io::Error> {
 
 pub fn load_index_u32(s1: &str) -> Result<Vec<u32>, io::Error> {
     info!("Loading Index32 {} ", s1);
-    Ok(bytes_to_vec_u32(file_to_bytes(s1)?))
+    Ok(bytes_to_vec_u32(&file_to_bytes(s1)?))
 }
 
 pub fn load_index_u64(s1: &str) -> Result<Vec<u64>, io::Error> {
     info!("Loading Index64 {} ", s1);
-    Ok(bytes_to_vec_u64(file_to_bytes(s1)?))
+    Ok(bytes_to_vec_u64(&file_to_bytes(s1)?))
 }
 
 // fn load_indexo<T: Clone>(s1: &str) -> Result<Vec<T>, io::Error> {

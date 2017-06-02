@@ -8,36 +8,6 @@ use std::fs::File;
 
 use std;
 
-#[derive(Debug)]
-pub struct MeasureTime {
-    name: &'static str,
-    start: std::time::Instant,
-    level: MeasureTimeLogLevel
-}
-impl MeasureTime {
-    pub fn new(name: &'static str, level:MeasureTimeLogLevel) -> Self {MeasureTime{name:name, start: std::time::Instant::now(), level:level} }
-    pub fn new_debug(name: &'static str) -> Self {MeasureTime{name:name, start: std::time::Instant::now(), level:MeasureTimeLogLevel::Debug} }
-    pub fn new_info(name: &'static str) -> Self {MeasureTime{name:name, start: std::time::Instant::now(), level:MeasureTimeLogLevel::Info} }
-}
-
-impl Drop for MeasureTime {
-    fn drop(&mut self) {
-        match self.level  {
-            MeasureTimeLogLevel::Info  =>  info!("{} took {}ms ",self.name, (self.start.elapsed().as_secs() as f64 * 1_000.0) + (self.start.elapsed().subsec_nanos() as f64 / 1000_000.0)),
-            MeasureTimeLogLevel::Debug => debug!("{} took {}ms ",self.name, (self.start.elapsed().as_secs() as f64 * 1_000.0) + (self.start.elapsed().subsec_nanos() as f64 / 1000_000.0)),
-            MeasureTimeLogLevel::Print => println!("{} took {}ms ",self.name, (self.start.elapsed().as_secs() as f64 * 1_000.0) + (self.start.elapsed().subsec_nanos() as f64 / 1000_000.0)),
-        }
-    }
-}
-
-#[derive(Debug)]
-pub enum MeasureTimeLogLevel {Info, Debug, Print}
-#[macro_export]
-macro_rules! infoTime {($e:expr) => {#[allow(unused_variables)] let time = util::MeasureTime::new_info($e); } }
-#[macro_export]
-macro_rules! debugTime {($e:expr) => {#[allow(unused_variables)] let time = util::MeasureTime::new_debug($e); } }
-
-
 pub fn normalize_text(text:&str) -> String {
 
     lazy_static! {
@@ -96,15 +66,13 @@ pub fn remove_array_marker(path:&str) -> String{
     .iter().map(|el| {
         if el.ends_with("[]") {
             &el[0..el.len()-2]
-        } 
+        }
         else {el}
     }).collect::<Vec<_>>()
     .join(".")
 }
 
-
 pub fn get_steps_to_anchor(path:&str) -> Vec<String> {
-    
     let mut paths = vec![];
     let mut current = vec![];
     // let parts = path.split('.')
@@ -120,7 +88,6 @@ pub fn get_steps_to_anchor(path:&str) -> Vec<String> {
 
     paths.push(path.to_string()); // add complete path
     return paths
-
 
 }
 

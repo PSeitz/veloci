@@ -39,6 +39,8 @@ extern crate snap;
 
 extern crate bincode;
 
+#[macro_use]
+extern crate measure_time;
 
 extern crate heapsize;
 
@@ -139,85 +141,6 @@ fn main() {
 
     // println!("_pers {:?}mb", _pers.heap_size_of_children()/1_000_000);
     // _pers.print_heap_sizes();
-    {
-        println!("Ab gehts");
-        #[allow(unused_variables)]
-        let my_time = util::MeasureTime::new("search total", util::MeasureTimeLogLevel::Print);
-        // let req = json!({
-        //     "or":[
-        //         {
-        //             "and":[{"search": {"term":"kriege", "path": "MATNR"}}, {"search": {"term":"die", "path": "MATNR"}}, {"search": {"term":"ich", "path": "MATNR"}}, {"search": {"term":"gesehen", "path": "MATNR"}}, {"search": {"term":"habe", "path": "MATNR"}} ]
-        //         },
-        //         {
-        //             "and":[{"search": {"term":"kriege", "path": "ISMTITLE"}}, {"search": {"term":"die", "path": "ISMTITLE"}}, {"search": {"term":"ich", "path": "ISMTITLE"}}, {"search": {"term":"gesehen", "path": "ISMTITLE"}}, {"search": {"term":"habe", "path": "ISMTITLE"}} ]
-        //         },
-        //         {
-        //             "and":[{"search": {"term":"kriege", "path": "ISMORIGTITLE"}}, {"search": {"term":"die", "path": "ISMORIGTITLE"}}, {"search": {"term":"ich", "path": "ISMORIGTITLE"}}, {"search": {"term":"gesehen", "path": "ISMORIGTITLE"}}, {"search": {"term":"habe", "path": "ISMORIGTITLE"}} ]
-        //         },
-        //         {
-        //             "and":[{"search": {"term":"kriege", "path": "ISMSUBTITLE1"}}, {"search": {"term":"die", "path": "ISMSUBTITLE1"}}, {"search": {"term":"ich", "path": "ISMSUBTITLE1"}}, {"search": {"term":"gesehen", "path": "ISMSUBTITLE1"}}, {"search": {"term":"habe", "path": "ISMSUBTITLE1"}} ]
-        //         },
-        //         {
-        //             "and":[{"search": {"term":"kriege", "path": "ISMSUBTITLE2"}}, {"search": {"term":"die", "path": "ISMSUBTITLE2"}}, {"search": {"term":"ich", "path": "ISMSUBTITLE2"}}, {"search": {"term":"gesehen", "path": "ISMSUBTITLE2"}}, {"search": {"term":"habe", "path": "ISMSUBTITLE2"}} ]
-        //         },
-        //         {
-        //             "and":[{"search": {"term":"kriege", "path": "ISMSUBTITLE3"}}, {"search": {"term":"die", "path": "ISMSUBTITLE3"}}, {"search": {"term":"ich", "path": "ISMSUBTITLE3"}}, {"search": {"term":"gesehen", "path": "ISMSUBTITLE3"}}, {"search": {"term":"habe", "path": "ISMSUBTITLE3"}} ]
-        //         },
-        //         {
-        //             "and":[{"search": {"term":"kriege", "path": "ISMARTIST"}}, {"search": {"term":"die", "path": "ISMARTIST"}}, {"search": {"term":"ich", "path": "ISMARTIST"}}, {"search": {"term":"gesehen", "path": "ISMARTIST"}}, {"search": {"term":"habe", "path": "ISMARTIST"}} ]
-        //         },
-        //         {
-        //             "and":[{"search": {"term":"kriege", "path": "ISMLANGUAGES"}}, {"search": {"term":"die", "path": "ISMLANGUAGES"}}, {"search": {"term":"ich", "path": "ISMLANGUAGES"}}, {"search": {"term":"gesehen", "path": "ISMLANGUAGES"}}, {"search": {"term":"habe", "path": "ISMLANGUAGES"}} ]
-        //         },
-        //         {
-        //             "and":[{"search": {"term":"kriege", "path": "ISMPUBLDATE"}}, {"search": {"term":"die", "path": "ISMPUBLDATE"}}, {"search": {"term":"ich", "path": "ISMPUBLDATE"}}, {"search": {"term":"gesehen", "path": "ISMPUBLDATE"}}, {"search": {"term":"habe", "path": "ISMPUBLDATE"}} ]
-        //         },
-        //         {
-        //             "and":[{"search": {"term":"kriege", "path": "EAN11"}}, {"search": {"term":"die", "path": "EAN11"}}, {"search": {"term":"ich", "path": "EAN11"}}, {"search": {"term":"gesehen", "path": "EAN11"}}, {"search": {"term":"habe", "path": "EAN11"}} ]
-        //         },
-        //         {
-        //             "and":[{"search": {"term":"kriege", "path": "ISMORIDCODE"}}, {"search": {"term":"die", "path": "ISMORIDCODE"}}, {"search": {"term":"ich", "path": "ISMORIDCODE"}}, {"search": {"term":"gesehen", "path": "ISMORIDCODE"}}, {"search": {"term":"habe", "path": "ISMORIDCODE"}} ]
-        //         }
-        //     ]
-        // });
-
-        // let req = json!({
-        //     "or":[
-        //         {"search": {"term":"die", "path": "MATNR"} },
-        //         {"search": {"term":"die", "path": "ISMTITLE"} },
-        //         {"search": {"term":"die", "path": "ISMORIGTITLE"} },
-        //         {"search": {"term":"die", "path": "ISMSUBTITLE1"} },
-        //         {"search": {"term":"die", "path": "ISMSUBTITLE2"} },
-        //         {"search": {"term":"die", "path": "ISMSUBTITLE3"} },
-        //         {"search": {"term":"die", "path": "ISMARTIST"} },
-        //         {"search": {"term":"die", "path": "ISMLANGUAGES"} },
-        //         {"search": {"term":"die", "path": "ISMPUBLDATE"} },
-        //         {"search": {"term":"die", "path": "EAN11"} },
-        //         {"search": {"term":"die", "path": "ISMORIDCODE"} }
-        //     ]
-        // });
-
-        let req = json!({
-            "and":[{"search": {"term":"kriege", "path": "ISMTITLE"}}, {"search": {"term":"die", "path": "ISMTITLE"}}, {"search": {"term":"ich", "path": "ISMTITLE"}}, {"search": {"term":"gesehen", "path": "ISMTITLE"}}, {"search": {"term":"habe", "path": "ISMTITLE"}} ]
-        });
-
-
-        // let req = json!({
-        //     "and":[{"search": {"term":"kriege", "path": "ISMSUBTITLE1"}}, {"search": {"term":"die", "path": "ISMSUBTITLE1"}}, {"search": {"term":"ich", "path": "ISMSUBTITLE1"}}, {"search": {"term":"gesehen", "path": "ISMSUBTITLE1"}}, {"search": {"term":"habe", "path": "ISMSUBTITLE1"}} ]
-        // });
-
-        // let req = json!({
-        //     "search": {"term":"die", "path": "ISMTITLE"}
-        // });
-
-        // let requesto: search::Request = serde_json::from_str(&req.to_string()).unwrap();
-        // let hits = search::search(requesto, 0, 10, &_pers).unwrap();
-        // let doc = search::to_documents(&mut _pers, &hits);
-
-        // println!("{:?}", doc);
-        // println!("{:?}", hits);
-    }
-
 
     // {
     //     let my_time = util::MeasureTime::new("binary_search total");

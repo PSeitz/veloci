@@ -189,10 +189,18 @@ pub fn get_allterms(data:&Value, path:&str, options:&FulltextIndexOptions) -> Ve
 }
 
 
+pub trait GetValueId {
+    fn get_value_id(&self) -> u32;
+}
+
 #[derive(Debug)]
 pub struct ValIdPair {
     pub valid: u32,
     pub parent_val_id:u32
+}
+
+impl GetValueId for ValIdPair {
+    fn get_value_id(&self) -> u32{ self.valid }
 }
 
 /// Used for boost
@@ -202,6 +210,10 @@ pub struct ValIdPair {
 pub struct ValIdToValue {
     pub valid:u32,
     pub value:u32
+}
+
+impl GetValueId for ValIdToValue {
+    fn get_value_id(&self) -> u32{ self.valid }
 }
 
 impl std::fmt::Display for ValIdPair {
@@ -232,7 +244,7 @@ fn print_vec(vec: &Vec<ValIdPair>) -> String{
 fn get_allterms_csv(csv_path:&str, attr_pos:usize, options:&FulltextIndexOptions) -> Vec<String>{
     // char escapeChar = 'a';
     // MATNR, ISMTITLE, ISMORIGTITLE, ISMSUBTITLE1, ISMSUBTITLE2, ISMSUBTITLE3, ISMARTIST, ISMLANGUAGES, ISMPUBLDATE, EAN11, ISMORIDCODE
-    infoTime!("get_allterms_csv total");
+    info_time!("get_allterms_csv total");
     let mut terms:FnvHashSet<String> = FnvHashSet::default();
     let mut rdr = csv::Reader::from_file(csv_path).unwrap().has_headers(false).escape(Some(b'\\'));
     for record in rdr.decode() {
@@ -252,7 +264,7 @@ fn get_allterms_csv(csv_path:&str, attr_pos:usize, options:&FulltextIndexOptions
         }
 
     }
-    infoTime!("get_allterms_csv sort");
+    info_time!("get_allterms_csv sort");
     let mut v: Vec<String> = terms.into_iter().collect::<Vec<String>>();
     v.sort();
     v
@@ -317,7 +329,7 @@ fn store_full_text_info(mut persistence: &mut Persistence, all_terms: Vec<String
 }
 
 fn store_fst(persistence: &mut Persistence,all_terms: &Vec<String>, path:&str) -> Result<(), fst::Error> {
-    infoTime!("store_fst");
+    info_time!("store_fst");
     let wtr = persistence.get_buffered_writer(&concat(&path, ".fst"))?;
     // Create a builder that can be used to insert new key-value pairs.
     let mut build = MapBuilder::new(wtr)?;
