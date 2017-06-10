@@ -5,9 +5,11 @@ use search::RequestSearchPart;
 use search::SearchError;
 use util::concat;
 use std::cmp;
+use fnv::FnvHashMap;
 
 #[allow(unused_imports)]
 use fst::{IntoStreamer, Levenshtein, Set, Map, MapBuilder};
+use fst::automaton::*;
 
 fn get_default_score(term1: &str, term2: &str) -> f32{
     return 2.0/(distance(term1, term2) as f32 + 0.2 )
@@ -17,7 +19,7 @@ fn get_default_score2(distance: u32) -> f32{
 }
 
 #[inline(always)]
-fn get_text_lines<F>(persistence:&Persistence, options: &RequestSearchPart, _exact_search:Option<String>, _character: Option<&str>, mut fun: F) -> Result<(), SearchError>
+fn get_text_lines<F>(persistence:&Persistence, options: &RequestSearchPart, mut fun: F) -> Result<(), SearchError>
 where F: FnMut(&str, u32) {
 
     // let mut f = persistence.get_file_handle(&(options.path.to_string()+".fst"))?;
@@ -30,8 +32,15 @@ where F: FnMut(&str, u32) {
 
     let map = persistence.cache.fst.get(&options.path).expect("load fst no found");
     let lev = try!(Levenshtein::new(&options.term, options.levenshtein_distance.unwrap_or(0)));
-    let stream = map.search(lev).into_stream();
-    let hits = try!(stream.into_str_vec());
+    // let stream = map.search(lev).into_stream();
+    let hits = if options.starts_with.unwrap_or(false) {
+        let stream = map.search(lev.starts_with()).into_stream();
+        try!(stream.into_str_vec())
+    }else{
+        let stream = map.search(lev).into_stream();
+        try!(stream.into_str_vec())
+    };
+    // let hits = try!(stream.into_str_vec());
     // debug!("hitso {:?}", hits);
 
     for (term, id) in hits {
@@ -81,61 +90,62 @@ where F: FnMut(&str, u32) {
     Ok(())
 }
 
+#[derive(Debug)]
+pub struct SearchFieldResult {
+    pub hits: Vec<(u32, f32)>,
+    pub terms: FnvHashMap<u32, String>
+}
 
-pub fn get_hits_in_field(persistence:&Persistence, mut options: &mut RequestSearchPart) -> Result<Vec<(u32, f32)>, SearchError> {
+pub fn get_hits_in_field(persistence:&Persistence, options: &RequestSearchPart) -> Result<SearchFieldResult, SearchError> {
     debug_time!("get_hits_in_field");
     // let mut hits:FnvHashMap<u32, f32> = FnvHashMap::default();
-    let mut hits:Vec<(u32, f32)> = vec![];
+    let mut result = SearchFieldResult{hits: vec![], terms:FnvHashMap::default()};
+    // let mut hits:Vec<(u32, f32)> = vec![];
     // let checks:Vec<Fn(&str) -> bool> = Vec::new();
-    let term_chars = options.term.chars().collect::<Vec<char>>();
     // options.first_char_exact_match = options.exact || options.levenshtein_distance == 0 || options.starts_with.is_some(); // TODO fix
 
-    if options.levenshtein_distance.unwrap_or(0) == 0 {
-        options.exact = Some(true);
-    }
+    // if options.levenshtein_distance.unwrap_or(0) == 0 && !options.starts_with.unwrap_or(false) {
+    //     options.exact = Some(true);
+    // }
 
-    let start_char = if options.exact.unwrap_or(false) || options.levenshtein_distance.unwrap_or(0) == 0 || options.starts_with.is_some() && term_chars.len() >= 2 {
-        Some(term_chars[0].to_string() + &term_chars[1].to_string())
-    }
-    else if options.first_char_exact_match.unwrap_or(false) { Some(term_chars[0].to_string() )
-    }
-    else { None };
-
-    let value = start_char.as_ref().map(String::as_ref);
+    // let term_chars = options.term.chars().collect::<Vec<char>>();
+    // let start_char = if options.exact.unwrap_or(false) || options.levenshtein_distance.unwrap_or(0) == 0 || options.starts_with.unwrap_or(false) && term_chars.len() >= 2 {
+    //     Some(term_chars[0].to_string() + &term_chars[1].to_string())
+    // }
+    // else if options.first_char_exact_match.unwrap_or(false) { Some(term_chars[0].to_string() )
+    // }
+    // else { None };
+    // let start_char_val = start_char.as_ref().map(String::as_ref);
 
     trace!("Will Check distance {:?}", options.levenshtein_distance.unwrap_or(0) != 0);
-    trace!("Will Check exact {:?}", options.exact);
+    // trace!("Will Check exact {:?}", options.exact);
     trace!("Will Check starts_with {:?}", options.starts_with);
     {
         let teh_callback = |line: &str, line_pos: u32| {
             // trace!("Checking {} with {}", line, term);
             let distance = if options.levenshtein_distance.unwrap_or(0) != 0 { Some(distance(&options.term, line))} else { None };
-            if (options.exact.unwrap_or(false) &&  line == &options.term)
-                || (distance.is_some() && distance.unwrap() <= options.levenshtein_distance.unwrap_or(0))
-                || (options.starts_with.is_some() && line.starts_with(options.starts_with.as_ref().unwrap())  )
-                // || (options.customCompare.is_some() && options.customCompare.unwrap(line, term))
-                {
-                // let score = get_default_score(term, line);
-                let mut score = if distance.is_some() {get_default_score2(distance.unwrap())} else {get_default_score(&options.term, line)};
-                options.boost.map(|boost_val| score = score * boost_val);
-                debug!("Hit: {:?}\tid: {:?} score: {:?}", line, line_pos, score);
-                // hits.insert(line_pos, score);
-                hits.push((line_pos, score));
+            let mut score = if distance.is_some() {get_default_score2(distance.unwrap())} else {get_default_score(&options.term, line)};
+            options.boost.map(|boost_val| score = score * boost_val); // @FixMe Move out of loop?
+            debug!("Hit: {:?}\tid: {:?} score: {:?}", line, line_pos, score);
+            // hits.insert(line_pos, score);
+            result.hits.push((line_pos, score));
+            if options.return_term.unwrap_or(false) {
+                result.terms.insert(line_pos, line.to_string());
             }
         };
-        let exact_search = if options.exact.unwrap_or(false) {Some(options.term.to_string())} else {None};
-        get_text_lines(persistence, options, exact_search, value, teh_callback)?;
+        // let exact_search = if options.exact.unwrap_or(false) {Some(options.term.to_string())} else {None};
+        get_text_lines(persistence, options, teh_callback)?;
     }
-    debug!("{:?} hits in textindex {:?}", hits.len(), &options.path);
-    trace!("hits in textindex: {:?}", hits);
-    add_token_results(persistence, &options.path, &mut hits);
-    Ok(hits)
+    debug!("{:?} hits in textindex {:?}", result.hits.len(), &options.path);
+    trace!("hits in textindex: {:?}", result.hits);
+    resolve_token_hits(persistence, &options.path, &mut result);
+    Ok(result)
 
 }
 
 
-pub fn add_token_results(persistence:&Persistence, path:&str, hits: &mut Vec<(u32, f32)> ){
-    debug_time!("add_token_results");
+pub fn resolve_token_hits(persistence:&Persistence, path:&str, result: &mut SearchFieldResult ){
+    debug_time!("resolve_token_hits");
 
     let has_tokens = persistence.meta_data.fulltext_indices.get(path).map_or(false, |fulltext_info| fulltext_info.tokenize);
     debug!("has_tokens {:?} {:?}", path, has_tokens);
@@ -152,12 +162,12 @@ pub fn add_token_results(persistence:&Persistence, path:&str, hits: &mut Vec<(u3
     // let token_kvdata = persistence.cache.index_id_to_parent.get(&key).expect(&format!("Could not find {:?} in index_id_to_parent cache", key));
     // let mut token_hits:FnvHashMap<u32, f32> = FnvHashMap::default();
     let mut token_hits:Vec<(u32, f32, u32)> = vec![];
-    for &(value_id, score) in hits.iter() {
+    for &(value_id, score) in result.hits.iter() {
         // let parent_ids_for_token = token_kvdata.get_parent_val_ids(*value_id, &cache_lock);
 
         // let ref parent_ids_for_token_opt = token_kvdata.get(*value_id as usize);
         let ref parent_ids_for_token_opt = token_kvdata.get_values(value_id as u64);
-        debug_time!("add_token_results to map");
+        debug_time!("resolve_token_hits to map");
         parent_ids_for_token_opt.as_ref().map(|parent_ids_for_token|{
             if parent_ids_for_token.len() > 0 {
                 token_hits.reserve(parent_ids_for_token.len());
@@ -179,7 +189,7 @@ pub fn add_token_results(persistence:&Persistence, path:&str, hits: &mut Vec<(u3
         // trace!("value_id {:?}", value_id);
         // trace!("parent_ids_for_token {:?}", parent_ids_for_token);
     }
-    debug!("checked {:?}, got {:?} token hits",hits.iter().count(), token_hits.iter().count());
+    debug!("checked {:?}, got {:?} token hits", result.hits.iter().count(), token_hits.iter().count());
     {
         // println!("{:?}", token_hits);
         debug_time!("token_hits.sort_by");
@@ -189,24 +199,25 @@ pub fn add_token_results(persistence:&Persistence, path:&str, hits: &mut Vec<(u3
     // hits.extend(token_hits);
     trace!("token_hits in textindex: {:?}", token_hits);
     if token_hits.len() > 0 {
-        hits.reserve(token_hits.len());
+        result.hits.reserve(token_hits.len());
         let mut current_group_id = token_hits[0].0;
         let mut current_score = token_hits[0].1;
         for hit in token_hits {
             if hit.0 != current_group_id {
-                hits.push((current_group_id, current_score));
+                result.hits.push((current_group_id, current_score));
                 current_group_id = hit.0;
                 current_score = hit.1;
             }else{
+                current_score = f32::max(current_score, hit.1);
                 // in group // @FixMe Alter Ranking
             }
             // hits.insert(hit.0, hit.1);
         }
         // hits.insert(current_group_id, current_score);
-        hits.push((current_group_id, current_score));
+        result.hits.push((current_group_id, current_score));
 
     }
-    trace!("hits with tokens: {:?}", hits);
+    trace!("hits with tokens: {:?}", result.hits);
     // for hit in hits.iter() {
     //     trace!("NEW HITS {:?}", hit);
     // }

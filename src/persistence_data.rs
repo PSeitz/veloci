@@ -3,14 +3,15 @@ use std::io::prelude::*;
 use std::io::SeekFrom;
 use std::cmp::Ordering;
 
+#[allow(unused_imports)]
 use heapsize::{HeapSizeOf, heap_size_of};
+#[allow(unused_imports)]
 use bincode::{serialize, deserialize, Infinite};
 
 use persistence::Persistence;
 use persistence::IndexIdToParent;
 use persistence;
 use create;
-use util;
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct PointingArrays {
@@ -93,8 +94,8 @@ fn test_pointing_array() {
     let values = pointing_array.get_values(3);
     assert_eq!(values, Some(vec![9,50000]));
 
-    let keys=   vec![0, 1, 3, 6, 8, 10];
-    let values= vec![7, 9, 4, 7, 9, 4];
+    // let keys=   vec![0, 1, 3, 6, 8, 10];
+    // let values= vec![7, 9, 4, 7, 9, 4];
     // let pointing_array = parrallel_arrays_to_pointing_array(keys, values);
     // assert_eq!(pointing_array.get_values(6), Some(vec![7]));
     // assert_eq!(pointing_array.get_values(8), Some(vec![9]));
@@ -136,7 +137,7 @@ impl<'a> PointingArrayFileReader<'a> {
         load_bytes(&mut data, &mut file, find as u64 *8);
 
 
-        let mut result = Vec::new();
+        let result = Vec::new();
         // match self.values1.binary_search(&find) {
         //     Ok(mut pos) => {
         //         //this is not a lower_bounds search so we MUST move to the first hit

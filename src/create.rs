@@ -151,11 +151,15 @@ where F: FnMut(&str, u32, u32) { // value, value_id, parent_val_id   // TODO ADD
     }
 }
 
+#[derive(Debug, Default)]
+pub struct TermInfo {
+    pub id: u32,
+    pub num_occurences: u32
+}
 
+pub fn get_allterms(data:&Value, path:&str, options:&FulltextIndexOptions) -> FnvHashMap<String, TermInfo>{
 
-pub fn get_allterms(data:&Value, path:&str, options:&FulltextIndexOptions) -> Vec<String>{
-
-    let mut terms:FnvHashSet<String> = FnvHashSet::default();
+    let mut terms:FnvHashMap<String, TermInfo> = FnvHashMap::default();
 
     let mut opt = ForEachOpt {
         parent_pos_in_path: 0,
@@ -173,19 +177,74 @@ pub fn get_allterms(data:&Value, path:&str, options:&FulltextIndexOptions) -> Ve
         // if stopwords.map_or(false, |ref v| v.contains(&value)){
         //     return;
         // }
-        terms.insert(normalized_text.clone());
+
+        {
+            let stat = terms.entry(normalized_text.clone()).or_insert(TermInfo::default());
+            stat.num_occurences += 1;
+        }
+
         if options.tokenize && normalized_text.split(" ").count() > 1 {
             for token in normalized_text.split(" ") {
                 let token_str = token.to_string();
                 if options.stopwords.is_some() && options.stopwords.as_ref().unwrap().contains(&token_str) { continue; }
-                terms.insert(token_str);
+                // terms.insert(token_str);
+                let stat = terms.entry(token_str.clone()).or_insert(TermInfo::default());
+                stat.num_occurences += 1;
             }
         }
     });
 
-    let mut v: Vec<String> = terms.into_iter().collect::<Vec<String>>();
+    set_ids(&mut terms);
+    terms
+
+    // let mut v: Vec<String> = terms.into_iter().collect::<Vec<String>>();
+    // v.sort();
+    // v
+}
+
+fn get_allterms_csv(csv_path:&str, attr_pos:usize, options:&FulltextIndexOptions) -> FnvHashMap<String, TermInfo>{
+    // char escapeChar = 'a';
+    // MATNR, ISMTITLE, ISMORIGTITLE, ISMSUBTITLE1, ISMSUBTITLE2, ISMSUBTITLE3, ISMARTIST, ISMLANGUAGES, ISMPUBLDATE, EAN11, ISMORIDCODE
+    info_time!("get_allterms_csv total");
+    let mut terms:FnvHashMap<String, TermInfo> = FnvHashMap::default();
+    let mut rdr = csv::Reader::from_file(csv_path).unwrap().has_headers(false).escape(Some(b'\\'));
+    for record in rdr.decode() {
+        let els:Vec<Option<String>> = record.unwrap();
+        if els[attr_pos].is_none() { continue;}
+        let normalized_text = util::normalize_text(els[attr_pos].as_ref().unwrap());
+
+        if options.stopwords.is_some() && options.stopwords.as_ref().unwrap().contains(&normalized_text) { continue; }
+        // terms.insert(els[attr_pos].as_ref().unwrap().clone());
+        // terms.insert(normalized_text.clone());
+        {
+            let stat = terms.entry(normalized_text.clone()).or_insert(TermInfo::default());
+            stat.num_occurences += 1;
+        }
+        if options.tokenize && normalized_text.split(" ").count() > 1 {
+            for token in normalized_text.split(" ") {
+                let token_str = token.to_string();
+                if options.stopwords.is_some() && options.stopwords.as_ref().unwrap().contains(&token_str) { continue; }
+                // terms.insert(token_str);
+                let stat = terms.entry(token_str.clone()).or_insert(TermInfo::default());
+                stat.num_occurences += 1;
+            }
+        }
+
+    }
+    info_time!("get_allterms_csv sort");
+    set_ids(&mut terms);
+    terms
+}
+
+fn set_ids(terms: &mut FnvHashMap<String, TermInfo>) {
+    let mut v: Vec<String> = terms.keys().collect::<Vec<&String>>().iter().map(|el| (*el).clone()).collect();
     v.sort();
-    v
+    for (i, term) in v.iter().enumerate() {
+        // terms.get_mut(term)
+        if let Some(term_info) = terms.get_mut(&term.clone()) {
+            term_info.id = i as u32;
+        }
+    }
 }
 
 
@@ -241,34 +300,7 @@ fn print_vec(vec: &Vec<ValIdPair>) -> String{
         .join("")
 }
 
-fn get_allterms_csv(csv_path:&str, attr_pos:usize, options:&FulltextIndexOptions) -> Vec<String>{
-    // char escapeChar = 'a';
-    // MATNR, ISMTITLE, ISMORIGTITLE, ISMSUBTITLE1, ISMSUBTITLE2, ISMSUBTITLE3, ISMARTIST, ISMLANGUAGES, ISMPUBLDATE, EAN11, ISMORIDCODE
-    info_time!("get_allterms_csv total");
-    let mut terms:FnvHashSet<String> = FnvHashSet::default();
-    let mut rdr = csv::Reader::from_file(csv_path).unwrap().has_headers(false).escape(Some(b'\\'));
-    for record in rdr.decode() {
-        let els:Vec<Option<String>> = record.unwrap();
-        if els[attr_pos].is_none() { continue;}
-        let normalized_text = util::normalize_text(els[attr_pos].as_ref().unwrap());
 
-        if options.stopwords.is_some() && options.stopwords.as_ref().unwrap().contains(&normalized_text) { continue; }
-        // terms.insert(els[attr_pos].as_ref().unwrap().clone());
-        terms.insert(normalized_text.clone());
-        if options.tokenize && normalized_text.split(" ").count() > 1 {
-            for token in normalized_text.split(" ") {
-                let token_str = token.to_string();
-                if options.stopwords.is_some() && options.stopwords.as_ref().unwrap().contains(&token_str) { continue; }
-                terms.insert(token_str);
-            }
-        }
-
-    }
-    info_time!("get_allterms_csv sort");
-    let mut v: Vec<String> = terms.into_iter().collect::<Vec<String>>();
-    v.sort();
-    v
-}
 
 pub fn create_fulltext_index_csv(csv_path: &str, attr_name:&str, attr_pos: usize , options:FulltextIndexOptions, mut persistence: &mut Persistence) -> Result<(), io::Error> {
     let now = Instant::now();
@@ -287,14 +319,16 @@ pub fn create_fulltext_index_csv(csv_path: &str, attr_name:&str, attr_pos: usize
         let normalized_text = util::normalize_text(els[attr_pos].as_ref().unwrap());
         if options.stopwords.is_some() && options.stopwords.as_ref().unwrap().contains(&normalized_text) { continue; }
 
-        let val_id = all_terms.binary_search(&normalized_text).unwrap();
+        // let val_id = all_terms.binary_search(&normalized_text).unwrap();
+        let val_id = all_terms.get(&normalized_text).unwrap().id;
         tuples.push(ValIdPair{valid:val_id as u32, parent_val_id:row as u32});
         trace!("Found id {:?} for {:?}", val_id, normalized_text);
         if options.tokenize && normalized_text.split(" ").count() > 1 {
             for token in normalized_text.split(" ") {
                 let token_str = token.to_string();
                 if options.stopwords.is_some() && options.stopwords.as_ref().unwrap().contains(&token_str) { continue; }
-                let tolen_val_id = all_terms.binary_search(&token_str).unwrap();
+                // let tolen_val_id = all_terms.binary_search(&token_str).unwrap();
+                let tolen_val_id = all_terms.get(&token_str).unwrap().id;
                 trace!("Adding to tokens {:?} : {:?}", token, tolen_val_id);
                 tokens.push(ValIdPair{valid:tolen_val_id as u32, parent_val_id:val_id as u32});
             }
@@ -317,8 +351,8 @@ pub fn create_fulltext_index_csv(csv_path: &str, attr_name:&str, attr_pos: usize
 }
 use persistence;
 
-fn store_full_text_info(mut persistence: &mut Persistence, all_terms: Vec<String>, path:&str, options:&FulltextIndexOptions) -> Result<(), io::Error> {
-    let offsets = get_string_offsets(&all_terms);
+fn store_full_text_info(mut persistence: &mut Persistence, all_terms: FnvHashMap<String, TermInfo>, path:&str, options:&FulltextIndexOptions) -> Result<(), io::Error> {
+    let offsets = get_string_offsets(all_terms.keys().collect::<Vec<&String>>());
     persistence.write_index(&persistence::vec_to_bytes_u64(&offsets), &offsets, &concat(&path, ".offsets"))?; // String byte offsets
     // persistence.write_data(path, all_terms.join("\n").as_bytes())?;
     // persistence.write_index(&all_terms.iter().map(|ref el| el.len() as u32).collect::<Vec<_>>(), &concat(path, ".length"))?;
@@ -328,14 +362,21 @@ fn store_full_text_info(mut persistence: &mut Persistence, all_terms: Vec<String
     Ok(())
 }
 
-fn store_fst(persistence: &mut Persistence,all_terms: &Vec<String>, path:&str) -> Result<(), fst::Error> {
+fn store_fst(persistence: &mut Persistence,all_terms: &FnvHashMap<String, TermInfo>, path:&str) -> Result<(), fst::Error> {
     info_time!("store_fst");
     let wtr = persistence.get_buffered_writer(&concat(&path, ".fst"))?;
     // Create a builder that can be used to insert new key-value pairs.
     let mut build = MapBuilder::new(wtr)?;
-    for (i, line) in all_terms.iter().enumerate() {
-        build.insert(line, i as u64).unwrap();
+
+    let mut v: Vec<&String> = all_terms.keys().collect::<Vec<&String>>();
+    v.sort();
+    for term in v.iter() {
+        let term_info = all_terms.get(term.clone()).expect("wtf");
+        build.insert(term, term_info.id as u64).expect("could not insert");
     }
+    // for (term, term_info) in all_terms.iter() {
+    //     build.insert(term, term_info.id as u64).unwrap();
+    // }
     // Finish construction of the map and flush its contents to disk.
     build.finish()?;
 
@@ -370,7 +411,7 @@ pub fn create_fulltext_index(data: &Value, path:&str, options:FulltextIndexOptio
                 let normalized_text = util::normalize_text(value);
                 if options.stopwords.is_some() && options.stopwords.as_ref().unwrap().contains(&normalized_text) { return; }
 
-                let val_id = all_terms.binary_search(&normalized_text).unwrap();
+                let val_id = all_terms.get(&normalized_text).expect("did not found term").id;
                 tuples.push(ValIdPair{valid:val_id as u32, parent_val_id:value_id});
                 trace!("Found id {:?} for {:?}", val_id, normalized_text);
                 // println!("normalized_text.split {:?}", normalized_text.split(" "));
@@ -379,12 +420,11 @@ pub fn create_fulltext_index(data: &Value, path:&str, options:FulltextIndexOptio
                         let token_str = token.to_string();
                         if options.stopwords.is_some() && options.stopwords.as_ref().unwrap().contains(&token_str) { continue; }
                         // terms.insert(token.to_string());
-                        let tolen_val_id = all_terms.binary_search(&token_str).unwrap();
+                        let tolen_val_id = all_terms.get(&token_str).expect("did not found token").id;
                         trace!("Adding to tokens {:?} : {:?}", token, tolen_val_id);
                         tokens.push(ValIdPair{valid:tolen_val_id as u32, parent_val_id:val_id as u32});
                     }
                 }
-
             });
         }else{
             let mut callback = |_value: &str, value_id: u32, parent_val_id: u32| {
@@ -412,7 +452,7 @@ pub fn create_fulltext_index(data: &Value, path:&str, options:FulltextIndexOptio
 }
 
 
-fn get_string_offsets(data:&Vec<String>) -> Vec<u64> {
+fn get_string_offsets(data:Vec<&String>) -> Vec<u64> {
     let mut offsets = vec![];
     let mut offset = 0;
     for el in data {

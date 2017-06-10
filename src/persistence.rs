@@ -29,8 +29,11 @@ use fst::{IntoStreamer, Levenshtein, Set, Map, MapBuilder};
 
 use persistence_data::*;
 
+#[allow(unused_imports)]
 use search::{self, SearchError};
 use num::{self, Integer, NumCast};
+
+#[allow(unused_imports)]
 use heapsize::{HeapSizeOf, heap_size_of};
 
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
@@ -207,15 +210,15 @@ pub struct Persistence {
     pub cache: PersistenceCache
 }
 
-fn has_duplicates<T: Copy + Clone + Integer>(data: &Vec<T>) -> bool {
-    if data.len() == 0 {return false;}
-    let mut prev = data[0];
-    for el in data[1..].iter() {
-        if *el == prev {return true; }
-        prev = *el;
-    }
-    return false;
-}
+// fn has_duplicates<T: Copy + Clone + Integer>(data: &Vec<T>) -> bool {
+//     if data.len() == 0 {return false;}
+//     let mut prev = data[0];
+//     for el in data[1..].iter() {
+//         if *el == prev {return true; }
+//         prev = *el;
+//     }
+//     return false;
+// }
 
 fn has_valid_duplicates(data: &Vec<&create::GetValueId>) -> bool {
     if data.len() == 0 {return false;}

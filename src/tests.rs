@@ -13,6 +13,7 @@ mod tests {
     #[allow(unused_imports)]
     use create;
     #[allow(unused_imports)]
+    use search_field;
     use search;
     #[allow(unused_imports)]
     use serde_json;
@@ -144,12 +145,10 @@ mod tests {
     // }
 
 
-    
     #[test]#[ignore]
     fn test_paths() {
         let paths = util::get_steps_to_anchor("meanings.ger[]");
         println!("{:?}", paths);
-        
     }
 
     // #[test]#[ignore]
@@ -430,6 +429,21 @@ mod tests {
         //     })
         //     .should.eventually.have.length(5)
         // })
+
+
+        {
+
+            let req = json!({
+                "term":"majes",
+                "path": "meanings.ger[]",
+                "levenshtein_distance": 0,
+                "starts_with":true,
+                "return_term":true
+            });
+            let requesto: search::RequestSearchPart = serde_json::from_str(&req.to_string()).expect("Can't parse json");
+            let results = search_field::get_hits_in_field(&mut pers, &requesto).unwrap();
+            assert_eq!(results.terms.values().collect::<Vec<&String>>(), ["majestät", "majestätischer anblick", "majestätisches aussehen", "majestätischer", "majestätisches"]);
+        }
 
         // { // should or connect the checks
         //     let req = json!({

@@ -41,9 +41,10 @@ pub struct RequestSearchPart {
     pub path: String,
     pub term: String,
     pub levenshtein_distance: Option<u32>,
-    pub starts_with: Option<String>,
-    pub exact: Option<bool>,
-    pub first_char_exact_match: Option<bool>,
+    pub starts_with: Option<bool>,
+    pub return_term: Option<bool>,
+    // pub exact: Option<bool>,
+    // pub first_char_exact_match: Option<bool>,
     /// boosts the search part with this value
     pub boost:Option<f32>
 }
@@ -203,47 +204,92 @@ fn add_boost(persistence: &Persistence, boost: &RequestBoostPart, hits: &mut Fnv
 }
 
 
-// trait Iter: Sync + Clone {
-//     fn next() -> Iterator<Item=(u32, f32)>{
-//     }
+// trait Iter: Sync {
+//     fn next(&self) -> Iterator<Item=(u32, f32)>;
 // }
 
-// trait HitCollector: Sync + Clone  {
-//     fn add(&mut self, hits: u32, score:f32);
-//     fn union(&mut self, other:&Self);
-//     fn intersect(&mut self, other:&Self);
-//     fn iter() -> Iter;
-// }
+trait HitCollector: Sync + Clone  {
+    // fn add(&mut self, hits: u32, score:f32);
+    // fn union(&mut self, other:&Self);
+    // fn intersect(&mut self, other:&Self);
+    // fn iter<'a>(&'a self) -> MyHitCollectorIter<'a>;
+    // fn iter<'a>(&'a self) -> Box<'a,Iterator<Item=(u32, f32)>>;
+    // fn iter<'b>(&'b self) -> Box<Iterator<Item=&'b (u32, f32)>>;
+    fn into_iter(self) -> Box<Iterator<Item=(u32, f32)>>;
+    fn get_value(&self, id: u32) -> Option<u32>;
+}
 
-// #[derive(Debug, Clone)]
-// struct MyHitCollector {
-//     hits_vec: Vec<(u32, f32)>
-// }
+#[derive(Debug, Clone)]
+struct MyHitCollector {
+    hits_vec: Vec<(u32, f32)>
+}
 
-// #[derive(Debug, Clone)]
-// struct MyHitCollectorIter {
-// }
-// impl Iter for MyHitCollectorIter {
-//     // add code here
-// }
-// impl HitCollector for MyHitCollector {
-//     fn add(&mut self, hits: u32, score:f32)
-//     {
+#[derive(Debug, Clone)]
+struct MyHitCollectorIter<'a> {
+    hits_vec: &'a Vec<(u32, f32)>,
+    pos: usize
+}
+impl<'a> Iterator for MyHitCollectorIter<'a> {
+    type Item = &'a (u32, f32);
+    fn next(&mut self) -> Option<&'a(u32, f32)>{
+        if self.pos >= self.hits_vec.len() {
+            None
+        } else {
+            self.pos += 1;
+            self.hits_vec.get(self.pos - 1)
+        }
+        // Some(&(1, 1.0))
+        // self.hits_vec.get(self.pos)
+    }
+}
 
-//     }
-//     fn union(&mut self, other:&Self)
-//     {
+#[derive(Debug, Clone)]
+struct MyHitCollectorIntoIter {
+    hits_vec: Vec<(u32, f32)>,
+    pos: usize
+}
+impl Iterator for MyHitCollectorIntoIter {
+    type Item = (u32, f32);
+    fn next(&mut self) -> Option<(u32, f32)>{
+        if self.pos >= self.hits_vec.len() {
+            None
+        } else {
+            self.pos += 1;
+            self.hits_vec.get(self.pos - 1).map(|el|el.clone())
+        }
+    }
+}
 
-//     }
-//     fn intersect(&mut self, other:&Self)
-//     {
+impl HitCollector for MyHitCollector {
+    // fn add(&mut self, hits: u32, score:f32)
+    // {
+    // }
+    // fn union(&mut self, other:&Self)
+    // {
+    // }
+    // fn intersect(&mut self, other:&Self)
+    // {
+    // }
 
-//     }
-//     fn iter() -> Box<MyHitCollectorIter>
-//     {
+    // fn iter<'a>(&'a self) -> MyHitCollectorIter<'a>
+    // {
+    //     MyHitCollectorIter{hits_vec: & self.hits_vec}
+    // }
 
-//     }
-// }
+    // fn iter<'b>(&'b self) -> Box<Iterator<Item=&'b (u32, f32)>>
+    // {
+    //     Box::new(MyHitCollectorIter{hits_vec: &self.hits_vec}) as Box<Iterator<Item=&(u32, f32)>>
+    // }
+    fn into_iter(self) -> Box<Iterator<Item=(u32, f32)>>
+    {
+        Box::new(MyHitCollectorIntoIter{hits_vec: self.hits_vec, pos: 0})
+    }
+
+    fn get_value(&self, id: u32) -> Option<u32>{
+        // self.hits_vec.get(id)
+        Some(1)
+    }
+}
 
 
 
@@ -272,9 +318,9 @@ fn check_apply_boost(persistence:&Persistence, boost: &RequestBoostPart, path_na
 pub fn search_raw(persistence:&Persistence, mut request: RequestSearchPart, mut boost: Option<Vec<RequestBoostPart>>) -> Result<FnvHashMap<u32, f32>, SearchError> {
     request.term = util::normalize_text(&request.term);
     debug_time!("search and join to anchor");
-    let mut term_hits = search_field::get_hits_in_field(persistence, &mut request)?;
+    let mut field_result = search_field::get_hits_in_field(persistence, &mut request)?;
 
-    let num_term_hits = term_hits.len();
+    let num_term_hits = field_result.hits.len();
     if num_term_hits == 0 {return Ok(FnvHashMap::default())};
     let mut next_level_hits:FnvHashMap<u32, f32> = FnvHashMap::default();
     let mut hits:FnvHashMap<u32, f32> = FnvHashMap::default();
@@ -290,9 +336,9 @@ pub fn search_raw(persistence:&Persistence, mut request: RequestSearchPart, mut 
     let kv_store = persistence.get_valueid_to_parent(&concat(&path_name, ".valueIdToParent"));
     let mut total_values = 0;
     {
-        hits.reserve(term_hits.len());
+        hits.reserve(field_result.hits.len());
         debug_time!("term hits hit to column");
-        for (value_id, score) in term_hits {
+        for (value_id, score) in field_result.hits {
             let ref values = kv_store.get_values(value_id as u64);
             values.as_ref().map(|values| {
                 total_values += values.len();
