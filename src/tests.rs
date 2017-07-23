@@ -431,7 +431,7 @@ mod tests {
         // })
 
 
-        {
+        { // should rank exact matches pretty good
 
             let req = json!({
                 "term":"majes",
