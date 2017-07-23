@@ -33,8 +33,16 @@ pub struct Request {
     pub or: Option<Vec<Request>>,
     pub and: Option<Vec<Request>>,
     pub search: Option<RequestSearchPart>,
-    pub boost: Option<Vec<RequestBoostPart>>
+    pub suggest: Option<Vec<RequestSearchPart>>,
+    pub boost: Option<Vec<RequestBoostPart>>,
+    #[serde(default = "default_top")]
+    pub top: usize,
+    #[serde(default = "default_skip")]
+    pub skip: usize
 }
+
+fn default_top() -> usize { 10 }
+fn default_skip() -> usize { 0 }
 
 #[derive(Serialize, Deserialize, Default, Clone, Debug)]
 pub struct RequestSearchPart {
@@ -48,7 +56,9 @@ pub struct RequestSearchPart {
     /// boosts the search part with this value
     pub boost:Option<f32>,
     #[serde(default = "default_resolve_token_to_parent_hits")]
-    pub resolve_token_to_parent_hits: Option<bool>
+    pub resolve_token_to_parent_hits: Option<bool>,
+    pub top: Option<usize>,
+    pub skip: Option<usize>
 }
 fn default_resolve_token_to_parent_hits() -> Option<bool> {
     Some(true)
@@ -123,8 +133,10 @@ pub fn apply_top_skip<T: Clone>(hits: Vec<T>, skip:usize, mut top:usize) -> Vec<
     hits[skip..top].to_vec()
 }
 
-pub fn search(request: Request, skip:usize, mut top:usize, persistence:&Persistence) -> Result<Vec<Hit>, SearchError>{
+pub fn search(request: Request, persistence:&Persistence) -> Result<Vec<Hit>, SearchError>{
     info_time!("search");
+    let skip = request.skip;
+    let top = request.top;
     let res = search_unrolled(&persistence, request)?;
     // println!("{:?}", res);
     // let res = hits_to_array_iter(res.iter());

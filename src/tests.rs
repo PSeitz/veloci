@@ -230,7 +230,7 @@ mod tests {
 
         fn search_test_to_doc(req: Value, pers : &mut persistence::Persistence) -> Result<Vec<search::DocWithHit>, search::SearchError>  {
             let requesto: search::Request = serde_json::from_str(&req.to_string()).expect("Can't parse json");
-            let hits = search::search(requesto, 0, 10, pers)?;
+            let hits = search::search(requesto, pers)?;
             Ok(search::to_documents(pers, &hits))
         }
 
@@ -449,20 +449,28 @@ mod tests {
                 "term":"majes",
                 "path": "meanings.ger[]",
                 "levenshtein_distance": 0,
-                "starts_with":true
+                "starts_with":true,
+                "top":10,
+                "skip":0
             });
             let requesto: search::RequestSearchPart = serde_json::from_str(&req.to_string()).expect("Can't parse json");
-            let results = search_field::suggest(&mut pers, &requesto, 0, 10).unwrap();
+            let results = search_field::suggest(&mut pers, &requesto).unwrap();
             assert_eq!(results.iter().map(|el| el.0.clone()).collect::<Vec<String>>(), ["majestät", "majestätischer", "majestätisches", "majestätischer anblick", "majestätisches aussehen"]);
         }
 
         { // multi real suggest with score
-            let req_ger = json!({"term":"will", "path": "meanings.ger[]", "levenshtein_distance": 0, "starts_with":true});
-            let requesto_ger: search::RequestSearchPart = serde_json::from_str(&req_ger.to_string()).expect("Can't parse json");
 
-            let req_eng = json!({"term":"will", "path": "meanings.eng[]", "levenshtein_distance": 0, "starts_with":true});
-            let requesto_eng: search::RequestSearchPart = serde_json::from_str(&req_eng.to_string()).expect("Can't parse json");
-            let results = search_field::suggest_multi(&mut pers, vec![requesto_ger, requesto_eng], 0, 10).unwrap();
+            let req = json!({
+                "suggest" : [
+                    {"term":"will", "path": "meanings.ger[]", "levenshtein_distance": 0, "starts_with":true},
+                    {"term":"will", "path": "meanings.eng[]", "levenshtein_distance": 0, "starts_with":true}
+                ],
+                "top":10,
+                "skip":0
+            });
+
+            let requesto: search::Request = serde_json::from_str(&req.to_string()).expect("Can't parse json");
+            let results = search_field::suggest_multi(&mut pers, requesto).unwrap();
             assert_eq!(results.iter().map(|el| el.0.clone()).collect::<Vec<String>>(), ["will", "wille", "will test"]);
         }      
 

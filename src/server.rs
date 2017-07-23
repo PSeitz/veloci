@@ -65,6 +65,13 @@ use iron::{headers, status};
 use iron::modifiers::Header;
 use native_search::persistence;
 
+use std::sync::Mutex;
+#[allow(unused_imports)]
+use std::collections::HashMap;
+#[allow(unused_imports)]
+use fnv::FnvHashMap;
+use std::sync::RwLock;
+
 struct ResponseTime;
 
 impl typemap::Key for ResponseTime { type Value = u64; }
@@ -96,15 +103,28 @@ lazy_static! {
     static ref JMDICT_PERSISTENCE: Persistence = {
         persistence::Persistence::load("jmdict".to_string()).expect("could not load persistence")
     };
-}
 
+    static ref PERSISTENCES: RwLock<FnvHashMap<String, Persistence>> = {
+        RwLock::new(FnvHashMap::default())
+    };
+
+    // static ref HASHMAP: Mutex<FnvHashMap<String, Persistence>> = {
+    //     let m = FnvHashMap::default();
+    //     Mutex::new(m)
+    // };
+}
 
 fn main() {
-    start_server();
+    start_server("jmdict".to_string());
 }
 
-pub fn start_server() {
-    &JMDICT_PERSISTENCE.print_heap_sizes();
+pub fn start_server(database: String) {
+
+    let mut persistences = PERSISTENCES.write().unwrap();
+    persistences.insert("default".to_string(), persistence::Persistence::load(database.clone()).expect("could not load persistence"));
+    // PERSISTENCES.write().unwrap()
+
+    // &JMDICT_PERSISTENCE.print_heap_sizes();
     let mut router = Router::new();                     // Alternative syntax:
     router.get("/", handler, "index");                  // let router = router!(index: get "/" => handler,
     router.get("/:query", handler, "query");            //                      query: get "/:query" => handler);
@@ -140,9 +160,10 @@ pub fn start_server() {
 
                 // let pers:persistence::Persistence = persistence::Persistence::load("csv_test".to_string()).expect("could not load persistence");
                 info_time!("search total");
-
-                let hits = search::search(struct_body, 0, 10, &JMDICT_PERSISTENCE).unwrap();
-                let doc = search::to_documents(&JMDICT_PERSISTENCE, &hits);
+                let persistences = PERSISTENCES.read().unwrap();
+                let persistence = persistences.get(&"default".to_string()).unwrap();
+                let hits = search::search(struct_body, &persistence).unwrap();
+                let doc = search::to_documents(&persistence, &hits);
                 Ok(Response::with((status::Ok, Header(headers::ContentType::json()), serde_json::to_string(&doc).unwrap())))
             },
             Ok(None) => {

@@ -7,11 +7,9 @@ use std::fmt::Debug;
 use std::mem;
 use std::marker::Sync;
 use std::sync::Mutex;
-use std::cmp::Ordering;
 
 use util;
 use util::get_file_path;
-use util::concat;
 
 use serde_json;
 use serde_json::Value;
@@ -95,7 +93,7 @@ pub enum IDDataType {
     U64,
 }
 
-pub trait IndexIdToParent: Debug + HeapSizeOf + Sync {
+pub trait IndexIdToParent: Debug + HeapSizeOf + Sync + Send{
     fn get_values(&self, id: u64) -> Option<Vec<u32>>;
     fn get_value(&self, id: u64) -> Option<u32>{
         self.get_values(id).map(|el| el[0])

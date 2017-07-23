@@ -2,6 +2,7 @@
 use str;
 use persistence::Persistence;
 use search::RequestSearchPart;
+use search::Request;
 use search::SearchError;
 use search;
 use util::concat;
@@ -109,7 +110,8 @@ pub struct SearchFieldResult {
     pub terms: FnvHashMap<TermId, String>
 }
 
-pub fn suggest_multi(persistence:&Persistence, options: Vec<RequestSearchPart>, skip:usize, top:usize) -> Result<SuggestFieldResult, SearchError>  {
+pub fn suggest_multi(persistence:&Persistence, req: Request) -> Result<SuggestFieldResult, SearchError>  {
+    let options: Vec<RequestSearchPart> = req.suggest.expect("only suggest allowed here");
     let mut suggest_result = vec![];
     for mut option in options {
         option.return_term = Some(true);
@@ -124,14 +126,20 @@ pub fn suggest_multi(persistence:&Persistence, options: Vec<RequestSearchPart>, 
 
     suggest_result.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(Ordering::Equal));
 
-    return Ok(search::apply_top_skip(suggest_result, skip, top));
+    return Ok(search::apply_top_skip(suggest_result, req.skip, req.top));
 }
 
-
 // just adds sorting to search
-pub fn suggest(persistence:&Persistence, options: &RequestSearchPart, skip:usize, top:usize) -> Result<SuggestFieldResult, SearchError>  {
-    let options = vec![options.clone()];
-    return suggest_multi(persistence, options, skip, top);
+pub fn suggest(persistence:&Persistence, options: &RequestSearchPart) -> Result<SuggestFieldResult, SearchError>  {
+    let mut req = Request{suggest:Some(vec![options.clone()]), ..Default::default()};
+    if options.top.is_some() {
+        req.top = options.top.unwrap();
+    }
+    if options.skip.is_some() {
+        req.skip = options.skip.unwrap();
+    }
+    // let options = vec![options.clone()];
+    return suggest_multi(persistence, req);
 }
 
 pub fn get_hits_in_field(persistence:&Persistence, options: &RequestSearchPart) -> Result<SearchFieldResult, SearchError> {
