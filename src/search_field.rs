@@ -111,19 +111,28 @@ pub struct SuggestFieldResult {
     pub hits: Vec<(String, Score)>
 }
 
-// just adds sorting
-pub fn suggest(persistence:&Persistence, options: &RequestSearchPart) -> Result<SuggestFieldResult, SearchError>  {
-    let mut search_result = get_hits_in_field(persistence, options)?;
+pub fn suggest_multi(persistence:&Persistence, options: Vec<RequestSearchPart>) -> Result<SuggestFieldResult, SearchError>  {
     let mut suggest_result = SuggestFieldResult{hits: vec![]};
-
-    search_result.hits.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(Ordering::Equal)); // Add sort by id
-    for termScore in search_result.hits.iter() {
-        let term = search_result.terms.get(&termScore.0).unwrap();
-
-        suggest_result.hits.push((term.to_string(), termScore.1));
+    for mut option in options {
+        option.return_term = Some(true);
+        option.resolve_token_to_parent_hits = Some(false);
+        let search_result = get_hits_in_field(persistence, &option)?;
+        for term_n_score in search_result.hits.iter() {// @Performance add only "top" elements
+            let term = search_result.terms.get(&term_n_score.0).unwrap();
+            println!("SUGGEST: {:?}", term);
+            suggest_result.hits.push((term.to_string(), term_n_score.1));
+        }
     }
 
+    suggest_result.hits.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(Ordering::Equal));
     return Ok(suggest_result);
+}
+
+
+// just adds sorting to search
+pub fn suggest(persistence:&Persistence, options: &RequestSearchPart) -> Result<SuggestFieldResult, SearchError>  {
+    let options = vec![options.clone()];
+    return suggest_multi(persistence, options);
 }
 
 pub fn get_hits_in_field(persistence:&Persistence, options: &RequestSearchPart) -> Result<SearchFieldResult, SearchError> {
@@ -168,7 +177,9 @@ pub fn get_hits_in_field(persistence:&Persistence, options: &RequestSearchPart) 
     }
     debug!("{:?} hits in textindex {:?}", result.hits.len(), &options.path);
     trace!("hits in textindex: {:?}", result.hits);
-    resolve_token_hits(persistence, &options.path, &mut result);
+    if options.resolve_token_to_parent_hits.unwrap_or(true) {
+        resolve_token_hits(persistence, &options.path, &mut result);
+    }
     Ok(result)
 
 }

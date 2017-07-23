@@ -46,7 +46,12 @@ pub struct RequestSearchPart {
     // pub exact: Option<bool>,
     // pub first_char_exact_match: Option<bool>,
     /// boosts the search part with this value
-    pub boost:Option<f32>
+    pub boost:Option<f32>,
+    #[serde(default = "default_resolve_token_to_parent_hits")]
+    pub resolve_token_to_parent_hits: Option<bool>
+}
+fn default_resolve_token_to_parent_hits() -> Option<bool> {
+    Some(true)
 }
 
 #[derive(Serialize, Deserialize, Default, Clone, Debug)]
