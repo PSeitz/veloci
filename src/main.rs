@@ -79,7 +79,6 @@ pub mod persistence_data;
 pub mod search_field;
 pub mod expression;
 pub mod bucket_list;
-mod server;
 
 #[cfg(test)]
 mod tests;
@@ -187,7 +186,7 @@ fn main() {
 
     // println!("{:?}",test_build_fst());
 
-    server::start_server();
+    // server::start_server();
 
 }
 // { "fulltext":"meanings.ger[]", "options":{"tokenize":true, "stopwords": ["stopword"]} }

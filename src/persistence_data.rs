@@ -128,29 +128,29 @@ pub struct PointingArrayFileReader<'a> {
 }
 
 impl<'a> PointingArrayFileReader<'a> {
-    fn new(key:&(String, String), persistence:&'a Persistence) -> Self {
-        PointingArrayFileReader { path1: key.0.clone(), path2: key.1.clone(), persistence }
-    }
-    fn get_values(&self, find: u32) -> Vec<u32> {
-        let mut data:Vec<u8> = Vec::with_capacity(8);
-        let mut file = self.persistence.get_file_handle(&self.path1).unwrap();// -> Result<File, io::Error>
-        load_bytes(&mut data, &mut file, find as u64 *8);
+    // fn new(key:&(String, String), persistence:&'a Persistence) -> Self {
+    //     PointingArrayFileReader { path1: key.0.clone(), path2: key.1.clone(), persistence }
+    // }
+    // fn get_values(&self, find: u32) -> Vec<u32> {
+    //     let mut data:Vec<u8> = Vec::with_capacity(8);
+    //     let mut file = self.persistence.get_file_handle(&self.path1).unwrap();// -> Result<File, io::Error>
+    //     load_bytes(&mut data, &mut file, find as u64 *8);
 
 
-        let result = Vec::new();
-        // match self.values1.binary_search(&find) {
-        //     Ok(mut pos) => {
-        //         //this is not a lower_bounds search so we MUST move to the first hit
-        //         while pos != 0 && self.values1[pos - 1] == find {pos-=1;}
-        //         let val_len = self.values1.len();
-        //         while pos < val_len && self.values1[pos] == find{
-        //             result.push(self.values2[pos]);
-        //             pos+=1;
-        //         }
-        //     },Err(_) => {},
-        // }
-        result
-    }
+    //     let result = Vec::new();
+    //     // match self.values1.binary_search(&find) {
+    //     //     Ok(mut pos) => {
+    //     //         //this is not a lower_bounds search so we MUST move to the first hit
+    //     //         while pos != 0 && self.values1[pos - 1] == find {pos-=1;}
+    //     //         let val_len = self.values1.len();
+    //     //         while pos < val_len && self.values1[pos] == find{
+    //     //             result.push(self.values2[pos]);
+    //     //             pos+=1;
+    //     //         }
+    //     //     },Err(_) => {},
+    //     // }
+    //     result
+    // }
 }
 impl<'a> HeapSizeOf for PointingArrayFileReader<'a> {
     fn heap_size_of_children(&self) -> usize{self.path1.heap_size_of_children() + self.path2.heap_size_of_children() }
@@ -216,14 +216,7 @@ fn test_index_parrallel_arrays() {
 }
 
 
-fn load_bytes(buffer:&mut Vec<u8>, file:&mut File, offset:u64) { // @Temporary Use Result
-    // let string_size = offsets[pos+1] - offsets[pos] - 1;
-    // let mut buffer:Vec<u8> = Vec::with_capacity(string_size as usize);
-    // unsafe { buffer.set_len(string_size as usize); }
-    // buffer.resize(string_size as usize, 0);
+fn _load_bytes(buffer:&mut Vec<u8>, file:&mut File, offset:u64) { // @Temporary Use Result
     file.seek(SeekFrom::Start(offset)).unwrap();
     file.read_exact(buffer).unwrap();
-    // unsafe {str::from_utf8_unchecked(&buffer)}
-    // let s = unsafe {str::from_utf8_unchecked(&buffer)};
-    // str::from_utf8(&buffer).unwrap() // @Temporary  -> use unchecked if stable
 }

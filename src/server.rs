@@ -1,19 +1,69 @@
+#![feature(test)]
+#![feature(placement_in_syntax)]
+#![feature(box_syntax, box_patterns)]
+#![cfg_attr(feature= "unstable", feature(alloc, heap_api, repr_simd))]
+
+extern crate serde_derive;
+
+extern crate serde_json;
+
+extern crate serde;
+extern crate rand;
+// extern crate tokio_timer;
+extern crate regex;
+extern crate fnv;
+extern crate fst;
+
+extern crate log;
+extern crate env_logger;
+
+#[macro_use]
+extern crate lazy_static;
+
+// extern crate abomonation;
+extern crate csv;
+
+extern crate test;
+
+extern crate bit_set;
+extern crate bit_vec;
+
+extern crate num;
+
+extern crate hyper;
+extern crate iron;
+extern crate bodyparser;
+extern crate router;
+extern crate time;
+extern crate snap;
+
+extern crate bincode;
+
+#[macro_use]
+extern crate measure_time;
+
+extern crate heapsize;
+
+extern crate byteorder;
+
+extern crate mylib;
+
 // use util;
-use search;
+use mylib::search;
 // use create;
 // use doc_loader;
 // use persistence;
-use persistence::Persistence;
+use mylib::persistence::Persistence;
 use iron::prelude::*;
 use iron::{BeforeMiddleware, AfterMiddleware, typemap};
 use time::precise_time_ns;
 use router::Router;
-use bodyparser;
-use serde_json;
+// use bodyparser;
+// use serde_json;
 
 use iron::{headers, status};
 use iron::modifiers::Header;
-use persistence;
+use mylib::persistence;
 
 struct ResponseTime;
 
@@ -48,6 +98,10 @@ lazy_static! {
     };
 }
 
+
+fn main() {
+    start_server();
+}
 
 pub fn start_server() {
     &JMDICT_PERSISTENCE.print_heap_sizes();

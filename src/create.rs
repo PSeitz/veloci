@@ -577,7 +577,7 @@ pub fn create_indices(folder:&str, data_str:&str, indices:&str) -> Result<(), Cr
     let mut persistence = Persistence::create(folder.to_string())?;
     for el in indices_json {
         match el {
-            CreateIndex::FulltextInfo(fullText) => create_fulltext_index(&data, &fullText.fulltext, fullText.options.unwrap_or(Default::default()), &mut persistence)?,
+            CreateIndex::FulltextInfo(full_text) => create_fulltext_index(&data, &full_text.fulltext, full_text.options.unwrap_or(Default::default()), &mut persistence)?,
             CreateIndex::BoostInfo(boost) => create_boost_index(&data, &boost.boost, boost.options, &mut persistence)?
         }
     }
@@ -607,7 +607,7 @@ pub fn create_indices_csv(folder:&str, csv_path: &str, indices:&str) -> Result<(
     let mut persistence = Persistence::create(folder.to_string())?;
     for el in indices_json {
         match el {
-            CreateIndex::FulltextInfo(fullText)/*{ fulltext: path, options, attr_pos : _ }*/ => create_fulltext_index_csv(csv_path, &fullText.fulltext, fullText.attr_pos.unwrap(), fullText.options.unwrap_or(Default::default()), &mut persistence)?,
+            CreateIndex::FulltextInfo(full_text)/*{ fulltext: path, options, attr_pos : _ }*/ => create_fulltext_index_csv(csv_path, &full_text.fulltext, full_text.attr_pos.unwrap(), full_text.options.unwrap_or(Default::default()), &mut persistence)?,
             CreateIndex::BoostInfo(boost) => {} // @Temporary // @FixMe
         }
     }

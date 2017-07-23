@@ -18,6 +18,7 @@ enum OperatorType {
 }
 
 #[derive(Debug)]
+#[allow(dead_code)]
 enum OperationStep {
     OperatorType,
     Value,
@@ -106,6 +107,7 @@ impl ScoreExpression {
     }
 }
 
+#[allow(dead_code)]
 fn mult(val: f32) -> f32 {
     val * val
 }

@@ -134,8 +134,10 @@ lazy_static! {
 }
 
 #[derive(Debug)]
+#[allow(dead_code)]
 struct IndexIdToMultipleParentCompressed {data: Vec<Vec<u8>> }
 impl IndexIdToMultipleParentCompressed{
+    #[allow(dead_code)]
     fn new(store: &IndexIdToParent) -> IndexIdToMultipleParentCompressed {
         let mut encoder = snap::Encoder::new();
         let mut data:Vec<Vec<u8>> = store.get_keys().iter().map(|el| {
