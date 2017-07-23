@@ -46,14 +46,14 @@ extern crate heapsize;
 
 extern crate byteorder;
 
-extern crate mylib;
+extern crate native_search;
 
 // use util;
-use mylib::search;
+use native_search::search;
 // use create;
 // use doc_loader;
 // use persistence;
-use mylib::persistence::Persistence;
+use native_search::persistence::Persistence;
 use iron::prelude::*;
 use iron::{BeforeMiddleware, AfterMiddleware, typemap};
 use time::precise_time_ns;
@@ -63,7 +63,7 @@ use router::Router;
 
 use iron::{headers, status};
 use iron::modifiers::Header;
-use mylib::persistence;
+use native_search::persistence;
 
 struct ResponseTime;
 
