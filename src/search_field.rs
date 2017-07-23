@@ -5,6 +5,7 @@ use search::RequestSearchPart;
 use search::SearchError;
 use util::concat;
 use std::cmp;
+use std::cmp::Ordering;
 use fnv::FnvHashMap;
 
 #[allow(unused_imports)]
@@ -90,10 +91,39 @@ where F: FnMut(&str, u32) {
     Ok(())
 }
 
+// #[derive(Debug)]
+// struct TermnScore {
+//     termId: TermId,
+//     score: Score
+// }
+type TermScore = (TermId, Score);
+type TermId = u32;
+type Score = f32;
+
 #[derive(Debug)]
 pub struct SearchFieldResult {
-    pub hits: Vec<(u32, f32)>,
-    pub terms: FnvHashMap<u32, String>
+    pub hits: Vec<TermScore>,
+    pub terms: FnvHashMap<TermId, String>
+}
+
+#[derive(Debug)]
+pub struct SuggestFieldResult {
+    pub hits: Vec<(String, Score)>
+}
+
+// just adds sorting
+pub fn suggest(persistence:&Persistence, options: &RequestSearchPart) -> Result<SuggestFieldResult, SearchError>  {
+    let mut search_result = get_hits_in_field(persistence, options)?;
+    let mut suggest_result = SuggestFieldResult{hits: vec![]};
+
+    search_result.hits.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(Ordering::Equal)); // Add sort by id
+    for termScore in search_result.hits.iter() {
+        let term = search_result.terms.get(&termScore.0).unwrap();
+
+        suggest_result.hits.push((term.to_string(), termScore.1));
+    }
+
+    return Ok(suggest_result);
 }
 
 pub fn get_hits_in_field(persistence:&Persistence, options: &RequestSearchPart) -> Result<SearchFieldResult, SearchError> {

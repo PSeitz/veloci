@@ -431,8 +431,7 @@ mod tests {
         // })
 
 
-        { // should rank exact matches pretty good
-
+        { // should suggest without score
             let req = json!({
                 "term":"majes",
                 "path": "meanings.ger[]",
@@ -444,6 +443,20 @@ mod tests {
             let results = search_field::get_hits_in_field(&mut pers, &requesto).unwrap();
             assert_eq!(results.terms.values().collect::<Vec<&String>>(), ["majestät", "majestätischer anblick", "majestätisches aussehen", "majestätischer", "majestätisches"]);
         }
+
+         { // should reals suggest with score
+            let req = json!({
+                "term":"majes",
+                "path": "meanings.ger[]",
+                "levenshtein_distance": 0,
+                "starts_with":true,
+                "return_term":true
+            });
+            let requesto: search::RequestSearchPart = serde_json::from_str(&req.to_string()).expect("Can't parse json");
+            let results = search_field::suggest(&mut pers, &requesto).unwrap();
+            assert_eq!(results.hits.iter().map(|el| el.0.clone()).collect::<Vec<String>>(), ["majestät", "majestätischer", "majestätisches", "majestätischer anblick", "majestätisches aussehen", "majestätischer anblick", "majestätisches aussehen"]);
+        }
+        
 
         // { // should or connect the checks
         //     let req = json!({
