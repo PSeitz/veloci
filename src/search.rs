@@ -117,14 +117,20 @@ pub fn to_documents(persistence:&Persistence, hits: &Vec<Hit>) -> Vec<DocWithHit
         DocWithHit{doc:serde_json::from_str(&doc).unwrap(), hit:*hit.clone()}
     }).collect::<Vec<_>>()
 }
+
+pub fn apply_top_skip<T: Clone>(hits: Vec<T>, skip:usize, mut top:usize) -> Vec<T>{
+    top = cmp::min(top + skip, hits.len());
+    hits[skip..top].to_vec()
+}
+
 pub fn search(request: Request, skip:usize, mut top:usize, persistence:&Persistence) -> Result<Vec<Hit>, SearchError>{
     info_time!("search");
     let res = search_unrolled(&persistence, request)?;
     // println!("{:?}", res);
     // let res = hits_to_array_iter(res.iter());
     let res = hits_to_array(res);
-    top = cmp::min(top + skip, res.len());
-    Ok(res[skip..top].to_vec())
+
+    Ok(apply_top_skip(res, skip, top))
 }
 
 fn get_shortest_result<T: std::iter::ExactSizeIterator>(results: &Vec<T>) -> usize {

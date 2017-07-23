@@ -452,8 +452,8 @@ mod tests {
                 "starts_with":true
             });
             let requesto: search::RequestSearchPart = serde_json::from_str(&req.to_string()).expect("Can't parse json");
-            let results = search_field::suggest(&mut pers, &requesto).unwrap();
-            assert_eq!(results.hits.iter().map(|el| el.0.clone()).collect::<Vec<String>>(), ["majestät", "majestätischer", "majestätisches", "majestätischer anblick", "majestätisches aussehen"]);
+            let results = search_field::suggest(&mut pers, &requesto, 0, 10).unwrap();
+            assert_eq!(results.iter().map(|el| el.0.clone()).collect::<Vec<String>>(), ["majestät", "majestätischer", "majestätisches", "majestätischer anblick", "majestätisches aussehen"]);
         }
 
         { // multi real suggest with score
@@ -462,8 +462,8 @@ mod tests {
 
             let req_eng = json!({"term":"will", "path": "meanings.eng[]", "levenshtein_distance": 0, "starts_with":true});
             let requesto_eng: search::RequestSearchPart = serde_json::from_str(&req_eng.to_string()).expect("Can't parse json");
-            let results = search_field::suggest_multi(&mut pers, vec![requesto_ger, requesto_eng]).unwrap();
-            assert_eq!(results.hits.iter().map(|el| el.0.clone()).collect::<Vec<String>>(), ["will", "wille", "will test"]);
+            let results = search_field::suggest_multi(&mut pers, vec![requesto_ger, requesto_eng], 0, 10).unwrap();
+            assert_eq!(results.iter().map(|el| el.0.clone()).collect::<Vec<String>>(), ["will", "wille", "will test"]);
         }      
 
         // { // should or connect the checks

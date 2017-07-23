@@ -3,6 +3,7 @@ use str;
 use persistence::Persistence;
 use search::RequestSearchPart;
 use search::SearchError;
+use search;
 use util::concat;
 use std::cmp;
 use std::cmp::Ordering;
@@ -100,39 +101,37 @@ type TermScore = (TermId, Score);
 type TermId = u32;
 type Score = f32;
 
+type SuggestFieldResult = Vec<(String, Score)>;
+
 #[derive(Debug)]
 pub struct SearchFieldResult {
     pub hits: Vec<TermScore>,
     pub terms: FnvHashMap<TermId, String>
 }
 
-#[derive(Debug)]
-pub struct SuggestFieldResult {
-    pub hits: Vec<(String, Score)>
-}
-
-pub fn suggest_multi(persistence:&Persistence, options: Vec<RequestSearchPart>) -> Result<SuggestFieldResult, SearchError>  {
-    let mut suggest_result = SuggestFieldResult{hits: vec![]};
+pub fn suggest_multi(persistence:&Persistence, options: Vec<RequestSearchPart>, skip:usize, top:usize) -> Result<SuggestFieldResult, SearchError>  {
+    let mut suggest_result = vec![];
     for mut option in options {
         option.return_term = Some(true);
         option.resolve_token_to_parent_hits = Some(false);
         let search_result = get_hits_in_field(persistence, &option)?;
-        for term_n_score in search_result.hits.iter() {// @Performance add only "top" elements
+        for term_n_score in search_result.hits.iter() { // @Performance add only "top" elements
             let term = search_result.terms.get(&term_n_score.0).unwrap();
             println!("SUGGEST: {:?}", term);
-            suggest_result.hits.push((term.to_string(), term_n_score.1));
+            suggest_result.push((term.to_string(), term_n_score.1));
         }
     }
 
-    suggest_result.hits.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(Ordering::Equal));
-    return Ok(suggest_result);
+    suggest_result.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(Ordering::Equal));
+
+    return Ok(search::apply_top_skip(suggest_result, skip, top));
 }
 
 
 // just adds sorting to search
-pub fn suggest(persistence:&Persistence, options: &RequestSearchPart) -> Result<SuggestFieldResult, SearchError>  {
+pub fn suggest(persistence:&Persistence, options: &RequestSearchPart, skip:usize, top:usize) -> Result<SuggestFieldResult, SearchError>  {
     let options = vec![options.clone()];
-    return suggest_multi(persistence, options);
+    return suggest_multi(persistence, options, skip, top);
 }
 
 pub fn get_hits_in_field(persistence:&Persistence, options: &RequestSearchPart) -> Result<SearchFieldResult, SearchError> {
