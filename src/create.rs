@@ -13,6 +13,7 @@ use std::sync::mpsc::sync_channel;
 use std::io::SeekFrom;
 use util;
 use util::concat;
+#[allow(unused_imports)]
 use fnv::FnvHashSet;
 use fnv::FnvHashMap;
 #[allow(unused_imports)]

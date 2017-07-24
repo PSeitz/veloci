@@ -1,4 +1,5 @@
 use search;
+use search_field;
 // use create;
 // use doc_loader;
 // use persistence;
@@ -14,7 +15,6 @@ use iron::{headers, status};
 use iron::modifiers::Header;
 use persistence;
 
-use std::sync::Mutex;
 #[allow(unused_imports)]
 use std::collections::HashMap;
 #[allow(unused_imports)]
@@ -82,7 +82,8 @@ pub fn start_server(database: String) {
     let mut router = Router::new();                     // Alternative syntax:
     router.get("/", handler, "index");                  // let router = router!(index: get "/" => handler,
     router.get("/:query", handler, "query");            //                      query: get "/:query" => handler);
-    router.post("/search", post_handler, "search");
+    router.post("/search", search_handler, "search");
+    router.post("/suggest", suggest_handler, "suggest");
 
     // let mut pers = Persistence::load("csv_test".to_string()).expect("Could not load persistence");
 
@@ -93,24 +94,15 @@ pub fn start_server(database: String) {
         Ok(Response::with((status::Ok, *query)))
     }
 
-    fn post_handler(req: &mut Request) -> IronResult<Response> {
-
+    fn search_handler(req: &mut Request) -> IronResult<Response> {
+        // let ref query = req.extensions.get::<Router>().unwrap().find("query").unwrap_or("/");
+        // Ok(Response::with(status::Ok))
+        // Ok(Response::with((status::Ok, "*query")))
         let struct_body = req.get::<bodyparser::Struct<search::Request>>();
         match struct_body {
             Ok(Some(struct_body)) => {
                 println!("Parsed body:\n{:?}", struct_body);
 
-                // let mut pers = match try!(req.get::<Persistence>()) {
-                //     Some(pers) => pers,
-                //     None => {
-                //         let _pers:persistence::Persistence = persistence::Persistence::load("csv_test".to_string()).expect("could not load persistence");
-                //         req.set::<Persistence>(_pers);
-                //         // Aaa("".to_owned())
-                //         _pers
-                //     }
-                // };
-
-                // req.get::<Persistence>()
 
                 // let pers:persistence::Persistence = persistence::Persistence::load("csv_test".to_string()).expect("could not load persistence");
                 info_time!("search total");
@@ -133,14 +125,31 @@ pub fn start_server(database: String) {
                 Ok(Response::with((status::Ok, err.to_string())))
             }
         }
-
-        // let ref query = req.extensions.get::<Router>().unwrap().find("query").unwrap_or("/");
-        // Ok(Response::with(status::Ok))
-        // Ok(Response::with((status::Ok, "*query")))
     }
 
-    // let mut chain = Chain::new(hello_world);
-    // chain.link_before(ResponseTime);
-    // chain.link_after(ResponseTime);
-    // Iron::new(chain).http("localhost:3000").unwrap();
+    fn suggest_handler(req: &mut Request) -> IronResult<Response> {
+        let struct_body = req.get::<bodyparser::Struct<search::Request>>();
+        match struct_body {
+            Ok(Some(struct_body)) => {
+                println!("Parsed body:\n{:?}", struct_body);
+
+                info_time!("search total");
+                let persistences = PERSISTENCES.read().unwrap();
+                let persistence = persistences.get(&"default".to_string()).unwrap();
+
+                println!("Suggesting ... ");
+                let hits = search_field::suggest_multi(&persistence, struct_body).unwrap();
+                println!("Returning ... ");
+                Ok(Response::with((status::Ok, Header(headers::ContentType::json()), serde_json::to_string(&hits).unwrap())))
+            },
+            Ok(None) => {
+                println!("No body");
+                Ok(Response::with((status::Ok, "No body")))
+            },
+            Err(err) => {
+                println!("Error: {:?}", err);
+                Ok(Response::with((status::Ok, err.to_string())))
+            }
+        }
+    }
 }

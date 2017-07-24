@@ -5,7 +5,7 @@ use std::io;
 // use std::mem;
 use std::fs::File;
 // use std;
-
+#[allow(unused_imports)]
 use std;
 
 pub fn normalize_text(text:&str) -> String {

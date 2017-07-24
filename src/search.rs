@@ -308,7 +308,7 @@ impl HitCollector for MyHitCollector {
         Box::new(MyHitCollectorIntoIter{hits_vec: self.hits_vec, pos: 0})
     }
 
-    fn get_value(&self, id: u32) -> Option<u32>{
+    fn get_value(&self, _id: u32) -> Option<u32>{
         // self.hits_vec.get(id)
         Some(1)
     }
@@ -341,7 +341,7 @@ fn check_apply_boost(persistence:&Persistence, boost: &RequestBoostPart, path_na
 pub fn search_raw(persistence:&Persistence, mut request: RequestSearchPart, mut boost: Option<Vec<RequestBoostPart>>) -> Result<FnvHashMap<u32, f32>, SearchError> {
     request.term = util::normalize_text(&request.term);
     debug_time!("search and join to anchor");
-    let mut field_result = search_field::get_hits_in_field(persistence, &mut request)?;
+    let field_result = search_field::get_hits_in_field(persistence, &mut request)?;
 
     let num_term_hits = field_result.hits.len();
     if num_term_hits == 0 {return Ok(FnvHashMap::default())};

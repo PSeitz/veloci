@@ -119,7 +119,6 @@ pub fn suggest_multi(persistence:&Persistence, req: Request) -> Result<SuggestFi
         let search_result = get_hits_in_field(persistence, &option)?;
         for term_n_score in search_result.hits.iter() { // @Performance add only "top" elements
             let term = search_result.terms.get(&term_n_score.0).unwrap();
-            println!("SUGGEST: {:?}", term);
             suggest_result.push((term.to_string(), term_n_score.1));
         }
     }
