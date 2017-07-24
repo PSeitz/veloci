@@ -98,8 +98,8 @@ pub struct Hit {
     pub score: f32
 }
 
-fn hits_to_array(hits:FnvHashMap<u32, f32>) -> Vec<Hit> {
-    debug_time!("hits_to_array");
+fn hits_to_sorted_array(hits:FnvHashMap<u32, f32>) -> Vec<Hit> {
+    debug_time!("hits_to_array_sort");
     let mut res:Vec<Hit> = hits.iter().map(|(id, score)| Hit{id:*id, score:*score}).collect();
     res.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(Ordering::Equal)); // Add sort by id
     res
@@ -140,7 +140,7 @@ pub fn search(request: Request, persistence:&Persistence) -> Result<Vec<Hit>, Se
     let res = search_unrolled(&persistence, request)?;
     // println!("{:?}", res);
     // let res = hits_to_array_iter(res.iter());
-    let res = hits_to_array(res);
+    let res = hits_to_sorted_array(res);
 
     Ok(apply_top_skip(res, skip, top))
 }

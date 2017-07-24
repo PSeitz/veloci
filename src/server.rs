@@ -1,69 +1,18 @@
-#![feature(test)]
-#![feature(placement_in_syntax)]
-#![feature(box_syntax, box_patterns)]
-#![cfg_attr(feature= "unstable", feature(alloc, heap_api, repr_simd))]
-
-extern crate serde_derive;
-
-extern crate serde_json;
-
-extern crate serde;
-extern crate rand;
-// extern crate tokio_timer;
-extern crate regex;
-extern crate fnv;
-extern crate fst;
-
-extern crate log;
-extern crate env_logger;
-
-#[macro_use]
-extern crate lazy_static;
-
-// extern crate abomonation;
-extern crate csv;
-
-extern crate test;
-
-extern crate bit_set;
-extern crate bit_vec;
-
-extern crate num;
-
-extern crate hyper;
-extern crate iron;
-extern crate bodyparser;
-extern crate router;
-extern crate time;
-extern crate snap;
-
-extern crate bincode;
-
-#[macro_use]
-extern crate measure_time;
-
-extern crate heapsize;
-
-extern crate byteorder;
-
-extern crate native_search;
-
-// use util;
-use native_search::search;
+use search;
 // use create;
 // use doc_loader;
 // use persistence;
-use native_search::persistence::Persistence;
+use persistence::Persistence;
 use iron::prelude::*;
 use iron::{BeforeMiddleware, AfterMiddleware, typemap};
 use time::precise_time_ns;
 use router::Router;
-// use bodyparser;
-// use serde_json;
+use bodyparser;
+use serde_json;
 
 use iron::{headers, status};
 use iron::modifiers::Header;
-use native_search::persistence;
+use persistence;
 
 use std::sync::Mutex;
 #[allow(unused_imports)]
@@ -100,9 +49,9 @@ lazy_static! {
     // static ref CSV_PERSISTENCE: Persistence = {
     //     persistence::Persistence::load("csv_test".to_string()).expect("could not load persistence")
     // };
-    static ref JMDICT_PERSISTENCE: Persistence = {
-        persistence::Persistence::load("jmdict".to_string()).expect("could not load persistence")
-    };
+    // static ref JMDICT_PERSISTENCE: Persistence = {
+    //     persistence::Persistence::load("jmdict".to_string()).expect("could not load persistence")
+    // };
 
     static ref PERSISTENCES: RwLock<FnvHashMap<String, Persistence>> = {
         RwLock::new(FnvHashMap::default())
@@ -114,14 +63,19 @@ lazy_static! {
     // };
 }
 
-fn main() {
-    start_server("jmdict".to_string());
-}
+// fn main() {
+//     start_server("jmdict".to_string());
+// }
+
+
+
 
 pub fn start_server(database: String) {
 
-    let mut persistences = PERSISTENCES.write().unwrap();
-    persistences.insert("default".to_string(), persistence::Persistence::load(database.clone()).expect("could not load persistence"));
+    {
+        let mut persistences = PERSISTENCES.write().unwrap();
+        persistences.insert("default".to_string(), persistence::Persistence::load(database.clone()).expect("could not load persistence"));
+    }
     // PERSISTENCES.write().unwrap()
 
     // &JMDICT_PERSISTENCE.print_heap_sizes();
@@ -162,8 +116,12 @@ pub fn start_server(database: String) {
                 info_time!("search total");
                 let persistences = PERSISTENCES.read().unwrap();
                 let persistence = persistences.get(&"default".to_string()).unwrap();
+
+                println!("Searching ... ");
                 let hits = search::search(struct_body, &persistence).unwrap();
+                println!("Loading Documents... ");
                 let doc = search::to_documents(&persistence, &hits);
+                println!("Returning ... ");
                 Ok(Response::with((status::Ok, Header(headers::ContentType::json()), serde_json::to_string(&doc).unwrap())))
             },
             Ok(None) => {
