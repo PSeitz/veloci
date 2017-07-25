@@ -102,7 +102,7 @@ type TermScore = (TermId, Score);
 type TermId = u32;
 type Score = f32;
 
-type SuggestFieldResult = Vec<(String, Score)>;
+type SuggestFieldResult = Vec<(String, Score, TermId)>;
 
 #[derive(Debug)]
 pub struct SearchFieldResult {
@@ -110,22 +110,26 @@ pub struct SearchFieldResult {
     pub terms: FnvHashMap<TermId, String>
 }
 
+fn searchResultToSuggestResult(results: Vec<SearchFieldResult>, skip: usize, top: usize) -> SuggestFieldResult {
+    let mut suggest_result = results.iter().flat_map(|res|{  // @Performance add only "top" elements ?
+        res.hits.iter().map(|term_n_score|{
+            let term = res.terms.get(&term_n_score.0).unwrap();
+            (term.to_string(), term_n_score.1, term_n_score.0)
+        }).collect::<SuggestFieldResult>()
+    }).collect::<SuggestFieldResult>();
+    suggest_result.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(Ordering::Equal));
+    search::apply_top_skip(suggest_result, skip, top)
+}
+
 pub fn suggest_multi(persistence:&Persistence, req: Request) -> Result<SuggestFieldResult, SearchError>  {
     let options: Vec<RequestSearchPart> = req.suggest.expect("only suggest allowed here");
-    let mut suggest_result = vec![];
+    let mut search_results = vec![];
     for mut option in options {
         option.return_term = Some(true);
         option.resolve_token_to_parent_hits = Some(false);
-        let search_result = get_hits_in_field(persistence, &option)?;
-        for term_n_score in search_result.hits.iter() { // @Performance add only "top" elements
-            let term = search_result.terms.get(&term_n_score.0).unwrap();
-            suggest_result.push((term.to_string(), term_n_score.1));
-        }
+        search_results.push(get_hits_in_field(persistence, &option)?);
     }
-
-    suggest_result.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(Ordering::Equal));
-
-    return Ok(search::apply_top_skip(suggest_result, req.skip, req.top));
+    return Ok(searchResultToSuggestResult(search_results, req.skip, req.top));
 }
 
 // just adds sorting to search
