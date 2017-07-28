@@ -59,7 +59,7 @@ mod tests {
             ],
             "meanings": {
                 "eng" : ["will", "desire", "urge", "having a long torso"],
-                "ger": ["Wollen (n)", "Wille (m)", "Begeisterung (f)"]
+                "ger": ["Wollen (n)", "Wille (m)", "Begeisterung (f)", "begeistern"]
             },
             "ent_seq": "1587690"
         },
@@ -129,6 +129,13 @@ mod tests {
                 ]
             },
             "ent_seq": "1605630"
+        }
+    ]"#;
+
+    static TOKEN_VALUE:&str = r#"[
+        {
+            "text": "Begeisterung",
+            "value": 20
         }
     ]"#;
 
@@ -215,6 +222,17 @@ mod tests {
             // println!("{:?}", persistence::load_all(&meta_data));
 
         }
+
+        {
+            let mut pers = persistence::Persistence::load(TEST_FOLDER.to_string()).expect("Could not load persistence");
+            let config = json!({
+                "path": "meanings.ger[]"
+            });
+            create::add_token_values_to_tokens(&mut pers, TOKEN_VALUE, &config.to_string()).expect("Could not add token values");
+
+        }
+
+        // reload to add token_values
         let mut pers = persistence::Persistence::load(TEST_FOLDER.to_string()).expect("Could not load persistence");
 
         //     assert_eq!(normalize_text("Hello"), "Hello");
@@ -441,7 +459,7 @@ mod tests {
             });
             let requesto: search::RequestSearchPart = serde_json::from_str(&req.to_string()).expect("Can't parse json");
             let results = search_field::get_hits_in_field(&mut pers, &requesto).unwrap();
-            assert_eq!(results.terms.values().collect::<Vec<&String>>(), ["majestät", "majestätischer anblick", "majestätisches aussehen", "majestätischer", "majestätisches"]);
+            assert_eq!(results.terms.values().collect::<Vec<&String>>(), ["majestätischer", "majestätisches", "majestät", "majestätischer anblick", "majestätisches aussehen"]);
         }
 
         { // real suggest with score
@@ -472,7 +490,27 @@ mod tests {
             let requesto: search::Request = serde_json::from_str(&req.to_string()).expect("Can't parse json");
             let results = search_field::suggest_multi(&mut pers, requesto).unwrap();
             assert_eq!(results.iter().map(|el| el.0.clone()).collect::<Vec<String>>(), ["will", "wille", "will test"]);
-        }      
+        }
+
+
+        { // real suggest with score and token value
+            let req = json!({
+                "term":"begeist",
+                "path": "meanings.ger[]",
+                "levenshtein_distance": 0,
+                "starts_with":true,
+                "token_value": {
+                    "path":"meanings.ger[].textindex.tokenValues",
+                    "boost_fun":"Log10",
+                    "param": 1
+                },
+                "top":10,
+                "skip":0
+            });
+            let requesto: search::RequestSearchPart = serde_json::from_str(&req.to_string()).expect("Can't parse json");
+            let results = search_field::suggest(&mut pers, &requesto).unwrap();
+            assert_eq!(results.iter().map(|el| el.0.clone()).collect::<Vec<String>>(), ["begeisterung", "begeistern"]);
+        }
 
         // { // should or connect the checks
         //     let req = json!({

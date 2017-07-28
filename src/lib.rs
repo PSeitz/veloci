@@ -32,6 +32,7 @@ extern crate num;
 
 extern crate hyper;
 extern crate iron;
+extern crate iron_cors;
 extern crate bodyparser;
 extern crate router;
 extern crate time;

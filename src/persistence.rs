@@ -101,7 +101,8 @@ pub trait IndexIdToParent: Debug + HeapSizeOf + Sync + Send{
     fn get_keys(&self) -> Vec<u32>;
 }
 
-static NOT_FOUND:i32 = -1;
+use std::i32;
+static NOT_FOUND:i32 = i32::MIN;
 
 #[derive(Debug)]
 struct IndexIdToMultipleParent {data: Vec<Vec<u32>> }

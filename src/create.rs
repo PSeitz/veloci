@@ -47,7 +47,7 @@ use fst::{self, IntoStreamer, Levenshtein, Set, MapBuilder};
 #[serde(untagged)]
 pub enum CreateIndex {
     FulltextInfo(Fulltext),
-    BoostInfo(Boost),
+    BoostInfo(Boost)
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -62,6 +62,11 @@ pub struct Fulltext {
 pub struct Boost {
     boost: String,
     options: BoostIndexOptions
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct TokenValuesConfig {
+    path: String
 }
 
 #[derive(Serialize, Deserialize, Debug, Default, Clone)]
@@ -569,9 +574,49 @@ fn print_vec_chardata(vec: &Vec<CharDataComplete>) -> String{
 //     Ok(())
 // }
 
+#[derive(Serialize, Deserialize, Debug)]
+struct TokenValueData {
+    text: String,
+    value: Option<u32>
+}
+
+use search;
+use search_field;
+pub fn add_token_values_to_tokens(persistence:&mut Persistence, data_str:&str, config:&str) -> Result<(), search::SearchError> {
+    let data: Vec<TokenValueData> = serde_json::from_str(data_str).unwrap();
+    let config: TokenValuesConfig = serde_json::from_str(config).unwrap();
+
+
+    let mut options: search::RequestSearchPart = search::RequestSearchPart{
+        path: config.path.clone(),
+        levenshtein_distance: Some(0),
+        resolve_token_to_parent_hits: Some(false),
+        .. Default::default()
+    };
+
+    let is_text_index = true;
+    let path_name = util::get_path_name(&config.path, is_text_index);
+    let mut tuples:Vec<ValIdToValue> = vec![];
+
+    for el in data {
+        if el.value.is_none() {
+            continue;
+        }
+        options.term = util::normalize_text(&el.text);
+
+        let hits = search_field::get_hits_in_field(persistence, &options)?;
+        if hits.hits.len() == 1 {
+            tuples.push(ValIdToValue{valid:hits.hits[0].0, value:el.value.unwrap()});
+        }
+    }
+    persistence.write_boost_tuple_pair(&mut tuples, &concat(&path_name, ".tokenValues"))?;
+    persistence.write_meta_data()?;
+    Ok(())
+}
+
+
 pub fn create_indices(folder:&str, data_str:&str, indices:&str) -> Result<(), CreateError>{
 
-    
     let data: Value = serde_json::from_str(data_str).unwrap();
 
     let indices_json:Vec<CreateIndex> = serde_json::from_str(indices).unwrap();

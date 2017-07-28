@@ -5,14 +5,16 @@ use search_field;
 // use persistence;
 use persistence::Persistence;
 use iron::prelude::*;
-use iron::{BeforeMiddleware, AfterMiddleware, typemap};
+use iron::{Iron, Handler, Request, Response, IronResult, Chain, BeforeMiddleware, AfterMiddleware, typemap};
+use iron_cors::CorsMiddleware;
+use iron::{headers, status};
+use iron::modifiers::Header;
+
 use time::precise_time_ns;
 use router::Router;
 use bodyparser;
 use serde_json;
 
-use iron::{headers, status};
-use iron::modifiers::Header;
 use persistence;
 
 #[allow(unused_imports)]
@@ -87,7 +89,13 @@ pub fn start_server(database: String) {
 
     // let mut pers = Persistence::load("csv_test".to_string()).expect("Could not load persistence");
 
-    Iron::new(router).http("0.0.0.0:3000").unwrap();
+    // Initialize middleware
+    let cors_middleware = CorsMiddleware::with_allow_any();
+    // Setup chain with middleware
+    let mut chain = Chain::new(router);
+    chain.link_around(cors_middleware);
+
+    Iron::new(chain).http("0.0.0.0:3000").unwrap();
 
     fn handler(req: &mut Request) -> IronResult<Response> {
         let ref query = req.extensions.get::<Router>().unwrap().find("query").unwrap_or("/");

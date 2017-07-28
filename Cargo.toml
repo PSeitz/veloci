@@ -20,6 +20,7 @@ env_logger = "0.3"
 # abomonation = "0.4.5"
 csv = "0.15.0"
 iron = "0.5.1"
+iron-cors = { git = "https://github.com/DavidBM/iron-cors-rs"}
 time = "0.1"
 router = "*"
 hyper = "0.10.9"

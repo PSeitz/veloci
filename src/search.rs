@@ -51,6 +51,7 @@ pub struct RequestSearchPart {
     pub levenshtein_distance: Option<u32>,
     pub starts_with: Option<bool>,
     pub return_term: Option<bool>,
+    pub token_value: Option<RequestBoostPart>,
     // pub exact: Option<bool>,
     // pub first_char_exact_match: Option<bool>,
     /// boosts the search part with this value
@@ -76,7 +77,8 @@ pub struct RequestBoostPart {
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub enum BoostFunction {
     Log10,
-    Linear
+    Linear,
+    Add
 }
 
 impl Default for BoostFunction {
@@ -191,7 +193,12 @@ pub fn search_unrolled(persistence:&Persistence, request: Request) -> Result<Fnv
 
 use expression::ScoreExpression;
 
-fn add_boost(persistence: &Persistence, boost: &RequestBoostPart, hits: &mut FnvHashMap<u32, f32>) {
+#[derive(Debug)]
+struct BoostIter {
+    // iterHashmap: IterMut<K, V> (&'a K, &'a mut V)
+}
+
+pub fn add_boost(persistence: &Persistence, boost: &RequestBoostPart, hits: &mut FnvHashMap<u32, f32>) {
     // let key = util::boost_path(&boost.path);
     let boost_path = boost.path.to_string()+".boost_valid_to_value";
     let boostkv_store = persistence.get_boost(&boost_path);
@@ -216,6 +223,9 @@ fn add_boost(persistence: &Persistence, boost: &RequestBoostPart, hits: &mut Fnv
                     },
                     Some(BoostFunction::Linear) => {
                         *score *= boost_value as f32 + boost_param; // @Temporary // @Hack // @Cleanup // @FixMe
+                    },
+                    Some(BoostFunction::Add) => {
+                        *score += boost_value as f32 + boost_param;
                     }
                     None => {}
                 }
@@ -235,7 +245,7 @@ trait HitCollector: Sync + Clone  {
     // fn add(&mut self, hits: u32, score:f32);
     // fn union(&mut self, other:&Self);
     // fn intersect(&mut self, other:&Self);
-    // fn iter<'a>(&'a self) -> MyHitCollectorIter<'a>;
+    fn iter<'a>(&'a self) -> VecHitCollectorIter<'a>;
     // fn iter<'a>(&'a self) -> Box<'a,Iterator<Item=(u32, f32)>>;
     // fn iter<'b>(&'b self) -> Box<Iterator<Item=&'b (u32, f32)>>;
     fn into_iter(self) -> Box<Iterator<Item=(u32, f32)>>;
@@ -243,16 +253,16 @@ trait HitCollector: Sync + Clone  {
 }
 
 #[derive(Debug, Clone)]
-struct MyHitCollector {
+struct VecHitCollector {
     hits_vec: Vec<(u32, f32)>
 }
 
 #[derive(Debug, Clone)]
-struct MyHitCollectorIter<'a> {
+struct VecHitCollectorIter<'a> {
     hits_vec: &'a Vec<(u32, f32)>,
     pos: usize
 }
-impl<'a> Iterator for MyHitCollectorIter<'a> {
+impl<'a> Iterator for VecHitCollectorIter<'a> {
     type Item = &'a (u32, f32);
     fn next(&mut self) -> Option<&'a(u32, f32)>{
         if self.pos >= self.hits_vec.len() {
@@ -267,11 +277,11 @@ impl<'a> Iterator for MyHitCollectorIter<'a> {
 }
 
 #[derive(Debug, Clone)]
-struct MyHitCollectorIntoIter {
+struct VecHitCollectorIntoIter {
     hits_vec: Vec<(u32, f32)>,
     pos: usize
 }
-impl Iterator for MyHitCollectorIntoIter {
+impl Iterator for VecHitCollectorIntoIter {
     type Item = (u32, f32);
     fn next(&mut self) -> Option<(u32, f32)>{
         if self.pos >= self.hits_vec.len() {
@@ -283,7 +293,7 @@ impl Iterator for MyHitCollectorIntoIter {
     }
 }
 
-impl HitCollector for MyHitCollector {
+impl HitCollector for VecHitCollector {
     // fn add(&mut self, hits: u32, score:f32)
     // {
     // }
@@ -294,18 +304,18 @@ impl HitCollector for MyHitCollector {
     // {
     // }
 
-    // fn iter<'a>(&'a self) -> MyHitCollectorIter<'a>
-    // {
-    //     MyHitCollectorIter{hits_vec: & self.hits_vec}
-    // }
+    fn iter<'a>(&'a self) -> VecHitCollectorIter<'a>
+    {
+        VecHitCollectorIter{hits_vec: & self.hits_vec, pos:0}
+    }
 
     // fn iter<'b>(&'b self) -> Box<Iterator<Item=&'b (u32, f32)>>
     // {
-    //     Box::new(MyHitCollectorIter{hits_vec: &self.hits_vec}) as Box<Iterator<Item=&(u32, f32)>>
+    //     Box::new(VecHitCollectorIter{hits_vec: &self.hits_vec}) as Box<Iterator<Item=&(u32, f32)>>
     // }
     fn into_iter(self) -> Box<Iterator<Item=(u32, f32)>>
     {
-        Box::new(MyHitCollectorIntoIter{hits_vec: self.hits_vec, pos: 0})
+        Box::new(VecHitCollectorIntoIter{hits_vec: self.hits_vec, pos: 0})
     }
 
     fn get_value(&self, _id: u32) -> Option<u32>{

@@ -110,7 +110,7 @@ pub struct SearchFieldResult {
     pub terms: FnvHashMap<TermId, String>
 }
 
-fn searchResultToSuggestResult(results: Vec<SearchFieldResult>, skip: usize, top: usize) -> SuggestFieldResult {
+fn search_result_to_suggest_result(results: Vec<SearchFieldResult>, skip: usize, top: usize) -> SuggestFieldResult {
     let mut suggest_result = results.iter().flat_map(|res|{  // @Performance add only "top" elements ?
         res.hits.iter().map(|term_n_score|{
             let term = res.terms.get(&term_n_score.0).unwrap();
@@ -129,7 +129,7 @@ pub fn suggest_multi(persistence:&Persistence, req: Request) -> Result<SuggestFi
         option.resolve_token_to_parent_hits = Some(false);
         search_results.push(get_hits_in_field(persistence, &option)?);
     }
-    return Ok(searchResultToSuggestResult(search_results, req.skip, req.top));
+    return Ok(search_result_to_suggest_result(search_results, req.skip, req.top));
 }
 
 // just adds sorting to search
@@ -190,6 +190,19 @@ pub fn get_hits_in_field(persistence:&Persistence, options: &RequestSearchPart) 
     if options.resolve_token_to_parent_hits.unwrap_or(true) {
         resolve_token_hits(persistence, &options.path, &mut result);
     }
+
+    if options.token_value.is_some() {
+        let mut hits:FnvHashMap<u32, f32> = FnvHashMap::default();// @FixMe This is stupid
+        for &(value_id, score) in result.hits.iter() {
+            hits.insert(value_id, score);
+        }
+        search::add_boost(persistence, options.token_value.as_ref().unwrap(), &mut hits);
+
+        for el in result.hits.iter_mut() {
+            el.1 = *hits.get(&el.0).unwrap();
+        }
+    }
+
     Ok(result)
 
 }
