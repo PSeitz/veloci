@@ -219,6 +219,7 @@ pub fn add_boost(persistence: &Persistence, boost: &RequestBoostPart, hits: &mut
                 let boost_value = values[0]; // @Temporary // @Hack this should not be an array for this case
                 match boost.boost_fun {
                     Some(BoostFunction::Log10) => {
+                        // debug!("boosting score {:?} with value {:?} to {:?}", score, (boost_value as f32 + boost_param).log10(), paths.last().unwrap());
                         *score += ( boost_value as f32 + boost_param).log10(); // @Temporary // @Hack // @Cleanup // @FixMe
                     },
                     Some(BoostFunction::Linear) => {

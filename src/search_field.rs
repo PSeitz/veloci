@@ -9,6 +9,7 @@ use util::concat;
 use std::cmp;
 use std::cmp::Ordering;
 use fnv::FnvHashMap;
+use util;
 
 #[allow(unused_imports)]
 use fst::{IntoStreamer, Levenshtein, Set, Map, MapBuilder};
@@ -127,6 +128,7 @@ pub fn suggest_multi(persistence:&Persistence, req: Request) -> Result<SuggestFi
     for mut option in options {
         option.return_term = Some(true);
         option.resolve_token_to_parent_hits = Some(false);
+        option.term = util::normalize_text(&option.term);
         search_results.push(get_hits_in_field(persistence, &option)?);
     }
     return Ok(search_result_to_suggest_result(search_results, req.skip, req.top));
@@ -216,8 +218,8 @@ pub fn resolve_token_hits(persistence:&Persistence, path:&str, result: &mut Sear
     if !has_tokens { return; }
     // var hrstart = process.hrtime()
     // let cache_lock = persistence::INDEX_64_CACHE.read().unwrap();
-    // let text_offsets = persistence.cache.index_64.get(&concat(&path, ".offsets"))
-    //     .expect(&format!("Could not find {:?} in index_64 cache", concat(&path, ".offsets")));
+    let text_offsets = persistence.cache.index_64.get(&concat(&path, ".offsets"))
+        .expect(&format!("Could not find {:?} in index_64 cache", concat(&path, ".offsets")));
 
     // let key = (concat(&path, ".textindex.tokens.tokenValIds"), concat(&path, ".textindex.tokens.parentValId"));
 
@@ -236,15 +238,16 @@ pub fn resolve_token_hits(persistence:&Persistence, path:&str, result: &mut Sear
             if parent_ids_for_token.len() > 0 {
                 token_hits.reserve(parent_ids_for_token.len());
                 for token_parentval_id in parent_ids_for_token {
-                    // let parent_text_length = text_offsets[1 + *token_parentval_id as usize] - text_offsets[*token_parentval_id as usize];
-                    // let token_text_length  = text_offsets[1 + *value_id as usize] - text_offsets[*value_id as usize];
+                    let parent_text_length = text_offsets[1 + *token_parentval_id as usize] - text_offsets[*token_parentval_id as usize];
+                    let token_text_length  = text_offsets[1 + value_id as usize] - text_offsets[value_id as usize];
                     // let adjusted_score = 2.0/(parent_text_length as f32 - token_text_length as f32) + 0.2;
+                    let adjusted_score = score/(parent_text_length as f32 - token_text_length as f32 + 1.0);
 
                     // let the_score = token_hits.entry(*token_parentval_id as u32) // @Temporary
                     //     .or_insert(*hits.get(token_parentval_id).unwrap_or(&0.0));
                     // *the_score += adjusted_score;
-                    // token_hits.push((*token_parentval_id, adjusted_score));
-                    token_hits.push((*token_parentval_id, score, value_id));
+                    token_hits.push((*token_parentval_id, adjusted_score, value_id));
+                    // token_hits.push((*token_parentval_id, score, value_id));
                 }
             }
         });
