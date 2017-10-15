@@ -95,7 +95,14 @@ pub fn start_server(database: String) {
     let mut chain = Chain::new(router);
     chain.link_around(cors_middleware);
 
-    Iron::new(chain).http("0.0.0.0:3000").unwrap();
+    use std::env;
+
+    let port = env::var("SERVER_PORT").unwrap_or("3000".to_string());
+    let ip = env::var("SERVER_IP").unwrap_or("0.0.0.0".to_string());
+
+    let combined = format!("{}:{}", ip, port );
+    println!("Start server {:?}", combined);
+    Iron::new(chain).http(combined).unwrap();
 
     fn handler(req: &mut Request) -> IronResult<Response> {
         let ref query = req.extensions.get::<Router>().unwrap().find("query").unwrap_or("/");
@@ -110,7 +117,7 @@ pub fn start_server(database: String) {
         match struct_body {
             Ok(Some(struct_body)) => {
                 println!("Parsed body:\n{:?}", struct_body);
-
+                info!("whoaat");
 
                 // let pers:persistence::Persistence = persistence::Persistence::load("csv_test".to_string()).expect("could not load persistence");
                 info_time!("search total");
@@ -120,7 +127,7 @@ pub fn start_server(database: String) {
                 println!("Searching ... ");
                 let hits = search::search(struct_body, &persistence).unwrap();
                 println!("Loading Documents... ");
-                let doc = search::to_documents(&persistence, &hits);
+                let doc = search::to_search_result(&persistence, &hits);
                 println!("Returning ... ");
                 Ok(Response::with((status::Ok, Header(headers::ContentType::json()), serde_json::to_string(&doc).unwrap())))
             },

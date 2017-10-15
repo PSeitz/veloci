@@ -15,11 +15,16 @@ use util;
 use fst::{IntoStreamer, Levenshtein, Set, Map, MapBuilder};
 use fst::automaton::*;
 
-fn get_default_score(term1: &str, term2: &str) -> f32{
-    return 2.0/(distance(term1, term2) as f32 + 0.2 )
+fn get_default_score(term1: &str, term2: &str, prefix_matches: bool) -> f32{
+    return get_default_score2(distance(term1, term2), prefix_matches);
+    // return 2.0/(distance(term1, term2) as f32 + 0.2 )
 }
-fn get_default_score2(distance: u32) -> f32{
-    return 2.0/(distance as f32 + 0.2 )
+fn get_default_score2(distance: u32, prefix_matches: bool) -> f32{
+    if prefix_matches {
+        return 2.0/((distance as f32 + 1.0).log10() + 0.2 );
+    }else {
+        return 2.0/(distance as f32 + 0.2 );
+    }
 }
 
 #[inline(always)]
@@ -123,6 +128,7 @@ fn search_result_to_suggest_result(results: Vec<SearchFieldResult>, skip: usize,
 }
 
 pub fn suggest_multi(persistence:&Persistence, req: Request) -> Result<SuggestFieldResult, SearchError>  {
+    print_time!("suggest time");
     let options: Vec<RequestSearchPart> = req.suggest.expect("only suggest allowed here");
     let mut search_results = vec![];
     for mut option in options {
@@ -131,6 +137,7 @@ pub fn suggest_multi(persistence:&Persistence, req: Request) -> Result<SuggestFi
         option.term = util::normalize_text(&option.term);
         search_results.push(get_hits_in_field(persistence, &option)?);
     }
+    print_time!("suggest to vec/sort");
     return Ok(search_result_to_suggest_result(search_results, req.skip, req.top));
 }
 
@@ -174,8 +181,16 @@ pub fn get_hits_in_field(persistence:&Persistence, options: &RequestSearchPart) 
     {
         let teh_callback = |line: &str, line_pos: u32| {
             // trace!("Checking {} with {}", line, term);
+
+            // In the case of levenshtein != 0 or starts_with, we want prefix_matches to have a score boost - so that "awe" scores better for awesome than aber
+            let mut prefix_matches = false;
+            if (options.starts_with.unwrap_or(false) || options.levenshtein_distance.unwrap_or(0) != 0) && line.starts_with(&options.term) {
+                prefix_matches = true;
+            }
+
             let distance = if options.levenshtein_distance.unwrap_or(0) != 0 { Some(distance(&options.term, line))} else { None };
-            let mut score = if distance.is_some() {get_default_score2(distance.unwrap())} else {get_default_score(&options.term, line)};
+            let mut score = if distance.is_some() {get_default_score2(distance.unwrap(), prefix_matches)}
+                else {get_default_score(&options.term, line, prefix_matches)};
             options.boost.map(|boost_val| score = score * boost_val); // @FixMe Move out of loop?
             debug!("Hit: {:?}\tid: {:?} score: {:?}", line, line_pos, score);
             // hits.insert(line_pos, score);
@@ -183,6 +198,9 @@ pub fn get_hits_in_field(persistence:&Persistence, options: &RequestSearchPart) 
             if options.return_term.unwrap_or(false) {
                 result.terms.insert(line_pos, line.to_string());
             }
+            // if log_enabled!(Level::Trace) {
+            //     backtrace.insert(line_pos, score, line.to_string());
+            // }
         };
         // let exact_search = if options.exact.unwrap_or(false) {Some(options.term.to_string())} else {None};
         get_text_lines(persistence, options, teh_callback)?;
@@ -242,7 +260,7 @@ pub fn resolve_token_hits(persistence:&Persistence, path:&str, result: &mut Sear
                     let token_text_length  = text_offsets[1 + value_id as usize] - text_offsets[value_id as usize];
                     // let adjusted_score = 2.0/(parent_text_length as f32 - token_text_length as f32) + 0.2;
                     let adjusted_score = score/(parent_text_length as f32 - token_text_length as f32 + 1.0);
-
+                    debug!("value_id {:?} parent_l {:?}, token_l {:?} score {:?} to adjusted_score {:?}", token_parentval_id, parent_text_length, token_text_length, score, adjusted_score);
                     // let the_score = token_hits.entry(*token_parentval_id as u32) // @Temporary
                     //     .or_insert(*hits.get(token_parentval_id).unwrap_or(&0.0));
                     // *the_score += adjusted_score;
@@ -256,7 +274,7 @@ pub fn resolve_token_hits(persistence:&Persistence, path:&str, result: &mut Sear
         // trace!("value_id {:?}", value_id);
         // trace!("parent_ids_for_token {:?}", parent_ids_for_token);
     }
-    debug!("checked {:?}, got {:?} token hits", result.hits.iter().count(), token_hits.iter().count());
+    debug!("found {:?} token in {:?} texts", result.hits.iter().count(), token_hits.iter().count());
     {
         // println!("{:?}", token_hits);
         debug_time!("token_hits.sort_by");
@@ -266,6 +284,7 @@ pub fn resolve_token_hits(persistence:&Persistence, path:&str, result: &mut Sear
     // hits.extend(token_hits);
     trace!("token_hits in textindex: {:?}", token_hits);
     if token_hits.len() > 0 {
+        // token_hits.sort_by(|a, b| b.0.partial_cmp(&a.0).unwrap_or(Ordering::Equal)); // sort by parent_id=value_id
         result.hits.reserve(token_hits.len());
         let mut current_group_id = token_hits[0].0;
         let mut current_score = token_hits[0].1;

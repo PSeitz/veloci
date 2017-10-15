@@ -358,7 +358,9 @@ pub fn create_fulltext_index_csv(csv_path: &str, attr_name:&str, attr_pos: usize
 use persistence;
 
 fn store_full_text_info(mut persistence: &mut Persistence, all_terms: FnvHashMap<String, TermInfo>, path:&str, options:&FulltextIndexOptions) -> Result<(), io::Error> {
-    let offsets = get_string_offsets(all_terms.keys().collect::<Vec<&String>>());
+    let mut sorted_terms: Vec<&String> = all_terms.keys().collect::<Vec<&String>>();
+    sorted_terms.sort();
+    let offsets = get_string_offsets(sorted_terms);
     persistence.write_index(&persistence::vec_to_bytes_u64(&offsets), &offsets, &concat(&path, ".offsets"))?; // String byte offsets
     // persistence.write_data(path, all_terms.join("\n").as_bytes())?;
     // persistence.write_index(&all_terms.iter().map(|ref el| el.len() as u32).collect::<Vec<_>>(), &concat(path, ".length"))?;

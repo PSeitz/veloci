@@ -81,6 +81,17 @@ pub enum BoostFunction {
     Add
 }
 
+// #[derive(Debug)]
+// struct ScoreTrace {
+//     HashMap: <TermId, (ScoreSource, f32, )>
+// }
+
+// #[derive(Debug)]
+// struct ScoreSource {
+//     source: Vec<ScoreTrace>,
+//     f32: score
+// }
+
 impl Default for BoostFunction {
     fn default() -> BoostFunction { BoostFunction::Log10 }
 }
@@ -122,6 +133,7 @@ impl std::fmt::Display for DocWithHit {
     }
 }
 
+// @FixMe Tests should use to_search_result
 pub fn to_documents(persistence:&Persistence, hits: &Vec<Hit>) -> Vec<DocWithHit> {
     // DocLoader::load(persistence);
     hits.iter().map(|ref hit| {
@@ -130,21 +142,42 @@ pub fn to_documents(persistence:&Persistence, hits: &Vec<Hit>) -> Vec<DocWithHit
     }).collect::<Vec<_>>()
 }
 
+pub fn to_search_result(persistence:&Persistence, hits: &SearchResult) -> SearchResultWithDoc {
+    SearchResultWithDoc {data: to_documents(&persistence, &hits.data), num_hits: hits.num_hits}
+}
+
+
 pub fn apply_top_skip<T: Clone>(hits: Vec<T>, skip:usize, mut top:usize) -> Vec<T>{
     top = cmp::min(top + skip, hits.len());
     hits[skip..top].to_vec()
 }
 
-pub fn search(request: Request, persistence:&Persistence) -> Result<Vec<Hit>, SearchError>{
+#[derive(Serialize, Deserialize, Default, Clone, Debug)]
+pub struct SearchResult {
+    pub num_hits: u64,
+    pub data: Vec<Hit>
+}
+
+#[derive(Serialize, Deserialize, Default, Clone, Debug)]
+pub struct SearchResultWithDoc {
+    pub num_hits: u64,
+    pub data: Vec<DocWithHit>
+}
+
+pub fn search(request: Request, persistence:&Persistence) -> Result<SearchResult, SearchError>{
     info_time!("search");
     let skip = request.skip;
     let top = request.top;
     let res = search_unrolled(&persistence, request)?;
     // println!("{:?}", res);
     // let res = hits_to_array_iter(res.iter());
-    let res = hits_to_sorted_array(res);
+    // let res = hits_to_sorted_array(res);
 
-    Ok(apply_top_skip(res, skip, top))
+    let mut search_result = SearchResult{num_hits:0, data: vec![]};
+    search_result.data = hits_to_sorted_array(res);
+    search_result.num_hits = search_result.data.len() as u64;
+    search_result.data = apply_top_skip(search_result.data, skip, top);
+    Ok(search_result)
 }
 
 fn get_shortest_result<T: std::iter::ExactSizeIterator>(results: &Vec<T>) -> usize {
@@ -219,18 +252,22 @@ pub fn add_boost(persistence: &Persistence, boost: &RequestBoostPart, hits: &mut
                 let boost_value = values[0]; // @Temporary // @Hack this should not be an array for this case
                 match boost.boost_fun {
                     Some(BoostFunction::Log10) => {
-                        // debug!("boosting score {:?} with value {:?} to {:?}", score, (boost_value as f32 + boost_param).log10(), paths.last().unwrap());
+                        debug!("boosting value_id {:?} score {:?} with token_value {:?} boost_value {:?} to {:?}", *value_id, score, boost_value, (boost_value as f32 + boost_param).log10(), *score + (boost_value as f32 + boost_param).log10());
                         *score += ( boost_value as f32 + boost_param).log10(); // @Temporary // @Hack // @Cleanup // @FixMe
                     },
                     Some(BoostFunction::Linear) => {
                         *score *= boost_value as f32 + boost_param; // @Temporary // @Hack // @Cleanup // @FixMe
                     },
                     Some(BoostFunction::Add) => {
+                        debug!("boosting value_id {:?} score {:?} with token_value {:?} boost_value {:?} to {:?}", *value_id, score, boost_value, (boost_value as f32 + boost_param), *score + (boost_value as f32 + boost_param));
                         *score += boost_value as f32 + boost_param;
                     }
                     None => {}
                 }
-                expre.as_ref().map(|exp| *score = exp.get_score(*score));
+                expre.as_ref().map(|exp| {
+                    debug!("expression to {:?} with boost_value {:?}", exp.get_score(boost_value as f32), boost_value);
+                    *score += exp.get_score(boost_value as f32)
+                });
             }
         });
 
@@ -377,13 +414,17 @@ pub fn search_raw(persistence:&Persistence, mut request: RequestSearchPart, mut 
             values.as_ref().map(|values| {
                 total_values += values.len();
                 hits.reserve(values.len());
-                trace!("value_id: {:?} values: {:?} ", value_id, values);
+                // trace!("value_id: {:?} values: {:?} ", value_id, values);
                 for parent_val_id in values {    // @Temporary
                     match hits.entry(*parent_val_id as u32) {
-                        Vacant(entry) => { entry.insert(score); },
+                        Vacant(entry) => {
+                            trace!("value_id: {:?} to parent: {:?} score {:?}", value_id, parent_val_id, score);
+                            entry.insert(score);
+                        },
                         Occupied(entry) => {
                             if *entry.get() < score {
-                                *entry.into_mut() = score.max(*entry.get()) + 0.1;
+                                trace!("value_id: {:?} to parent: {:?} score: {:?}", value_id, parent_val_id, score.max(*entry.get()));
+                                *entry.into_mut() = score.max(*entry.get());
                             }
                         },
                     }
@@ -415,13 +456,17 @@ pub fn search_raw(persistence:&Persistence, mut request: RequestSearchPart, mut 
             let ref values = kv_store.get_values(*value_id as u64);
             values.as_ref().map(|values| {
                 next_level_hits.reserve(values.len());
-                trace!("value_id: {:?} values: {:?} ", value_id, values);
+                // trace!("value_id: {:?} values: {:?} ", value_id, values);
                 for parent_val_id in values {    // @Temporary
                     match next_level_hits.entry(*parent_val_id as u32) {
-                        Vacant(entry) => { entry.insert(*score); },
+                        Vacant(entry) => {
+                            trace!("value_id: {:?} to parent: {:?} score {:?} --new insert", value_id, parent_val_id, score);
+                            entry.insert(*score);
+                        },
                         Occupied(entry) => {
                             if *entry.get() < *score {
-                                *entry.into_mut() = score.max(*entry.get()) + 0.1;
+                                trace!("value_id: {:?} to parent: {:?} score: {:?} --update", value_id, parent_val_id, score.max(*entry.get()));
+                                *entry.into_mut() = *score;
                             }
                         },
                     }
@@ -444,6 +489,7 @@ pub fn search_raw(persistence:&Persistence, mut request: RequestSearchPart, mut 
             // }
         }
 
+        // next_level_hits.sort_by(|a, b| a.0.cmp(&b.0));
         trace!("next_level_hits: {:?}", next_level_hits);
         debug!("{:?} hits in next_level_hits {:?}", next_level_hits.len(), &concat(&path_name, ".valueIdToParent"));
 
