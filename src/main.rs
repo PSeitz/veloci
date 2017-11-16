@@ -1,11 +1,10 @@
 #![feature(plugin)]
 #![cfg_attr(test, plugin(stainless))]
-
 #![feature(test)]
 #![feature(collection_placement)]
 #![feature(placement_in_syntax)]
 #![feature(box_syntax, box_patterns)]
-#![cfg_attr(feature= "unstable", feature(alloc, heap_api, repr_simd))]
+#![cfg_attr(feature = "unstable", feature(alloc, heap_api, repr_simd))]
 
 #[macro_use]
 extern crate serde_derive;
@@ -13,15 +12,16 @@ extern crate serde_derive;
 #[macro_use]
 extern crate serde_json;
 
-extern crate serde;
 extern crate rand;
+extern crate serde;
 // extern crate tokio_timer;
-extern crate regex;
 extern crate fnv;
 extern crate fst;
+extern crate regex;
 
-#[macro_use] extern crate log;
 extern crate env_logger;
+#[macro_use]
+extern crate log;
 
 // extern crate abomonation;
 extern crate csv;
@@ -33,12 +33,12 @@ extern crate bit_vec;
 
 extern crate num;
 
+extern crate bodyparser;
 extern crate hyper;
 extern crate iron;
-extern crate bodyparser;
 extern crate router;
-extern crate time;
 extern crate snap;
+extern crate time;
 
 extern crate bincode;
 
@@ -53,7 +53,7 @@ extern crate sled;
 
 // use fst::{IntoStreamer, Streamer, Levenshtein, Set, MapBuilder};
 #[allow(unused_imports)]
-use fst::{IntoStreamer, Levenshtein, Set, MapBuilder};
+use fst::{IntoStreamer, Levenshtein, MapBuilder, Set};
 use std::fs::File;
 use std::io::prelude::*;
 #[allow(unused_imports)]
@@ -69,7 +69,8 @@ use fnv::FnvHashMap;
 
 use std::time::Instant;
 
-#[macro_use] extern crate lazy_static;
+#[macro_use]
+extern crate lazy_static;
 
 
 // extern crate rustc_serialize;
@@ -192,7 +193,6 @@ fn main() {
     // println!("{:?}",test_build_fst());
 
     // server::start_server();
-
 }
 // { "fulltext":"meanings.ger[]", "options":{"tokenize":true, "stopwords": ["stopword"]} }
 
@@ -231,17 +231,16 @@ fn create_jmdict_index() -> Result<(), io::Error> {
     let mut f = File::open("jmdict.json")?;
     let mut s = String::new();
     f.read_to_string(&mut s)?;
-    println!("{:?}", create::create_indices("jmdict", &s,  indices));
+    println!("{:?}", create::create_indices("jmdict", &s, indices));
     Ok(())
 }
 
 
 #[allow(dead_code)]
-pub fn testfst(term:&str, max_distance:u32) -> Result<(Vec<String>), fst::Error> {
-
-    let mut f = try!(File::open("de_full_2.txt"));
+pub fn testfst(term: &str, max_distance: u32) -> Result<(Vec<String>), fst::Error> {
+    let mut f = File::open("de_full_2.txt")?;
     let mut s = String::new();
-    try!(f.read_to_string(&mut s));
+    f.read_to_string(&mut s)?;
     let lines = s.lines().collect::<Vec<&str>>();
     // lines.sort();
 
@@ -252,13 +251,13 @@ pub fn testfst(term:&str, max_distance:u32) -> Result<(Vec<String>), fst::Error>
     // let set = try!(Set::from_iter(lines));
 
     let keys = vec!["寿司は焦げられない"];
-    let set = try!(Set::from_iter(keys));
+    let set = Set::from_iter(keys)?;
 
     let now = Instant::now();
 
-    let lev = try!(Levenshtein::new(term, max_distance));
+    let lev = Levenshtein::new(term, max_distance)?;
     let stream = set.search(lev).into_stream();
-    let hits = try!(stream.into_strs());
+    let hits = stream.into_strs()?;
 
     println!("fst ms: {}", (now.elapsed().as_secs() as f64 * 1_000.0) + (now.elapsed().subsec_nanos() as f64 / 1000_000.0));
 

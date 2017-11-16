@@ -26,7 +26,7 @@ mod tests {
     use fnv::FnvHashMap;
     use std::sync::RwLock;
 
-    static TEST_DATA:&str = r#"[
+    static TEST_DATA: &str = r#"[
         {
             "commonness": 20,
             "kanji": [
@@ -132,14 +132,14 @@ mod tests {
         }
     ]"#;
 
-    static TOKEN_VALUE:&str = r#"[
+    static TOKEN_VALUE: &str = r#"[
         {
             "text": "Begeisterung",
             "value": 20
         }
     ]"#;
 
-    static TEST_FOLDER:&str = "mochaTest";
+    static TEST_FOLDER: &str = "mochaTest";
     lazy_static! {
         static ref PERSISTENCES: RwLock<FnvHashMap<String, persistence::Persistence>> = {
             RwLock::new(FnvHashMap::default())
@@ -148,31 +148,37 @@ mod tests {
     }
 
 
-    #[test]#[ignore]
+    #[test]
+    #[ignore]
     fn test_paths() {
         let paths = util::get_steps_to_anchor("meanings.ger[]");
         println!("{:?}", paths);
     }
 
-    #[test]#[ignore]
+    #[test]
+    #[ignore]
     fn test_binary_search() {
-        let x = vec![1,2,3,6,7,8];
-        let u =  x.binary_search(&4).unwrap_err();;
+        let x = vec![1, 2, 3, 6, 7, 8];
+        let u = x.binary_search(&4).unwrap_err();
         println!("{:?}", u);
-        let value = match x.binary_search(&4) { Ok(value) => value,Err(value) => value};
+        let value = match x.binary_search(&4) {
+            Ok(value) => value,
+            Err(value) => value,
+        };
         println!("mjjaaa {}", value);
     }
 
     #[test]
     fn test_json_request() {
         warn!("can log from the test too");
-        let requesto: search::Request = serde_json::from_str(r#"{"search":{"path":"asdf", "terms":[ "asdf"], "levenshtein_distance":1}}"#).unwrap();
+        let requesto: search::Request = serde_json::from_str(r#"{"search":{"path":"asdf", "terms":[ "asdf"], "levenshtein_distance":1}}"#)
+            .unwrap();
         println!("mjjaaa {:?}", requesto);
         assert_eq!(requesto.search.unwrap().levenshtein_distance, Some(1));
     }
 
 
-    fn search_testo_to_doc(req: Value) -> Result<Vec<search::DocWithHit>, search::SearchError>  {
+    fn search_testo_to_doc(req: Value) -> Result<Vec<search::DocWithHit>, search::SearchError> {
         let persistences = PERSISTENCES.read().unwrap();
         let mut pers = persistences.get(&"default".to_string()).unwrap();
         let requesto: search::Request = serde_json::from_str(&req.to_string()).expect("Can't parse json");
@@ -447,7 +453,8 @@ mod tests {
             let persistences = PERSISTENCES.read().unwrap();
             let mut pers = persistences.get(&"default".to_string()).unwrap();
             let results = search_field::suggest(&mut pers, &requesto).unwrap();
-            assert_eq!(results.iter().map(|el| el.0.clone()).collect::<Vec<String>>(), ["majestät", "majestätischer", "majestätisches", "majestätischer anblick", "majestätisches aussehen"]);
+            assert_eq!(results.iter().map(|el| el.0.clone()).collect::<Vec<String>>(), ["majestät", "majestätischer", "majestätisches",
+                                                                                        "majestätischer anblick", "majestätisches aussehen"]);
         }
 
         it "multi real suggest with score"{

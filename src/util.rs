@@ -9,8 +9,7 @@ use std::fs::File;
 #[allow(unused_imports)]
 use std;
 
-pub fn normalize_text(text:&str) -> String {
-
+pub fn normalize_text(text: &str) -> String {
     lazy_static! {
         static ref REGEXES:Vec<(Regex, & 'static str)> = vec![
             (Regex::new(r"\([fmn\d]\)").unwrap(), " "),
@@ -26,17 +25,16 @@ pub fn normalize_text(text:&str) -> String {
     }
 
     new_str.to_lowercase().trim().to_owned()
-
 }
 
 use search::Hit;
 
-pub fn hits_map_to_vec(hits:FnvHashMap<u32, f32>) -> Vec<Hit> {
-    hits.iter().map(|(id, score)| Hit{id:*id, score:*score}).collect()
+pub fn hits_map_to_vec(hits: FnvHashMap<u32, f32>) -> Vec<Hit> {
+    hits.iter().map(|(id, score)| Hit { id:    *id, score: *score }).collect()
 }
 
-pub fn hits_vec_to_map(vec_hits:Vec<Hit>) -> FnvHashMap<u32, f32> {
-    let mut hits:FnvHashMap<u32, f32> = FnvHashMap::default();
+pub fn hits_vec_to_map(vec_hits: Vec<Hit>) -> FnvHashMap<u32, f32> {
+    let mut hits: FnvHashMap<u32, f32> = FnvHashMap::default();
     for hit in vec_hits {
         hits.insert(hit.id, hit.score);
     }
@@ -47,24 +45,24 @@ pub fn boost_path(path: &str) -> (String, String) {
     concat_tuple(path, ".boost.subObjId", ".boost.value")
 }
 
-pub fn concat(path:&str, suffix:&str) -> String {
-    path.to_string()+suffix
+pub fn concat(path: &str, suffix: &str) -> String {
+    path.to_string() + suffix
 }
 
-pub fn get_file_path(folder: &str, path:&str) -> String {
-    folder.to_string()+"/"+path
+pub fn get_file_path(folder: &str, path: &str) -> String {
+    folder.to_string() + "/" + path
 }
 
-pub fn concat_tuple(path:&str, suffix:&str, suffix2:&str) -> (String, String) {
+pub fn concat_tuple(path: &str, suffix: &str, suffix2: &str) -> (String, String) {
     (concat(path, suffix), concat(path, suffix2))
 }
 
-pub fn get_path_name(path_to_anchor: &str, is_text_index_part:bool) -> String{
-    let suffix = if is_text_index_part {".textindex"}else{""};
+pub fn get_path_name(path_to_anchor: &str, is_text_index_part: bool) -> String {
+    let suffix = if is_text_index_part { ".textindex" } else { "" };
     path_to_anchor.to_owned() + suffix
 }
 
-pub fn file_as_string(path:&str) -> Result<(String), io::Error> {
+pub fn file_as_string(path: &str) -> Result<(String), io::Error> {
     info!("Loading File {}", path);
     let mut file = File::open(path)?;
     let mut contents = String::new();
@@ -72,22 +70,20 @@ pub fn file_as_string(path:&str) -> Result<(String), io::Error> {
     Ok(contents)
 }
 
-pub fn get_level(path:&str) -> u32{
+pub fn get_level(path: &str) -> u32 {
     path.matches("[]").count() as u32
 }
 
-pub fn remove_array_marker(path:&str) -> String{
-    path.split(".").collect::<Vec<_>>()
-    .iter().map(|el| {
-        if el.ends_with("[]") {
-            &el[0..el.len()-2]
-        }
-        else {el}
-    }).collect::<Vec<_>>()
-    .join(".")
+pub fn remove_array_marker(path: &str) -> String {
+    path.split(".")
+        .collect::<Vec<_>>()
+        .iter()
+        .map(|el| if el.ends_with("[]") { &el[0..el.len() - 2] } else { el })
+        .collect::<Vec<_>>()
+        .join(".")
 }
 
-pub fn get_steps_to_anchor(path:&str) -> Vec<String> {
+pub fn get_steps_to_anchor(path: &str) -> Vec<String> {
     let mut paths = vec![];
     let mut current = vec![];
     // let parts = path.split('.')
@@ -95,15 +91,14 @@ pub fn get_steps_to_anchor(path:&str) -> Vec<String> {
 
     for part in parts {
         current.push(part.to_string());
-        if part.ends_with("[]"){
+        if part.ends_with("[]") {
             let joined = current.join(".");
             paths.push(joined);
         }
     }
 
     paths.push(path.to_string()); // add complete path
-    return paths
-
+    return paths;
 }
 
 

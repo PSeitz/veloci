@@ -1,11 +1,9 @@
 #![feature(plugin)]
 #![cfg_attr(test, plugin(stainless))]
-
 #![feature(test)]
-
 #![feature(placement_in_syntax)]
 #![feature(box_syntax, box_patterns)]
-#![cfg_attr(feature= "unstable", feature(alloc, heap_api, repr_simd))]
+#![cfg_attr(feature = "unstable", feature(alloc, heap_api, repr_simd))]
 
 #[macro_use]
 extern crate serde_derive;
@@ -13,15 +11,16 @@ extern crate serde_derive;
 #[macro_use]
 extern crate serde_json;
 
-extern crate serde;
 extern crate rand;
+extern crate serde;
 // extern crate tokio_timer;
-extern crate regex;
 extern crate fnv;
 extern crate fst;
+extern crate regex;
 
-#[macro_use] extern crate log;
 extern crate env_logger;
+#[macro_use]
+extern crate log;
 
 // extern crate abomonation;
 extern crate csv;
@@ -33,13 +32,13 @@ extern crate bit_vec;
 
 extern crate num;
 
+extern crate bodyparser;
 extern crate hyper;
 extern crate iron;
 extern crate iron_cors;
-extern crate bodyparser;
 extern crate router;
-extern crate time;
 extern crate snap;
+extern crate time;
 
 extern crate bincode;
 
@@ -54,7 +53,7 @@ extern crate sled;
 
 // use fst::{IntoStreamer, Streamer, Levenshtein, Set, MapBuilder};
 #[allow(unused_imports)]
-use fst::{IntoStreamer, Levenshtein, Set, MapBuilder};
+use fst::{IntoStreamer, Levenshtein, MapBuilder, Set};
 #[allow(unused_imports)]
 use std::io::{self, BufRead};
 #[allow(unused_imports)]
@@ -66,7 +65,8 @@ use std::collections::HashMap;
 #[allow(unused_imports)]
 use fnv::FnvHashMap;
 
-#[macro_use] extern crate lazy_static;
+#[macro_use]
+extern crate lazy_static;
 
 #[macro_use]
 pub mod util;

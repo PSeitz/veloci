@@ -128,7 +128,7 @@
 //             self.hits.resize(bucket + 1, BitSet::new());
 //         }
 //         if self.arr[bucket].len() <= pos { // @Hack  Fix Iterator
-//             self.arr[bucket].resize(cmp::min(((pos + 1) as f32 * 1.5) as usize, BUCKET_SIZE as usize + 2) , f32::NEG_INFINITY); // @Hack  +2 
+//             self.arr[bucket].resize(cmp::min(((pos + 1) as f32 * 1.5) as usize, BUCKET_SIZE as usize + 2) , f32::NEG_INFINITY); // @Hack  +2
 //         }
 //         self.arr[bucket][pos] = value;
 //         // if value == f32::NEG_INFINITY {
@@ -538,5 +538,3 @@
 //     // }
 
 // }
-
-

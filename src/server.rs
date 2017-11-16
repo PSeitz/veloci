@@ -5,7 +5,7 @@ use search_field;
 // use persistence;
 use persistence::Persistence;
 use iron::prelude::*;
-use iron::{Iron, Handler, Request, Response, IronResult, Chain, BeforeMiddleware, AfterMiddleware, typemap};
+use iron::{typemap, AfterMiddleware, BeforeMiddleware, Chain, Handler, Iron, IronResult, Request, Response};
 use iron_cors::CorsMiddleware;
 use iron::{headers, status};
 use iron::modifiers::Header;
@@ -25,7 +25,9 @@ use std::sync::RwLock;
 
 struct ResponseTime;
 
-impl typemap::Key for ResponseTime { type Value = u64; }
+impl typemap::Key for ResponseTime {
+    type Value = u64;
+}
 
 impl BeforeMiddleware for ResponseTime {
     fn before(&self, req: &mut Request) -> IronResult<()> {
@@ -73,17 +75,17 @@ lazy_static! {
 
 
 pub fn start_server(database: String) {
-
     {
         let mut persistences = PERSISTENCES.write().unwrap();
-        persistences.insert("default".to_string(), persistence::Persistence::load(database.clone()).expect("could not load persistence"));
+        persistences
+            .insert("default".to_string(), persistence::Persistence::load(database.clone()).expect("could not load persistence"));
     }
     // PERSISTENCES.write().unwrap()
 
     // &JMDICT_PERSISTENCE.print_heap_sizes();
-    let mut router = Router::new();                     // Alternative syntax:
-    router.get("/", handler, "index");                  // let router = router!(index: get "/" => handler,
-    router.get("/:query", handler, "query");            //                      query: get "/:query" => handler);
+    let mut router = Router::new(); // Alternative syntax:
+    router.get("/", handler, "index"); // let router = router!(index: get "/" => handler,
+    router.get("/:query", handler, "query"); //                      query: get "/:query" => handler);
     router.post("/search", search_handler, "search");
     router.post("/suggest", suggest_handler, "suggest");
 
@@ -100,7 +102,7 @@ pub fn start_server(database: String) {
     let port = env::var("SERVER_PORT").unwrap_or("3000".to_string());
     let ip = env::var("SERVER_IP").unwrap_or("0.0.0.0".to_string());
 
-    let combined = format!("{}:{}", ip, port );
+    let combined = format!("{}:{}", ip, port);
     println!("Start server {:?}", combined);
     Iron::new(chain).http(combined).unwrap();
 
@@ -130,11 +132,11 @@ pub fn start_server(database: String) {
                 let doc = search::to_search_result(&persistence, &hits);
                 println!("Returning ... ");
                 Ok(Response::with((status::Ok, Header(headers::ContentType::json()), serde_json::to_string(&doc).unwrap())))
-            },
+            }
             Ok(None) => {
                 println!("No body");
                 Ok(Response::with((status::Ok, "No body")))
-            },
+            }
             Err(err) => {
                 println!("Error: {:?}", err);
                 Ok(Response::with((status::Ok, err.to_string())))
@@ -156,11 +158,11 @@ pub fn start_server(database: String) {
                 let hits = search_field::suggest_multi(&persistence, struct_body).unwrap();
                 println!("Returning ... ");
                 Ok(Response::with((status::Ok, Header(headers::ContentType::json()), serde_json::to_string(&hits).unwrap())))
-            },
+            }
             Ok(None) => {
                 println!("No body");
                 Ok(Response::with((status::Ok, "No body")))
-            },
+            }
             Err(err) => {
                 println!("Error: {:?}", err);
                 Ok(Response::with((status::Ok, err.to_string())))

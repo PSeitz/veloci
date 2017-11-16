@@ -3,7 +3,7 @@
 #[derive(Debug)]
 pub struct ScoreExpression {
     expression: String,
-    ops : Vec<OperatorType>
+    ops:        Vec<OperatorType>,
 }
 
 
@@ -14,7 +14,7 @@ enum OperatorType {
     Add,
     Sub,
     _Score_,
-    Float(f32)
+    Float(f32),
 }
 
 #[derive(Debug)]
@@ -37,18 +37,16 @@ enum OperationStep {
 // }
 
 impl ScoreExpression {
-
     pub fn new(expression: String) -> Self {
         let ops = ScoreExpression::parse(&expression);
-        ScoreExpression{expression:expression, ops:ops}
+        ScoreExpression { expression: expression, ops:        ops }
     }
 
-    fn parse(expression:&str) -> Vec<OperatorType> {
-        let mut operations:Vec<OperatorType> = vec![];
+    fn parse(expression: &str) -> Vec<OperatorType> {
+        let mut operations: Vec<OperatorType> = vec![];
         let mut current = "".to_string();
         // let currVal = None;
         for next_char in expression.chars() {
-
             match next_char {
                 ' ' => {
                     let val = current.parse::<f32>();
@@ -57,20 +55,36 @@ impl ScoreExpression {
                         operations.push(OperatorType::Float(val.unwrap()));
                     }
                     current.clear();
-                },
-                _ => {},
+                }
+                _ => {}
             }
 
-            if next_char != ' ' {current += &next_char.to_string();}
+            if next_char != ' ' {
+                current += &next_char.to_string();
+            }
             match current.as_ref() {
-                "+" => {operations.push(OperatorType::Add);current.clear();},
-                "-" => {operations.push(OperatorType::Sub);current.clear();},
-                "/" => {operations.push(OperatorType::Division);current.clear();},
-                "*" => {operations.push(OperatorType::Mul);current.clear();},
-                "$SCORE" => {operations.push(OperatorType::_Score_);current.clear();},
-                _ => {},
+                "+" => {
+                    operations.push(OperatorType::Add);
+                    current.clear();
+                }
+                "-" => {
+                    operations.push(OperatorType::Sub);
+                    current.clear();
+                }
+                "/" => {
+                    operations.push(OperatorType::Division);
+                    current.clear();
+                }
+                "*" => {
+                    operations.push(OperatorType::Mul);
+                    current.clear();
+                }
+                "$SCORE" => {
+                    operations.push(OperatorType::_Score_);
+                    current.clear();
+                }
+                _ => {}
             }
-
         }
 
         let val = current.parse::<f32>();
@@ -79,7 +93,6 @@ impl ScoreExpression {
         }
         // println!("{:?}", operations);
         operations
-
     }
 
     pub fn get_score(&self, rank: f32) -> f32 {
@@ -102,8 +115,6 @@ impl ScoreExpression {
             OperatorType::Sub => left - right,
             _ => panic!("Need to asdf"),
         }
-
-
     }
 }
 
@@ -141,5 +152,3 @@ mod tests {
     }
 
 }
-
-
