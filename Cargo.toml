@@ -30,6 +30,7 @@ snap = "0.2"
 byteorder = "1.0.0"
 bincode = "0.8.0"
 measure_time = "0.1"
+sled = "0.14.1"
 
 [dependencies.bodyparser]
 git = "https://github.com/iron/body-parser.git"
@@ -38,6 +39,7 @@ git = "https://github.com/iron/body-parser.git"
 env_logger = "0.3"
 colored = "1.4"
 pretty_assertions = "0.1.2"
+stainless = "*"
 
 [lib]
 name = "native_search"
