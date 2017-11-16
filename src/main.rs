@@ -1,3 +1,6 @@
+#![feature(plugin)]
+#![cfg_attr(test, plugin(stainless))]
+
 #![feature(test)]
 #![feature(collection_placement)]
 #![feature(placement_in_syntax)]
@@ -45,6 +48,8 @@ extern crate measure_time;
 extern crate heapsize;
 
 extern crate byteorder;
+
+extern crate sled;
 
 // use fst::{IntoStreamer, Streamer, Levenshtein, Set, MapBuilder};
 #[allow(unused_imports)]

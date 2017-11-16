@@ -5,11 +5,6 @@ use std::io::{self, BufRead};
 use std::time::Duration;
 
 #[allow(unused_imports)]
-use std::thread;
-#[allow(unused_imports)]
-use std::sync::mpsc::sync_channel;
-
-#[allow(unused_imports)]
 use std::io::SeekFrom;
 use util;
 use util::concat;
@@ -24,8 +19,6 @@ use std::cmp::Ordering;
 use serde_json;
 use serde_json::Value;
 
-#[allow(unused_imports)]
-use std::fs;
 #[allow(unused_imports)]
 use std::env;
 
@@ -357,7 +350,7 @@ pub fn create_fulltext_index_csv(csv_path: &str, attr_name:&str, attr_pos: usize
 }
 use persistence;
 
-fn store_full_text_info(mut persistence: &mut Persistence, all_terms: FnvHashMap<String, TermInfo>, path:&str, options:&FulltextIndexOptions) -> Result<(), io::Error> {
+fn store_full_text_info(persistence: &mut Persistence, all_terms: FnvHashMap<String, TermInfo>, path:&str, options:&FulltextIndexOptions) -> Result<(), io::Error> {
     let mut sorted_terms: Vec<&String> = all_terms.keys().collect::<Vec<&String>>();
     sorted_terms.sort();
     let offsets = get_string_offsets(sorted_terms);
@@ -390,6 +383,10 @@ fn store_fst(persistence: &mut Persistence,all_terms: &FnvHashMap<String, TermIn
 
     Ok(())
 }
+#[allow(unused_imports)]
+use sled;
+#[allow(unused_imports)]
+use byteorder::{LittleEndian, WriteBytesExt};
 
 pub fn create_fulltext_index(data: &Value, path:&str, options:FulltextIndexOptions,mut persistence: &mut Persistence) -> Result<(), io::Error> {
     let now = Instant::now();
@@ -444,6 +441,20 @@ pub fn create_fulltext_index(data: &Value, path:&str, options:FulltextIndexOptio
         let path_name = util::get_path_name(&paths[i], is_text_index);
         persistence.write_tuple_pair(&mut tuples, &concat(&path_name, ".valueIdToParent"))?;
 
+        // let tree = sled::Config::default()
+        //   .path(util::get_file_path(&persistence.db, &concat(&path_name, ".valueIdToParent.sled")))
+        //   .tree();
+        // for tuple in tuples {
+
+        //     let mut key_bytes:Vec<u8> = vec![];
+        //     key_bytes.write_u32::<LittleEndian>(tuple.valid).unwrap();
+
+        //     let mut value_bytes:Vec<u8> = vec![];
+        //     value_bytes.write_u32::<LittleEndian>(tuple.parent_val_id).unwrap();
+
+        //     tree.set(key_bytes, value_bytes);
+        // }
+
         if tokens.len() > 0 {
             persistence.write_tuple_pair(&mut tokens, &concat(&path_name, ".tokens"))?;
         }
@@ -471,7 +482,7 @@ fn get_string_offsets(data:Vec<&String>) -> Vec<u64> {
     offsets
 }
 
-fn create_boost_index(data: &Value, path:&str, options:BoostIndexOptions,mut persistence: &mut Persistence) -> Result<(), io::Error> {
+fn create_boost_index(data: &Value, path:&str, options:BoostIndexOptions,persistence: &mut Persistence) -> Result<(), io::Error> {
     let now = Instant::now();
     let mut opt = ForEachOpt {
         parent_pos_in_path: 0,
@@ -593,6 +604,7 @@ pub fn add_token_values_to_tokens(persistence:&mut Persistence, data_str:&str, c
         path: config.path.clone(),
         levenshtein_distance: Some(0),
         resolve_token_to_parent_hits: Some(false),
+
         .. Default::default()
     };
 
@@ -604,11 +616,13 @@ pub fn add_token_values_to_tokens(persistence:&mut Persistence, data_str:&str, c
         if el.value.is_none() {
             continue;
         }
-        options.term = util::normalize_text(&el.text);
+        options.terms = vec![el.text];
+        options.terms = options.terms.iter().map(|el| util::normalize_text(el)).collect::<Vec<_>>();
+        // options.term = util::normalize_text(&el.text);
 
         let hits = search_field::get_hits_in_field(persistence, &options)?;
         if hits.hits.len() == 1 {
-            tuples.push(ValIdToValue{valid:hits.hits[0].0, value:el.value.unwrap()});
+            tuples.push(ValIdToValue{valid:*hits.hits.iter().nth(0).unwrap().0, value:el.value.unwrap()});
         }
     }
     persistence.write_boost_tuple_pair(&mut tuples, &concat(&path_name, ".tokenValues"))?;

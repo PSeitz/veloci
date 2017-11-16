@@ -206,7 +206,7 @@ pub struct PersistenceCache {
 
 #[derive(Debug, Default)]
 pub struct Persistence {
-    db: String, // folder
+    pub db: String, // folder
     pub meta_data: MetaData,
     pub cache: PersistenceCache
 }

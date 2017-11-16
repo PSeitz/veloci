@@ -23,6 +23,8 @@ mod tests {
     use std::fs;
     use std::io::prelude::*;
 
+    use fnv::FnvHashMap;
+    use std::sync::RwLock;
 
     static TEST_DATA:&str = r#"[
         {
@@ -76,7 +78,7 @@ mod tests {
             ],
             "meanings": {
                 "eng" : ["test1"],
-                "ger": ["der test"]
+                "ger": ["der test", "das ist ein guter Treffer"]
             },
             "ent_seq": "1587700"
         },
@@ -97,9 +99,7 @@ mod tests {
                 }
             ],
             "meanings": {
-                "ger": [
-                    "welch"
-                ]
+                "ger": ["welch", "guter nicht Treffer", "alle meine Words"]
             },
             "ent_seq": "1920240"
         },
@@ -140,16 +140,12 @@ mod tests {
     ]"#;
 
     static TEST_FOLDER:&str = "mochaTest";
-
-    // #[test]
-    // fn it_super_duper_works() {
-    //     assert_eq!(normalize_text("Hello"), "Hello");
-    // }
-
-    // #[test]
-    // fn creates_da_indexo() {
-    //     assert_eq!(normalize_text("Hello"), "Hello");
-    // }
+    lazy_static! {
+        static ref PERSISTENCES: RwLock<FnvHashMap<String, persistence::Persistence>> = {
+            RwLock::new(FnvHashMap::default())
+        };
+        static ref INDEX_CREATED: RwLock<bool> = RwLock::new(false);
+    }
 
 
     #[test]#[ignore]
@@ -157,26 +153,6 @@ mod tests {
         let paths = util::get_steps_to_anchor("meanings.ger[]");
         println!("{:?}", paths);
     }
-
-    // #[test]#[ignore]
-    // fn test_write_index() {
-    //     let ele:Vec<u32> = vec![3, 3, 3, 7];
-    //     println!("{:?}", persistence::write_index(&ele, "testbug"));
-    //     let ele2 = persistence::load_index("testbug").unwrap();
-    //     println!("{:?}", ele2);
-    //     assert_eq!(ele, ele2);
-    //     println!("{:?}", fs::remove_file("testbug"));
-    // }
-
-    // #[test]#[ignore]
-    // fn test_write_index_64() {
-    //     let ele:Vec<u64> = vec![3_000_000_000_000, 3, 3, 7];
-    //     println!("{:?}", persistence::write_index64(&ele, "test64"));
-    //     let ele2 = persistence::load_index_64("test64").unwrap();
-    //     println!("{:?}", ele2);
-    //     assert_eq!(ele, ele2);
-    //     println!("{:?}", fs::remove_file("test64"));
-    // }
 
     #[test]#[ignore]
     fn test_binary_search() {
@@ -190,201 +166,193 @@ mod tests {
     #[test]
     fn test_json_request() {
         warn!("can log from the test too");
-        let requesto: search::Request = serde_json::from_str(r#"{"search":{"path":"asdf", "term": "asdf", "levenshtein_distance":1}}"#).unwrap();
+        let requesto: search::Request = serde_json::from_str(r#"{"search":{"path":"asdf", "terms":[ "asdf"], "levenshtein_distance":1}}"#).unwrap();
         println!("mjjaaa {:?}", requesto);
         assert_eq!(requesto.search.unwrap().levenshtein_distance, Some(1));
     }
 
-    #[test]
-    fn create_indices_1() {
-        {
-            let indices = r#"
-            [
-                { "boost":"commonness" , "options":{"boost_type":"int"}},
-                { "fulltext":"ent_seq" },
-                { "boost":"field1[].rank" , "options":{"boost_type":"int"}},
-                { "fulltext":"field1[].text" },
-                { "fulltext":"kanji[].text" },
-                { "fulltext":"meanings.ger[]", "options":{"tokenize":true, "stopwords": ["stopword"]} },
-                { "fulltext":"meanings.eng[]", "options":{"tokenize":true} },
-                { "boost":"kanji[].commonness" , "options":{"boost_type":"int"}},
-                { "boost":"kana[].commonness", "options":{"boost_type":"int"} }
-            ]
-            "#;
-            // let indices = r#"
-            // [
-            //     { "fulltext":"meanings.ger[]", "options":{"tokenize":true, "stopwords": ["stopword"]} }
-            // ]
-            // "#;
-            println!("{:?}", create::create_indices(TEST_FOLDER, TEST_DATA, indices));
 
-            // let meta_data = persistence::MetaData::new(TEST_FOLDER);
-            // println!("{:?}", persistence::load_all(&meta_data));
+    fn search_testo_to_doc(req: Value) -> Result<Vec<search::DocWithHit>, search::SearchError>  {
+        let persistences = PERSISTENCES.read().unwrap();
+        let mut pers = persistences.get(&"default".to_string()).unwrap();
+        let requesto: search::Request = serde_json::from_str(&req.to_string()).expect("Can't parse json");
+        let hits = search::search(requesto, pers)?;
+        Ok(search::to_documents(pers, &hits.data))
+    }
 
+    describe! search_test {
+        before_each {
+            let mut INDEX_CREATEDO = INDEX_CREATED.write().unwrap();
+            if !*INDEX_CREATEDO {
+                // Start up a test.
+                let indices = r#"
+                [
+                    { "boost":"commonness" , "options":{"boost_type":"int"}},
+                    { "fulltext":"ent_seq" },
+                    { "boost":"field1[].rank" , "options":{"boost_type":"int"}},
+                    { "fulltext":"field1[].text" },
+                    { "fulltext":"kanji[].text" },
+                    { "fulltext":"meanings.ger[]", "options":{"tokenize":true, "stopwords": ["stopword"]} },
+                    { "fulltext":"meanings.eng[]", "options":{"tokenize":true} },
+                    { "boost":"kanji[].commonness" , "options":{"boost_type":"int"}},
+                    { "boost":"kana[].commonness", "options":{"boost_type":"int"} }
+                ]
+                "#;
+                // let indices = r#"
+                // [
+                //     { "fulltext":"meanings.ger[]", "options":{"tokenize":true, "stopwords": ["stopword"]} }
+                // ]
+                // "#;
+                println!("{:?}", create::create_indices(TEST_FOLDER, TEST_DATA, indices));
+
+                {
+                    let mut pers = persistence::Persistence::load(TEST_FOLDER.to_string()).expect("Could not load persistence");
+                    // let mut pers = persistence::Persistence::load(TEST_FOLDER.to_string()).expect("Could not load persistence");
+                    let config = json!({
+                        "path": "meanings.ger[]"
+                    });
+                    create::add_token_values_to_tokens(&mut pers, TOKEN_VALUE, &config.to_string()).expect("Could not add token values");
+
+                }
+
+                let mut persistences = PERSISTENCES.write().unwrap();
+                persistences.insert("default".to_string(), persistence::Persistence::load(TEST_FOLDER.to_string()).expect("could not load persistence"));
+
+                *INDEX_CREATEDO = true;
+            }
         }
 
-        {
-            let mut pers = persistence::Persistence::load(TEST_FOLDER.to_string()).expect("Could not load persistence");
-            let config = json!({
-                "path": "meanings.ger[]"
-            });
-            create::add_token_values_to_tokens(&mut pers, TOKEN_VALUE, &config.to_string()).expect("Could not add token values");
-
-        }
-
-        // reload to add token_values
-        let mut pers = persistence::Persistence::load(TEST_FOLDER.to_string()).expect("Could not load persistence");
-
-        //     assert_eq!(normalize_text("Hello"), "Hello");
-        // }
-
-        // #[test]
-        // fn should_search_tokenized_and_levensthein() {
-
-        // fn search_test(req: Value) -> Vec<search::Hit> {
-        //     let requesto: search::Request = serde_json::from_str(&req.to_string()).unwrap();
-        //     search::search(TEST_FOLDER, requesto, 0, 10).unwrap()
-        // }
-
-        fn search_test_to_doc(req: Value, pers : &mut persistence::Persistence) -> Result<Vec<search::DocWithHit>, search::SearchError>  {
-            let requesto: search::Request = serde_json::from_str(&req.to_string()).expect("Can't parse json");
-            let hits = search::search(requesto, pers)?;
-            Ok(search::to_documents(pers, &hits.data))
-        }
-
-        {
+        it "makes organizing tests easy" {
             let req = json!({
                 "search": {
-                    "term":"majestätischer",
+                    "terms":["majestätischer"],
                     "path": "meanings.ger[]",
                     "levenshtein_distance": 1,
                     "firstCharExactMatch": true
                 }
             });
 
-            let hits = search_test_to_doc(req, &mut pers).unwrap();
+            let hits = search_testo_to_doc(req).unwrap();
             assert_eq!(hits.len(), 1);
-            // assert_eq!(hits.len(), 10);
-
         }
 
-        { // should search without firstCharExactMatch
+
+        it "should search without firstCharExactMatch"{
             let req = json!({
                 "search": {
-                    "term":"najestätischer",
+                    "terms":["najestätischer"],
                     "path": "meanings.ger[]",
                     "levenshtein_distance": 1
                 }
             });
-            let hits = search_test_to_doc(req, &mut pers).unwrap();
+            let hits = search_testo_to_doc(req).expect("could not unpack searchresult");
 
             // println!("hits {:?}", hits);
             assert_eq!(hits.len(), 1);
         }
 
-        { // 'should prefer exact matches to tokenmatches'
+        it "should prefer exact matches to tokenmatches'"{
 
-            let _ = env_logger::init();
             let req = json!({
                 "search": {
-                    "term":"will",
+                    "terms":["will"],
                     "path": "meanings.eng[]",
                     "levenshtein_distance": 1
                 }
             });
-            let wa = search_test_to_doc(req, &mut pers).unwrap();
+            let wa = search_testo_to_doc(req).expect("could not unpack searchresult");
             // assert_eq!(wa.len(), 11);
             assert_eq!(wa[0].doc["meanings"]["eng"][0], "will");
         }
 
-        { // 'should search word non tokenized'
+        it "should search word non tokenized'"{
             let req = json!({
                 "search": {
-                    "term":"偉容",
+                    "terms":["偉容"],
                     "path": "kanji[].text"
                 }
             });
 
-            let hits = search_test_to_doc(req, &mut pers);
+            let hits = search_testo_to_doc(req);
             assert_eq!(hits.unwrap().len(), 1);
         }
 
-        { // 'should search on non subobject'
+        it "should search on non subobject'"{
             let req = json!({
                 "search": {
-                    "term":"1587690",
+                    "terms":["1587690"],
                     "path": "ent_seq"
                 }
             });
 
-            let hits = search_test_to_doc(req, &mut pers);
+            let hits = search_testo_to_doc(req);
             assert_eq!(hits.unwrap().len(), 1);
         }
 
-        { // 'AND connect hits same field'
+        it "'AND connect hits same field'"{
             let req = json!({
                 "and":[
-                    {"search": {"term":"aussehen",       "path": "meanings.ger[]"}},
-                    {"search": {"term":"majestätisches", "path": "meanings.ger[]"}}
+                    {"search": {"terms":["aussehen"],       "path": "meanings.ger[]"}},
+                    {"search": {"terms":["majestätisches"], "path": "meanings.ger[]"}}
                 ]
             });
 
-            let hits = search_test_to_doc(req, &mut pers);
+            let hits = search_testo_to_doc(req);
             assert_eq!(hits.unwrap().len(), 1);
         }
 
-        { // AND connect hits different fields
+        it "AND connect hits different fields"{
             let req = json!({
                 "and":[
-                    {"search": {"term":"majestät", "path": "meanings.ger[]"}},
-                    {"search": {"term":"majestic", "path": "meanings.eng[]"}}
+                    {"search": {"terms":["majestät"], "path": "meanings.ger[]"}},
+                    {"search": {"terms":["majestic"], "path": "meanings.eng[]"}}
                 ]
             });
 
-            let hits = search_test_to_doc(req, &mut pers);
+            let hits = search_testo_to_doc(req);
             assert_eq!(hits.unwrap().len(), 1);
         }
 
-        { // AND connect hits different fields - no hit
+        it "AND connect hits different fields - no hit"{
             let req = json!({
                 "and":[
                     {"search": {
-                        "term":"majestät",
+                        "terms":["majestät"],
                         "path": "meanings.ger[]"
                     }},
                     {"search": {
-                        "term":"urge",
+                        "terms":["urge"],
                         "path": "meanings.eng[]"
                     }}
                 ]
             });
 
-            let hits = search_test_to_doc(req, &mut pers);
+            let hits = search_testo_to_doc(req);
             assert_eq!(hits.unwrap().len(), 0);
         }
 
-        { // OR connect hits
+        it "OR connect hits"{
             let req = json!({
                 "or":[
                     {"search": {
-                        "term":"majestät",
+                        "terms":["majestät"],
                         "path": "meanings.ger[]"
                     }},
                     {"search": {
-                        "term":"urge",
+                        "terms":["urge"],
                         "path": "meanings.eng[]"
                     }}
                 ]
             });
 
-            let hits = search_test_to_doc(req, &mut pers);
+            let hits = search_testo_to_doc(req);
             assert_eq!(hits.unwrap().len(), 2);
         }
 
-        { // should search and boost
+        it "should search and boost"{
             let req = json!({
                 "search": {
-                    "term":"意慾",
+                    "terms":["意慾"],
                     "path": "kanji[].text"
                 },
                 "boost" : [{
@@ -394,15 +362,15 @@ mod tests {
                 }]
             });
 
-            let hits = search_test_to_doc(req, &mut pers);
+            let hits = search_testo_to_doc(req);
             assert_eq!(hits.unwrap().len(), 2);
         }
 
-        { // should search and double boost
+        it "should search and double boost"{
             // let _ = env_logger::init();
             let req = json!({
                 "search": {
-                    "term":"awesome",
+                    "terms":["awesome"],
                     "path": "field1[].text"
                 },
                 "boost" : [{
@@ -417,14 +385,14 @@ mod tests {
                 }]
             });
 
-            let hits = search_test_to_doc(req, &mut pers);
+            let hits = search_testo_to_doc(req);
             assert_eq!(hits.unwrap().len(), 2);
         }
 
-        { // should search and boost anchor
+        it "should search and boost anchor"{
             let req = json!({
                 "search": {
-                    "term":"意慾",
+                    "terms":["意慾"],
                     "path": "kanji[].text",
                     "levenshtein_distance": 0,
                     "firstCharExactMatch":true
@@ -436,7 +404,7 @@ mod tests {
                 }]
             });
 
-            let hits = search_test_to_doc(req, &mut pers);
+            let hits = search_testo_to_doc(req);
             assert_eq!(hits.unwrap()[0].doc["commonness"], 500);
         }
 
@@ -449,22 +417,26 @@ mod tests {
         // })
 
 
-        { // should use search for suggest without sorting etc.
+        it "should use search for suggest without sorting etc."{
             let req = json!({
-                "term":"majes",
+                "terms":["majes"],
                 "path": "meanings.ger[]",
                 "levenshtein_distance": 0,
                 "starts_with":true,
                 "return_term":true
             });
             let requesto: search::RequestSearchPart = serde_json::from_str(&req.to_string()).expect("Can't parse json");
+            let persistences = PERSISTENCES.read().unwrap();
+            let mut pers = persistences.get(&"default".to_string()).unwrap();
             let results = search_field::get_hits_in_field(&mut pers, &requesto).unwrap();
-            assert_eq!(results.terms.values().collect::<Vec<&String>>(), ["majestätischer", "majestätisches", "majestät", "majestätischer anblick", "majestätisches aussehen"]);
+            let mut all_terms = results.terms.values().collect::<Vec<&String>>();
+            all_terms.sort();
+            assert_eq!(all_terms, ["majestät", "majestätischer", "majestätischer anblick", "majestätisches", "majestätisches aussehen"]);
         }
 
-        { // real suggest with score
+        it "real suggest with score"{
             let req = json!({
-                "term":"majes",
+                "terms":["majes"],
                 "path": "meanings.ger[]",
                 "levenshtein_distance": 0,
                 "starts_with":true,
@@ -472,30 +444,34 @@ mod tests {
                 "skip":0
             });
             let requesto: search::RequestSearchPart = serde_json::from_str(&req.to_string()).expect("Can't parse json");
+            let persistences = PERSISTENCES.read().unwrap();
+            let mut pers = persistences.get(&"default".to_string()).unwrap();
             let results = search_field::suggest(&mut pers, &requesto).unwrap();
             assert_eq!(results.iter().map(|el| el.0.clone()).collect::<Vec<String>>(), ["majestät", "majestätischer", "majestätisches", "majestätischer anblick", "majestätisches aussehen"]);
         }
 
-        { // multi real suggest with score
+        it "multi real suggest with score"{
 
             let req = json!({
                 "suggest" : [
-                    {"term":"will", "path": "meanings.ger[]", "levenshtein_distance": 0, "starts_with":true},
-                    {"term":"will", "path": "meanings.eng[]", "levenshtein_distance": 0, "starts_with":true}
+                    {"terms":["will"], "path": "meanings.ger[]", "levenshtein_distance": 0, "starts_with":true},
+                    {"terms":["will"], "path": "meanings.eng[]", "levenshtein_distance": 0, "starts_with":true}
                 ],
                 "top":10,
                 "skip":0
             });
 
             let requesto: search::Request = serde_json::from_str(&req.to_string()).expect("Can't parse json");
+            let persistences = PERSISTENCES.read().unwrap();
+            let mut pers = persistences.get(&"default".to_string()).unwrap();
             let results = search_field::suggest_multi(&mut pers, requesto).unwrap();
             assert_eq!(results.iter().map(|el| el.0.clone()).collect::<Vec<String>>(), ["will", "wille", "will test"]);
         }
 
 
-        { // real suggest with score and token value
+        it "real suggest with boosting score of begeisterung and token value"{
             let req = json!({
-                "term":"begeist",
+                "terms":["begeist"],
                 "path": "meanings.ger[]",
                 "levenshtein_distance": 0,
                 "starts_with":true,
@@ -508,14 +484,16 @@ mod tests {
                 "skip":0
             });
             let requesto: search::RequestSearchPart = serde_json::from_str(&req.to_string()).expect("Can't parse json");
+            let persistences = PERSISTENCES.read().unwrap();
+            let mut pers = persistences.get(&"default".to_string()).unwrap();
             let results = search_field::suggest(&mut pers, &requesto).unwrap();
             assert_eq!(results.iter().map(|el| el.0.clone()).collect::<Vec<String>>(), ["begeisterung", "begeistern"]);
         }
 
-        // { // should or connect the checks
+        // it "should or connect the checks"{
         //     let req = json!({
         //         "search": {
-        //             "term":"having a long",
+        //             "terms":["having ]a long",
         //             "path": "meanings.eng[]",
         //             "levenshtein_distance": 1,
         //             "firstCharExactMatch":true,
@@ -524,15 +502,15 @@ mod tests {
         //         }]
         //     });
 
-        //     let hits = search_test_to_doc(req, &mut pers);
+        //     let hits = search_testo_to_doc(req);
         //     assert_eq!(hits.unwrap().len(), 1);
         // }
 
 
-        { // should rank exact matches pretty good
+        it "should rank exact matches pretty good"{
             let req = json!({
                 "search": {
-                    "term":"weich", // hits welche and weich
+                    "terms":["weich"], // hits welche and weich
                     "path": "meanings.ger[]",
                     "levenshtein_distance": 1,
                     "firstCharExactMatch":true
@@ -544,27 +522,67 @@ mod tests {
                 }]
             });
 
-            let hits = search_test_to_doc(req, &mut pers);
+            let hits = search_testo_to_doc(req);
             println!("{:?}", hits);
             assert_eq!(hits.unwrap()[0].doc["meanings"]["ger"][0], "(1) weich");
         }
 
-        { // OR connect hits, but boost one term
-            let _ = env_logger::init();
+        it "OR connect hits, but boost one term"{
+            // let _ = env_logger::init();
             let req = json!({
                 "or":[
-                    {"search": {"term":"majestät", "path": "meanings.ger[]", "boost": 2}},
-                    {"search": {"term":"urge", "path": "meanings.eng[]"}}
+                    {"search": {"terms":["majestät"], "path": "meanings.ger[]", "boost": 2}},
+                    {"search": {"terms":["urge"], "path": "meanings.eng[]"}}
                 ]
             });
 
-            let hits = search_test_to_doc(req, &mut pers);
+            let hits = search_testo_to_doc(req);
             println!("{:?}", hits);
             assert_eq!(hits.as_ref().unwrap().len(), 2);
             assert_eq!(hits.unwrap()[0].doc["meanings"]["ger"][0], "majestätischer Anblick (m)");
         }
 
+        //MUTLI TERMS
+
+        // { // multi terms attribute ALL
+        //     let _ = env_logger::init();
+        //     let req = json!({
+        //         "or":[{"search": {"terms":["alle","Words"], "path": "meanings.ger[]", "term_operator": "ALL"}} ]
+        //     });
+
+        //     let hits = search_test_to_doc(req, &mut pers);
+        //     assert_eq!(hits.unwrap()[0].doc["meanings"]["ger"][2], "alle meine Words");
+        // }
+
+        // { // multi terms attribute ALL
+        //     let req = json!({
+        //         "or":[{"search": {"terms":["alle","Words", "TRIFFTNICHT"], "path": "meanings.ger[]", "term_operator": "ANY"}} ]
+        //     });
+
+        //     let hits = search_test_to_doc(req, &mut pers);
+        //     assert_eq!(hits.unwrap()[0].doc["meanings"]["ger"][2], "alle meine Words");
+        // }
+
+        // { // terms
+        //     let req = json!({
+        //         "or":[
+        //             {"search": {"terms":["guter","Treffer"], "path": "meanings.ger[]"}}
+        //         ]
+        //     });
+
+        //     let hits = search_test_to_doc(req, &mut pers);
+        //     println!("{:?}", hits);
+        //     // assert_eq!(hits.as_ref().unwrap().len(), 2);
+        //     assert_eq!(hits.unwrap()[0].doc["meanings"]["ger"][1], "das ist ein guter Treffer");
+        // }
+
     }
+
+
+    // fn load_test_data() -> &'static persistence::Persistence  {
+    //     let persistences = PERSISTENCES.read().unwrap();
+    //     persistences.get(&"default".to_string()).unwrap()
+    // }
 
     // #[test]
     // fn checked_was_abgehst_22() {

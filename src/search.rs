@@ -47,7 +47,9 @@ fn default_skip() -> usize { 0 }
 #[derive(Serialize, Deserialize, Default, Clone, Debug)]
 pub struct RequestSearchPart {
     pub path: String,
-    pub term: String,
+    pub terms: Vec<String>,
+    #[serde(default = "default_term_operator")]
+    pub term_operator: TermOperator,
     pub levenshtein_distance: Option<u32>,
     pub starts_with: Option<bool>,
     pub return_term: Option<bool>,
@@ -64,6 +66,14 @@ pub struct RequestSearchPart {
 fn default_resolve_token_to_parent_hits() -> Option<bool> {
     Some(true)
 }
+
+fn default_term_operator() -> TermOperator { TermOperator::ALL }
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub enum TermOperator {
+    ALL,
+    ANY,
+} impl Default for TermOperator {fn default() -> TermOperator { TermOperator::ALL } }
 
 #[derive(Serialize, Deserialize, Default, Clone, Debug)]
 pub struct RequestBoostPart {
@@ -180,7 +190,7 @@ pub fn search(request: Request, persistence:&Persistence) -> Result<SearchResult
     Ok(search_result)
 }
 
-fn get_shortest_result<T: std::iter::ExactSizeIterator>(results: &Vec<T>) -> usize {
+pub fn get_shortest_result<T: std::iter::ExactSizeIterator>(results: &Vec<T>) -> usize {
     let mut shortest = (0, std::u64::MAX);
     for (index, res) in results.iter().enumerate(){
         if (res.len() as u64) < shortest.1 {
@@ -247,6 +257,7 @@ pub fn add_boost(persistence: &Persistence, boost: &RequestBoostPart, hits: &mut
         }
         // let ref vals_opt = boostkv_store.get(*value_id as usize);
         let ref vals_opt = boostkv_store.get_values(*value_id as u64);
+        debug!("Found in boosting for value_id {:?}: {:?}", value_id, vals_opt);
         vals_opt.as_ref().map(|values|{
             if values.len() > 0 {
                 let boost_value = values[0]; // @Temporary // @Hack this should not be an array for this case
@@ -279,30 +290,48 @@ pub fn add_boost(persistence: &Persistence, boost: &RequestBoostPart, hits: &mut
 //     fn next(&self) -> Iterator<Item=(u32, f32)>;
 // }
 
-trait HitCollector: Sync + Clone  {
+trait HitCollector: Sync + Send  {
     // fn add(&mut self, hits: u32, score:f32);
     // fn union(&mut self, other:&Self);
     // fn intersect(&mut self, other:&Self);
     fn iter<'a>(&'a self) -> VecHitCollectorIter<'a>;
     // fn iter<'a>(&'a self) -> Box<'a,Iterator<Item=(u32, f32)>>;
     // fn iter<'b>(&'b self) -> Box<Iterator<Item=&'b (u32, f32)>>;
-    fn into_iter(self) -> Box<Iterator<Item=(u32, f32)>>;
+    fn into_iter(self) -> Box<Iterator<Item=Hit>>;
     fn get_value(&self, id: u32) -> Option<u32>;
 }
 
 #[derive(Debug, Clone)]
-struct VecHitCollector {
-    hits_vec: Vec<(u32, f32)>
+pub struct VecHitCollector {
+    pub hits_vec: Vec<Hit>
+}
+
+#[test]
+fn test_hit_coll() {
+    let yo:Box<HitCollector> = Box::new(VecHitCollector{hits_vec:vec![]});
+
+    for x in yo.iter() {
+        println!("{:?}", x); // x: i32
+    }
+
+    for x in yo.iter() {
+        println!("{:?}", x); // x: i32
+    }
+
+    // for x in yo.into_iter() {
+    //     println!("{:?}", x); // x: i32
+    // }
+
 }
 
 #[derive(Debug, Clone)]
 struct VecHitCollectorIter<'a> {
-    hits_vec: &'a Vec<(u32, f32)>,
+    hits_vec: &'a Vec<Hit>,
     pos: usize
 }
 impl<'a> Iterator for VecHitCollectorIter<'a> {
-    type Item = &'a (u32, f32);
-    fn next(&mut self) -> Option<&'a(u32, f32)>{
+    type Item = &'a Hit;
+    fn next(&mut self) -> Option<&'a Hit>{
         if self.pos >= self.hits_vec.len() {
             None
         } else {
@@ -316,12 +345,12 @@ impl<'a> Iterator for VecHitCollectorIter<'a> {
 
 #[derive(Debug, Clone)]
 struct VecHitCollectorIntoIter {
-    hits_vec: Vec<(u32, f32)>,
+    hits_vec: Vec<Hit>,
     pos: usize
 }
 impl Iterator for VecHitCollectorIntoIter {
-    type Item = (u32, f32);
-    fn next(&mut self) -> Option<(u32, f32)>{
+    type Item = Hit;
+    fn next(&mut self) -> Option<Hit>{
         if self.pos >= self.hits_vec.len() {
             None
         } else {
@@ -347,11 +376,11 @@ impl HitCollector for VecHitCollector {
         VecHitCollectorIter{hits_vec: & self.hits_vec, pos:0}
     }
 
-    // fn iter<'b>(&'b self) -> Box<Iterator<Item=&'b (u32, f32)>>
+    // fn iter<'b>(&'b self) -> Box<Iterator<Item=&'b Hit>>
     // {
-    //     Box::new(VecHitCollectorIter{hits_vec: &self.hits_vec}) as Box<Iterator<Item=&(u32, f32)>>
+    //     Box::new(VecHitCollectorIter{hits_vec: &self.hits_vec}) as Box<Iterator<Item=&Hit>>
     // }
-    fn into_iter(self) -> Box<Iterator<Item=(u32, f32)>>
+    fn into_iter(self) -> Box<Iterator<Item=Hit>>
     {
         Box::new(VecHitCollectorIntoIter{hits_vec: self.hits_vec, pos: 0})
     }
@@ -387,7 +416,8 @@ fn check_apply_boost(persistence:&Persistence, boost: &RequestBoostPart, path_na
 }
 
 pub fn search_raw(persistence:&Persistence, mut request: RequestSearchPart, mut boost: Option<Vec<RequestBoostPart>>) -> Result<FnvHashMap<u32, f32>, SearchError> {
-    request.term = util::normalize_text(&request.term);
+    // request.term = util::normalize_text(&request.term);
+    request.terms = request.terms.iter().map(|el| util::normalize_text(el)).collect::<Vec<_>>();
     debug_time!("search and join to anchor");
     let field_result = search_field::get_hits_in_field(persistence, &mut request)?;
 
@@ -409,8 +439,8 @@ pub fn search_raw(persistence:&Persistence, mut request: RequestSearchPart, mut 
     {
         hits.reserve(field_result.hits.len());
         debug_time!("term hits hit to column");
-        for (value_id, score) in field_result.hits {
-            let ref values = kv_store.get_values(value_id as u64);
+        for (term_id, score) in field_result.hits {
+            let ref values = kv_store.get_values(term_id as u64);
             values.as_ref().map(|values| {
                 total_values += values.len();
                 hits.reserve(values.len());
@@ -418,12 +448,12 @@ pub fn search_raw(persistence:&Persistence, mut request: RequestSearchPart, mut 
                 for parent_val_id in values {    // @Temporary
                     match hits.entry(*parent_val_id as u32) {
                         Vacant(entry) => {
-                            trace!("value_id: {:?} to parent: {:?} score {:?}", value_id, parent_val_id, score);
+                            trace!("value_id: {:?} to parent: {:?} score {:?}", term_id, parent_val_id, score);
                             entry.insert(score);
                         },
                         Occupied(entry) => {
                             if *entry.get() < score {
-                                trace!("value_id: {:?} to parent: {:?} score: {:?}", value_id, parent_val_id, score.max(*entry.get()));
+                                trace!("value_id: {:?} to parent: {:?} score: {:?}", term_id, parent_val_id, score.max(*entry.get()));
                                 *entry.into_mut() = score.max(*entry.get());
                             }
                         },
@@ -435,7 +465,7 @@ pub fn search_raw(persistence:&Persistence, mut request: RequestSearchPart, mut 
     debug!("{:?} term hits hit {:?} distinct ({:?} total ) in column {:?}", num_term_hits, hits.len(), total_values, paths.last().unwrap());
 
 
-    info!("Joining {:?} hits from {:?} for {:?}", hits.len(), paths, &request.term);
+    info!("Joining {:?} hits from {:?} for {:?}", hits.len(), paths, &request.terms);
     for i in (0..paths.len() - 1).rev() {
         let is_text_index = i == (paths.len() -1);
         let path_name = util::get_path_name(&paths[i], is_text_index);

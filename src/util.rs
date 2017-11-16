@@ -2,6 +2,7 @@
 use regex::Regex;
 use std::io::prelude::*;
 use std::io;
+use fnv::FnvHashMap;
 // use std::mem;
 use std::fs::File;
 // use std;
@@ -26,6 +27,20 @@ pub fn normalize_text(text:&str) -> String {
 
     new_str.to_lowercase().trim().to_owned()
 
+}
+
+use search::Hit;
+
+pub fn hits_map_to_vec(hits:FnvHashMap<u32, f32>) -> Vec<Hit> {
+    hits.iter().map(|(id, score)| Hit{id:*id, score:*score}).collect()
+}
+
+pub fn hits_vec_to_map(vec_hits:Vec<Hit>) -> FnvHashMap<u32, f32> {
+    let mut hits:FnvHashMap<u32, f32> = FnvHashMap::default();
+    for hit in vec_hits {
+        hits.insert(hit.id, hit.score);
+    }
+    hits
 }
 
 pub fn boost_path(path: &str) -> (String, String) {
