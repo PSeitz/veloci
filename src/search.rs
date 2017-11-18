@@ -216,7 +216,7 @@ pub fn get_shortest_result<T: std::iter::ExactSizeIterator>(results: &Vec<T>) ->
 
 pub fn search_unrolled(persistence: &Persistence, request: Request) -> Result<FnvHashMap<u32, f32>, SearchError> {
     debug_time!("search_unrolled");
-
+    
     if request.or.is_some() {
         Ok(request.or.unwrap().iter().fold(FnvHashMap::default(), |mut acc, x| -> FnvHashMap<u32, f32> {
             acc.extend(&search_unrolled(persistence, x.clone()).unwrap());
@@ -313,25 +313,6 @@ pub fn add_boost(persistence: &Persistence, boost: &RequestBoostPart, hits: &mut
 }
 
 
-// trait Iter: Sync {
-//     fn next(&self) -> Iterator<Item=(u32, f32)>;
-// }
-
-trait HitCollector: Sync + Send {
-    // fn add(&mut self, hits: u32, score:f32);
-    // fn union(&mut self, other:&Self);
-    // fn intersect(&mut self, other:&Self);
-    fn iter<'a>(&'a self) -> VecHitCollectorIter<'a>;
-    // fn iter<'a>(&'a self) -> Box<'a,Iterator<Item=(u32, f32)>>;
-    // fn iter<'b>(&'b self) -> Box<Iterator<Item=&'b (u32, f32)>>;
-    fn into_iter(self) -> Box<Iterator<Item = Hit>>;
-    fn get_value(&self, id: u32) -> Option<u32>;
-}
-
-#[derive(Debug, Clone)]
-pub struct VecHitCollector {
-    pub hits_vec: Vec<Hit>,
-}
 
 #[test]
 fn test_hit_coll() {
@@ -350,19 +331,41 @@ fn test_hit_coll() {
     // }
 }
 
+
+// trait Iter: Sync {
+//     fn next(&self) -> Iterator<Item=(u32, f32)>;
+// }
+
+trait HitCollector: Sync + Send {
+    // fn add(&mut self, hits: u32, score:f32);
+    // fn union(&mut self, other:&Self);
+    // fn intersect(&mut self, other:&Self);
+    // fn iter<'a>(&'a self) -> VecHitCollectorIter<'a>;
+    fn iter<'a>(&'a self) -> Box<Iterator<Item = Hit> + 'a>;
+    // fn iter<'a>(&'a self) -> Box<'a,Iterator<Item=(u32, f32)>>;
+    // fn iter<'b>(&'b self) -> Box<Iterator<Item=&'b (u32, f32)>>;
+    fn into_iter(self) -> Box<Iterator<Item = Hit>>;
+    fn get_value(&self, id: u32) -> Option<u32>;
+}
+
+#[derive(Debug, Clone)]
+pub struct VecHitCollector {
+    pub hits_vec: Vec<Hit>,
+}
+
 #[derive(Debug, Clone)]
 struct VecHitCollectorIter<'a> {
     hits_vec: &'a Vec<Hit>,
     pos:      usize,
 }
 impl<'a> Iterator for VecHitCollectorIter<'a> {
-    type Item = &'a Hit;
-    fn next(&mut self) -> Option<&'a Hit> {
+    type Item = Hit;
+    fn next(&mut self) -> Option<Hit> {
         if self.pos >= self.hits_vec.len() {
             None
         } else {
             self.pos += 1;
-            self.hits_vec.get(self.pos - 1)
+            self.hits_vec.get(self.pos - 1).map(|el| *el)
         }
         // Some(&(1, 1.0))
         // self.hits_vec.get(self.pos)
@@ -381,24 +384,18 @@ impl Iterator for VecHitCollectorIntoIter {
             None
         } else {
             self.pos += 1;
-            self.hits_vec.get(self.pos - 1).map(|el| el.clone())
+            self.hits_vec.get(self.pos - 1).map(|el| *el)
         }
     }
 }
 
 impl HitCollector for VecHitCollector {
-    // fn add(&mut self, hits: u32, score:f32)
-    // {
-    // }
-    // fn union(&mut self, other:&Self)
-    // {
-    // }
-    // fn intersect(&mut self, other:&Self)
-    // {
-    // }
+    // fn add(&mut self, hits: u32, score:f32) // { // }
+    // fn union(&mut self, other:&Self) // { // }
+    // fn intersect(&mut self, other:&Self) // { // }
 
-    fn iter<'a>(&'a self) -> VecHitCollectorIter<'a> {
-        VecHitCollectorIter { hits_vec: &self.hits_vec, pos:      0 }
+    fn iter<'a>(&'a self) -> Box<Iterator<Item = Hit> + 'a> {
+        Box::new(VecHitCollectorIter { hits_vec: &self.hits_vec, pos:      0 })
     }
 
     // fn iter<'b>(&'b self) -> Box<Iterator<Item=&'b Hit>>
