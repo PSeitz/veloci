@@ -125,7 +125,7 @@ impl Default for BoostFunction {
 
 
 #[derive(Debug, Serialize, Deserialize, Clone, Copy)]
-pub struct Hit {
+pub struct Hit { 
     pub id:    u32,
     pub score: f32,
 }
@@ -250,6 +250,7 @@ pub fn search_unrolled(persistence: &Persistence, request: Request) -> Result<Fn
 
 use expression::ScoreExpression;
 
+#[allow(dead_code)]
 #[derive(Debug)]
 struct BoostIter {
     // iterHashmap: IterMut<K, V> (&'a K, &'a mut V)
@@ -313,104 +314,6 @@ pub fn add_boost(persistence: &Persistence, boost: &RequestBoostPart, hits: &mut
 }
 
 
-
-#[test]
-fn test_hit_coll() {
-    let yo: Box<HitCollector> = Box::new(VecHitCollector { hits_vec: vec![] });
-
-    for x in yo.iter() {
-        println!("{:?}", x); // x: i32
-    }
-
-    for x in yo.iter() {
-        println!("{:?}", x); // x: i32
-    }
-
-    // for x in yo.into_iter() {
-    //     println!("{:?}", x); // x: i32
-    // }
-}
-
-
-// trait Iter: Sync {
-//     fn next(&self) -> Iterator<Item=(u32, f32)>;
-// }
-
-trait HitCollector: Sync + Send {
-    // fn add(&mut self, hits: u32, score:f32);
-    // fn union(&mut self, other:&Self);
-    // fn intersect(&mut self, other:&Self);
-    // fn iter<'a>(&'a self) -> VecHitCollectorIter<'a>;
-    fn iter<'a>(&'a self) -> Box<Iterator<Item = Hit> + 'a>;
-    // fn iter<'a>(&'a self) -> Box<'a,Iterator<Item=(u32, f32)>>;
-    // fn iter<'b>(&'b self) -> Box<Iterator<Item=&'b (u32, f32)>>;
-    fn into_iter(self) -> Box<Iterator<Item = Hit>>;
-    fn get_value(&self, id: u32) -> Option<u32>;
-}
-
-#[derive(Debug, Clone)]
-pub struct VecHitCollector {
-    pub hits_vec: Vec<Hit>,
-}
-
-#[derive(Debug, Clone)]
-struct VecHitCollectorIter<'a> {
-    hits_vec: &'a Vec<Hit>,
-    pos:      usize,
-}
-impl<'a> Iterator for VecHitCollectorIter<'a> {
-    type Item = Hit;
-    fn next(&mut self) -> Option<Hit> {
-        if self.pos >= self.hits_vec.len() {
-            None
-        } else {
-            self.pos += 1;
-            self.hits_vec.get(self.pos - 1).map(|el| *el)
-        }
-        // Some(&(1, 1.0))
-        // self.hits_vec.get(self.pos)
-    }
-}
-
-#[derive(Debug, Clone)]
-struct VecHitCollectorIntoIter {
-    hits_vec: Vec<Hit>,
-    pos:      usize,
-}
-impl Iterator for VecHitCollectorIntoIter {
-    type Item = Hit;
-    fn next(&mut self) -> Option<Hit> {
-        if self.pos >= self.hits_vec.len() {
-            None
-        } else {
-            self.pos += 1;
-            self.hits_vec.get(self.pos - 1).map(|el| *el)
-        }
-    }
-}
-
-impl HitCollector for VecHitCollector {
-    // fn add(&mut self, hits: u32, score:f32) // { // }
-    // fn union(&mut self, other:&Self) // { // }
-    // fn intersect(&mut self, other:&Self) // { // }
-
-    fn iter<'a>(&'a self) -> Box<Iterator<Item = Hit> + 'a> {
-        Box::new(VecHitCollectorIter { hits_vec: &self.hits_vec, pos:      0 })
-    }
-
-    // fn iter<'b>(&'b self) -> Box<Iterator<Item=&'b Hit>>
-    // {
-    //     Box::new(VecHitCollectorIter{hits_vec: &self.hits_vec}) as Box<Iterator<Item=&Hit>>
-    // }
-    fn into_iter(self) -> Box<Iterator<Item = Hit>> {
-        Box::new(VecHitCollectorIntoIter { hits_vec: self.hits_vec, pos:      0 })
-    }
-
-    fn get_value(&self, _id: u32) -> Option<u32> {
-        // self.hits_vec.get(id)
-        Some(1)
-    }
-}
 
 
 

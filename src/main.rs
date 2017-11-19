@@ -85,9 +85,13 @@ pub mod persistence_data;
 pub mod search_field;
 pub mod expression;
 pub mod bucket_list;
+pub mod hit_collector;
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+mod bench;
 
 use std::str;
 

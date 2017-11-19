@@ -310,6 +310,7 @@ impl std::fmt::Display for ValIdPair {
 //     }
 // }
 
+#[allow(dead_code)]
 fn print_vec(vec: &Vec<ValIdPair>) -> String {
     String::from("valid\tparent_val_id") + &vec.iter().map(|el| format!("\n{}\t{}", el.valid, el.parent_val_id)).collect::<Vec<_>>().join("")
 }
@@ -556,6 +557,7 @@ struct CharDataComplete {
     byte_offset_end:   u64,
 }
 
+#[allow(dead_code)]
 fn print_vec_chardata(vec: &Vec<CharDataComplete>) -> String {
     String::from(format!("\nchar\toffset_start\toffset_end\tline_offset"))
         + &vec.iter()
@@ -711,7 +713,7 @@ pub fn create_indices_csv(folder: &str, csv_path: &str, indices: &str) -> Result
             CreateIndex::FulltextInfo(el)/*{ fulltext: path, options, attr_pos : _ }*/ => {
                 create_fulltext_index_csv(csv_path, &el.fulltext, el.attr_pos.unwrap(), el.options.unwrap_or(Default::default()), &mut persistence)?
             },
-            CreateIndex::BoostInfo(boost) => {} // @Temporary // @FixMe
+            CreateIndex::BoostInfo(_) => {} // @Temporary // @FixMe
         }
     }
 

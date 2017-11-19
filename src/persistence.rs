@@ -422,7 +422,7 @@ impl Persistence {
     }
 
     pub fn get_fst(&self, path: &str) -> Result<&Map, search::SearchError> {
-        Ok(self.cache.fst.get(path).expect("load fst no found"))
+        Ok(self.cache.fst.get(path).expect(&format!("{} does not exist", path)))
     }
 
     // pub fn get_create_char_offset_info(&self, path: &str,character: &str) -> Result<Option<OffsetInfo>, search::SearchError> { // @Temporary - replace SearchError

@@ -5,7 +5,7 @@ use search_field;
 // use persistence;
 use persistence::Persistence;
 use iron::prelude::*;
-use iron::{typemap, AfterMiddleware, BeforeMiddleware, Chain, Handler, Iron, IronResult, Request, Response};
+use iron::{typemap, AfterMiddleware, BeforeMiddleware, Chain, Iron, IronResult, Request, Response};
 use iron_cors::CorsMiddleware;
 use iron::{headers, status};
 use iron::modifiers::Header;

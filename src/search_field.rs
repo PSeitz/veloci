@@ -118,7 +118,7 @@ where
 // }
 
 
-type SuggestFieldResult = Vec<(String, Score, TermId)>;
+pub type SuggestFieldResult = Vec<(String, Score, TermId)>;
 
 
 fn search_result_to_suggest_result(results: Vec<SearchFieldResult>, skip: usize, top: usize) -> SuggestFieldResult {
@@ -140,7 +140,7 @@ fn search_result_to_suggest_result(results: Vec<SearchFieldResult>, skip: usize,
 }
 
 pub fn suggest_multi(persistence: &Persistence, req: Request) -> Result<SuggestFieldResult, SearchError> {
-    print_time!("suggest time");
+    info_time!("suggest time");
     let options: Vec<RequestSearchPart> = req.suggest.expect("only suggest allowed here");
     let mut search_results = vec![];
     for mut option in options {
@@ -150,7 +150,7 @@ pub fn suggest_multi(persistence: &Persistence, req: Request) -> Result<SuggestF
         option.terms = option.terms.iter().map(|el| util::normalize_text(el)).collect::<Vec<_>>();
         search_results.push(get_hits_in_field(persistence, &option)?);
     }
-    print_time!("suggest to vec/sort");
+    info_time!("suggest to vec/sort");
     return Ok(search_result_to_suggest_result(search_results, req.skip, req.top));
 }
 
