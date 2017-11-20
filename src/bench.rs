@@ -180,6 +180,12 @@ mod bench {
         b.iter(||  { suggest("a", "meanings.ger[].text", &pers) });
     }
 
+    #[bench]
+    fn suggest_kana_a(b: &mut Bencher) {
+        let pers = load_persistence();
+        b.iter(||  { suggest("あ", "kana[].text", &pers) });
+    }
+
 
 }
 
