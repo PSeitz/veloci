@@ -103,5 +103,4 @@ impl HitCollector for VecHitCollector {
         self.hits_vec.get_mut(id).map(|el| &mut el.score)
         // Some(1)
     }
-    
 }

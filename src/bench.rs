@@ -110,7 +110,7 @@ mod bench {
             "top": 10,
             "skip": 0
         });
-        
+
         let requesto: search::Request = serde_json::from_str(&query.to_string()).expect("Can't parse json");
         requesto
     }
@@ -143,7 +143,7 @@ mod bench {
     //     Ok(search::to_documents(pers, &hits.data))
     // }
 
-    fn load_persistence() -> persistence::Persistence{
+    fn load_persistence() -> persistence::Persistence {
         persistence::Persistence::load(TEST_FOLDER.to_string()).expect("Could not load persistence")
     }
 
@@ -151,41 +151,40 @@ mod bench {
     fn search_anschauen(b: &mut Bencher) {
         let pers = load_persistence();
 
-        b.iter(|| { search("anschauen", &pers) });
+        b.iter(|| search("anschauen", &pers));
     }
 
     #[bench]
     fn search_haus(b: &mut Bencher) {
         let pers = load_persistence();
 
-        b.iter(|| { search("haus", &pers) });
+        b.iter(|| search("haus", &pers));
     }
 
     #[bench]
     fn search_japanese(b: &mut Bencher) {
         let pers = load_persistence();
 
-        b.iter(|| { search("家", &pers) });
+        b.iter(|| search("家", &pers));
     }
 
     #[bench]
     fn suggest_an(b: &mut Bencher) {
         let pers = load_persistence();
-        b.iter(||  { suggest("an", "meanings.ger[].text", &pers) });
+        b.iter(|| suggest("an", "meanings.ger[].text", &pers));
     }
 
     #[bench]
     fn suggest_a(b: &mut Bencher) {
         let pers = load_persistence();
-        b.iter(||  { suggest("a", "meanings.ger[].text", &pers) });
+        b.iter(|| suggest("a", "meanings.ger[].text", &pers));
     }
 
     #[bench]
     fn suggest_kana_a(b: &mut Bencher) {
         let pers = load_persistence();
-        b.iter(||  { suggest("あ", "kana[].text", &pers) });
+        b.iter(|| suggest("あ", "kana[].text", &pers));
     }
 
 
 }
-

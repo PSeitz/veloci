@@ -42,9 +42,14 @@ pretty_assertions = "0.1.2"
 stainless = "*"
 
 [lib]
-name = "native_search"
+name = "search_lib"
 path = "src/lib.rs"
 
 [[bin]]
-name = "myapp"
-path = "src/main.rs"
+name = "server"
+path = "src/server.rs"
+
+[[bin]]
+name = "create_index"
+path = "src/create_index.rs"
+

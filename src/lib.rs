@@ -79,7 +79,6 @@ pub mod search_field;
 pub mod expression;
 pub mod bucket_list;
 pub mod hit_collector;
-pub mod server;
 
 #[cfg(test)]
 mod tests;

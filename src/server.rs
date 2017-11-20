@@ -1,9 +1,30 @@
-use search;
-use search_field;
+
+
+extern crate bodyparser;
+extern crate env_logger;
+extern crate fnv;
+extern crate hyper;
+extern crate iron;
+extern crate iron_cors;
+extern crate router;
+extern crate serde_json;
+extern crate snap;
+extern crate time;
+
+#[macro_use]
+extern crate lazy_static;
+#[macro_use]
+extern crate log;
+#[macro_use]
+extern crate measure_time;
+extern crate search_lib;
+
+use search_lib::search;
+use search_lib::search_field;
 // use create;
 // use doc_loader;
 // use persistence;
-use persistence::Persistence;
+use search_lib::persistence::Persistence;
 use iron::prelude::*;
 use iron::{typemap, AfterMiddleware, BeforeMiddleware, Chain, Iron, IronResult, Request, Response};
 use iron_cors::CorsMiddleware;
@@ -12,10 +33,8 @@ use iron::modifiers::Header;
 
 use time::precise_time_ns;
 use router::Router;
-use bodyparser;
-use serde_json;
 
-use persistence;
+use search_lib::persistence;
 
 #[allow(unused_imports)]
 use std::collections::HashMap;
@@ -24,6 +43,11 @@ use fnv::FnvHashMap;
 use std::sync::RwLock;
 
 struct ResponseTime;
+
+fn main() {
+    env_logger::init().unwrap();
+    start_server("jmdict".to_string());
+}
 
 impl typemap::Key for ResponseTime {
     type Value = u64;
@@ -67,9 +91,7 @@ lazy_static! {
     // };
 }
 
-// fn main() {
-//     start_server("jmdict".to_string());
-// }
+
 
 
 

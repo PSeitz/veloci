@@ -125,7 +125,7 @@ impl Default for BoostFunction {
 
 
 #[derive(Debug, Serialize, Deserialize, Clone, Copy)]
-pub struct Hit { 
+pub struct Hit {
     pub id:    u32,
     pub score: f32,
 }
@@ -216,7 +216,7 @@ pub fn get_shortest_result<T: std::iter::ExactSizeIterator>(results: &Vec<T>) ->
 
 pub fn search_unrolled(persistence: &Persistence, request: Request) -> Result<FnvHashMap<u32, f32>, SearchError> {
     debug_time!("search_unrolled");
-    
+
     if request.or.is_some() {
         Ok(request.or.unwrap().iter().fold(FnvHashMap::default(), |mut acc, x| -> FnvHashMap<u32, f32> {
             acc.extend(&search_unrolled(persistence, x.clone()).unwrap());

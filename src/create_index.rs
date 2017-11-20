@@ -1,99 +1,38 @@
-#![feature(plugin)]
-#![cfg_attr(test, plugin(stainless))]
-#![feature(test)]
-#![feature(collection_placement)]
-#![feature(placement_in_syntax)]
-#![feature(box_syntax, box_patterns)]
-#![cfg_attr(feature = "unstable", feature(alloc, heap_api, repr_simd))]
-
-#[macro_use]
-extern crate serde_derive;
-
-#[macro_use]
-extern crate serde_json;
-
-extern crate rand;
-extern crate serde;
-// extern crate tokio_timer;
-extern crate fnv;
-extern crate fst;
-extern crate regex;
 
 extern crate env_logger;
-#[macro_use]
-extern crate log;
+extern crate fst;
+extern crate search_lib;
 
-// extern crate abomonation;
-extern crate csv;
-
-extern crate test;
-
-extern crate bit_set;
-extern crate bit_vec;
-
-extern crate num;
-
-extern crate bodyparser;
-extern crate hyper;
-extern crate iron;
-extern crate router;
-extern crate snap;
-extern crate time;
-
-extern crate bincode;
-
-#[macro_use]
-extern crate measure_time;
-
-extern crate heapsize;
-
-extern crate byteorder;
-
-extern crate sled;
-
-// use fst::{IntoStreamer, Streamer, Levenshtein, Set, MapBuilder};
-#[allow(unused_imports)]
 use fst::{IntoStreamer, Levenshtein, MapBuilder, Set};
 use std::fs::File;
 use std::io::prelude::*;
-#[allow(unused_imports)]
-use std::io::{self, BufRead};
-#[allow(unused_imports)]
-use fnv::FnvHashSet;
-#[allow(unused_imports)]
-use std::collections::HashSet;
-#[allow(unused_imports)]
-use std::collections::HashMap;
-#[allow(unused_imports)]
-use fnv::FnvHashMap;
+use std::io;
 
 use std::time::Instant;
-
-#[macro_use]
-extern crate lazy_static;
-
-
-// extern crate rustc_serialize;
-
-#[macro_use]
-pub mod util;
-pub mod search;
-pub mod create;
-pub mod doc_loader;
-pub mod persistence;
-pub mod persistence_data;
-pub mod search_field;
-pub mod expression;
-pub mod bucket_list;
-pub mod hit_collector;
-
-#[cfg(test)]
-mod tests;
-
-#[cfg(test)]
-mod bench;
-
 use std::str;
+
+
+fn main() {
+    env_logger::init().unwrap();
+
+    // create_thalia_index();
+    // println!("{:?}",create_jmdict_index());
+
+    // {
+    //     let my_time = util::MeasureTime::new("jmdict load time", util::MeasureTimeLogLevel::Print);
+    //     let mut _pers:persistence::Persistence = persistence::Persistence::load("jmdict".to_string()).expect("could not load jmdict");
+    // }
+
+    // let doc_loader = doc_loader::DocLoader::new("jmdict", "data");
+    // let now = Instant::now();
+    // println!("{:?}", doc_loader.get_doc(1000).unwrap());
+    // println!("Load Time: {}", (now.elapsed().as_secs() as f64 * 1_000.0) + (now.elapsed().subsec_nanos() as f64 / 1000_000.0));
+
+    // println!("{:?}",test_build_fst());
+
+    // server::start_server();
+}
+
 
 #[allow(dead_code)]
 fn create_thalia_index() {
@@ -117,88 +56,9 @@ fn create_thalia_index() {
     ]
     "#;
 
-    // let indices = r#"
-    // [
-    //     { "fulltext":"MATNR", "attr_pos" : 0 },
-    //     { "fulltext":"ISMTITLE", "attr_pos" : 1, "options":{"tokenize":true}}
-    // ]
-    // "#;
-
-    // let indices = r#"
-    // [
-    //     { "fulltext":"MATNR", "attr_pos" : 0 , "options":{"tokenize":true}},
-    //     { "fulltext":"ISMTITLE", "attr_pos" : 1, "options":{"tokenize":true}}
-    // ]
-    // "#;
-    println!("{:?}", create::create_indices_csv("csv_test", "./data.csv", indices));
+    println!("{:?}", search_lib::create::create_indices_csv("csv_test", "./data.csv", indices));
 }
 
-fn main() {
-    env_logger::init().unwrap();
-
-    // create_thalia_index();
-    // println!("{:?}",create_jmdict_index());
-
-    // {
-    //     let my_time = util::MeasureTime::new("jmdict load time", util::MeasureTimeLogLevel::Print);
-    //     let mut _pers:persistence::Persistence = persistence::Persistence::load("jmdict".to_string()).expect("could not load jmdict");
-    // }
-
-    // let mut _pers:persistence::Persistence = persistence::Persistence::load("csv_test".to_string()).expect("could not load persistence");
-    // doc_loader::DocLoader::load(&mut pers);
-    // search::to_documents(&pers, &vec!(search::Hit{id:0, score:0.5}));
-
-    // println!("_pers {:?}mb", _pers.heap_size_of_children()/1_000_000);
-    // _pers.print_heap_sizes();
-
-    // {
-    //     let my_time = util::MeasureTime::new("binary_search total");
-    //     let mut faccess = FileAccess::new("jmdict/meanings.ger[].text");
-    //     let result = faccess.binary_search("haus");
-    //     let result = faccess.binary_search("genau");
-    //     let result = faccess.binary_search("achtung");
-    //     // println!("{:?}", result);
-    // }
-
-    // println!("{:?}",test_build_f_s_t());
-    // println!("{:?}",testfst("anschauen", 2));
-    // println!("{:?}",search::test_levenshtein("anschauen", 2));
-
-
-    // let _ = env_logger::init();
-    // let req = json!({
-    //     "search": {
-    //         "term":"haus",
-    //         "path": "meanings.ger[].text",
-    //         "levenshtein_distance": 0,
-    //         "firstCharExactMatch":true
-    //     }
-    // });
-
-    // let requesto: search::Request = serde_json::from_str(&req.to_string()).unwrap();
-    // let my_time = util::MeasureTime::new("Search");
-    // let hits = search::search("jmdict", requesto, 0, 10).unwrap();
-
-    // let requesto2: search::Request = serde_json::from_str(&req.to_string()).unwrap();
-    // let hits2 = search::search("jmdict", requesto2, 0, 10).unwrap();
-
-    // let docs = search::to_documents(&hits, "jmdict");
-
-    // println!("{:?}", hits);
-
-
-
-
-    // let doc_loader = doc_loader::DocLoader::new("jmdict", "data");
-    // let now = Instant::now();
-    // println!("{:?}", doc_loader.get_doc(1000).unwrap());
-    // println!("Load Time: {}", (now.elapsed().as_secs() as f64 * 1_000.0) + (now.elapsed().subsec_nanos() as f64 / 1000_000.0));
-
-    // println!("{:?}",test_build_fst());
-
-    // server::start_server();
-}
-// { "fulltext":"meanings.ger[]", "options":{"tokenize":true, "stopwords": ["stopword"]} }
 
 #[allow(dead_code)]
 fn create_jmdict_index() -> Result<(), io::Error> {
@@ -235,7 +95,7 @@ fn create_jmdict_index() -> Result<(), io::Error> {
     let mut f = File::open("jmdict.json")?;
     let mut s = String::new();
     f.read_to_string(&mut s)?;
-    println!("{:?}", create::create_indices("jmdict", &s, indices));
+    println!("{:?}", search_lib::create::create_indices("jmdict", &s, indices));
     Ok(())
 }
 
@@ -249,8 +109,6 @@ pub fn testfst(term: &str, max_distance: u32) -> Result<(Vec<String>), fst::Erro
     // lines.sort();
 
     println!("{:?}", lines.len());
-
-
     // A convenient way to create sets in memory.
     // let set = try!(Set::from_iter(lines));
 
