@@ -36,6 +36,8 @@ use csv;
 #[allow(unused_imports)]
 use fst::{self, IntoStreamer, Levenshtein, MapBuilder, Set};
 
+use log;
+
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(untagged)]
 pub enum CreateIndex {
@@ -469,6 +471,9 @@ pub fn create_fulltext_index(data: &Value, path: &str, options: FulltextIndexOpt
         let path_name = util::get_path_name(&paths[i], is_text_index);
         persistence.write_tuple_pair(&mut tuples, &concat(&path_name, ".valueIdToParent"))?;
 
+            
+
+
         // let tree = sled::Config::default()
         //   .path(util::get_file_path(&persistence.db, &concat(&path_name, ".valueIdToParent.sled")))
         //   .tree();
@@ -486,6 +491,13 @@ pub fn create_fulltext_index(data: &Value, path: &str, options: FulltextIndexOpt
         if options.tokenize {
             persistence.write_tuple_pair(&mut tokens, &concat(&path_name, ".tokens"))?;
         }
+
+        if log_enabled!(log::LogLevel::Trace) {
+            trace!("{}", &concat(&path_name, ".valueIdToParent"));
+            trace!("{}",print_vec(&tuples));
+            trace!("{}", &concat(&path_name, ".tokens"));
+            trace!("{}",print_vec(&tokens));
+        }
     }
 
     println!("createIndex {} {}ms", path, (now.elapsed().as_secs() as f64 * 1_000.0) + (now.elapsed().subsec_nanos() as f64 / 1000_000.0));
@@ -493,6 +505,7 @@ pub fn create_fulltext_index(data: &Value, path: &str, options: FulltextIndexOpt
     store_full_text_info(&mut persistence, all_terms, path, &options)?;
 
     println!("createIndexComplete {} {}ms", path, (now.elapsed().as_secs() as f64 * 1_000.0) + (now.elapsed().subsec_nanos() as f64 / 1000_000.0));
+
     Ok(())
 }
 

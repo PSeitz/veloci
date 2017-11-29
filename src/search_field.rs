@@ -159,11 +159,11 @@ pub fn suggest_multi(persistence: &Persistence, req: Request) -> Result<SuggestF
 // just adds sorting to search
 pub fn suggest(persistence: &Persistence, options: &RequestSearchPart) -> Result<SuggestFieldResult, SearchError> {
     let mut req = Request { suggest: Some(vec![options.clone()]), ..Default::default() };
-    if options.top.is_some() {
-        req.top = options.top.unwrap();
+    if let Some(top) = options.top {
+        req.top = top;
     }
-    if options.skip.is_some() {
-        req.skip = options.skip.unwrap();
+    if let Some(skip) = options.skip{
+        req.skip = skip;
     }
     // let options = vec![options.clone()];
     return suggest_multi(persistence, req);
