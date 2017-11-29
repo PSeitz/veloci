@@ -46,7 +46,8 @@ struct ResponseTime;
 
 fn main() {
     env_logger::init().unwrap();
-    start_server("jmdict".to_string());
+    // start_server("jmdict".to_string());
+    start_server("healthcare".to_string());
 }
 
 impl typemap::Key for ResponseTime {

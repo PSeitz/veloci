@@ -106,8 +106,7 @@ where
         }
         let next_el = &current_el[comp];
         // println!("{:?}", next_el);
-        if next_el.is_array() {
-            let current_el_arr = next_el.as_array().unwrap();
+        if let Some(current_el_arr) = next_el.as_array() {
             if is_last_path {
                 for el in current_el_arr {
                     if !el.is_null() {
@@ -145,9 +144,8 @@ where
     let path = util::remove_array_marker(path2);
     let paths = path.split(".").collect::<Vec<_>>();
 
-    if data.is_array() {
-        // let startMainId = parent_pos_in_path == 0 ? current_parent_id_counter : 0
-        for el in data.as_array().unwrap() {
+    if let Some(arr) = data.as_array() {
+        for el in arr {
             walk(el, 0, opt, &paths, cb);
             if opt.parent_pos_in_path == 0 {
                 opt.current_parent_id_counter += 1;
@@ -176,7 +174,7 @@ pub fn get_allterms(data: &Value, path: &str, options: &FulltextIndexOptions) ->
     for_each_element_in_path(&data, &mut opt, &path, &mut |value: &str, _value_id: u32, _parent_val_id: u32| {
         let normalized_text = util::normalize_text(value);
         trace!("normalized_text: {:?}", normalized_text);
-        if options.stopwords.is_some() && options.stopwords.as_ref().unwrap().contains(&normalized_text) {
+        if options.stopwords.as_ref().map(|el| el.contains(&normalized_text)).unwrap_or(false) {
             return;
         }
 
@@ -192,7 +190,7 @@ pub fn get_allterms(data: &Value, path: &str, options: &FulltextIndexOptions) ->
         if options.tokenize && normalized_text.split(" ").count() > 1 {
             for token in normalized_text.split(" ") {
                 let token_str = token.to_string();
-                if options.stopwords.is_some() && options.stopwords.as_ref().unwrap().contains(&token_str) {
+                if options.stopwords.as_ref().map(|el| el.contains(&normalized_text)).unwrap_or(false) {
                     continue;
                 }
                 // terms.insert(token_str);
@@ -362,7 +360,7 @@ pub fn create_fulltext_index_csv(
     let path_name = util::get_path_name(attr_name, is_text_index);
     persistence.write_tuple_pair(&mut tuples, &concat(&path_name, ".valueIdToParent"))?;
 
-    if tokens.len() > 0 {
+    if options.tokenize {
         persistence.write_tuple_pair(&mut tokens, &concat(&path_name, ".tokens"))?;
     }
 
@@ -440,7 +438,7 @@ pub fn create_fulltext_index(data: &Value, path: &str, options: FulltextIndexOpt
         if is_text_index {
             for_each_element_in_path(&data, &mut opt, &paths[i], &mut |value: &str, value_id: u32, _parent_val_id: u32| {
                 let normalized_text = util::normalize_text(value);
-                if options.stopwords.is_some() && options.stopwords.as_ref().unwrap().contains(&normalized_text) {
+                if options.stopwords.as_ref().map(|el| el.contains(&normalized_text)).unwrap_or(false) {
                     return;
                 }
 
@@ -451,7 +449,7 @@ pub fn create_fulltext_index(data: &Value, path: &str, options: FulltextIndexOpt
                 if options.tokenize && normalized_text.split(" ").count() > 1 {
                     for token in normalized_text.split(" ") {
                         let token_str = token.to_string();
-                        if options.stopwords.is_some() && options.stopwords.as_ref().unwrap().contains(&token_str) {
+                        if options.stopwords.as_ref().map(|el| el.contains(&token_str)).unwrap_or(false) {
                             continue;
                         }
                         // terms.insert(token.to_string());
@@ -485,7 +483,7 @@ pub fn create_fulltext_index(data: &Value, path: &str, options: FulltextIndexOpt
         //     tree.set(key_bytes, value_bytes);
         // }
 
-        if tokens.len() > 0 {
+        if options.tokenize {
             persistence.write_tuple_pair(&mut tokens, &concat(&path_name, ".tokens"))?;
         }
     }
@@ -522,7 +520,7 @@ fn create_boost_index(data: &Value, path: &str, options: BoostIndexOptions, pers
     {
         let mut callback = |value: &str, value_id: u32, _parent_val_id: u32| {
             if options.boost_type == "int" {
-                let my_int = value.parse::<u32>().unwrap();
+                let my_int = value.parse::<u32>().expect("Expected an int value");
                 tuples.push(ValIdToValue { valid: value_id, value: my_int });
             } // TODO More cases
         };

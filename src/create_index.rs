@@ -15,6 +15,8 @@ use std::str;
 fn main() {
     env_logger::init().unwrap();
 
+    println!("{:?}",create_healtcare());
+
     // create_thalia_index();
     // println!("{:?}",create_jmdict_index());
 
@@ -378,3 +380,204 @@ fn test_build_fst() -> Result<(), fst::Error> {
 //     assert_eq!(util::remove_array_marker("Hello[].ja"), "hello.ja");
 
 // }
+
+
+
+
+
+
+
+
+
+
+
+fn create_healtcare() -> Result<(), io::Error> {
+    let indices = r#"
+    [
+        {"fulltext": "diagnosticreport[].result[].reference", "options":{"tokenize":true}},
+        {"fulltext": "diagnosticreport[].result[].display", "options":{"tokenize":true}},
+        {"fulltext": "address[].country", "options":{"tokenize":true}},
+        {"fulltext": "address[].city", "options":{"tokenize":true}},
+        {"fulltext": "address[].postalCode", "options":{"tokenize":true}},
+        {"fulltext": "address[].state", "options":{"tokenize":true}},
+        {"fulltext": "patientname[].given[]", "options":{"tokenize":true}},
+        {"fulltext": "condition[].code.coding[].code", "options":{"tokenize":true}},
+        {"fulltext": "condition[].code.coding[].system", "options":{"tokenize":true}},
+        {"fulltext": "condition[].code.coding[].display", "options":{"tokenize":true}},
+        {"fulltext": "encounter[].observation[].component.code.coding[].code", "options":{"tokenize":true}},
+        {"fulltext": "encounter[].observation[].component.code.coding[].system", "options":{"tokenize":true}},
+        {"fulltext": "encounter[].observation[].component.code.coding[].display", "options":{"tokenize":true}},
+        {"fulltext": "patientname[].prefix[]", "options":{"tokenize":true}},
+        {"fulltext": "procedure[].code.coding[].code", "options":{"tokenize":true}},
+        {"fulltext": "procedure[].code.coding[].system", "options":{"tokenize":true}},
+        {"fulltext": "procedure[].code.coding[].display", "options":{"tokenize":true}},
+        {"fulltext": "encounter[].observation[].valueCodeableConcept.coding[].code", "options":{"tokenize":true}},
+        {"fulltext": "encounter[].observation[].valueCodeableConcept.coding[].system", "options":{"tokenize":true}},
+        {"fulltext": "encounter[].observation[].valueCodeableConcept.coding[].display", "options":{"tokenize":true}},
+        {"fulltext": "communication.language.coding[].code", "options":{"tokenize":true}},
+        {"fulltext": "communication.language.coding[].system", "options":{"tokenize":true}},
+        {"fulltext": "communication.language.coding[].display", "options":{"tokenize":true}},
+        {"fulltext": "allergyintolerance[].verificationStatus", "options":{"tokenize":true}},
+        {"fulltext": "allergyintolerance[].securityLabel", "options":{"tokenize":true}},
+        {"fulltext": "allergyintolerance[].allergyintoleranceType", "options":{"tokenize":true}},
+        {"fulltext": "allergyintolerance[].patient_reference", "options":{"tokenize":true}},
+        {"fulltext": "allergyintolerance[].resourceType", "options":{"tokenize":true}},
+        {"fulltext": "condition[].securityLabel", "options":{"tokenize":true}},
+        {"fulltext": "condition[].subject_reference", "options":{"tokenize":true}},
+        {"fulltext": "condition[].id", "options":{"tokenize":true}},
+        {"fulltext": "condition[].resourceType", "options":{"tokenize":true}},
+        {"fulltext": "encounter[].period_end", "options":{"tokenize":true}},
+        {"fulltext": "encounter[].serviceProvider_reference", "options":{"tokenize":true}},
+        {"fulltext": "encounter[].period_start", "options":{"tokenize":true}},
+        {"fulltext": "encounter[].securityLabel", "options":{"tokenize":true}},
+        {"fulltext": "encounter[].id", "options":{"tokenize":true}},
+        {"fulltext": "encounter[].patient_reference", "options":{"tokenize":true}},
+        {"fulltext": "encounter[].resourceType", "options":{"tokenize":true}},
+        {"fulltext": "encounter[].status", "options":{"tokenize":true}},
+        {"fulltext": "encounter[].observation[].valueQuantity_unit", "options":{"tokenize":true}},
+        {"fulltext": "encounter[].observation[].securityLabel", "options":{"tokenize":true}},
+        {"fulltext": "encounter[].observation[].encounter_reference", "options":{"tokenize":true}},
+        {"fulltext": "encounter[].observation[].code_text", "options":{"tokenize":true}},
+        {"fulltext": "encounter[].observation[].valueQuantity_code", "options":{"tokenize":true}},
+        {"fulltext": "encounter[].observation[].valueQuantity_system", "options":{"tokenize":true}},
+        {"fulltext": "encounter[].observation[].effectiveDateTime", "options":{"tokenize":true}},
+        {"fulltext": "encounter[].observation[].subject_reference", "options":{"tokenize":true}},
+        {"fulltext": "encounter[].observation[].valueQuantity_value", "options":{"tokenize":true}},
+        {"fulltext": "encounter[].observation[].id", "options":{"tokenize":true}},
+        {"fulltext": "encounter[].observation[].issued", "options":{"tokenize":true}},
+        {"fulltext": "encounter[].observation[].valueCodeableConcept_text", "options":{"tokenize":true}},
+        {"fulltext": "encounter[].observation[].resourceType", "options":{"tokenize":true}},
+        {"fulltext": "encounter[].observation[].status", "options":{"tokenize":true}},
+        {"fulltext": "procedure[].extension.valueCodeableConcept.coding[].code", "options":{"tokenize":true}},
+        {"fulltext": "procedure[].extension.valueCodeableConcept.coding[].system", "options":{"tokenize":true}},
+        {"fulltext": "procedure[].extension.valueCodeableConcept.coding[].display", "options":{"tokenize":true}},
+        {"fulltext": "careplanCategory.coding[].code", "options":{"tokenize":true}},
+        {"fulltext": "careplanCategory.coding[].system", "options":{"tokenize":true}},
+        {"fulltext": "careplanCategory.coding[].display", "options":{"tokenize":true}},
+        {"fulltext": "encounter[].reason.coding[].code", "options":{"tokenize":true}},
+        {"fulltext": "encounter[].reason.coding[].system", "options":{"tokenize":true}},
+        {"fulltext": "encounter[].reason.coding[].display", "options":{"tokenize":true}},
+        {"fulltext": "maritalStatus.coding[].code", "options":{"tokenize":true}},
+        {"fulltext": "maritalStatus.coding[].system", "options":{"tokenize":true}},
+        {"fulltext": "address[].extension.extension[].valueDecimal", "options":{"tokenize":true}},
+        {"fulltext": "address[].extension.extension[].url", "options":{"tokenize":true}},
+        {"fulltext": "immunization.vaccineCode.coding[].code", "options":{"tokenize":true}},
+        {"fulltext": "immunization.vaccineCode.coding[].system", "options":{"tokenize":true}},
+        {"fulltext": "immunization.vaccineCode.coding[].display", "options":{"tokenize":true}},
+        {"fulltext": "medicationrequest[].dispenseRequest_expectedSupplyDuration_system", "options":{"tokenize":true}},
+        {"fulltext": "medicationrequest[].dispenseRequest_numberOfRepeatsAllowed", "options":{"tokenize":true}},
+        {"fulltext": "medicationrequest[].securityLabel", "options":{"tokenize":true}},
+        {"fulltext": "medicationrequest[].dispenseRequest_quantity_unit", "options":{"tokenize":true}},
+        {"fulltext": "medicationrequest[].dispenseRequest_expectedSupplyDuration_unit", "options":{"tokenize":true}},
+        {"fulltext": "medicationrequest[].dispenseRequest_expectedSupplyDuration_value", "options":{"tokenize":true}},
+        {"fulltext": "medicationrequest[].dispenseRequest_quantity_value", "options":{"tokenize":true}},
+        {"fulltext": "medicationrequest[].patient_reference", "options":{"tokenize":true}},
+        {"fulltext": "medicationrequest[].dispenseRequest_expectedSupplyDuration_code", "options":{"tokenize":true}},
+        {"fulltext": "medicationrequest[].resourceType", "options":{"tokenize":true}},
+        {"fulltext": "encounter[].observation[].category[].text", "options":{"tokenize":true}},
+        {"fulltext": "diagnosticreport[].code.coding[].code", "options":{"tokenize":true}},
+        {"fulltext": "diagnosticreport[].code.coding[].system", "options":{"tokenize":true}},
+        {"fulltext": "diagnosticreport[].code.coding[].display", "options":{"tokenize":true}},
+        {"fulltext": "diagnosticreport[].effectiveDateTime", "options":{"tokenize":true}},
+        {"fulltext": "diagnosticreport[].securityLabel", "options":{"tokenize":true}},
+        {"fulltext": "diagnosticreport[].subject_reference", "options":{"tokenize":true}},
+        {"fulltext": "diagnosticreport[].encounter_reference", "options":{"tokenize":true}},
+        {"fulltext": "diagnosticreport[].id", "options":{"tokenize":true}},
+        {"fulltext": "diagnosticreport[].issued", "options":{"tokenize":true}},
+        {"fulltext": "diagnosticreport[].resourceType", "options":{"tokenize":true}},
+        {"fulltext": "diagnosticreport[].status", "options":{"tokenize":true}},
+        {"fulltext": "patientname[].suffix[]", "options":{"tokenize":true}},
+        {"fulltext": "type.coding[].code", "options":{"tokenize":true}},
+        {"fulltext": "type.coding[].system", "options":{"tokenize":true}},
+        {"fulltext": "type.coding[].display", "options":{"tokenize":true}},
+        {"fulltext": "medicationrequest[].dosageInstruction[].additionalInstructions.coding[].code", "options":{"tokenize":true}},
+        {"fulltext": "medicationrequest[].dosageInstruction[].additionalInstructions.coding[].system", "options":{"tokenize":true}},
+        {"fulltext": "medicationrequest[].dosageInstruction[].additionalInstructions.coding[].display", "options":{"tokenize":true}},
+        {"fulltext": "patientname[].use", "options":{"tokenize":true}},
+        {"fulltext": "patientname[].family", "options":{"tokenize":true}},
+        {"fulltext": "encounter[].observation[].component[].valueQuantity_system", "options":{"tokenize":true}},
+        {"fulltext": "encounter[].observation[].component[].valueQuantity_unit", "options":{"tokenize":true}},
+        {"fulltext": "encounter[].observation[].component[].valueQuantity_value", "options":{"tokenize":true}},
+        {"fulltext": "encounter[].observation[].component[].code_text", "options":{"tokenize":true}},
+        {"fulltext": "encounter[].observation[].component[].valueQuantity_code", "options":{"tokenize":true}},
+        {"fulltext": "healthcare[].gender", "options":{"tokenize":true}},
+        {"fulltext": "healthcare[].securityLabel", "options":{"tokenize":true}},
+        {"fulltext": "healthcare[].type_text", "options":{"tokenize":true}},
+        {"fulltext": "healthcare[].maritalStatus_text", "options":{"tokenize":true}},
+        {"fulltext": "healthcare[].birthDate", "options":{"tokenize":true}},
+        {"fulltext": "healthcare[].context_reference", "options":{"tokenize":true}},
+        {"fulltext": "healthcare[].period_end", "options":{"tokenize":true}},
+        {"fulltext": "healthcare[].period_start", "options":{"tokenize":true}},
+        {"fulltext": "healthcare[].multipleBirthInteger", "options":{"tokenize":true}},
+        {"fulltext": "healthcare[].organizationname", "options":{"tokenize":true}},
+        {"fulltext": "healthcare[].deceasedDateTime", "options":{"tokenize":true}},
+        {"fulltext": "healthcare[].subject_reference", "options":{"tokenize":true}},
+        {"fulltext": "healthcare[].id", "options":{"tokenize":true}},
+        {"fulltext": "healthcare[]._id", "options":{"tokenize":true}},
+        {"fulltext": "healthcare[].resourceType", "options":{"tokenize":true}},
+        {"fulltext": "healthcare[].status", "options":{"tokenize":true}},
+        {"fulltext": "suggest[].input", "options":{"tokenize":true}},
+        {"fulltext": "suggest[].weight", "options":{"tokenize":true}},
+        {"fulltext": "address[].line[]", "options":{"tokenize":true}},
+        {"fulltext": "procedure[].extension[].url", "options":{"tokenize":true}},
+        {"fulltext": "procedure[].extension[].valueCodeableConcept_text", "options":{"tokenize":true}},
+        {"fulltext": "addresses[].reference", "options":{"tokenize":true}},
+        {"fulltext": "allergyintolerance[].code.coding[].code", "options":{"tokenize":true}},
+        {"fulltext": "allergyintolerance[].code.coding[].system", "options":{"tokenize":true}},
+        {"fulltext": "allergyintolerance[].code.coding[].display", "options":{"tokenize":true}},
+        {"fulltext": "diagnosticreport[].performer[].display", "options":{"tokenize":true}},
+        {"fulltext": "procedure[].reasonReference_reference", "options":{"tokenize":true}},
+        {"fulltext": "procedure[].performedPeriod_end", "options":{"tokenize":true}},
+        {"fulltext": "procedure[].securityLabel", "options":{"tokenize":true}},
+        {"fulltext": "procedure[].subject_reference", "options":{"tokenize":true}},
+        {"fulltext": "procedure[].encounter_reference", "options":{"tokenize":true}},
+        {"fulltext": "procedure[].performedDateTime", "options":{"tokenize":true}},
+        {"fulltext": "procedure[].performedPeriod_start", "options":{"tokenize":true}},
+        {"fulltext": "procedure[].code_text", "options":{"tokenize":true}},
+        {"fulltext": "procedure[].resourceType", "options":{"tokenize":true}},
+        {"fulltext": "procedure[].status", "options":{"tokenize":true}},
+        {"fulltext": "medicationrequest[].medicationCodeableConcept.coding[].code", "options":{"tokenize":true}},
+        {"fulltext": "medicationrequest[].medicationCodeableConcept.coding[].system", "options":{"tokenize":true}},
+        {"fulltext": "medicationrequest[].medicationCodeableConcept.coding[].display", "options":{"tokenize":true}},
+        {"fulltext": "encounter[].observation[].category.coding[].code", "options":{"tokenize":true}},
+        {"fulltext": "encounter[].observation[].category.coding[].system", "options":{"tokenize":true}},
+        {"fulltext": "activity[].detail_status", "options":{"tokenize":true}},
+        {"fulltext": "address[].extension[].url", "options":{"tokenize":true}},
+        {"fulltext": "goal[].reference", "options":{"tokenize":true}},
+        {"fulltext": "allergyintolerance[].allergyintoleranceCategory[]", "options":{"tokenize":true}},
+        {"fulltext": "encounter[].observation[].code.coding[].code", "options":{"tokenize":true}},
+        {"fulltext": "encounter[].observation[].code.coding[].system", "options":{"tokenize":true}},
+        {"fulltext": "encounter[].observation[].code.coding[].display", "options":{"tokenize":true}},
+        {"fulltext": "immunization[].date", "options":{"tokenize":true}},
+        {"fulltext": "immunization[].primarySource", "options":{"tokenize":true}},
+        {"fulltext": "immunization[].securityLabel", "options":{"tokenize":true}},
+        {"fulltext": "immunization[].vaccineCode_text", "options":{"tokenize":true}},
+        {"fulltext": "immunization[].encounter_reference", "options":{"tokenize":true}},
+        {"fulltext": "immunization[].patient_reference", "options":{"tokenize":true}},
+        {"fulltext": "immunization[].resourceType", "options":{"tokenize":true}},
+        {"fulltext": "immunization[].status", "options":{"tokenize":true}},
+        {"fulltext": "immunization[].wasNotGiven", "options":{"tokenize":true}},
+        {"fulltext": "medicationrequest[].dosageInstruction[].doseQuantity_value", "options":{"tokenize":true}},
+        {"fulltext": "medicationrequest[].dosageInstruction[].sequence", "options":{"tokenize":true}},
+        {"fulltext": "medicationrequest[].dosageInstruction[].timing_repeat_period", "options":{"tokenize":true}},
+        {"fulltext": "medicationrequest[].dosageInstruction[].timing_repeat_periodUnit", "options":{"tokenize":true}},
+        {"fulltext": "medicationrequest[].dosageInstruction[].timing_repeat_frequency", "options":{"tokenize":true}},
+        {"fulltext": "medicationrequest[].dosageInstruction[].asNeededBoolean", "options":{"tokenize":true}},
+        {"fulltext": "activity[].detail.code.coding[].code", "options":{"tokenize":true}},
+        {"fulltext": "activity[].detail.code.coding[].system", "options":{"tokenize":true}},
+        {"fulltext": "activity[].detail.code.coding[].display", "options":{"tokenize":true}}
+    ]
+    "#;
+
+    let mut f = File::open("healthcare.json")?;
+    let mut s = String::new();
+    f.read_to_string(&mut s)?;
+    println!("{:?}", search_lib::create::create_indices("healthcare", &s, indices));
+    Ok(())
+}
+
+
+
+
+
+
