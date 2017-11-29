@@ -22,7 +22,7 @@ fn test_hit_coll() {
 //     fn next(&self) -> Iterator<Item=(u32, f32)>;
 // }
 
-trait HitCollector: Sync + Send {
+pub trait HitCollector: Sync + Send {
     // fn add(&mut self, hits: u32, score:f32);
     // fn union(&mut self, other:&Self);
     // fn intersect(&mut self, other:&Self);
@@ -61,7 +61,7 @@ impl<'a> Iterator for VecHitCollectorIter<'a> {
 }
 
 #[derive(Debug, Clone)]
-struct VecHitCollectorIntoIter {
+pub struct VecHitCollectorIntoIter {
     hits_vec: Vec<search::Hit>,
     pos:      usize,
 }

@@ -118,6 +118,8 @@ where
 // }
 
 
+use hit_collector::HitCollector;
+
 pub type SuggestFieldResult = Vec<(String, Score, TermId)>;
 
 
