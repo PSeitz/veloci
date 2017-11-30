@@ -57,7 +57,7 @@ pub fn concat_tuple(path: &str, suffix: &str, suffix2: &str) -> (String, String)
     (concat(path, suffix), concat(path, suffix2))
 }
 
-pub fn get_path_name(path_to_anchor: &str, is_text_index_part: bool) -> String {
+pub fn get_file_path_name(path_to_anchor: &str, is_text_index_part: bool) -> String {
     let suffix = if is_text_index_part { ".textindex" } else { "" };
     path_to_anchor.to_owned() + suffix
 }

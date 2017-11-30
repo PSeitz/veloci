@@ -359,7 +359,7 @@ pub fn create_fulltext_index_csv(
     }
 
     let is_text_index = true;
-    let path_name = util::get_path_name(attr_name, is_text_index);
+    let path_name = util::get_file_path_name(attr_name, is_text_index);
     persistence.write_tuple_pair(&mut tuples, &concat(&path_name, ".valueIdToParent"))?;
 
     if options.tokenize {
@@ -468,10 +468,8 @@ pub fn create_fulltext_index(data: &Value, path: &str, options: FulltextIndexOpt
             for_each_element_in_path(&data, &mut opt, &paths[i], &mut callback);
         }
 
-        let path_name = util::get_path_name(&paths[i], is_text_index);
+        let path_name = util::get_file_path_name(&paths[i], is_text_index);
         persistence.write_tuple_pair(&mut tuples, &concat(&path_name, ".valueIdToParent"))?;
-
-            
 
 
         // let tree = sled::Config::default()
@@ -649,7 +647,7 @@ pub fn add_token_values_to_tokens(persistence: &mut Persistence, data_str: &str,
     };
 
     let is_text_index = true;
-    let path_name = util::get_path_name(&config.path, is_text_index);
+    let path_name = util::get_file_path_name(&config.path, is_text_index);
     let mut tuples: Vec<ValIdToValue> = vec![];
 
     for el in data {

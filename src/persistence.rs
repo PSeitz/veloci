@@ -103,6 +103,15 @@ pub trait IndexIdToParent: Debug + HeapSizeOf + Sync + Send {
     fn get_keys(&self) -> Vec<u32>;
 }
 
+pub fn trace_index_id_to_parent(val: &Box<IndexIdToParent>) {
+    let keys = val.get_keys();
+    for key in keys.iter() {
+        if let Some(vals) = val.get_values(*key as u64) {
+            trace!("key {:?} to {:?}", key, vals );
+        }
+    }
+}
+
 use std::i32;
 static NOT_FOUND: i32 = i32::MIN;
 

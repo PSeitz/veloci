@@ -372,13 +372,15 @@ pub fn search_raw(
     // let mut next_level_hits:Vec<(u32, f32)> = vec![];
     // let mut hits:Vec<(u32, f32)> = vec![];
 
-    let paths = util::get_steps_to_anchor(&request.path);
-
+    let mut paths = util::get_steps_to_anchor(&request.path);
+    if let Some(last_path) = paths.last_mut() {
+        *last_path = last_path.clone() + ".textindex";
+    }
     // text to "rows"
-    let path_name = util::get_path_name(paths.last().unwrap(), true);
+    // let path_name = util::get_file_path_name(paths.last().unwrap(), true);
     // let key = util::concat_tuple(&path_name, ".valueIdToParent.valIds", ".valueIdToParent.mainIds");
     // let kv_store = persistence.get_valueid_to_parent(&key);
-    let kv_store = persistence.get_valueid_to_parent(&concat(&path_name, ".valueIdToParent"));
+    let kv_store = persistence.get_valueid_to_parent(&concat(&paths.last().unwrap(), ".valueIdToParent"));
     let mut total_values = 0;
     {
         hits.reserve(field_result.hits.len());
@@ -410,8 +412,9 @@ pub fn search_raw(
 
     info!("Joining {:?} hits from {:?} for {:?}", hits.len(), paths, &request.terms);
     for i in (0..paths.len() - 1).rev() {
-        let is_text_index = i == (paths.len() - 1);
-        let path_name = util::get_path_name(&paths[i], is_text_index);
+        // let is_text_index = i == (paths.len() - 1);
+        // let path_name = util::get_file_path_name(&paths[i], is_text_index);
+        let path_name = &paths[i];
 
         if boost.is_some() {
             boost.as_mut().unwrap().retain(|boost| check_apply_boost(persistence, boost, &path_name, &mut hits));
@@ -462,7 +465,7 @@ pub fn search_raw(
         }
 
         // next_level_hits.sort_by(|a, b| a.0.cmp(&b.0));
-        trace!("next_level_hits: {:?}", next_level_hits);
+        trace!("next_level_hits from {:?}: {:?}", &concat(&path_name, ".valueIdToParent"), next_level_hits);
         debug!("{:?} hits in next_level_hits {:?}", next_level_hits.len(), &concat(&path_name, ".valueIdToParent"));
 
         // debug_time!("sort and dedup");

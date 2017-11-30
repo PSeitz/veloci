@@ -1,6 +1,7 @@
 
 use str;
 use persistence::Persistence;
+use persistence;
 use search::RequestSearchPart;
 use search::Request;
 use search::SearchError;
@@ -301,9 +302,10 @@ pub fn resolve_token_hits(persistence: &Persistence, path: &str, result: &mut Se
         .get(&concat(&path, ".offsets"))
         .expect(&format!("Could not find {:?} in index_64 cache", concat(&path, ".offsets")));
 
-    // let key = (concat(&path, ".textindex.tokens.tokenValIds"), concat(&path, ".textindex.tokens.parentValId"));
-
     let token_kvdata = persistence.get_valueid_to_parent(&concat(&path, ".textindex.tokens"));
+    info!("Checking Tokens in {:?}", &concat(&path, ".textindex.tokens"));
+    persistence::trace_index_id_to_parent(token_kvdata);
+    // trace!("All Tokens: {:?}", token_kvdata.get_values());
 
     // let token_kvdata = persistence.cache.index_id_to_parent.get(&key).expect(&format!("Could not find {:?} in index_id_to_parent cache", key));
     // let mut token_hits:FnvHashMap<u32, f32> = FnvHashMap::default();

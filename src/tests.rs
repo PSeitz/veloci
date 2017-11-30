@@ -268,19 +268,20 @@ mod tests {
             assert_eq!(hits[0].doc["ent_seq"], "1587680");
         }
 
-        // it "should handle deep structured objects" {
-        //     let req = json!({
-        //         "search": {
-        //             "terms":["brook"],
-        //             "path": "address[].line[]",
-        //             "levenshtein_distance": 1
-        //         }
-        //     });
+        it "deep structured objects" {
+            let _ = env_logger::init();
+            let req = json!({
+                "search": {
+                    "terms":["brook"],
+                    "path": "address[].line[]",
+                    "levenshtein_distance": 1
+                }
+            });
 
-        //     let hits = search_testo_to_doc(req).unwrap();
-        //     assert_eq!(hits.len(), 1);
-        //     assert_eq!(hits[0].doc["id"], 123456);
-        // }
+            let hits = search_testo_to_doc(req).unwrap();
+            assert_eq!(hits.len(), 1);
+            assert_eq!(hits[0].doc["id"], 123456);
+        }
 
 
         it "should search without firstCharExactMatch"{
@@ -337,7 +338,7 @@ mod tests {
             assert_eq!(hits.unwrap().len(), 1);
         }
 
-        it "'AND connect hits same field'"{
+        it "AND connect hits same field"{
             let _ = env_logger::init();
             let req = json!({
                 "and":[
