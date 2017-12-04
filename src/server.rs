@@ -1,6 +1,7 @@
 
 
 extern crate bodyparser;
+extern crate flexi_logger;
 extern crate env_logger;
 extern crate fnv;
 extern crate hyper;

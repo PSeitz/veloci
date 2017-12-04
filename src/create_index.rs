@@ -1,4 +1,4 @@
-
+extern crate flexi_logger;
 extern crate env_logger;
 extern crate fst;
 extern crate search_lib;

@@ -17,8 +17,10 @@ extern crate serde;
 extern crate fnv;
 extern crate fst;
 extern crate regex;
+extern crate chrono;
 
-extern crate env_logger;
+extern crate flexi_logger;
+// extern crate env_logger;
 #[macro_use]
 extern crate log;
 
@@ -72,6 +74,7 @@ extern crate lazy_static;
 pub mod util;
 pub mod search;
 pub mod create;
+pub mod create_from_json;
 pub mod doc_loader;
 pub mod persistence;
 pub mod persistence_data;
@@ -79,6 +82,7 @@ pub mod search_field;
 pub mod expression;
 pub mod bucket_list;
 pub mod hit_collector;
+pub mod trace;
 
 #[cfg(test)]
 mod tests;

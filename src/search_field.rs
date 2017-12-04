@@ -12,6 +12,8 @@ use std::cmp::Ordering;
 use fnv::FnvHashMap;
 use util;
 
+// use hit_collector::HitCollector;
+
 #[allow(unused_imports)]
 use fst::{IntoStreamer, Levenshtein, Map, MapBuilder, Set};
 use fst::automaton::*;
@@ -117,9 +119,6 @@ where
 //     termId: TermId,
 //     score: Score
 // }
-
-
-use hit_collector::HitCollector;
 
 pub type SuggestFieldResult = Vec<(String, Score, TermId)>;
 
@@ -299,11 +298,11 @@ pub fn resolve_token_hits(persistence: &Persistence, path: &str, result: &mut Se
     let text_offsets = persistence
         .cache
         .index_64
-        .get(&concat(&path, ".offsets"))
-        .expect(&format!("Could not find {:?} in index_64 cache", concat(&path, ".offsets")));
+        .get(&concat(path, ".offsets"))
+        .expect(&format!("Could not find {:?} in index_64 cache", concat(path, ".offsets")));
 
-    let token_kvdata = persistence.get_valueid_to_parent(&concat(&path, ".textindex.tokens"));
-    info!("Checking Tokens in {:?}", &concat(&path, ".textindex.tokens"));
+    let token_kvdata = persistence.get_valueid_to_parent(&concat(path, ".textindex.tokens"));
+    info!("Checking Tokens in {:?}", &concat(path, ".textindex.tokens"));
     persistence::trace_index_id_to_parent(token_kvdata);
     // trace!("All Tokens: {:?}", token_kvdata.get_values());
 

@@ -22,7 +22,7 @@ mod tests {
     use std::fs::File;
     use std::fs;
     use std::io::prelude::*;
-
+    use trace;
     use fnv::FnvHashMap;
     use std::sync::RwLock;
 
@@ -212,6 +212,8 @@ mod tests {
 
     describe! search_test {
         before_each {
+            
+            trace::enable_log();
             let mut INDEX_CREATEDO = INDEX_CREATED.write().unwrap();
             if !*INDEX_CREATEDO {
                 // Start up a test.
@@ -231,7 +233,7 @@ mod tests {
                 "#;
                 // let indices = r#"
                 // [
-                //     { "fulltext":"meanings.ger[]", "options":{"tokenize":true, "stopwords": ["stopword"]} }
+                //     { "fulltext":"address[].line[]", "options":{"tokenize":true} }
                 // ]
                 // "#;
                 println!("{:?}", create::create_indices(TEST_FOLDER, TEST_DATA, indices));
@@ -269,7 +271,32 @@ mod tests {
         }
 
         it "deep structured objects" {
-            let _ = env_logger::init();
+            // static TEST_DATA: &str = r#"[
+            //     {
+            //         "address": [
+            //             {
+            //                 "line": [ "line1" ]
+            //             }
+            //         ]
+            //     },
+            //     {
+            //         "address": [
+            //             {
+            //                 "line": [ "line2" ]
+            //             }
+            //         ]
+            //     }
+            // ]"#;
+
+
+            // let indices = r#"
+            // [
+            //     { "fulltext":"address[].line[]"}
+            // ]
+            // "#;
+            // println!("{:?}", create::create_indices(TEST_FOLDER, TEST_DATA, indices));
+
+
             let req = json!({
                 "search": {
                     "terms":["brook"],
@@ -339,7 +366,6 @@ mod tests {
         }
 
         it "AND connect hits same field"{
-            let _ = env_logger::init();
             let req = json!({
                 "and":[
                     {"search": {"terms":["aussehen"],       "path": "meanings.ger[]"}},
@@ -418,7 +444,6 @@ mod tests {
         }
 
         it "should search and double boost"{
-            // let _ = env_logger::init();
             let req = json!({
                 "search": {
                     "terms":["awesome"],
@@ -580,7 +605,6 @@ mod tests {
         }
 
         it "OR connect hits, but boost one term"{
-            // let _ = env_logger::init();
             let req = json!({
                 "or":[
                     {"search": {"terms":["majestät"], "path": "meanings.ger[]", "boost": 2}},
@@ -597,7 +621,6 @@ mod tests {
         //MUTLI TERMS
 
         // { // multi terms attribute ALL
-        //     let _ = env_logger::init();
         //     let req = json!({
         //         "or":[{"search": {"terms":["alle","Words"], "path": "meanings.ger[]", "term_operator": "ALL"}} ]
         //     });

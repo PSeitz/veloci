@@ -422,7 +422,7 @@ pub fn search_raw(
 
         // let key = util::concat_tuple(&path_name, ".valueIdToParent.valIds", ".valueIdToParent.mainIds");
         debug_time!("Joining to anchor");
-        let kv_store = persistence.get_valueid_to_parent(&concat(&path_name, ".valueIdToParent"));
+        let kv_store = persistence.get_valueid_to_parent(&concat(path_name, ".valueIdToParent"));
         // let kv_store = persistence.cache.index_id_to_parent.get(&key).expect(&format!("Could not find {:?} in index_id_to_parent cache", key));
         debug_time!("Adding all values");
         next_level_hits.reserve(hits.len());
@@ -465,8 +465,8 @@ pub fn search_raw(
         }
 
         // next_level_hits.sort_by(|a, b| a.0.cmp(&b.0));
-        trace!("next_level_hits from {:?}: {:?}", &concat(&path_name, ".valueIdToParent"), next_level_hits);
-        debug!("{:?} hits in next_level_hits {:?}", next_level_hits.len(), &concat(&path_name, ".valueIdToParent"));
+        trace!("next_level_hits from {:?}: {:?}", &concat(path_name, ".valueIdToParent"), next_level_hits);
+        debug!("{:?} hits in next_level_hits {:?}", next_level_hits.len(), &concat(path_name, ".valueIdToParent"));
 
         // debug_time!("sort and dedup");
         // next_level_hits.sort_by(|a, b| a.0.cmp(&b.0));

@@ -1,42 +1,21 @@
-
-#[allow(unused_imports)]
-use std::io::{self, BufRead};
-#[allow(unused_imports)]
-use std::time::Duration;
-
-#[allow(unused_imports)]
-use std::io::SeekFrom;
-use util;
-use util::concat;
-#[allow(unused_imports)]
-use fnv::FnvHashSet;
+use util::{self, concat};
 use fnv::FnvHashMap;
-#[allow(unused_imports)]
-use std::sync::{Arc, Mutex};
-#[allow(unused_imports)]
-use std::cmp::Ordering;
 
-use serde_json;
-use serde_json::Value;
+use serde_json::{self, Value};
 
-#[allow(unused_imports)]
-use std::env;
-
-#[allow(unused_imports)]
-use std::io::prelude::*;
-
-use std::str;
-use persistence::Persistence;
-use persistence::LoadingType;
-
-use std;
 use std::time::Instant;
+use std::{self, str};
+use std::io::{self};
+
+use persistence::{Persistence, LoadingType};
+
 use csv;
+use create_from_json;
+use log;
 
 #[allow(unused_imports)]
 use fst::{self, IntoStreamer, Levenshtein, MapBuilder, Set};
 
-use log;
 
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(untagged)]
@@ -75,139 +54,10 @@ pub struct BoostIndexOptions {
     boost_type: String, // type:
 }
 
-struct ForEachOpt {
-    parent_pos_in_path:        u32,
-    current_parent_id_counter: u32,
-    value_id_counter:          u32,
-}
-
-fn convert_to_string(value: &Value) -> String {
-    match value {
-        &Value::String(ref s) => s.as_str().to_string(),
-        &Value::Number(ref i) if i.is_u64() => i.as_u64().unwrap().to_string(),
-        &Value::Number(ref i) if i.is_f64() => i.as_f64().unwrap().to_string(),
-        &Value::Bool(ref i) => i.to_string(),
-        _ => "".to_string(),
-    }
-}
-
-fn walk<F>(mut current_el: &Value, start_pos: u32, opt: &mut ForEachOpt, paths: &Vec<&str>, cb: &mut F)
-where
-    F: FnMut(&str, u32, u32),
-{
-    for i in start_pos..(paths.len() as u32) {
-        let is_last_path = i == paths.len() as u32 - 1;
-        let is_parent_path_pos = i == opt.parent_pos_in_path && i != 0;
-        let comp = paths[i as usize];
-        // println!("MOVE TO NEXT");
-        // println!("{:?}", comp);
-        // println!("{:?}", current_el.to_string());
-        // println!("{:?}", current_el.get(comp));
-        if !current_el.get(comp).is_some() {
-            break;
-        }
-        let next_el = &current_el[comp];
-        // println!("{:?}", next_el);
-        if let Some(current_el_arr) = next_el.as_array() {
-            if is_last_path {
-                for el in current_el_arr {
-                    if !el.is_null() {
-                        cb(&convert_to_string(&el), opt.value_id_counter, opt.current_parent_id_counter);
-                        opt.value_id_counter += 1;
-                    }
-                }
-            } else {
-                let next_level = i + 1;
-                for subarr_el in current_el_arr {
-                    walk(subarr_el, next_level, opt, paths, cb);
-                    if is_parent_path_pos {
-                        opt.current_parent_id_counter += 1;
-                    }
-                }
-            }
-        } else {
-            if is_last_path {
-                if !next_el.is_null() {
-                    cb(&convert_to_string(&next_el), opt.value_id_counter, opt.current_parent_id_counter);
-                    opt.value_id_counter += 1;
-                }
-            }
-        }
-        current_el = next_el
-    }
-}
-
-fn for_each_element_in_path<F>(data: &Value, opt: &mut ForEachOpt, path2: &str, cb: &mut F)
-where
-    F: FnMut(&str, u32, u32),
-{
-    // value, value_id, parent_val_id   // TODO ADD Template for Value
-
-    let path = util::remove_array_marker(path2);
-    let paths = path.split(".").collect::<Vec<_>>();
-
-    if let Some(arr) = data.as_array() {
-        for el in arr {
-            walk(el, 0, opt, &paths, cb);
-            if opt.parent_pos_in_path == 0 {
-                opt.current_parent_id_counter += 1;
-            }
-        }
-    } else {
-        walk(data, 0, opt, &paths, cb);
-    }
-}
-
 #[derive(Debug, Default)]
 pub struct TermInfo {
     pub id:             u32,
     pub num_occurences: u32,
-}
-
-pub fn get_allterms(data: &Value, path: &str, options: &FulltextIndexOptions) -> FnvHashMap<String, TermInfo> {
-    let mut terms: FnvHashMap<String, TermInfo> = FnvHashMap::default();
-
-    let mut opt = ForEachOpt {
-        parent_pos_in_path:        0,
-        current_parent_id_counter: 0,
-        value_id_counter:          0,
-    };
-
-    for_each_element_in_path(&data, &mut opt, &path, &mut |value: &str, _value_id: u32, _parent_val_id: u32| {
-        let normalized_text = util::normalize_text(value);
-        trace!("normalized_text: {:?}", normalized_text);
-        if options.stopwords.as_ref().map(|el| el.contains(&normalized_text)).unwrap_or(false) {
-            return;
-        }
-
-        // if stopwords.map_or(false, |ref v| v.contains(&value)){
-        //     return;
-        // }
-
-        {
-            let stat = terms.entry(normalized_text.clone()).or_insert(TermInfo::default());
-            stat.num_occurences += 1;
-        }
-
-        if options.tokenize && normalized_text.split(" ").count() > 1 {
-            for token in normalized_text.split(" ") {
-                let token_str = token.to_string();
-                if options.stopwords.as_ref().map(|el| el.contains(&normalized_text)).unwrap_or(false) {
-                    continue;
-                }
-                // terms.insert(token_str);
-                let stat = terms.entry(token_str.clone()).or_insert(TermInfo::default());
-                stat.num_occurences += 1;
-            }
-        }
-    });
-
-    set_ids(&mut terms);
-    terms
-
-    // let mut v: Vec<String> = terms.into_iter().collect::<Vec<String>>();
-    // v.sort();
-    // v
 }
 
 fn get_allterms_csv(csv_path: &str, attr_pos: usize, options: &FulltextIndexOptions) -> FnvHashMap<String, TermInfo> {
@@ -249,7 +99,7 @@ fn get_allterms_csv(csv_path: &str, attr_pos: usize, options: &FulltextIndexOpti
     terms
 }
 
-fn set_ids(terms: &mut FnvHashMap<String, TermInfo>) {
+pub fn set_ids(terms: &mut FnvHashMap<String, TermInfo>) {
     let mut v: Vec<String> = terms.keys().collect::<Vec<&String>>().iter().map(|el| (*el).clone()).collect();
     v.sort();
     for (i, term) in v.iter().enumerate() {
@@ -311,8 +161,8 @@ impl std::fmt::Display for ValIdPair {
 // }
 
 #[allow(dead_code)]
-fn print_vec(vec: &Vec<ValIdPair>) -> String {
-    String::from("valid\tparent_val_id") + &vec.iter().map(|el| format!("\n{}\t{}", el.valid, el.parent_val_id)).collect::<Vec<_>>().join("")
+fn print_vec(vec: &Vec<ValIdPair>, valid_header: &str, parentid_header: &str) -> String {
+    format!("{}\t{}",valid_header, parentid_header) + &vec.iter().map(|el| format!("\n{}\t{}", el.valid, el.parent_val_id)).collect::<Vec<_>>().join("")
 }
 
 
@@ -419,26 +269,35 @@ pub fn create_fulltext_index(data: &Value, path: &str, options: FulltextIndexOpt
     let now = Instant::now();
 
     // let data: Value = serde_json::from_str(data_str).unwrap();
-    let all_terms = get_allterms(&data, path, &options);
+    let all_terms = create_from_json::get_allterms(&data, path, &options);
     println!("all_terms {} {}ms", path, (now.elapsed().as_secs() as f64 * 1_000.0) + (now.elapsed().subsec_nanos() as f64 / 1000_000.0));
     trace!("all_terms {:?}", all_terms);
     let paths = util::get_steps_to_anchor(path);
     info!("paths: {:?}", paths);
     for i in 0..paths.len() {
-        let level = util::get_level(&paths[i]);
+        let currentpath = &paths[i];
+        let level = util::get_level(currentpath);
         let mut tuples: Vec<ValIdPair> = vec![];
         let mut tokens: Vec<ValIdPair> = vec![];
 
         let is_text_index = i == (paths.len() - 1);
+        
+        let current_paths = currentpath.split(".").collect::<Vec<_>>();
 
-        let mut opt = ForEachOpt {
-            parent_pos_in_path:        if level > 0 { level - 1 } else { 0 },
-            current_parent_id_counter: 0,
-            value_id_counter:          0,
+        let skip = if currentpath.ends_with("[]"){ 1 }else{ 0 }; // special case, where last element is an array
+
+        let parent_pos_in_path = current_paths.iter().skip(skip).rposition(|&x| x.contains("[]")).unwrap_or(0);
+        // let parent_pos_in_path = currentpath.split(".").collect::<Vec<_>>().iter().rposition(|&x| x.contains("[]")).unwrap_or(0);
+        info!("WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW {:?}", currentpath);
+        info!("WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW parent_pos_in_path {:?}", parent_pos_in_path);
+        let mut opt =  create_from_json::ForEachOpt {
+            parent_pos_in_path:        parent_pos_in_path as u32,
+            current_parent_id_counter: 0,//@FixMe Use global ID Counter
+            value_id_counter:          0,//@FixMe Use global ID Counter
         };
 
         if is_text_index {
-            for_each_element_in_path(&data, &mut opt, &paths[i], &mut |value: &str, value_id: u32, _parent_val_id: u32| {
+            create_from_json::for_each_element_in_path(&data, &mut opt, currentpath, &mut |value: &str, value_id: u32, _parent_val_id: u32| {
                 let normalized_text = util::normalize_text(value);
                 if options.stopwords.as_ref().map(|el| el.contains(&normalized_text)).unwrap_or(false) {
                     return;
@@ -462,39 +321,24 @@ pub fn create_fulltext_index(data: &Value, path: &str, options: FulltextIndexOpt
                 }
             });
         } else {
+            info!("JOINGGG");
             let mut callback = |_value: &str, value_id: u32, parent_val_id: u32| {
+                info!("{:?} {:?} {:?}", value_id, parent_val_id, _value);
                 tuples.push(ValIdPair { valid:         value_id, parent_val_id: parent_val_id });
             };
-            for_each_element_in_path(&data, &mut opt, &paths[i], &mut callback);
+            create_from_json::for_each_element_in_path(&data, &mut opt, &paths[i], &mut callback);
         }
 
         let path_name = util::get_file_path_name(&paths[i], is_text_index);
         persistence.write_tuple_pair(&mut tuples, &concat(&path_name, ".valueIdToParent"))?;
 
-
-        // let tree = sled::Config::default()
-        //   .path(util::get_file_path(&persistence.db, &concat(&path_name, ".valueIdToParent.sled")))
-        //   .tree();
-        // for tuple in tuples {
-
-        //     let mut key_bytes:Vec<u8> = vec![];
-        //     key_bytes.write_u32::<LittleEndian>(tuple.valid).unwrap();
-
-        //     let mut value_bytes:Vec<u8> = vec![];
-        //     value_bytes.write_u32::<LittleEndian>(tuple.parent_val_id).unwrap();
-
-        //     tree.set(key_bytes, value_bytes);
-        // }
-
-        if options.tokenize {
+        if is_text_index && options.tokenize {
             persistence.write_tuple_pair(&mut tokens, &concat(&path_name, ".tokens"))?;
+            trace!("{}\n{}",&concat(&path_name, ".tokens"), print_vec(&tokens, &concat(&path_name, ".tokenid"), &concat(&path_name, ".valueid")));
         }
 
         if log_enabled!(log::LogLevel::Trace) {
-            trace!("{}", &concat(&path_name, ".valueIdToParent"));
-            trace!("{}",print_vec(&tuples));
-            trace!("{}", &concat(&path_name, ".tokens"));
-            trace!("{}",print_vec(&tokens));
+            trace!("{}\n{}",&concat(&path_name, ".valueIdToParent"), print_vec(&tuples, &path_name, "parentid"));
         }
     }
 
@@ -521,7 +365,7 @@ fn get_string_offsets(data: Vec<&String>) -> Vec<u64> {
 
 fn create_boost_index(data: &Value, path: &str, options: BoostIndexOptions, persistence: &mut Persistence) -> Result<(), io::Error> {
     let now = Instant::now();
-    let mut opt = ForEachOpt {
+    let mut opt =  create_from_json::ForEachOpt {
         parent_pos_in_path:        0,
         current_parent_id_counter: 0,
         value_id_counter:          0,
@@ -535,7 +379,7 @@ fn create_boost_index(data: &Value, path: &str, options: BoostIndexOptions, pers
                 tuples.push(ValIdToValue { valid: value_id, value: my_int });
             } // TODO More cases
         };
-        for_each_element_in_path(&data, &mut opt, &path, &mut callback);
+        create_from_json::for_each_element_in_path(&data, &mut opt, &path, &mut callback);
     }
 
     persistence.write_boost_tuple_pair(&mut tuples, path)?;
@@ -558,22 +402,22 @@ impl PartialEq for CharData {
 }
 
 
-#[derive(Debug, Clone)]
-struct CharDataComplete {
-    suffix:            String,
-    line_num:          u64,
-    byte_offset_start: u64,
-    byte_offset_end:   u64,
-}
+// #[derive(Debug, Clone)]
+// struct CharDataComplete {
+//     suffix:            String,
+//     line_num:          u64,
+//     byte_offset_start: u64,
+//     byte_offset_end:   u64,
+// }
 
-#[allow(dead_code)]
-fn print_vec_chardata(vec: &Vec<CharDataComplete>) -> String {
-    String::from(format!("\nchar\toffset_start\toffset_end\tline_offset"))
-        + &vec.iter()
-            .map(|el| format!("\n{:3}\t{:10}\t{:10}\t{:10}", el.suffix, el.byte_offset_start, el.byte_offset_end, el.line_num))
-            .collect::<Vec<_>>()
-            .join("")
-}
+// #[allow(dead_code)]
+// fn print_vec_chardata(vec: &Vec<CharDataComplete>) -> String {
+//     String::from(format!("\nchar\toffset_start\toffset_end\tline_offset"))
+//         + &vec.iter()
+//             .map(|el| format!("\n{:3}\t{:10}\t{:10}\t{:10}", el.suffix, el.byte_offset_start, el.byte_offset_end, el.line_num))
+//             .collect::<Vec<_>>()
+//             .join("")
+// }
 
 
 // pub fn create_char_offsets(data:&Vec<String>, path:&str,mut persistence: &mut Persistence) -> Result<(), io::Error> {
@@ -636,7 +480,6 @@ use search_field;
 pub fn add_token_values_to_tokens(persistence: &mut Persistence, data_str: &str, config: &str) -> Result<(), search::SearchError> {
     let data: Vec<TokenValueData> = serde_json::from_str(data_str).unwrap();
     let config: TokenValuesConfig = serde_json::from_str(config).unwrap();
-
 
     let mut options: search::RequestSearchPart = search::RequestSearchPart {
         path: config.path.clone(),
