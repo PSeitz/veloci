@@ -23,6 +23,30 @@ pub fn convert_to_string(value: &Value) -> String {
     }
 }
 
+pub fn for_each_element<F>(data: &Value, opt: &mut ForEachOpt, path2: &str, cb: &mut F)
+where
+    F: FnMut(&str, &str, u32, u32),
+{
+    // value, value_id, parent_val_id   // TODO ADD Template for Value
+
+    if let Some(arr) = data.as_array() {
+        for el in arr {
+            // walk(el, 0, opt, &paths, cb);
+            if opt.parent_pos_in_path == 0 {
+                opt.current_parent_id_counter += 1;
+            }
+        }
+    } else {
+        // walk(data, 0, opt, &paths, cb);
+    }
+}
+
+
+#[test]
+fn test_foreach() {
+    
+}
+
 pub fn for_each_element_in_path<F>(data: &Value, opt: &mut ForEachOpt, path2: &str, cb: &mut F)
 where
     F: FnMut(&str, u32, u32),
@@ -31,7 +55,7 @@ where
 
     let path = util::remove_array_marker(path2);
     let paths = path.split(".").collect::<Vec<_>>();
-    info!(" **** parent in path {:?}", paths[opt.parent_pos_in_path as usize]);
+    debug!(" **** parent in path {:?}", paths[opt.parent_pos_in_path as usize]);
     if let Some(arr) = data.as_array() {
         for el in arr {
             walk(el, 0, opt, &paths, cb);
@@ -43,6 +67,8 @@ where
         walk(data, 0, opt, &paths, cb);
     }
 }
+
+
 
 pub fn walk<F>(mut current_el: &Value, start_pos: u32, opt: &mut ForEachOpt, paths: &Vec<&str>, cb: &mut F)
 where
@@ -61,38 +87,35 @@ where
             break;
         }
         let next_el = &current_el[comp];
-        println!("{:?}", next_el);
+        // println!("{:?}", next_el);
         if let Some(current_el_arr) = next_el.as_array() {  // WALK ARRAY
             if is_last_path {
-                println!("here 1");
                 for el in current_el_arr {
                     if !el.is_null() {
                         cb(&convert_to_string(&el), opt.value_id_counter, opt.current_parent_id_counter);
                         opt.value_id_counter += 1;
-                        // info!("opt.value_id_counter increase {:?}", opt.value_id_counter);
+                        // trace!("opt.value_id_counter increase {:?}", opt.value_id_counter);
                     }
                 }
             } else { // ARRAY BUT NOT LAST PATH
-                println!("here 2");
                 let next_level = i + 1;
                 for subarr_el in current_el_arr {
                     walk(subarr_el, next_level, opt, paths, cb);
                     if is_parent_path_pos {
                         opt.current_parent_id_counter += 1;
-                        // info!("opt.current_parent_id_counter increase {:?}", opt.current_parent_id_counter);
+                        // trace!("opt.current_parent_id_counter increase {:?}", opt.current_parent_id_counter);
                     }else{
-                        // info!("************** Er denkt das wäre der Parent {:?}", paths[opt.current_parent_id_counter as usize]); 
-                        // info!("Aber das ist der Parent {:?}", comp);
+                        // trace!("************** Er denkt das wäre der Parent {:?}", paths[opt.current_parent_id_counter as usize]); 
+                        // trace!("Aber das ist der Parent {:?}", comp);
                     }
                 }
             }
         } else { // WALK OBJECT
-            println!("here 3");
             if is_last_path {
                 if !next_el.is_null() {
                     cb(&convert_to_string(&next_el), opt.value_id_counter, opt.current_parent_id_counter);
                     opt.value_id_counter += 1;
-                    info!("opt.value_id_counter increase {:?}", opt.value_id_counter);
+                    trace!("opt.value_id_counter increase {:?}", opt.value_id_counter);
                 }
             }else{
                 opt.value_id_counter += 1;

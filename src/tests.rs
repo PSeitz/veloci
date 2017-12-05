@@ -202,9 +202,13 @@ mod tests {
     }
 
 
-    fn search_testo_to_doc(req: Value) -> Result<Vec<search::DocWithHit>, search::SearchError> {
+    fn search_testo_to_doc(req: Value) -> Vec<search::DocWithHit> {
+        search_testo_to_doco(req).expect("search error")
+    }
+
+    fn search_testo_to_doco(req: Value) -> Result<Vec<search::DocWithHit>, search::SearchError> {
         let persistences = PERSISTENCES.read().unwrap();
-        let pers = persistences.get(&"default".to_string()).unwrap();
+        let pers = persistences.get(&"default".to_string()).expect("Can't find loaded persistence");
         let requesto: search::Request = serde_json::from_str(&req.to_string()).expect("Can't parse json");
         let hits = search::search(requesto, pers)?;
         Ok(search::to_documents(pers, &hits.data))
@@ -212,30 +216,31 @@ mod tests {
 
     describe! search_test {
         before_each {
-            
-            trace::enable_log();
+
             let mut INDEX_CREATEDO = INDEX_CREATED.write().unwrap();
             if !*INDEX_CREATEDO {
+                trace::enable_log();
+
                 // Start up a test.
-                let indices = r#"
-                [
-                    { "boost":"commonness" , "options":{"boost_type":"int"}},
-                    { "fulltext":"ent_seq" },
-                    { "boost":"field1[].rank" , "options":{"boost_type":"int"}},
-                    { "fulltext":"field1[].text" },
-                    { "fulltext":"kanji[].text" },
-                    { "fulltext":"meanings.ger[]", "options":{"tokenize":true, "stopwords": ["stopword"]} },
-                    { "fulltext":"meanings.eng[]", "options":{"tokenize":true} },
-                    { "fulltext":"address[].line[]", "options":{"tokenize":true} },
-                    { "boost":"kanji[].commonness" , "options":{"boost_type":"int"}},
-                    { "boost":"kana[].commonness", "options":{"boost_type":"int"} }
-                ]
-                "#;
                 // let indices = r#"
                 // [
-                //     { "fulltext":"address[].line[]", "options":{"tokenize":true} }
+                //     { "boost":"commonness" , "options":{"boost_type":"int"}},
+                //     { "fulltext":"ent_seq" },
+                //     { "boost":"field1[].rank" , "options":{"boost_type":"int"}},
+                //     { "fulltext":"field1[].text" },
+                //     { "fulltext":"kanji[].text" },
+                //     { "fulltext":"meanings.ger[]", "options":{"tokenize":true, "stopwords": ["stopword"]} },
+                //     { "fulltext":"meanings.eng[]", "options":{"tokenize":true} },
+                //     { "fulltext":"address[].line[]", "options":{"tokenize":true} },
+                //     { "boost":"kanji[].commonness" , "options":{"boost_type":"int"}},
+                //     { "boost":"kana[].commonness", "options":{"boost_type":"int"} }
                 // ]
                 // "#;
+                let indices = r#"
+                [
+                    { "fulltext":"address[].line[]", "options":{"tokenize":true} }
+                ]
+                "#;
                 println!("{:?}", create::create_indices(TEST_FOLDER, TEST_DATA, indices));
 
                 {
@@ -265,50 +270,50 @@ mod tests {
                 }
             });
 
-            let hits = search_testo_to_doc(req).unwrap();
+            let hits = search_testo_to_doc(req);
             assert_eq!(hits.len(), 1);
             assert_eq!(hits[0].doc["ent_seq"], "1587680");
         }
 
-        it "deep structured objects" {
-            // static TEST_DATA: &str = r#"[
-            //     {
-            //         "address": [
-            //             {
-            //                 "line": [ "line1" ]
-            //             }
-            //         ]
-            //     },
-            //     {
-            //         "address": [
-            //             {
-            //                 "line": [ "line2" ]
-            //             }
-            //         ]
-            //     }
-            // ]"#;
+       it "deep structured objects" {
+           // static TEST_DATA: &str = r#"[
+           //     {
+           //         "address": [
+           //             {
+           //                 "line": [ "line1" ]
+           //             }
+           //         ]
+           //     },
+           //     {
+           //         "address": [
+           //             {
+           //                 "line": [ "line2" ]
+           //             }
+           //         ]
+           //     }
+           // ]"#;
 
 
-            // let indices = r#"
-            // [
-            //     { "fulltext":"address[].line[]"}
-            // ]
-            // "#;
-            // println!("{:?}", create::create_indices(TEST_FOLDER, TEST_DATA, indices));
+           // let indices = r#"
+           // [
+           //     { "fulltext":"address[].line[]"}
+           // ]
+           // "#;
+           // println!("{:?}", create::create_indices(TEST_FOLDER, TEST_DATA, indices));
 
 
-            let req = json!({
-                "search": {
-                    "terms":["brook"],
-                    "path": "address[].line[]",
-                    "levenshtein_distance": 1
-                }
-            });
+           let req = json!({
+               "search": {
+                   "terms":["brook"],
+                   "path": "address[].line[]",
+                   "levenshtein_distance": 1
+               }
+           });
 
-            let hits = search_testo_to_doc(req).unwrap();
-            assert_eq!(hits.len(), 1);
-            assert_eq!(hits[0].doc["id"], 123456);
-        }
+           let hits = search_testo_to_doc(req);
+           assert_eq!(hits.len(), 1);
+           assert_eq!(hits[0].doc["id"], 123456);
+       }
 
 
         it "should search without firstCharExactMatch"{
@@ -319,7 +324,7 @@ mod tests {
                     "levenshtein_distance": 1
                 }
             });
-            let hits = search_testo_to_doc(req).expect("could not unpack searchresult");
+            let hits = search_testo_to_doc(req);
 
             // println!("hits {:?}", hits);
             assert_eq!(hits.len(), 1);
@@ -335,7 +340,7 @@ mod tests {
                     "levenshtein_distance": 1
                 }
             });
-            let wa = search_testo_to_doc(req).expect("could not unpack searchresult");
+            let wa = search_testo_to_doc(req);
             // assert_eq!(wa.len(), 11);
             assert_eq!(wa[0].doc["meanings"]["eng"][0], "will");
         }
@@ -348,7 +353,7 @@ mod tests {
                 }
             });
 
-            let hits = search_testo_to_doc(req).expect("could not unpack searchresult");
+            let hits = search_testo_to_doc(req);
             assert_eq!(hits.len(), 1);
             assert_eq!(hits[0].doc["ent_seq"], "1587680");
         }
@@ -362,7 +367,7 @@ mod tests {
             });
 
             let hits = search_testo_to_doc(req);
-            assert_eq!(hits.unwrap().len(), 1);
+            assert_eq!(hits.len(), 1);
         }
 
         it "AND connect hits same field"{
@@ -373,7 +378,7 @@ mod tests {
                 ]
             });
 
-            let hits = search_testo_to_doc(req).expect("could not unpack searchresult");
+            let hits = search_testo_to_doc(req);
             assert_eq!(hits.len(), 1);
             assert_eq!(hits[0].doc["ent_seq"], "1587680");
         }
@@ -387,7 +392,7 @@ mod tests {
             });
 
             let hits = search_testo_to_doc(req);
-            assert_eq!(hits.unwrap().len(), 1);
+            assert_eq!(hits.len(), 1);
         }
 
         it "AND connect hits different fields - no hit"{
@@ -405,7 +410,7 @@ mod tests {
             });
 
             let hits = search_testo_to_doc(req);
-            assert_eq!(hits.unwrap().len(), 0);
+            assert_eq!(hits.len(), 0);
         }
 
         it "OR connect hits"{
@@ -423,7 +428,7 @@ mod tests {
             });
 
             let hits = search_testo_to_doc(req);
-            assert_eq!(hits.unwrap().len(), 2);
+            assert_eq!(hits.len(), 2);
         }
 
         it "should search and boost"{
@@ -440,7 +445,7 @@ mod tests {
             });
 
             let hits = search_testo_to_doc(req);
-            assert_eq!(hits.unwrap().len(), 2);
+            assert_eq!(hits.len(), 2);
         }
 
         it "should search and double boost"{
@@ -462,7 +467,7 @@ mod tests {
             });
 
             let hits = search_testo_to_doc(req);
-            assert_eq!(hits.unwrap().len(), 2);
+            assert_eq!(hits.len(), 2);
         }
 
         it "should search and boost anchor"{
@@ -481,7 +486,7 @@ mod tests {
             });
 
             let hits = search_testo_to_doc(req);
-            assert_eq!(hits.unwrap()[0].doc["commonness"], 500);
+            assert_eq!(hits[0].doc["commonness"], 500);
         }
 
         // it('should suggest', function() {
@@ -580,7 +585,7 @@ mod tests {
         //     });
 
         //     let hits = search_testo_to_doc(req);
-        //     assert_eq!(hits.unwrap().len(), 1);
+        //     assert_eq!(hits.len(), 1);
         // }
 
 
@@ -601,7 +606,7 @@ mod tests {
 
             let hits = search_testo_to_doc(req);
             println!("{:?}", hits);
-            assert_eq!(hits.unwrap()[0].doc["meanings"]["ger"][0], "(1) weich");
+            assert_eq!(hits[0].doc["meanings"]["ger"][0], "(1) weich");
         }
 
         it "OR connect hits, but boost one term"{
@@ -614,8 +619,8 @@ mod tests {
 
             let hits = search_testo_to_doc(req);
             println!("{:?}", hits);
-            assert_eq!(hits.as_ref().unwrap().len(), 2);
-            assert_eq!(hits.unwrap()[0].doc["meanings"]["ger"][0], "majestätischer Anblick (m)");
+            assert_eq!(hits.len(), 2);
+            assert_eq!(hits[0].doc["meanings"]["ger"][0], "majestätischer Anblick (m)");
         }
 
         //MUTLI TERMS
@@ -626,7 +631,7 @@ mod tests {
         //     });
 
         //     let hits = search_test_to_doc(req, &mut pers);
-        //     assert_eq!(hits.unwrap()[0].doc["meanings"]["ger"][2], "alle meine Words");
+        //     assert_eq!(hits[0].doc["meanings"]["ger"][2], "alle meine Words");
         // }
 
         // { // multi terms attribute ALL
@@ -635,7 +640,7 @@ mod tests {
         //     });
 
         //     let hits = search_test_to_doc(req, &mut pers);
-        //     assert_eq!(hits.unwrap()[0].doc["meanings"]["ger"][2], "alle meine Words");
+        //     assert_eq!(hits[0].doc["meanings"]["ger"][2], "alle meine Words");
         // }
 
         // { // terms
@@ -648,7 +653,7 @@ mod tests {
         //     let hits = search_test_to_doc(req, &mut pers);
         //     println!("{:?}", hits);
         //     // assert_eq!(hits.as_ref().unwrap().len(), 2);
-        //     assert_eq!(hits.unwrap()[0].doc["meanings"]["ger"][1], "das ist ein guter Treffer");
+        //     assert_eq!(hits[0].doc["meanings"]["ger"][1], "das ist ein guter Treffer");
         // }
 
     }

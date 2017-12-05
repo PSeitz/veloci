@@ -60,6 +60,12 @@ pub struct TermInfo {
     pub num_occurences: u32,
 }
 
+impl TermInfo {
+    fn new(id: u32) -> TermInfo{
+        TermInfo { id:id, num_occurences: 0}
+    }
+}
+
 fn get_allterms_csv(csv_path: &str, attr_pos: usize, options: &FulltextIndexOptions) -> FnvHashMap<String, TermInfo> {
     // char escapeChar = 'a';
     // MATNR, ISMTITLE, ISMORIGTITLE, ISMSUBTITLE1, ISMSUBTITLE2, ISMSUBTITLE3, ISMARTIST, ISMLANGUAGES, ISMPUBLDATE, EAN11, ISMORIDCODE
@@ -230,8 +236,7 @@ fn store_full_text_info(
     let mut sorted_terms: Vec<&String> = all_terms.keys().collect::<Vec<&String>>();
     sorted_terms.sort();
     let offsets = get_string_offsets(sorted_terms);
-    persistence
-        .write_index(&persistence::vec_to_bytes_u64(&offsets), &offsets, &concat(&path, ".offsets"))?; // String byte offsets
+    persistence.write_index(&persistence::vec_to_bytes_u64(&offsets), &offsets, &concat(&path, ".offsets"))?; // String byte offsets
                                                                                                        // persistence.write_data(path, all_terms.join("\n").as_bytes())?;
                                                                                                        // persistence.write_index(&all_terms.iter().map(|ref el| el.len() as u32).collect::<Vec<_>>(), &concat(path, ".length"))?;
     store_fst(persistence, &all_terms, path).expect("Could not store fst"); // @FixMe handle result
@@ -286,10 +291,15 @@ pub fn create_fulltext_index(data: &Value, path: &str, options: FulltextIndexOpt
 
         let skip = if currentpath.ends_with("[]"){ 1 }else{ 0 }; // special case, where last element is an array
 
-        let parent_pos_in_path = current_paths.iter().skip(skip).rposition(|&x| x.contains("[]")).unwrap_or(0);
+        let mut parent_pos_in_path = current_paths.iter().skip(0).rposition(|&x| x.contains("[]")).unwrap_or(0);
         // let parent_pos_in_path = currentpath.split(".").collect::<Vec<_>>().iter().rposition(|&x| x.contains("[]")).unwrap_or(0);
         info!("WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW {:?}", currentpath);
         info!("WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW parent_pos_in_path {:?}", parent_pos_in_path);
+
+        if parent_pos_in_path > 0 {
+            parent_pos_in_path -= skip;
+        }
+
         let mut opt =  create_from_json::ForEachOpt {
             parent_pos_in_path:        parent_pos_in_path as u32,
             current_parent_id_counter: 0,//@FixMe Use global ID Counter
@@ -321,9 +331,8 @@ pub fn create_fulltext_index(data: &Value, path: &str, options: FulltextIndexOpt
                 }
             });
         } else {
-            info!("JOINGGG");
             let mut callback = |_value: &str, value_id: u32, parent_val_id: u32| {
-                info!("{:?} {:?} {:?}", value_id, parent_val_id, _value);
+                trace!("{:?} {:?} {:?}", value_id, parent_val_id, _value);
                 tuples.push(ValIdPair { valid:         value_id, parent_val_id: parent_val_id });
             };
             create_from_json::for_each_element_in_path(&data, &mut opt, &paths[i], &mut callback);
@@ -332,14 +341,24 @@ pub fn create_fulltext_index(data: &Value, path: &str, options: FulltextIndexOpt
         let path_name = util::get_file_path_name(&paths[i], is_text_index);
         persistence.write_tuple_pair(&mut tuples, &concat(&path_name, ".valueIdToParent"))?;
 
+        //TEST FST AS ID MAPPER
+        // let mut all_ids_as_str: FnvHashMap<String, TermInfo> = FnvHashMap::default();
+        // for pair in &tuples {
+        //     let padding = 10;
+        //     all_ids_as_str.insert(format!("{:0padding$}", pair.valid, padding = padding), TermInfo::new(pair.parent_val_id)); // COMPRESSION 50-90%
+        // }
+        // store_fst(persistence, &all_ids_as_str, &concat(&path_name, ".valueIdToParent.fst")).expect("Could not store fst");
+        //TEST FST AS ID MAPPER
+
+        if log_enabled!(log::LogLevel::Trace) {
+            trace!("{}\n{}",&concat(&path_name, ".valueIdToParent"), print_vec(&tuples, &path_name, "parentid"));
+        }
+
         if is_text_index && options.tokenize {
             persistence.write_tuple_pair(&mut tokens, &concat(&path_name, ".tokens"))?;
             trace!("{}\n{}",&concat(&path_name, ".tokens"), print_vec(&tokens, &concat(&path_name, ".tokenid"), &concat(&path_name, ".valueid")));
         }
 
-        if log_enabled!(log::LogLevel::Trace) {
-            trace!("{}\n{}",&concat(&path_name, ".valueIdToParent"), print_vec(&tuples, &path_name, "parentid"));
-        }
     }
 
     println!("createIndex {} {}ms", path, (now.elapsed().as_secs() as f64 * 1_000.0) + (now.elapsed().subsec_nanos() as f64 / 1000_000.0));

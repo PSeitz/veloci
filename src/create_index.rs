@@ -15,10 +15,10 @@ use std::str;
 fn main() {
     env_logger::init().unwrap();
 
-    println!("{:?}",create_healtcare());
+    // println!("{:?}",create_healtcare());
 
     // create_thalia_index();
-    // println!("{:?}",create_jmdict_index());
+    println!("{:?}",create_jmdict_index());
 
     // {
     //     let my_time = util::MeasureTime::new("jmdict load time", util::MeasureTimeLogLevel::Print);
