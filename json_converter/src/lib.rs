@@ -8,9 +8,6 @@ use serde_json::Value;
 use std::str;
 
 pub struct ForEachOpt {
-    pub parent_pos_in_path:        u32,
-    pub current_parent_id_counter: u32,
-    pub value_id_counter:          u32,
 }
 
 pub fn convert_to_string(value: &Value) -> String {
@@ -26,35 +23,42 @@ pub fn convert_to_string(value: &Value) -> String {
 
 pub fn for_each_element<F, F2>(data: &Value, id_provider: &mut IDProvider, opt: &mut ForEachOpt, cb_text: &mut F, cb_ids: &mut F2)
 where
-    F: FnMut(&str, &str, u32, u32),
-    F2: FnMut(&str, u32, u32)
-{
-    let root_id = Some(id_provider.get_id(""));
-    for_each_elemento(data, id_provider, root_id, "".to_owned(), "", opt, cb_text, cb_ids);
-}
-
-pub fn for_each_elemento<F, F2>(data: &Value, id_provider: &mut IDProvider, parent_id:Option<u32>, mut current_path:String, current_el_name:&str, opt: &mut ForEachOpt, cb_text: &mut F, cb_ids: &mut F2)
-where
-    F: FnMut(&str, &str, u32, u32),
+    F: FnMut(&str, &str, u32),
     F2: FnMut(&str, u32, u32)
 {
     if let Some(arr) = data.as_array() {
-        current_path = current_path + current_el_name + "[]";
+        for el in arr {
+            let root_id = id_provider.get_id("");
+            for_each_elemento(el, id_provider, root_id, "".to_owned(), "", opt, cb_text, cb_ids);
+        }
+    } else {
+        let root_id = id_provider.get_id("");
+        for_each_elemento(data, id_provider, root_id, "".to_owned(), "", opt, cb_text, cb_ids);
+    }
+
+}
+
+pub fn for_each_elemento<F, F2>(data: &Value, id_provider: &mut IDProvider, parent_id:u32, mut current_path:String, current_el_name:&str, opt: &mut ForEachOpt, cb_text: &mut F, cb_ids: &mut F2)
+where
+    F: FnMut(&str, &str, u32),
+    F2: FnMut(&str, u32, u32)
+{
+    if let Some(arr) = data.as_array() {
+        let delimiter = if current_path.len() == 0 || current_path.ends_with(".") {""} else {"."};
+        current_path = current_path + delimiter + current_el_name + "[]";
         for el in arr {
             let id = id_provider.get_id(&current_path);
-            if let Some(pat) = parent_id {
-                cb_ids(&current_path, id, pat);
-            }
-            for_each_elemento(el, id_provider, Some(id), current_path.clone(), "", opt, cb_text, cb_ids);
+            cb_ids(&current_path, id, parent_id);
+            for_each_elemento(el, id_provider, id, current_path.clone(), "", opt, cb_text, cb_ids);
         }
     } else if let Some(obj) = data.as_object() {
-        let delimiter = if current_path.len() == 0 {""} else {"."};
+        let delimiter = if current_path.len() == 0 || current_path.ends_with(".") {""} else {"."};
         current_path = current_path + delimiter + current_el_name;
         for (key, ref value) in obj.iter() {
             for_each_elemento(value, id_provider, parent_id, current_path.clone(), key, opt, cb_text, cb_ids);
         }
     } else {
-        cb_text(&convert_to_string(&data), &(current_path + current_el_name), 1, 2);
+        cb_text(&convert_to_string(&data), &(current_path + current_el_name + ".textindex") , parent_id);
     }
 }
 
@@ -63,8 +67,8 @@ pub trait IDProvider {
 }
 
 #[derive(Debug)]
-struct IDHolder {
-    ids: FnvHashMap<String, u32>
+pub struct IDHolder {
+    pub ids: FnvHashMap<String, u32>
 }
 
 impl IDProvider for IDHolder {
@@ -75,7 +79,7 @@ impl IDProvider for IDHolder {
 }
 
 impl IDHolder {
-    fn new() -> IDHolder {
+    pub fn new() -> IDHolder {
         IDHolder{ids: FnvHashMap::default()}
     }
 }
@@ -93,21 +97,27 @@ fn test_foreach() {
         }]
     });
 
-    let mut opt = ForEachOpt {
-        parent_pos_in_path:        0,
-        current_parent_id_counter: 0,
-        value_id_counter:          0,
-    };
+    let mut opt = ForEachOpt {};
     let mut id_holder = IDHolder::new();
 
-    let mut callback_text = |value: &str, path: &str, parent_val_id: u32, parent_val_sid: u32| {
-        println!("path {} value {}",path, value);
+    let mut cb_text = |value: &str, path: &str, parent_val_id: u32| {
+        println!("TEXT: path {} value {} parent_val_id {}",path, value, parent_val_id);
     };
     let mut callback_ids = |path: &str, val_id: u32, parent_val_id: u32| {
         println!("IDS: path {} val_id {} parent_val_id {}",path, val_id, parent_val_id);
     };
 
-    for_each_element(&data, &mut id_holder, &mut opt, &mut callback_text, &mut callback_ids);
+
+    let data = json!({
+        "address": [
+            {
+                "line": [ "line1" ]
+            }
+        ]
+    });
+
+
+    for_each_element(&data, &mut id_holder, &mut opt, &mut cb_text, &mut callback_ids);
 
     assert_eq!(2 + 2, 4);
 }

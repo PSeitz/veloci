@@ -33,6 +33,7 @@ measure_time = "0.1"
 chrono = "0.4"
 sled = "0.14.1"
 flexi_logger = "0.6"
+json_converter = {path = "json_converter"}
 
 [dependencies.bodyparser]
 git = "https://github.com/iron/body-parser.git"

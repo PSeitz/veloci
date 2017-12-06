@@ -23,29 +23,6 @@ pub fn convert_to_string(value: &Value) -> String {
     }
 }
 
-pub fn for_each_element<F>(data: &Value, opt: &mut ForEachOpt, path2: &str, cb: &mut F)
-where
-    F: FnMut(&str, &str, u32, u32),
-{
-    // value, value_id, parent_val_id   // TODO ADD Template for Value
-
-    if let Some(arr) = data.as_array() {
-        for el in arr {
-            // walk(el, 0, opt, &paths, cb);
-            if opt.parent_pos_in_path == 0 {
-                opt.current_parent_id_counter += 1;
-            }
-        }
-    } else {
-        // walk(data, 0, opt, &paths, cb);
-    }
-}
-
-
-#[test]
-fn test_foreach() {
-    
-}
 
 pub fn for_each_element_in_path<F>(data: &Value, opt: &mut ForEachOpt, path2: &str, cb: &mut F)
 where

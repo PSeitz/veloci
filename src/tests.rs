@@ -217,46 +217,48 @@ mod tests {
     describe! search_test {
         before_each {
 
-            let mut INDEX_CREATEDO = INDEX_CREATED.write().unwrap();
-            if !*INDEX_CREATEDO {
-                trace::enable_log();
+            if let Ok(mut INDEX_CREATEDO) = INDEX_CREATED.write() {
 
-                // Start up a test.
-                // let indices = r#"
-                // [
-                //     { "boost":"commonness" , "options":{"boost_type":"int"}},
-                //     { "fulltext":"ent_seq" },
-                //     { "boost":"field1[].rank" , "options":{"boost_type":"int"}},
-                //     { "fulltext":"field1[].text" },
-                //     { "fulltext":"kanji[].text" },
-                //     { "fulltext":"meanings.ger[]", "options":{"tokenize":true, "stopwords": ["stopword"]} },
-                //     { "fulltext":"meanings.eng[]", "options":{"tokenize":true} },
-                //     { "fulltext":"address[].line[]", "options":{"tokenize":true} },
-                //     { "boost":"kanji[].commonness" , "options":{"boost_type":"int"}},
-                //     { "boost":"kana[].commonness", "options":{"boost_type":"int"} }
-                // ]
-                // "#;
-                let indices = r#"
-                [
-                    { "fulltext":"address[].line[]", "options":{"tokenize":true} }
-                ]
-                "#;
-                println!("{:?}", create::create_indices(TEST_FOLDER, TEST_DATA, indices));
+                if !*INDEX_CREATEDO {
+                    trace::enable_log();
 
-                {
-                    let mut pers = persistence::Persistence::load(TEST_FOLDER.to_string()).expect("Could not load persistence");
-                    // let mut pers = persistence::Persistence::load(TEST_FOLDER.to_string()).expect("Could not load persistence");
-                    let config = json!({
-                        "path": "meanings.ger[]"
-                    });
-                    create::add_token_values_to_tokens(&mut pers, TOKEN_VALUE, &config.to_string()).expect("Could not add token values");
+                    // Start up a test.
+                    let indices = r#"
+                    [
+                        { "boost":"commonness" , "options":{"boost_type":"int"}},
+                        { "fulltext":"ent_seq" },
+                        { "boost":"field1[].rank" , "options":{"boost_type":"int"}},
+                        { "fulltext":"field1[].text" },
+                        { "fulltext":"kanji[].text" },
+                        { "fulltext":"meanings.ger[]", "options":{"tokenize":true, "stopwords": ["stopword"]} },
+                        { "fulltext":"meanings.eng[]", "options":{"tokenize":true} },
+                        { "fulltext":"address[].line[]", "options":{"tokenize":true} },
+                        { "boost":"kanji[].commonness" , "options":{"boost_type":"int"}},
+                        { "boost":"kana[].commonness", "options":{"boost_type":"int"} }
+                    ]
+                    "#;
+                    // let indices = r#"
+                    // [
+                    //     { "fulltext":"address[].line[]", "options":{"tokenize":true} }
+                    // ]
+                    // "#;
+                    println!("{:?}", create::create_indices(TEST_FOLDER, TEST_DATA, indices));
 
+                    {
+                        let mut pers = persistence::Persistence::load(TEST_FOLDER.to_string()).expect("Could not load persistence");
+                        // let mut pers = persistence::Persistence::load(TEST_FOLDER.to_string()).expect("Could not load persistence");
+                        let config = json!({
+                            "path": "meanings.ger[]"
+                        });
+                        create::add_token_values_to_tokens(&mut pers, TOKEN_VALUE, &config.to_string()).expect("Could not add token values");
+
+                    }
+
+                    let mut persistences = PERSISTENCES.write().unwrap();
+                    persistences.insert("default".to_string(), persistence::Persistence::load(TEST_FOLDER.to_string()).expect("could not load persistence"));
+
+                    *INDEX_CREATEDO = true;
                 }
-
-                let mut persistences = PERSISTENCES.write().unwrap();
-                persistences.insert("default".to_string(), persistence::Persistence::load(TEST_FOLDER.to_string()).expect("could not load persistence"));
-
-                *INDEX_CREATEDO = true;
             }
         }
 

@@ -52,7 +52,7 @@ where
 
     // let map = persistence.get_fst(&options.path)?;
 
-    let map = persistence.cache.fst.get(&options.path).expect("load fst no found");
+    let map = persistence.cache.fst.get(&options.path).expect(&format!("fst not found loaded in cache {} ", options.path));
     let lev = Levenshtein::new(&options.terms[0], options.levenshtein_distance.unwrap_or(0))?;
 
     // let stream = map.search(lev).into_stream();
@@ -188,6 +188,9 @@ pub fn suggest(persistence: &Persistence, options: &RequestSearchPart) -> Result
 // }
 
 pub fn get_hits_in_field(persistence: &Persistence, options: &RequestSearchPart) -> Result<SearchFieldResult, SearchError> {
+    let mut options = options.clone();
+    options.path = options.path.to_string() + ".textindex";
+
     if options.terms.len() == 1 {
         return get_hits_in_field_one_term(&persistence, &options);
     } else {
@@ -203,7 +206,7 @@ pub fn get_hits_in_field(persistence: &Persistence, options: &RequestSearchPart)
     Ok(SearchFieldResult { hits:  FnvHashMap::default(), terms: FnvHashMap::default() })
 }
 
-pub fn get_hits_in_field_one_term(persistence: &Persistence, options: &RequestSearchPart) -> Result<SearchFieldResult, SearchError> {
+fn get_hits_in_field_one_term(persistence: &Persistence, options: &RequestSearchPart) -> Result<SearchFieldResult, SearchError> {
     debug_time!("get_hits_in_field");
     // let mut hits:FnvHashMap<u32, f32> = FnvHashMap::default();
     let mut result = SearchFieldResult { hits:  FnvHashMap::default(), terms: FnvHashMap::default() };
@@ -282,7 +285,6 @@ pub fn get_hits_in_field_one_term(persistence: &Persistence, options: &RequestSe
 
 
 pub fn resolve_token_hits(persistence: &Persistence, path: &str, result: &mut SearchFieldResult) {
-    debug_time!("resolve_token_hits");
 
     let has_tokens = persistence
         .meta_data
@@ -293,6 +295,7 @@ pub fn resolve_token_hits(persistence: &Persistence, path: &str, result: &mut Se
     if !has_tokens {
         return;
     }
+    debug_time!("resolve_token_hits");
     // var hrstart = process.hrtime()
     // let cache_lock = persistence::INDEX_64_CACHE.read().unwrap();
     let text_offsets = persistence
@@ -301,8 +304,8 @@ pub fn resolve_token_hits(persistence: &Persistence, path: &str, result: &mut Se
         .get(&concat(path, ".offsets"))
         .expect(&format!("Could not find {:?} in index_64 cache", concat(path, ".offsets")));
 
-    let token_kvdata = persistence.get_valueid_to_parent(&concat(path, ".textindex.tokens"));
-    info!("Checking Tokens in {:?}", &concat(path, ".textindex.tokens"));
+    let token_kvdata = persistence.get_valueid_to_parent(&concat(path, ".tokens"));
+    info!("Checking Tokens in {:?}", &concat(path, ".tokens"));
     persistence::trace_index_id_to_parent(token_kvdata);
     // trace!("All Tokens: {:?}", token_kvdata.get_values());
 

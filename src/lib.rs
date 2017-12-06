@@ -52,6 +52,7 @@ extern crate heapsize;
 extern crate byteorder;
 
 extern crate sled;
+extern crate json_converter;
 
 // use fst::{IntoStreamer, Streamer, Levenshtein, Set, MapBuilder};
 #[allow(unused_imports)]

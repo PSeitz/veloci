@@ -188,6 +188,50 @@ pub struct SearchResultWithDoc {
     pub data:     Vec<DocWithHit>,
 }
 
+pub fn search_query(request: String, persistence: &Persistence) -> Result<SearchResult, SearchError> {
+    // let req = persistence.meta_data.fulltext_indices.key
+    info_time!("generating search query");
+    let parts: Vec<Request> = persistence.meta_data.fulltext_indices.keys().map(|field| {
+        let field_name:String = field.chars().take(field.chars().count()-10).into_iter().collect();
+
+        let part = RequestSearchPart {
+            path: field_name.to_string(),
+            terms: vec![request.to_string()],
+            levenshtein_distance: Some(1),
+            starts_with: None,
+            return_term: None,
+            token_value: None,
+            boost: None,
+            top: None, // TODO
+            skip: None,
+            term_operator: TermOperator::ALL,
+            resolve_token_to_parent_hits: None
+        };
+
+        Request {
+            or: None,
+            and: None,
+            search: Some(part),
+            suggest: None,
+            boost: None,
+            top: 10,
+            skip: 0,
+        }
+    }).collect();
+
+
+    let request = Request {
+            or: Some(parts),
+            and: None,
+            search: None,
+            suggest: None,
+            boost: None,
+            top: 10,
+            skip: 0,
+        };
+    search(request, persistence)
+}
+
 pub fn search(request: Request, persistence: &Persistence) -> Result<SearchResult, SearchError> {
     info_time!("search");
     let skip = request.skip;
