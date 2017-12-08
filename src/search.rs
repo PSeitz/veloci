@@ -54,6 +54,7 @@ pub struct RequestSearchPart {
     pub levenshtein_distance: Option<u32>,
     pub starts_with: Option<bool>,
     pub return_term: Option<bool>,
+    pub snippet: Option<bool>,
     pub token_value: Option<RequestBoostPart>,
     // pub exact: Option<bool>,
     // pub first_char_exact_match: Option<bool>,
@@ -188,7 +189,7 @@ pub struct SearchResultWithDoc {
     pub data:     Vec<DocWithHit>,
 }
 
-pub fn search_query(request: String, persistence: &Persistence) -> Result<SearchResult, SearchError> {
+pub fn search_query(request: &str, persistence: &Persistence, top: Option<usize>, skip: Option<usize>) -> Request {
     // let req = persistence.meta_data.fulltext_indices.key
     info_time!("generating search query");
     let parts: Vec<Request> = persistence.meta_data.fulltext_indices.keys().map(|field| {
@@ -198,38 +199,19 @@ pub fn search_query(request: String, persistence: &Persistence) -> Result<Search
             path: field_name.to_string(),
             terms: vec![request.to_string()],
             levenshtein_distance: Some(1),
-            starts_with: None,
-            return_term: None,
-            token_value: None,
-            boost: None,
-            top: None, // TODO
-            skip: None,
-            term_operator: TermOperator::ALL,
-            resolve_token_to_parent_hits: None
+            resolve_token_to_parent_hits: Some(true),
+            ..Default::default()
         };
 
-        Request {
-            or: None,
-            and: None,
-            search: Some(part),
-            suggest: None,
-            boost: None,
-            top: 10,
-            skip: 0,
-        }
+        Request {search: Some(part), ..Default::default() }
     }).collect();
 
-
-    let request = Request {
-            or: Some(parts),
-            and: None,
-            search: None,
-            suggest: None,
-            boost: None,
-            top: 10,
-            skip: 0,
-        };
-    search(request, persistence)
+    Request {
+        or: Some(parts),
+        top: top.unwrap_or(10),
+        skip: skip.unwrap_or(0),
+        ..Default::default()
+    }
 }
 
 pub fn search(request: Request, persistence: &Persistence) -> Result<SearchResult, SearchError> {
@@ -258,17 +240,32 @@ pub fn get_shortest_result<T: std::iter::ExactSizeIterator>(results: &Vec<T>) ->
     shortest.0
 }
 
+use rayon::prelude::*;
+use std::sync::Mutex;
+
 pub fn search_unrolled(persistence: &Persistence, request: Request) -> Result<FnvHashMap<u32, f32>, SearchError> {
     debug_time!("search_unrolled");
 
-    if request.or.is_some() {
-        Ok(request.or.unwrap().iter().fold(FnvHashMap::default(), |mut acc, x| -> FnvHashMap<u32, f32> {
-            acc.extend(&search_unrolled(persistence, x.clone()).unwrap());
+    if let Some(or) = request.or {
+
+        let vec:Vec<FnvHashMap<u32, f32>> = or.par_iter().map(|x| -> FnvHashMap<u32, f32> {
+            search_unrolled(persistence, x.clone()).unwrap()
+        }).collect();
+
+        debug_time!("search_unrolled_collect_ors");
+        Ok(vec.iter().fold(FnvHashMap::default(), |mut acc, x| -> FnvHashMap<u32, f32> {
+            acc.extend(x);
             acc
         }))
-    } else if request.and.is_some() {
-        let ands = request.and.unwrap();
-        let mut and_results: Vec<FnvHashMap<u32, f32>> = ands.iter().map(|x| search_unrolled(persistence, x.clone()).unwrap()).collect(); // @Hack  unwrap forward errors
+
+        // Ok(or.iter().fold(FnvHashMap::default(), |mut acc, x| -> FnvHashMap<u32, f32> {
+        //     acc.extend(&search_unrolled(persistence, x.clone()).unwrap());
+        //     acc
+        // }))
+
+
+    } else if let Some(ands) = request.and {
+        let mut and_results: Vec<FnvHashMap<u32, f32>> = ands.par_iter().map(|x| search_unrolled(persistence, x.clone()).unwrap()).collect(); // @Hack  unwrap forward errors
 
         debug_time!("and algorithm");
         let mut all_results: FnvHashMap<u32, f32> = FnvHashMap::default();
@@ -417,9 +414,9 @@ pub fn search_raw(
     // let mut hits:Vec<(u32, f32)> = vec![];
 
     let mut paths = util::get_steps_to_anchor(&request.path);
-    if let Some(last_path) = paths.last_mut() {
-        *last_path = last_path.clone() + ".textindex";
-    }
+//    if let Some(last_path) = paths.last_mut() {
+//        *last_path = last_path.clone() + ".textindex";
+//    }
     // text to "rows"
     // let path_name = util::get_file_path_name(paths.last().unwrap(), true);
     // let key = util::concat_tuple(&path_name, ".valueIdToParent.valIds", ".valueIdToParent.mainIds");

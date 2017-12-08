@@ -58,7 +58,7 @@ fn create_thalia_index() {
     ]
     "#;
 
-    println!("{:?}", search_lib::create::create_indices_csv("csv_test", "./data.csv", indices));
+    // println!("{:?}", search_lib::create::create_indices_csv("csv_test", "./data.csv", indices));
 }
 
 

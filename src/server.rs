@@ -6,6 +6,7 @@ extern crate env_logger;
 extern crate fnv;
 extern crate hyper;
 extern crate iron;
+extern crate urlencoded;
 extern crate iron_cors;
 extern crate router;
 extern crate serde_json;
@@ -31,6 +32,7 @@ use iron::{typemap, AfterMiddleware, BeforeMiddleware, Chain, Iron, IronResult, 
 use iron_cors::CorsMiddleware;
 use iron::{headers, status};
 use iron::modifiers::Header;
+use urlencoded::UrlEncodedQuery;
 
 use time::precise_time_ns;
 use router::Router;
@@ -111,6 +113,7 @@ pub fn start_server(database: String) {
     router.get("/", handler, "index"); // let router = router!(index: get "/" => handler,
     router.get("/:query", handler, "query"); //                      query: get "/:query" => handler);
     router.post("/search", search_handler, "search");
+    router.get("/search", search_get_handler, "search_get");
     router.post("/suggest", suggest_handler, "suggest");
 
     // let mut pers = Persistence::load("csv_test".to_string()).expect("Could not load persistence");
@@ -135,6 +138,54 @@ pub fn start_server(database: String) {
         Ok(Response::with((status::Ok, *query)))
     }
 
+    fn search_get_handler(req: &mut Request) -> IronResult<Response> {
+        info_time!("search total");
+        // Extract the decoded data as hashmap, using the UrlEncodedQuery plugin.
+        match req.get_ref::<UrlEncodedQuery>() {
+            Ok(ref hashmap) => {
+
+                println!("Parsed GET request query string:\n {:?}", hashmap);
+                let ref query = hashmap.get("query").expect("not query parameter found").iter().nth(0).unwrap();
+                let ref top =   hashmap.get("top").map(|el|el.iter().nth(0).unwrap().parse::<usize>().unwrap());
+                let ref skip =  hashmap.get("skip").map(|el|el.iter().nth(0).unwrap().parse::<usize>().unwrap());
+
+                info!("query {:?} top {:?} skip {:?}", query, top, skip);
+                let persistences = PERSISTENCES.read().unwrap();
+                let persistence = persistences.get("default").unwrap();
+
+                let request = search::search_query(query.clone(), &persistence, top.clone(), skip.clone());
+                search_in_persistence(persistence, request)
+            },
+            Err(ref e) => Err(IronError::new(StringError(e.to_string()), status::BadRequest))
+        }
+
+    }
+
+    use std::error::Error;
+    use std::fmt::{self, Debug};
+    #[derive(Debug)]
+    struct StringError(String);
+
+    impl fmt::Display for StringError {
+        fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+            Debug::fmt(self, f)
+        }
+    }
+
+    impl Error for StringError {
+        fn description(&self) -> &str { &*self.0 }
+    }
+
+
+    fn search_in_persistence(persistence: &Persistence, request: search_lib::search::Request) -> IronResult<Response> {
+        println!("Searching ... ");
+        let hits = search::search(request, &persistence).unwrap();
+        println!("Loading Documents... ");
+        let doc = search::to_search_result(&persistence, &hits);
+        println!("Returning ... ");
+        Ok(Response::with((status::Ok, Header(headers::ContentType::json()), serde_json::to_string(&doc).unwrap())))
+    }
+
     fn search_handler(req: &mut Request) -> IronResult<Response> {
         // let ref query = req.extensions.get::<Router>().unwrap().find("query").unwrap_or("/");
         // Ok(Response::with(status::Ok))
@@ -143,19 +194,11 @@ pub fn start_server(database: String) {
         match struct_body {
             Ok(Some(struct_body)) => {
                 println!("Parsed body:\n{:?}", struct_body);
-                info!("whoaat");
-
-                // let pers:persistence::Persistence = persistence::Persistence::load("csv_test".to_string()).expect("could not load persistence");
                 info_time!("search total");
-                let persistences = PERSISTENCES.read().unwrap();
-                let persistence = persistences.get(&"default".to_string()).unwrap();
 
-                println!("Searching ... ");
-                let hits = search::search(struct_body, &persistence).unwrap();
-                println!("Loading Documents... ");
-                let doc = search::to_search_result(&persistence, &hits);
-                println!("Returning ... ");
-                Ok(Response::with((status::Ok, Header(headers::ContentType::json()), serde_json::to_string(&doc).unwrap())))
+                let persistences = PERSISTENCES.read().unwrap();
+                let persistence = persistences.get("default").unwrap();
+                search_in_persistence(persistence, struct_body)
             }
             Ok(None) => {
                 println!("No body");

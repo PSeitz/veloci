@@ -173,10 +173,9 @@ mod tests {
 
 
     #[test]
-    #[ignore]
     fn test_paths() {
         let paths = util::get_steps_to_anchor("meanings.ger[]");
-        println!("{:?}", paths);
+        println!("NAAA {:?}", paths);
     }
 
     #[test]
@@ -515,6 +514,17 @@ mod tests {
             let mut all_terms = results.terms.values().collect::<Vec<&String>>();
             all_terms.sort();
             assert_eq!(all_terms, ["majestät", "majestätischer", "majestätischer anblick", "majestätisches", "majestätisches aussehen"]);
+        }
+
+        it "should load the text for ids"{
+            let persistences = PERSISTENCES.read().unwrap();
+            let mut pers = persistences.get(&"default".to_string()).unwrap();
+            let mut faccess:persistence::FileSearch = pers.get_file_search("meanings.ger[].textindex");
+
+            assert_eq!(faccess.get_text_for_id(0, pers.get_offsets("meanings.ger[].textindex").unwrap()), "alle" );
+            assert_eq!(faccess.get_text_for_id(1, pers.get_offsets("meanings.ger[].textindex").unwrap()), "alle meine words" );
+            assert_eq!(faccess.get_text_for_id(2, pers.get_offsets("meanings.ger[].textindex").unwrap()), "anblick" );
+
         }
 
         it "real suggest with score"{

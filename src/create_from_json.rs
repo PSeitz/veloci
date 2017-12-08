@@ -120,10 +120,6 @@ pub fn get_allterms(data: &Value, path: &str, options: &create::FulltextIndexOpt
             return;
         }
 
-        // if stopwords.map_or(false, |ref v| v.contains(&value)){
-        //     return;
-        // }
-
         {
             let stat = terms.entry(normalized_text.clone()).or_insert(TermInfo::default());
             stat.num_occurences += 1;

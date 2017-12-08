@@ -401,6 +401,14 @@ impl Persistence {
         Ok(())
     }
 
+    pub fn get_offsets(&self, path: &str) -> Option<&Vec<u64>> {
+        self
+        .cache
+        .index_64
+        .get(&(path.to_string() + ".offsets"))
+    }
+
+
     pub fn get_valueid_to_parent(&self, path: &str) -> &Box<IndexIdToParent> {
         // @Temporary Check if in cache
         self.cache.index_id_to_parento.get(path).expect(&format!("Did not found path in cache {:?}", path))
@@ -632,6 +640,10 @@ impl FileSearch {
         }
     }
 
+    pub fn get_text_for_id<'a>(&mut self, pos: usize, offsets: &Vec<u64>) -> String {
+        self.load_text(pos, offsets);
+        str::from_utf8(&self.buffer).unwrap().to_string() // TODO maybe avoid clone
+    }
     fn load_text<'a>(&mut self, pos: usize, offsets: &Vec<u64>) {
         // @Temporary Use Result
         let string_size = offsets[pos + 1] - offsets[pos] - 1;

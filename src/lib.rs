@@ -18,6 +18,7 @@ extern crate fnv;
 extern crate fst;
 extern crate regex;
 extern crate chrono;
+extern crate rayon;
 
 extern crate flexi_logger;
 // extern crate env_logger;

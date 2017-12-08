@@ -267,8 +267,13 @@ fn get_hits_in_field_one_term(persistence: &Persistence, options: &RequestSearch
     }
     debug!("{:?} hits in textindex {:?}", result.hits.len(), &options.path);
     trace!("hits in textindex: {:?}", result.hits);
+
     if options.resolve_token_to_parent_hits.unwrap_or(true) {
         resolve_token_hits(persistence, &options.path, &mut result);
+    }
+
+    if options.snippet.unwrap_or(false) {
+        resolve_snippets(persistence, &options.path, &mut result);
     }
 
     if options.token_value.is_some() {
@@ -281,6 +286,38 @@ fn get_hits_in_field_one_term(persistence: &Persistence, options: &RequestSearch
     }
 
     Ok(result)
+}
+
+
+pub fn highlight(persistence: &Persistence, path:&str, value_id: u64,  token_ids: &[u32]) -> String {
+    let value_id_to_token_ids = persistence.get_valueid_to_parent(&concat(path, ".value_id_to_token_ids"));
+
+    let values = value_id_to_token_ids.get_values(value_id).unwrap();
+
+    let mut iter = values.iter();
+    let mut token_positions_in_document = vec![];
+    for token_id in token_ids {
+        let mut current_pos = 0;
+        while let Some(pos) = iter.position(|x| *x == *token_id) {
+            current_pos += pos;
+            token_positions_in_document.push(current_pos);
+            current_pos += 1;
+        }
+    }
+
+    token_positions_in_document.sort();
+    for token_pos in token_positions_in_document {
+        let token_id = values[token_pos];
+    }
+    // iter.position(|x| *x == 2)
+    // token_ids.map(|token_id|{
+    // })
+
+    "".to_string()
+}
+
+pub fn resolve_snippets(persistence: &Persistence, path: &str, result: &mut SearchFieldResult) {
+
 }
 
 
@@ -298,14 +335,11 @@ pub fn resolve_token_hits(persistence: &Persistence, path: &str, result: &mut Se
     debug_time!("resolve_token_hits");
     // var hrstart = process.hrtime()
     // let cache_lock = persistence::INDEX_64_CACHE.read().unwrap();
-    let text_offsets = persistence
-        .cache
-        .index_64
-        .get(&concat(path, ".offsets"))
+    let text_offsets = persistence.get_offsets(path)
         .expect(&format!("Could not find {:?} in index_64 cache", concat(path, ".offsets")));
 
     let token_kvdata = persistence.get_valueid_to_parent(&concat(path, ".tokens"));
-    info!("Checking Tokens in {:?}", &concat(path, ".tokens"));
+    debug!("Checking Tokens in {:?}", &concat(path, ".tokens"));
     persistence::trace_index_id_to_parent(token_kvdata);
     // trace!("All Tokens: {:?}", token_kvdata.get_values());
 

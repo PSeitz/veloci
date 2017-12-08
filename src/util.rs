@@ -97,7 +97,7 @@ pub fn get_steps_to_anchor(path: &str) -> Vec<String> {
         }
     }
 
-    paths.push(path.to_string()); // add complete path
+    paths.push(path.to_string()+ ".textindex"); // add path to index
     return paths;
 }
 
