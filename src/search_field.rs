@@ -291,7 +291,7 @@ fn get_hits_in_field_one_term(persistence: &Persistence, options: &RequestSearch
     trace!("hits in textindex: {:?}", result.hits);
 
     if options.resolve_token_to_parent_hits.unwrap_or(true) {
-        resolve_token_hits(persistence, &options.path, &mut result, options.snippet.unwrap_or(false));
+        resolve_token_hits(persistence, &options.path, &mut result, options);
     }
 
     if options.token_value.is_some() {
@@ -315,7 +315,7 @@ pub fn get_text_for_ids(persistence: &Persistence, path:&str, ids: &[u32]) -> Fn
 
 use itertools::Itertools;
 
-pub fn highlight_document(persistence: &Persistence, path:&str, value_id: u64,  token_ids: &[u32], grouping_distance: i64, highlight_start:&str, highlight_end:&str, snippet_connector:&str) -> String {
+pub fn highlight_document(persistence: &Persistence, path:&str, value_id: u64,  token_ids: &[u32], num_words_around_snippet: i64, highlight_start:&str, highlight_end:&str, snippet_connector:&str) -> String {
     let value_id_to_token_ids = persistence.get_valueid_to_parent(&concat(path, ".value_id_to_token_ids"));
 
     let documents_token_ids = value_id_to_token_ids.get_values(value_id).unwrap();
@@ -339,9 +339,9 @@ pub fn highlight_document(persistence: &Persistence, path:&str, value_id: u64,  
 
     //group near tokens
     let mut grouped:Vec<Vec<i64>> = vec![];
-    let mut previous_token_pos = -grouping_distance;
+    let mut previous_token_pos = -num_words_around_snippet;
     for token_pos in token_positions_in_document.into_iter() {
-        if token_pos as i64 - previous_token_pos >= grouping_distance {
+        if token_pos as i64 - previous_token_pos >= num_words_around_snippet {
             grouped.push(vec![]);
         }
         previous_token_pos = token_pos as i64;
@@ -375,11 +375,11 @@ pub fn highlight_document(persistence: &Persistence, path:&str, value_id: u64,  
     .intersperse(snippet_connector.to_string())
     .fold(String::new(), |snippet, snippet_part| {snippet + &snippet_part });
 
-    if first_index > grouping_distance{
+    if first_index > num_words_around_snippet{
         snippet.insert_str(0, snippet_connector);
     }
 
-    if last_index < documents_token_ids.len() as i64 - grouping_distance{
+    if last_index < documents_token_ids.len() as i64 - num_words_around_snippet{
         snippet.push_str(snippet_connector);
     }
 
@@ -401,7 +401,7 @@ pub fn resolve_snippets(persistence: &Persistence, path: &str, result: &mut Sear
 }
 
 
-pub fn resolve_token_hits(persistence: &Persistence, path: &str, result: &mut SearchFieldResult, resolve_snippets: bool) {
+pub fn resolve_token_hits(persistence: &Persistence, path: &str, result: &mut SearchFieldResult, options: &RequestSearchPart) {
 
     let has_tokens = persistence
         .meta_data
@@ -412,6 +412,9 @@ pub fn resolve_token_hits(persistence: &Persistence, path: &str, result: &mut Se
     if !has_tokens {
         return;
     }
+
+    let resolve_snippets = options.snippet.unwrap_or(false);
+
     debug_time!(format!("{} resolve_token_hits", path));
     let text_offsets = persistence.get_offsets(path)
         .expect(&format!("Could not find {:?} in index_64 cache", concat(path, ".offsets")));

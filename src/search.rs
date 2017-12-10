@@ -50,6 +50,7 @@ fn default_skip() -> usize {
     0
 }
 
+
 #[derive(Serialize, Deserialize, Default, Clone, Debug)]
 pub struct RequestSearchPart {
     pub path: String,
@@ -67,7 +68,25 @@ pub struct RequestSearchPart {
     #[serde(default = "default_resolve_token_to_parent_hits")] pub resolve_token_to_parent_hits: Option<bool>,
     pub top: Option<usize>,
     pub skip: Option<usize>,
+    pub snippet_info: Option<SnippetInfo>,
 }
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct SnippetInfo {
+    #[serde(default = "default_num_words_around_snippet")]
+    pub num_words_around_snippet: i64,
+    #[serde(default = "default_snippet_start")]
+    pub snippet_start:String,
+    #[serde(default = "default_snippet_end")]
+    pub snippet_end:String,
+    #[serde(default = "default_snippet_connector")]
+    pub snippet_connector:String
+}
+fn default_num_words_around_snippet() -> i64 { 5 }
+fn default_snippet_start() -> String {"<b>".to_string() }
+fn default_snippet_end() -> String {"</b>".to_string() }
+fn default_snippet_connector() -> String {" ... ".to_string() }
+
 fn default_resolve_token_to_parent_hits() -> Option<bool> {
     Some(true)
 }

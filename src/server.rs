@@ -21,6 +21,9 @@ extern crate log;
 #[macro_use]
 extern crate measure_time;
 extern crate search_lib;
+extern crate iron_compress;
+
+use iron_compress::GzipWriter;
 
 use chashmap::CHashMap;
 
@@ -145,7 +148,7 @@ pub fn start_server() {
     }
 
     fn search_get_handler(req: &mut Request) -> IronResult<Response> {
-        info_time!("search total");
+        info_time!("search request total");
         let database = req.extensions.get::<Router>().unwrap().find("database").expect("could not find collection name in url").to_string();
         ensure_database(&database);
         
@@ -199,7 +202,8 @@ pub fn start_server() {
         };
         
         info!("Returning ... ");
-        Ok(Response::with((status::Ok, Header(headers::ContentType::json()), serde_json::to_string(&doc).unwrap())))
+
+        Ok(Response::with((status::Ok, Header(headers::ContentType::json()), GzipWriter(serde_json::to_string(&doc).unwrap().as_bytes()))))
     }
 
     fn search_handler(req: &mut Request) -> IronResult<Response> {
