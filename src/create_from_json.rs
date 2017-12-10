@@ -92,7 +92,6 @@ where
                 if !next_el.is_null() {
                     cb(&convert_to_string(&next_el), opt.value_id_counter, opt.current_parent_id_counter);
                     opt.value_id_counter += 1;
-                    trace!("opt.value_id_counter increase {:?}", opt.value_id_counter);
                 }
             }else{
                 opt.value_id_counter += 1;

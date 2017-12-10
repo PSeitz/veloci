@@ -135,6 +135,21 @@ mod bench {
         search_field::suggest(&pers, &requesto).unwrap()
     }
 
+
+    fn highlight(term: &str, path: &str, pers: &persistence::Persistence) -> search_field::SuggestFieldResult {
+        let req = json!({
+            "terms":[term],
+            "path": path,
+            "levenshtein_distance": 0,
+            "starts_with":true,
+            "snippet":true,
+            "top":10,
+            "skip":0
+        });
+        let mut requesto: search::RequestSearchPart = serde_json::from_str(&req.to_string()).expect("Can't parse json");
+        search_field::highlight(&pers, &mut requesto).unwrap()
+    }
+
     // fn search_testo_to_doc(req: Value) -> Result<Vec<search::DocWithHit>, search::SearchError> {
     //     let persistences = PERSISTENCES.read().unwrap();
     //     let pers = persistences.get(&"default".to_string()).unwrap();
@@ -145,6 +160,10 @@ mod bench {
 
     fn load_persistence() -> persistence::Persistence {
         persistence::Persistence::load(TEST_FOLDER.to_string()).expect("Could not load persistence")
+    }
+
+    fn load_gutenberg_persistence() -> persistence::Persistence {
+        persistence::Persistence::load("gutenberg".to_string()).expect("Could not load persistence")
     }
 
     #[bench]
@@ -184,6 +203,20 @@ mod bench {
     fn suggest_kana_a(b: &mut Bencher) {
         let pers = load_persistence();
         b.iter(|| suggest("あ", "kana[].text", &pers));
+    }
+
+
+    #[bench]
+    fn highlight_in_book(b: &mut Bencher) {
+        let pers = load_gutenberg_persistence();
+        b.iter(|| highlight("pride", "content", &pers));
+    }
+
+    #[test]
+    fn highlight_in_book_yeah() {
+        let pers = load_gutenberg_persistence();
+        assert_eq!(highlight("pride", "content", &pers)[0].0, "QUAARK");
+
     }
 
 

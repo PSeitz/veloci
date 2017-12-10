@@ -35,6 +35,10 @@ sled = "0.14.1"
 flexi_logger = "0.6"
 json_converter = {path = "json_converter"}
 rayon = "0.9"
+itertools = "0.7.3"
+ordered-float = "0.5.0"
+chashmap = "2.2.0"
+parking_lot = {version = "0.5", features = ["nightly"]}
 
 [dependencies.bodyparser]
 git = "https://github.com/iron/body-parser.git"

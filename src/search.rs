@@ -28,6 +28,10 @@ use util;
 use util::concat;
 use fst;
 
+use rayon::prelude::*;
+#[allow(unused_imports)]
+use std::sync::Mutex;
+
 #[derive(Serialize, Deserialize, Default, Clone, Debug)]
 pub struct Request {
     pub or: Option<Vec<Request>>,
@@ -240,9 +244,6 @@ pub fn get_shortest_result<T: std::iter::ExactSizeIterator>(results: &Vec<T>) ->
     shortest.0
 }
 
-use rayon::prelude::*;
-use std::sync::Mutex;
-
 pub fn search_unrolled(persistence: &Persistence, request: Request) -> Result<FnvHashMap<u32, f32>, SearchError> {
     debug_time!("search_unrolled");
 
@@ -413,7 +414,7 @@ pub fn search_raw(
     // let mut next_level_hits:Vec<(u32, f32)> = vec![];
     // let mut hits:Vec<(u32, f32)> = vec![];
 
-    let mut paths = util::get_steps_to_anchor(&request.path);
+    let paths = util::get_steps_to_anchor(&request.path);
 //    if let Some(last_path) = paths.last_mut() {
 //        *last_path = last_path.clone() + ".textindex";
 //    }

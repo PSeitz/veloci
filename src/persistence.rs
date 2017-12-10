@@ -21,7 +21,7 @@ use bincode::{deserialize, serialize, Infinite};
 use create;
 use snap;
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
-
+use log;
 #[allow(unused_imports)]
 use fst::{IntoStreamer, Levenshtein, Map, MapBuilder, Set};
 
@@ -104,10 +104,12 @@ pub trait IndexIdToParent: Debug + HeapSizeOf + Sync + Send {
 }
 
 pub fn trace_index_id_to_parent(val: &Box<IndexIdToParent>) {
-    let keys = val.get_keys();
-    for key in keys.iter() {
-        if let Some(vals) = val.get_values(*key as u64) {
-            trace!("key {:?} to {:?}", key, vals );
+    if log_enabled!(log::LogLevel::Trace) {
+        let keys = val.get_keys();
+        for key in keys.iter() {
+            if let Some(vals) = val.get_values(*key as u64) {
+                trace!("key {:?} to {:?}", key, vals );
+            }
         }
     }
 }
@@ -304,6 +306,10 @@ impl Persistence {
     pub fn write_tuple_pair(&mut self, tuples: &mut Vec<create::ValIdPair>, path: &str) -> Result<(), io::Error> {
         let has_duplicates = has_valid_duplicates(&tuples.iter().map(|el| el as &create::GetValueId).collect());
         let data = valid_pair_to_parallel_arrays(tuples);
+        // if data.values1.len() > 0 {
+        //     trace!("data.values1 {:?} \n {:?}", path, data.values1 );
+        //     trace!("data.values2 {:?} \n {:?}", path, data.values2 );
+        // }
         // let has_duplicates = has_duplicates(&data.values1);
         let encoded: Vec<u8> = serialize(&data, Infinite).unwrap();
         File::create(util::get_file_path(&self.db, &path.to_string()))?.write_all(&encoded)?;
@@ -372,7 +378,7 @@ impl Persistence {
     // }
 
     pub fn write_meta_data(&self) -> Result<(), io::Error> {
-        self.write_data("metaData.json", serde_json::to_string_pretty(&self.meta_data).unwrap().as_bytes())
+        self.write_data("metaData.json", serde_json::to_string_pretty(&self.meta_data).expect("could not serialize meta_data").as_bytes())
     }
 
     pub fn write_data(&self, path: &str, data: &[u8]) -> Result<(), io::Error> {
@@ -456,7 +462,7 @@ impl Persistence {
         }
 
         for el in &self.meta_data.key_value_stores {
-            info_time!("create key_value_store");
+            info_time!(format!("loaded key_value_store {:?}", &el.path));
 
             let encoded = file_to_bytes(&get_file_path(&self.db, &el.path))
                 .expect(&format!("Could not Load {:?}", get_file_path(&self.db, &el.path)));
@@ -516,7 +522,7 @@ fn test_snap() {
     ]);
     data.push(vec![10, 11, 12, 13, 14, 15]);
     data.push(vec![10]);
-    println!("data orig {:?}", data.heap_size_of_children());
+    info!("data orig {:?}", data.heap_size_of_children());
     // let data2:Vec<Vec<u8>> = data.iter().map(|el| {
     //     let mut el = el.clone();
     //     el.sort();
@@ -524,7 +530,7 @@ fn test_snap() {
     //     dat.shrink_to_fit();
     //     dat
     // }).collect();
-    // println!("data abono compressed {:?}", data2.heap_size_of_children());
+    // info!("data abono compressed {:?}", data2.heap_size_of_children());
 
     // let data3:Vec<Vec<u8>> = data.iter().map(|el| {
     //     let el = el.clone();
@@ -532,10 +538,10 @@ fn test_snap() {
     //     dat.shrink_to_fit();
     //     dat
     // }).collect();
-    // println!("data abono bytes {:?}", data3.heap_size_of_children());
+    // info!("data abono bytes {:?}", data3.heap_size_of_children());
 
     let data4: Vec<Vec<u8>> = data.iter().map(|el| vec_to_bytes_u32(el)).collect();
-    println!("data byteorder {:?}", data4.heap_size_of_children());
+    info!("data byteorder {:?}", data4.heap_size_of_children());
 
     let data5: Vec<Vec<u8>> = data.iter()
         .map(|el| {
@@ -544,19 +550,19 @@ fn test_snap() {
             dat
         })
         .collect();
-    println!("data byteorder compressed {:?}", data5.heap_size_of_children());
+    info!("data byteorder compressed {:?}", data5.heap_size_of_children());
 
     // let mut test_vec:Vec<u32> = vec![10];
     // test_vec.shrink_to_fit();
     // let mut bytes:Vec<u8> = Vec::new();
     // unsafe { encode(&test_vec, &mut bytes); };
     // bytes.shrink_to_fit();
-    // println!("{:?}", test_vec);
-    // println!("{:?}", bytes);
+    // info!("{:?}", test_vec);
+    // info!("{:?}", bytes);
 
     let mut wtr: Vec<u8> = vec![];
     wtr.write_u32::<LittleEndian>(10).unwrap();
-    println!("wtr {:?}", wtr);
+    info!("wtr {:?}", wtr);
 }
 
 
@@ -569,10 +575,10 @@ pub fn id_to_parent_to_array_of_array(store: &IndexIdToParent) -> Vec<Vec<u32>> 
     }
     data.resize(*valids.last().unwrap() as usize + 1, vec![]);
 
-    info_time!("create insert key_value_store");
+    // debug_time!("convert key_value_store to vec vec");
     for valid in valids {
         let mut vals = store.get_values(valid as u64).unwrap();
-        vals.sort();
+        // vals.sort(); // WHY U SORT ?
         data[valid as usize] = vals;
     }
     data
@@ -671,7 +677,7 @@ impl FileSearch {
         while low <= high {
             i = (low + high) >> 1;
             self.load_text(i, offsets);
-            // println!("Comparing {:?}", str::from_utf8(&buffer).unwrap());
+            // info!("Comparing {:?}", str::from_utf8(&buffer).unwrap());
             // comparison = comparator(arr[i], find);
             if str::from_utf8(&self.buffer).unwrap() < term {
                 low = i + 1;

@@ -11,17 +11,18 @@ use std::cmp;
 use std::cmp::Ordering;
 use fnv::FnvHashMap;
 use util;
-
+use ordered_float::OrderedFloat;
 // use hit_collector::HitCollector;
 
 #[allow(unused_imports)]
 use fst::{IntoStreamer, Levenshtein, Map, MapBuilder, Set};
 use fst::automaton::*;
 // use search::Hit;
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct SearchFieldResult {
-    pub hits:  FnvHashMap<u32, f32>,
+    pub hits:  FnvHashMap<TermId, f32>,
     pub terms: FnvHashMap<TermId, String>,
+    pub highlight: FnvHashMap<TermId, String>,
 }
 // pub type TermScore = (TermId, Score);
 pub type TermId = u32;
@@ -127,9 +128,7 @@ fn search_result_to_suggest_result(results: Vec<SearchFieldResult>, skip: usize,
     let mut suggest_result = results
         .iter()
         .flat_map(|res| {
-            // @Performance add only "top" elements ?
-            res.hits
-                .iter()
+            res.hits.iter()// @Performance add only "top" elements ?
                 .map(|term_n_score| {
                     let term = res.terms.get(&term_n_score.0).unwrap();
                     (term.to_string(), *term_n_score.1, *term_n_score.0)
@@ -141,19 +140,35 @@ fn search_result_to_suggest_result(results: Vec<SearchFieldResult>, skip: usize,
     search::apply_top_skip(suggest_result, skip, top)
 }
 
+fn search_result_to_highlight_result(results: Vec<SearchFieldResult>, skip: Option<usize>, top: Option<usize>) -> SuggestFieldResult {
+    let mut suggest_result = results
+        .iter()
+        .flat_map(|res| {
+            res.hits.iter()// @Performance add only "top" elements ?
+                .map(|term_n_score| {
+                    let term = res.highlight.get(&term_n_score.0).unwrap();
+                    (term.to_string(), *term_n_score.1, *term_n_score.0)
+                })
+                .collect::<SuggestFieldResult>()
+        })
+        .collect::<SuggestFieldResult>();
+    suggest_result.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(Ordering::Equal));
+    search::apply_top_skip(suggest_result, skip.unwrap_or(0), top.unwrap_or(usize::max_value()))
+}
+
 pub fn suggest_multi(persistence: &Persistence, req: Request) -> Result<SuggestFieldResult, SearchError> {
     info_time!("suggest time");
-    let options: Vec<RequestSearchPart> = req.suggest.expect("only suggest allowed here");
+    let search_parts: Vec<RequestSearchPart> = req.suggest.expect("only suggest allowed here");
     let mut search_results = vec![];
-    for mut option in options {
-        option.return_term = Some(true);
-        option.resolve_token_to_parent_hits = Some(false);
-        // option.term = util::normalize_text(&option.term);
-        option.terms = option.terms.iter().map(|el| util::normalize_text(el)).collect::<Vec<_>>();
-        search_results.push(get_hits_in_field(persistence, &option)?);
+    for mut search_part in search_parts {
+        search_part.return_term = Some(true);
+        search_part.resolve_token_to_parent_hits = Some(false);
+        // search_part.term = util::normalize_text(&search_part.term);
+        search_part.terms = search_part.terms.iter().map(|el| util::normalize_text(el)).collect::<Vec<_>>();
+        search_results.push(get_hits_in_field(persistence, &search_part)?);
     }
     info_time!("suggest to vec/sort");
-    return Ok(search_result_to_suggest_result(search_results, req.skip, req.top));
+    Ok(search_result_to_suggest_result(search_results, req.skip, req.top))
 }
 
 // just adds sorting to search
@@ -167,6 +182,13 @@ pub fn suggest(persistence: &Persistence, options: &RequestSearchPart) -> Result
     }
     // let options = vec![options.clone()];
     return suggest_multi(persistence, req);
+}
+
+// just adds sorting to search
+pub fn highlight(persistence: &Persistence, options: &mut RequestSearchPart) -> Result<SuggestFieldResult, SearchError> {
+    options.terms = options.terms.iter().map(|el| util::normalize_text(el)).collect::<Vec<_>>();
+
+    Ok(search_result_to_highlight_result(vec![get_hits_in_field(persistence, &options)?], options.skip, options.top))
 }
 
 // fn intersect(mut and_results: Vec<(String, SearchFieldResult)>) -> Result<SearchFieldResult, SearchError> {
@@ -203,13 +225,13 @@ pub fn get_hits_in_field(persistence: &Persistence, options: &RequestSearchPart)
         }
     }
 
-    Ok(SearchFieldResult { hits:  FnvHashMap::default(), terms: FnvHashMap::default() })
+    Ok(SearchFieldResult::default())
 }
 
 fn get_hits_in_field_one_term(persistence: &Persistence, options: &RequestSearchPart) -> Result<SearchFieldResult, SearchError> {
-    debug_time!("get_hits_in_field");
+    debug_time!(format!("{} get_hits_in_field",  &options.path));
     // let mut hits:FnvHashMap<u32, f32> = FnvHashMap::default();
-    let mut result = SearchFieldResult { hits:  FnvHashMap::default(), terms: FnvHashMap::default() };
+    let mut result = SearchFieldResult::default();
     // let mut hits:Vec<(u32, f32)> = vec![];
     // let checks:Vec<Fn(&str) -> bool> = Vec::new();
     // options.first_char_exact_match = options.exact || options.levenshtein_distance == 0 || options.starts_with.is_some(); // TODO fix
@@ -269,11 +291,7 @@ fn get_hits_in_field_one_term(persistence: &Persistence, options: &RequestSearch
     trace!("hits in textindex: {:?}", result.hits);
 
     if options.resolve_token_to_parent_hits.unwrap_or(true) {
-        resolve_token_hits(persistence, &options.path, &mut result);
-    }
-
-    if options.snippet.unwrap_or(false) {
-        resolve_snippets(persistence, &options.path, &mut result);
+        resolve_token_hits(persistence, &options.path, &mut result, options.snippet.unwrap_or(false));
     }
 
     if options.token_value.is_some() {
@@ -289,13 +307,22 @@ fn get_hits_in_field_one_term(persistence: &Persistence, options: &RequestSearch
 }
 
 
-pub fn highlight(persistence: &Persistence, path:&str, value_id: u64,  token_ids: &[u32]) -> String {
+pub fn get_text_for_ids(persistence: &Persistence, path:&str, ids: &[u32]) -> FnvHashMap<u32, String> {
+    let mut faccess:persistence::FileSearch = persistence.get_file_search(path);
+    let offsets = persistence.get_offsets(path).unwrap();
+    ids.iter().map(|id| (*id, faccess.get_text_for_id(*id as usize, offsets))).collect()
+}
+
+use itertools::Itertools;
+
+pub fn highlight_document(persistence: &Persistence, path:&str, value_id: u64,  token_ids: &[u32], grouping_distance: i64, highlight_start:&str, highlight_end:&str, snippet_connector:&str) -> String {
     let value_id_to_token_ids = persistence.get_valueid_to_parent(&concat(path, ".value_id_to_token_ids"));
 
-    let values = value_id_to_token_ids.get_values(value_id).unwrap();
-
-    let mut iter = values.iter();
+    let documents_token_ids = value_id_to_token_ids.get_values(value_id).unwrap();
+    trace!("documents_token_ids {:?}", documents_token_ids);
+    let mut iter = documents_token_ids.iter();
     let mut token_positions_in_document = vec![];
+    //collect token_positions_in_document
     for token_id in token_ids {
         let mut current_pos = 0;
         while let Some(pos) = iter.position(|x| *x == *token_id) {
@@ -306,22 +333,75 @@ pub fn highlight(persistence: &Persistence, path:&str, value_id: u64,  token_ids
     }
 
     token_positions_in_document.sort();
-    for token_pos in token_positions_in_document {
-        let token_id = values[token_pos];
-    }
-    // iter.position(|x| *x == 2)
-    // token_ids.map(|token_id|{
-    // })
 
-    "".to_string()
+    let first_index = *token_positions_in_document.first().unwrap() as i64;
+    let last_index =  *token_positions_in_document.last().unwrap()  as i64;
+
+    //group near tokens
+    let mut grouped:Vec<Vec<i64>> = vec![];
+    let mut previous_token_pos = -grouping_distance;
+    for token_pos in token_positions_in_document.into_iter() {
+        if token_pos as i64 - previous_token_pos >= grouping_distance {
+            grouped.push(vec![]);
+        }
+        previous_token_pos = token_pos as i64;
+        grouped.last_mut().unwrap().push(token_pos as i64);
+    }
+
+    let ref get_document_windows = |vec: &Vec<i64>| {
+        let start_index = cmp::max(*vec.first().unwrap() as i64 -3, 0);
+        let end_index = cmp::min(*vec.last().unwrap() as i64 + 3, documents_token_ids.len()  as i64);
+        (start_index, end_index, &documents_token_ids[start_index as usize .. end_index as usize])
+    };
+
+    //get all required tokenids and their text
+    let mut all_tokens = grouped.iter().map(get_document_windows).flat_map(|el| el.2).map(|el| *el).collect_vec();
+    all_tokens.sort();
+    all_tokens = all_tokens.into_iter().dedup().collect_vec();
+    let id_to_text = get_text_for_ids(persistence, path, all_tokens.as_slice());
+
+    // trace_time!("create snippet string");
+    print_time!("create snippet string");
+    let mut snippet = grouped.iter().map(get_document_windows)
+    .map(|group| group.2.iter().fold(String::with_capacity(group.2.len() * 10), |snippet_part_acc, token_id| {
+        if token_ids.contains(token_id){
+            snippet_part_acc + highlight_start + id_to_text.get(token_id).unwrap()  + highlight_end + " " 
+        }else{
+            snippet_part_acc + id_to_text.get(token_id).unwrap() + " " 
+        }
+        
+    }))
+    // .take(10)
+    .intersperse(snippet_connector.to_string())
+    .fold(String::new(), |snippet, snippet_part| {snippet + &snippet_part });
+
+    if first_index > grouping_distance{
+        snippet.insert_str(0, snippet_connector);
+    }
+
+    if last_index < documents_token_ids.len() as i64 - grouping_distance{
+        snippet.push_str(snippet_connector);
+    }
+
+    snippet
 }
 
 pub fn resolve_snippets(persistence: &Persistence, path: &str, result: &mut SearchFieldResult) {
+    let token_kvdata = persistence.get_valueid_to_parent(&concat(path, ".tokens"));
+    let mut value_id_to_token_hits:FnvHashMap<u32, Vec<u32>> = FnvHashMap::default(); 
 
+    //TODO snippety only for top x best scores?
+    for (token_id, _) in result.hits.iter() {
+        if let Some(parent_ids_for_token) = token_kvdata.get_values(*token_id as u64) {
+            for token_parentval_id in parent_ids_for_token {
+                value_id_to_token_hits.entry(token_parentval_id).or_insert(vec![]).push(*token_id);
+            }
+        }
+    }
 }
 
 
-pub fn resolve_token_hits(persistence: &Persistence, path: &str, result: &mut SearchFieldResult) {
+pub fn resolve_token_hits(persistence: &Persistence, path: &str, result: &mut SearchFieldResult, resolve_snippets: bool) {
 
     let has_tokens = persistence
         .meta_data
@@ -332,9 +412,7 @@ pub fn resolve_token_hits(persistence: &Persistence, path: &str, result: &mut Se
     if !has_tokens {
         return;
     }
-    debug_time!("resolve_token_hits");
-    // var hrstart = process.hrtime()
-    // let cache_lock = persistence::INDEX_64_CACHE.read().unwrap();
+    debug_time!(format!("{} resolve_token_hits", path));
     let text_offsets = persistence.get_offsets(path)
         .expect(&format!("Could not find {:?} in index_64 cache", concat(path, ".offsets")));
 
@@ -346,17 +424,17 @@ pub fn resolve_token_hits(persistence: &Persistence, path: &str, result: &mut Se
     // let token_kvdata = persistence.cache.index_id_to_parent.get(&key).expect(&format!("Could not find {:?} in index_id_to_parent cache", key));
     // let mut token_hits:FnvHashMap<u32, f32> = FnvHashMap::default();
     let mut token_hits: Vec<(u32, f32, u32)> = vec![];
-    for (term_id, score) in result.hits.iter() {
-        // let parent_ids_for_token = token_kvdata.get_parent_val_ids(*value_id, &cache_lock);
+    
+    {
+        debug_time!(format!("{} adding parent_id from tokens", path));
+        for (term_id, score) in result.hits.iter() {
+            // let parent_ids_for_token = token_kvdata.get_parent_val_ids(*value_id, &cache_lock);
 
-        // let ref parent_ids_for_token_opt = token_kvdata.get(*value_id as usize);
-        let ref parent_ids_for_token_opt = token_kvdata.get_values(*term_id as u64);
-        debug_time!("resolve_token_hits to map");
-        parent_ids_for_token_opt.as_ref().map(|parent_ids_for_token| {
-            if parent_ids_for_token.len() > 0 {
+            // let ref parent_ids_for_token_opt = token_kvdata.get(*value_id as usize);
+            if let Some(parent_ids_for_token) = token_kvdata.get_values(*term_id as u64) {
                 token_hits.reserve(parent_ids_for_token.len());
                 for token_parentval_id in parent_ids_for_token {
-                    let parent_text_length = text_offsets[1 + *token_parentval_id as usize] - text_offsets[*token_parentval_id as usize];
+                    let parent_text_length = text_offsets[1 + token_parentval_id as usize] - text_offsets[token_parentval_id as usize];
                     let token_text_length = text_offsets[1 + *term_id as usize] - text_offsets[*term_id as usize];
                     // let adjusted_score = 2.0/(parent_text_length as f32 - token_text_length as f32) + 0.2;
                     let adjusted_score = score / (parent_text_length as f32 - token_text_length as f32 + 1.0);
@@ -371,44 +449,54 @@ pub fn resolve_token_hits(persistence: &Persistence, path: &str, result: &mut Se
                     // let the_score = token_hits.entry(*token_parentval_id as u32) // @Temporary
                     //     .or_insert(*hits.get(token_parentval_id).unwrap_or(&0.0));
                     // *the_score += adjusted_score;
-                    token_hits.push((*token_parentval_id, adjusted_score, *term_id));
+                    token_hits.push((token_parentval_id, adjusted_score, *term_id));
+
                     // token_hits.push((*token_parentval_id, score, value_id));
                 }
             }
-        });
 
-        // let ref parent_ids_for_token = token_kvdata.get[*value_id as usize];
-        // trace!("value_id {:?}", value_id);
-        // trace!("parent_ids_for_token {:?}", parent_ids_for_token);
+            // let ref parent_ids_for_token = token_kvdata.get[*value_id as usize];
+            // trace!("value_id {:?}", value_id);
+            // trace!("parent_ids_for_token {:?}", parent_ids_for_token);
+        }
     }
+
     debug!("found {:?} token in {:?} texts", result.hits.iter().count(), token_hits.iter().count());
     {
         // println!("{:?}", token_hits);
-        debug_time!("token_hits.sort_by");
+        debug_time!(format!("token_hits.sort_by {:?}", path));
         token_hits.sort_by(|a, b| a.0.cmp(&b.0)); // sort by parent id
     }
-    debug_time!("extend token_results");
+    debug_time!(format!("{} extend token_results", path));
     // hits.extend(token_hits);
-    trace!("token_hits in textindex: {:?}", token_hits);
+    trace!("{} token_hits in textindex: {:?}", path, token_hits);
     if token_hits.len() > 0 {
+
+        if resolve_snippets {
+            result.hits.clear(); //only document hits for highlightung
+        }
         // token_hits.sort_by(|a, b| b.0.partial_cmp(&a.0).unwrap_or(Ordering::Equal)); // sort by parent_id=value_id
         result.hits.reserve(token_hits.len());
-        let mut current_group_id = token_hits[0].0;
-        let mut current_score = token_hits[0].1;
-        for hit in token_hits {
-            if hit.0 != current_group_id {
-                result.hits.insert(current_group_id, current_score);
-                current_group_id = hit.0;
-                current_score = hit.1;
-            } else {
-                current_score = f32::max(current_score, hit.1);
-                // in group // @FixMe Alter Ranking
+        // let mut current_group_id = token_hits[0].0;
+        // let mut current_score = token_hits[0].1;
+
+        // let mut value_id_to_token_hits:FnvHashMap<u32, Vec<u32>> = FnvHashMap::default();
+
+        for (parent_id, group) in &token_hits.iter().group_by(|el| el.0) {
+            let (mut t1, t2) = group.tee();
+            let max_score = t1.max_by_key(|el| OrderedFloat(el.1.abs())).unwrap().1;
+            // let max_score2 = t2.max_by_key(|el| OrderedFloat(el.1.abs())).unwrap().1;
+            result.hits.insert(parent_id, max_score);
+            if resolve_snippets {
+                //value_id_to_token_hits.insert(parent_id, t2.map(|el| el.2).collect_vec()); //TODO maybe store hits here, in case only best x are needed
+
+                let highlighted_document = highlight_document(persistence, path, parent_id as u64, &t2.map(|el| el.2).collect_vec(), 4, "<b>", "</b>", " ... ");
+                result.highlight.insert(parent_id, highlighted_document);
             }
-            // hits.insert(hit.0, hit.1);
         }
-        result.hits.insert(current_group_id, current_score);
+
     }
-    trace!("hits with tokens: {:?}", result.hits);
+    trace!("{} hits with tokens: {:?}", path, result.hits);
     // for hit in hits.iter() {
     //     trace!("NEW HITS {:?}", hit);
     // }

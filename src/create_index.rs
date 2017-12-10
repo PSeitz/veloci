@@ -2,6 +2,8 @@ extern crate flexi_logger;
 extern crate env_logger;
 extern crate fst;
 extern crate search_lib;
+#[macro_use]
+extern crate serde_json;
 
 use fst::{IntoStreamer, Levenshtein, MapBuilder, Set};
 use std::fs::File;
@@ -18,7 +20,8 @@ fn main() {
     // println!("{:?}",create_healtcare());
 
     // create_thalia_index();
-    println!("{:?}",create_jmdict_index());
+    // println!("{:?}",create_jmdict_index());
+    println!("{:?}",create_book_index());
 
     // {
     //     let my_time = util::MeasureTime::new("jmdict load time", util::MeasureTimeLogLevel::Print);
@@ -98,6 +101,17 @@ fn create_jmdict_index() -> Result<(), io::Error> {
     let mut s = String::new();
     f.read_to_string(&mut s)?;
     println!("{:?}", search_lib::create::create_indices("jmdict", &s, indices));
+    Ok(())
+}
+
+#[allow(dead_code)]
+fn create_book_index() -> Result<(), io::Error> {
+    let indices = "[]";
+    let mut f = File::open("1342-0.txt")?;
+    let mut s = String::new();
+    f.read_to_string(&mut s)?;
+
+    println!("{:?}", search_lib::create::create_indices("gutenberg", &json!({"title":"PRIDE AND PREJUDICE", "content":s}).to_string(), indices));
     Ok(())
 }
 

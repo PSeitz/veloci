@@ -210,7 +210,7 @@ impl HeapSizeOf for ParallelArrays {
 
 pub fn valid_pair_to_parallel_arrays(tuples: &mut Vec<create::ValIdPair>) -> ParallelArrays {
     tuples.sort_by(|a, b| a.valid.partial_cmp(&b.valid).unwrap_or(Ordering::Equal));
-    let valids = tuples.iter().map(|ref el| el.valid).collect::<Vec<_>>();
+    let valids =         tuples.iter().map(|ref el| el.valid).collect::<Vec<_>>();
     let parent_val_ids = tuples.iter().map(|ref el| el.parent_val_id).collect::<Vec<_>>();
     ParallelArrays { values1: valids, values2: parent_val_ids }
     // parrallel_arrays_to_pointing_array(data.values1, data.values2)

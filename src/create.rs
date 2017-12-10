@@ -5,7 +5,6 @@ use serde_json::{self, Value};
 
 use json_converter;
 
-use std::time::Instant;
 use std::{self, str};
 use std::io::{self};
 
@@ -140,10 +139,10 @@ use persistence;
 fn store_full_text_info(
     persistence: &mut Persistence, all_terms: FnvHashMap<String, TermInfo>, path: &str, options: &FulltextIndexOptions
 ) -> Result<(), io::Error> {
+    info_time!(format!("store_fst {:?}", path));
     let mut sorted_terms: Vec<&String> = all_terms.keys().collect::<Vec<&String>>();
     sorted_terms.sort();
 
-    println!("NOWWW {:?}", path);
     persistence.write_data(path, sorted_terms.iter().fold(String::new(), |acc, line| {acc + line + "\n" }).as_bytes())?;
     let offsets = get_string_offsets(sorted_terms);
 
@@ -156,7 +155,7 @@ fn store_full_text_info(
 }
 
 fn store_fst(persistence: &mut Persistence, all_terms: &FnvHashMap<String, TermInfo>, path: &str) -> Result<(), fst::Error> {
-    info_time!("store_fst");
+    debug_time!(format!("store_fst {:?}", path));
     let wtr = persistence.get_buffered_writer(&concat(&path, ".fst"))?;
     // Create a builder that can be used to insert new key-value pairs.
     let mut build = MapBuilder::new(wtr)?;
@@ -165,7 +164,7 @@ fn store_fst(persistence: &mut Persistence, all_terms: &FnvHashMap<String, TermI
     v.sort();
     for term in v.iter() {
         let term_info = all_terms.get(term.clone()).expect("wtf");
-        build.insert(term, term_info.id as u64).expect("could not insert");
+        build.insert(term, term_info.id as u64).expect("could not insert into fst");
     }
     // for (term, term_info) in all_terms.iter() {
     //     build.insert(term, term_info.id as u64).unwrap();
@@ -238,11 +237,9 @@ pub fn get_allterms(data: &Value) -> FnvHashMap<String, FnvHashMap<String, TermI
 
 //TODO pass index options, like tokenize
 pub fn create_fulltext_index(data: &Value, mut persistence: &mut Persistence) -> Result<(), io::Error> {
-    let now = Instant::now();
-
     // let data: Value = serde_json::from_str(data_str).unwrap();
     let all_terms_in_path = get_allterms(&data);
-    println!("all_terms {}ms", (now.elapsed().as_secs() as f64 * 1_000.0) + (now.elapsed().subsec_nanos() as f64 / 1000_000.0));
+    info_time!("create_fulltext_index");
     trace!("all_terms {:?}", all_terms_in_path);
 
     let mut opt = json_converter::ForEachOpt {};
@@ -267,7 +264,6 @@ pub fn create_fulltext_index(data: &Value, mut persistence: &mut Persistence) ->
             let val_id = all_terms.get(&normalized_text).expect("did not found term").id;
             tuples.push(ValIdPair { valid:         val_id as u32, parent_val_id: parent_val_id });
             trace!("Found id {:?} for {:?}", val_id, normalized_text);
-            // println!("normalized_text.split {:?}", normalized_text.split(" "));
             if options.tokenize && normalized_text.split(" ").count() > 1 {
                 let value_id_to_token_ids = value_id_to_token_ids_in_path.entry(path.to_string()).or_insert(vec![]);
                 for token in normalized_text.split(" ") {
@@ -308,6 +304,7 @@ pub fn create_fulltext_index(data: &Value, mut persistence: &mut Persistence) ->
 
         for (path, mut tokens) in value_id_to_token_ids_in_path.iter_mut() {
             persistence.write_tuple_pair(&mut tokens, &concat(&path, ".value_id_to_token_ids"))?;
+            trace!("{}\n{}",&concat(&path, ".value_id_to_token_ids"), print_vec(&tokens, "value_id", "token_id"));
         }
 
         for (path, all_terms) in all_terms_in_path {
@@ -335,11 +332,7 @@ pub fn create_fulltext_index(data: &Value, mut persistence: &mut Persistence) ->
         //     trace!("{}\n{}",&concat(&path_name, ".tokens"), print_vec(&tokens, &concat(&path_name, ".tokenid"), &concat(&path_name, ".valueid")));
         // }
 
-    // println!("createIndex {} {}ms", path, (now.elapsed().as_secs() as f64 * 1_000.0) + (now.elapsed().subsec_nanos() as f64 / 1000_000.0));
-
     // store_full_text_info(&mut persistence, all_terms, path, &options)?;
-
-    println!("createIndexComplete {}ms", (now.elapsed().as_secs() as f64 * 1_000.0) + (now.elapsed().subsec_nanos() as f64 / 1000_000.0));
 
     Ok(())
 }
@@ -357,7 +350,8 @@ fn get_string_offsets(data: Vec<&String>) -> Vec<u64> {
 }
 
 fn create_boost_index(data: &Value, path: &str, options: BoostIndexOptions, persistence: &mut Persistence) -> Result<(), io::Error> {
-    let now = Instant::now();
+    info_time!("create_boost_index");
+
     let mut opt =  create_from_json::ForEachOpt {
         parent_pos_in_path:        0,
         current_parent_id_counter: 0,
@@ -377,7 +371,6 @@ fn create_boost_index(data: &Value, path: &str, options: BoostIndexOptions, pers
 
     persistence.write_boost_tuple_pair(&mut tuples, path)?;
 
-    println!("create_boost_index {} {}ms", path, (now.elapsed().as_secs() as f64 * 1_000.0) + (now.elapsed().subsec_nanos() as f64 / 1000_000.0));
     Ok(())
 }
 
@@ -464,12 +457,16 @@ pub fn create_indices(folder: &str, data_str: &str, indices: &str) -> Result<(),
     create_fulltext_index(&data, &mut persistence)?;
     for el in indices_json {
         match el {
-            CreateIndex::FulltextInfo(full_text) => {}
+            CreateIndex::FulltextInfo(_) => {}
             CreateIndex::BoostInfo(boost) => create_boost_index(&data, &boost.boost, boost.options, &mut persistence)?,
         }
     }
-
-    persistence.write_json_to_disk(&data.as_array().unwrap(), "data")?;
+    if let &Some(arr) = &data.as_array() {
+        persistence.write_json_to_disk(arr, "data")?;
+    }else {
+        persistence.write_json_to_disk(&vec![data.clone()], "data")?;
+    }
+    
     persistence.write_meta_data()?;
 
     Ok(())
@@ -519,13 +516,11 @@ impl From<std::str::Utf8Error> for CreateError {
 //         let dat2 = r#" [{ "name": "John Doe", "age": 43 }, { "name": "Jaa", "age": 43 }] "#;
 //         let data: Value = serde_json::from_str(dat2).unwrap();
 //         let res = create::create_fulltext_index(&data, "name", opt);
-//         println!("{:?}", res);
 //         let deserialized: create::BoostIndexOptions = serde_json::from_str(r#"{"boost_type":"int"}"#).unwrap();
 
 //         assert_eq!("Hello", "Hello");
 
 //         let service: create::CreateIndex = serde_json::from_str(r#"{"boost_type":"int"}"#).unwrap();
-//         println!("service: {:?}", service);
 
 
 

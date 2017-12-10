@@ -34,12 +34,16 @@ extern crate bit_set;
 extern crate bit_vec;
 
 extern crate num;
+extern crate itertools;
+extern crate parking_lot;
+extern crate chashmap;
 
-extern crate bodyparser;
-extern crate hyper;
-extern crate iron;
-extern crate iron_cors;
-extern crate router;
+
+// extern crate bodyparser;
+// extern crate hyper;
+// extern crate iron;
+// extern crate iron_cors;
+// extern crate router;
 extern crate snap;
 extern crate time;
 
@@ -54,6 +58,7 @@ extern crate byteorder;
 
 extern crate sled;
 extern crate json_converter;
+extern crate ordered_float;
 
 // use fst::{IntoStreamer, Streamer, Levenshtein, Set, MapBuilder};
 #[allow(unused_imports)]

@@ -23,8 +23,8 @@ mod tests {
     use std::fs;
     use std::io::prelude::*;
     use trace;
-    use fnv::FnvHashMap;
-    use std::sync::RwLock;
+    use parking_lot::RwLock;
+    use chashmap::CHashMap;
 
     static TEST_DATA: &str = r#"[
         {
@@ -125,7 +125,8 @@ mod tests {
             "meanings": {
                 "ger": ["welch", "guter nicht Treffer", "alle meine Words"]
             },
-            "ent_seq": "1920240"
+            "ent_seq": "1920240",
+            "mylongtext": "this is a story of a guy who went out to rule the world, but then died. the end"
         },
         {
             "pos": [
@@ -164,11 +165,12 @@ mod tests {
     ]"#;
 
     static TEST_FOLDER: &str = "mochaTest";
+    static INDEX_CREATED: RwLock<bool> = RwLock::new(false);
     lazy_static! {
-        static ref PERSISTENCES: RwLock<FnvHashMap<String, persistence::Persistence>> = {
-            RwLock::new(FnvHashMap::default())
+        static ref PERSISTENCES: CHashMap<String, persistence::Persistence> = {
+            CHashMap::default()
         };
-        static ref INDEX_CREATED: RwLock<bool> = RwLock::new(false);
+        
     }
 
 
@@ -206,17 +208,17 @@ mod tests {
     }
 
     fn search_testo_to_doco(req: Value) -> Result<Vec<search::DocWithHit>, search::SearchError> {
-        let persistences = PERSISTENCES.read().unwrap();
-        let pers = persistences.get(&"default".to_string()).expect("Can't find loaded persistence");
+        let pers = PERSISTENCES.get(&"default".to_string()).expect("Can't find loaded persistence");
         let requesto: search::Request = serde_json::from_str(&req.to_string()).expect("Can't parse json");
-        let hits = search::search(requesto, pers)?;
-        Ok(search::to_documents(pers, &hits.data))
+        let hits = search::search(requesto, &pers)?;
+        Ok(search::to_documents(&pers, &hits.data))
     }
 
     describe! search_test {
         before_each {
 
-            if let Ok(mut INDEX_CREATEDO) = INDEX_CREATED.write() {
+            let mut INDEX_CREATEDO = INDEX_CREATED.write();
+            {
 
                 if !*INDEX_CREATEDO {
                     trace::enable_log();
@@ -253,8 +255,7 @@ mod tests {
 
                     }
 
-                    let mut persistences = PERSISTENCES.write().unwrap();
-                    persistences.insert("default".to_string(), persistence::Persistence::load(TEST_FOLDER.to_string()).expect("could not load persistence"));
+                    PERSISTENCES.insert("default".to_string(), persistence::Persistence::load(TEST_FOLDER.to_string()).expect("could not load persistence"));
 
                     *INDEX_CREATEDO = true;
                 }
@@ -277,31 +278,6 @@ mod tests {
         }
 
        it "deep structured objects" {
-           // static TEST_DATA: &str = r#"[
-           //     {
-           //         "address": [
-           //             {
-           //                 "line": [ "line1" ]
-           //             }
-           //         ]
-           //     },
-           //     {
-           //         "address": [
-           //             {
-           //                 "line": [ "line2" ]
-           //             }
-           //         ]
-           //     }
-           // ]"#;
-
-
-           // let indices = r#"
-           // [
-           //     { "fulltext":"address[].line[]"}
-           // ]
-           // "#;
-           // println!("{:?}", create::create_indices(TEST_FOLDER, TEST_DATA, indices));
-
 
            let req = json!({
                "search": {
@@ -499,7 +475,7 @@ mod tests {
         // })
 
 
-        it "should use search for suggest without sorting etc."{
+        it "should use search on field for suggest without sorting etc."{
             let req = json!({
                 "terms":["majes"],
                 "path": "meanings.ger[]",
@@ -508,8 +484,7 @@ mod tests {
                 "return_term":true
             });
             let requesto: search::RequestSearchPart = serde_json::from_str(&req.to_string()).expect("Can't parse json");
-            let persistences = PERSISTENCES.read().unwrap();
-            let mut pers = persistences.get(&"default".to_string()).unwrap();
+            let mut pers = PERSISTENCES.get(&"default".to_string()).unwrap();
             let results = search_field::get_hits_in_field(&mut pers, &requesto).unwrap();
             let mut all_terms = results.terms.values().collect::<Vec<&String>>();
             all_terms.sort();
@@ -517,14 +492,37 @@ mod tests {
         }
 
         it "should load the text for ids"{
-            let persistences = PERSISTENCES.read().unwrap();
-            let mut pers = persistences.get(&"default".to_string()).unwrap();
+            let pers = PERSISTENCES.get(&"default".to_string()).unwrap();
             let mut faccess:persistence::FileSearch = pers.get_file_search("meanings.ger[].textindex");
 
             assert_eq!(faccess.get_text_for_id(0, pers.get_offsets("meanings.ger[].textindex").unwrap()), "alle" );
             assert_eq!(faccess.get_text_for_id(1, pers.get_offsets("meanings.ger[].textindex").unwrap()), "alle meine words" );
             assert_eq!(faccess.get_text_for_id(2, pers.get_offsets("meanings.ger[].textindex").unwrap()), "anblick" );
 
+        }
+
+        it "should highlight ids"{
+            let mut pers = PERSISTENCES.get(&"default".to_string()).unwrap();
+
+            let results = search_field::highlight_document(&mut pers, "mylongtext.textindex", 13, &[9], 4, "<b>", "</b>", " ... ");
+            assert_eq!(results, "this is a <b>story</b> of a  ... " );
+
+        }
+
+        it "should highlight on field"{
+            let req = json!({
+                "terms":["story"],
+                "path": "mylongtext",
+                "levenshtein_distance": 0,
+                "starts_with":true,
+                "snippet":true,
+                "top":10,
+                "skip":0
+            });
+            let mut requesto: search::RequestSearchPart = serde_json::from_str(&req.to_string()).expect("Can't parse json");
+            let mut pers = PERSISTENCES.get(&"default".to_string()).unwrap();
+            let results = search_field::highlight(&mut pers, &mut requesto).unwrap();
+            assert_eq!(results.iter().map(|el| el.0.clone()).collect::<Vec<String>>(), ["this is a <b>story</b> of a  ... "]);
         }
 
         it "real suggest with score"{
@@ -537,8 +535,7 @@ mod tests {
                 "skip":0
             });
             let requesto: search::RequestSearchPart = serde_json::from_str(&req.to_string()).expect("Can't parse json");
-            let persistences = PERSISTENCES.read().unwrap();
-            let mut pers = persistences.get(&"default".to_string()).unwrap();
+            let mut pers = PERSISTENCES.get(&"default".to_string()).unwrap();
             let results = search_field::suggest(&mut pers, &requesto).unwrap();
             assert_eq!(results.iter().map(|el| el.0.clone()).collect::<Vec<String>>(), ["majestät", "majestätischer", "majestätisches",
                                                                                         "majestätischer anblick", "majestätisches aussehen"]);
@@ -556,8 +553,7 @@ mod tests {
             });
 
             let requesto: search::Request = serde_json::from_str(&req.to_string()).expect("Can't parse json");
-            let persistences = PERSISTENCES.read().unwrap();
-            let mut pers = persistences.get(&"default".to_string()).unwrap();
+            let mut pers = PERSISTENCES.get(&"default".to_string()).unwrap();
             let results = search_field::suggest_multi(&mut pers, requesto).unwrap();
             assert_eq!(results.iter().map(|el| el.0.clone()).collect::<Vec<String>>(), ["will", "wille", "will test"]);
         }
@@ -578,8 +574,7 @@ mod tests {
                 "skip":0
             });
             let requesto: search::RequestSearchPart = serde_json::from_str(&req.to_string()).expect("Can't parse json");
-            let persistences = PERSISTENCES.read().unwrap();
-            let mut pers = persistences.get(&"default".to_string()).unwrap();
+            let mut pers = PERSISTENCES.get(&"default".to_string()).unwrap();
             let results = search_field::suggest(&mut pers, &requesto).unwrap();
             assert_eq!(results.iter().map(|el| el.0.clone()).collect::<Vec<String>>(), ["begeisterung", "begeistern"]);
         }
