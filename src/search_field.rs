@@ -400,7 +400,6 @@ pub fn resolve_snippets(persistence: &Persistence, path: &str, result: &mut Sear
     }
 }
 
-
 pub fn resolve_token_hits(persistence: &Persistence, path: &str, result: &mut SearchFieldResult, options: &RequestSearchPart) {
 
     let has_tokens = persistence
@@ -492,7 +491,7 @@ pub fn resolve_token_hits(persistence: &Persistence, path: &str, result: &mut Se
             result.hits.insert(parent_id, max_score);
             if resolve_snippets {
                 //value_id_to_token_hits.insert(parent_id, t2.map(|el| el.2).collect_vec()); //TODO maybe store hits here, in case only best x are needed
-
+                options.snippet_info.as_ref().unwrap_or(&search::DEFAULT_SNIPPETINFO);
                 let highlighted_document = highlight_document(persistence, path, parent_id as u64, &t2.map(|el| el.2).collect_vec(), 4, "<b>", "</b>", " ... ");
                 result.highlight.insert(parent_id, highlighted_document);
             }

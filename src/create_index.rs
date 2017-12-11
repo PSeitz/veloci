@@ -22,6 +22,7 @@ fn main() {
         "healthcare" => println!("{:?}",create_healtcare()),
         "jmdict" => println!("{:?}",create_jmdict_index()),
         "gutenberg" => println!("{:?}",create_book_index()),
+        _ => {}
     };
 
     // println!("{:?}",create_healtcare());

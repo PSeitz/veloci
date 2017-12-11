@@ -87,6 +87,15 @@ fn default_snippet_start() -> String {"<b>".to_string() }
 fn default_snippet_end() -> String {"</b>".to_string() }
 fn default_snippet_connector() -> String {" ... ".to_string() }
 
+lazy_static! {
+    pub static ref DEFAULT_SNIPPETINFO: SnippetInfo = SnippetInfo{
+        num_words_around_snippet :  default_num_words_around_snippet(),
+        snippet_start: default_snippet_start(),
+        snippet_end: default_snippet_end(),
+        snippet_connector: default_snippet_connector(),
+    };
+}
+
 fn default_resolve_token_to_parent_hits() -> Option<bool> {
     Some(true)
 }
@@ -102,7 +111,7 @@ pub enum TermOperator {
 }
 impl Default for TermOperator {
     fn default() -> TermOperator {
-        TermOperator::ALL
+        default_term_operator()
     }
 }
 
@@ -416,6 +425,48 @@ fn check_apply_boost(persistence: &Persistence, boost: &RequestBoostPart, path_n
     !will_apply_boost
 }
 
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+enum PlanStepType {
+    FieldSearch(RequestSearchPart),
+    ValueIdToParent(String),
+    Boost(RequestBoostPart),
+}
+
+// #[derive(Debug)]
+// struct PlanStep {
+//     type: FieldSearch
+//     params: Option<RequestSearchPart>
+// }
+fn plan_creator(request: RequestSearchPart, mut boost: Option<Vec<RequestBoostPart>>) -> Vec<PlanStepType> {
+    let paths = util::get_steps_to_anchor(&request.path);
+
+    let mut steps = vec![];
+    //search in fields
+    steps.push(PlanStepType::FieldSearch(request));
+
+    steps.push(PlanStepType::ValueIdToParent(concat(&paths.last().unwrap(), ".valueIdToParent")));
+
+    for i in (0..paths.len() - 1).rev() {
+
+        // boost.map(|boost| boost.as_mut().unwrap().retain(|boost| check_apply_boost(persistence, boost, &path_name, &mut hits)));
+        if boost.is_some() {
+            boost.as_mut().unwrap().retain(|boost| {
+                let apply_boost = boost.path.starts_with(&paths[i]);
+                if apply_boost {
+                    steps.push(PlanStepType::Boost(boost.clone()));
+                }
+                apply_boost
+            });
+        }
+        // let will_apply_boost = boost.map(|boost| boost.path.starts_with(&paths[i])).unwrap_or(false);
+        steps.push(PlanStepType::ValueIdToParent(concat(&paths.last().unwrap(), ".valueIdToParent")));
+    }
+
+    steps
+
+}
+
 pub fn search_raw(
     persistence: &Persistence, mut request: RequestSearchPart, mut boost: Option<Vec<RequestBoostPart>>
 ) -> Result<FnvHashMap<u32, f32>, SearchError> {
@@ -423,6 +474,23 @@ pub fn search_raw(
     request.terms = request.terms.iter().map(|el| util::normalize_text(el)).collect::<Vec<_>>();
     debug_time!("search and join to anchor");
     let field_result = search_field::get_hits_in_field(persistence, &mut request)?;
+
+    // let mut field_result = search_field::SearchFieldResult::default();
+    // let plan_steps = plan_creator(request.clone(), boost.clone());
+    // for step in plan_steps {
+    //     match step {
+    //         PlanStepType::FieldSearch(request_search_part) => {
+    //             field_result = search_field::get_hits_in_field(persistence, &mut request)?;
+    //         },
+    //         PlanStepType::ValueIdToParent(path) => {
+
+    //         },
+    //         PlanStepType::Boost(boost) => {
+    //             add_boost(persistence, boost, hits);
+    //         },
+    //     }
+    // }
+
 
     let num_term_hits = field_result.hits.len();
     if num_term_hits == 0 {
@@ -432,6 +500,8 @@ pub fn search_raw(
     let mut hits: FnvHashMap<u32, f32> = FnvHashMap::default();
     // let mut next_level_hits:Vec<(u32, f32)> = vec![];
     // let mut hits:Vec<(u32, f32)> = vec![];
+
+    
 
     let paths = util::get_steps_to_anchor(&request.path);
 //    if let Some(last_path) = paths.last_mut() {
