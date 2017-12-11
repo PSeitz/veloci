@@ -16,12 +16,19 @@ use std::str;
 
 fn main() {
     env_logger::init().unwrap();
+    let jeppo = std::env::args().nth(1).expect("require command line parameter");
+
+    match jeppo.as_ref() {
+        "healthcare" => println!("{:?}",create_healtcare()),
+        "jmdict" => println!("{:?}",create_jmdict_index()),
+        "gutenberg" => println!("{:?}",create_book_index()),
+    };
 
     // println!("{:?}",create_healtcare());
 
     // create_thalia_index();
     // println!("{:?}",create_jmdict_index());
-    println!("{:?}",create_book_index());
+    // println!("{:?}",create_book_index());
 
     // {
     //     let my_time = util::MeasureTime::new("jmdict load time", util::MeasureTimeLogLevel::Print);
