@@ -292,7 +292,6 @@ pub fn search_unrolled(persistence: &Persistence, request: Request) -> Result<Fn
         //     acc
         // }))
 
-
     } else if let Some(ands) = request.and {
         let mut and_results: Vec<FnvHashMap<u32, f32>> = ands.par_iter().map(|x| search_unrolled(persistence, x.clone()).unwrap()).collect(); // @Hack  unwrap forward errors
 
@@ -449,7 +448,6 @@ fn plan_creator(request: RequestSearchPart, mut boost: Option<Vec<RequestBoostPa
 
     for i in (0..paths.len() - 1).rev() {
 
-        // boost.map(|boost| boost.as_mut().unwrap().retain(|boost| check_apply_boost(persistence, boost, &path_name, &mut hits)));
         if boost.is_some() {
             boost.as_mut().unwrap().retain(|boost| {
                 let apply_boost = boost.path.starts_with(&paths[i]);
@@ -465,6 +463,16 @@ fn plan_creator(request: RequestSearchPart, mut boost: Option<Vec<RequestBoostPa
 
     steps
 
+}
+
+
+fn join_step(input: search_field::SearchFieldResult) -> FnvHashMap<u32, f32> {
+    unimplemented!();
+}
+
+
+fn test_ownership(hits: FnvHashMap<u32, f32>) -> FnvHashMap<u32, f32> {
+    hits
 }
 
 pub fn search_raw(
@@ -492,17 +500,18 @@ pub fn search_raw(
     // }
 
 
+
     let num_term_hits = field_result.hits.len();
     if num_term_hits == 0 {
         return Ok(FnvHashMap::default());
     };
+    let hits_iter = field_result.hits.into_iter();
     let mut next_level_hits: FnvHashMap<u32, f32> = FnvHashMap::default();
     let mut hits: FnvHashMap<u32, f32> = FnvHashMap::default();
     // let mut next_level_hits:Vec<(u32, f32)> = vec![];
     // let mut hits:Vec<(u32, f32)> = vec![];
 
-    
-
+    // hits = test_ownership(hits);
     let paths = util::get_steps_to_anchor(&request.path);
 //    if let Some(last_path) = paths.last_mut() {
 //        *last_path = last_path.clone() + ".textindex";
@@ -514,9 +523,9 @@ pub fn search_raw(
     let kv_store = persistence.get_valueid_to_parent(&concat(&paths.last().unwrap(), ".valueIdToParent"));
     let mut total_values = 0;
     {
-        hits.reserve(field_result.hits.len());
+        hits.reserve(hits_iter.len());
         debug_time!("term hits hit to column");
-        for (term_id, score) in field_result.hits {
+        for (term_id, score) in hits_iter {
             let ref values = kv_store.get_values(term_id as u64);
             values.as_ref().map(|values| {
                 total_values += values.len();
@@ -548,7 +557,12 @@ pub fn search_raw(
         let path_name = &paths[i];
 
         if boost.is_some() {
-            boost.as_mut().unwrap().retain(|boost| check_apply_boost(persistence, boost, &path_name, &mut hits));
+            boost.as_mut().unwrap().retain(|boost| {
+                let will_apply_boost = boost.path.starts_with(path_name);
+                // check_apply_boost(persistence, boost, &path_name, &mut hi
+                add_boost(persistence, boost, &mut hits);
+                !will_apply_boost
+            });
         }
 
         // let key = util::concat_tuple(&path_name, ".valueIdToParent.valIds", ".valueIdToParent.mainIds");
@@ -557,10 +571,10 @@ pub fn search_raw(
         // let kv_store = persistence.cache.index_id_to_parent.get(&key).expect(&format!("Could not find {:?} in index_id_to_parent cache", key));
         debug_time!("Adding all values");
         next_level_hits.reserve(hits.len());
-        for (value_id, score) in hits.iter() {
+        for (value_id, score) in hits.into_iter() {
             // kv_store.add_values(*value_id, &cache_lock, *score, &mut next_level_hits);
             // let ref values = kv_store[*value_id as usize];
-            let ref values = kv_store.get_values(*value_id as u64);
+            let ref values = kv_store.get_values(value_id as u64);
             values.as_ref().map(|values| {
                 next_level_hits.reserve(values.len());
                 // trace!("value_id: {:?} values: {:?} ", value_id, values);
@@ -569,11 +583,11 @@ pub fn search_raw(
                     match next_level_hits.entry(*parent_val_id as u32) {
                         Vacant(entry) => {
                             trace!("value_id: {:?} to parent: {:?} score {:?} --new insert", value_id, parent_val_id, score);
-                            entry.insert(*score);
+                            entry.insert(score);
                         }
-                        Occupied(entry) => if *entry.get() < *score {
+                        Occupied(entry) => if *entry.get() < score {
                             trace!("value_id: {:?} to parent: {:?} score: {:?} --update", value_id, parent_val_id, score.max(*entry.get()));
-                            *entry.into_mut() = *score;
+                            *entry.into_mut() = score;
                         },
                     }
                 }
@@ -617,7 +631,12 @@ pub fn search_raw(
 
     if boost.is_some() {
         //remaining boosts
-        boost.as_mut().unwrap().retain(|boost| check_apply_boost(persistence, boost, "", &mut hits));
+        boost.as_mut().unwrap().retain(|boost| {
+            let will_apply_boost = boost.path.starts_with("");
+            // check_apply_boost(persistence, boost, "", &mut hits)
+            add_boost(persistence, boost, &mut hits);
+            !will_apply_boost
+        });
     }
 
     Ok(hits)
