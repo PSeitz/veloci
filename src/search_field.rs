@@ -440,7 +440,7 @@ pub fn resolve_token_hits(persistence: &Persistence, path: &str, result: &mut Se
                     let token_text_length = text_offsets[1 + *term_id as usize] - text_offsets[*term_id as usize];
                     // let adjusted_score = 2.0/(parent_text_length as f32 - token_text_length as f32) + 0.2;
                     let adjusted_score = score / (parent_text_length as f32 - token_text_length as f32 + 1.0);
-                    debug!(
+                    trace!(
                         "value_id {:?} parent_l {:?}, token_l {:?} score {:?} to adjusted_score {:?}",
                         token_parentval_id,
                         parent_text_length,

@@ -55,7 +55,8 @@ use fnv::FnvHashMap;
 struct ResponseTime;
 
 fn main() {
-    env_logger::init().unwrap();
+    // env_logger::init().unwrap();
+    search_lib::trace::enable_log();
     // start_server("jmdict".to_string());
     start_server();
 }
@@ -160,12 +161,13 @@ pub fn start_server() {
                 let ref query = hashmap.get("query").expect("not query parameter found").iter().nth(0).unwrap();
                 let ref top =   hashmap.get("top").map(|el|el.iter().nth(0).unwrap().parse::<usize>().unwrap());
                 let ref skip =  hashmap.get("skip").map(|el|el.iter().nth(0).unwrap().parse::<usize>().unwrap());
+                let ref levenshtein =  hashmap.get("levenshtein").map(|el|el.iter().nth(0).unwrap().parse::<usize>().unwrap());
 
                 info!("query {:?} top {:?} skip {:?}", query, top, skip);
                 // let persistences = PERSISTENCES.read();
                 let persistence = PERSISTENCES.get(&database).unwrap();
 
-                let request = search::search_query(query.clone(), &persistence, top.clone(), skip.clone());
+                let request = search::search_query(query.clone(), &persistence, top.clone(), skip.clone(), levenshtein.clone());
                 search_in_persistence(&persistence, request)
             },
             Err(ref e) => Err(IronError::new(StringError(e.to_string()), status::BadRequest))
@@ -200,7 +202,7 @@ pub fn start_server() {
             info_time!("Loading Documents...  ");
             search::to_search_result(&persistence, &hits)
         };
-        
+
         info!("Returning ... ");
 
         Ok(Response::with((status::Ok, Header(headers::ContentType::json()), GzipWriter(serde_json::to_string(&doc).unwrap().as_bytes()))))

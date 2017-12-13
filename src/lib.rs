@@ -38,7 +38,7 @@ extern crate itertools;
 extern crate parking_lot;
 extern crate chashmap;
 
-
+extern crate levenshtein_automaton;
 // extern crate bodyparser;
 // extern crate hyper;
 // extern crate iron;

@@ -221,16 +221,18 @@ pub struct SearchResultWithDoc {
     pub data:     Vec<DocWithHit>,
 }
 
-pub fn search_query(request: &str, persistence: &Persistence, top: Option<usize>, skip: Option<usize>) -> Request {
+pub fn search_query(request: &str, persistence: &Persistence, top: Option<usize>, skip: Option<usize>, levenshtein: Option<usize>) -> Request {
     // let req = persistence.meta_data.fulltext_indices.key
     info_time!("generating search query");
     let parts: Vec<Request> = persistence.meta_data.fulltext_indices.keys().map(|field| {
         let field_name:String = field.chars().take(field.chars().count()-10).into_iter().collect();
 
+        let levenshtein_distance = levenshtein.unwrap_or(1);
+
         let part = RequestSearchPart {
             path: field_name.to_string(),
             terms: vec![request.to_string()],
-            levenshtein_distance: Some(1),
+            levenshtein_distance: Some(levenshtein_distance as u32),
             resolve_token_to_parent_hits: Some(true),
             ..Default::default()
         };
@@ -466,14 +468,49 @@ fn plan_creator(request: RequestSearchPart, mut boost: Option<Vec<RequestBoostPa
 }
 
 
-fn join_step(input: search_field::SearchFieldResult) -> FnvHashMap<u32, f32> {
-    unimplemented!();
-}
+fn join_to_parent<I>(persistence: &Persistence, input: I, path: &str, trace_time_info: &str) -> FnvHashMap<u32, f32>
+    where
+    I: IntoIterator<Item = (u32, f32)> ,
+{
+    let mut total_values = 0;
+    let mut hits: FnvHashMap<u32, f32> = FnvHashMap::default();
+    let hits_iter = input.into_iter();
+    let num_hits = hits_iter.size_hint().1.unwrap_or(0);
+    hits.reserve(num_hits);
+    let kv_store = persistence.get_valueid_to_parent(&concat(&path, ".valueIdToParent"));
+    // debug_time!("term hits hit to column");
+    debug_time!(format!("{:?} {:?}", path, trace_time_info));
+    for (term_id, score) in hits_iter {
+        let ref values = kv_store.get_values(term_id as u64);
+        values.as_ref().map(|values| {
+            total_values += values.len();
+            hits.reserve(values.len());
+            // trace!("value_id: {:?} values: {:?} ", value_id, values);
+            for parent_val_id in values {
+                // @Temporary
+                match hits.entry(*parent_val_id as u32) {
+                    Vacant(entry) => {
+                        trace!("value_id: {:?} to parent: {:?} score {:?}", term_id, parent_val_id, score);
+                        entry.insert(score);
+                    }
+                    Occupied(entry) => if *entry.get() < score {
+                        trace!("value_id: {:?} to parent: {:?} score: {:?}", term_id, parent_val_id, score.max(*entry.get()));
+                        *entry.into_mut() = score.max(*entry.get());
+                    },
+                }
+            }
+        });
+    }
+    debug!("{:?} hits hit {:?} distinct ({:?} total ) in column {:?}", num_hits, hits.len(), total_values, path);
 
+    // debug!("{:?} hits in next_level_hits {:?}", next_level_hits.len(), &concat(path_name, ".valueIdToParent"));
 
-fn test_ownership(hits: FnvHashMap<u32, f32>) -> FnvHashMap<u32, f32> {
+    // trace!("next_level_hits from {:?}: {:?}", &concat(path_name, ".valueIdToParent"), hits);
+    // debug!("{:?} hits in next_level_hits {:?}", hits.len(), &concat(path_name, ".valueIdToParent"));
+
     hits
 }
+
 
 pub fn search_raw(
     persistence: &Persistence, mut request: RequestSearchPart, mut boost: Option<Vec<RequestBoostPart>>
@@ -500,55 +537,19 @@ pub fn search_raw(
     // }
 
 
-
     let num_term_hits = field_result.hits.len();
     if num_term_hits == 0 {
         return Ok(FnvHashMap::default());
     };
-    let hits_iter = field_result.hits.into_iter();
-    let mut next_level_hits: FnvHashMap<u32, f32> = FnvHashMap::default();
+    // let hits_iter = field_result.hits.into_iter();
+    // let mut next_level_hits: FnvHashMap<u32, f32> = FnvHashMap::default();
     let mut hits: FnvHashMap<u32, f32> = FnvHashMap::default();
     // let mut next_level_hits:Vec<(u32, f32)> = vec![];
     // let mut hits:Vec<(u32, f32)> = vec![];
 
-    // hits = test_ownership(hits);
     let paths = util::get_steps_to_anchor(&request.path);
-//    if let Some(last_path) = paths.last_mut() {
-//        *last_path = last_path.clone() + ".textindex";
-//    }
-    // text to "rows"
-    // let path_name = util::get_file_path_name(paths.last().unwrap(), true);
-    // let key = util::concat_tuple(&path_name, ".valueIdToParent.valIds", ".valueIdToParent.mainIds");
-    // let kv_store = persistence.get_valueid_to_parent(&key);
-    let kv_store = persistence.get_valueid_to_parent(&concat(&paths.last().unwrap(), ".valueIdToParent"));
-    let mut total_values = 0;
-    {
-        hits.reserve(hits_iter.len());
-        debug_time!("term hits hit to column");
-        for (term_id, score) in hits_iter {
-            let ref values = kv_store.get_values(term_id as u64);
-            values.as_ref().map(|values| {
-                total_values += values.len();
-                hits.reserve(values.len());
-                // trace!("value_id: {:?} values: {:?} ", value_id, values);
-                for parent_val_id in values {
-                    // @Temporary
-                    match hits.entry(*parent_val_id as u32) {
-                        Vacant(entry) => {
-                            trace!("value_id: {:?} to parent: {:?} score {:?}", term_id, parent_val_id, score);
-                            entry.insert(score);
-                        }
-                        Occupied(entry) => if *entry.get() < score {
-                            trace!("value_id: {:?} to parent: {:?} score: {:?}", term_id, parent_val_id, score.max(*entry.get()));
-                            *entry.into_mut() = score.max(*entry.get());
-                        },
-                    }
-                }
-            });
-        }
-    }
-    debug!("{:?} term hits hit {:?} distinct ({:?} total ) in column {:?}", num_term_hits, hits.len(), total_values, paths.last().unwrap());
 
+    hits = join_to_parent(&persistence, field_result.hits, paths.last().unwrap(), "term hits hit to column");
 
     info!("Joining {:?} hits from {:?} for {:?}", hits.len(), paths, &request.terms);
     for i in (0..paths.len() - 1).rev() {
@@ -565,68 +566,11 @@ pub fn search_raw(
             });
         }
 
-        // let key = util::concat_tuple(&path_name, ".valueIdToParent.valIds", ".valueIdToParent.mainIds");
-        debug_time!("Joining to anchor");
-        let kv_store = persistence.get_valueid_to_parent(&concat(path_name, ".valueIdToParent"));
-        // let kv_store = persistence.cache.index_id_to_parent.get(&key).expect(&format!("Could not find {:?} in index_id_to_parent cache", key));
-        debug_time!("Adding all values");
-        next_level_hits.reserve(hits.len());
-        for (value_id, score) in hits.into_iter() {
-            // kv_store.add_values(*value_id, &cache_lock, *score, &mut next_level_hits);
-            // let ref values = kv_store[*value_id as usize];
-            let ref values = kv_store.get_values(value_id as u64);
-            values.as_ref().map(|values| {
-                next_level_hits.reserve(values.len());
-                // trace!("value_id: {:?} values: {:?} ", value_id, values);
-                for parent_val_id in values {
-                    // @Temporary
-                    match next_level_hits.entry(*parent_val_id as u32) {
-                        Vacant(entry) => {
-                            trace!("value_id: {:?} to parent: {:?} score {:?} --new insert", value_id, parent_val_id, score);
-                            entry.insert(score);
-                        }
-                        Occupied(entry) => if *entry.get() < score {
-                            trace!("value_id: {:?} to parent: {:?} score: {:?} --update", value_id, parent_val_id, score.max(*entry.get()));
-                            *entry.into_mut() = score;
-                        },
-                    }
-                }
-                // for parent_val_id in values {    // @Temporary
-                //     next_level_hits.place_back() <- (parent_val_id, *score);
-                //     // next_level_hits.push((parent_val_id, *score));
-                // }
-            });
-
-
-
-            // for parent_val_id in values {
-            //     let hit = next_level_hits.get(parent_val_id as u64);
-            //     if  hit.map_or(true, |el| el == f32::NEG_INFINITY) {
-            //         next_level_hits.insert(parent_val_id as u64, score);
-            //     }else{
-            //         next_level_hits.insert(parent_val_id as u64, score);
-            //     }
-            // }
-        }
-
+        hits = join_to_parent(&persistence, hits, path_name, "Joining to anchor");
         // next_level_hits.sort_by(|a, b| a.0.cmp(&b.0));
-        trace!("next_level_hits from {:?}: {:?}", &concat(path_name, ".valueIdToParent"), next_level_hits);
-        debug!("{:?} hits in next_level_hits {:?}", next_level_hits.len(), &concat(path_name, ".valueIdToParent"));
+        trace!("next_level_hits from {:?}: {:?}", &concat(path_name, ".valueIdToParent"), hits);
+        debug!("{:?} hits in next_level_hits {:?}", hits.len(), &concat(path_name, ".valueIdToParent"));
 
-        // debug_time!("sort and dedup");
-        // next_level_hits.sort_by(|a, b| a.0.cmp(&b.0));
-        // next_level_hits.dedup_by_key(|i| i.0);
-        // hits.clear();
-        // debug_time!("insert to next level");
-        // hits.reserve(next_level_hits.len());
-        // for el in &next_level_hits {
-        //     hits.insert(el.0, el.1);
-        // }
-        // next_level_hits.clear();
-
-        // hits.extend(next_level_hits.iter());
-        hits = next_level_hits;
-        next_level_hits = FnvHashMap::default();
     }
 
     if boost.is_some() {
