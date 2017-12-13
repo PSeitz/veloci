@@ -430,7 +430,7 @@ fn check_apply_boost(persistence: &Persistence, boost: &RequestBoostPart, path_n
 #[derive(Serialize, Deserialize, Clone, Debug)]
 enum PlanStepType {
     FieldSearch(RequestSearchPart),
-    ValueIdToParent(String),
+    ValueIdToParent(String, String),
     Boost(RequestBoostPart),
 }
 
@@ -446,7 +446,7 @@ fn plan_creator(request: RequestSearchPart, mut boost: Option<Vec<RequestBoostPa
     //search in fields
     steps.push(PlanStepType::FieldSearch(request));
 
-    steps.push(PlanStepType::ValueIdToParent(concat(&paths.last().unwrap(), ".valueIdToParent")));
+    steps.push(PlanStepType::ValueIdToParent(concat(&paths.last().unwrap(), ".valueIdToParent"), "term hits hit to column".to_string()));
 
     for i in (0..paths.len() - 1).rev() {
 
@@ -460,15 +460,38 @@ fn plan_creator(request: RequestSearchPart, mut boost: Option<Vec<RequestBoostPa
             });
         }
         // let will_apply_boost = boost.map(|boost| boost.path.starts_with(&paths[i])).unwrap_or(false);
-        steps.push(PlanStepType::ValueIdToParent(concat(&paths.last().unwrap(), ".valueIdToParent")));
+        steps.push(PlanStepType::ValueIdToParent(concat(&paths.last().unwrap(), ".valueIdToParent"), "Joining to anchor".to_string()));
     }
 
     steps
 
 }
 
+fn execute_step<I>(step: PlanStepType, persistence: &Persistence, input: I) -> impl IntoIterator<Item = (u32, f32)>
+    where
+    I: IntoIterator<Item = (u32, f32)> ,
+{
+    match step {
+        PlanStepType::FieldSearch(req) => {
+            input
+        }
+        PlanStepType::ValueIdToParent(path, joop) => {
+            join_to_parent(persistence, input, &path, &joop)
+        }
+        PlanStepType::Boost(req) => {
+            input
+        }
+    }
+}
 
-fn join_to_parent<I>(persistence: &Persistence, input: I, path: &str, trace_time_info: &str) -> FnvHashMap<u32, f32>
+fn execute_plan(steps: Vec<PlanStepType>) {
+
+    for i in (0..steps.len() - 1) {
+        unimplemented!();
+    }
+}
+
+fn join_to_parent<I>(persistence: &Persistence, input: I, path: &str, trace_time_info: &str) -> impl IntoIterator<Item = (u32, f32)>
     where
     I: IntoIterator<Item = (u32, f32)> ,
 {
@@ -543,13 +566,13 @@ pub fn search_raw(
     };
     // let hits_iter = field_result.hits.into_iter();
     // let mut next_level_hits: FnvHashMap<u32, f32> = FnvHashMap::default();
-    let mut hits: FnvHashMap<u32, f32> = FnvHashMap::default();
+    // let mut hits: FnvHashMap<u32, f32> = FnvHashMap::default();
     // let mut next_level_hits:Vec<(u32, f32)> = vec![];
     // let mut hits:Vec<(u32, f32)> = vec![];
 
     let paths = util::get_steps_to_anchor(&request.path);
 
-    hits = join_to_parent(&persistence, field_result.hits, paths.last().unwrap(), "term hits hit to column");
+    let mut hits = join_to_parent(&persistence, field_result.hits, paths.last().unwrap(), "term hits hit to column");
 
     info!("Joining {:?} hits from {:?} for {:?}", hits.len(), paths, &request.terms);
     for i in (0..paths.len() - 1).rev() {
@@ -557,14 +580,14 @@ pub fn search_raw(
         // let path_name = util::get_file_path_name(&paths[i], is_text_index);
         let path_name = &paths[i];
 
-        if boost.is_some() {
-            boost.as_mut().unwrap().retain(|boost| {
-                let will_apply_boost = boost.path.starts_with(path_name);
-                // check_apply_boost(persistence, boost, &path_name, &mut hi
-                add_boost(persistence, boost, &mut hits);
-                !will_apply_boost
-            });
-        }
+        // if boost.is_some() {
+        //     boost.as_mut().unwrap().retain(|boost| {
+        //         let will_apply_boost = boost.path.starts_with(path_name);
+        //         // check_apply_boost(persistence, boost, &path_name, &mut hi
+        //         add_boost(persistence, boost, &mut hits);
+        //         !will_apply_boost
+        //     });
+        // }
 
         hits = join_to_parent(&persistence, hits, path_name, "Joining to anchor");
         // next_level_hits.sort_by(|a, b| a.0.cmp(&b.0));
@@ -573,15 +596,15 @@ pub fn search_raw(
 
     }
 
-    if boost.is_some() {
-        //remaining boosts
-        boost.as_mut().unwrap().retain(|boost| {
-            let will_apply_boost = boost.path.starts_with("");
-            // check_apply_boost(persistence, boost, "", &mut hits)
-            add_boost(persistence, boost, &mut hits);
-            !will_apply_boost
-        });
-    }
+    // if boost.is_some() {
+    //     //remaining boosts
+    //     boost.as_mut().unwrap().retain(|boost| {
+    //         let will_apply_boost = boost.path.starts_with("");
+    //         // check_apply_boost(persistence, boost, "", &mut hits)
+    //         add_boost(persistence, boost, &mut hits);
+    //         !will_apply_boost
+    //     });
+    // }
 
     Ok(hits)
 }
