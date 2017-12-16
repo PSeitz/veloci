@@ -13,6 +13,7 @@ extern crate serde_json;
 extern crate snap;
 extern crate time;
 extern crate chashmap;
+extern crate multipart;
 
 #[macro_use]
 extern crate lazy_static;
@@ -41,6 +42,10 @@ use iron::{headers, status};
 use iron::modifiers::Header;
 use urlencoded::UrlEncodedQuery;
 
+use multipart::server::{Multipart, Entries, SaveResult, SavedFile};
+use iron::mime::{TopLevel, SubLevel};
+
+
 use time::precise_time_ns;
 use router::Router;
 
@@ -51,6 +56,9 @@ use std::collections::HashMap;
 #[allow(unused_imports)]
 use fnv::FnvHashMap;
 // use std::sync::RwLock;
+
+use std::fs::File;
+use std::io::prelude::*;
 
 struct ResponseTime;
 
@@ -127,6 +135,8 @@ pub fn start_server() {
     router.post("/:database/suggest", suggest_handler, "suggest");
     router.post("/:database/highlight", highlight_handler, "highlight");
     // let mut pers = Persistence::load("csv_test".to_string()).expect("Could not load persistence");
+
+    router.post("/data/:database", handlero, "handlero");
 
     // Initialize middleware
     let cors_middleware = CorsMiddleware::with_allow_any();
@@ -288,4 +298,119 @@ pub fn start_server() {
             }
         }
     }
+
+
+    // create stuff
+
+    fn handlero(req: &mut Request) -> IronResult<Response> {
+        
+        println!("getting 1 request");
+        let header = req.headers.get::<headers::ContentType>().expect("no content type set").clone();
+
+        println!("header: {:?}", *header);
+        match *header {
+            iron::mime::Mime(TopLevel::Application, SubLevel::Json, _) => Ok(Response::with((status::BadRequest, "error"))),
+            iron::mime::Mime(TopLevel::Application, iron::mime::SubLevel::WwwFormUrlEncoded, _) |
+            iron::mime::Mime(TopLevel::Multipart, iron::mime::SubLevel::FormData, _) => handle_multipart(req),
+            _ => {
+                let error = format!("content type has to be {:?}/{:?} or {:?}/{:?} but got {:?}", TopLevel::Application, SubLevel::Json,TopLevel::Multipart, iron::mime::SubLevel::FormData, *header );
+                println!("Error: {:?}", error);
+                Ok(Response::with((status::BadRequest, error)))
+            }
+        }
+    }
+
+    // fn proxy_handler(req: &mut Request) -> IronResult<Response> {
+    //     println!("getting 1 request");
+    //     let header = req.headers.get::<headers::ContentType>().expect("no content type set").clone();
+
+    //     println!("header: {:?}", *header);
+    //     match *header {
+    //         iron::mime::Mime(TopLevel::Application, SubLevel::Json, _) => return Ok(Response::with((status::BadRequest, error)),
+    //         iron::mime::Mime(TopLevel::Application, iron::mime::SubLevel::WwwFormUrlEncoded, _) |
+    //         iron::mime::Mime(TopLevel::Multipart, iron::mime::SubLevel::FormData, _) => return handle_multipart(req),
+    //         _ => {
+    //             let error = format!("content type has to be {:?}/{:?} or {:?}/{:?} but got {:?}", TopLevel::Application, SubLevel::Json,TopLevel::Multipart, iron::mime::SubLevel::FormData, *header );
+    //             println!("Error: {:?}", error);
+    //             return Ok(Response::with((status::BadRequest, error)))
+    //         }
+    //     }
+    // }
+
+    fn handle_multipart(req: &mut Request) -> IronResult<Response> {
+        let database = req.extensions.get::<Router>().unwrap().find("database").expect("could not find collection name in url").to_string();
+        match Multipart::from_request(req) {
+            Ok(mut multipart) => {
+                // Fetching all data and processing it.
+                // save().temp() reads the request fully, parsing all fields and saving all files
+                // in a new temporary directory under the OS temporary directory.
+                match multipart.save().temp() {
+                    SaveResult::Full(entries) =>  process_entries(entries, database),
+                    SaveResult::Partial(_, reason) => {Ok(Response::with((status::BadRequest, format!("error reading request: {}", reason.unwrap_err())))) }
+                    SaveResult::Error(error) => Ok(Response::with((status::BadRequest, format!("error reading request: {}", error))))
+                }
+            }
+            Err(err) => {
+                println!("Error: {:?}", err);
+                Ok(Response::with((status::BadRequest, "The request is not multipart?")))
+            }
+        }
+    }
+
+
+    fn process_entries(entries: Entries, database:String) -> IronResult<Response> {
+
+        if entries.files.len() != 1 {return Ok(Response::with((status::BadRequest, format!("only single file uploads supported, but got {} entries", entries.files.len())))); }
+
+        let entry = entries.files.iter().last().unwrap();
+        println!("Field {:?} has {} files:", entry.0, entry.1.len());
+        if entry.1.len() != 1 {return Ok(Response::with((status::BadRequest, "only single file uploads supported" ))); }
+        let contents = get_multipart_file_contents(&entry.1.iter().last().unwrap())?;
+        let data: serde_json::Value = serde_json::from_str(&contents).expect("InvalidJson");
+
+        // Start up a test.
+        let indices = r#"[] "#;
+        // let indices = r#"
+        // [
+        //     { "fulltext":"address[].line[]", "options":{"tokenize":true} }
+        // ]
+        // "#;
+
+
+
+        println!("{:?}", search_lib::create::create_indices(&database, &contents, indices));
+
+        // {
+        //     let mut pers = persistence::Persistence::load(database.to_string()).expect("Could not load persistence");
+        //     // let mut pers = persistence::Persistence::load(database.to_string()).expect("Could not load persistence");
+        //     let config = json!({
+        //         "path": "meanings.ger[]"
+        //     });
+        //     create::add_token_values_to_tokens(&mut pers, TOKEN_VALUE, &config.to_string()).expect("Could not add token values");
+        // }
+        // PERSISTENCES.insert("default".to_string(), persistence::Persistence::load(database.to_string()).expect("could not load persistence"));
+
+
+
+        Ok(Response::with((status::Ok, "schema::convert_to_schema(&data).unwrap()" )))
+        // Ok(Response::with((status::Ok, schema::convert_to_schema(&data).unwrap())))
+
+    }
+
+    fn get_multipart_file_contents(saved_file: &SavedFile) -> IronResult<(String)> {
+        let mut file = match File::open(&saved_file.path) {
+            Ok(file) => file,
+            Err(error) => {return Err(IronError::new(error, (status::InternalServerError, "Server couldn't open saved file"))) } };
+
+        let mut contents = String::new();
+        if let Err(error) = file.read_to_string(&mut contents) {
+            return Err(IronError::new(error, (status::BadRequest, "The file was not a text")));
+        }
+        println!("File {:?} ({:?}):", saved_file.filename, saved_file.content_type);
+        Ok((contents))
+    }
+
+
+
+
 }

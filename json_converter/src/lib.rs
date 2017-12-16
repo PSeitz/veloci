@@ -1,11 +1,15 @@
+#![feature(test)]
 #![feature(entry_and_modify)]
 #[macro_use]
 extern crate serde_json;
 extern crate fnv;
+extern crate test;
 
 use fnv::FnvHashMap;
 use serde_json::Value;
 use std::str;
+
+pub mod bench;
 
 pub struct ForEachOpt {
 }
@@ -83,6 +87,7 @@ impl IDHolder {
         IDHolder{ids: FnvHashMap::default()}
     }
 }
+
 
 #[test]
 fn test_foreach() {

@@ -434,6 +434,19 @@ enum PlanStepType {
     Boost(RequestBoostPart),
 }
 
+#[derive(Debug)]
+struct PlanStep {
+    steps: Vec<PlanStepType>,
+    operation: PlanStepOperation
+}
+
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+enum PlanStepOperation {
+    Union,
+    Intersect,
+}
+
 // #[derive(Debug)]
 // struct PlanStep {
 //     type: FieldSearch
@@ -460,38 +473,82 @@ fn plan_creator(request: RequestSearchPart, mut boost: Option<Vec<RequestBoostPa
             });
         }
         // let will_apply_boost = boost.map(|boost| boost.path.starts_with(&paths[i])).unwrap_or(false);
-        steps.push(PlanStepType::ValueIdToParent(concat(&paths.last().unwrap(), ".valueIdToParent"), "Joining to anchor".to_string()));
+        steps.push(PlanStepType::ValueIdToParent(concat(&paths[i], ".valueIdToParent"), "Joining to anchor".to_string()));
     }
 
     steps
 
 }
 
-fn execute_step<I>(step: PlanStepType, persistence: &Persistence, input: I) -> impl IntoIterator<Item = (u32, f32)>
-    where
-    I: IntoIterator<Item = (u32, f32)> ,
+fn execute_step(step: PlanStepType, persistence: &Persistence, mut input: FnvHashMap<u32, f32>) -> Result<FnvHashMap<u32, f32>, SearchError>
 {
     match step {
-        PlanStepType::FieldSearch(req) => {
-            input
+        PlanStepType::FieldSearch(mut req) => {
+            let field_result = search_field::get_hits_in_field(persistence, &mut req)?;
+            Ok(field_result.hits)
         }
         PlanStepType::ValueIdToParent(path, joop) => {
-            join_to_parent(persistence, input, &path, &joop)
+            Ok(join_to_parent_2(persistence, input, &path, &joop))
         }
         PlanStepType::Boost(req) => {
-            input
+            add_boost(persistence, &req, &mut input);
+            Ok(input)
         }
     }
 }
 
-fn execute_plan(steps: Vec<PlanStepType>) {
+fn execute_plan(steps: Vec<PlanStepType>, persistence: &Persistence) -> Result<FnvHashMap<u32, f32>, SearchError>{
 
-    for i in (0..steps.len() - 1) {
-        unimplemented!();
+    let mut hits = FnvHashMap::default();
+    for step in steps {
+        hits = execute_step(step, persistence, hits)?;
     }
+    Ok(hits)
+}
+use hit_collector;
+fn join_to_parent_2(persistence: &Persistence, input: FnvHashMap<u32, f32>, path: &str, trace_time_info: &str) -> FnvHashMap<u32, f32>
+{
+    let mut total_values = 0;
+    let mut hits: FnvHashMap<u32, f32> = FnvHashMap::default();
+    let hits_iter = input.into_iter();
+    let num_hits = hits_iter.size_hint().1.unwrap_or(0);
+    hits.reserve(num_hits);
+    let kv_store = persistence.get_valueid_to_parent(path);
+    // debug_time!("term hits hit to column");
+    debug_time!(format!("{:?} {:?}", path, trace_time_info));
+    for (term_id, score) in hits_iter {
+        let ref values = kv_store.get_values(term_id as u64);
+        values.as_ref().map(|values| {
+            total_values += values.len();
+            hits.reserve(values.len());
+            // trace!("value_id: {:?} values: {:?} ", value_id, values);
+            for parent_val_id in values {
+                // @Temporary
+                match hits.entry(*parent_val_id as u32) {
+                    Vacant(entry) => {
+                        trace!("value_id: {:?} to parent: {:?} score {:?}", term_id, parent_val_id, score);
+                        entry.insert(score);
+                    }
+                    Occupied(entry) => if *entry.get() < score {
+                        trace!("value_id: {:?} to parent: {:?} score: {:?}", term_id, parent_val_id, score.max(*entry.get()));
+                        *entry.into_mut() = score.max(*entry.get());
+                    },
+                }
+            }
+        });
+    }
+    debug!("{:?} hits hit {:?} distinct ({:?} total ) in column {:?}", num_hits, hits.len(), total_values, path);
+
+    // debug!("{:?} hits in next_level_hits {:?}", next_level_hits.len(), &concat(path_name, ".valueIdToParent"));
+
+    // trace!("next_level_hits from {:?}: {:?}", &concat(path_name, ".valueIdToParent"), hits);
+    // debug!("{:?} hits in next_level_hits {:?}", hits.len(), &concat(path_name, ".valueIdToParent"));
+
+    hits
 }
 
-fn join_to_parent<I>(persistence: &Persistence, input: I, path: &str, trace_time_info: &str) -> impl IntoIterator<Item = (u32, f32)>
+
+fn join_to_parent<I>(persistence: &Persistence, input: I, path: &str, trace_time_info: &str) -> FnvHashMap<u32, f32>
     where
     I: IntoIterator<Item = (u32, f32)> ,
 {
@@ -535,78 +592,86 @@ fn join_to_parent<I>(persistence: &Persistence, input: I, path: &str, trace_time
 }
 
 
+
 pub fn search_raw(
     persistence: &Persistence, mut request: RequestSearchPart, mut boost: Option<Vec<RequestBoostPart>>
 ) -> Result<FnvHashMap<u32, f32>, SearchError> {
     // request.term = util::normalize_text(&request.term);
     request.terms = request.terms.iter().map(|el| util::normalize_text(el)).collect::<Vec<_>>();
     debug_time!("search and join to anchor");
-    let field_result = search_field::get_hits_in_field(persistence, &mut request)?;
-
-    // let mut field_result = search_field::SearchFieldResult::default();
-    // let plan_steps = plan_creator(request.clone(), boost.clone());
-    // for step in plan_steps {
-    //     match step {
-    //         PlanStepType::FieldSearch(request_search_part) => {
-    //             field_result = search_field::get_hits_in_field(persistence, &mut request)?;
-    //         },
-    //         PlanStepType::ValueIdToParent(path) => {
-
-    //         },
-    //         PlanStepType::Boost(boost) => {
-    //             add_boost(persistence, boost, hits);
-    //         },
-    //     }
-    // }
 
 
-    let num_term_hits = field_result.hits.len();
-    if num_term_hits == 0 {
-        return Ok(FnvHashMap::default());
-    };
-    // let hits_iter = field_result.hits.into_iter();
-    // let mut next_level_hits: FnvHashMap<u32, f32> = FnvHashMap::default();
-    // let mut hits: FnvHashMap<u32, f32> = FnvHashMap::default();
-    // let mut next_level_hits:Vec<(u32, f32)> = vec![];
-    // let mut hits:Vec<(u32, f32)> = vec![];
-
-    let paths = util::get_steps_to_anchor(&request.path);
-
-    let mut hits = join_to_parent(&persistence, field_result.hits, paths.last().unwrap(), "term hits hit to column");
-
-    info!("Joining {:?} hits from {:?} for {:?}", hits.len(), paths, &request.terms);
-    for i in (0..paths.len() - 1).rev() {
-        // let is_text_index = i == (paths.len() - 1);
-        // let path_name = util::get_file_path_name(&paths[i], is_text_index);
-        let path_name = &paths[i];
-
-        // if boost.is_some() {
-        //     boost.as_mut().unwrap().retain(|boost| {
-        //         let will_apply_boost = boost.path.starts_with(path_name);
-        //         // check_apply_boost(persistence, boost, &path_name, &mut hi
-        //         add_boost(persistence, boost, &mut hits);
-        //         !will_apply_boost
-        //     });
-        // }
-
-        hits = join_to_parent(&persistence, hits, path_name, "Joining to anchor");
-        // next_level_hits.sort_by(|a, b| a.0.cmp(&b.0));
-        trace!("next_level_hits from {:?}: {:?}", &concat(path_name, ".valueIdToParent"), hits);
-        debug!("{:?} hits in next_level_hits {:?}", hits.len(), &concat(path_name, ".valueIdToParent"));
-
-    }
-
-    // if boost.is_some() {
-    //     //remaining boosts
-    //     boost.as_mut().unwrap().retain(|boost| {
-    //         let will_apply_boost = boost.path.starts_with("");
-    //         // check_apply_boost(persistence, boost, "", &mut hits)
-    //         add_boost(persistence, boost, &mut hits);
-    //         !will_apply_boost
-    //     });
-    // }
-
+    let plan_steps = plan_creator(request.clone(), boost.clone());
+    let hits = execute_plan(plan_steps, &persistence)?;
     Ok(hits)
+
+
+    // let field_result = search_field::get_hits_in_field(persistence, &mut request)?;
+
+    // // let mut field_result = search_field::SearchFieldResult::default();
+    // // let plan_steps = plan_creator(request.clone(), boost.clone());
+    // // for step in plan_steps {
+    // //     match step {
+    // //         PlanStepType::FieldSearch(request_search_part) => {
+    // //             field_result = search_field::get_hits_in_field(persistence, &mut request)?;
+    // //         },
+    // //         PlanStepType::ValueIdToParent(path) => {
+
+    // //         },
+    // //         PlanStepType::Boost(boost) => {
+    // //             add_boost(persistence, boost, hits);
+    // //         },
+    // //     }
+    // // }
+
+
+    // let num_term_hits = field_result.hits.len();
+    // if num_term_hits == 0 {
+    //     return Ok(FnvHashMap::default());
+    // };
+    // // let hits_iter = field_result.hits.into_iter();
+    // // let mut next_level_hits: FnvHashMap<u32, f32> = FnvHashMap::default();
+    // // let mut hits: FnvHashMap<u32, f32> = FnvHashMap::default();
+    // // let mut next_level_hits:Vec<(u32, f32)> = vec![];
+    // // let mut hits:Vec<(u32, f32)> = vec![];
+
+    // let paths = util::get_steps_to_anchor(&request.path);
+
+    // let mut hits = join_to_parent(&persistence, field_result.hits, paths.last().unwrap(), "term hits hit to column");
+
+    // info!("Joining {:?} hits from {:?} for {:?}", hits.len(), paths, &request.terms);
+    // for i in (0..paths.len() - 1).rev() {
+    //     // let is_text_index = i == (paths.len() - 1);
+    //     // let path_name = util::get_file_path_name(&paths[i], is_text_index);
+    //     let path_name = &paths[i];
+
+    //     // if boost.is_some() {
+    //     //     boost.as_mut().unwrap().retain(|boost| {
+    //     //         let will_apply_boost = boost.path.starts_with(path_name);
+    //     //         // check_apply_boost(persistence, boost, &path_name, &mut hi
+    //     //         add_boost(persistence, boost, &mut hits);
+    //     //         !will_apply_boost
+    //     //     });
+    //     // }
+
+    //     hits = join_to_parent(&persistence, hits, path_name, "Joining to anchor");
+    //     // next_level_hits.sort_by(|a, b| a.0.cmp(&b.0));
+    //     trace!("next_level_hits from {:?}: {:?}", &concat(path_name, ".valueIdToParent"), hits);
+    //     debug!("{:?} hits in next_level_hits {:?}", hits.len(), &concat(path_name, ".valueIdToParent"));
+
+    // }
+
+    // // if boost.is_some() {
+    // //     //remaining boosts
+    // //     boost.as_mut().unwrap().retain(|boost| {
+    // //         let will_apply_boost = boost.path.starts_with("");
+    // //         // check_apply_boost(persistence, boost, "", &mut hits)
+    // //         add_boost(persistence, boost, &mut hits);
+    // //         !will_apply_boost
+    // //     });
+    // // }
+
+    // Ok(hits)
 }
 
 

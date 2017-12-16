@@ -365,11 +365,10 @@ pub fn highlight_document(persistence: &Persistence, path:&str, value_id: u64,  
     let mut snippet = grouped.iter().map(get_document_windows)
     .map(|group| group.2.iter().fold(String::with_capacity(group.2.len() * 10), |snippet_part_acc, token_id| {
         if token_ids.contains(token_id){
-            snippet_part_acc + highlight_start + id_to_text.get(token_id).unwrap()  + highlight_end + " " 
+            snippet_part_acc + highlight_start + id_to_text.get(token_id).unwrap()  + highlight_end + " " // TODO store token and add
         }else{
-            snippet_part_acc + id_to_text.get(token_id).unwrap() + " " 
+            snippet_part_acc + id_to_text.get(token_id).unwrap() + " "
         }
-        
     }))
     // .take(10)
     .intersperse(snippet_connector.to_string())

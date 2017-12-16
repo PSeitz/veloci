@@ -251,6 +251,7 @@ pub fn create_fulltext_index(data: &Value, mut persistence: &mut Persistence) ->
     let mut text_tuples_in_path:FnvHashMap<String, Vec<ValIdPair>> = FnvHashMap::default();
 
     {
+        info_time!(format!("extract text and ids"));
         let mut cb_text = |value: &str, path: &str, parent_val_id: u32| {
             let tokens = tokens_in_path.entry(path.to_string()).or_insert(vec![]);
             let tuples = text_tuples_in_path.entry(path.to_string()).or_insert(vec![]);
@@ -450,6 +451,7 @@ pub fn add_token_values_to_tokens(persistence: &mut Persistence, data_str: &str,
 
 
 pub fn create_indices(folder: &str, data_str: &str, indices: &str) -> Result<(), CreateError> {
+    info_time!(format!("create_indices complete for {:?}", folder));
     let data: Value = serde_json::from_str(data_str).unwrap();
 
     let indices_json: Vec<CreateIndex> = serde_json::from_str(indices).unwrap();
@@ -461,12 +463,14 @@ pub fn create_indices(folder: &str, data_str: &str, indices: &str) -> Result<(),
             CreateIndex::BoostInfo(boost) => create_boost_index(&data, &boost.boost, boost.options, &mut persistence)?,
         }
     }
+
+    info_time!(format!("write json and metadata {:?}", folder));
     if let &Some(arr) = &data.as_array() {
         persistence.write_json_to_disk(arr, "data")?;
     }else {
         persistence.write_json_to_disk(&vec![data.clone()], "data")?;
     }
-    
+
     persistence.write_meta_data()?;
 
     Ok(())

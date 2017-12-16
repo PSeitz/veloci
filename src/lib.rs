@@ -96,5 +96,7 @@ pub mod trace;
 mod tests;
 #[cfg(test)]
 mod bench;
+#[cfg(test)]
+mod bench_collection;
 
 use std::str;
