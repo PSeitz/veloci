@@ -5,6 +5,13 @@
 #![feature(placement_in_syntax)]
 #![feature(box_syntax, box_patterns)]
 #![cfg_attr(feature = "unstable", feature(alloc, heap_api, repr_simd))]
+#![feature(plugin, custom_attribute)]
+#![plugin(flamer)]
+
+extern crate flame;
+extern crate crossbeam_channel;
+extern crate crossbeam_utils;
+
 
 #[macro_use]
 extern crate serde_derive;
@@ -38,6 +45,7 @@ extern crate num;
 extern crate itertools;
 extern crate parking_lot;
 extern crate chashmap;
+extern crate trie;
 
 extern crate levenshtein_automaton;
 // extern crate bodyparser;
@@ -96,7 +104,5 @@ pub mod trace;
 mod tests;
 #[cfg(test)]
 mod bench;
-#[cfg(test)]
-mod bench_collection;
 
 use std::str;

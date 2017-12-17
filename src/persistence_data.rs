@@ -208,6 +208,7 @@ impl HeapSizeOf for ParallelArrays {
 //     unimplemented!();
 // }
 
+#[flame]
 pub fn valid_pair_to_parallel_arrays(tuples: &mut Vec<create::ValIdPair>) -> ParallelArrays {
     tuples.sort_by(|a, b| a.valid.partial_cmp(&b.valid).unwrap_or(Ordering::Equal));
     let valids =         tuples.iter().map(|ref el| el.valid).collect::<Vec<_>>();
@@ -216,6 +217,7 @@ pub fn valid_pair_to_parallel_arrays(tuples: &mut Vec<create::ValIdPair>) -> Par
     // parrallel_arrays_to_pointing_array(data.values1, data.values2)
 }
 
+#[flame]
 pub fn boost_pair_to_parallel_arrays(tuples: &mut Vec<create::ValIdToValue>) -> ParallelArrays {
     tuples.sort_by(|a, b| a.valid.partial_cmp(&b.valid).unwrap_or(Ordering::Equal));
     let valids = tuples.iter().map(|ref el| el.valid).collect::<Vec<_>>();

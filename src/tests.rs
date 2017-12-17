@@ -170,7 +170,6 @@ mod tests {
         static ref PERSISTENCES: CHashMap<String, persistence::Persistence> = {
             CHashMap::default()
         };
-        
     }
 
 

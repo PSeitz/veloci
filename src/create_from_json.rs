@@ -1,11 +1,7 @@
 
 use util;
-use fnv::FnvHashMap;
-use create::TermInfo;
 use serde_json::Value;
 use std::str;
-
-use create;
 
 pub struct ForEachOpt {
     pub parent_pos_in_path:        u32,
@@ -103,44 +99,44 @@ where
 
 
 
-pub fn get_allterms(data: &Value, path: &str, options: &create::FulltextIndexOptions) -> FnvHashMap<String, TermInfo> {
-    let mut terms: FnvHashMap<String, TermInfo> = FnvHashMap::default();
+// pub fn get_allterms(data: &Value, path: &str, options: &create::FulltextIndexOptions) -> FnvHashMap<String, TermInfo> {
+//     let mut terms: HashMap<String, TermInfo> = HashMap::default();
 
-    let mut opt = ForEachOpt {
-        parent_pos_in_path:        0,
-        current_parent_id_counter: 0,
-        value_id_counter:          0,
-    };
+//     let mut opt = ForEachOpt {
+//         parent_pos_in_path:        0,
+//         current_parent_id_counter: 0,
+//         value_id_counter:          0,
+//     };
 
-    for_each_element_in_path(&data, &mut opt, &path, &mut |value: &str, _value_id: u32, _parent_val_id: u32| {
-        let normalized_text = util::normalize_text(value);
-        trace!("normalized_text: {:?}", normalized_text);
-        if options.stopwords.as_ref().map(|el| el.contains(&normalized_text)).unwrap_or(false) {
-            return;
-        }
+//     for_each_element_in_path(&data, &mut opt, &path, &mut |value: &str, _value_id: u32, _parent_val_id: u32| {
+//         let normalized_text = util::normalize_text(value);
+//         trace!("normalized_text: {:?}", normalized_text);
+//         if options.stopwords.as_ref().map(|el| el.contains(&normalized_text)).unwrap_or(false) {
+//             return;
+//         }
 
-        {
-            let stat = terms.entry(normalized_text.clone()).or_insert(TermInfo::default());
-            stat.num_occurences += 1;
-        }
+//         {
+//             let stat = terms.entry(normalized_text.clone()).or_insert(TermInfo::default());
+//             stat.num_occurences += 1;
+//         }
 
-        if options.tokenize && normalized_text.split(" ").count() > 1 {
-            for token in normalized_text.split(" ") {
-                let token_str = token.to_string();
-                if options.stopwords.as_ref().map(|el| el.contains(&normalized_text)).unwrap_or(false) {
-                    continue;
-                }
-                // terms.insert(token_str);
-                let stat = terms.entry(token_str.clone()).or_insert(TermInfo::default());
-                stat.num_occurences += 1;
-            }
-        }
-    });
+//         if options.tokenize && normalized_text.split(" ").count() > 1 {
+//             for token in normalized_text.split(" ") {
+//                 let token_str = token.to_string();
+//                 if options.stopwords.as_ref().map(|el| el.contains(&normalized_text)).unwrap_or(false) {
+//                     continue;
+//                 }
+//                 // terms.insert(token_str);
+//                 let stat = terms.entry(token_str.clone()).or_insert(TermInfo::default());
+//                 stat.num_occurences += 1;
+//             }
+//         }
+//     });
 
-    create::set_ids(&mut terms);
-    terms
+//     create::set_ids(&mut terms);
+//     terms
 
-    // let mut v: Vec<String> = terms.into_iter().collect::<Vec<String>>();
-    // v.sort();
-    // v
-}
+//     // let mut v: Vec<String> = terms.into_iter().collect::<Vec<String>>();
+//     // v.sort();
+//     // v
+// }

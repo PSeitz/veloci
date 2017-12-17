@@ -1,4 +1,6 @@
- #![feature(underscore_lifetimes)]
+#![feature(plugin, custom_attribute)]
+#![plugin(flamer)]
+#![feature(underscore_lifetimes)]
 
 extern crate bodyparser;
 extern crate flexi_logger;
@@ -9,11 +11,14 @@ extern crate iron;
 extern crate urlencoded;
 extern crate iron_cors;
 extern crate router;
-extern crate serde_json;
 extern crate snap;
 extern crate time;
 extern crate chashmap;
 extern crate multipart;
+#[macro_use]
+extern crate serde_json;
+extern crate serde;
+extern crate flame;
 
 #[macro_use]
 extern crate lazy_static;
@@ -88,31 +93,36 @@ impl AfterMiddleware for ResponseTime {
     }
 }
 
+
+
+use std::error::Error;
+use std::fmt::{self, Debug};
+#[derive(Debug)]
+struct StringError(String);
+
+impl fmt::Display for StringError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        Debug::fmt(self, f)
+    }
+}
+
+impl Error for StringError {
+    fn description(&self) -> &str { &*self.0 }
+}
+
+
 // fn hello_world(_: &mut Request) -> IronResult<Response> {
 //     Ok(Response::with((iron::status::Ok, "Hello World")))
 // }
 // const MAX_BODY_LENGTH: usize = 1024 * 1024 * 10;
 
 
-
-// static STATIC: CHashMap<String, Persistence> = CHashMap::new();
-
 lazy_static! {
-    // static ref CSV_PERSISTENCE: Persistence = {
-    //     persistence::Persistence::load("csv_test".to_string()).expect("could not load persistence")
-    // };
-    // static ref JMDICT_PERSISTENCE: Persistence = {
-    //     persistence::Persistence::load("jmdict".to_string()).expect("could not load persistence")
-    // };
 
     static ref PERSISTENCES: CHashMap<String, Persistence> = {
         CHashMap::default()
     };
 
-    // static ref HASHMAP: Mutex<FnvHashMap<String, Persistence>> = {
-    //     let m = FnvHashMap::default();
-    //     Mutex::new(m)
-    // };
 }
 
 fn ensure_database(database: &String) {
@@ -121,15 +131,38 @@ fn ensure_database(database: &String) {
     }
 }
 
+fn extract_qp(req: &mut Request) -> Result<(HashMap<String, String>), IronError> {
+    match req.get_ref::<UrlEncodedQuery>() {
+        Ok(ref hashmap) => {
+
+            info!("Parsed GET request query string:\n {:?}", hashmap);
+            // let ref query = hashmap.get("query").expect("not query parameter found").iter().nth(0).unwrap();
+            // let ref top =   hashmap.get("top").map(|el|el.iter().nth(0).unwrap().parse::<usize>().unwrap());
+            // let ref skip =  hashmap.get("skip").map(|el|el.iter().nth(0).unwrap().parse::<usize>().unwrap());
+            // let ref levenshtein =  hashmap.get("levenshtein").map(|el|el.iter().nth(0).unwrap().parse::<usize>().unwrap());
+            // info!("query {:?} top {:?} skip {:?}", query, top, skip);
+
+            Ok(hashmap.iter().map(|(key, ref val)| {
+                // TODO add error when size > 1
+                (key.clone(), val[0].clone())
+            }).collect())
+
+            // Ok(HashMap::default())
+        },
+        Err(ref e) => Err(IronError::new(StringError(e.to_string()), status::BadRequest))
+    }
+}
+
 pub fn start_server() {
 
     // ensure_database(&database);
     // PERSISTENCES.write()
 
+    
+
     // &JMDICT_PERSISTENCE.print_heap_sizes();
     let mut router = Router::new(); // Alternative syntax:
     router.get("/", handler, "index"); // let router = router!(index: get "/" => handler,
-    router.get("/:query", handler, "query"); //                      query: get "/:query" => handler);
     router.post("/:database/search", search_handler, "search");
     router.get("/:database/search", search_get_handler, "search_get");
     router.post("/:database/suggest", suggest_handler, "suggest");
@@ -154,8 +187,10 @@ pub fn start_server() {
     Iron::new(chain).http(combined).unwrap();
 
     fn handler(req: &mut Request) -> IronResult<Response> {
-        let ref query = req.extensions.get::<Router>().unwrap().find("query").unwrap_or("/");
-        Ok(Response::with((status::Ok, *query)))
+        let mut file = File::open("index.html").expect("Server: \"äh wo ist meine index.html\"");
+        let mut contents = String::new();
+        file.read_to_string(&mut contents).unwrap();
+        Ok(Response::with((status::Ok, Header(headers::ContentType::html()), contents)))
     }
 
     fn search_get_handler(req: &mut Request) -> IronResult<Response> {
@@ -164,44 +199,38 @@ pub fn start_server() {
         ensure_database(&database);
         
         // Extract the decoded data as hashmap, using the UrlEncodedQuery plugin.
-        match req.get_ref::<UrlEncodedQuery>() {
-            Ok(ref hashmap) => {
+        let map = extract_qp(req)?;
+        map.get("query").expect("not query parameter found");
+        let persistence = PERSISTENCES.get(&database).unwrap();
+        let request = search::search_query(map.get("query").unwrap(), &persistence, map.get("top").map(|el| el.parse::<usize>().unwrap()).clone(), map.get("skip").map(|el| el.parse::<usize>().unwrap()).clone(), map.get("levenshtein").map(|el| el.parse::<usize>().unwrap()).clone());
+        search_in_persistence(&persistence, request, enable_flame(req).unwrap_or(false))
 
-                info!("Parsed GET request query string:\n {:?}", hashmap);
-                let ref query = hashmap.get("query").expect("not query parameter found").iter().nth(0).unwrap();
-                let ref top =   hashmap.get("top").map(|el|el.iter().nth(0).unwrap().parse::<usize>().unwrap());
-                let ref skip =  hashmap.get("skip").map(|el|el.iter().nth(0).unwrap().parse::<usize>().unwrap());
-                let ref levenshtein =  hashmap.get("levenshtein").map(|el|el.iter().nth(0).unwrap().parse::<usize>().unwrap());
+    }
 
-                info!("query {:?} top {:?} skip {:?}", query, top, skip);
-                // let persistences = PERSISTENCES.read();
-                let persistence = PERSISTENCES.get(&database).unwrap();
-
-                let request = search::search_query(query.clone(), &persistence, top.clone(), skip.clone(), levenshtein.clone());
-                search_in_persistence(&persistence, request)
-            },
-            Err(ref e) => Err(IronError::new(StringError(e.to_string()), status::BadRequest))
+    fn get_body<T: 'static>(req: & mut Request) -> Result<T, IronError>
+    where for<'a> T: serde::Deserialize<'a> + Clone + Debug
+    {
+        let struct_body = req.get::<bodyparser::Struct<T>>();
+        match struct_body {
+            Ok(Some(struct_body)) => {
+                info!("Parsed body:\n{:?}", struct_body);
+                // info_time!("search total");
+                Ok((struct_body.clone()))
+            }
+            Ok(None) => {
+                info!("No body");
+                Err(IronError::new(StringError("No body".to_string()), status::BadRequest))
+            }
+            Err(err) => {
+                info!("Error: {:?}", err);
+                Err(IronError::new(StringError(err.to_string()), status::BadRequest))
+            }
         }
-
+        
     }
 
-    use std::error::Error;
-    use std::fmt::{self, Debug};
-    #[derive(Debug)]
-    struct StringError(String);
-
-    impl fmt::Display for StringError {
-        fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-            Debug::fmt(self, f)
-        }
-    }
-
-    impl Error for StringError {
-        fn description(&self) -> &str { &*self.0 }
-    }
-
-
-    fn search_in_persistence(persistence: &Persistence, request: search_lib::search::Request) -> IronResult<Response> {
+    #[flame]
+    fn search_in_persistence(persistence: &Persistence, request: search_lib::search::Request, enable_flame: bool) -> IronResult<Response> {
         info!("Searching ... ");
         let hits = {
             info_time!("Searching ... ");
@@ -215,7 +244,8 @@ pub fn start_server() {
 
         info!("Returning ... ");
 
-        Ok(Response::with((status::Ok, Header(headers::ContentType::json()), GzipWriter(serde_json::to_string(&doc).unwrap().as_bytes()))))
+        // Ok(Response::with((status::Ok, Header(headers::ContentType::json()), GzipWriter(serde_json::to_string(&doc).unwrap().as_bytes()) )))
+        return_flame_or(enable_flame, serde_json::to_string(&doc).unwrap())
     }
 
     fn search_handler(req: &mut Request) -> IronResult<Response> {
@@ -224,84 +254,46 @@ pub fn start_server() {
         // let ref query = req.extensions.get::<Router>().unwrap().find("query").unwrap_or("/");
         // Ok(Response::with(status::Ok))
         // Ok(Response::with((status::Ok, "*query")))
-        let struct_body = req.get::<bodyparser::Struct<search::Request>>();
-        match struct_body {
-            Ok(Some(struct_body)) => {
-                info!("Parsed body:\n{:?}", struct_body);
-                info_time!("search total");
-
-                // let persistences = PERSISTENCES.read();
-                let persistence = PERSISTENCES.get(&database).unwrap();
-                search_in_persistence(&persistence, struct_body)
-            }
-            Ok(None) => {
-                info!("No body");
-                Ok(Response::with((status::Ok, "No body")))
-            }
-            Err(err) => {
-                info!("Error: {:?}", err);
-                Ok(Response::with((status::Ok, err.to_string())))
-            }
-        }
+        info_time!("search total");
+        let struct_body: search::Request = get_body(req)?;
+        let persistence = PERSISTENCES.get(&database).unwrap();
+        search_in_persistence(&persistence, struct_body, enable_flame(req).unwrap_or(false))
     }
 
     fn suggest_handler(req: &mut Request) -> IronResult<Response> {
         let database = req.extensions.get::<Router>().unwrap().find("database").expect("could not find collection name in url").to_string();
         ensure_database(&database);
-        let struct_body = req.get::<bodyparser::Struct<search::Request>>();
-        match struct_body {
-            Ok(Some(struct_body)) => {
-                info!("Parsed body:\n{:?}", struct_body);
 
-                info_time!("search total");
-                let persistence = PERSISTENCES.get(&database).unwrap();
+        let struct_body: search::Request = get_body(req)?;
+        info_time!("search total");
+        let persistence = PERSISTENCES.get(&database).unwrap();
 
-                info!("Suggesting ... ");
-                let hits = search_field::suggest_multi(&persistence, struct_body).unwrap();
-                info!("Returning ... ");
-                Ok(Response::with((status::Ok, Header(headers::ContentType::json()), serde_json::to_string(&hits).unwrap())))
-            }
-            Ok(None) => {
-                info!("No body");
-                Ok(Response::with((status::Ok, "No body")))
-            }
-            Err(err) => {
-                info!("Error: {:?}", err);
-                Ok(Response::with((status::Ok, err.to_string())))
-            }
-        }
+        info!("Suggesting ... ");
+        let hits = search_field::suggest_multi(&persistence, struct_body).unwrap();
+        info!("Returning ... ");
+        // Ok(Response::with((status::Ok, Header(headers::ContentType::json()), serde_json::to_string(&hits).unwrap())))
+
+        return_flame_or(enable_flame(req).unwrap_or(false), serde_json::to_string(&hits).unwrap())
+
     }
 
     fn highlight_handler(req: &mut Request) -> IronResult<Response> {
         let database = req.extensions.get::<Router>().unwrap().find("database").expect("could not find collection name in url").to_string();
         ensure_database(&database);
-        let struct_body = req.get::<bodyparser::Struct<search::RequestSearchPart>>();
-        match struct_body {
-            Ok(Some(mut struct_body)) => {
-                info!("Parsed body:\n{:?}", struct_body);
+        let mut struct_body: search::RequestSearchPart = get_body(req)?;
+        info_time!("search total");
+        let persistence = PERSISTENCES.get(&database).unwrap();
 
-                info_time!("search total");
-                let persistence = PERSISTENCES.get(&database).unwrap();
+        info!("highlighting ... ");
+        let hits = search_field::highlight(&persistence, &mut struct_body).unwrap();
+        info!("Returning ... ");
+        // Ok(Response::with((status::Ok, Header(headers::ContentType::json()), serde_json::to_string(&hits).unwrap())))
 
-                info!("highlighting ... ");
-                let hits = search_field::highlight(&persistence, &mut struct_body).unwrap();
-                info!("Returning ... ");
-                Ok(Response::with((status::Ok, Header(headers::ContentType::json()), serde_json::to_string(&hits).unwrap())))
-            }
-            Ok(None) => {
-                info!("No body");
-                Ok(Response::with((status::Ok, "No body")))
-            }
-            Err(err) => {
-                info!("Error: {:?}", err);
-                Ok(Response::with((status::Ok, err.to_string())))
-            }
-        }
+        return_flame_or(enable_flame(req).unwrap_or(false), serde_json::to_string(&hits).unwrap())
+
     }
 
-
     // create stuff
-
     fn handlero(req: &mut Request) -> IronResult<Response> {
         
         println!("getting 1 request");
@@ -309,7 +301,7 @@ pub fn start_server() {
 
         println!("header: {:?}", *header);
         match *header {
-            iron::mime::Mime(TopLevel::Application, SubLevel::Json, _) => Ok(Response::with((status::BadRequest, "error"))),
+            // iron::mime::Mime(TopLevel::Application, SubLevel::Json, _) => Ok(Response::with((status::BadRequest, "error"))),
             iron::mime::Mime(TopLevel::Application, iron::mime::SubLevel::WwwFormUrlEncoded, _) |
             iron::mime::Mime(TopLevel::Multipart, iron::mime::SubLevel::FormData, _) => handle_multipart(req),
             _ => {
@@ -320,32 +312,17 @@ pub fn start_server() {
         }
     }
 
-    // fn proxy_handler(req: &mut Request) -> IronResult<Response> {
-    //     println!("getting 1 request");
-    //     let header = req.headers.get::<headers::ContentType>().expect("no content type set").clone();
-
-    //     println!("header: {:?}", *header);
-    //     match *header {
-    //         iron::mime::Mime(TopLevel::Application, SubLevel::Json, _) => return Ok(Response::with((status::BadRequest, error)),
-    //         iron::mime::Mime(TopLevel::Application, iron::mime::SubLevel::WwwFormUrlEncoded, _) |
-    //         iron::mime::Mime(TopLevel::Multipart, iron::mime::SubLevel::FormData, _) => return handle_multipart(req),
-    //         _ => {
-    //             let error = format!("content type has to be {:?}/{:?} or {:?}/{:?} but got {:?}", TopLevel::Application, SubLevel::Json,TopLevel::Multipart, iron::mime::SubLevel::FormData, *header );
-    //             println!("Error: {:?}", error);
-    //             return Ok(Response::with((status::BadRequest, error)))
-    //         }
-    //     }
-    // }
-
     fn handle_multipart(req: &mut Request) -> IronResult<Response> {
         let database = req.extensions.get::<Router>().unwrap().find("database").expect("could not find collection name in url").to_string();
+        let enable_flame = enable_flame(req).unwrap_or(false);
+        println!("handle_multipart: {:?}", &database);
         match Multipart::from_request(req) {
             Ok(mut multipart) => {
                 // Fetching all data and processing it.
                 // save().temp() reads the request fully, parsing all fields and saving all files
                 // in a new temporary directory under the OS temporary directory.
                 match multipart.save().temp() {
-                    SaveResult::Full(entries) =>  process_entries(entries, database),
+                    SaveResult::Full(entries) =>  handle_db_insert(enable_flame, entries, database),
                     SaveResult::Partial(_, reason) => {Ok(Response::with((status::BadRequest, format!("error reading request: {}", reason.unwrap_err())))) }
                     SaveResult::Error(error) => Ok(Response::with((status::BadRequest, format!("error reading request: {}", error))))
                 }
@@ -357,8 +334,13 @@ pub fn start_server() {
         }
     }
 
+    fn enable_flame(req: &mut Request) -> Result<bool, IronError> {
+        let map = extract_qp(req)?;
+        Ok(map.get("flame").is_some())
+    }
 
-    fn process_entries(entries: Entries, database:String) -> IronResult<Response> {
+    #[flame]
+    fn handle_db_insert(enable_flame: bool, entries: Entries, database:String) -> IronResult<Response> {
 
         if entries.files.len() != 1 {return Ok(Response::with((status::BadRequest, format!("only single file uploads supported, but got {} entries", entries.files.len())))); }
 
@@ -366,7 +348,7 @@ pub fn start_server() {
         println!("Field {:?} has {} files:", entry.0, entry.1.len());
         if entry.1.len() != 1 {return Ok(Response::with((status::BadRequest, "only single file uploads supported" ))); }
         let contents = get_multipart_file_contents(&entry.1.iter().last().unwrap())?;
-        let data: serde_json::Value = serde_json::from_str(&contents).expect("InvalidJson");
+        // let data: serde_json::Value = serde_json::from_str(&contents).expect("InvalidJson");
 
         // Start up a test.
         let indices = r#"[] "#;
@@ -375,8 +357,6 @@ pub fn start_server() {
         //     { "fulltext":"address[].line[]", "options":{"tokenize":true} }
         // ]
         // "#;
-
-
 
         println!("{:?}", search_lib::create::create_indices(&database, &contents, indices));
 
@@ -388,13 +368,34 @@ pub fn start_server() {
         //     });
         //     create::add_token_values_to_tokens(&mut pers, TOKEN_VALUE, &config.to_string()).expect("Could not add token values");
         // }
-        // PERSISTENCES.insert("default".to_string(), persistence::Persistence::load(database.to_string()).expect("could not load persistence"));
+        PERSISTENCES.insert(database.clone(), persistence::Persistence::load(database.to_string()).expect("could not load persistence"));
 
+        // if enable_flame{
+        //     let mut flame = vec![];
+        //     flame::dump_html(&mut flame).unwrap();
+        //     Ok(Response::with((status::Ok, Header(headers::ContentType::html()), String::from_utf8(flame).unwrap() )))
 
+        // }else{
+        //     Ok(Response::with((status::Ok, "database created" )))
+            
+        // }
 
-        Ok(Response::with((status::Ok, "schema::convert_to_schema(&data).unwrap()" )))
+        return_flame_or(enable_flame, serde_json::to_string(&json!({"result": "database created"})).unwrap())
+        
         // Ok(Response::with((status::Ok, schema::convert_to_schema(&data).unwrap())))
 
+    }
+
+    fn return_flame_or(enable_flame: bool, content:String) -> IronResult<Response>{
+        if enable_flame{
+            let mut flame = vec![];
+            flame::dump_html(&mut flame).unwrap();
+            Ok(Response::with((status::Ok, Header(headers::ContentType::html()), String::from_utf8(flame).unwrap() )))
+
+        }else{
+            Ok(Response::with((status::Ok, Header(headers::ContentType::json()), content )))
+            
+        }
     }
 
     fn get_multipart_file_contents(saved_file: &SavedFile) -> IronResult<(String)> {

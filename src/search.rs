@@ -21,6 +21,8 @@ use serde_json;
 #[allow(unused_imports)]
 use std::time::Duration;
 
+use crossbeam_channel::unbounded;
+
 use search_field;
 use persistence::Persistence;
 use doc_loader::DocLoader;
@@ -28,7 +30,11 @@ use util;
 use util::concat;
 use fst;
 
+
+
 use rayon::prelude::*;
+#[allow(unused_imports)]
+use crossbeam_channel;
 #[allow(unused_imports)]
 use std::sync::Mutex;
 
@@ -163,6 +169,7 @@ pub struct Hit {
     pub score: f32,
 }
 
+#[flame]
 fn hits_to_sorted_array(hits: FnvHashMap<u32, f32>) -> Vec<Hit> {
     debug_time!("hits_to_array_sort");
     let mut res: Vec<Hit> = hits.iter().map(|(id, score)| Hit { id:    *id, score: *score }).collect();
@@ -186,6 +193,7 @@ impl std::fmt::Display for DocWithHit {
 }
 
 // @FixMe Tests should use to_search_result
+#[flame]
 pub fn to_documents(persistence: &Persistence, hits: &Vec<Hit>) -> Vec<DocWithHit> {
     // DocLoader::load(persistence);
     hits.iter()
@@ -196,6 +204,7 @@ pub fn to_documents(persistence: &Persistence, hits: &Vec<Hit>) -> Vec<DocWithHi
         .collect::<Vec<_>>()
 }
 
+#[flame]
 pub fn to_search_result(persistence: &Persistence, hits: &SearchResult) -> SearchResultWithDoc {
     SearchResultWithDoc {
         data:     to_documents(&persistence, &hits.data),
@@ -203,7 +212,7 @@ pub fn to_search_result(persistence: &Persistence, hits: &SearchResult) -> Searc
     }
 }
 
-
+#[flame]
 pub fn apply_top_skip<T: Clone>(hits: Vec<T>, skip: usize, mut top: usize) -> Vec<T> {
     top = cmp::min(top + skip, hits.len());
     hits[skip..top].to_vec()
@@ -221,6 +230,7 @@ pub struct SearchResultWithDoc {
     pub data:     Vec<DocWithHit>,
 }
 
+#[flame]
 pub fn search_query(request: &str, persistence: &Persistence, top: Option<usize>, skip: Option<usize>, levenshtein: Option<usize>) -> Request {
     // let req = persistence.meta_data.fulltext_indices.key
     info_time!("generating search query");
@@ -248,6 +258,7 @@ pub fn search_query(request: &str, persistence: &Persistence, top: Option<usize>
     }
 }
 
+#[flame]
 pub fn search(request: Request, persistence: &Persistence) -> Result<SearchResult, SearchError> {
     info_time!("search");
     let skip = request.skip;
@@ -264,6 +275,7 @@ pub fn search(request: Request, persistence: &Persistence) -> Result<SearchResul
     Ok(search_result)
 }
 
+#[flame]
 pub fn get_shortest_result<T: std::iter::ExactSizeIterator>(results: &Vec<T>) -> usize {
     let mut shortest = (0, std::u64::MAX);
     for (index, res) in results.iter().enumerate() {
@@ -274,6 +286,7 @@ pub fn get_shortest_result<T: std::iter::ExactSizeIterator>(results: &Vec<T>) ->
     shortest.0
 }
 
+#[flame]
 pub fn search_unrolled(persistence: &Persistence, request: Request) -> Result<FnvHashMap<u32, f32>, SearchError> {
     debug_time!("search_unrolled");
 
@@ -327,6 +340,7 @@ struct BoostIter {
     // iterHashmap: IterMut<K, V> (&'a K, &'a mut V)
 }
 
+#[flame]
 pub fn add_boost(persistence: &Persistence, boost: &RequestBoostPart, hits: &mut FnvHashMap<u32, f32>) {
     // let key = util::boost_path(&boost.path);
     let boost_path = boost.path.to_string() + ".boost_valid_to_value";
@@ -427,11 +441,14 @@ fn check_apply_boost(persistence: &Persistence, boost: &RequestBoostPart, path_n
 }
 
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
+type PlanDataSender = crossbeam_channel::Sender<FnvHashMap<u32, f32>>;
+type PlanDataReceiver = crossbeam_channel::Receiver<FnvHashMap<u32, f32>>;
+
+#[derive(Clone, Debug)]
 enum PlanStepType {
-    FieldSearch(RequestSearchPart),
-    ValueIdToParent(String, String),
-    Boost(RequestBoostPart),
+    FieldSearch{req:RequestSearchPart, data_input:Vec<PlanDataReceiver>, data_output:Vec<PlanDataSender>},
+    ValueIdToParent{path:String, trace_info:String, data_input:Vec<PlanDataReceiver>, data_output:Vec<PlanDataSender>},
+    Boost{req:RequestBoostPart, data_input:Vec<PlanDataReceiver>, data_output:Vec<PlanDataSender>},
 }
 
 #[derive(Debug)]
@@ -452,60 +469,86 @@ enum PlanStepOperation {
 //     type: FieldSearch
 //     params: Option<RequestSearchPart>
 // }
-fn plan_creator(request: RequestSearchPart, mut boost: Option<Vec<RequestBoostPart>>) -> Vec<PlanStepType> {
+#[flame]
+fn plan_creator(request: RequestSearchPart, mut boost: Option<Vec<RequestBoostPart>>) -> (Vec<PlanStepType>, PlanDataReceiver) {
     let paths = util::get_steps_to_anchor(&request.path);
 
     let mut steps = vec![];
-    //search in fields
-    steps.push(PlanStepType::FieldSearch(request));
 
-    steps.push(PlanStepType::ValueIdToParent(concat(&paths.last().unwrap(), ".valueIdToParent"), "term hits hit to column".to_string()));
+    let (field_tx, field_rx):(PlanDataSender, PlanDataReceiver) = unbounded();
+
+    //search in fields
+    steps.push(PlanStepType::FieldSearch{req:request, data_input: vec![], data_output: vec![field_tx]});
+
+
+    let (mut tx, mut rx):(PlanDataSender, PlanDataReceiver) = unbounded();
+
+    steps.push(PlanStepType::ValueIdToParent{data_input: vec![field_rx], data_output: vec![tx.clone()], path: concat(&paths.last().unwrap(), ".valueIdToParent"), trace_info: "term hits hit to column".to_string()});
 
     for i in (0..paths.len() - 1).rev() {
+
 
         if boost.is_some() {
             boost.as_mut().unwrap().retain(|boost| {
                 let apply_boost = boost.path.starts_with(&paths[i]);
                 if apply_boost {
-                    steps.push(PlanStepType::Boost(boost.clone()));
+                    let (next_tx, next_rx):(PlanDataSender, PlanDataReceiver) = unbounded();
+                    tx = next_tx;
+                    steps.push(PlanStepType::Boost{req:boost.clone(), data_input: vec![rx.clone()], data_output: vec![tx.clone()]});
+                    rx = next_rx;
                 }
                 apply_boost
             });
         }
+
+
+        let (next_tx, next_rx):(PlanDataSender, PlanDataReceiver) = unbounded();
+        tx = next_tx;
         // let will_apply_boost = boost.map(|boost| boost.path.starts_with(&paths[i])).unwrap_or(false);
-        steps.push(PlanStepType::ValueIdToParent(concat(&paths[i], ".valueIdToParent"), "Joining to anchor".to_string()));
+        steps.push(PlanStepType::ValueIdToParent{data_input: vec![rx.clone()], data_output: vec![tx.clone()], path: concat(&paths[i], ".valueIdToParent"), trace_info: "Joining to anchor".to_string()});
+
+        rx = next_rx;
+        
     }
 
-    steps
+    (steps, rx)
 
 }
 
-fn execute_step(step: PlanStepType, persistence: &Persistence, mut input: FnvHashMap<u32, f32>) -> Result<FnvHashMap<u32, f32>, SearchError>
+#[flame]
+fn execute_step(step: PlanStepType, persistence: &Persistence)// -> Result<FnvHashMap<u32, f32>, SearchError>
 {
+
     match step {
-        PlanStepType::FieldSearch(mut req) => {
-            let field_result = search_field::get_hits_in_field(persistence, &mut req)?;
-            Ok(field_result.hits)
+        PlanStepType::FieldSearch{mut req, data_input, data_output} => {
+            let field_result = search_field::get_hits_in_field(persistence, &mut req).unwrap();
+            data_output[0].send(field_result.hits);
+            // Ok(field_result.hits)
         }
-        PlanStepType::ValueIdToParent(path, joop) => {
-            Ok(join_to_parent_2(persistence, input, &path, &joop))
+        PlanStepType::ValueIdToParent{data_input, data_output, path, trace_info:joop} => {
+            data_output[0].send(join_to_parent_2(persistence, data_input[0].recv().unwrap(), &path, &joop));
         }
-        PlanStepType::Boost(req) => {
+        PlanStepType::Boost{req,data_input, data_output} => {
+            let mut input = data_input[0].recv().unwrap();
             add_boost(persistence, &req, &mut input);
-            Ok(input)
+            data_output[0].send(input);
+            // Ok(input)
         }
     }
 }
 
-fn execute_plan(steps: Vec<PlanStepType>, persistence: &Persistence) -> Result<FnvHashMap<u32, f32>, SearchError>{
+#[flame]
+fn execute_plan(steps: Vec<PlanStepType>, persistence: &Persistence) //-> Result<FnvHashMap<u32, f32>, SearchError>
+{
 
-    let mut hits = FnvHashMap::default();
+    // let mut hits = FnvHashMap::default();
     for step in steps {
-        hits = execute_step(step, persistence, hits)?;
+        execute_step(step, persistence);
     }
-    Ok(hits)
+    // Ok(hits)
 }
-use hit_collector;
+
+#[flame]
 fn join_to_parent_2(persistence: &Persistence, input: FnvHashMap<u32, f32>, path: &str, trace_time_info: &str) -> FnvHashMap<u32, f32>
 {
     let mut total_values = 0;
@@ -547,52 +590,52 @@ fn join_to_parent_2(persistence: &Persistence, input: FnvHashMap<u32, f32>, path
     hits
 }
 
+// #[flame]
+// fn join_to_parent<I>(persistence: &Persistence, input: I, path: &str, trace_time_info: &str) -> FnvHashMap<u32, f32>
+//     where
+//     I: IntoIterator<Item = (u32, f32)> ,
+// {
+//     let mut total_values = 0;
+//     let mut hits: FnvHashMap<u32, f32> = FnvHashMap::default();
+//     let hits_iter = input.into_iter();
+//     let num_hits = hits_iter.size_hint().1.unwrap_or(0);
+//     hits.reserve(num_hits);
+//     let kv_store = persistence.get_valueid_to_parent(&concat(&path, ".valueIdToParent"));
+//     // debug_time!("term hits hit to column");
+//     debug_time!(format!("{:?} {:?}", path, trace_time_info));
+//     for (term_id, score) in hits_iter {
+//         let ref values = kv_store.get_values(term_id as u64);
+//         values.as_ref().map(|values| {
+//             total_values += values.len();
+//             hits.reserve(values.len());
+//             // trace!("value_id: {:?} values: {:?} ", value_id, values);
+//             for parent_val_id in values {
+//                 // @Temporary
+//                 match hits.entry(*parent_val_id as u32) {
+//                     Vacant(entry) => {
+//                         trace!("value_id: {:?} to parent: {:?} score {:?}", term_id, parent_val_id, score);
+//                         entry.insert(score);
+//                     }
+//                     Occupied(entry) => if *entry.get() < score {
+//                         trace!("value_id: {:?} to parent: {:?} score: {:?}", term_id, parent_val_id, score.max(*entry.get()));
+//                         *entry.into_mut() = score.max(*entry.get());
+//                     },
+//                 }
+//             }
+//         });
+//     }
+//     debug!("{:?} hits hit {:?} distinct ({:?} total ) in column {:?}", num_hits, hits.len(), total_values, path);
 
-fn join_to_parent<I>(persistence: &Persistence, input: I, path: &str, trace_time_info: &str) -> FnvHashMap<u32, f32>
-    where
-    I: IntoIterator<Item = (u32, f32)> ,
-{
-    let mut total_values = 0;
-    let mut hits: FnvHashMap<u32, f32> = FnvHashMap::default();
-    let hits_iter = input.into_iter();
-    let num_hits = hits_iter.size_hint().1.unwrap_or(0);
-    hits.reserve(num_hits);
-    let kv_store = persistence.get_valueid_to_parent(&concat(&path, ".valueIdToParent"));
-    // debug_time!("term hits hit to column");
-    debug_time!(format!("{:?} {:?}", path, trace_time_info));
-    for (term_id, score) in hits_iter {
-        let ref values = kv_store.get_values(term_id as u64);
-        values.as_ref().map(|values| {
-            total_values += values.len();
-            hits.reserve(values.len());
-            // trace!("value_id: {:?} values: {:?} ", value_id, values);
-            for parent_val_id in values {
-                // @Temporary
-                match hits.entry(*parent_val_id as u32) {
-                    Vacant(entry) => {
-                        trace!("value_id: {:?} to parent: {:?} score {:?}", term_id, parent_val_id, score);
-                        entry.insert(score);
-                    }
-                    Occupied(entry) => if *entry.get() < score {
-                        trace!("value_id: {:?} to parent: {:?} score: {:?}", term_id, parent_val_id, score.max(*entry.get()));
-                        *entry.into_mut() = score.max(*entry.get());
-                    },
-                }
-            }
-        });
-    }
-    debug!("{:?} hits hit {:?} distinct ({:?} total ) in column {:?}", num_hits, hits.len(), total_values, path);
+//     // debug!("{:?} hits in next_level_hits {:?}", next_level_hits.len(), &concat(path_name, ".valueIdToParent"));
 
-    // debug!("{:?} hits in next_level_hits {:?}", next_level_hits.len(), &concat(path_name, ".valueIdToParent"));
+//     // trace!("next_level_hits from {:?}: {:?}", &concat(path_name, ".valueIdToParent"), hits);
+//     // debug!("{:?} hits in next_level_hits {:?}", hits.len(), &concat(path_name, ".valueIdToParent"));
 
-    // trace!("next_level_hits from {:?}: {:?}", &concat(path_name, ".valueIdToParent"), hits);
-    // debug!("{:?} hits in next_level_hits {:?}", hits.len(), &concat(path_name, ".valueIdToParent"));
-
-    hits
-}
+//     hits
+// }
 
 
-
+#[flame]
 pub fn search_raw(
     persistence: &Persistence, mut request: RequestSearchPart, mut boost: Option<Vec<RequestBoostPart>>
 ) -> Result<FnvHashMap<u32, f32>, SearchError> {
@@ -601,77 +644,11 @@ pub fn search_raw(
     debug_time!("search and join to anchor");
 
 
-    let plan_steps = plan_creator(request.clone(), boost.clone());
-    let hits = execute_plan(plan_steps, &persistence)?;
+    let (plan_steps, receiver) = plan_creator(request.clone(), boost.clone());
+    execute_plan(plan_steps, &persistence);
+    let hits = receiver.recv().unwrap();
     Ok(hits)
 
-
-    // let field_result = search_field::get_hits_in_field(persistence, &mut request)?;
-
-    // // let mut field_result = search_field::SearchFieldResult::default();
-    // // let plan_steps = plan_creator(request.clone(), boost.clone());
-    // // for step in plan_steps {
-    // //     match step {
-    // //         PlanStepType::FieldSearch(request_search_part) => {
-    // //             field_result = search_field::get_hits_in_field(persistence, &mut request)?;
-    // //         },
-    // //         PlanStepType::ValueIdToParent(path) => {
-
-    // //         },
-    // //         PlanStepType::Boost(boost) => {
-    // //             add_boost(persistence, boost, hits);
-    // //         },
-    // //     }
-    // // }
-
-
-    // let num_term_hits = field_result.hits.len();
-    // if num_term_hits == 0 {
-    //     return Ok(FnvHashMap::default());
-    // };
-    // // let hits_iter = field_result.hits.into_iter();
-    // // let mut next_level_hits: FnvHashMap<u32, f32> = FnvHashMap::default();
-    // // let mut hits: FnvHashMap<u32, f32> = FnvHashMap::default();
-    // // let mut next_level_hits:Vec<(u32, f32)> = vec![];
-    // // let mut hits:Vec<(u32, f32)> = vec![];
-
-    // let paths = util::get_steps_to_anchor(&request.path);
-
-    // let mut hits = join_to_parent(&persistence, field_result.hits, paths.last().unwrap(), "term hits hit to column");
-
-    // info!("Joining {:?} hits from {:?} for {:?}", hits.len(), paths, &request.terms);
-    // for i in (0..paths.len() - 1).rev() {
-    //     // let is_text_index = i == (paths.len() - 1);
-    //     // let path_name = util::get_file_path_name(&paths[i], is_text_index);
-    //     let path_name = &paths[i];
-
-    //     // if boost.is_some() {
-    //     //     boost.as_mut().unwrap().retain(|boost| {
-    //     //         let will_apply_boost = boost.path.starts_with(path_name);
-    //     //         // check_apply_boost(persistence, boost, &path_name, &mut hi
-    //     //         add_boost(persistence, boost, &mut hits);
-    //     //         !will_apply_boost
-    //     //     });
-    //     // }
-
-    //     hits = join_to_parent(&persistence, hits, path_name, "Joining to anchor");
-    //     // next_level_hits.sort_by(|a, b| a.0.cmp(&b.0));
-    //     trace!("next_level_hits from {:?}: {:?}", &concat(path_name, ".valueIdToParent"), hits);
-    //     debug!("{:?} hits in next_level_hits {:?}", hits.len(), &concat(path_name, ".valueIdToParent"));
-
-    // }
-
-    // // if boost.is_some() {
-    // //     //remaining boosts
-    // //     boost.as_mut().unwrap().retain(|boost| {
-    // //         let will_apply_boost = boost.path.starts_with("");
-    // //         // check_apply_boost(persistence, boost, "", &mut hits)
-    // //         add_boost(persistence, boost, &mut hits);
-    // //         !will_apply_boost
-    // //     });
-    // // }
-
-    // Ok(hits)
 }
 
 

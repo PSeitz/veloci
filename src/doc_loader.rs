@@ -13,6 +13,7 @@ impl DocLoader {
         persistence.load_index_64("data.offsets").unwrap();
     }
 
+    #[flame]
     pub fn get_doc(persistence: &Persistence, pos: usize) -> Result<String, io::Error> {
         let (start, end) = {
             let offsets = persistence.cache.index_64.get("data.offsets").unwrap();

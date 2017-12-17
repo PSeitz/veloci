@@ -41,6 +41,7 @@ fn get_default_score2(distance: u32, prefix_matches: bool) -> f32 {
 }
 
 #[inline(always)]
+#[flame]
 fn get_text_lines<F>(persistence: &Persistence, options: &RequestSearchPart, mut fun: F) -> Result<(), SearchError>
 where
     F: FnMut(&str, u32),
@@ -123,7 +124,7 @@ where
 
 pub type SuggestFieldResult = Vec<(String, Score, TermId)>;
 
-
+#[flame]
 fn search_result_to_suggest_result(results: Vec<SearchFieldResult>, skip: usize, top: usize) -> SuggestFieldResult {
     let mut suggest_result = results
         .iter()
@@ -140,6 +141,7 @@ fn search_result_to_suggest_result(results: Vec<SearchFieldResult>, skip: usize,
     search::apply_top_skip(suggest_result, skip, top)
 }
 
+#[flame]
 fn search_result_to_highlight_result(results: Vec<SearchFieldResult>, skip: Option<usize>, top: Option<usize>) -> SuggestFieldResult {
     let mut suggest_result = results
         .iter()
@@ -209,6 +211,7 @@ pub fn highlight(persistence: &Persistence, options: &mut RequestSearchPart) -> 
 //     }
 // }
 
+#[flame]
 pub fn get_hits_in_field(persistence: &Persistence, options: &RequestSearchPart) -> Result<SearchFieldResult, SearchError> {
     let mut options = options.clone();
     options.path = options.path.to_string() + ".textindex";
@@ -228,6 +231,7 @@ pub fn get_hits_in_field(persistence: &Persistence, options: &RequestSearchPart)
     Ok(SearchFieldResult::default())
 }
 
+#[flame]
 fn get_hits_in_field_one_term(persistence: &Persistence, options: &RequestSearchPart) -> Result<SearchFieldResult, SearchError> {
     debug_time!(format!("{} get_hits_in_field",  &options.path));
     // let mut hits:FnvHashMap<u32, f32> = FnvHashMap::default();
@@ -306,7 +310,7 @@ fn get_hits_in_field_one_term(persistence: &Persistence, options: &RequestSearch
     Ok(result)
 }
 
-
+#[flame]
 pub fn get_text_for_ids(persistence: &Persistence, path:&str, ids: &[u32]) -> FnvHashMap<u32, String> {
     let mut faccess:persistence::FileSearch = persistence.get_file_search(path);
     let offsets = persistence.get_offsets(path).unwrap();
@@ -315,6 +319,7 @@ pub fn get_text_for_ids(persistence: &Persistence, path:&str, ids: &[u32]) -> Fn
 
 use itertools::Itertools;
 
+#[flame]
 pub fn highlight_document(persistence: &Persistence, path:&str, value_id: u64,  token_ids: &[u32], num_words_around_snippet: i64, highlight_start:&str, highlight_end:&str, snippet_connector:&str) -> String {
     let value_id_to_token_ids = persistence.get_valueid_to_parent(&concat(path, ".value_id_to_token_ids"));
 
@@ -385,6 +390,7 @@ pub fn highlight_document(persistence: &Persistence, path:&str, value_id: u64,  
     snippet
 }
 
+#[flame]
 pub fn resolve_snippets(persistence: &Persistence, path: &str, result: &mut SearchFieldResult) {
     let token_kvdata = persistence.get_valueid_to_parent(&concat(path, ".tokens"));
     let mut value_id_to_token_hits:FnvHashMap<u32, Vec<u32>> = FnvHashMap::default(); 
@@ -399,6 +405,7 @@ pub fn resolve_snippets(persistence: &Persistence, path: &str, result: &mut Sear
     }
 }
 
+#[flame]
 pub fn resolve_token_hits(persistence: &Persistence, path: &str, result: &mut SearchFieldResult, options: &RequestSearchPart) {
 
     let has_tokens = persistence
