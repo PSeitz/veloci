@@ -83,6 +83,13 @@ pub fn remove_array_marker(path: &str) -> String {
         .join(".")
 }
 
+pub fn extract_prop_name(path: &str) -> &str {
+    path.split(".")
+        .map(|el| if el.ends_with("[]") { &el[0..el.len() - 2] } else { el })
+        .filter(|el| *el != "textindex")
+        .last().expect(&format!("could not extract prop name from path {:?}", path))
+}
+
 pub fn get_steps_to_anchor(path: &str) -> Vec<String> {
     let mut paths = vec![];
     let mut current = vec![];
@@ -100,6 +107,57 @@ pub fn get_steps_to_anchor(path: &str) -> Vec<String> {
     paths.push(path.to_string()+ ".textindex"); // add path to index
     return paths;
 }
+
+
+use std::collections::HashMap;
+use itertools::Itertools;
+#[derive(Debug, Default, Clone, Serialize)]
+pub struct NodeTree{
+    pub next: HashMap<String, NodeTree>,
+    pub is_leaf: bool
+}
+
+impl NodeTree {
+    pub fn new() -> NodeTree {
+        NodeTree{next: HashMap::default(), is_leaf:false}
+    }
+    pub fn new_leaf() -> NodeTree {
+        NodeTree{next: HashMap::default(), is_leaf:true}
+    }
+}
+
+
+pub fn to_node_tree(paths: Vec<Vec<String>>) -> NodeTree {
+    let mut tree = NodeTree::new();
+    for (key, group) in &paths.into_iter().group_by(|el| el.get(0).map(|el| el.clone())) {
+        let key = key.unwrap();
+        let mut next_paths = group.collect_vec();
+
+        let mut is_leaf = false;
+        for ref mut el in next_paths.iter_mut(){
+            el.remove(0);
+            if el.len() == 0{ //removing last part means it's a leaf
+                is_leaf = true;
+            }
+        }
+
+        next_paths.retain(|el|el.len()!=0); //remove empty paths
+
+        if next_paths.len()==0 {
+            tree.next.insert(key.to_string(), NodeTree::new_leaf());
+        }else{
+            let mut sub_tree = to_node_tree(next_paths);
+            sub_tree.is_leaf = is_leaf;
+            tree.next.insert(key.to_string(), sub_tree);
+        }
+    }
+    tree
+
+}
+
+
+
+
 
 
 // assert_eq!(re.replace("1078910", ""), " ");

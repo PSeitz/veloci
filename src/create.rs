@@ -1,6 +1,5 @@
 use util::{self, concat};
 use fnv::FnvHashMap;
-use std::collections::HashMap;
 
 use serde_json::{self, Value};
 
@@ -18,9 +17,6 @@ use log;
 #[allow(unused_imports)]
 use fst::{self, IntoStreamer, Levenshtein, MapBuilder, Set};
 
-use flame;
-use std::fs::{self, File};
-use std::io::prelude::*;
 
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(untagged)]
@@ -72,7 +68,7 @@ impl TermInfo {
 }
 
 
-pub fn set_ids(terms: &mut HashMap<String, TermInfo>) {
+pub fn set_ids(terms: &mut FnvHashMap<String, TermInfo>) {
     let mut v: Vec<String> = terms.keys().collect::<Vec<&String>>().iter().map(|el| (*el).clone()).collect();
     v.sort();
     for (i, term) in v.iter().enumerate() {
@@ -141,7 +137,7 @@ fn print_vec(vec: &Vec<ValIdPair>, valid_header: &str, parentid_header: &str) ->
 use persistence;
 
 fn store_full_text_info(
-    persistence: &mut Persistence, all_terms: HashMap<String, TermInfo>, path: &str, options: &FulltextIndexOptions
+    persistence: &mut Persistence, all_terms: FnvHashMap<String, TermInfo>, path: &str, options: &FulltextIndexOptions
 ) -> Result<(), io::Error> {
     info_time!(format!("store_fst {:?}", path));
     let mut sorted_terms: Vec<&String> = all_terms.keys().collect::<Vec<&String>>();
@@ -158,7 +154,7 @@ fn store_full_text_info(
     Ok(())
 }
 
-fn store_fst(persistence: &mut Persistence, all_terms: &HashMap<String, TermInfo>, path: &str) -> Result<(), fst::Error> {
+fn store_fst(persistence: &mut Persistence, all_terms: &FnvHashMap<String, TermInfo>, path: &str) -> Result<(), fst::Error> {
     debug_time!(format!("store_fst {:?}", path));
     let wtr = persistence.get_buffered_writer(&concat(&path, ".fst"))?;
     // Create a builder that can be used to insert new key-value pairs.
@@ -183,25 +179,19 @@ use sled;
 #[allow(unused_imports)]
 use byteorder::{LittleEndian, WriteBytesExt};
 
-pub fn get_allterms(data: &Value) -> HashMap<String, HashMap<String, TermInfo>> {
-    let mut terms_in_path: HashMap<String, HashMap<String, TermInfo>> = HashMap::default();
-    let num_el = match data {
-        &Value::Array(ref el) => el.len(),
-        _ => 1,
-    };
+
+pub fn get_allterms(data: &Value) -> FnvHashMap<String, FnvHashMap<String, TermInfo>> {
+    let mut terms_in_path: FnvHashMap<String, FnvHashMap<String, TermInfo>> = FnvHashMap::default();
+
     let mut opt = json_converter::ForEachOpt {};
     let mut id_holder = json_converter::IDHolder::new();
 
     //TODO @FixMe as parameter
     let options = FulltextIndexOptions{tokenize: true, stopwords: Some(vec![]) };
-    flame::start("collect terms and tokens");
+
     {
         let mut cb_text = |value: &str, path: &str, _parent_val_id: u32| {
-            if !terms_in_path.contains_key(path) {
-                terms_in_path.insert(path.to_string(), HashMap::with_capacity(num_el));
-            }
-
-            let terms = terms_in_path.get_mut(path).unwrap();
+            let terms = terms_in_path.entry(path.to_string()).or_insert(FnvHashMap::default());
             let normalized_text = util::normalize_text(value);
             trace!("normalized_text: {:?}", normalized_text);
             if options.stopwords.as_ref().map(|el| el.contains(&normalized_text)).unwrap_or(false) {
@@ -215,11 +205,12 @@ pub fn get_allterms(data: &Value) -> HashMap<String, HashMap<String, TermInfo>> 
 
             if options.tokenize && normalized_text.split(" ").count() > 1 {
                 for token in normalized_text.split(" ") {
+                    let token_str = token.to_string();
                     if options.stopwords.as_ref().map(|el| el.contains(&normalized_text)).unwrap_or(false) {
                         continue;
                     }
                     // terms.insert(token_str);
-                    let stat = terms.entry(token.to_string()).or_insert(TermInfo::default());
+                    let stat = terms.entry(token_str.clone()).or_insert(TermInfo::default());
                     stat.num_occurences += 1;
                 }
             }
@@ -230,15 +221,12 @@ pub fn get_allterms(data: &Value) -> HashMap<String, HashMap<String, TermInfo>> 
 
         json_converter::for_each_element(&data, &mut id_holder, &mut opt, &mut cb_text, &mut callback_ids);
     }
-    flame::end("collect terms and tokens");
 
-    flame::start("set term ids");
     {
         for mut terms in terms_in_path.values_mut() {
             set_ids(&mut terms);
         }
     }
-    flame::end("set term ids");
     terms_in_path
 
     // let mut v: Vec<String> = terms.into_iter().collect::<Vec<String>>();
@@ -248,7 +236,6 @@ pub fn get_allterms(data: &Value) -> HashMap<String, HashMap<String, TermInfo>> 
 
 
 //TODO pass index options, like tokenize
-#[flame]
 pub fn create_fulltext_index(data: &Value, mut persistence: &mut Persistence) -> Result<(), io::Error> {
     // let data: Value = serde_json::from_str(data_str).unwrap();
     let all_terms_in_path = get_allterms(&data);
@@ -310,6 +297,15 @@ pub fn create_fulltext_index(data: &Value, mut persistence: &mut Persistence) ->
             if log_enabled!(log::LogLevel::Trace) {
                 trace!("{}\n{}",&concat(&path, ".valueIdToParent"), print_vec(&tuples, &path, "parentid"));
             }
+
+            //Flip values
+            for el in tuples.iter_mut() {
+                std::mem::swap(&mut el.parent_val_id, &mut el.valid);
+            }
+            persistence.write_tuple_pair(&mut tuples, &concat(&path, ".parentToValueId"))?;
+            if log_enabled!(log::LogLevel::Trace) {
+                trace!("{}\n{}",&concat(&path, ".parentToValueId"), print_vec(&tuples, &path, "value_id"));
+            }
         }
 
         for (path, mut tokens) in tokens_in_path.iter_mut() {
@@ -351,7 +347,7 @@ pub fn create_fulltext_index(data: &Value, mut persistence: &mut Persistence) ->
     Ok(())
 }
 
-#[flame]
+
 fn get_string_offsets(data: Vec<&String>) -> Vec<u64> {
     let mut offsets = vec![];
     let mut offset = 0;
@@ -363,7 +359,6 @@ fn get_string_offsets(data: Vec<&String>) -> Vec<u64> {
     offsets
 }
 
-#[flame]
 fn create_boost_index(data: &Value, path: &str, options: BoostIndexOptions, persistence: &mut Persistence) -> Result<(), io::Error> {
     info_time!("create_boost_index");
 
@@ -429,8 +424,6 @@ struct TokenValueData {
 
 use search;
 use search_field;
-
-#[flame]
 pub fn add_token_values_to_tokens(persistence: &mut Persistence, data_str: &str, config: &str) -> Result<(), search::SearchError> {
     let data: Vec<TokenValueData> = serde_json::from_str(data_str).unwrap();
     let config: TokenValuesConfig = serde_json::from_str(config).unwrap();
@@ -465,7 +458,7 @@ pub fn add_token_values_to_tokens(persistence: &mut Persistence, data_str: &str,
     Ok(())
 }
 
-#[flame]
+
 pub fn create_indices(folder: &str, data_str: &str, indices: &str) -> Result<(), CreateError> {
     info_time!(format!("create_indices complete for {:?}", folder));
     let data: Value = serde_json::from_str(data_str).unwrap();
@@ -488,8 +481,6 @@ pub fn create_indices(folder: &str, data_str: &str, indices: &str) -> Result<(),
     }
 
     persistence.write_meta_data()?;
-
-    flame::dump_html(&mut File::create("flame-graph.html").unwrap()).unwrap();
 
     Ok(())
 }

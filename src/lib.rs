@@ -99,6 +99,7 @@ pub mod expression;
 pub mod bucket_list;
 pub mod hit_collector;
 pub mod trace;
+pub mod execution_plan;
 
 #[cfg(test)]
 mod tests;

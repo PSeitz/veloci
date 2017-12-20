@@ -18,6 +18,7 @@ use ordered_float::OrderedFloat;
 use fst::{IntoStreamer, Levenshtein, Map, MapBuilder, Set};
 use fst::automaton::*;
 // use search::Hit;
+
 #[derive(Debug, Default)]
 pub struct SearchFieldResult {
     pub hits:  FnvHashMap<TermId, f32>,
@@ -300,7 +301,7 @@ fn get_hits_in_field_one_term(persistence: &Persistence, options: &RequestSearch
 
     if options.token_value.is_some() {
         debug!("Token Boosting: \n");
-        search::add_boost(persistence, options.token_value.as_ref().unwrap(), &mut result.hits);
+        search::add_boost(persistence, options.token_value.as_ref().unwrap(), &mut result);
 
         // for el in result.hits.iter_mut() {
         //     el.score = *hits.get(&el.id).unwrap();
@@ -311,7 +312,20 @@ fn get_hits_in_field_one_term(persistence: &Persistence, options: &RequestSearch
 }
 
 #[flame]
-pub fn get_text_for_ids(persistence: &Persistence, path:&str, ids: &[u32]) -> FnvHashMap<u32, String> {
+pub fn get_text_for_ids(persistence: &Persistence, path:&str, ids: &[u32]) -> Vec<String> {
+    let mut faccess:persistence::FileSearch = persistence.get_file_search(path);
+    let offsets = persistence.get_offsets(path).unwrap();
+    ids.iter().map(|id| faccess.get_text_for_id(*id as usize, offsets)).collect()
+}
+#[flame]
+pub fn get_text_for_id(persistence: &Persistence, path:&str, id: u32) -> String {
+    let mut faccess:persistence::FileSearch = persistence.get_file_search(path);
+    let offsets = persistence.get_offsets(path).unwrap();
+    faccess.get_text_for_id(id as usize, offsets)
+}
+
+#[flame]
+pub fn get_id_text_map_for_ids(persistence: &Persistence, path:&str, ids: &[u32]) -> FnvHashMap<u32, String> {
     let mut faccess:persistence::FileSearch = persistence.get_file_search(path);
     let offsets = persistence.get_offsets(path).unwrap();
     ids.iter().map(|id| (*id, faccess.get_text_for_id(*id as usize, offsets))).collect()
@@ -363,7 +377,7 @@ pub fn highlight_document(persistence: &Persistence, path:&str, value_id: u64,  
     let mut all_tokens = grouped.iter().map(get_document_windows).flat_map(|el| el.2).map(|el| *el).collect_vec();
     all_tokens.sort();
     all_tokens = all_tokens.into_iter().dedup().collect_vec();
-    let id_to_text = get_text_for_ids(persistence, path, all_tokens.as_slice());
+    let id_to_text = get_id_text_map_for_ids(persistence, path, all_tokens.as_slice());
 
     // trace_time!("create snippet string");
     print_time!("create snippet string");
@@ -497,8 +511,8 @@ pub fn resolve_token_hits(persistence: &Persistence, path: &str, result: &mut Se
             result.hits.insert(parent_id, max_score);
             if resolve_snippets {
                 //value_id_to_token_hits.insert(parent_id, t2.map(|el| el.2).collect_vec()); //TODO maybe store hits here, in case only best x are needed
-                options.snippet_info.as_ref().unwrap_or(&search::DEFAULT_SNIPPETINFO);
-                let highlighted_document = highlight_document(persistence, path, parent_id as u64, &t2.map(|el| el.2).collect_vec(), 4, "<b>", "</b>", " ... ");
+                let snippet_config = options.snippet_info.as_ref().unwrap_or(&search::DEFAULT_SNIPPETINFO);
+                let highlighted_document = highlight_document(persistence, path, parent_id as u64, &t2.map(|el| el.2).collect_vec(), snippet_config.num_words_around_snippet, &snippet_config.snippet_start_tag, &snippet_config.snippet_end_tag, &snippet_config.snippet_connector);
                 result.highlight.insert(parent_id, highlighted_document);
             }
         }

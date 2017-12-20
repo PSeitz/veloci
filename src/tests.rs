@@ -75,9 +75,10 @@ mod tests {
             "birthDate": "1960-08-19",
             "address": [
                 {
-                    "line": [
-                        "nuts strees"
-                    ]
+                    "line": ["nuts strees"]
+                },
+                {
+                    "line": ["asdf"]
                 }
             ],
             "commonness": 500,
@@ -208,9 +209,14 @@ mod tests {
 
     fn search_testo_to_doco(req: Value) -> Result<Vec<search::DocWithHit>, search::SearchError> {
         let pers = PERSISTENCES.get(&"default".to_string()).expect("Can't find loaded persistence");
+        Ok(search::to_documents(&pers, &search_testo_to_hitso(req)?.data))
+    }
+
+    fn search_testo_to_hitso(req: Value) -> Result<search::SearchResult, search::SearchError> {
+        let pers = PERSISTENCES.get(&"default".to_string()).expect("Can't find loaded persistence");
         let requesto: search::Request = serde_json::from_str(&req.to_string()).expect("Can't parse json");
         let hits = search::search(requesto, &pers)?;
-        Ok(search::to_documents(&pers, &hits.data))
+        Ok(hits)
     }
 
     describe! search_test {
@@ -220,7 +226,7 @@ mod tests {
             {
 
                 if !*INDEX_CREATEDO {
-                    trace::enable_log();
+                    // trace::enable_log();
 
                     // Start up a test.
                     let indices = r#"
@@ -627,6 +633,41 @@ mod tests {
             println!("{:?}", hits);
             assert_eq!(hits.len(), 2);
             assert_eq!(hits[0].doc["meanings"]["ger"][0], "majestätischer Anblick (m)");
+        }
+
+        it "read mah data!"{
+
+            let req = json!({
+                "search": {"terms":["majestät"], "path": "meanings.ger[]"}
+            });
+            let hits = search_testo_to_hitso(req).unwrap();
+            println!("{:?}", hits);
+            trace::enable_log();
+
+            let id = 1;
+
+            // search::read_data(id, vec!["ent_seq".to_string(), "field1[].text".to_string(), "kanji[].text".to_string(), "meanings.ger[]".to_string(), "meanings.eng[]".to_string(), "address[].line[]".to_string()]);
+
+            let mut pers = PERSISTENCES.get(&"default".to_string()).unwrap();
+            // search::read_data_single(&pers, id, "ent_seq".to_string());
+
+            search::read_data_single(&pers, hits.data[0].id, "meanings.ger[]".to_string());
+
+            assert_eq!(hits.data.len(), 1);
+
+
+            let yay = search::read_data(&pers, 3, vec!["commonness".to_string(),
+                                                        "ent_seq".to_string(),
+                                                        "meanings.ger[]".to_string(),
+                                                        "kana[].text".to_string(),
+                                                        "kana[].commonness".to_string(),
+                                                        "kana[].romaji".to_string(),
+                                                        "address[].line[]".to_string()]);
+            println!("YEEEYYY");
+            println!("{}", yay);
+
+
+            // assert_eq!(hits[0].doc["meanings"]["ger"][0], "majestätischer Anblick (m)");
         }
 
         //MUTLI TERMS
