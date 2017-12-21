@@ -27,10 +27,9 @@ pub enum CreateIndex {
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Fulltext {
-    fulltext:     String,
-    options:      Option<FulltextIndexOptions>,
-    attr_pos:     Option<usize>,
-    loading_type: Option<LoadingType>,
+    fulltext:           String,
+    options:            Option<FulltextIndexOptions>,
+    loading_type:       Option<LoadingType>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -47,7 +46,14 @@ pub struct TokenValuesConfig {
 #[derive(Serialize, Deserialize, Debug, Default, Clone)]
 pub struct FulltextIndexOptions {
     pub tokenize:  bool,
+    pub add_normal_values:  Option<bool>,
     pub stopwords: Option<Vec<String>>,
+}
+
+impl FulltextIndexOptions {
+    fn new() -> FulltextIndexOptions{
+        FulltextIndexOptions{tokenize: true, stopwords: Some(vec![]), add_normal_values:Some(true) }
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -66,6 +72,8 @@ impl TermInfo {
         TermInfo { id:id, num_occurences: 0}
     }
 }
+
+
 
 
 pub fn set_ids(terms: &mut FnvHashMap<String, TermInfo>) {
@@ -180,6 +188,31 @@ use sled;
 use byteorder::{LittleEndian, WriteBytesExt};
 
 
+fn add_text(normalized_text: String, terms: &mut FnvHashMap<String, TermInfo>, options: &FulltextIndexOptions) {
+    trace!("normalized_text: {:?}", normalized_text);
+    if options.stopwords.as_ref().map(|el| el.contains(&normalized_text)).unwrap_or(false) {
+        return;
+    }
+
+    {
+        let stat = terms.entry(normalized_text.to_string()).or_insert(TermInfo::default());
+        stat.num_occurences += 1;
+    }
+
+    if options.tokenize && normalized_text.split(" ").count() > 1 {
+        for token in normalized_text.split(" ") {
+            let token_str = token.to_string();
+            if options.stopwords.as_ref().map(|el| el.contains(&token_str)).unwrap_or(false) {
+                continue;
+            }
+            // terms.insert(token_str);
+            let stat = terms.entry(token_str.clone()).or_insert(TermInfo::default());
+            stat.num_occurences += 1;
+        }
+    }
+
+}
+
 pub fn get_allterms(data: &Value) -> FnvHashMap<String, FnvHashMap<String, TermInfo>> {
     let mut terms_in_path: FnvHashMap<String, FnvHashMap<String, TermInfo>> = FnvHashMap::default();
 
@@ -187,34 +220,16 @@ pub fn get_allterms(data: &Value) -> FnvHashMap<String, FnvHashMap<String, TermI
     let mut id_holder = json_converter::IDHolder::new();
 
     //TODO @FixMe as parameter
-    let options = FulltextIndexOptions{tokenize: true, stopwords: Some(vec![]) };
+    let options = FulltextIndexOptions::new();
 
     {
         let mut cb_text = |value: &str, path: &str, _parent_val_id: u32| {
-            let terms = terms_in_path.entry(path.to_string()).or_insert(FnvHashMap::default());
+            let mut terms = terms_in_path.entry(path.to_string()).or_insert(FnvHashMap::default());
             let normalized_text = util::normalize_text(value);
-            trace!("normalized_text: {:?}", normalized_text);
-            if options.stopwords.as_ref().map(|el| el.contains(&normalized_text)).unwrap_or(false) {
-                return;
-            }
-
-            {
-                let stat = terms.entry(normalized_text.clone()).or_insert(TermInfo::default());
-                stat.num_occurences += 1;
-            }
-
-            if options.tokenize && normalized_text.split(" ").count() > 1 {
-                for token in normalized_text.split(" ") {
-                    let token_str = token.to_string();
-                    if options.stopwords.as_ref().map(|el| el.contains(&normalized_text)).unwrap_or(false) {
-                        continue;
-                    }
-                    // terms.insert(token_str);
-                    let stat = terms.entry(token_str.clone()).or_insert(TermInfo::default());
-                    stat.num_occurences += 1;
-                }
-            }
-
+            add_text(normalized_text, &mut terms, &options);
+            // if options.add_normal_values.unwrap_or(true){
+            //     add_text(value.to_string(), &mut terms, &options);
+            // }
         };
 
         let mut callback_ids = |_path: &str, _value_id: u32, _parent_val_id: u32| {};
@@ -256,7 +271,7 @@ pub fn create_fulltext_index(data: &Value, mut persistence: &mut Persistence) ->
             let tokens = tokens_in_path.entry(path.to_string()).or_insert(vec![]);
             let tuples = text_tuples_in_path.entry(path.to_string()).or_insert(vec![]);
             let all_terms = all_terms_in_path.get(path).unwrap();
-            let options = FulltextIndexOptions{tokenize: true, stopwords: Some(vec![]) }; // TODO @FixMe
+            let options = FulltextIndexOptions::new(); // TODO @FixMe
             let normalized_text = util::normalize_text(value);
             if options.stopwords.as_ref().map(|el| el.contains(&normalized_text)).unwrap_or(false) {
                 return;
@@ -318,7 +333,7 @@ pub fn create_fulltext_index(data: &Value, mut persistence: &mut Persistence) ->
         }
 
         for (path, all_terms) in all_terms_in_path {
-            let options = FulltextIndexOptions{tokenize: true, stopwords: Some(vec![]) };
+            let options = FulltextIndexOptions::new();
             store_full_text_info(&mut persistence, all_terms, &path, &options)?;
         }
     }

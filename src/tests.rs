@@ -644,11 +644,9 @@ mod tests {
             println!("{:?}", hits);
             trace::enable_log();
 
-            let id = 1;
-
             // search::read_data(id, vec!["ent_seq".to_string(), "field1[].text".to_string(), "kanji[].text".to_string(), "meanings.ger[]".to_string(), "meanings.eng[]".to_string(), "address[].line[]".to_string()]);
 
-            let mut pers = PERSISTENCES.get(&"default".to_string()).unwrap();
+            let pers = PERSISTENCES.get(&"default".to_string()).unwrap();
             // search::read_data_single(&pers, id, "ent_seq".to_string());
 
             search::read_data_single(&pers, hits.data[0].id, "meanings.ger[]".to_string());
