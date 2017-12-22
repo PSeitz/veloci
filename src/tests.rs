@@ -509,7 +509,14 @@ mod tests {
         it "should highlight ids"{
             let mut pers = PERSISTENCES.get(&"default".to_string()).unwrap();
 
-            let results = search_field::highlight_document(&mut pers, "mylongtext.textindex", 13, &[9], 4, "<b>", "</b>", " ... ");
+
+            let inf = search::SnippetInfo{
+                num_words_around_snippet :  4,
+                snippet_start_tag: "<b>".to_string(),
+                snippet_end_tag: "</b>".to_string(),
+                snippet_connector: " ... ".to_string(),
+            };
+            let results = search_field::highlight_document(&mut pers, "mylongtext.textindex", 13, &[9], &inf).unwrap();
             assert_eq!(results, "this is a <b>story</b> of a  ... " );
 
         }
@@ -649,7 +656,7 @@ mod tests {
             let pers = PERSISTENCES.get(&"default".to_string()).unwrap();
             // search::read_data_single(&pers, id, "ent_seq".to_string());
 
-            search::read_data_single(&pers, hits.data[0].id, "meanings.ger[]".to_string());
+            search::read_data_single(&pers, hits.data[0].id, "meanings.ger[]".to_string()).unwrap();
 
             assert_eq!(hits.data.len(), 1);
 
@@ -660,7 +667,7 @@ mod tests {
                                                         "kana[].text".to_string(),
                                                         "kana[].commonness".to_string(),
                                                         "kana[].romaji".to_string(),
-                                                        "address[].line[]".to_string()]);
+                                                        "address[].line[]".to_string()]).unwrap();
             println!("YEEEYYY");
             println!("{}", yay);
 

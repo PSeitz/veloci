@@ -34,11 +34,11 @@ pub enum PlanStepType {
     FromAttribute{steps:Vec<PlanStepType>, output_next_steps:PlanDataReceiver, plans_output:PlanDataReceiver},
 }
 
-pub trait Foo {
+pub trait OutputProvider {
     fn get_output(&self) -> PlanDataReceiver;
 }
 
-impl Foo for PlanStepType {
+impl OutputProvider for PlanStepType {
     fn get_output(&self) -> PlanDataReceiver{
         match self {
             &PlanStepType::FieldSearch{ref plans_output, ..} => {
@@ -62,6 +62,59 @@ impl Foo for PlanStepType {
         }
     }
 }
+
+
+fn get_data(input_prev_steps:Vec<PlanDataReceiver>) -> Result<Vec<SearchFieldResult>, SearchError> {
+    let mut dat = vec![];
+    for el in input_prev_steps {
+        dat.push(el.recv()?);
+    }
+    Ok(dat)
+}
+
+pub trait StepExecutor {
+    fn execute_step(self, persistence: &Persistence) -> Result<(), SearchError>;
+}
+impl StepExecutor for PlanStepType {
+
+    #[flame]
+    fn execute_step(self, persistence: &Persistence) -> Result<(), SearchError>{
+        match self {
+            PlanStepType::FieldSearch{mut req, input_prev_steps, output_next_steps, ..} => {
+                let field_result = search_field::get_hits_in_field(persistence, &mut req)?;
+                output_next_steps.send(field_result)?;
+                // Ok(field_result.hits)
+                Ok(())
+            }
+            PlanStepType::ValueIdToParent{input_prev_steps, output_next_steps, path, trace_info:joop, ..} => {
+                output_next_steps.send(join_to_parent_with_score(persistence, input_prev_steps[0].recv()?, &path, &joop)?)?;
+                Ok(())
+            }
+            PlanStepType::Boost{req,input_prev_steps, output_next_steps, ..} => {
+                let mut input = input_prev_steps[0].recv()?;
+                add_boost(persistence, &req, &mut input)?;
+                output_next_steps.send(input)?;
+                Ok(())
+            }
+            PlanStepType::Union{steps, input_prev_steps, output_next_steps, ..} => {
+                execute_steps(steps, persistence)?;
+                output_next_steps.send(union_hits(get_data(input_prev_steps)?))?;
+                Ok(())
+            }
+            PlanStepType::Intersect{steps, input_prev_steps, output_next_steps, ..} => {
+                execute_steps(steps, persistence)?;
+                output_next_steps.send(intersect_hits(get_data(input_prev_steps)?))?;
+                Ok(())
+            }
+            PlanStepType::FromAttribute{steps, output_next_steps, ..} => {
+                execute_steps(steps, persistence)?;
+                // output_next_steps.send(intersect_hits(input_prev_steps.iter().map(|el| el.recv().unwrap()).collect()));
+                Ok(())
+            }
+        }
+    }
+}
+
 
 
 #[flame]
@@ -135,58 +188,85 @@ pub fn plan_creator_search_part(request: RequestSearchPart, mut boost: Option<Ve
 
 }
 
-#[flame]
-pub fn execute_step(step: PlanStepType, persistence: &Persistence) -> Result<(), SearchError>
-{
+// #[flame]
+// pub fn execute_step(step: PlanStepType, persistence: &Persistence) -> Result<(), SearchError>
+// {
 
-    match step {
-        PlanStepType::FieldSearch{mut req, input_prev_steps, output_next_steps, ..} => {
-            let field_result = search_field::get_hits_in_field(persistence, &mut req)?;
-            output_next_steps.send(field_result)?;
-            // Ok(field_result.hits)
-            Ok(())
-        }
-        PlanStepType::ValueIdToParent{input_prev_steps, output_next_steps, path, trace_info:joop, ..} => {
-            output_next_steps.send(join_to_parent_with_score(persistence, input_prev_steps[0].recv().unwrap(), &path, &joop))?;
-            Ok(())
-        }
-        PlanStepType::Boost{req,input_prev_steps, output_next_steps, ..} => {
-            let mut input = input_prev_steps[0].recv().unwrap();
-            add_boost(persistence, &req, &mut input);
-            output_next_steps.send(input)?;
-            Ok(())
-        }
-        PlanStepType::Union{steps, input_prev_steps, output_next_steps, ..} => {
-            execute_steps(steps, persistence)?;
-            output_next_steps.send(union_hits(input_prev_steps.iter().map(|el| el.recv().unwrap()).collect()))?;
-            Ok(())
-        }
-        PlanStepType::Intersect{steps, input_prev_steps, output_next_steps, ..} => {
-            execute_steps(steps, persistence)?;
-            output_next_steps.send(intersect_hits(input_prev_steps.iter().map(|el| el.recv().unwrap()).collect()))?;
-            Ok(())
-        }
-        PlanStepType::FromAttribute{steps, output_next_steps, ..} => {
-            execute_steps(steps, persistence)?;
-            // output_next_steps.send(intersect_hits(input_prev_steps.iter().map(|el| el.recv().unwrap()).collect()));
-            Ok(())
-        }
-    }
-}
+//     match step {
+//         PlanStepType::FieldSearch{mut req, input_prev_steps, output_next_steps, ..} => {
+//             let field_result = search_field::get_hits_in_field(persistence, &mut req)?;
+//             output_next_steps.send(field_result)?;
+//             // Ok(field_result.hits)
+//             Ok(())
+//         }
+//         PlanStepType::ValueIdToParent{input_prev_steps, output_next_steps, path, trace_info:joop, ..} => {
+//             output_next_steps.send(join_to_parent_with_score(persistence, input_prev_steps[0].recv().unwrap(), &path, &joop)?)?;
+//             Ok(())
+//         }
+//         PlanStepType::Boost{req,input_prev_steps, output_next_steps, ..} => {
+//             let mut input = input_prev_steps[0].recv().unwrap();
+//             add_boost(persistence, &req, &mut input)?;
+//             output_next_steps.send(input)?;
+//             Ok(())
+//         }
+//         PlanStepType::Union{steps, input_prev_steps, output_next_steps, ..} => {
+//             execute_steps(steps, persistence)?;
+//             output_next_steps.send(union_hits(input_prev_steps.iter().map(|el| el.recv().unwrap()).collect()))?;
+//             Ok(())
+//         }
+//         PlanStepType::Intersect{steps, input_prev_steps, output_next_steps, ..} => {
+//             execute_steps(steps, persistence)?;
+//             output_next_steps.send(intersect_hits(input_prev_steps.iter().map(|el| el.recv().unwrap()).collect()))?;
+//             Ok(())
+//         }
+//         PlanStepType::FromAttribute{steps, output_next_steps, ..} => {
+//             execute_steps(steps, persistence)?;
+//             // output_next_steps.send(intersect_hits(input_prev_steps.iter().map(|el| el.recv().unwrap()).collect()));
+//             Ok(())
+//         }
+//     }
+// }
 use rayon::prelude::*;
+
 
 #[flame]
 pub fn execute_steps(steps: Vec<PlanStepType>, persistence: &Persistence) -> Result<(), SearchError>
 {
 
-    steps.par_iter().for_each(|step|{
-        execute_step(step.clone(), persistence);
-    });
+    let r: Result<Vec<_>, SearchError> = steps.into_par_iter().map(|step|{
+        step.execute_step(persistence)
+        // execute_step(step.clone(), persistence)
+    }).collect();
 
-    // let mut hits = FnvHashMap::default();
+    if r.is_err(){
+        Err(r.unwrap_err())
+    }else {
+        Ok(())
+    }
+
+    // let err = steps.par_iter().map(|step|{
+    //     let res = execute_step(step.clone(), persistence);
+
+    //     match res {
+    //         Ok(()) => Some(1),
+    //         Err(err)=> None,
+    //     }
+
+
+    // }).while_some().collect::<Vec<_>>();
+
+    // err
+
+    // steps.par_iter().map(|step|{
+    //     execute_step(step.clone(), persistence)?;
+    // });
+
     // for step in steps {
     //     execute_step(step, persistence)?;
     // }
-    Ok(())
+    // Ok(())
     // Ok(hits)
 }
+
+
+

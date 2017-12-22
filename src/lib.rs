@@ -24,6 +24,7 @@ extern crate serde;
 // extern crate tokio_timer;
 extern crate fnv;
 extern crate fst;
+extern crate fst_levenshtein;
 extern crate regex;
 extern crate chrono;
 extern crate rayon;
@@ -47,6 +48,8 @@ extern crate parking_lot;
 extern crate chashmap;
 extern crate trie;
 
+#[macro_use] extern crate prettytable;
+
 extern crate levenshtein_automaton;
 // extern crate bodyparser;
 // extern crate hyper;
@@ -62,6 +65,8 @@ extern crate bincode;
 extern crate measure_time;
 
 extern crate heapsize;
+#[macro_use]
+extern crate heapsize_derive;
 
 extern crate byteorder;
 
@@ -69,9 +74,11 @@ extern crate sled;
 extern crate json_converter;
 extern crate ordered_float;
 
-// use fst::{IntoStreamer, Streamer, Levenshtein, Set, MapBuilder};
+extern crate mayda;
+
+// use fst::{IntoStreamer, Streamer, Set, MapBuilder};
 #[allow(unused_imports)]
-use fst::{IntoStreamer, Levenshtein, MapBuilder, Set};
+use fst::{IntoStreamer, MapBuilder, Set};
 #[allow(unused_imports)]
 use std::io::{self, BufRead};
 #[allow(unused_imports)]

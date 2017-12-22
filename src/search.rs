@@ -20,6 +20,7 @@ use fnv::FnvHashMap;
 use serde_json;
 #[allow(unused_imports)]
 use std::time::Duration;
+#[allow(unused_imports)]
 use itertools::Itertools;
 
 
@@ -29,11 +30,14 @@ use doc_loader::DocLoader;
 use util;
 use util::concat;
 use fst;
+use fst_levenshtein;
 
+#[allow(unused_imports)]
 use execution_plan;
 use execution_plan::*;
 // use execution_plan::execute_plan;
 
+#[allow(unused_imports)]
 use rayon::prelude::*;
 #[allow(unused_imports)]
 use crossbeam_channel;
@@ -87,12 +91,15 @@ pub struct SnippetInfo {
     #[serde(default = "default_snippet_end")]
     pub snippet_end_tag:String,
     #[serde(default = "default_snippet_connector")]
-    pub snippet_connector:String
+    pub snippet_connector:String,
+    #[serde(default = "default_max_snippets")]
+    pub max_snippets:u32
 }
 fn default_num_words_around_snippet() -> i64 { 5 }
 fn default_snippet_start() -> String {"<b>".to_string() }
 fn default_snippet_end() -> String {"</b>".to_string() }
 fn default_snippet_connector() -> String {" ... ".to_string() }
+fn default_max_snippets() -> u32 {std::u32::MAX }
 
 lazy_static! {
     pub static ref DEFAULT_SNIPPETINFO: SnippetInfo = SnippetInfo{
@@ -100,6 +107,7 @@ lazy_static! {
         snippet_start_tag: default_snippet_start(),
         snippet_end_tag: default_snippet_end(),
         snippet_connector: default_snippet_connector(),
+        max_snippets: default_max_snippets(),
     };
 }
 
@@ -275,8 +283,9 @@ pub fn search(request: Request, persistence: &Persistence) -> Result<SearchResul
 
     let plan = plan_creator(request);
     let yep = plan.get_output();
-    execute_step(plan, persistence)?;
-    let res = yep.recv().unwrap();
+    plan.execute_step(persistence)?;
+    // execute_step(plan, persistence)?;
+    let res = yep.recv()?;
 
     // let res = search_unrolled(&persistence, request)?;
     // println!("{:?}", res);
@@ -392,10 +401,10 @@ struct BoostIter {
 }
 
 #[flame]
-pub fn add_boost(persistence: &Persistence, boost: &RequestBoostPart, hits: &mut SearchFieldResult) {
+pub fn add_boost(persistence: &Persistence, boost: &RequestBoostPart, hits: &mut SearchFieldResult) -> Result<(), SearchError> {
     // let key = util::boost_path(&boost.path);
     let boost_path = boost.path.to_string() + ".boost_valid_to_value";
-    let boostkv_store = persistence.get_boost(&boost_path);
+    let boostkv_store = persistence.get_boost(&boost_path)?;
     // let boostkv_store = persistence.cache.index_id_to_parent.get(&key).expect(&format!("Could not find {:?} in index_id_to_parent cache", key));
     let boost_param = boost.param.unwrap_or(0.0);
 
@@ -447,6 +456,7 @@ pub fn add_boost(persistence: &Persistence, boost: &RequestBoostPart, hits: &mut
             }
         });
     }
+    Ok(())
 }
 
 
@@ -459,8 +469,10 @@ pub enum SearchError {
     MetaData(serde_json::Error),
     Utf8Error(std::str::Utf8Error),
     FstError(fst::Error),
+    FstLevenShtein(fst_levenshtein::Error),
     CrossBeamError(crossbeam_channel::SendError<std::collections::HashMap<u32, f32, std::hash::BuildHasherDefault<fnv::FnvHasher>>>),
     CrossBeamError2(crossbeam_channel::SendError<SearchFieldResult>),
+    CrossBeamErrorReceive(crossbeam_channel::RecvError),
 }
 // Automatic Conversion
 impl From<io::Error> for SearchError {
@@ -483,6 +495,11 @@ impl From<fst::Error> for SearchError {
         SearchError::FstError(err)
     }
 }
+impl From<fst_levenshtein::Error> for SearchError {
+    fn from(err: fst_levenshtein::Error) -> SearchError {
+        SearchError::FstLevenShtein(err)
+    }
+}
 impl From<crossbeam_channel::SendError<std::collections::HashMap<u32, f32, std::hash::BuildHasherDefault<fnv::FnvHasher>>>> for SearchError {
     fn from(err: crossbeam_channel::SendError<std::collections::HashMap<u32, f32, std::hash::BuildHasherDefault<fnv::FnvHasher>>>) -> SearchError {
         SearchError::CrossBeamError(err)
@@ -493,12 +510,37 @@ impl From<crossbeam_channel::SendError<SearchFieldResult>> for SearchError {
         SearchError::CrossBeamError2(err)
     }
 }
+impl From<crossbeam_channel::RecvError> for SearchError {
+    fn from(err: crossbeam_channel::RecvError) -> SearchError {
+        SearchError::CrossBeamErrorReceive(err)
+    }
+}
+
+use std::fmt;
+pub use std::error::Error;
+
+impl fmt::Display for SearchError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
+        write!(f, "\n{}", self)?;
+        Ok(())
+    }
+}
+
+impl Error for SearchError {
+    fn description(&self) -> &str {
+        "self.error.description()"
+    }
+
+    fn cause(&self) -> Option<&Error> {
+        None
+    }
+}
 
 
 use util::*;
 
 
-pub fn read_data_single(persistence: &Persistence, id: u32, field: String) -> String {
+pub fn read_data_single(persistence: &Persistence, id: u32, field: String) -> Result<String, SearchError> {
     let steps = util::get_steps_to_anchor(&field);
 
     let mut data = vec![id];
@@ -506,33 +548,33 @@ pub fn read_data_single(persistence: &Persistence, id: u32, field: String) -> St
 
     for path in steps.iter() {
         result[path.clone()] = json!([]);
-        let dat:FnvHashMap<u32, Vec<u32>> = join_for_read(persistence, data, &concat(path, ".parentToValueId"));
+        let dat:FnvHashMap<u32, Vec<u32>> = join_for_read(persistence, data, &concat(path, ".parentToValueId"))?;
         data = dat.get(&id).unwrap().clone();
     }
 
     let texto = get_id_text_map_for_ids(persistence, steps.last().unwrap(), &data);
     println!("{:?}", texto);
-    serde_json::to_string_pretty(&result).unwrap()
+    Ok(serde_json::to_string_pretty(&result).unwrap())
     // "".to_string()
 }
 
-pub fn read_tree(persistence: &Persistence, id: u32, tree: NodeTree) -> serde_json::Value {
+pub fn read_tree(persistence: &Persistence, id: u32, tree: NodeTree) -> Result<serde_json::Value, SearchError> {
     let mut json = json!({});
 
     for (prop, sub_tree) in tree.next.iter() {
         if sub_tree.is_leaf {
-            let text_value_id_opt = join_for_1_to_1(persistence, id, &concat(&prop, ".parentToValueId"));
+            let text_value_id_opt = join_for_1_to_1(persistence, id, &concat(&prop, ".parentToValueId"))?;
             if let Some(text_value_id) = text_value_id_opt {
                 let texto = get_text_for_id(persistence, &prop, text_value_id);
                 json[extract_prop_name(prop)] = json!(texto);
             }
         }else{
-            if let Some(sub_ids) = join_for_1_to_n(persistence, id, &concat(&prop, ".parentToValueId")) {
+            if let Some(sub_ids) = join_for_1_to_n(persistence, id, &concat(&prop, ".parentToValueId"))? {
                 let is_flat = sub_tree.next.len()==1 && sub_tree.next.keys().nth(0).unwrap().ends_with("[].textindex");
                 if is_flat{
                     let flat_prop = sub_tree.next.keys().nth(0).unwrap();
                     //text_id for value_ids
-                    let text_ids:Vec<u32> = sub_ids.iter().flat_map(|id| join_for_1_to_1(persistence, *id, &concat(&flat_prop, ".parentToValueId"))).collect();
+                    let text_ids:Vec<u32> = sub_ids.iter().flat_map(|id| join_for_1_to_1(persistence, *id, &concat(&flat_prop, ".parentToValueId")).unwrap()).collect();
                     let texto = get_text_for_ids(persistence, flat_prop, &text_ids);
                     json[extract_prop_name(prop)] = json!(texto);
                 }else{
@@ -540,25 +582,25 @@ pub fn read_tree(persistence: &Persistence, id: u32, tree: NodeTree) -> serde_js
                     if is_array {
                         let mut sub_data = vec![];
                         for sub_id in sub_ids {
-                            sub_data.push(read_tree(persistence, sub_id, sub_tree.clone()));
+                            sub_data.push(read_tree(persistence, sub_id, sub_tree.clone())?);
                         }
                         json[extract_prop_name(prop)] = json!(sub_data);
 
                     }else if let Some(sub_id) = sub_ids.get(0) {
                         println!("KEIN ARRAY {:?}", sub_tree.clone());
-                        json[extract_prop_name(prop)] = read_tree(persistence, *sub_id, sub_tree.clone());
+                        json[extract_prop_name(prop)] = read_tree(persistence, *sub_id, sub_tree.clone())?;
                     }
                 }
             }
         }
     }
-    json
+    Ok(json)
 
 }
 
 
 
-pub fn read_data(persistence: &Persistence, id: u32, fields: Vec<String>) -> String {
+pub fn read_data(persistence: &Persistence, id: u32, fields: Vec<String>) -> Result<String, SearchError> {
 
     // let all_steps: FnvHashMap<String, Vec<String>> = fields.iter().map(|field| (field.clone(), util::get_steps_to_anchor(&field))).collect();
     let all_steps: Vec<Vec<String>> = fields.iter().map(|field| util::get_steps_to_anchor(&field)).collect();
@@ -567,20 +609,20 @@ pub fn read_data(persistence: &Persistence, id: u32, fields: Vec<String>) -> Str
 
     let tree = to_node_tree(all_steps);
 
-    let dat = read_tree(persistence, id, tree);
-    serde_json::to_string_pretty(&dat).unwrap()
+    let dat = read_tree(persistence, id, tree)?;
+    Ok(serde_json::to_string_pretty(&dat).unwrap())
 }
 
 
 #[flame]
-pub fn join_to_parent_with_score(persistence: &Persistence, input: SearchFieldResult, path: &str, trace_time_info: &str) -> SearchFieldResult
+pub fn join_to_parent_with_score(persistence: &Persistence, input: SearchFieldResult, path: &str, trace_time_info: &str) -> Result<SearchFieldResult, SearchError>
 {
     let mut total_values = 0;
     let mut hits: FnvHashMap<u32, f32> = FnvHashMap::default();
     let hits_iter = input.hits.into_iter();
     let num_hits = hits_iter.size_hint().1.unwrap_or(0);
     hits.reserve(num_hits);
-    let kv_store = persistence.get_valueid_to_parent(path);
+    let kv_store = persistence.get_valueid_to_parent(path)?;
     // debug_time!("term hits hit to column");
     debug_time!(format!("{:?} {:?}", path, trace_time_info));
     for (term_id, score) in hits_iter {
@@ -611,14 +653,14 @@ pub fn join_to_parent_with_score(persistence: &Persistence, input: SearchFieldRe
     // trace!("next_level_hits from {:?}: {:?}", &concat(path_name, ".valueIdToParent"), hits);
     // debug!("{:?} hits in next_level_hits {:?}", hits.len(), &concat(path_name, ".valueIdToParent"));
 
-    SearchFieldResult{hits:hits, ..Default::default()}
+    Ok(SearchFieldResult{hits:hits, ..Default::default()})
 }
 
 #[flame]
-pub fn join_for_read(persistence: &Persistence, input: Vec<u32>, path: &str) -> FnvHashMap<u32, Vec<u32>>
+pub fn join_for_read(persistence: &Persistence, input: Vec<u32>, path: &str) -> Result<FnvHashMap<u32, Vec<u32>>, SearchError>
 {
     let mut hits: FnvHashMap<u32, Vec<u32>> = FnvHashMap::default();
-    let kv_store = persistence.get_valueid_to_parent(path);
+    let kv_store = persistence.get_valueid_to_parent(path)?;
     // debug_time!("term hits hit to column");
     debug_time!(format!("{:?} ", path));
     for value_id in input {
@@ -630,21 +672,19 @@ pub fn join_for_read(persistence: &Persistence, input: Vec<u32>, path: &str) -> 
     }
     debug!("hits hit {:?} distinct in column {:?}", hits.len(), path);
 
-    hits
+    Ok(hits)
 }
 #[flame]
-pub fn join_for_1_to_1(persistence: &Persistence, value_id: u32, path: &str) -> std::option::Option<u32>
+pub fn join_for_1_to_1(persistence: &Persistence, value_id: u32, path: &str) -> Result<std::option::Option<u32>, SearchError>
 {
-    let mut hits: FnvHashMap<u32, Vec<u32>> = FnvHashMap::default();
-    let kv_store = persistence.get_valueid_to_parent(path);
-    kv_store.get_value(value_id as u64)
+    let kv_store = persistence.get_valueid_to_parent(path)?;
+    Ok(kv_store.get_value(value_id as u64))
 }
 #[flame]
-pub fn join_for_1_to_n(persistence: &Persistence, value_id: u32, path: &str) -> Option<Vec<u32>>
+pub fn join_for_1_to_n(persistence: &Persistence, value_id: u32, path: &str) -> Result<Option<Vec<u32>>, SearchError>
 {
-    let mut hits: FnvHashMap<u32, Vec<u32>> = FnvHashMap::default();
-    let kv_store = persistence.get_valueid_to_parent(path);
-    kv_store.get_values(value_id as u64)
+    let kv_store = persistence.get_valueid_to_parent(path)?;
+    Ok(kv_store.get_values(value_id as u64))
 }
 
 

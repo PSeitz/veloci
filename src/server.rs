@@ -197,7 +197,7 @@ pub fn start_server() {
         info_time!("search request total");
         let database = req.extensions.get::<Router>().unwrap().find("database").expect("could not find collection name in url").to_string();
         ensure_database(&database);
-        
+
         // Extract the decoded data as hashmap, using the UrlEncodedQuery plugin.
         let map = extract_qp(req)?;
         map.get("query").expect("not query parameter found");
@@ -226,7 +226,7 @@ pub fn start_server() {
                 Err(IronError::new(StringError(err.to_string()), status::BadRequest))
             }
         }
-        
+
     }
 
     #[flame]
@@ -234,7 +234,16 @@ pub fn start_server() {
         info!("Searching ... ");
         let hits = {
             info_time!("Searching ... ");
-            search::search(request, &persistence).unwrap()
+            let res = search::search(request, &persistence);
+            if res.is_err(){
+
+                return Ok(Response::with((status::BadRequest, format!("{:?}", res.unwrap_err()))))
+
+                // return Err(IronError::new(StringError(format!("ASDF ASDF {:?}", res.unwrap_err())), status::BadRequest));
+            }
+            res.unwrap()
+
+            // search::search(request, &persistence).unwrap()
         };
         info!("Loading Documents... ");
         let doc = {

@@ -6,6 +6,7 @@ use search::RequestSearchPart;
 use search::Request;
 use search::SearchError;
 use search;
+use search::*;
 use util::concat;
 use std::cmp;
 use std::cmp::Ordering;
@@ -15,7 +16,8 @@ use ordered_float::OrderedFloat;
 // use hit_collector::HitCollector;
 
 #[allow(unused_imports)]
-use fst::{IntoStreamer, Levenshtein, Map, MapBuilder, Set};
+use fst::{IntoStreamer, Map, MapBuilder, Set};
+use fst_levenshtein::Levenshtein;
 use fst::automaton::*;
 // use search::Hit;
 
@@ -296,12 +298,12 @@ fn get_hits_in_field_one_term(persistence: &Persistence, options: &RequestSearch
     trace!("hits in textindex: {:?}", result.hits);
 
     if options.resolve_token_to_parent_hits.unwrap_or(true) {
-        resolve_token_hits(persistence, &options.path, &mut result, options);
+        resolve_token_hits(persistence, &options.path, &mut result, options)?;
     }
 
     if options.token_value.is_some() {
         debug!("Token Boosting: \n");
-        search::add_boost(persistence, options.token_value.as_ref().unwrap(), &mut result);
+        search::add_boost(persistence, options.token_value.as_ref().unwrap(), &mut result)?;
 
         // for el in result.hits.iter_mut() {
         //     el.score = *hits.get(&el.id).unwrap();
@@ -334,23 +336,31 @@ pub fn get_id_text_map_for_ids(persistence: &Persistence, path:&str, ids: &[u32]
 use itertools::Itertools;
 
 #[flame]
-pub fn highlight_document(persistence: &Persistence, path:&str, value_id: u64,  token_ids: &[u32], num_words_around_snippet: i64, highlight_start:&str, highlight_end:&str, snippet_connector:&str) -> String {
-    let value_id_to_token_ids = persistence.get_valueid_to_parent(&concat(path, ".value_id_to_token_ids"));
+pub fn highlight_document(persistence: &Persistence, path:&str, value_id: u64,  token_ids: &[u32], opt:&SnippetInfo ) -> Result<String, search::SearchError> {
+    let value_id_to_token_ids = persistence.get_valueid_to_parent(&concat(path, ".value_id_to_token_ids"))?;
+    debug_time!(format!("{} highlight_document", value_id));
 
-    let documents_token_ids = value_id_to_token_ids.get_values(value_id).unwrap();
+    let documents_token_ids = {
+        debug_time!("get documents_token_ids");
+        value_id_to_token_ids.get_values(value_id).unwrap()
+    };
+
     trace!("documents_token_ids {:?}", documents_token_ids);
     let mut iter = documents_token_ids.iter();
     let mut token_positions_in_document = vec![];
-    //collect token_positions_in_document
-    for token_id in token_ids {
-        let mut current_pos = 0;
-        while let Some(pos) = iter.position(|x| *x == *token_id) {
-            current_pos += pos;
-            token_positions_in_document.push(current_pos);
-            current_pos += 1;
+    {
+        trace_time!("collect token_positions_in_document");
+        //collect token_positions_in_document
+        for token_id in token_ids {
+            let mut current_pos = 0;
+            while let Some(pos) = iter.position(|x| *x == *token_id) {
+                current_pos += pos;
+                token_positions_in_document.push(current_pos);
+                current_pos += 1;
+            }
         }
-    }
 
+    }
     token_positions_in_document.sort();
 
     let first_index = *token_positions_in_document.first().unwrap() as i64;
@@ -358,18 +368,21 @@ pub fn highlight_document(persistence: &Persistence, path:&str, value_id: u64,  
 
     //group near tokens
     let mut grouped:Vec<Vec<i64>> = vec![];
-    let mut previous_token_pos = -num_words_around_snippet;
-    for token_pos in token_positions_in_document.into_iter() {
-        if token_pos as i64 - previous_token_pos >= num_words_around_snippet {
-            grouped.push(vec![]);
+    {
+        trace_time!("group near tokens");
+        let mut previous_token_pos = -opt.num_words_around_snippet;
+        for token_pos in token_positions_in_document.into_iter() {
+            if token_pos as i64 - previous_token_pos >= opt.num_words_around_snippet {
+                grouped.push(vec![]);
+            }
+            previous_token_pos = token_pos as i64;
+            grouped.last_mut().unwrap().push(token_pos as i64);
         }
-        previous_token_pos = token_pos as i64;
-        grouped.last_mut().unwrap().push(token_pos as i64);
     }
 
     let ref get_document_windows = |vec: &Vec<i64>| {
-        let start_index = cmp::max(*vec.first().unwrap() as i64 -3, 0);
-        let end_index = cmp::min(*vec.last().unwrap() as i64 + 3, documents_token_ids.len()  as i64);
+        let start_index = cmp::max(*vec.first().unwrap() as i64 - opt.num_words_around_snippet, 0);
+        let end_index = cmp::min(*vec.last().unwrap() as i64 + opt.num_words_around_snippet, documents_token_ids.len()  as i64);
         (start_index, end_index, &documents_token_ids[start_index as usize .. end_index as usize])
     };
 
@@ -384,29 +397,29 @@ pub fn highlight_document(persistence: &Persistence, path:&str, value_id: u64,  
     let mut snippet = grouped.iter().map(get_document_windows)
     .map(|group| group.2.iter().fold(String::with_capacity(group.2.len() * 10), |snippet_part_acc, token_id| {
         if token_ids.contains(token_id){
-            snippet_part_acc + highlight_start + id_to_text.get(token_id).unwrap()  + highlight_end + " " // TODO store token and add
+            snippet_part_acc + &opt.snippet_start_tag + id_to_text.get(token_id).unwrap()  + &opt.snippet_end_tag + " " // TODO store token and add
         }else{
             snippet_part_acc + id_to_text.get(token_id).unwrap() + " "
         }
     }))
-    // .take(10)
-    .intersperse(snippet_connector.to_string())
+    .take(opt.max_snippets as usize)
+    .intersperse(opt.snippet_connector.to_string())
     .fold(String::new(), |snippet, snippet_part| {snippet + &snippet_part });
 
-    if first_index > num_words_around_snippet{
-        snippet.insert_str(0, snippet_connector);
+    if first_index > opt.num_words_around_snippet{
+        snippet.insert_str(0, &opt.snippet_connector);
     }
 
-    if last_index < documents_token_ids.len() as i64 - num_words_around_snippet{
-        snippet.push_str(snippet_connector);
+    if last_index < documents_token_ids.len() as i64 - opt.num_words_around_snippet{
+        snippet.push_str(&opt.snippet_connector);
     }
 
-    snippet
+    Ok(snippet)
 }
 
 #[flame]
-pub fn resolve_snippets(persistence: &Persistence, path: &str, result: &mut SearchFieldResult) {
-    let token_kvdata = persistence.get_valueid_to_parent(&concat(path, ".tokens"));
+pub fn resolve_snippets(persistence: &Persistence, path: &str, result: &mut SearchFieldResult) -> Result<(), search::SearchError> {
+    let token_kvdata = persistence.get_valueid_to_parent(&concat(path, ".tokens"))?;
     let mut value_id_to_token_hits:FnvHashMap<u32, Vec<u32>> = FnvHashMap::default(); 
 
     //TODO snippety only for top x best scores?
@@ -417,10 +430,11 @@ pub fn resolve_snippets(persistence: &Persistence, path: &str, result: &mut Sear
             }
         }
     }
+    Ok(())
 }
 
 #[flame]
-pub fn resolve_token_hits(persistence: &Persistence, path: &str, result: &mut SearchFieldResult, options: &RequestSearchPart) {
+pub fn resolve_token_hits(persistence: &Persistence, path: &str, result: &mut SearchFieldResult, options: &RequestSearchPart) -> Result<(), search::SearchError> {
 
     let has_tokens = persistence
         .meta_data
@@ -429,7 +443,7 @@ pub fn resolve_token_hits(persistence: &Persistence, path: &str, result: &mut Se
         .map_or(false, |fulltext_info| fulltext_info.tokenize);
     debug!("has_tokens {:?} {:?}", path, has_tokens);
     if !has_tokens {
-        return;
+        return Ok(());
     }
 
     let resolve_snippets = options.snippet.unwrap_or(false);
@@ -438,7 +452,7 @@ pub fn resolve_token_hits(persistence: &Persistence, path: &str, result: &mut Se
     let text_offsets = persistence.get_offsets(path)
         .expect(&format!("Could not find {:?} in index_64 cache", concat(path, ".offsets")));
 
-    let token_kvdata = persistence.get_valueid_to_parent(&concat(path, ".tokens"));
+    let token_kvdata = persistence.get_valueid_to_parent(&concat(path, ".tokens"))?;
     debug!("Checking Tokens in {:?}", &concat(path, ".tokens"));
     persistence::trace_index_id_to_parent(token_kvdata);
     // trace!("All Tokens: {:?}", token_kvdata.get_values());
@@ -446,7 +460,7 @@ pub fn resolve_token_hits(persistence: &Persistence, path: &str, result: &mut Se
     // let token_kvdata = persistence.cache.index_id_to_parent.get(&key).expect(&format!("Could not find {:?} in index_id_to_parent cache", key));
     // let mut token_hits:FnvHashMap<u32, f32> = FnvHashMap::default();
     let mut token_hits: Vec<(u32, f32, u32)> = vec![];
-    
+
     {
         debug_time!(format!("{} adding parent_id from tokens", path));
         for (term_id, score) in result.hits.iter() {
@@ -512,7 +526,7 @@ pub fn resolve_token_hits(persistence: &Persistence, path: &str, result: &mut Se
             if resolve_snippets {
                 //value_id_to_token_hits.insert(parent_id, t2.map(|el| el.2).collect_vec()); //TODO maybe store hits here, in case only best x are needed
                 let snippet_config = options.snippet_info.as_ref().unwrap_or(&search::DEFAULT_SNIPPETINFO);
-                let highlighted_document = highlight_document(persistence, path, parent_id as u64, &t2.map(|el| el.2).collect_vec(), snippet_config.num_words_around_snippet, &snippet_config.snippet_start_tag, &snippet_config.snippet_end_tag, &snippet_config.snippet_connector);
+                let highlighted_document = highlight_document(persistence, path, parent_id as u64, &t2.map(|el| el.2).collect_vec(), snippet_config)?;
                 result.highlight.insert(parent_id, highlighted_document);
             }
         }
@@ -522,6 +536,7 @@ pub fn resolve_token_hits(persistence: &Persistence, path: &str, result: &mut Se
     // for hit in hits.iter() {
     //     trace!("NEW HITS {:?}", hit);
     // }
+    Ok(())
 }
 
 

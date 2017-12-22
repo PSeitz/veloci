@@ -10,8 +10,56 @@ use bincode::{deserialize, serialize, Infinite};
 
 use persistence::Persistence;
 use persistence::IndexIdToParent;
+use persistence::IndexIdToOneParent;
+use persistence::IndexIdToMultipleParent;
+use persistence::IndexIdToMultipleParentCompressedSnappy;
+use persistence::IndexIdToMultipleParentCompressedMayda;
 use persistence;
 use create;
+
+
+
+pub trait TypeInfo: Sync + Send  {
+    fn type_name(&self) -> String;
+    fn type_of(&self) -> String;
+}
+
+macro_rules! impl_type_info {
+    ($($name:ident$(<$($T:ident),+>)*),*) => {
+        $(impl_type_info_single!($name$(<$($T),*>)*);)*
+    };
+}
+
+macro_rules! mut_if {
+    ($name:ident = $value:expr, $($any:expr)+) => (let mut $name = $value;);
+    ($name:ident = $value:expr,) => (let $name = $value;);
+}
+
+macro_rules! impl_type_info_single {
+    ($name:ident$(<$($T:ident),+>)*) => {
+        impl$(<$($T: TypeInfo),*>)* TypeInfo for $name$(<$($T),*>)* {
+            fn type_name(&self) -> String {
+                mut_if!(res = String::from(stringify!($name)), $($($T)*)*);
+                $(
+                    res.push('<');
+                    $(
+                        res.push_str(&$T::type_name(&self));
+                        res.push(',');
+                    )*
+                    res.pop();
+                    res.push('>');
+                )*
+                res
+            }
+            fn type_of(&self) -> String {
+                $name$(::<$($T),*>)*::type_name(&self)
+            }
+        }
+    }
+}
+
+impl_type_info!(PointingArrays, ParallelArrays, IndexIdToOneParent, IndexIdToMultipleParent, IndexIdToMultipleParentCompressedSnappy, IndexIdToMultipleParentCompressedMayda);
+
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct PointingArrays {
@@ -37,7 +85,6 @@ impl IndexIdToParent for PointingArrays {
         // let ref bytes = self.arr2[self.arr1[pos] as usize..self.arr1[pos+1] as usize];
         // Some(persistence::bytes_to_vec_u32(bytes))
     }
-    // fn get_keys(&self) -> Vec<u32>{ (0..self.arr1.len() as u32 -1 ).collect().iter().map(el[]) }
     fn get_keys(&self) -> Vec<u32> {
         let mut keys = vec![];
         let mut pos = 0;

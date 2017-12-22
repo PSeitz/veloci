@@ -1,11 +1,13 @@
 extern crate flexi_logger;
 extern crate env_logger;
 extern crate fst;
+extern crate fst_levenshtein;
 extern crate search_lib;
 #[macro_use]
 extern crate serde_json;
 
-use fst::{IntoStreamer, Levenshtein, MapBuilder, Set};
+use fst::{IntoStreamer, MapBuilder, Set};
+use fst_levenshtein::Levenshtein;
 use std::fs::File;
 use std::io::prelude::*;
 use std::io;
@@ -119,16 +121,20 @@ fn create_book_index() -> Result<(), io::Error> {
     let mut s = String::new();
     f.read_to_string(&mut s)?;
 
-    println!("{:?}", search_lib::create::create_indices("gutenberg", &json!({"title":"PRIDE AND PREJUDICE", "content":s}).to_string(), indices));
+
+    let books = (0..100).map(|el| json!({"title":"PRIDE AND PREJUDICE", "content":s})).collect::<Vec<_>>();
+
+    println!("{:?}", search_lib::create::create_indices("gutenberg", &serde_json::to_string_pretty(&books).unwrap(), indices));
+    // println!("{:?}", search_lib::create::create_indices("gutenberg", &json!({"title":"PRIDE AND PREJUDICE", "content":s}).to_string(), indices));
     Ok(())
 }
 
 
 #[allow(dead_code)]
-pub fn testfst(term: &str, max_distance: u32) -> Result<(Vec<String>), fst::Error> {
-    let mut f = File::open("de_full_2.txt")?;
+pub fn testfst(term: &str, max_distance: u32) -> Result<(Vec<String>), fst_levenshtein::Error> {
+    let mut f = File::open("de_full_2.txt").unwrap();
     let mut s = String::new();
-    f.read_to_string(&mut s)?;
+    f.read_to_string(&mut s).unwrap();
     let lines = s.lines().collect::<Vec<&str>>();
     // lines.sort();
 
@@ -137,13 +143,13 @@ pub fn testfst(term: &str, max_distance: u32) -> Result<(Vec<String>), fst::Erro
     // let set = try!(Set::from_iter(lines));
 
     let keys = vec!["寿司は焦げられない"];
-    let set = Set::from_iter(keys)?;
+    let set = Set::from_iter(keys).unwrap();
 
     let now = Instant::now();
 
-    let lev = Levenshtein::new(term, max_distance)?;
+    let lev = Levenshtein::new(term, max_distance).unwrap();
     let stream = set.search(lev).into_stream();
-    let hits = stream.into_strs()?;
+    let hits = stream.into_strs().unwrap();
 
     println!("fst ms: {}", (now.elapsed().as_secs() as f64 * 1_000.0) + (now.elapsed().subsec_nanos() as f64 / 1000_000.0));
 

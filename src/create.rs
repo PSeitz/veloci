@@ -15,8 +15,7 @@ use create_from_json;
 use log;
 
 #[allow(unused_imports)]
-use fst::{self, IntoStreamer, Levenshtein, MapBuilder, Set};
-
+use fst::{self, IntoStreamer, MapBuilder, Set};
 
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(untagged)]
@@ -68,7 +67,7 @@ pub struct TermInfo {
 }
 
 impl TermInfo {
-    fn new(id: u32) -> TermInfo{
+    pub fn new(id: u32) -> TermInfo{
         TermInfo { id:id, num_occurences: 0}
     }
 }
@@ -147,7 +146,7 @@ use persistence;
 fn store_full_text_info(
     persistence: &mut Persistence, all_terms: FnvHashMap<String, TermInfo>, path: &str, options: &FulltextIndexOptions
 ) -> Result<(), io::Error> {
-    info_time!(format!("store_fst {:?}", path));
+    info_time!(format!("store_fst strings and string offsets {:?}", path));
     let mut sorted_terms: Vec<&String> = all_terms.keys().collect::<Vec<&String>>();
     sorted_terms.sort();
 
@@ -461,7 +460,6 @@ pub fn add_token_values_to_tokens(persistence: &mut Persistence, data_str: &str,
         }
         options.terms = vec![el.text];
         options.terms = options.terms.iter().map(|el| util::normalize_text(el)).collect::<Vec<_>>();
-        // options.term = util::normalize_text(&el.text);
 
         let hits = search_field::get_hits_in_field(persistence, &options)?;
         if hits.hits.len() == 1 {
