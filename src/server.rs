@@ -158,7 +158,9 @@ pub fn start_server() {
     // ensure_database(&database);
     // PERSISTENCES.write()
 
-    
+    for jeppo in std::env::args().skip(1){
+        ensure_database(&jeppo);
+    }
 
     // &JMDICT_PERSISTENCE.print_heap_sizes();
     let mut router = Router::new(); // Alternative syntax:

@@ -13,7 +13,8 @@ use persistence::IndexIdToParent;
 use persistence::IndexIdToOneParent;
 use persistence::IndexIdToMultipleParent;
 use persistence::IndexIdToMultipleParentCompressedSnappy;
-use persistence::IndexIdToMultipleParentCompressedMayda;
+use persistence::IndexIdToMultipleParentCompressedMaydaDIRECT;
+use persistence::IndexIdToMultipleParentCompressedMaydaINDIRECT;
 use persistence;
 use create;
 
@@ -58,7 +59,9 @@ macro_rules! impl_type_info_single {
     }
 }
 
-impl_type_info!(PointingArrays, ParallelArrays, IndexIdToOneParent, IndexIdToMultipleParent, IndexIdToMultipleParentCompressedSnappy, IndexIdToMultipleParentCompressedMayda);
+impl_type_info!(PointingArrays, ParallelArrays, IndexIdToOneParent, 
+    IndexIdToMultipleParent, IndexIdToMultipleParentCompressedSnappy, 
+    IndexIdToMultipleParentCompressedMaydaDIRECT, IndexIdToMultipleParentCompressedMaydaINDIRECT);
 
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]

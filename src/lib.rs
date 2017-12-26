@@ -75,6 +75,7 @@ extern crate json_converter;
 extern crate ordered_float;
 
 extern crate mayda;
+extern crate colored;
 
 // use fst::{IntoStreamer, Streamer, Set, MapBuilder};
 #[allow(unused_imports)]
@@ -106,11 +107,12 @@ pub mod expression;
 pub mod bucket_list;
 pub mod hit_collector;
 pub mod trace;
+pub mod tokenizer;
 pub mod execution_plan;
 
 #[cfg(test)]
 mod tests;
 #[cfg(test)]
-mod bench;
+mod bench_jmdict;
 
 use std::str;

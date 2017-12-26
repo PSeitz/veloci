@@ -18,6 +18,7 @@ pub fn normalize_text(text: &str) -> String {
             (Regex::new(r"\s\s+").unwrap(), " "), // replace tabs, newlines, double spaces with single spaces
             (Regex::new(r"[,.…;・’-]").unwrap(), "")  // remove , .;・’-
         ];
+
     }
     let mut new_str = text.to_owned();
     for ref tupl in &*REGEXES {

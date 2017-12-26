@@ -342,6 +342,7 @@ pub fn highlight_document(persistence: &Persistence, path:&str, value_id: u64,  
 
     let documents_token_ids = {
         debug_time!("get documents_token_ids");
+        persistence::trace_index_id_to_parent(value_id_to_token_ids);
         value_id_to_token_ids.get_values(value_id).unwrap()
     };
 
@@ -366,13 +367,15 @@ pub fn highlight_document(persistence: &Persistence, path:&str, value_id: u64,  
     let first_index = *token_positions_in_document.first().unwrap() as i64;
     let last_index =  *token_positions_in_document.last().unwrap()  as i64;
 
+    let num_tokens = opt.num_words_around_snippet * 2; // token seperator token seperator
+
     //group near tokens
     let mut grouped:Vec<Vec<i64>> = vec![];
     {
         trace_time!("group near tokens");
-        let mut previous_token_pos = -opt.num_words_around_snippet;
+        let mut previous_token_pos = - num_tokens;
         for token_pos in token_positions_in_document.into_iter() {
-            if token_pos as i64 - previous_token_pos >= opt.num_words_around_snippet {
+            if token_pos as i64 - previous_token_pos >= num_tokens {
                 grouped.push(vec![]);
             }
             previous_token_pos = token_pos as i64;
@@ -381,8 +384,8 @@ pub fn highlight_document(persistence: &Persistence, path:&str, value_id: u64,  
     }
 
     let ref get_document_windows = |vec: &Vec<i64>| {
-        let start_index = cmp::max(*vec.first().unwrap() as i64 - opt.num_words_around_snippet, 0);
-        let end_index = cmp::min(*vec.last().unwrap() as i64 + opt.num_words_around_snippet, documents_token_ids.len()  as i64);
+        let start_index = cmp::max(*vec.first().unwrap() as i64 - num_tokens, 0);
+        let end_index = cmp::min(*vec.last().unwrap() as i64 + num_tokens + 1, documents_token_ids.len()  as i64);
         (start_index, end_index, &documents_token_ids[start_index as usize .. end_index as usize])
     };
 
@@ -392,25 +395,24 @@ pub fn highlight_document(persistence: &Persistence, path:&str, value_id: u64,  
     all_tokens = all_tokens.into_iter().dedup().collect_vec();
     let id_to_text = get_id_text_map_for_ids(persistence, path, all_tokens.as_slice());
 
-    // trace_time!("create snippet string");
-    print_time!("create snippet string");
+    trace_time!("create snippet string");
     let mut snippet = grouped.iter().map(get_document_windows)
     .map(|group| group.2.iter().fold(String::with_capacity(group.2.len() * 10), |snippet_part_acc, token_id| {
         if token_ids.contains(token_id){
-            snippet_part_acc + &opt.snippet_start_tag + id_to_text.get(token_id).unwrap()  + &opt.snippet_end_tag + " " // TODO store token and add
+            snippet_part_acc + &opt.snippet_start_tag + id_to_text.get(token_id).unwrap()  + &opt.snippet_end_tag + "" // TODO store token and add
         }else{
-            snippet_part_acc + id_to_text.get(token_id).unwrap() + " "
+            snippet_part_acc + id_to_text.get(token_id).unwrap() + ""
         }
     }))
     .take(opt.max_snippets as usize)
     .intersperse(opt.snippet_connector.to_string())
     .fold(String::new(), |snippet, snippet_part| {snippet + &snippet_part });
 
-    if first_index > opt.num_words_around_snippet{
+    if first_index > num_tokens{
         snippet.insert_str(0, &opt.snippet_connector);
     }
 
-    if last_index < documents_token_ids.len() as i64 - opt.num_words_around_snippet{
+    if last_index < documents_token_ids.len() as i64 - num_tokens{
         snippet.push_str(&opt.snippet_connector);
     }
 

@@ -17,15 +17,18 @@ use std::str;
 
 
 fn main() {
-    env_logger::init().unwrap();
-    let jeppo = std::env::args().nth(1).expect("require command line parameter");
+    // env_logger::init().unwrap();
+    search_lib::trace::enable_log();
+    let e = std::env::args().nth(1).expect("require command line parameter");
 
-    match jeppo.as_ref() {
-        "healthcare" => println!("{:?}",create_healtcare()),
-        "jmdict" => println!("{:?}",create_jmdict_index()),
-        "gutenberg" => println!("{:?}",create_book_index()),
-        _ => {}
-    };
+    for jeppo in std::env::args().skip(1){
+        match jeppo.as_ref() {
+            "healthcare" => println!("{:?}",create_healtcare()),
+            "jmdict" => println!("{:?}",create_jmdict_index()),
+            "gutenberg" => println!("{:?}",create_book_index()),
+            _ => {}
+        };
+    }
 
     // println!("{:?}",create_healtcare());
 

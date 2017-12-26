@@ -186,37 +186,70 @@ use sled;
 #[allow(unused_imports)]
 use byteorder::{LittleEndian, WriteBytesExt};
 
+use tokenizer::*;
 
-fn add_text(normalized_text: String, terms: &mut FnvHashMap<String, TermInfo>, options: &FulltextIndexOptions) {
-    trace!("normalized_text: {:?}", normalized_text);
-    if options.stopwords.as_ref().map(|el| el.contains(&normalized_text)).unwrap_or(false) {
+
+
+
+fn add_text<T: Tokenizer>(text: String, terms: &mut FnvHashMap<String, TermInfo>, options: &FulltextIndexOptions, tokenizer:&T, add_original: bool) {
+    trace!("text: {:?}", text);
+    if options.stopwords.as_ref().map(|el| el.contains(&text)).unwrap_or(false) {
         return;
     }
 
     {
-        let stat = terms.entry(normalized_text.to_string()).or_insert(TermInfo::default());
+        let stat = terms.entry(text.to_string()).or_insert(TermInfo::default());
+        stat.num_occurences += 1;
+    }    
+
+    //Add lowercase version for search
+    {
+        let stat = terms.entry(text.to_lowercase().trim().to_string()).or_insert(TermInfo::default());
         stat.num_occurences += 1;
     }
 
-    if options.tokenize && normalized_text.split(" ").count() > 1 {
-        for token in normalized_text.split(" ") {
+    if tokenizer.has_tokens(&text) {
+        tokenizer.get_tokens(&text, &mut |token:&str, is_seperator: bool|{
             let token_str = token.to_string();
             if options.stopwords.as_ref().map(|el| el.contains(&token_str)).unwrap_or(false) {
-                continue;
+                return;
             }
             // terms.insert(token_str);
-            let stat = terms.entry(token_str.clone()).or_insert(TermInfo::default());
-            stat.num_occurences += 1;
-        }
+            {
+                let stat = terms.entry(token_str.clone()).or_insert(TermInfo::default());
+                stat.num_occurences += 1;
+            }
+
+            //Add lowercase version for non seperators
+            if !is_seperator{
+                let stat = terms.entry(token_str.to_lowercase().trim().to_string()).or_insert(TermInfo::default());
+                stat.num_occurences += 1;
+            }
+
+        });
     }
+
+    // if options.tokenize && normalized_text.split(" ").count() > 1 {
+    //     for token in normalized_text.split(" ") {
+    //         let token_str = token.to_string();
+    //         if options.stopwords.as_ref().map(|el| el.contains(&token_str)).unwrap_or(false) {
+    //             continue;
+    //         }
+    //         // terms.insert(token_str);
+    //         let stat = terms.entry(token_str.clone()).or_insert(TermInfo::default());
+    //         stat.num_occurences += 1;
+    //     }
+    // }
 
 }
 
-pub fn get_allterms(data: &Value) -> FnvHashMap<String, FnvHashMap<String, TermInfo>> {
+pub fn get_allterms(data: &Value, add_original: bool ) -> FnvHashMap<String, FnvHashMap<String, TermInfo>> {
     let mut terms_in_path: FnvHashMap<String, FnvHashMap<String, TermInfo>> = FnvHashMap::default();
 
     let mut opt = json_converter::ForEachOpt {};
     let mut id_holder = json_converter::IDHolder::new();
+
+    let tokenizer = SimpleTokenizer{};
 
     //TODO @FixMe as parameter
     let options = FulltextIndexOptions::new();
@@ -224,8 +257,8 @@ pub fn get_allterms(data: &Value) -> FnvHashMap<String, FnvHashMap<String, TermI
     {
         let mut cb_text = |value: &str, path: &str, _parent_val_id: u32| {
             let mut terms = terms_in_path.entry(path.to_string()).or_insert(FnvHashMap::default());
-            let normalized_text = util::normalize_text(value);
-            add_text(normalized_text, &mut terms, &options);
+            // let normalized_text = util::normalize_text(value);
+            add_text(value.to_string(), &mut terms, &options, &tokenizer, add_original);
             // if options.add_normal_values.unwrap_or(true){
             //     add_text(value.to_string(), &mut terms, &options);
             // }
@@ -248,6 +281,9 @@ pub fn get_allterms(data: &Value) -> FnvHashMap<String, FnvHashMap<String, TermI
     // v
 }
 
+// fn get_tokens<T: Tokenizer>(x: T) {
+//     unimplemented!();
+// }
 
 //TODO pass index options, like tokenize
 pub fn create_fulltext_index(data: &Value, mut persistence: &mut Persistence) -> Result<(), io::Error> {
@@ -261,43 +297,77 @@ pub fn create_fulltext_index(data: &Value, mut persistence: &mut Persistence) ->
 
     let mut tokens_in_path:FnvHashMap<String, Vec<ValIdPair>> = FnvHashMap::default();
     let mut value_id_to_token_ids_in_path:FnvHashMap<String, Vec<ValIdPair>> = FnvHashMap::default();
-    let mut tuples_in_path:FnvHashMap<String, Vec<ValIdPair>> = FnvHashMap::default();
-    let mut text_tuples_in_path:FnvHashMap<String, Vec<ValIdPair>> = FnvHashMap::default();
+    let mut tuples_to_parent_in_path:FnvHashMap<String, Vec<ValIdPair>> = FnvHashMap::default(); // tuples to anchor are normalized for searching, here the real texts are used to recreated data
+    let mut text_tuples_to_leaf_in_path:FnvHashMap<String, Vec<ValIdPair>> = FnvHashMap::default(); // text tuples to leaf are used for reading values, here the real texts are used to recreated data
+    let mut text_tuples_to_parent_in_path:FnvHashMap<String, Vec<ValIdPair>> = FnvHashMap::default();
 
+
+    let tokenizer = SimpleTokenizer{};
     {
         info_time!(format!("extract text and ids"));
         let mut cb_text = |value: &str, path: &str, parent_val_id: u32| {
-            let tokens = tokens_in_path.entry(path.to_string()).or_insert(vec![]);
-            let tuples = text_tuples_in_path.entry(path.to_string()).or_insert(vec![]);
+            let value = value.to_string();
+            let tokens_to_parent = tokens_in_path.entry(path.to_string()).or_insert(vec![]);
+            let tuples = text_tuples_to_parent_in_path.entry(path.to_string()).or_insert(vec![]);
+            let tuples_to_leaf = text_tuples_to_leaf_in_path.entry(path.to_string()).or_insert(vec![]);
             let all_terms = all_terms_in_path.get(path).unwrap();
             let options = FulltextIndexOptions::new(); // TODO @FixMe
-            let normalized_text = util::normalize_text(value);
-            if options.stopwords.as_ref().map(|el| el.contains(&normalized_text)).unwrap_or(false) {
+            // let normalized_text = util::normalize_text(value);
+            if options.stopwords.as_ref().map(|el| el.contains(&value)).unwrap_or(false) {
                 return;
             }
 
-            let val_id = all_terms.get(&normalized_text).expect("did not found term").id;
-            tuples.push(ValIdPair { valid:         val_id as u32, parent_val_id: parent_val_id });
-            trace!("Found id {:?} for {:?}", val_id, normalized_text);
-            if options.tokenize && normalized_text.split(" ").count() > 1 {
+            //Lower case to search
+            let search_text_id = all_terms.get(&value.to_lowercase()).expect("did not found term").id;
+            tuples.push(ValIdPair { valid:         search_text_id as u32, parent_val_id: parent_val_id });
+            trace!("Found id {:?} for {:?}", search_text_id, value);
+
+            let original_text_id = all_terms.get(&value).expect("did not found term").id;
+            tuples_to_leaf.push(ValIdPair { valid:         original_text_id as u32, parent_val_id: parent_val_id });
+            trace!("Found id {:?} for {:?}", original_text_id, value);
+
+            if tokenizer.has_tokens(&value) {
                 let value_id_to_token_ids = value_id_to_token_ids_in_path.entry(path.to_string()).or_insert(vec![]);
-                for token in normalized_text.split(" ") {
+                tokenizer.get_tokens(&value, &mut |token:&str, is_seperator: bool|{
                     let token_str = token.to_string();
                     if options.stopwords.as_ref().map(|el| el.contains(&token_str)).unwrap_or(false) {
-                        continue;
+                        return;
                     }
+
+                    let normalized_id = if is_seperator{
+                        all_terms.get(&token_str).expect("did not found token").id
+                    }else{
+                        all_terms.get(&token_str.to_lowercase()).expect("did not found token").id
+                    };
+
                     // terms.insert(token.to_string());
-                    let tolen_val_id = all_terms.get(&token_str).expect("did not found token").id;
-                    trace!("Adding to tokens {:?} : {:?}", token, tolen_val_id);
-                    value_id_to_token_ids.push(ValIdPair { valid: val_id as u32, parent_val_id: tolen_val_id as u32 });
-                    tokens.push(ValIdPair { valid:         tolen_val_id as u32, parent_val_id: val_id as u32 });
-                }
+                    let original_token_val_id = all_terms.get(&token_str).expect("did not found token").id;
+                    trace!("Adding to tokens {:?} : {:?}", token, original_token_val_id);
+                    // value_id_to_token_ids.push(ValIdPair { valid: search_text_id as u32, parent_val_id: original_token_val_id as u32 }); //ADD search_text_id ????
+                    value_id_to_token_ids.push(ValIdPair { valid: original_text_id as u32, parent_val_id: original_token_val_id as u32 });
+                    tokens_to_parent.push(ValIdPair { valid:         original_token_val_id as u32, parent_val_id: search_text_id as u32 });
+
+                });
             }
+            // if options.tokenize && normalized_text.split(" ").count() > 1 {
+            //     let value_id_to_token_ids = value_id_to_token_ids_in_path.entry(path.to_string()).or_insert(vec![]);
+            //     for token in normalized_text.split(" ") {
+            //         let token_str = token.to_string();
+            //         if options.stopwords.as_ref().map(|el| el.contains(&token_str)).unwrap_or(false) {
+            //             continue;
+            //         }
+            //         // terms.insert(token.to_string());
+            //         let original_token_val_id = all_terms.get(&token_str).expect("did not found token").id;
+            //         trace!("Adding to tokens {:?} : {:?}", token, original_token_val_id);
+            //         value_id_to_token_ids.push(ValIdPair { valid: val_id as u32, parent_val_id: original_token_val_id as u32 });
+            //         tokens.push(ValIdPair { valid:         original_token_val_id as u32, parent_val_id: val_id as u32 });
+            //     }
+            // }
 
         };
 
         let mut callback_ids = |path: &str, value_id: u32, parent_val_id: u32| {
-            let tuples = tuples_in_path.entry(path.to_string()).or_insert(vec![]);
+            let tuples = tuples_to_parent_in_path.entry(path.to_string()).or_insert(vec![]);
             tuples.push(ValIdPair { valid:         value_id, parent_val_id: parent_val_id });
         };
 
@@ -306,7 +376,7 @@ pub fn create_fulltext_index(data: &Value, mut persistence: &mut Persistence) ->
 
 
     {
-        for (path, mut tuples) in tuples_in_path.iter_mut().chain(text_tuples_in_path.iter_mut()) {
+        for (path, mut tuples) in tuples_to_parent_in_path.iter_mut().chain(text_tuples_to_parent_in_path.iter_mut()) {
             persistence.write_tuple_pair(&mut tuples, &concat(&path, ".valueIdToParent"))?;
             if log_enabled!(log::LogLevel::Trace) {
                 trace!("{}\n{}",&concat(&path, ".valueIdToParent"), print_vec(&tuples, &path, "parentid"));

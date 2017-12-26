@@ -500,26 +500,27 @@ mod tests {
             let pers = PERSISTENCES.get(&"default".to_string()).unwrap();
             let mut faccess:persistence::FileSearch = pers.get_file_search("meanings.ger[].textindex");
 
-            assert_eq!(faccess.get_text_for_id(0, pers.get_offsets("meanings.ger[].textindex").unwrap()), "alle" );
-            assert_eq!(faccess.get_text_for_id(1, pers.get_offsets("meanings.ger[].textindex").unwrap()), "alle meine words" );
-            assert_eq!(faccess.get_text_for_id(2, pers.get_offsets("meanings.ger[].textindex").unwrap()), "anblick" );
+            assert_eq!(faccess.get_text_for_id(1, pers.get_offsets("meanings.ger[].textindex").unwrap()), "alle" );
+            assert_eq!(faccess.get_text_for_id(2, pers.get_offsets("meanings.ger[].textindex").unwrap()), "alle meine words" );
+            assert_eq!(faccess.get_text_for_id(3, pers.get_offsets("meanings.ger[].textindex").unwrap()), "anblick" );
 
         }
 
-        it "should highlight ids"{
-            let mut pers = PERSISTENCES.get(&"default".to_string()).unwrap();
+        // it "should highlight ids"{
+        //     let mut pers = PERSISTENCES.get(&"default".to_string()).unwrap();
 
 
-            let inf = search::SnippetInfo{
-                num_words_around_snippet :  4,
-                snippet_start_tag: "<b>".to_string(),
-                snippet_end_tag: "</b>".to_string(),
-                snippet_connector: " ... ".to_string(),
-            };
-            let results = search_field::highlight_document(&mut pers, "mylongtext.textindex", 13, &[9], &inf).unwrap();
-            assert_eq!(results, "this is a <b>story</b> of a  ... " );
+        //     let inf = search::SnippetInfo{
+        //         num_words_around_snippet :  4,
+        //         max_snippets :  40,
+        //         snippet_start_tag: "<b>".to_string(),
+        //         snippet_end_tag: "</b>".to_string(),
+        //         snippet_connector: " ... ".to_string(),
+        //     };
+        //     let results = search_field::highlight_document(&mut pers, "mylongtext.textindex", 13, &[9], &inf).unwrap();
+        //     assert_eq!(results, "this is a <b>story</b> of a guy who  ... " );
 
-        }
+        // }
 
         it "should highlight on field"{
             let req = json!({
@@ -534,7 +535,7 @@ mod tests {
             let mut requesto: search::RequestSearchPart = serde_json::from_str(&req.to_string()).expect("Can't parse json");
             let mut pers = PERSISTENCES.get(&"default".to_string()).unwrap();
             let results = search_field::highlight(&mut pers, &mut requesto).unwrap();
-            assert_eq!(results.iter().map(|el| el.0.clone()).collect::<Vec<String>>(), ["this is a <b>story</b> of a  ... "]);
+            assert_eq!(results.iter().map(|el| el.0.clone()).collect::<Vec<String>>(), ["this is a <b>story</b> of a guy who went ... "]);
         }
 
         it "real suggest with score"{

@@ -41,6 +41,8 @@ use num::{self, Integer, NumCast};
 #[allow(unused_imports)]
 use heapsize::{heap_size_of, HeapSizeOf};
 
+use mayda;
+
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
 pub struct MetaData {
     pub id_lists:         FnvHashMap<String, IDList>,
@@ -199,25 +201,26 @@ impl IndexIdToParent for IndexIdToMultipleParentCompressedMaydaDIRECT {
         (0..self.data.len() as u32).collect()
     }
 }
-
+use mayda::Access;
 #[derive(Debug, HeapSizeOf)]
 #[allow(dead_code)]
 pub struct IndexIdToMultipleParentCompressedMaydaINDIRECT {
     pointers: Vec<(u32, u32)>, //start, end
-    data: Vec<u32>,
+    data: mayda::Uniform<u32>,
 }
 impl IndexIdToMultipleParentCompressedMaydaINDIRECT {
     #[allow(dead_code)]
     fn new(store: &IndexIdToParent) -> IndexIdToMultipleParentCompressedMaydaINDIRECT {
-        let (data, pointers) = id_to_parent_to_array_of_array_mayda_indirect(store);
+        let (pointers, data) = id_to_parent_to_array_of_array_mayda_indirect(store);
         IndexIdToMultipleParentCompressedMaydaINDIRECT { pointers, data }
     }
 }
 
 impl IndexIdToParent for IndexIdToMultipleParentCompressedMaydaINDIRECT {
     fn get_values(&self, id: u64) -> Option<Vec<u32>> {
+        // None
         self.pointers.get(id as usize).map(|el| {
-            el.decode(el.0 .. el.1).clone()
+            self.data.access(el.0 as usize .. el.1 as usize).clone()
         })
     }
     fn get_keys(&self) -> Vec<u32> {
@@ -297,11 +300,22 @@ fn has_valid_duplicates(data: &Vec<&create::GetValueId>) -> bool {
     return false;
 }
 
+use colored::*;
+
+fn get_readable_size(value: usize) -> ColoredString {
+    match value {
+        0 ... 1_000 => format!("{:?} b", value).blue(),
+        1_000 ... 1_000_000 => format!("{:?} kb", value / 1_000).green(),
+        _ => format!("{:?} mb", value / 1_000_000).red(),
+    }
+    
+}
+
 impl Persistence {
     pub fn print_heap_sizes(&self) {
-        println!("cache.index_64 {:?}mb", self.cache.index_64.heap_size_of_children() / 1_000_000);
-        println!("cache.index_id_to_parento {:?}mb", self.cache.index_id_to_parento.heap_size_of_children() / 1_000_000);
-        println!("cache.boost_valueid_to_value {:?}mb", self.cache.boost_valueid_to_value.heap_size_of_children() / 1_000_000);
+        println!("cache.index_64 {:?}", get_readable_size(self.cache.index_64.heap_size_of_children()));
+        println!("cache.index_id_to_parento {:?}", get_readable_size(self.cache.index_id_to_parento.heap_size_of_children()));
+        println!("cache.boost_valueid_to_value {:?}", get_readable_size(self.cache.boost_valueid_to_value.heap_size_of_children()));
 
         let mut print_and_size = vec![];
 
@@ -313,16 +327,17 @@ impl Persistence {
         table.add_row(row!["Type", "Path", "Size"]);
         for (k, v) in &self.cache.index_id_to_parento {
 
-            print_and_size.push((v.heap_size_of_children(), format!("{} type: {} {:?} mb", k, v.type_name(), v.heap_size_of_children() / 1_000_000)));
+            print_and_size.push((v.heap_size_of_children(), format!("{} type: {} {}", k, v.type_name(), get_readable_size(v.heap_size_of_children()) )));
             // println!("{:?} {:?} mb", k, v.heap_size_of_children() / 1_000_000);
-            table.add_row(row![v.type_name(), k, format!("{:?} mb", v.heap_size_of_children() / 1_000_000)]);
+            table.add_row(row![v.type_name(), k, get_readable_size(v.heap_size_of_children() )]);
         }
-        table.printstd();
+        info!("{}", table);
+        // table.printstd();
 
-        for (k, v) in &self.cache.fst {
-            // println!("cache.fst {:?}  {:?}mb", k, mem::size_of_val(v)/1_000_000);
-            println!("cache.fst {:?}  {:?}mb", k, v.heap_size_of_children());
-        }
+        // for (k, v) in &self.cache.fst {
+        //     // println!("cache.fst {:?}  {:?}mb", k, mem::size_of_val(v)/1_000_000);
+        //     println!("cache.fst {:?}  {:?}mb", k, v.heap_size_of_children());
+        // }
         // println!("cache.fst {:?}mb", self.cache.fst.heap_size_of_children()/1_000_000);
     }
 
@@ -533,7 +548,7 @@ impl Persistence {
                 // self.cache.index_id_to_parento.insert(el.path.to_string(), Box::new(IndexIdToMultipleParentCompressedSnappy::new(&store)));
                 self.cache
                     .index_id_to_parento
-                    .insert(el.path.to_string(), Box::new(IndexIdToMultipleParentCompressedMaydaDIRECT::new(&store)));
+                    .insert(el.path.to_string(), Box::new(IndexIdToMultipleParentCompressedMaydaINDIRECT::new(&store)));
             } else {
                 self.cache
                     .index_id_to_parento
@@ -668,7 +683,7 @@ pub fn id_to_parent_to_array_of_array_snappy(store: &IndexIdToParent) -> Vec<Vec
     }
     data
 }
-use mayda;
+
 pub fn id_to_parent_to_array_of_array_mayda(store: &IndexIdToParent) -> Vec<mayda::Uniform<u32>> {
     let mut data = vec![];
     let mut valids = store.get_keys();
@@ -680,7 +695,7 @@ pub fn id_to_parent_to_array_of_array_mayda(store: &IndexIdToParent) -> Vec<mayd
 
     // debug_time!("convert key_value_store to vec vec");
     for valid in valids {
-        let mut uniform = Uniform::new();
+        let mut uniform = mayda::Uniform::new();
         let mut vals = store.get_values(valid as u64).unwrap();
         uniform.encode(&vals).unwrap();
         data[valid as usize] = uniform;
@@ -688,27 +703,29 @@ pub fn id_to_parent_to_array_of_array_mayda(store: &IndexIdToParent) -> Vec<mayd
     data
 }
 
-pub fn id_to_parent_to_array_of_array_mayda_indirect(store: &IndexIdToParent) -> (Vec<(u32, u32))>, mayda::Uniform<u32>) {
+pub fn id_to_parent_to_array_of_array_mayda_indirect(store: &IndexIdToParent) -> (Vec<(u32, u32)>, mayda::Uniform<u32>) {
     let mut data = vec![];
     let mut valids = store.get_keys();
     valids.dedup();
     if valids.len() == 0 {
-        return (vec![], vec![]);
+        return (vec![], mayda::Uniform::default());
     }
-    data.reserve(valids.len());
-    let offset = 0;
+    let mut start_and_end = vec![];
+    start_and_end.resize(*valids.last().unwrap() as usize + 1, (0, 0));
+    let mut offset = 0;
     // debug_time!("convert key_value_store to vec vec");
-    let start_and_end = vec![];
+    
     for valid in valids {
         let mut vals = store.get_values(valid as u64).unwrap();
         let start = offset;
         data.extend(&vals);
-        offset += data.len() as u32;
-        start_and_end.push((start, offset));
+        offset += vals.len() as u32;
+        // start_and_end.push((start, offset));
+        start_and_end[valid as usize] = (start, offset);
     }
 
     data.shrink_to_fit();
-    let mut uniform = Uniform::new();
+    let mut uniform = mayda::Uniform::new();
     uniform.encode(&data).unwrap();
     (start_and_end, uniform)
 }
