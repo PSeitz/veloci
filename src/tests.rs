@@ -226,7 +226,7 @@ mod tests {
             {
 
                 if !*INDEX_CREATEDO {
-                    // trace::enable_log();
+                    trace::enable_log();
 
                     // Start up a test.
                     let indices = r#"
@@ -493,16 +493,17 @@ mod tests {
             let results = search_field::get_hits_in_field(&mut pers, &requesto).unwrap();
             let mut all_terms = results.terms.values().collect::<Vec<&String>>();
             all_terms.sort();
-            assert_eq!(all_terms, ["majestät", "majestätischer", "majestätischer anblick", "majestätisches", "majestätisches aussehen"]);
+            // assert_eq!(all_terms, ["majestät", "majestätischer", "majestätischer anblick", "majestätisches", "majestätisches aussehen"]);
+            assert_eq!(all_terms, ["majestät", "majestät (f)", "majestätischer", "majestätischer anblick (m)", "majestätisches", "majestätisches aussehen (n)"]);
         }
 
         it "should load the text for ids"{
             let pers = PERSISTENCES.get(&"default".to_string()).unwrap();
             let mut faccess:persistence::FileSearch = pers.get_file_search("meanings.ger[].textindex");
 
-            assert_eq!(faccess.get_text_for_id(1, pers.get_offsets("meanings.ger[].textindex").unwrap()), "alle" );
-            assert_eq!(faccess.get_text_for_id(2, pers.get_offsets("meanings.ger[].textindex").unwrap()), "alle meine words" );
-            assert_eq!(faccess.get_text_for_id(3, pers.get_offsets("meanings.ger[].textindex").unwrap()), "anblick" );
+            assert_eq!(faccess.get_text_for_id(11, pers.get_offsets("meanings.ger[].textindex").unwrap()), "Majestät" );
+            assert_eq!(faccess.get_text_for_id(12, pers.get_offsets("meanings.ger[].textindex").unwrap()), "Majestät (f)" );
+            assert_eq!(faccess.get_text_for_id(13, pers.get_offsets("meanings.ger[].textindex").unwrap()), "Treffer" );
 
         }
 
@@ -550,8 +551,9 @@ mod tests {
             let requesto: search::RequestSearchPart = serde_json::from_str(&req.to_string()).expect("Can't parse json");
             let mut pers = PERSISTENCES.get(&"default".to_string()).unwrap();
             let results = search_field::suggest(&mut pers, &requesto).unwrap();
-            assert_eq!(results.iter().map(|el| el.0.clone()).collect::<Vec<String>>(), ["majestät", "majestätischer", "majestätisches",
-                                                                                        "majestätischer anblick", "majestätisches aussehen"]);
+            // assert_eq!(results.iter().map(|el| el.0.clone()).collect::<Vec<String>>(), ["majestät", "majestätischer", "majestätisches", "majestätischer anblick", "majestätisches aussehen"]);
+            assert_eq!(results.iter().map(|el| el.0.clone()).collect::<Vec<String>>(), ["majestät", "majestät (f)", "majestätischer",
+                                                        "majestätisches", "majestätischer anblick (m)", "majestätisches aussehen (n)"]);
         }
 
         it "multi real suggest with score"{
@@ -568,7 +570,8 @@ mod tests {
             let requesto: search::Request = serde_json::from_str(&req.to_string()).expect("Can't parse json");
             let mut pers = PERSISTENCES.get(&"default".to_string()).unwrap();
             let results = search_field::suggest_multi(&mut pers, requesto).unwrap();
-            assert_eq!(results.iter().map(|el| el.0.clone()).collect::<Vec<String>>(), ["will", "wille", "will test"]);
+            // assert_eq!(results.iter().map(|el| el.0.clone()).collect::<Vec<String>>(), ["will", "wille", "will test"]);
+            assert_eq!(results.iter().map(|el| el.0.clone()).collect::<Vec<String>>(), ["will", "wille", "wille (m)", "will test"]);
         }
 
 
@@ -589,7 +592,8 @@ mod tests {
             let requesto: search::RequestSearchPart = serde_json::from_str(&req.to_string()).expect("Can't parse json");
             let mut pers = PERSISTENCES.get(&"default".to_string()).unwrap();
             let results = search_field::suggest(&mut pers, &requesto).unwrap();
-            assert_eq!(results.iter().map(|el| el.0.clone()).collect::<Vec<String>>(), ["begeisterung", "begeistern"]);
+            // assert_eq!(results.iter().map(|el| el.0.clone()).collect::<Vec<String>>(), ["begeisterung", "begeistern"]);
+            assert_eq!(results.iter().map(|el| el.0.clone()).collect::<Vec<String>>(), ["begeisterung", "begeistern", "begeisterung (f)"]);
         }
 
         // it "should or connect the checks"{
@@ -629,10 +633,10 @@ mod tests {
             assert_eq!(hits[0].doc["meanings"]["ger"][0], "(1) weich");
         }
 
-        it "OR connect hits, but boost one term"{
+        it "OR connect hits but boost one term"{
             let req = json!({
                 "or":[
-                    {"search": {"terms":["majestät"], "path": "meanings.ger[]", "boost": 2}},
+                    {"search": {"terms":["majestät (f)"], "path": "meanings.ger[]", "boost": 2}},
                     {"search": {"terms":["urge"], "path": "meanings.eng[]"}}
                 ]
             });
@@ -650,7 +654,7 @@ mod tests {
             });
             let hits = search_testo_to_hitso(req).unwrap();
             println!("{:?}", hits);
-            trace::enable_log();
+            // trace::enable_log();
 
             // search::read_data(id, vec!["ent_seq".to_string(), "field1[].text".to_string(), "kanji[].text".to_string(), "meanings.ger[]".to_string(), "meanings.eng[]".to_string(), "address[].line[]".to_string()]);
 

@@ -133,8 +133,8 @@ pub fn plan_creator(request: Request) -> PlanStepType {
         PlanStepType::Intersect{steps, input_prev_steps:results_from_prev_steps, output_next_steps:tx, plans_output:rx}
 
     } else if let Some(mut part) = request.search {
-
-        part.terms = part.terms.iter().map(|el| util::normalize_text(el)).collect::<Vec<_>>();
+        // TODO Tokenize query according to field
+        // part.terms = part.terms.iter().map(|el| util::normalize_text(el)).collect::<Vec<_>>();
         plan_creator_search_part(part, request.boost)
     } else {
         //TODO ADD ERROR

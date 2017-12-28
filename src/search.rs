@@ -549,7 +549,7 @@ pub fn read_data_single(persistence: &Persistence, id: u32, field: String) -> Re
     for path in steps.iter() {
         result[path.clone()] = json!([]);
         let dat:FnvHashMap<u32, Vec<u32>> = join_for_read(persistence, data, &concat(path, ".parentToValueId"))?;
-        data = dat.get(&id).unwrap().clone();
+        data = dat.get(&id).expect(&format!("Could not find id {:?} in  {:?} {:?}", id, path, dat)).clone();
     }
 
     let texto = get_id_text_map_for_ids(persistence, steps.last().unwrap(), &data);
