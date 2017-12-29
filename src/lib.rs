@@ -76,6 +76,7 @@ extern crate ordered_float;
 
 extern crate mayda;
 extern crate colored;
+extern crate utf8_ranges;
 
 // use fst::{IntoStreamer, Streamer, Set, MapBuilder};
 #[allow(unused_imports)]
@@ -109,6 +110,7 @@ pub mod hit_collector;
 pub mod trace;
 pub mod tokenizer;
 pub mod execution_plan;
+pub mod lev_automat;
 
 #[cfg(test)]
 mod tests;

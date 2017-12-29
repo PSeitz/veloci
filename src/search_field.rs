@@ -19,6 +19,7 @@ use ordered_float::OrderedFloat;
 use fst::{IntoStreamer, Map, MapBuilder, Set};
 use fst_levenshtein::Levenshtein;
 use fst::automaton::*;
+use lev_automat::*;
 // use search::Hit;
 
 #[derive(Debug, Default)]
@@ -58,7 +59,7 @@ where
     // let map = persistence.get_fst(&options.path)?;
 
     let map = persistence.cache.fst.get(&options.path).expect(&format!("fst not found loaded in cache {} ", options.path));
-    let lev = Levenshtein::new(&options.terms[0], options.levenshtein_distance.unwrap_or(0))?;
+    let lev = LevenshteinIC::new(&options.terms[0], options.levenshtein_distance.unwrap_or(0))?;
 
     // let stream = map.search(lev).into_stream();
     let hits = if options.starts_with.unwrap_or(false) {

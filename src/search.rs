@@ -473,6 +473,7 @@ pub enum SearchError {
     CrossBeamError(crossbeam_channel::SendError<std::collections::HashMap<u32, f32, std::hash::BuildHasherDefault<fnv::FnvHasher>>>),
     CrossBeamError2(crossbeam_channel::SendError<SearchFieldResult>),
     CrossBeamErrorReceive(crossbeam_channel::RecvError),
+    TooManyStates
 }
 // Automatic Conversion
 impl From<io::Error> for SearchError {

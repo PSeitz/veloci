@@ -272,8 +272,7 @@ mod tests {
                 "search": {
                     "terms":["majestätischer"],
                     "path": "meanings.ger[]",
-                    "levenshtein_distance": 1,
-                    "firstCharExactMatch": true
+                    "levenshtein_distance": 1
                 }
             });
 
@@ -494,7 +493,7 @@ mod tests {
             let mut all_terms = results.terms.values().collect::<Vec<&String>>();
             all_terms.sort();
             // assert_eq!(all_terms, ["majestät", "majestätischer", "majestätischer anblick", "majestätisches", "majestätisches aussehen"]);
-            assert_eq!(all_terms, ["majestät", "majestät (f)", "majestätischer", "majestätischer anblick (m)", "majestätisches", "majestätisches aussehen (n)"]);
+            assert_eq!(all_terms, ["Majestät", "Majestät (f)", "majestätischer", "majestätischer Anblick (m)", "majestätisches", "majestätisches Aussehen (n)"]);
         }
 
         it "should load the text for ids"{
@@ -552,8 +551,7 @@ mod tests {
             let mut pers = PERSISTENCES.get(&"default".to_string()).unwrap();
             let results = search_field::suggest(&mut pers, &requesto).unwrap();
             // assert_eq!(results.iter().map(|el| el.0.clone()).collect::<Vec<String>>(), ["majestät", "majestätischer", "majestätisches", "majestätischer anblick", "majestätisches aussehen"]);
-            assert_eq!(results.iter().map(|el| el.0.clone()).collect::<Vec<String>>(), ["majestät", "majestät (f)", "majestätischer",
-                                                        "majestätisches", "majestätischer anblick (m)", "majestätisches aussehen (n)"]);
+            assert_eq!(results.iter().map(|el| el.0.clone()).collect::<Vec<String>>(), ["majestätischer", "majestätisches", "majestätischer Anblick (m)", "majestätisches Aussehen (n)", "Majestät", "Majestät (f)"]);
         }
 
         it "multi real suggest with score"{
@@ -571,7 +569,7 @@ mod tests {
             let mut pers = PERSISTENCES.get(&"default".to_string()).unwrap();
             let results = search_field::suggest_multi(&mut pers, requesto).unwrap();
             // assert_eq!(results.iter().map(|el| el.0.clone()).collect::<Vec<String>>(), ["will", "wille", "will test"]);
-            assert_eq!(results.iter().map(|el| el.0.clone()).collect::<Vec<String>>(), ["will", "wille", "wille (m)", "will test"]);
+            assert_eq!(results.iter().map(|el| el.0.clone()).collect::<Vec<String>>(), ["will", "will test", "Wille", "Wille (m)"]);
         }
 
 
@@ -593,7 +591,7 @@ mod tests {
             let mut pers = PERSISTENCES.get(&"default".to_string()).unwrap();
             let results = search_field::suggest(&mut pers, &requesto).unwrap();
             // assert_eq!(results.iter().map(|el| el.0.clone()).collect::<Vec<String>>(), ["begeisterung", "begeistern"]);
-            assert_eq!(results.iter().map(|el| el.0.clone()).collect::<Vec<String>>(), ["begeisterung", "begeistern", "begeisterung (f)"]);
+            assert_eq!(results.iter().map(|el| el.0.clone()).collect::<Vec<String>>(), ["begeistern", "Begeisterung", "Begeisterung (f)"]);
         }
 
         // it "should or connect the checks"{

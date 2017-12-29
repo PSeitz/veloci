@@ -49,8 +49,10 @@ flame = "0.2.0"
 flamer = "^0.1.4"
 crossbeam-channel = "0.1.2"
 crossbeam-utils = "0.2.1"
-mayda = {path = "../mayda"}
+mayda = {git = "https://github.com/PSeitz/mayda"}
 prettytable-rs = "^0.6"
+utf8-ranges = "1.0.0"
+
 
 [dependencies.bodyparser]
 git = "https://github.com/iron/body-parser.git"
