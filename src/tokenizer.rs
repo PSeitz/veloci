@@ -34,6 +34,7 @@ impl Tokenizer for SimpleTokenizer {
     }
 }
 
+#[allow(unused_imports)]
 use test;
 
 #[bench]
@@ -55,7 +56,7 @@ fn bench_closure(b: &mut test::Bencher) {
 
     b.iter(||{
         let mut vec:Vec<String> = vec![];
-        tokenizer.get_tokens("das ist ein txt, test", &mut |token:&str, is_seperator: bool|{
+        tokenizer.get_tokens("das ist ein txt, test", &mut |token:&str, _is_seperator: bool|{
             vec.push(token.to_string());
         });
         vec
@@ -68,7 +69,7 @@ fn bench_closure_box(b: &mut test::Bencher) {
 
     b.iter(||{
         let mut vec:Vec<String> = vec![];
-        tokenizer.get_tokens("das ist ein txt, test", &mut |token:&str, is_seperator: bool|{
+        tokenizer.get_tokens("das ist ein txt, test", &mut |token:&str, _is_seperator: bool|{
             vec.push(token.to_string());
         });
         vec
@@ -77,8 +78,6 @@ fn bench_closure_box(b: &mut test::Bencher) {
 
 #[bench]
 fn bench_no_regex(b: &mut test::Bencher) {
-    let tokenizer = Box::new(SimpleTokenizer{});
-
     b.iter(||{
         let mut vec:Vec<String> = vec![];
         for token in "das ist ein txt, test".split(" ") {
@@ -87,11 +86,10 @@ fn bench_no_regex(b: &mut test::Bencher) {
         vec
     })
 }
+#[allow(unused_imports)]
 use util;
 #[bench]
 fn bench_normalize_and(b: &mut test::Bencher) {
-    let tokenizer = Box::new(SimpleTokenizer{});
-
     b.iter(||{
         let mut vec:Vec<String> = vec![];
         for token in util::normalize_text("das ist ein txt, test").split(" ") {

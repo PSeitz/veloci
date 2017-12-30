@@ -209,7 +209,7 @@ fn add_text<T: Tokenizer>(text: String, terms: &mut FnvHashMap<String, TermInfo>
     // }
 
     if tokenizer.has_tokens(&text) {
-        tokenizer.get_tokens(&text, &mut |token:&str, is_seperator: bool|{
+        tokenizer.get_tokens(&text, &mut |token:&str, _is_seperator: bool|{
             let token_str = token.to_string();
             if options.stopwords.as_ref().map(|el| el.contains(&token_str)).unwrap_or(false) {
                 return;
@@ -298,7 +298,7 @@ pub fn create_fulltext_index(data: &Value, mut persistence: &mut Persistence) ->
     let mut tokens_in_path:FnvHashMap<String, Vec<ValIdPair>> = FnvHashMap::default();
     let mut value_id_to_token_ids_in_path:FnvHashMap<String, Vec<ValIdPair>> = FnvHashMap::default();
     let mut tuples_to_parent_in_path:FnvHashMap<String, Vec<ValIdPair>> = FnvHashMap::default(); // tuples to anchor are normalized for searching, here the real texts are used to recreated data
-    let mut text_tuples_to_leaf_in_path:FnvHashMap<String, Vec<ValIdPair>> = FnvHashMap::default(); // text tuples to leaf are used for reading values, here the real texts are used to recreated data
+    // let mut text_tuples_to_leaf_in_path:FnvHashMap<String, Vec<ValIdPair>> = FnvHashMap::default(); // text tuples to leaf are used for reading values, here the real texts are used to recreated data
     let mut text_tuples_to_parent_in_path:FnvHashMap<String, Vec<ValIdPair>> = FnvHashMap::default();
 
 
@@ -309,7 +309,7 @@ pub fn create_fulltext_index(data: &Value, mut persistence: &mut Persistence) ->
             let value = value.to_string();
             let tokens_to_parent = tokens_in_path.entry(path.to_string()).or_insert(vec![]);
             let tuples = text_tuples_to_parent_in_path.entry(path.to_string()).or_insert(vec![]);
-            let tuples_to_leaf = text_tuples_to_leaf_in_path.entry(path.to_string()).or_insert(vec![]);
+            // let tuples_to_leaf = text_tuples_to_leaf_in_path.entry(path.to_string()).or_insert(vec![]);
             let all_terms = all_terms_in_path.get(path).unwrap();
             let options = FulltextIndexOptions::new(); // TODO @FixMe
             // let normalized_text = util::normalize_text(value);
@@ -328,7 +328,7 @@ pub fn create_fulltext_index(data: &Value, mut persistence: &mut Persistence) ->
 
             if tokenizer.has_tokens(&value) {
                 let value_id_to_token_ids = value_id_to_token_ids_in_path.entry(path.to_string()).or_insert(vec![]);
-                tokenizer.get_tokens(&value, &mut |token:&str, is_seperator: bool|{
+                tokenizer.get_tokens(&value, &mut |token:&str, _is_seperator: bool|{
                     // let token_str = token.to_string();
                     if options.stopwords.as_ref().map(|el| el.contains(&token.to_string())).unwrap_or(false) {
                         return;

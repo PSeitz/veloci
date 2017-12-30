@@ -8,18 +8,27 @@ use heapsize::{heap_size_of, HeapSizeOf};
 #[allow(unused_imports)]
 use bincode::{deserialize, serialize, Infinite};
 
+use persistence::*;
 use persistence::Persistence;
-use persistence::IndexIdToParent;
-use persistence::IndexIdToOneParent;
-use persistence::IndexIdToMultipleParent;
-use persistence::IndexIdToMultipleParentCompressedSnappy;
-use persistence::IndexIdToMultipleParentCompressedMaydaDIRECT;
-use persistence::IndexIdToMultipleParentCompressedMaydaINDIRECT;
-use persistence::IndexIdToOneParentMayda;
+// use persistence::IndexIdToParent;
+// use persistence::IndexIdToOneParent;
+// use persistence::IndexIdToMultipleParent;
+// use persistence::IndexIdToMultipleParentCompressedSnappy;
+// use persistence::IndexIdToMultipleParentCompressedMaydaDIRECT;
+// use persistence::IndexIdToMultipleParentCompressedMaydaINDIRECT;
+// use persistence::IndexIdToOneParentMayda;
 use persistence;
 use create;
+use mayda;
+use snap;
+use std::i32;
+#[allow(unused_imports)]
+use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 
+#[allow(unused_imports)]
+use mayda::{Uniform, Encode};
 
+use std::sync::Mutex;
 
 pub trait TypeInfo: Sync + Send  {
     fn type_name(&self) -> String;
@@ -72,12 +81,307 @@ pub struct PointingArrays {
     indirect_ids: Vec<u32>,
 }
 
-// impl PointingArrays {
-//     pub fn get_values(&self, find: u32) -> Vec<u32> {
-//         let ref bytes = self.arr2[self.arr1[find as usize] as usize..self.arr1[find as usize+1] as usize];
-//         persistence::bytes_to_vec_u32(bytes)
-//     }
-// }
+
+
+#[derive(Debug, HeapSizeOf)]
+pub struct IndexIdToMultipleParent {
+    data: Vec<Vec<u32>>,
+}
+impl IndexIdToMultipleParent {
+    #[allow(dead_code)]
+    pub fn new(data: &IndexIdToParent) -> IndexIdToMultipleParent {
+        IndexIdToMultipleParent { data: id_to_parent_to_array_of_array(data) }
+    }
+}
+impl IndexIdToParent for IndexIdToMultipleParent {
+    fn get_values(&self, id: u64) -> Option<Vec<u32>> {
+        self.data.get(id as usize).map(|el| el.clone())
+    }
+    fn get_keys(&self) -> Vec<u32> {
+        (0..self.data.len() as u32).collect()
+    }
+}
+
+lazy_static! {
+    static ref SNAP_DECODER: Mutex<snap::Decoder> = {
+        Mutex::new(snap::Decoder::new())
+    };
+}
+
+#[derive(Debug, HeapSizeOf)]
+#[allow(dead_code)]
+pub struct IndexIdToMultipleParentCompressedSnappy {
+    data: Vec<Vec<u8>>,
+}
+impl IndexIdToMultipleParentCompressedSnappy {
+    #[allow(dead_code)]
+    pub fn new(store: &IndexIdToParent) -> IndexIdToMultipleParentCompressedSnappy {
+        let data = id_to_parent_to_array_of_array_snappy(store);
+        IndexIdToMultipleParentCompressedSnappy { data }
+    }
+}
+
+impl IndexIdToParent for IndexIdToMultipleParentCompressedSnappy {
+    fn get_values(&self, id: u64) -> Option<Vec<u32>> {
+        self.data.get(id as usize).map(|el| {
+            bytes_to_vec_u32(&SNAP_DECODER.lock().unwrap().decompress_vec(el).unwrap())
+        })
+    }
+    fn get_keys(&self) -> Vec<u32> {
+        (0..self.data.len() as u32).collect()
+    }
+}
+
+
+#[derive(Debug, HeapSizeOf)]
+#[allow(dead_code)]
+pub struct IndexIdToMultipleParentCompressedMaydaDIRECT {
+    data: Vec<mayda::Uniform<u32>>,
+}
+impl IndexIdToMultipleParentCompressedMaydaDIRECT {
+    #[allow(dead_code)]
+    pub fn new(store: &IndexIdToParent) -> IndexIdToMultipleParentCompressedMaydaDIRECT {
+        let data = id_to_parent_to_array_of_array_mayda(store);
+        IndexIdToMultipleParentCompressedMaydaDIRECT { data }
+    }
+}
+
+impl IndexIdToParent for IndexIdToMultipleParentCompressedMaydaDIRECT {
+    fn get_values(&self, id: u64) -> Option<Vec<u32>> {
+        self.data.get(id as usize).map(|el| {
+            el.decode()
+        })
+    }
+    fn get_keys(&self) -> Vec<u32> {
+        (0..self.data.len() as u32).collect()
+    }
+}
+use mayda::Access;
+#[derive(Debug, HeapSizeOf)]
+#[allow(dead_code)]
+pub struct IndexIdToMultipleParentCompressedMaydaINDIRECT {
+    // pointers: Vec<(u32, u32)>, //start, end
+    start: mayda::Uniform<u32>,
+    end: mayda::Uniform<u32>,
+    data: mayda::Uniform<u32>,
+    size: usize,
+}
+impl IndexIdToMultipleParentCompressedMaydaINDIRECT {
+    #[allow(dead_code)]
+    pub fn new(store: &IndexIdToParent) -> IndexIdToMultipleParentCompressedMaydaINDIRECT {
+        // let (pointers, data) = id_to_parent_to_array_of_array_mayda_indirect(store);
+        let (size, start, end, data) = id_to_parent_to_array_of_array_mayda_indirect(store);
+        IndexIdToMultipleParentCompressedMaydaINDIRECT { start, end, data, size }
+    }
+}
+
+impl IndexIdToParent for IndexIdToMultipleParentCompressedMaydaINDIRECT {
+    fn get_values(&self, id: u64) -> Option<Vec<u32>> {
+        if id >= self.size as u64 {
+            None
+        }
+        else {
+            Some(self.data.access(self.start.access(id as usize) as usize .. self.end.access(id as usize) as usize).clone())
+        }
+    }
+    fn get_values_compr(&self, _id: u64) -> Option<mayda::Uniform<u32>>{
+        unimplemented!()
+    }
+
+    fn get_keys(&self) -> Vec<u32> {
+        (0..self.start.len() as u32).collect()
+    }
+
+}
+
+#[derive(Debug, HeapSizeOf)]
+pub struct IndexIdToOneParent {
+    pub data: Vec<i32>,
+}
+impl IndexIdToOneParent {
+    pub fn new(data: &IndexIdToParent) -> IndexIdToOneParent {
+        let data = id_to_parent_to_array_of_array(data);
+        let data = data.iter().map(|el| if el.len() > 0 { el[0] as i32 } else { NOT_FOUND }).collect();
+        IndexIdToOneParent { data }
+    }
+}
+impl IndexIdToParent for IndexIdToOneParent {
+    fn get_values(&self, id: u64) -> Option<Vec<u32>> {
+        self.get_value(id).map(|el| vec![el])
+    }
+    fn get_value(&self, id: u64) -> Option<u32> {
+        let val = self.data.get(id as usize);
+        match val {
+            Some(val) => if *val == NOT_FOUND {
+                None
+            } else {
+                Some(val.clone() as u32)
+            },
+            None => None,
+        }
+    }
+    fn get_keys(&self) -> Vec<u32> {
+        (0..self.data.len() as u32).collect()
+    }
+}
+
+#[derive(Debug, HeapSizeOf)]
+pub struct IndexIdToOneParentMayda {
+    data: mayda::Uniform<i32>,
+    size: usize,
+}
+impl IndexIdToOneParentMayda {
+    #[allow(dead_code)]
+    pub fn new(data: &IndexIdToParent) -> IndexIdToOneParentMayda {
+        let yep = IndexIdToOneParent::new(data);
+        IndexIdToOneParentMayda { size: yep.data.len(), data: to_uniform_i32(&yep.data) }
+    }
+}
+impl IndexIdToParent for IndexIdToOneParentMayda {
+    fn get_values(&self, id: u64) -> Option<Vec<u32>> {
+        self.get_value(id).map(|el| vec![el])
+    }
+    fn get_value(&self, id: u64) -> Option<u32> {
+        if id >= self.size as u64 {return None};
+        let val = self.data.access(id as usize);
+
+        match val {
+            i32::MIN => None,
+            _ =>  Some(val.clone() as u32)
+        }
+    }
+    fn get_keys(&self) -> Vec<u32> {
+        (0..self.data.len() as u32).collect()
+    }
+}
+
+
+
+pub fn id_to_parent_to_array_of_array(store: &IndexIdToParent) -> Vec<Vec<u32>> {
+    let mut data = vec![];
+    let mut valids = store.get_keys();
+    valids.dedup();
+    if valids.len() == 0 {
+        return data;
+    }
+    data.resize(*valids.last().unwrap() as usize + 1, vec![]);
+
+    // debug_time!("convert key_value_store to vec vec");
+    for valid in valids {
+        let mut vals = store.get_values(valid as u64).unwrap();
+        // vals.sort(); // WHY U SORT ?
+        data[valid as usize] = vals;
+    }
+    data
+}
+
+
+pub fn id_to_parent_to_array_of_array_snappy(store: &IndexIdToParent) -> Vec<Vec<u8>> {
+    let mut data = vec![];
+    let mut valids = store.get_keys();
+    valids.dedup();
+    if valids.len() == 0 {
+        return data;
+    }
+    data.resize(*valids.last().unwrap() as usize + 1, vec![]);
+
+    // debug_time!("convert key_value_store to vec vec");
+    for valid in valids {
+        let mut encoder = snap::Encoder::new();
+        let mut vals = store.get_values(valid as u64).unwrap();
+        // println!("{:?}", vals);
+        // let mut dat = vec_to_bytes_u32(&vals);
+        let mut dat = encoder.compress_vec(&vec_to_bytes_u32(&vals)).unwrap();
+        dat.shrink_to_fit();
+        data[valid as usize] = dat;
+    }
+    data
+}
+
+pub fn id_to_parent_to_array_of_array_mayda(store: &IndexIdToParent) -> Vec<mayda::Uniform<u32>> {
+    let mut data = vec![];
+    let mut valids = store.get_keys();
+    valids.dedup();
+    if valids.len() == 0 {
+        return data;
+    }
+    data.resize(*valids.last().unwrap() as usize + 1, mayda::Uniform::new());
+
+    // debug_time!("convert key_value_store to vec vec");
+    for valid in valids {
+        let mut uniform = mayda::Uniform::new();
+        let mut vals = store.get_values(valid as u64).unwrap();
+        uniform.encode(&vals).unwrap();
+        data[valid as usize] = uniform;
+    }
+    data
+}
+
+//TODO TRY WITH FROM ITERATOR oder so
+pub fn to_uniform(data: &Vec<u32>) -> mayda::Uniform<u32>{
+    let mut uniform = mayda::Uniform::new();
+    uniform.encode(&data).unwrap();
+    uniform
+}
+pub fn to_uniform_i32(data: &Vec<i32>) -> mayda::Uniform<i32>{
+    let mut uniform = mayda::Uniform::new();
+    uniform.encode(&data).unwrap();
+    uniform
+}
+pub fn to_monotone(data: &Vec<u32>) -> mayda::Monotone<u32>{
+    let mut uniform = mayda::Monotone::new();
+    uniform.encode(&data).unwrap();
+    uniform
+}
+
+pub fn id_to_parent_to_array_of_array_mayda_indirect(store: &IndexIdToParent) -> (usize, mayda::Uniform<u32>, mayda::Uniform<u32>, mayda::Uniform<u32>) { //start, end, data
+    let mut data = vec![];
+    let mut valids = store.get_keys();
+    valids.dedup();
+    if valids.len() == 0 {
+        return (0, mayda::Uniform::default(), mayda::Uniform::default(), mayda::Uniform::default());
+    }
+    let mut start_pos = vec![];
+    let mut end_pos = vec![];
+    start_pos.resize(*valids.last().unwrap() as usize + 1, 0);
+    end_pos.resize(*valids.last().unwrap() as usize + 1, 0);
+
+    // let mut start_and_end = vec![];
+    // start_and_end.resize(*valids.last().unwrap() as usize + 1, (0, 0));
+    let mut offset = 0;
+    // debug_time!("convert key_value_store to vec vec");
+
+    for valid in valids {
+        let mut vals = store.get_values(valid as u64).unwrap();
+        let start = offset;
+        data.extend(&vals);
+        offset += vals.len() as u32;
+        // start_and_end.push((start, offset));
+        // start_and_end[valid as usize] = (start, offset);
+
+        start_pos[valid as usize] = start;
+        end_pos[valid as usize] = offset;
+    }
+
+    data.shrink_to_fit();
+    // let mut uniform = mayda::Uniform::new();
+    // uniform.encode(&data).unwrap();
+    // (start_and_end, uniform)
+
+    (start_pos.len(), to_uniform(&start_pos), to_uniform(&end_pos), to_uniform(&data))
+}
+
+
+
+
+
+
+
+
+
+
+
+
 
 impl IndexIdToParent for PointingArrays {
     fn get_values(&self, id: u64) -> Option<Vec<u32>> {
@@ -85,9 +389,6 @@ impl IndexIdToParent for PointingArrays {
             let ref bytes = self.arr2[self.arr1[*pos as usize] as usize..self.arr1[*pos as usize + 1] as usize];
             persistence::bytes_to_vec_u32(bytes)
         })
-        // let pos = self.indirect_ids[id as usize] as usize;
-        // let ref bytes = self.arr2[self.arr1[pos] as usize..self.arr1[pos+1] as usize];
-        // Some(persistence::bytes_to_vec_u32(bytes))
     }
     fn get_keys(&self) -> Vec<u32> {
         let mut keys = vec![];
@@ -290,3 +591,59 @@ fn _load_bytes(buffer: &mut Vec<u8>, file: &mut File, offset: u64) {
     file.seek(SeekFrom::Start(offset)).unwrap();
     file.read_exact(buffer).unwrap();
 }
+
+
+
+
+#[test]
+fn test_snap() {
+    let mut encoder = snap::Encoder::new();
+    let mut data: Vec<Vec<u32>> = vec![];
+    data.push(vec![
+        11, 12, 13, 14, 15, 16, 17, 18, 19, 110, 111, 112, 113, 114, 115, 116, 117, 118
+    ]);
+    data.push(vec![10, 11, 12, 13, 14, 15]);
+    data.push(vec![10]);
+    info!("data orig {:?}", data.heap_size_of_children());
+    // let data2:Vec<Vec<u8>> = data.iter().map(|el| {
+    //     let mut el = el.clone();
+    //     el.sort();
+    //     let mut dat = encoder.compress_vec(&vec_to_bytes(&el)).unwrap();
+    //     dat.shrink_to_fit();
+    //     dat
+    // }).collect();
+    // info!("data abono compressed {:?}", data2.heap_size_of_children());
+
+    // let data3:Vec<Vec<u8>> = data.iter().map(|el| {
+    //     let el = el.clone();
+    //     let mut dat = vec_to_bytes(&el);
+    //     dat.shrink_to_fit();
+    //     dat
+    // }).collect();
+    // info!("data abono bytes {:?}", data3.heap_size_of_children());
+
+    let data4: Vec<Vec<u8>> = data.iter().map(|el| vec_to_bytes_u32(el)).collect();
+    info!("data byteorder {:?}", data4.heap_size_of_children());
+
+    let data5: Vec<Vec<u8>> = data.iter()
+        .map(|el| {
+            let mut dat = encoder.compress_vec(&vec_to_bytes_u32(el)).unwrap();
+            dat.shrink_to_fit();
+            dat
+        })
+        .collect();
+    info!("data byteorder compressed {:?}", data5.heap_size_of_children());
+
+    // let mut test_vec:Vec<u32> = vec![10];
+    // test_vec.shrink_to_fit();
+    // let mut bytes:Vec<u8> = Vec::new();
+    // unsafe { encode(&test_vec, &mut bytes); };
+    // bytes.shrink_to_fit();
+    // info!("{:?}", test_vec);
+    // info!("{:?}", bytes);
+
+    let mut wtr: Vec<u8> = vec![];
+    wtr.write_u32::<LittleEndian>(10).unwrap();
+    info!("wtr {:?}", wtr);
+}
+

@@ -111,6 +111,8 @@ pub mod trace;
 pub mod tokenizer;
 pub mod execution_plan;
 pub mod lev_automat;
+pub mod highlight_field;
+pub mod facet;
 
 #[cfg(test)]
 mod tests;

@@ -78,6 +78,7 @@ pub trait StepExecutor {
 impl StepExecutor for PlanStepType {
 
     #[flame]
+    #[allow(unused_variables)]
     fn execute_step(self, persistence: &Persistence) -> Result<(), SearchError>{
         match self {
             PlanStepType::FieldSearch{mut req, input_prev_steps, output_next_steps, ..} => {
@@ -106,7 +107,7 @@ impl StepExecutor for PlanStepType {
                 output_next_steps.send(intersect_hits(get_data(input_prev_steps)?))?;
                 Ok(())
             }
-            PlanStepType::FromAttribute{steps, output_next_steps, ..} => {
+            PlanStepType::FromAttribute{steps,  ..} => {
                 execute_steps(steps, persistence)?;
                 // output_next_steps.send(intersect_hits(input_prev_steps.iter().map(|el| el.recv().unwrap()).collect()));
                 Ok(())

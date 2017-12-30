@@ -24,7 +24,7 @@ pub struct LevenshteinIC {
     dfa: Dfa,
 }
 
-
+#[allow(unused_imports)]
 use std::error;
 
 // /// An error that occurred while building a Levenshtein automaton.
@@ -174,7 +174,7 @@ impl DfaBuilder {
 
     fn build(mut self) -> Result<Dfa, SearchError> {
         let mut stack = vec![self.lev.start()];
-        println!("stack {:?}", stack);
+        // println!("stack {:?}", stack);
         let mut seen = HashSet::new();
         let query = self.lev.query.clone(); // temp work around of borrowck
         while let Some(lev_state) = stack.pop() {

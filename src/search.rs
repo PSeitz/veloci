@@ -588,7 +588,7 @@ pub fn read_tree(persistence: &Persistence, id: u32, tree: NodeTree) -> Result<s
                         json[extract_prop_name(prop)] = json!(sub_data);
 
                     }else if let Some(sub_id) = sub_ids.get(0) {
-                        println!("KEIN ARRAY {:?}", sub_tree.clone());
+                        // println!("KEIN ARRAY {:?}", sub_tree.clone());
                         json[extract_prop_name(prop)] = read_tree(persistence, *sub_id, sub_tree.clone())?;
                     }
                 }

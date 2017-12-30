@@ -19,7 +19,7 @@ use std::str;
 fn main() {
     // env_logger::init().unwrap();
     search_lib::trace::enable_log();
-    let e = std::env::args().nth(1).expect("require command line parameter");
+    std::env::args().nth(1).expect("require command line parameter");
 
     for jeppo in std::env::args().skip(1){
         match jeppo.as_ref() {
@@ -58,21 +58,21 @@ fn create_thalia_index() {
     // println!("{:?}", all_terms.len());
 
     // File::create("MATNR").unwrap().write_all(all_terms.join("\n").as_bytes()).unwrap();
-    let indices = r#"
-    [
-        { "fulltext":"MATNR", "attr_pos" : 0 },
-        { "fulltext":"ISMTITLE", "attr_pos" : 1, "options":{"tokenize":true}},
-        { "fulltext":"ISMORIGTITLE", "attr_pos" : 2, "options":{"tokenize":true}},
-        { "fulltext":"ISMSUBTITLE1", "attr_pos" : 3, "options":{"tokenize":true}},
-        { "fulltext":"ISMSUBTITLE2", "attr_pos" : 4, "options":{"tokenize":true}},
-        { "fulltext":"ISMSUBTITLE3", "attr_pos" : 5, "options":{"tokenize":true}},
-        { "fulltext":"ISMARTIST", "attr_pos" : 6, "options":{"tokenize":true}},
-        { "fulltext":"ISMLANGUAGES", "attr_pos" : 7},
-        { "fulltext":"ISMPUBLDATE", "attr_pos" : 8},
-        { "fulltext":"EAN11", "attr_pos" : 9},
-        { "fulltext":"ISMORIDCODE", "attr_pos" : 10}
-    ]
-    "#;
+    // let indices = r#"
+    // [
+    //     { "fulltext":"MATNR", "attr_pos" : 0 },
+    //     { "fulltext":"ISMTITLE", "attr_pos" : 1, "options":{"tokenize":true}},
+    //     { "fulltext":"ISMORIGTITLE", "attr_pos" : 2, "options":{"tokenize":true}},
+    //     { "fulltext":"ISMSUBTITLE1", "attr_pos" : 3, "options":{"tokenize":true}},
+    //     { "fulltext":"ISMSUBTITLE2", "attr_pos" : 4, "options":{"tokenize":true}},
+    //     { "fulltext":"ISMSUBTITLE3", "attr_pos" : 5, "options":{"tokenize":true}},
+    //     { "fulltext":"ISMARTIST", "attr_pos" : 6, "options":{"tokenize":true}},
+    //     { "fulltext":"ISMLANGUAGES", "attr_pos" : 7},
+    //     { "fulltext":"ISMPUBLDATE", "attr_pos" : 8},
+    //     { "fulltext":"EAN11", "attr_pos" : 9},
+    //     { "fulltext":"ISMORIDCODE", "attr_pos" : 10}
+    // ]
+    // "#;
 
     // println!("{:?}", search_lib::create::create_indices_csv("csv_test", "./data.csv", indices));
 }
@@ -125,7 +125,7 @@ fn create_book_index() -> Result<(), io::Error> {
     f.read_to_string(&mut s)?;
 
 
-    let books = (0..100).map(|el| json!({"title":"PRIDE AND PREJUDICE", "content":s})).collect::<Vec<_>>();
+    let books = (0..100).map(|_el| json!({"title":"PRIDE AND PREJUDICE", "content":s})).collect::<Vec<_>>();
 
     println!("{:?}", search_lib::create::create_indices("gutenberg", &serde_json::to_string_pretty(&books).unwrap(), indices));
     // println!("{:?}", search_lib::create::create_indices("gutenberg", &json!({"title":"PRIDE AND PREJUDICE", "content":s}).to_string(), indices));

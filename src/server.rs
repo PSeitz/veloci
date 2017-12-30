@@ -29,6 +29,7 @@ extern crate measure_time;
 extern crate search_lib;
 extern crate iron_compress;
 
+#[allow(unused_imports)]
 use iron_compress::GzipWriter;
 
 use chashmap::CHashMap;
@@ -55,6 +56,7 @@ use time::precise_time_ns;
 use router::Router;
 
 use search_lib::persistence;
+
 
 #[allow(unused_imports)]
 use std::collections::HashMap;
@@ -188,7 +190,7 @@ pub fn start_server() {
     println!("Start server {:?}", combined);
     Iron::new(chain).http(combined).unwrap();
 
-    fn handler(req: &mut Request) -> IronResult<Response> {
+    fn handler(_req: &mut Request) -> IronResult<Response> {
         let mut file = File::open("index.html").expect("Server: \"äh wo ist meine index.html\"");
         let mut contents = String::new();
         file.read_to_string(&mut contents).unwrap();
