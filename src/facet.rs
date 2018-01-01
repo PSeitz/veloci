@@ -5,6 +5,7 @@ use util::*;
 use util;
 use itertools::Itertools;
 
+//TODO Check ignorecase, check duplicates in facet data
 pub fn get_facet(persistence: &Persistence, field:String, mut ids:Vec<u32>) -> Result<String, SearchError> {
 
 
