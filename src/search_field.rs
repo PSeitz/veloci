@@ -19,6 +19,7 @@ use fst::{IntoStreamer, Map, MapBuilder, Set};
 #[allow(unused_imports)]
 use fst_levenshtein::Levenshtein;
 use fst::automaton::*;
+use fst::raw::Fst;
 use lev_automat::*;
 use highlight_field::*;
 // use search::Hit;
@@ -44,6 +45,27 @@ fn get_default_score2(distance: u32, prefix_matches: bool) -> f32 {
         return 2.0 / (distance as f32 + 0.2);
     }
 }
+
+fn ord_to_term(fst: &Fst, mut ord: u64, bytes: &mut Vec<u8>) -> bool {
+    bytes.clear();
+    let mut node = fst.root();
+    while ord != 0 || !node.is_final() {
+        let transition_opt = node.transitions()
+            .take_while(|transition| transition.out.value() <= ord)
+            .last();
+        if let Some(transition) = transition_opt {
+            ord -= transition.out.value();
+            bytes.push(transition.inp);
+            let new_node_addr = transition.addr;
+            node = fst.node(new_node_addr);
+        } else {
+            return false;
+        }
+    }
+    true
+}
+
+
 
 #[inline(always)]
 #[flame]
@@ -308,12 +330,38 @@ pub fn get_text_for_ids(persistence: &Persistence, path:&str, ids: &[u32]) -> Ve
     let offsets = persistence.get_offsets(path).unwrap();
     ids.iter().map(|id| faccess.get_text_for_id(*id as usize, offsets)).collect()
 }
+
 #[flame]
-pub fn get_text_for_id(persistence: &Persistence, path:&str, id: u32) -> String {
+pub fn get_text_for_id_disk(persistence: &Persistence, path:&str, id: u32) -> String {
     let mut faccess:persistence::FileSearch = persistence.get_file_search(path);
     let offsets = persistence.get_offsets(path).unwrap();
     faccess.get_text_for_id(id as usize, offsets)
 }
+
+#[flame]
+pub fn get_text_for_id(persistence: &Persistence, path:&str, id: u32) -> String {
+    let map = persistence.cache.fst.get(path).expect(&format!("fst not found loaded in cache {} ", path));
+
+    let mut bytes = vec![];
+    ord_to_term(map.as_fst(), id as u64, &mut bytes);
+    str::from_utf8(&bytes).unwrap().to_string()
+
+    // let mut faccess:persistence::FileSearch = persistence.get_file_search(path);
+    // let offsets = persistence.get_offsets(path).unwrap();
+    // faccess.get_text_for_id(id as usize, offsets)
+}
+
+#[flame]
+pub fn get_text_for_id_2(persistence: &Persistence, path:&str, id: u32, bytes: &mut Vec<u8>) {
+    let map = persistence.cache.fst.get(path).expect(&format!("fst not found loaded in cache {} ", path));
+
+    ord_to_term(&map.0, id as u64, bytes);
+
+    // let mut faccess:persistence::FileSearch = persistence.get_file_search(path);
+    // let offsets = persistence.get_offsets(path).unwrap();
+    // faccess.get_text_for_id(id as usize, offsets)
+}
+
 
 #[flame]
 pub fn get_id_text_map_for_ids(persistence: &Persistence, path:&str, ids: &[u32]) -> FnvHashMap<u32, String> {

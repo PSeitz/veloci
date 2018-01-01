@@ -114,7 +114,7 @@ pub trait IndexIdToParent: Debug + HeapSizeOf + Sync + Send + persistence_data::
 }
 
 pub fn trace_index_id_to_parent(val: &Box<IndexIdToParent>) {
-    if log_enabled!(log::LogLevel::Trace) {
+    if log_enabled!(log::Level::Trace) {
         let keys = val.get_keys();
         for key in keys.iter() {
             if let Some(vals) = val.get_values(*key as u64) {

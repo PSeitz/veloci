@@ -378,7 +378,7 @@ pub fn create_fulltext_index(data: &Value, mut persistence: &mut Persistence) ->
     {
         for (path, mut tuples) in tuples_to_parent_in_path.iter_mut().chain(text_tuples_to_parent_in_path.iter_mut()) {
             persistence.write_tuple_pair(&mut tuples, &concat(&path, ".valueIdToParent"))?;
-            if log_enabled!(log::LogLevel::Trace) {
+            if log_enabled!(log::Level::Trace) {
                 trace!("{}\n{}",&concat(&path, ".valueIdToParent"), print_vec(&tuples, &path, "parentid"));
             }
 
@@ -387,7 +387,7 @@ pub fn create_fulltext_index(data: &Value, mut persistence: &mut Persistence) ->
                 std::mem::swap(&mut el.parent_val_id, &mut el.valid);
             }
             persistence.write_tuple_pair(&mut tuples, &concat(&path, ".parentToValueId"))?;
-            if log_enabled!(log::LogLevel::Trace) {
+            if log_enabled!(log::Level::Trace) {
                 trace!("{}\n{}",&concat(&path, ".parentToValueId"), print_vec(&tuples, &path, "value_id"));
             }
         }

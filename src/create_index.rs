@@ -133,33 +133,33 @@ fn create_book_index() -> Result<(), io::Error> {
 }
 
 
-#[allow(dead_code)]
-pub fn testfst(term: &str, max_distance: u32) -> Result<(Vec<String>), fst_levenshtein::Error> {
-    let mut f = File::open("de_full_2.txt").unwrap();
-    let mut s = String::new();
-    f.read_to_string(&mut s).unwrap();
-    let lines = s.lines().collect::<Vec<&str>>();
-    // lines.sort();
+// #[allow(dead_code)]
+// pub fn testfst(term: &str, max_distance: u32) -> Result<(Vec<String>), fst_levenshtein::Error> {
+//     let mut f = File::open("de_full_2.txt").unwrap();
+//     let mut s = String::new();
+//     f.read_to_string(&mut s).unwrap();
+//     let lines = s.lines().collect::<Vec<&str>>();
+//     // lines.sort();
 
-    println!("{:?}", lines.len());
-    // A convenient way to create sets in memory.
-    // let set = try!(Set::from_iter(lines));
+//     println!("{:?}", lines.len());
+//     // A convenient way to create sets in memory.
+//     // let set = try!(Set::from_iter(lines));
 
-    let keys = vec!["寿司は焦げられない"];
-    let set = Set::from_iter(keys).unwrap();
+//     let keys = vec!["寿司は焦げられない"];
+//     let set = Set::from_iter(keys).unwrap();
 
-    let now = Instant::now();
+//     let now = Instant::now();
 
-    let lev = Levenshtein::new(term, max_distance).unwrap();
-    let stream = set.search(lev).into_stream();
-    let hits = stream.into_strs().unwrap();
+//     let lev = Levenshtein::new(term, max_distance).unwrap();
+//     let stream = set.search(lev).into_stream();
+//     let hits = stream.into_strs().unwrap();
 
-    println!("fst ms: {}", (now.elapsed().as_secs() as f64 * 1_000.0) + (now.elapsed().subsec_nanos() as f64 / 1000_000.0));
+//     println!("fst ms: {}", (now.elapsed().as_secs() as f64 * 1_000.0) + (now.elapsed().subsec_nanos() as f64 / 1000_000.0));
 
-    // assert_eq!(hits, vec!["fo", "fob", "foo", "food"]);
+//     // assert_eq!(hits, vec!["fo", "fob", "foo", "food"]);
 
-    Ok((hits))
-}
+//     Ok((hits))
+// }
 
 // fn split_at_first()  {
 

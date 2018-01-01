@@ -25,6 +25,9 @@ mod tests {
     use trace;
     use parking_lot::RwLock;
     use chashmap::CHashMap;
+        
+
+    use facet;
 
     static TEST_DATA: &str = r#"[
         {
@@ -33,6 +36,7 @@ mod tests {
         },
         {
             "commonness": 20,
+            "tags": ["nice", "cool"],
             "kanji": [
                 { "text": "偉容", "commonness": 0},
                 { "text": "威容","commonness": 5}
@@ -52,6 +56,7 @@ mod tests {
         },
         {
             "commonness": 20,
+            "tags": ["nice", "cool"],
             "kanji": [
                 { "text": "意欲", "commonness": 40},
                 { "text": "意慾", "commonness": 0}
@@ -72,6 +77,7 @@ mod tests {
         {
             "id": 1234566,
             "gender": "male",
+            "tags": ["awesome", "cool"],
             "birthDate": "1960-08-19",
             "address": [
                 {
@@ -676,6 +682,14 @@ mod tests {
 
 
             // assert_eq!(hits[0].doc["meanings"]["ger"][0], "majestätischer Anblick (m)");
+        }
+
+
+        it "facet"{
+
+            let pers = PERSISTENCES.get(&"default".to_string()).unwrap();
+            let yep = facet::get_facet(&pers, "tags[]".to_string(), vec![0, 1, 2, 3]);
+
         }
 
         //MUTLI TERMS

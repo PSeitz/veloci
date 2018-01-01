@@ -1,6 +1,7 @@
 #[cfg(test)]
 mod bench {
     extern crate env_logger;
+    extern crate rand;
 
     use persistence;
     use search;
@@ -212,12 +213,40 @@ mod bench {
         b.iter(|| highlight("pride", "content", &pers));
     }
 
-    #[test]
-    fn highlight_in_book_yeah() {
-        let pers = load_gutenberg_persistence();
-        assert_eq!(highlight("pride", "content", &pers)[0].0, "QUAARK");
 
+    use rand::Rng;
+    use rand::distributions::{IndependentSample, Range};
+
+    #[bench]
+    fn get_text_ids_fst(b: &mut Bencher) {
+        let mut rng = rand::thread_rng();
+        let between = Range::new(0, 8000);
+        let pers = load_gutenberg_persistence();
+        b.iter(|| search_field::get_text_for_id(&pers, "content.textindex", between.ind_sample(&mut rng) as u32 ));
     }
+
+    #[bench]
+    fn get_text_ids_fst_cache(b: &mut Bencher) {
+        let mut rng = rand::thread_rng();
+        let between = Range::new(0, 8000);
+        let pers = load_gutenberg_persistence();
+        let mut bytes = vec![];
+        b.iter(|| search_field::get_text_for_id_2(&pers, "content.textindex", between.ind_sample(&mut rng) as u32,&mut bytes ));
+    }
+
+    #[bench]
+    fn get_text_ids_disk(b: &mut Bencher) {
+        let mut rng = rand::thread_rng();
+        let between = Range::new(0, 8000);
+        let pers = load_gutenberg_persistence();
+        b.iter(|| search_field::get_text_for_id_disk(&pers, "content.textindex", between.ind_sample(&mut rng) as u32 ));
+    }
+
+    // #[test]
+    // fn highlight_in_book_yeah() {
+    //     let pers = load_gutenberg_persistence();
+    //     assert_eq!(highlight("pride", "content", &pers)[0].0, "QUAARK");
+    // }
 
 
 }
