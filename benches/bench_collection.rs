@@ -7,14 +7,14 @@ extern crate fnv;
 extern crate test;
 extern crate trie;
 
-use criterion::Criterion;
+// use criterion::Criterion;
 
 // use bit_set::BitSet;
 use std::collections::HashMap;
 use fnv::FnvHashMap;
 use std::hash::{Hasher, BuildHasherDefault};
 
-use trie::map;
+// use trie::map;
 // use trie::map::Map;
 
 #[allow(dead_code)]
@@ -65,7 +65,7 @@ pub fn bench_fnvhashmap_insert(num_entries: u32) -> FnvHashMap<u32, f32>{
     let mut hits:FnvHashMap<u32, f32> = FnvHashMap::default();
     hits.reserve(num_entries as usize);
     for x in 0..num_entries {
-        hits.insert(x * 8, 0.22);
+        hits.insert(pseudo_rand(x), 0.22);
     }
     hits
 }
@@ -74,7 +74,7 @@ pub fn bench_naivehashmap_insert(num_entries: u32) -> NaiveHashMap<u64, f32>{
     let mut hits:NaiveHashMap<u64, f32> = NaiveHashMap::default();
     hits.reserve(num_entries as usize);
     for x in 0..num_entries {
-        hits.insert(x as u64 * 8, 0.22);
+        hits.insert(pseudo_rand(x) as u64, 0.22);
     }
     hits
 }
@@ -83,14 +83,14 @@ pub fn bench_triemap_insert(num_entries: u32) -> trie::Map<f32>{
     let mut hits: trie::Map<f32> = trie::Map::default();
     // hits.reserve(num_entries as usize);
     for x in 0..num_entries {
-        hits.insert(x as usize * 8, 0.22);
+        hits.insert(pseudo_rand(x) as usize, 0.22);
     }
     hits
 }
 pub fn bench_triemap_insert_with_lookup(num_hits: u32, token_hits: u32){
     let mut hits:trie::Map<f32> = bench_triemap_insert(num_hits);
     for x in 0..token_hits {
-        let stat = hits.entry(x as usize * 65 ).or_insert(0.0);
+        let stat = hits.entry(pseudo_rand(x) as usize ).or_insert(0.0);
         *stat += 2.0;
     }
 }
@@ -99,7 +99,7 @@ pub fn bench_triemap_insert_with_lookup(num_hits: u32, token_hits: u32){
 pub fn bench_fnvhashmap_insert_with_lookup(num_hits: u32, token_hits: u32){
     let mut hits:FnvHashMap<u32, f32> = bench_fnvhashmap_insert(num_hits);
     for x in 0..token_hits {
-        let stat = hits.entry(x * 65 as u32).or_insert(0.0);
+        let stat = hits.entry(pseudo_rand(x)).or_insert(0.0);
         *stat += 2.0;
     }
 }
@@ -108,15 +108,22 @@ pub fn bench_fnvhashmap_insert_with_lookup(num_hits: u32, token_hits: u32){
 pub fn bench_naivehashmap_insert_with_lookup(num_hits: u32, token_hits: u32){
     let mut hits:NaiveHashMap<u64, f32> = bench_naivehashmap_insert(num_hits);
     for x in 0..token_hits {
-        let stat = hits.entry(x as u64 * 65).or_insert(0.0);
+        let stat = hits.entry(pseudo_rand(x) as u64).or_insert(0.0);
         *stat += 2.0;
     }
 }
 
+#[inline(always)]
+fn pseudo_rand(num: u32) -> u32 {
+
+    num * (num % 8)  as u32
+}
+
+
 pub fn bench_naivehashmap_insert_with_lookup__modify(num_hits: u32, token_hits: u32){
     let mut hits:NaiveHashMap<u64, f32> = bench_naivehashmap_insert(num_hits);
     for x in 0..token_hits {
-        hits.entry(x as u64* 65)
+        hits.entry(pseudo_rand(x) as u64)
            .and_modify(|e| { *e += 2.0 })
            .or_insert(0.0);
     }
@@ -126,22 +133,22 @@ pub fn bench_vec_insert(num_entries: u32) -> Vec<(u32, f32)>{
     let mut hits:Vec<(u32, f32)> = vec![];
     hits.reserve(num_entries as usize);
     for x in 0..num_entries {
-        hits.push((x * 8, 0.22));
+        hits.push((pseudo_rand(x), 0.22));
     }
     hits
 }
 
 use itertools::Itertools;
 
-pub fn bench_vec_insert_with_lookup_collect_in_2_vec(num_hits: u32, token_hits: u32) -> Vec<(u32, f32)> {
+pub fn bench_vec_insert_with_group_by_in_2_vec(num_hits: u32, token_hits: u32) -> Vec<(u32, f32)> {
     let mut hits:Vec<(u32, f32)> = bench_vec_insert(num_hits);
     hits.reserve(token_hits as usize);
     for x in 0..token_hits {
-        hits.push((x * 8, 0.25));
-        // let stat = hits.entry(x * 65 as u32).or_insert(0.0);
+        hits.push((pseudo_rand(x), 0.25));
+        // let stat = hits.entry(x * 8 as u32).or_insert(0.0);
         // *stat += 2.0;
     }
-    hits.sort_by(|a, b| a.0.cmp(&b.0));
+    hits.sort_unstable_by(|a, b| a.0.cmp(&b.0));
 
     let mut hits_2:Vec<(u32, f32)> = vec![];
     hits_2.reserve(hits.len());
@@ -155,7 +162,7 @@ pub fn bench_vec_insert_with_lookup_collect_in_2_vec(num_hits: u32, token_hits: 
 
 // fn criterion_benchmark(c: &mut Criterion) {
 //     Criterion::default()
-//         .bench_function("bench_vec_insert_with_lookup 3Mio", |b| b.iter(|| bench_vec_insert_with_lookup_collect_in_2_vec(K3MIO, K3MIO)));
+//         .bench_function("bench_vec_insert_with_lookup 3Mio", |b| b.iter(|| bench_vec_insert_with_group_by_in_2_vec(K3MIO, K3MIO)));
 // }
 
 // criterion_group!(benches, criterion_benchmark);
@@ -179,7 +186,7 @@ use super::*;
     // }
 
     #[bench]
-    fn bench_fnvhashmap_insert_100k(b: &mut Bencher) {
+    fn bench_fnvhashmap_insert_300k(b: &mut Bencher) {
         b.iter(|| bench_fnvhashmap_insert(K300K));
     }
 
@@ -255,7 +262,7 @@ use super::*;
 
     #[bench]
     fn bench_vec_insert_with_lookup_collect_in_2_vec_300k(b: &mut Bencher) {
-        b.iter(|| bench_vec_insert_with_lookup_collect_in_2_vec(K300K, K300K));
+        b.iter(|| bench_vec_insert_with_group_by_in_2_vec(K300K, K300K));
     }
 
     // #[bench]

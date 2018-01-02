@@ -100,6 +100,7 @@ pub mod util;
 pub mod search;
 pub mod create;
 pub mod create_from_json;
+pub mod create_from_csv;
 pub mod doc_loader;
 pub mod persistence;
 pub mod persistence_data;

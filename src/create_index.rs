@@ -7,7 +7,7 @@ extern crate search_lib;
 extern crate serde_json;
 
 use fst::{IntoStreamer, MapBuilder, Set};
-use fst_levenshtein::Levenshtein;
+// use fst_levenshtein::Levenshtein;
 use std::fs::File;
 use std::io::prelude::*;
 use std::io;
@@ -26,6 +26,7 @@ fn main() {
             "healthcare" => println!("{:?}",create_healtcare()),
             "jmdict" => println!("{:?}",create_jmdict_index()),
             "gutenberg" => println!("{:?}",create_book_index()),
+            "thalia" => println!("{:?}",create_thalia_index()),
             _ => {}
         };
     }
@@ -57,6 +58,26 @@ fn create_thalia_index() {
     // let all_terms = loadcsv("./data.csv", 0);
     // println!("{:?}", all_terms.len());
 
+    let headers = vec![
+        "MATNR".to_string(),
+        "ISMTITLE".to_string(),
+        "ISMORIGTITLE".to_string(),
+        "ISMSUBTITLE1".to_string(),
+        "ISMSUBTITLE2".to_string(),
+        "ISMSUBTITLE3".to_string(),
+        "ISMARTIST".to_string(),
+        "ISMLANGUAGES".to_string(),
+        "ISMPUBLDATE".to_string(),
+        "EAN11".to_string(),
+        "ISMORIDCODE".to_string(),
+    ];
+
+    let json = search_lib::create_from_csv::convert_to_json("./data 2.csv", headers);
+    println!("converted json");
+
+    File::create("thalia.json").unwrap().write_all(&serde_json::to_string_pretty(&json).unwrap().as_bytes()).unwrap();
+
+    println!("{:?}", search_lib::create::create_indices_json("thalia", json, "[]"));
     // File::create("MATNR").unwrap().write_all(all_terms.join("\n").as_bytes()).unwrap();
     // let indices = r#"
     // [

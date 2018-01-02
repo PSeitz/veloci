@@ -542,9 +542,8 @@ pub fn add_token_values_to_tokens(persistence: &mut Persistence, data_str: &str,
 }
 
 
-pub fn create_indices(folder: &str, data_str: &str, indices: &str) -> Result<(), CreateError> {
+pub fn create_indices_json(folder: &str, data: Value, indices: &str) -> Result<(), CreateError> {
     info_time!(format!("create_indices complete for {:?}", folder));
-    let data: Value = serde_json::from_str(data_str).unwrap();
 
     let indices_json: Vec<CreateIndex> = serde_json::from_str(indices).unwrap();
     let mut persistence = Persistence::create(folder.to_string())?;
@@ -566,6 +565,11 @@ pub fn create_indices(folder: &str, data_str: &str, indices: &str) -> Result<(),
     persistence.write_meta_data()?;
 
     Ok(())
+}
+
+pub fn create_indices(folder: &str, data_str: &str, indices: &str) -> Result<(), CreateError> {
+    let data: Value = serde_json::from_str(data_str).unwrap();
+    create_indices_json(folder, data, indices)
 }
 
 #[derive(Debug)]

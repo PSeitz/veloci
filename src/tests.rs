@@ -25,7 +25,7 @@ mod tests {
     use trace;
     use parking_lot::RwLock;
     use chashmap::CHashMap;
-        
+    // use fnv::FnvHashMap;
 
     use facet;
 
@@ -209,13 +209,13 @@ mod tests {
     }
 
 
-    fn search_testo_to_doc(req: Value) -> Vec<search::DocWithHit> {
+    fn search_testo_to_doc(req: Value) -> search::SearchResultWithDoc {
         search_testo_to_doco(req).expect("search error")
     }
 
-    fn search_testo_to_doco(req: Value) -> Result<Vec<search::DocWithHit>, search::SearchError> {
+    fn search_testo_to_doco(req: Value) -> Result<search::SearchResultWithDoc, search::SearchError> {
         let pers = PERSISTENCES.get(&"default".to_string()).expect("Can't find loaded persistence");
-        Ok(search::to_documents(&pers, &search_testo_to_hitso(req)?.data))
+        Ok(search::to_search_result(&pers, search_testo_to_hitso(req)?))
     }
 
     fn search_testo_to_hitso(req: Value) -> Result<search::SearchResult, search::SearchError> {
@@ -282,7 +282,7 @@ mod tests {
                 }
             });
 
-            let hits = search_testo_to_doc(req);
+            let hits = search_testo_to_doc(req).data;
             assert_eq!(hits.len(), 1);
             assert_eq!(hits[0].doc["ent_seq"], "1587680");
         }
@@ -297,7 +297,7 @@ mod tests {
                }
            });
 
-           let hits = search_testo_to_doc(req);
+           let hits = search_testo_to_doc(req).data;
            assert_eq!(hits.len(), 1);
            assert_eq!(hits[0].doc["id"], 123456);
        }
@@ -311,7 +311,7 @@ mod tests {
                     "levenshtein_distance": 1
                 }
             });
-            let hits = search_testo_to_doc(req);
+            let hits = search_testo_to_doc(req).data;
 
             // println!("hits {:?}", hits);
             assert_eq!(hits.len(), 1);
@@ -327,7 +327,7 @@ mod tests {
                     "levenshtein_distance": 1
                 }
             });
-            let wa = search_testo_to_doc(req);
+            let wa = search_testo_to_doc(req).data;
             // assert_eq!(wa.len(), 11);
             assert_eq!(wa[0].doc["meanings"]["eng"][0], "will");
         }
@@ -340,7 +340,7 @@ mod tests {
                 }
             });
 
-            let hits = search_testo_to_doc(req);
+            let hits = search_testo_to_doc(req).data;
             assert_eq!(hits.len(), 1);
             assert_eq!(hits[0].doc["ent_seq"], "1587680");
         }
@@ -353,7 +353,7 @@ mod tests {
                 }
             });
 
-            let hits = search_testo_to_doc(req);
+            let hits = search_testo_to_doc(req).data;
             assert_eq!(hits.len(), 1);
         }
 
@@ -365,7 +365,7 @@ mod tests {
                 ]
             });
 
-            let hits = search_testo_to_doc(req);
+            let hits = search_testo_to_doc(req).data;
             assert_eq!(hits.len(), 1);
             assert_eq!(hits[0].doc["ent_seq"], "1587680");
         }
@@ -378,7 +378,7 @@ mod tests {
                 ]
             });
 
-            let hits = search_testo_to_doc(req);
+            let hits = search_testo_to_doc(req).data;
             assert_eq!(hits.len(), 1);
         }
 
@@ -396,7 +396,7 @@ mod tests {
                 ]
             });
 
-            let hits = search_testo_to_doc(req);
+            let hits = search_testo_to_doc(req).data;
             assert_eq!(hits.len(), 0);
         }
 
@@ -414,7 +414,7 @@ mod tests {
                 ]
             });
 
-            let hits = search_testo_to_doc(req);
+            let hits = search_testo_to_doc(req).data;
             assert_eq!(hits.len(), 2);
         }
 
@@ -431,7 +431,7 @@ mod tests {
                 }]
             });
 
-            let hits = search_testo_to_doc(req);
+            let hits = search_testo_to_doc(req).data;
             assert_eq!(hits.len(), 2);
         }
 
@@ -453,7 +453,7 @@ mod tests {
                 }]
             });
 
-            let hits = search_testo_to_doc(req);
+            let hits = search_testo_to_doc(req).data;
             assert_eq!(hits.len(), 2);
         }
 
@@ -472,7 +472,7 @@ mod tests {
                 }]
             });
 
-            let hits = search_testo_to_doc(req);
+            let hits = search_testo_to_doc(req).data;
             assert_eq!(hits[0].doc["commonness"], 500);
         }
 
@@ -612,7 +612,7 @@ mod tests {
         //         }]
         //     });
 
-        //     let hits = search_testo_to_doc(req);
+        //     let hits = search_testo_to_doc(req).data;
         //     assert_eq!(hits.len(), 1);
         // }
 
@@ -632,7 +632,7 @@ mod tests {
                 }]
             });
 
-            let hits = search_testo_to_doc(req);
+            let hits = search_testo_to_doc(req).data;
             println!("{:?}", hits);
             assert_eq!(hits[0].doc["meanings"]["ger"][0], "(1) weich");
         }
@@ -645,10 +645,23 @@ mod tests {
                 ]
             });
 
-            let hits = search_testo_to_doc(req);
+            let hits = search_testo_to_doc(req).data;
             println!("{:?}", hits);
             assert_eq!(hits.len(), 2);
             assert_eq!(hits[0].doc["meanings"]["ger"][0], "majestätischer Anblick (m)");
+        }
+
+        it "search and get facet"{
+            let req = json!({
+                "search": {"terms":["will"], "path": "meanings.eng[]"},
+                "facets": [{"field":"tags[]"}, {"field":"commonness"}]
+            });
+
+            let hits = search_testo_to_doc(req);
+            assert_eq!(hits.data.len(), 2);
+            let facets = hits.facets.unwrap();
+            assert_eq!(facets.get("tags[]").unwrap(), &vec![("cool".to_string(), 2), ("nice".to_string(), 2)] );
+            assert_eq!(facets.get("commonness").unwrap(), &vec![("20".to_string(), 2)] );
         }
 
         it "read mah data!"{
@@ -688,8 +701,9 @@ mod tests {
         it "facet"{
 
             let pers = PERSISTENCES.get(&"default".to_string()).unwrap();
-            let yep = facet::get_facet(&pers, "tags[]".to_string(), vec![0, 1, 2, 3]);
 
+            let yep = facet::get_facet(&pers, &search::FacetRequest{field:"tags[]".to_string(), top:10}, &vec![0, 1, 2, 3]);
+            println!("{:?}", yep);
         }
 
         //MUTLI TERMS

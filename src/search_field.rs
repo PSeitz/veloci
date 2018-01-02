@@ -24,6 +24,9 @@ use lev_automat::*;
 use highlight_field::*;
 // use search::Hit;
 
+#[allow(unused_imports)]
+use trie::map;
+
 #[derive(Debug, Default)]
 pub struct SearchFieldResult {
     pub hits:  FnvHashMap<TermId, f32>,
@@ -458,7 +461,7 @@ pub fn resolve_token_hits(persistence: &Persistence, path: &str, result: &mut Se
     {
         // println!("{:?}", token_hits);
         debug_time!(format!("token_hits.sort_by {:?}", path));
-        token_hits.sort_by(|a, b| a.0.cmp(&b.0)); // sort by parent id
+        token_hits.sort_unstable_by(|a, b| a.0.cmp(&b.0)); // sort by parent id
     }
     debug_time!(format!("{} extend token_results", path));
     // hits.extend(token_hits);

@@ -15,6 +15,8 @@ use search_field;
 use search::add_boost;
 #[allow(unused_imports)]
 use fnv::FnvHashMap;
+#[allow(unused_imports)]
+use trie::map;
 
 use crossbeam_channel::unbounded;
 use crossbeam_channel;
@@ -77,8 +79,8 @@ pub trait StepExecutor {
 }
 impl StepExecutor for PlanStepType {
 
-    #[flame]
     #[allow(unused_variables)]
+    #[flame]
     fn execute_step(self, persistence: &Persistence) -> Result<(), SearchError>{
         match self {
             PlanStepType::FieldSearch{mut req, input_prev_steps, output_next_steps, ..} => {

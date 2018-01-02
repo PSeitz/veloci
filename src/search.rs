@@ -51,8 +51,16 @@ pub struct Request {
     pub search: Option<RequestSearchPart>,
     pub suggest: Option<Vec<RequestSearchPart>>,
     pub boost: Option<Vec<RequestBoostPart>>,
+    pub facets: Option<Vec<FacetRequest>>,
     #[serde(default = "default_top")] pub top: usize,
     #[serde(default = "default_skip")] pub skip: usize,
+}
+
+
+#[derive(Serialize, Deserialize, Default, Clone, Debug)]
+pub struct FacetRequest {
+    pub field: String,
+    #[serde(default = "default_top")] pub top: usize,
 }
 
 fn default_top() -> usize {
@@ -172,18 +180,18 @@ impl Default for BoostFunction {
 // }
 
 
-#[derive(Debug, Serialize, Deserialize, Clone, Copy)]
-pub struct Hit {
-    pub id:    u32,
-    pub score: f32,
+#[derive(Serialize, Deserialize, Default, Clone, Debug)]
+pub struct SearchResult {
+    pub num_hits: u64,
+    pub data:     Vec<Hit>,
+    pub facets:   Option<FnvHashMap<String, Vec<(String, usize)>>>,
 }
 
-#[flame]
-fn hits_to_sorted_array(hits: FnvHashMap<u32, f32>) -> Vec<Hit> {
-    debug_time!("hits_to_array_sort");
-    let mut res: Vec<Hit> = hits.iter().map(|(id, score)| Hit { id:    *id, score: *score }).collect();
-    res.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(Ordering::Equal)); // Add sort by id
-    res
+#[derive(Serialize, Deserialize, Default, Clone, Debug)]
+pub struct SearchResultWithDoc {
+    pub num_hits: u64,
+    pub data:     Vec<DocWithHit>,
+    pub facets:   Option<FnvHashMap<String, Vec<(String, usize)>>>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -192,6 +200,19 @@ pub struct DocWithHit {
     pub hit: Hit,
 }
 
+#[derive(Debug, Serialize, Deserialize, Clone, Copy)]
+pub struct Hit {
+    pub id:    u32,
+    pub score: f32,
+}
+
+#[flame]
+fn hits_to_sorted_array(hits: FnvHashMap<u32, f32>) -> Vec<Hit> { //TODO add top n sort
+    debug_time!("hits_to_sorted_array");
+    let mut res: Vec<Hit> = hits.iter().map(|(id, score)| Hit { id:    *id, score: *score }).collect();
+    res.sort_unstable_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(Ordering::Equal)); //TODO Add sort by id when equal
+    res
+}
 
 impl std::fmt::Display for DocWithHit {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
@@ -214,10 +235,11 @@ pub fn to_documents(persistence: &Persistence, hits: &Vec<Hit>) -> Vec<DocWithHi
 }
 
 #[flame]
-pub fn to_search_result(persistence: &Persistence, hits: &SearchResult) -> SearchResultWithDoc {
+pub fn to_search_result(persistence: &Persistence, hits: SearchResult) -> SearchResultWithDoc {
     SearchResultWithDoc {
         data:     to_documents(&persistence, &hits.data),
         num_hits: hits.num_hits,
+        facets: hits.facets
     }
 }
 
@@ -225,18 +247,6 @@ pub fn to_search_result(persistence: &Persistence, hits: &SearchResult) -> Searc
 pub fn apply_top_skip<T: Clone>(hits: Vec<T>, skip: usize, mut top: usize) -> Vec<T> {
     top = cmp::min(top + skip, hits.len());
     hits[skip..top].to_vec()
-}
-
-#[derive(Serialize, Deserialize, Default, Clone, Debug)]
-pub struct SearchResult {
-    pub num_hits: u64,
-    pub data:     Vec<Hit>,
-}
-
-#[derive(Serialize, Deserialize, Default, Clone, Debug)]
-pub struct SearchResultWithDoc {
-    pub num_hits: u64,
-    pub data:     Vec<DocWithHit>,
 }
 
 #[flame]
@@ -275,13 +285,15 @@ pub fn search_query(request: &str, persistence: &Persistence, top: Option<usize>
     }
 }
 
+use facet;
+
 #[flame]
 pub fn search(request: Request, persistence: &Persistence) -> Result<SearchResult, SearchError> {
     info_time!("search");
     let skip = request.skip;
     let top = request.top;
 
-    let plan = plan_creator(request);
+    let plan = plan_creator(request.clone());
     let yep = plan.get_output();
     plan.execute_step(persistence)?;
     // execute_step(plan, persistence)?;
@@ -292,10 +304,20 @@ pub fn search(request: Request, persistence: &Persistence) -> Result<SearchResul
     // let res = hits_to_array_iter(res.iter());
     // let res = hits_to_sorted_array(res);
 
-    let mut search_result = SearchResult { num_hits: 0, data:     vec![] };
+    let mut search_result = SearchResult { num_hits: 0, data:     vec![], facets:None };
     search_result.data = hits_to_sorted_array(res.hits);
     search_result.num_hits = search_result.data.len() as u64;
+
+    let hit_ids = search_result.data.iter().map(|el| el.id).collect();
+    if let Some(facets_req) = request.facets {
+
+        search_result.facets = Some(facets_req.iter().map(|facet_req| {
+            (facet_req.field.to_string(), facet::get_facet(persistence, facet_req, &hit_ids).unwrap())
+        }).collect());
+
+    }
     search_result.data = apply_top_skip(search_result.data, skip, top);
+
     Ok(search_result)
 }
 
@@ -352,7 +374,7 @@ pub fn get_shortest_result<T: std::iter::ExactSizeIterator>(results: &Vec<T>) ->
 
 use search_field::*;
 
-
+#[flame]
 pub fn union_hits(vec:Vec<SearchFieldResult>) -> SearchFieldResult {
 
     let mut result = SearchFieldResult::default();
@@ -378,6 +400,7 @@ pub fn union_hits(vec:Vec<SearchFieldResult>) -> SearchFieldResult {
 //     all_results
 // }
 
+#[flame]
 pub fn intersect_hits(mut and_results:Vec<SearchFieldResult>) -> SearchFieldResult {
     let mut all_results: FnvHashMap<u32, f32> = FnvHashMap::default();
     let index_shortest = get_shortest_result(&and_results.iter().map(|el| el.hits.iter()).collect());
@@ -559,6 +582,8 @@ pub fn read_data_single(persistence: &Persistence, id: u32, field: String) -> Re
     // "".to_string()
 }
 
+
+#[flame]
 pub fn read_tree(persistence: &Persistence, id: u32, tree: NodeTree) -> Result<serde_json::Value, SearchError> {
     let mut json = json!({});
 

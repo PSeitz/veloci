@@ -213,8 +213,6 @@ mod bench {
         b.iter(|| highlight("pride", "content", &pers));
     }
 
-
-    use rand::Rng;
     use rand::distributions::{IndependentSample, Range};
 
     #[bench]

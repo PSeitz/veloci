@@ -176,7 +176,6 @@ fn get_readable_size(value: usize) -> ColoredString {
         1_000 ... 1_000_000 => format!("{:?} kb", value / 1_000).green(),
         _ => format!("{:?} mb", value / 1_000_000).red(),
     }
-    
 }
 
 impl Persistence {
@@ -418,11 +417,11 @@ impl Persistence {
                 // self.cache.index_id_to_parento.insert(el.path.to_string(), Box::new(IndexIdToMultipleParentCompressedSnappy::new(&store)));
                 self.cache
                     .index_id_to_parento
-                    .insert(el.path.to_string(), Box::new(IndexIdToMultipleParent::new(&store)));
+                    .insert(el.path.to_string(), Box::new(IndexIdToMultipleParentCompressedMaydaINDIRECTOne::new(&store)));
             } else {
                 self.cache
                     .index_id_to_parento
-                    .insert(el.path.to_string(), Box::new(IndexIdToOneParent::new(&store)));
+                    .insert(el.path.to_string(), Box::new(IndexIdToOneParentMayda::new(&store)));
             }
         }
 

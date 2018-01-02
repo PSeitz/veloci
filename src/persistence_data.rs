@@ -69,9 +69,9 @@ macro_rules! impl_type_info_single {
     }
 }
 
-impl_type_info!(PointingArrays, ParallelArrays, IndexIdToOneParent, 
-    IndexIdToMultipleParent, IndexIdToMultipleParentCompressedSnappy, 
-    IndexIdToMultipleParentCompressedMaydaDIRECT, IndexIdToMultipleParentCompressedMaydaINDIRECT, IndexIdToOneParentMayda);
+impl_type_info!(PointingArrays, ParallelArrays, IndexIdToOneParent,
+    IndexIdToMultipleParent, IndexIdToMultipleParentCompressedSnappy,
+    IndexIdToMultipleParentCompressedMaydaDIRECT, IndexIdToMultipleParentCompressedMaydaINDIRECT, IndexIdToMultipleParentCompressedMaydaINDIRECTOne, IndexIdToOneParentMayda);
 
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
@@ -157,6 +157,7 @@ impl IndexIdToParent for IndexIdToMultipleParentCompressedMaydaDIRECT {
     }
 }
 use mayda::Access;
+
 #[derive(Debug, HeapSizeOf)]
 #[allow(dead_code)]
 pub struct IndexIdToMultipleParentCompressedMaydaINDIRECT {
@@ -190,6 +191,44 @@ impl IndexIdToParent for IndexIdToMultipleParentCompressedMaydaINDIRECT {
 
     fn get_keys(&self) -> Vec<u32> {
         (0..self.start.len() as u32).collect()
+    }
+
+}
+
+#[derive(Debug, HeapSizeOf)]
+#[allow(dead_code)]
+pub struct IndexIdToMultipleParentCompressedMaydaINDIRECTOne {
+    // pointers: Vec<(u32, u32)>, //start, end
+    start_and_end: mayda::Uniform<u32>,
+    data: mayda::Uniform<u32>,
+    size: usize,
+}
+impl IndexIdToMultipleParentCompressedMaydaINDIRECTOne {
+    #[allow(dead_code)]
+    pub fn new(store: &IndexIdToParent) -> IndexIdToMultipleParentCompressedMaydaINDIRECTOne {
+        // let (pointers, data) = id_to_parent_to_array_of_array_mayda_indirect(store);
+        let (size, start_and_end, data) = id_to_parent_to_array_of_array_mayda_indirect_2(store);
+        IndexIdToMultipleParentCompressedMaydaINDIRECTOne { start_and_end, data, size }
+    }
+}
+
+impl IndexIdToParent for IndexIdToMultipleParentCompressedMaydaINDIRECTOne {
+    fn get_values(&self, id: u64) -> Option<Vec<u32>> {
+        if id >= self.size as u64 {
+            None
+        }
+        else {
+            let positions = self.start_and_end.access(id as usize..(id as usize+2));
+            Some(self.data.access(positions[0] as usize .. positions[1] as usize).clone())
+            // Some(self.data.access(self.start_and_end.access(id as usize) as usize .. self.start_and_end.access(id as usize + 1) as usize).clone())
+        }
+    }
+    fn get_values_compr(&self, _id: u64) -> Option<mayda::Uniform<u32>>{
+        unimplemented!()
+    }
+
+    fn get_keys(&self) -> Vec<u32> {
+        (0..(self.start_and_end.len()/2) as u32).collect()
     }
 
 }
@@ -369,6 +408,41 @@ pub fn id_to_parent_to_array_of_array_mayda_indirect(store: &IndexIdToParent) ->
     // (start_and_end, uniform)
 
     (start_pos.len(), to_uniform(&start_pos), to_uniform(&end_pos), to_uniform(&data))
+}
+
+pub fn id_to_parent_to_array_of_array_mayda_indirect_2(store: &IndexIdToParent) -> (usize, mayda::Uniform<u32>, mayda::Uniform<u32>) { //start, end, data
+    let mut data = vec![];
+    let mut valids = store.get_keys();
+    valids.dedup();
+    if valids.len() == 0 {
+        return (0, mayda::Uniform::default(), mayda::Uniform::default());
+    }
+    let mut start_and_end_pos = vec![];
+    start_and_end_pos.resize((*valids.last().unwrap() as usize + 1) * 2, 0);
+
+    // let mut start_and_end = vec![];
+    // start_and_end.resize(*valids.last().unwrap() as usize + 1, (0, 0));
+    let mut offset = 0;
+    // debug_time!("convert key_value_store to vec vec");
+
+    for valid in valids {
+        let mut vals = store.get_values(valid as u64).unwrap();
+        let start = offset;
+        data.extend(&vals);
+        offset += vals.len() as u32;
+        // start_and_end.push((start, offset));
+        // start_and_end[valid as usize] = (start, offset);
+
+        start_and_end_pos[valid as usize] = start;
+        start_and_end_pos[valid as usize + 1] = offset;
+    }
+
+    data.shrink_to_fit();
+    // let mut uniform = mayda::Uniform::new();
+    // uniform.encode(&data).unwrap();
+    // (start_and_end, uniform)
+
+    (start_and_end_pos.len()/2, to_uniform(&start_and_end_pos), to_uniform(&data))
 }
 
 
