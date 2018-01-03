@@ -12,14 +12,15 @@ mod bench {
 
     static TEST_FOLDER: &str = "jmdict";
 
-    fn get_request(term: &str) -> search::Request {
+    fn get_request(term: &str, levenshtein_distance: u32) -> search::Request {
+
         let query = json!({
             "or": [
                 {
                     "search": {
                         "terms": vec![term.to_string()],
                         "path": "kanji[].text",
-                        "levenshtein_distance": 0,
+                        "levenshtein_distance": levenshtein_distance,
                         "starts_with": true
                     },
                     "boost": [
@@ -39,7 +40,7 @@ mod bench {
                     "search": {
                         "terms": vec![term.to_string()],
                         "path": "kana[].text",
-                        "levenshtein_distance": 0,
+                        "levenshtein_distance": levenshtein_distance,
                         "starts_with": true
                     },
                     "boost": [
@@ -59,7 +60,7 @@ mod bench {
                     "search": {
                         "terms": vec![term.to_string()],
                         "path": "kana[].text",
-                        "levenshtein_distance": 0,
+                        "levenshtein_distance": levenshtein_distance,
                         "starts_with": true
                     },
                     "boost": [
@@ -79,7 +80,7 @@ mod bench {
                     "search": {
                         "terms": vec![term.to_string()],
                         "path": "meanings.ger[].text",
-                        "levenshtein_distance": 1
+                        "levenshtein_distance": levenshtein_distance
                     },
                     "boost": [
                         {
@@ -97,7 +98,7 @@ mod bench {
                     "search": {
                         "terms": vec![term.to_string()],
                         "path": "meanings.eng[]",
-                        "levenshtein_distance": 1
+                        "levenshtein_distance": levenshtein_distance
                     },
                     "boost": [
                         {
@@ -117,8 +118,8 @@ mod bench {
     }
 
 
-    fn search(term: &str, pers: &persistence::Persistence) -> Vec<search::DocWithHit> {
-        let requesto = get_request(term);
+    fn search(term: &str, pers: &persistence::Persistence, levenshtein_distance: u32) -> Vec<search::DocWithHit> {
+        let requesto = get_request(term, levenshtein_distance);
         let hits = search::search(requesto, &pers).unwrap();
         search::to_documents(&pers, &hits.data)
     }
@@ -171,21 +172,21 @@ mod bench {
     fn search_anschauen(b: &mut Bencher) {
         let pers = load_persistence();
 
-        b.iter(|| search("anschauen", &pers));
+        b.iter(|| search("anschauen", &pers, 1));
     }
 
     #[bench]
     fn search_haus(b: &mut Bencher) {
         let pers = load_persistence();
 
-        b.iter(|| search("haus", &pers));
+        b.iter(|| search("haus", &pers, 1));
     }
 
     #[bench]
     fn search_japanese(b: &mut Bencher) {
         let pers = load_persistence();
 
-        b.iter(|| search("家", &pers));
+        b.iter(|| search("家", &pers, 0));
     }
 
     #[bench]
@@ -218,7 +219,7 @@ mod bench {
     #[bench]
     fn get_text_ids_fst(b: &mut Bencher) {
         let mut rng = rand::thread_rng();
-        let between = Range::new(0, 8000);
+        let between = Range::new(0, 7000);
         let pers = load_gutenberg_persistence();
         b.iter(|| search_field::get_text_for_id(&pers, "content.textindex", between.ind_sample(&mut rng) as u32 ));
     }
@@ -226,7 +227,7 @@ mod bench {
     #[bench]
     fn get_text_ids_fst_cache(b: &mut Bencher) {
         let mut rng = rand::thread_rng();
-        let between = Range::new(0, 8000);
+        let between = Range::new(0, 7000);
         let pers = load_gutenberg_persistence();
         let mut bytes = vec![];
         b.iter(|| search_field::get_text_for_id_2(&pers, "content.textindex", between.ind_sample(&mut rng) as u32,&mut bytes ));
@@ -235,9 +236,20 @@ mod bench {
     #[bench]
     fn get_text_ids_disk(b: &mut Bencher) {
         let mut rng = rand::thread_rng();
-        let between = Range::new(0, 8000);
+        let between = Range::new(0, 7000);
         let pers = load_gutenberg_persistence();
         b.iter(|| search_field::get_text_for_id_disk(&pers, "content.textindex", between.ind_sample(&mut rng) as u32 ));
+    }
+
+    #[bench]
+    fn get_text_ids_cache_fst_cache_bytes(b: &mut Bencher) {
+        let mut rng = rand::thread_rng();
+        let between = Range::new(0, 7000);
+        let pers = load_gutenberg_persistence();
+
+        let map = pers.cache.fst.get("content.textindex").unwrap();
+        let mut bytes = vec![];
+        b.iter(|| search_field::ord_to_term(map.as_fst(), between.ind_sample(&mut rng) as u64, &mut bytes));
     }
 
     // #[test]

@@ -1,4 +1,6 @@
- #![feature(conservative_impl_trait)]
+#![feature(dotdoteq_in_patterns)]
+#![feature(inclusive_range_syntax)]
+#![feature(conservative_impl_trait)]
 #![feature(plugin)]
 #![cfg_attr(test, plugin(stainless))]
 #![feature(test)]
@@ -47,6 +49,7 @@ extern crate itertools;
 extern crate parking_lot;
 extern crate chashmap;
 extern crate trie;
+extern crate lru_cache;
 
 #[macro_use] extern crate prettytable;
 

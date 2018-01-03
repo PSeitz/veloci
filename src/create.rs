@@ -17,27 +17,27 @@ use log;
 #[allow(unused_imports)]
 use fst::{self, IntoStreamer, MapBuilder, Set};
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(untagged)]
 pub enum CreateIndex {
     FulltextInfo(Fulltext),
     BoostInfo(Boost),
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Fulltext {
     fulltext:           String,
     options:            Option<FulltextIndexOptions>,
     loading_type:       Option<LoadingType>,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Boost {
     boost:   String,
     options: BoostIndexOptions,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct TokenValuesConfig {
     path: String,
 }
@@ -50,12 +50,15 @@ pub struct FulltextIndexOptions {
 }
 
 impl FulltextIndexOptions {
-    fn new() -> FulltextIndexOptions{
+    fn new_with_tokenize() -> FulltextIndexOptions{
+        FulltextIndexOptions{tokenize: true, stopwords: Some(vec![]), add_normal_values:Some(true) }
+    }
+    fn new_without_tokenize() -> FulltextIndexOptions{
         FulltextIndexOptions{tokenize: true, stopwords: Some(vec![]), add_normal_values:Some(true) }
     }
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct BoostIndexOptions {
     boost_type: String, // type:
 }
@@ -208,7 +211,7 @@ fn add_text<T: Tokenizer>(text: String, terms: &mut FnvHashMap<String, TermInfo>
     //     stat.num_occurences += 1;
     // }
 
-    if tokenizer.has_tokens(&text) {
+    if options.tokenize && tokenizer.has_tokens(&text) {
         tokenizer.get_tokens(&text, &mut |token:&str, _is_seperator: bool|{
             let token_str = token.to_string();
             if options.stopwords.as_ref().map(|el| el.contains(&token_str)).unwrap_or(false) {
@@ -243,19 +246,20 @@ fn add_text<T: Tokenizer>(text: String, terms: &mut FnvHashMap<String, TermInfo>
 
 }
 
-pub fn get_allterms(data: &Value) -> FnvHashMap<String, FnvHashMap<String, TermInfo>> {
+pub fn get_allterms(data: &Value, fulltext_info_for_path:&FnvHashMap<String, Fulltext>) -> FnvHashMap<String, FnvHashMap<String, TermInfo>> {
     let mut terms_in_path: FnvHashMap<String, FnvHashMap<String, TermInfo>> = FnvHashMap::default();
 
     let mut opt = json_converter::ForEachOpt {};
     let mut id_holder = json_converter::IDHolder::new();
 
     let tokenizer = SimpleTokenizer{};
+    let default_fulltext_options = FulltextIndexOptions::new_with_tokenize();
 
     //TODO @FixMe as parameter
-    let options = FulltextIndexOptions::new();
-
+    // let options = FulltextIndexOptions::new_with_tokenize();
     {
         let mut cb_text = |value: &str, path: &str, _parent_val_id: u32| {
+            let options:&FulltextIndexOptions = fulltext_info_for_path.get(path).and_then(|el| el.options.as_ref()).unwrap_or(&default_fulltext_options);
             let mut terms = terms_in_path.entry(path.to_string()).or_insert(FnvHashMap::default());
             // let normalized_text = util::normalize_text(value);
             add_text(value.to_string(), &mut terms, &options, &tokenizer);
@@ -286,11 +290,21 @@ pub fn get_allterms(data: &Value) -> FnvHashMap<String, FnvHashMap<String, TermI
 // }
 
 //TODO pass index options, like tokenize
-pub fn create_fulltext_index(data: &Value, mut persistence: &mut Persistence) -> Result<(), io::Error> {
+pub fn create_fulltext_index(data: &Value, mut persistence: &mut Persistence, indices_json: &Vec<CreateIndex> ) -> Result<(), io::Error> {
     // let data: Value = serde_json::from_str(data_str).unwrap();
-    let all_terms_in_path = get_allterms(&data);
+    let fulltext_info_for_path:FnvHashMap<String, Fulltext> = indices_json.iter().flat_map(|index| {
+        match index {
+            &CreateIndex::FulltextInfo(ref el) => Some(el),
+            &CreateIndex::BoostInfo(_) => None,
+        }
+    })
+    .map(|fulltext_info| (fulltext_info.fulltext.to_string()+".textindex", (*fulltext_info).clone())).collect();
+
+    let all_terms_in_path = get_allterms(&data, &fulltext_info_for_path);
     info_time!("create_fulltext_index");
     trace!("all_terms {:?}", all_terms_in_path);
+
+
 
     let mut opt = json_converter::ForEachOpt {};
     let mut id_holder = json_converter::IDHolder::new();
@@ -302,6 +316,8 @@ pub fn create_fulltext_index(data: &Value, mut persistence: &mut Persistence) ->
     let mut text_tuples_to_parent_in_path:FnvHashMap<String, Vec<ValIdPair>> = FnvHashMap::default();
 
 
+    let default_fulltext_options = FulltextIndexOptions::new_with_tokenize();
+
     let tokenizer = SimpleTokenizer{};
     {
         info_time!(format!("extract text and ids"));
@@ -311,7 +327,10 @@ pub fn create_fulltext_index(data: &Value, mut persistence: &mut Persistence) ->
             let tuples = text_tuples_to_parent_in_path.entry(path.to_string()).or_insert(vec![]);
             // let tuples_to_leaf = text_tuples_to_leaf_in_path.entry(path.to_string()).or_insert(vec![]);
             let all_terms = all_terms_in_path.get(path).unwrap();
-            let options = FulltextIndexOptions::new(); // TODO @FixMe
+
+            let options:&FulltextIndexOptions = fulltext_info_for_path.get(path).and_then(|el| el.options.as_ref()).unwrap_or(&default_fulltext_options);
+
+            // let options = FulltextIndexOptions::new_with_tokenize(); // TODO @FixMe
             // let normalized_text = util::normalize_text(value);
             if options.stopwords.as_ref().map(|el| el.contains(&value)).unwrap_or(false) {
                 return;
@@ -326,7 +345,7 @@ pub fn create_fulltext_index(data: &Value, mut persistence: &mut Persistence) ->
             tuples.push(ValIdPair { valid:         original_text_id as u32, parent_val_id: parent_val_id });
             trace!("Found id {:?} for {:?}", original_text_id, value);
 
-            if tokenizer.has_tokens(&value) {
+            if options.tokenize && tokenizer.has_tokens(&value) {
                 let value_id_to_token_ids = value_id_to_token_ids_in_path.entry(path.to_string()).or_insert(vec![]);
                 tokenizer.get_tokens(&value, &mut |token:&str, _is_seperator: bool|{
                     // let token_str = token.to_string();
@@ -402,7 +421,7 @@ pub fn create_fulltext_index(data: &Value, mut persistence: &mut Persistence) ->
         }
 
         for (path, all_terms) in all_terms_in_path {
-            let options = FulltextIndexOptions::new();
+            let options:&FulltextIndexOptions = fulltext_info_for_path.get(&path).and_then(|el| el.options.as_ref()).unwrap_or(&default_fulltext_options);
             store_full_text_info(&mut persistence, all_terms, &path, &options)?;
         }
     }
@@ -547,7 +566,7 @@ pub fn create_indices_json(folder: &str, data: Value, indices: &str) -> Result<(
 
     let indices_json: Vec<CreateIndex> = serde_json::from_str(indices).unwrap();
     let mut persistence = Persistence::create(folder.to_string())?;
-    create_fulltext_index(&data, &mut persistence)?;
+    create_fulltext_index(&data, &mut persistence, &indices_json)?;
     for el in indices_json {
         match el {
             CreateIndex::FulltextInfo(_) => {}

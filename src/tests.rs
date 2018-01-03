@@ -35,6 +35,7 @@ mod tests {
             "ent_seq": "99999"
         },
         {
+            "nofulltext":"my tokens",
             "commonness": 20,
             "tags": ["nice", "cool"],
             "kanji": [
@@ -244,6 +245,7 @@ mod tests {
                         { "fulltext":"kanji[].text" },
                         { "fulltext":"meanings.ger[]", "options":{"tokenize":true, "stopwords": ["stopword"]} },
                         { "fulltext":"meanings.eng[]", "options":{"tokenize":true} },
+                        { "fulltext":"nofulltext", "options":{"tokenize":false} },
                         { "fulltext":"address[].line[]", "options":{"tokenize":true} },
                         { "boost":"kanji[].commonness" , "options":{"boost_type":"int"}},
                         { "boost":"kana[].commonness", "options":{"boost_type":"int"} }
@@ -343,6 +345,18 @@ mod tests {
             let hits = search_testo_to_doc(req).data;
             assert_eq!(hits.len(), 1);
             assert_eq!(hits[0].doc["ent_seq"], "1587680");
+        }
+
+        it "should check disabled tokenization"{
+            let req = json!({
+                "search": {
+                    "terms":["tokens"],
+                    "path": "nofulltext"
+                }
+            });
+
+            let hits = search_testo_to_doc(req).data;
+            assert_eq!(hits.len(), 0);
         }
 
         it "should search on non subobject'"{
@@ -677,8 +691,7 @@ mod tests {
 
             let pers = PERSISTENCES.get(&"default".to_string()).unwrap();
             // search::read_data_single(&pers, id, "ent_seq".to_string());
-
-            search::read_data_single(&pers, hits.data[0].id, "meanings.ger[]".to_string()).unwrap();
+            // search::read_data_single(&pers, hits.data[0].id, "meanings.ger[]".to_string()).unwrap();
 
             assert_eq!(hits.data.len(), 1);
 

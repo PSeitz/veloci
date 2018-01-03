@@ -259,9 +259,15 @@ pub fn search_query(request: &str, persistence: &Persistence, top: Option<usize>
     let parts: Vec<Request> = persistence.meta_data.fulltext_indices.keys().flat_map(|field| {
         let field_name:String = field.chars().take(field.chars().count()-10).into_iter().collect();
 
-        let levenshtein_distance = levenshtein.unwrap_or(1);
 
         let requests:Vec<Request> = terms.iter().map(|term| {
+            let levenshtein_distance = levenshtein.unwrap_or_else(|| {
+                match term.chars().count() {
+                    0..=3 => 0,
+                    3..=7 => 1,
+                    _ => 2,
+                }
+            });
             let part = RequestSearchPart {
                 path: field_name.to_string(),
                 terms: vec![term.to_string()],
@@ -428,7 +434,6 @@ pub fn add_boost(persistence: &Persistence, boost: &RequestBoostPart, hits: &mut
     // let key = util::boost_path(&boost.path);
     let boost_path = boost.path.to_string() + ".boost_valid_to_value";
     let boostkv_store = persistence.get_boost(&boost_path)?;
-    // let boostkv_store = persistence.cache.index_id_to_parent.get(&key).expect(&format!("Could not find {:?} in index_id_to_parent cache", key));
     let boost_param = boost.param.unwrap_or(0.0);
 
     let expre = boost.expression.as_ref().map(|expression| ScoreExpression::new(expression.clone()));
@@ -540,6 +545,18 @@ impl From<crossbeam_channel::RecvError> for SearchError {
     }
 }
 
+impl From<String> for SearchError {
+    fn from(err: String) -> SearchError {
+        SearchError::StringError(err)
+    }
+}
+
+impl<'a> From<&'a str> for SearchError {
+    fn from(err: &'a str) -> SearchError {
+        SearchError::StringError(err.to_string())
+    }
+}
+
 use std::fmt;
 pub use std::error::Error;
 
@@ -564,23 +581,23 @@ impl Error for SearchError {
 use util::*;
 
 
-pub fn read_data_single(persistence: &Persistence, id: u32, field: String) -> Result<String, SearchError> {
-    let steps = util::get_steps_to_anchor(&field);
+// pub fn read_data_single(persistence: &Persistence, id: u32, field: String) -> Result<String, SearchError> {
+//     let steps = util::get_steps_to_anchor(&field);
 
-    let mut data = vec![id];
-    let mut result = json!({});
+//     let mut data = vec![id];
+//     let mut result = json!({});
 
-    for path in steps.iter() {
-        result[path.clone()] = json!([]);
-        let dat:FnvHashMap<u32, Vec<u32>> = join_for_read(persistence, data, &concat(path, ".parentToValueId"))?;
-        data = dat.get(&id).expect(&format!("Could not find id {:?} in  {:?} {:?}", id, path, dat)).clone();
-    }
+//     for path in steps.iter() {
+//         result[path.clone()] = json!([]);
+//         let dat:FnvHashMap<u32, Vec<u32>> = join_for_read(persistence, data, &concat(path, ".parentToValueId"))?;
+//         data = dat.get(&id).ok_or(From::from(format!("Could not find id {:?} in  {:?} {:?}", id, path, dat)))?.clone();
+//     }
 
-    let texto = get_id_text_map_for_ids(persistence, steps.last().unwrap(), &data);
-    println!("{:?}", texto);
-    Ok(serde_json::to_string_pretty(&result).unwrap())
-    // "".to_string()
-}
+//     let texto = get_id_text_map_for_ids(persistence, steps.last().unwrap(), &data);
+//     println!("{:?}", texto);
+//     Ok(serde_json::to_string_pretty(&result).unwrap())
+//     // "".to_string()
+// }
 
 
 #[flame]

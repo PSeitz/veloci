@@ -49,7 +49,7 @@ fn get_default_score2(distance: u32, prefix_matches: bool) -> f32 {
     }
 }
 
-fn ord_to_term(fst: &Fst, mut ord: u64, bytes: &mut Vec<u8>) -> bool {
+pub fn ord_to_term(fst: &Fst, mut ord: u64, bytes: &mut Vec<u8>) -> bool {
     bytes.clear();
     let mut node = fst.root();
     while ord != 0 || !node.is_final() {
@@ -69,7 +69,6 @@ fn ord_to_term(fst: &Fst, mut ord: u64, bytes: &mut Vec<u8>) -> bool {
 }
 
 
-
 #[inline(always)]
 #[flame]
 fn get_text_lines<F>(persistence: &Persistence, options: &RequestSearchPart, mut fun: F) -> Result<(), SearchError>
@@ -84,7 +83,9 @@ where
 
     // let map = persistence.get_fst(&options.path)?;
 
-    let map = persistence.cache.fst.get(&options.path).expect(&format!("fst not found loaded in cache {} ", options.path));
+    let map = persistence.cache.fst
+        .get(&options.path)
+        .ok_or(SearchError::StringError(format!("fst not found loaded in cache {} ", options.path)))?;
     let lev = LevenshteinIC::new(&options.terms[0], options.levenshtein_distance.unwrap_or(0))?;
 
     // let stream = map.search(lev).into_stream();
@@ -177,7 +178,8 @@ fn get_text_score_id_from_result(suggest_text:bool, results: Vec<SearchFieldResu
 }
 pub fn suggest_multi(persistence: &Persistence, req: Request) -> Result<SuggestFieldResult, SearchError> {
     info_time!("suggest time");
-    let search_parts: Vec<RequestSearchPart> = req.suggest.expect("only suggest allowed here");
+    let search_parts: Vec<RequestSearchPart> = req.suggest
+        .ok_or(SearchError::StringError("only suggest allowed here".to_string()))?;
     let mut search_results = vec![];
     for mut search_part in search_parts {
         search_part.return_term = Some(true);
@@ -358,7 +360,7 @@ pub fn get_text_for_id(persistence: &Persistence, path:&str, id: u32) -> String 
 pub fn get_text_for_id_2(persistence: &Persistence, path:&str, id: u32, bytes: &mut Vec<u8>) {
     let map = persistence.cache.fst.get(path).expect(&format!("fst not found loaded in cache {} ", path));
 
-    ord_to_term(&map.0, id as u64, bytes);
+    ord_to_term(map.as_fst(), id as u64, bytes);
 
     // let mut faccess:persistence::FileSearch = persistence.get_file_search(path);
     // let offsets = persistence.get_offsets(path).unwrap();

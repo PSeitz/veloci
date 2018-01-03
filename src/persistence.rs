@@ -170,7 +170,7 @@ fn has_valid_duplicates(data: &Vec<&create::GetValueId>) -> bool {
 
 use colored::*;
 
-fn get_readable_size(value: usize) -> ColoredString {
+pub fn get_readable_size(value: usize) -> ColoredString {
     match value {
         0 ... 1_000 => format!("{:?} b", value).blue(),
         1_000 ... 1_000_000 => format!("{:?} kb", value / 1_000).green(),
@@ -213,7 +213,7 @@ impl Persistence {
     }
 
     #[flame]
-    pub fn load(db: String) -> Result<Self, io::Error> {
+    pub fn load(db: String) -> Result<Self, search::SearchError> {
         let meta_data = MetaData::new(&db);
         let mut pers = Persistence { meta_data, db, ..Default::default() };
         pers.load_all_to_cache()?;
@@ -306,7 +306,7 @@ impl Persistence {
 
     #[flame]
     pub fn write_meta_data(&self) -> Result<(), io::Error> {
-        self.write_data("metaData.json", serde_json::to_string_pretty(&self.meta_data).expect("could not serialize meta_data").as_bytes())
+        self.write_data("metaData.json", serde_json::to_string_pretty(&self.meta_data)?.as_bytes())
     }
 
     #[flame]
@@ -349,23 +349,16 @@ impl Persistence {
 
     #[flame]
     pub fn get_valueid_to_parent(&self, path: &str) -> Result<&Box<IndexIdToParent>, search::SearchError> {
-        // @Temporary Check if in cache
-        // self.cache.index_id_to_parento.get(path).expect(&format!("Did not found path in cache {:?}", path))
-
         self.cache.index_id_to_parento.get(path)
-        .ok_or_else(|| search::SearchError::StringError(format!("Did not found path in cache {:?}", path)))
-
-        // self.cache.index_id_to_parento.get(path).expect(&format!("Did not found path in cache {:?}", path))
+        .ok_or_else(|| From::from(format!("Did not found path in cache {:?}", path)))
     }
 
     #[flame]
     pub fn get_boost(&self, path: &str) -> Result<&Box<IndexIdToParent>, search::SearchError> {
-        // @Temporary Check if in cache
         self.cache
             .boost_valueid_to_value
             .get(path)
-            .ok_or_else(|| search::SearchError::StringError(format!("Did not found path in cache {:?}", path)))
-            // .expect(&format!("Did not found path in cache {:?}", path))
+            .ok_or_else(|| From::from(format!("Did not found path in cache {:?}", path)))
     }
 
     #[flame]
@@ -389,7 +382,7 @@ impl Persistence {
 
     #[flame]
     pub fn get_fst(&self, path: &str) -> Result<&Map, search::SearchError> {
-        Ok(self.cache.fst.get(path).expect(&format!("{} does not exist", path)))
+        self.cache.fst.get(path).ok_or(From::from(format!("{} does not exist", path)))
     }
 
     // pub fn get_create_char_offset_info(&self, path: &str,character: &str) -> Result<Option<OffsetInfo>, search::SearchError> { // @Temporary - replace SearchError
@@ -398,7 +391,7 @@ impl Persistence {
     // }
 
     #[flame]
-    pub fn load_all_to_cache(&mut self) -> Result<(), io::Error> {
+    pub fn load_all_to_cache(&mut self) -> Result<(), search::SearchError> {
         for (_, ref idlist) in &self.meta_data.id_lists.clone() {
             match &idlist.id_type {
                 &IDDataType::U32 => {}
@@ -409,8 +402,7 @@ impl Persistence {
         for el in &self.meta_data.key_value_stores {
             info_time!(format!("loaded key_value_store {:?}", &el.path));
 
-            let encoded = file_to_bytes(&get_file_path(&self.db, &el.path))
-                .expect(&format!("Could not Load {:?}", get_file_path(&self.db, &el.path)));
+            let encoded = file_to_bytes(&get_file_path(&self.db, &el.path))?;
             let store: ParallelArrays = deserialize(&encoded[..]).unwrap();
             // let store = parrallel_arrays_to_pointing_array(store.values1, store.values2);
             if el.key_has_duplicates {
@@ -427,8 +419,7 @@ impl Persistence {
 
         // Load Boost Indices
         for el in &self.meta_data.boost_stores {
-            let encoded = file_to_bytes(&get_file_path(&self.db, &el.path))
-                .expect(&format!("Could not Load {:?}", get_file_path(&self.db, &el.path)));
+            let encoded = file_to_bytes(&get_file_path(&self.db, &el.path))?;
             let store: ParallelArrays = deserialize(&encoded[..]).unwrap();
             // let store = parrallel_arrays_to_pointing_array(store.values1, store.values2);
             let data = id_to_parent_to_array_of_array(&store);
@@ -438,7 +429,7 @@ impl Persistence {
 
         // Load FST
         for (ref path, _) in &self.meta_data.fulltext_indices {
-            let map = self.load_fst(path).expect("Could not load FST");
+            let map = self.load_fst(path)?; // "Could not load FST"
             self.cache.fst.insert(path.to_string(), map);
         }
         Ok(())

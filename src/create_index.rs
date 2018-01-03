@@ -6,6 +6,7 @@ extern crate search_lib;
 #[macro_use]
 extern crate serde_json;
 
+#[allow(unused_imports)]
 use fst::{IntoStreamer, MapBuilder, Set};
 // use fst_levenshtein::Levenshtein;
 use std::fs::File;
@@ -76,24 +77,24 @@ fn create_thalia_index() {
     println!("converted json");
 
     File::create("thalia.json").unwrap().write_all(&serde_json::to_string_pretty(&json).unwrap().as_bytes()).unwrap();
+    let indices = r#"
+    [
+        { "fulltext":"MATNR"  },
+        { "fulltext":"ISMTITLE",     "options":{"tokenize":true}  },
+        { "fulltext":"ISMORIGTITLE", "options":{"tokenize":true}  },
+        { "fulltext":"ISMSUBTITLE1", "options":{"tokenize":true}  },
+        { "fulltext":"ISMSUBTITLE2", "options":{"tokenize":true}  },
+        { "fulltext":"ISMSUBTITLE3", "options":{"tokenize":true}  },
+        { "fulltext":"ISMARTIST",    "options":{"tokenize":true}  },
+        { "fulltext":"ISMLANGUAGES", "options":{"tokenize":false} },
+        { "fulltext":"ISMPUBLDATE",  "options":{"tokenize":false} },
+        { "fulltext":"EAN11",        "options":{"tokenize":false} },
+        { "fulltext":"ISMORIDCODE",  "options":{"tokenize":false} }
+    ]
+    "#;
 
-    println!("{:?}", search_lib::create::create_indices_json("thalia", json, "[]"));
+    println!("{:?}", search_lib::create::create_indices_json("thalia", json, indices));
     // File::create("MATNR").unwrap().write_all(all_terms.join("\n").as_bytes()).unwrap();
-    // let indices = r#"
-    // [
-    //     { "fulltext":"MATNR", "attr_pos" : 0 },
-    //     { "fulltext":"ISMTITLE", "attr_pos" : 1, "options":{"tokenize":true}},
-    //     { "fulltext":"ISMORIGTITLE", "attr_pos" : 2, "options":{"tokenize":true}},
-    //     { "fulltext":"ISMSUBTITLE1", "attr_pos" : 3, "options":{"tokenize":true}},
-    //     { "fulltext":"ISMSUBTITLE2", "attr_pos" : 4, "options":{"tokenize":true}},
-    //     { "fulltext":"ISMSUBTITLE3", "attr_pos" : 5, "options":{"tokenize":true}},
-    //     { "fulltext":"ISMARTIST", "attr_pos" : 6, "options":{"tokenize":true}},
-    //     { "fulltext":"ISMLANGUAGES", "attr_pos" : 7},
-    //     { "fulltext":"ISMPUBLDATE", "attr_pos" : 8},
-    //     { "fulltext":"EAN11", "attr_pos" : 9},
-    //     { "fulltext":"ISMORIDCODE", "attr_pos" : 10}
-    // ]
-    // "#;
 
     // println!("{:?}", search_lib::create::create_indices_csv("csv_test", "./data.csv", indices));
 }
