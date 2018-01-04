@@ -53,6 +53,7 @@ impl FulltextIndexOptions {
     fn new_with_tokenize() -> FulltextIndexOptions{
         FulltextIndexOptions{tokenize: true, stopwords: Some(vec![]), add_normal_values:Some(true) }
     }
+    #[allow(dead_code)]
     fn new_without_tokenize() -> FulltextIndexOptions{
         FulltextIndexOptions{tokenize: true, stopwords: Some(vec![]), add_normal_values:Some(true) }
     }

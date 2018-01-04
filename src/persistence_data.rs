@@ -8,15 +8,8 @@ use heapsize::{heap_size_of, HeapSizeOf};
 #[allow(unused_imports)]
 use bincode::{deserialize, serialize, Infinite};
 
+use util::*;
 use persistence::*;
-use persistence::Persistence;
-// use persistence::IndexIdToParent;
-// use persistence::IndexIdToOneParent;
-// use persistence::IndexIdToMultipleParent;
-// use persistence::IndexIdToMultipleParentCompressedSnappy;
-// use persistence::IndexIdToMultipleParentCompressedMaydaDIRECT;
-// use persistence::IndexIdToMultipleParentCompressedMaydaINDIRECT;
-// use persistence::IndexIdToOneParentMayda;
 use persistence;
 use create;
 use mayda;
@@ -27,7 +20,6 @@ use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 
 #[allow(unused_imports)]
 use mayda::{Uniform, Encode};
-
 use std::sync::Mutex;
 use lru_cache::LruCache;
 
@@ -71,9 +63,9 @@ macro_rules! impl_type_info_single {
 }
 
 impl_type_info!(PointingArrays, ParallelArrays, IndexIdToOneParent,
-    IndexIdToMultipleParent, IndexIdToMultipleParentCompressedSnappy,
+    IndexIdToMultipleParent, IndexIdToMultipleParentIndirect, IndexIdToMultipleParentCompressedSnappy,
     IndexIdToMultipleParentCompressedMaydaDIRECT, IndexIdToMultipleParentCompressedMaydaINDIRECT,
-    IndexIdToMultipleParentCompressedMaydaINDIRECTOne, IndexIdToMultipleParentCompressedMaydaINDIRECTOneReuse, IndexIdToOneParentMayda);
+    IndexIdToMultipleParentCompressedMaydaINDIRECTOne, IndexIdToMultipleParentCompressedMaydaINDIRECTOneReuse, IndexIdToOneParentMayda, PointingArrayFileReader);
 
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
@@ -197,6 +189,44 @@ impl IndexIdToParent for IndexIdToMultipleParentCompressedMaydaINDIRECT {
 
 }
 
+
+
+#[derive(Serialize, Deserialize, Debug, HeapSizeOf)]
+pub struct IndexIdToMultipleParentIndirect {
+    pub start_and_end: Vec<u32>,
+    pub data: Vec<u32>
+}
+impl IndexIdToMultipleParentIndirect {
+    #[allow(dead_code)]
+    pub fn new(data: &IndexIdToParent) -> IndexIdToMultipleParentIndirect {
+        let (start_and_end_pos, data) = to_indirect_arrays(data);
+        IndexIdToMultipleParentIndirect { start_and_end: start_and_end_pos, data }
+    }
+    #[allow(dead_code)]
+    pub fn from_data(start_and_end: Vec<u32>, data: Vec<u32>) -> IndexIdToMultipleParentIndirect {
+        IndexIdToMultipleParentIndirect { start_and_end, data }
+    }
+    fn get_size(&self) -> usize {
+        self.start_and_end.len()/2
+    }
+}
+impl IndexIdToParent for IndexIdToMultipleParentIndirect {
+    fn get_values(&self, id: u64) -> Option<Vec<u32>> {
+        if id >= self.get_size() as u64 {
+            None
+        }
+        else {
+            let positions = &self.start_and_end[(id * 2) as usize..=((id * 2) as usize + 1)];
+            if positions[0] == positions[1] {return None}
+            Some(self.data[positions[0] as usize .. positions[1] as usize].to_vec())
+        }
+    }
+    fn get_keys(&self) -> Vec<u32> {
+        (0..self.get_size() as u32).collect()
+    }
+}
+
+
 #[derive(Debug, HeapSizeOf)]
 #[allow(dead_code)]
 pub struct IndexIdToMultipleParentCompressedMaydaINDIRECTOne {
@@ -208,11 +238,10 @@ pub struct IndexIdToMultipleParentCompressedMaydaINDIRECTOne {
 impl IndexIdToMultipleParentCompressedMaydaINDIRECTOne {
     #[allow(dead_code)]
     pub fn new(store: &IndexIdToParent) -> IndexIdToMultipleParentCompressedMaydaINDIRECTOne {
-        // let (pointers, data) = id_to_parent_to_array_of_array_mayda_indirect(store);
         let (size, start_and_end, data) = id_to_parent_to_array_of_array_mayda_indirect_one(store);
 
-        println!("start_and_end {}", get_readable_size(start_and_end.heap_size_of_children()));
-        println!("data {}", get_readable_size(data.heap_size_of_children()));
+        info!("start_and_end {}", get_readable_size(start_and_end.heap_size_of_children()));
+        info!("data {}", get_readable_size(data.heap_size_of_children()));
 
         IndexIdToMultipleParentCompressedMaydaINDIRECTOne { start_and_end, data, size }
     }
@@ -225,7 +254,8 @@ impl IndexIdToParent for IndexIdToMultipleParentCompressedMaydaINDIRECTOne {
         }
         else {
             let positions = self.start_and_end.access((id * 2) as usize..=((id * 2) as usize + 1));
-            Some(self.data.access(positions[0] as usize .. positions[1] as usize).clone())
+            if positions[0] == positions[1] {return None}
+            Some(self.data.access(positions[0] as usize .. positions[1] as usize))
         }
     }
     fn get_values_compr(&self, _id: u64) -> Option<mayda::Uniform<u32>>{
@@ -252,8 +282,8 @@ impl IndexIdToMultipleParentCompressedMaydaINDIRECTOneReuse {
         // let (pointers, data) = id_to_parent_to_array_of_array_mayda_indirect(store);
         let (size, start_and_end, data) = id_to_parent_to_array_of_array_mayda_indirect_one_reuse_existing(store);
 
-        println!("start_and_end {}", get_readable_size(start_and_end.heap_size_of_children()));
-        println!("data {}", get_readable_size(data.heap_size_of_children()));
+        info!("start_and_end {}", get_readable_size(start_and_end.heap_size_of_children()));
+        info!("data {}", get_readable_size(data.heap_size_of_children()));
 
         IndexIdToMultipleParentCompressedMaydaINDIRECTOneReuse { start_and_end, data, size }
     }
@@ -276,28 +306,6 @@ impl IndexIdToParent for IndexIdToMultipleParentCompressedMaydaINDIRECTOneReuse 
     fn get_keys(&self) -> Vec<u32> {
         (0..(self.start_and_end.len()/2) as u32).collect()
     }
-
-}
-
-#[test]
-fn test_mayda_compressed_one() {
-
-    let keys =   vec![0, 0, 1, 2, 3, 3];
-    let values = vec![5, 6, 9, 9, 9, 50000];
-
-    let store = ParallelArrays { values1: keys.clone(), values2: values.clone() };
-    let mayda = IndexIdToMultipleParentCompressedMaydaINDIRECTOne::new(&store);
-
-
-    let yep = to_uniform(&values);
-    assert_eq!(yep.access(0..=1), vec![5, 6]);
-
-    assert_eq!(mayda.get_keys(), vec![0, 1, 2, 3]);
-    assert_eq!(mayda.get_values(0).unwrap(), vec![5, 6]);
-    assert_eq!(mayda.get_values(1).unwrap(), vec![9]);
-    assert_eq!(mayda.get_values(2).unwrap(), vec![9]);
-    assert_eq!(mayda.get_values(3).unwrap(), vec![9, 50000]);
-
 
 }
 
@@ -376,9 +384,10 @@ pub fn id_to_parent_to_array_of_array(store: &IndexIdToParent) -> Vec<Vec<u32>> 
 
     // debug_time!("convert key_value_store to vec vec");
     for valid in valids {
-        let mut vals = store.get_values(valid as u64).unwrap();
-        // vals.sort(); // WHY U SORT ?
-        data[valid as usize] = vals;
+        if let Some(vals) = store.get_values(valid as u64) {
+            data[valid as usize] = vals;
+            // vals.sort(); // WHY U SORT ?
+        }
     }
     data
 }
@@ -479,54 +488,36 @@ pub fn id_to_parent_to_array_of_array_mayda_indirect(store: &IndexIdToParent) ->
     (start_pos.len(), to_uniform(&start_pos), to_uniform(&end_pos), to_uniform(&data))
 }
 
-pub fn id_to_parent_to_array_of_array_mayda_indirect_one(store: &IndexIdToParent) -> (usize, mayda::Monotone<u32>, mayda::Uniform<u32>) { //start, end, data
+//TODO merge reuse existing here
+fn to_indirect_arrays(store: &IndexIdToParent) -> (Vec<u32>, Vec<u32>) {
     let mut data = vec![];
     let mut valids = store.get_keys();
     valids.dedup();
     if valids.len() == 0 {
-        return (0, mayda::Monotone::default(), mayda::Uniform::default());
+        return (vec![], vec![]);
     }
     let mut start_and_end_pos = vec![];
     start_and_end_pos.resize((*valids.last().unwrap() as usize + 1) * 2, 0);
 
-    // let mut start_and_end = vec![];
-    // start_and_end.resize(*valids.last().unwrap() as usize + 1, (0, 0));
     let mut offset = 0;
-    // debug_time!("convert key_value_store to vec vec");
-
-    // for valid in valids {
-    //     let mut vals = store.get_values(valid as u64).unwrap();
-    //     let start = offset;
-    //     data.extend(&vals);
-    //     offset += vals.len() as u32;
-    //     // start_and_end.push((start, offset));
-    //     // start_and_end[valid as usize] = (start, offset);
-    //     start_and_end_pos[valid as usize * 2] = start;
-    //     start_and_end_pos[(valid as usize * 2) + 1] = offset;
-    // }
 
     for valid in 0..=*valids.last().unwrap() {
-        let mut vals = store.get_values(valid as u64).unwrap();
         let start = offset;
-        data.extend(&vals);
-        offset += vals.len() as u32;
-        // start_and_end.push((start, offset));
-        // start_and_end[valid as usize] = (start, offset);
-
+        if let Some(vals) = store.get_values(valid as u64) {
+            data.extend(&vals);
+            offset += vals.len() as u32;
+        }
+        // let mut vals = store.get_values(valid as u64).unwrap();
         start_and_end_pos[valid as usize * 2] = start;
         start_and_end_pos[(valid as usize * 2) + 1] = offset;
     }
-
     data.shrink_to_fit();
-    // let mut uniform = mayda::Uniform::new();
-    // uniform.encode(&data).unwrap();
-    // (start_and_end, uniform)
 
-    // println!("start_and_end_pos {:?}", start_and_end_pos);
-    // println!("data {:?}", data);
+    (start_and_end_pos, data)
+}
 
-    // println!("WAAAAAAAAA {:?}", start_and_end_pos);
-
+pub fn id_to_parent_to_array_of_array_mayda_indirect_one(store: &IndexIdToParent) -> (usize, mayda::Monotone<u32>, mayda::Uniform<u32>) { //start, end, data
+    let (start_and_end_pos, data) = to_indirect_arrays(store);
     (start_and_end_pos.len()/2, to_monotone(&start_and_end_pos), to_uniform(&data))
 }
 
@@ -683,43 +674,87 @@ fn test_pointing_array() {
     // [5, 8, 5, 5, 8, 14, 5, 14]
 }
 
+
+use std::io::Cursor;
+use std::io;
+use std::fs;
+
+
 #[derive(Debug)]
-pub struct PointingArrayFileReader<'a> {
-    pub path1:       String,
-    pub path2:       String,
-    pub persistence: &'a Persistence,
+pub struct PointingArrayFileReader {
+    pub start_and_end_file:  String, // Vec<u32>  start, end, start, end
+    pub data_file:           String, // Vec data
+    pub persistence: String,
 }
 
-impl<'a> PointingArrayFileReader<'a> {
-    // fn new(key:&(String, String), persistence:&'a Persistence) -> Self {
-    //     PointingArrayFileReader { path1: key.0.clone(), path2: key.1.clone(), persistence }
-    // }
-    // fn get_values(&self, find: u32) -> Vec<u32> {
-    //     let mut data:Vec<u8> = Vec::with_capacity(8);
-    //     let mut file = self.persistence.get_file_handle(&self.path1).unwrap();// -> Result<File, io::Error>
-    //     load_bytes(&mut data, &mut file, find as u64 *8);
 
-
-    //     let result = Vec::new();
-    //     // match self.values1.binary_search(&find) {
-    //     //     Ok(mut pos) => {
-    //     //         //this is not a lower_bounds search so we MUST move to the first hit
-    //     //         while pos != 0 && self.values1[pos - 1] == find {pos-=1;}
-    //     //         let val_len = self.values1.len();
-    //     //         while pos < val_len && self.values1[pos] == find{
-    //     //             result.push(self.values2[pos]);
-    //     //             pos+=1;
-    //     //         }
-    //     //     },Err(_) => {},
-    //     // }
-    //     result
+impl PointingArrayFileReader {
+    // fn newo(key:&(String, String), persistence: String) -> Self {
+    //     PointingArrayFileReader { start_and_end_file: key.0.clone(), data_file: key.1.clone(), persistence }
     // }
+
+    fn get_file_handle(&self, path: &str) -> Result<File, io::Error> {
+        Ok(File::open(&get_file_path(&self.persistence, path))?)
+    }
+
+    fn get_file_metadata_handle(&self, path: &str) -> Result<fs::Metadata, io::Error> {
+        Ok(fs::metadata(&get_file_path(&self.persistence, path))?)
+    }
+    fn get_size(&self) -> usize {
+        let file = self.get_file_metadata_handle(&self.start_and_end_file).unwrap();// -> Result<File, io::Error>
+        file.len() as usize / 8
+    }
+
 }
-impl<'a> HeapSizeOf for PointingArrayFileReader<'a> {
-    fn heap_size_of_children(&self) -> usize {
-        self.path1.heap_size_of_children() + self.path2.heap_size_of_children()
+
+
+impl  IndexIdToParent for PointingArrayFileReader {
+
+    fn get_values(&self, find: u64) -> Option<Vec<u32>> {
+        if find >= self.get_size() as u64 {return None;}
+        let mut offsets:Vec<u8> = Vec::with_capacity(8);
+        offsets.resize(8, 0);
+        let mut file = self.get_file_handle(&self.start_and_end_file).unwrap();// -> Result<File, io::Error>
+        load_bytes(&mut offsets, &mut file, find as u64 * 8);
+
+        let mut rdr = Cursor::new(offsets);
+
+        let start = rdr.read_u32::<LittleEndian>().unwrap() * 4;
+        let end = rdr.read_u32::<LittleEndian>().unwrap() * 4;
+
+        if start == end {
+            return None;
+        }
+
+        let mut data_file = self.get_file_handle(&self.data_file).unwrap();// -> Result<File, io::Error>
+        let mut data_bytes:Vec<u8> = Vec::with_capacity(end as usize - start as usize);
+        data_bytes.resize(end as usize - start as usize, 0);
+        load_bytes(&mut data_bytes, &mut data_file, start as u64);
+
+        Some(bytes_to_vec_u32(&data_bytes))
+    }
+
+    fn get_keys(&self) -> Vec<u32> {
+        // let file = self.get_file_metadata_handle(&self.start_and_end_file).unwrap();// -> Result<File, io::Error>
+        (0..self.get_size() as u32).collect()
     }
 }
+impl HeapSizeOf for PointingArrayFileReader {
+    fn heap_size_of_children(&self) -> usize {
+        self.start_and_end_file.heap_size_of_children() + self.data_file.heap_size_of_children()
+    }
+}
+
+fn load_bytes(buffer: &mut Vec<u8>, file: &mut File, offset: u64) {
+    // @Temporary Use Result
+    file.seek(SeekFrom::Start(offset)).unwrap();
+    file.read_exact(buffer).unwrap();
+}
+
+
+
+
+
 
 
 //                                                                  ParallelArrays
@@ -850,4 +885,139 @@ fn test_snap() {
     wtr.write_u32::<LittleEndian>(10).unwrap();
     info!("wtr {:?}", wtr);
 }
+
+
+#[cfg(test)]
+mod test_indirect {
+
+    use super::*;
+    use rand;
+    use test;
+    use rand::distributions::{IndependentSample, Range};
+
+    fn check_test_data(store: &IndexIdToParent) {
+        assert_eq!(store.get_keys(), vec![0, 1, 2, 3]);
+        assert_eq!(store.get_values(0).unwrap(), vec![5, 6]);
+        assert_eq!(store.get_values(1).unwrap(), vec![9]);
+        assert_eq!(store.get_values(2).unwrap(), vec![9]);
+        assert_eq!(store.get_values(3).unwrap(), vec![9, 50000]);
+        assert_eq!(store.get_values(4), None);
+    }
+
+    fn get_test_data() -> ParallelArrays {
+        let keys =   vec![0, 0, 1, 2, 3, 3];
+        let values = vec![5, 6, 9, 9, 9, 50000];
+
+        let store = ParallelArrays { values1: keys.clone(), values2: values.clone() };
+        store
+    }
+
+    #[test]
+    fn test_pointing_file_array() {
+
+        let persistence = "test_pointing_file_array".to_string();
+
+        let store = get_test_data();
+        let (keys, values) = to_indirect_arrays(&store);
+
+        File::create("test_pointing_file_array/indirect").unwrap().write_all(&vec_to_bytes_u32(&keys)).unwrap();
+        File::create("test_pointing_file_array/data").unwrap().write_all(&vec_to_bytes_u32(&values)).unwrap();
+
+        let store = PointingArrayFileReader { start_and_end_file: "indirect".to_string(), data_file: "data".to_string(), persistence: persistence };
+        check_test_data(&store);
+
+    }
+
+    #[test]
+    fn test_pointing_array_index_id_to_multiple_parent_indirect() {
+        let store = get_test_data();
+        let store = IndexIdToMultipleParentIndirect::new(&store);
+        check_test_data(&store);
+
+    }
+
+    #[test]
+    fn test_mayda_compressed_one() {
+
+        let store = get_test_data();
+        let mayda = IndexIdToMultipleParentCompressedMaydaINDIRECTOne::new(&store);
+        // let yep = to_uniform(&values);
+        // assert_eq!(yep.access(0..=1), vec![5, 6]);
+        check_test_data(&mayda);
+
+
+    }
+
+    #[inline(always)]
+    fn pseudo_rand(num: u32) -> u32 {
+        num * (num % 8)  as u32
+    }
+
+
+    fn get_test_data_large(num_ids: usize, max_num_values_per_id: usize) -> ParallelArrays {
+
+        let mut rng = rand::thread_rng();
+        let between = Range::new(0, max_num_values_per_id);
+
+        let mut keys =   vec![];
+        let mut values = vec![];
+
+        for x in 0..num_ids {
+            let num_values = between.ind_sample(&mut rng) as u64;
+
+            for i in 0..num_values {
+                keys.push(x as u32);
+                values.push(pseudo_rand((x as u32 * i as u32) as u32));
+            }
+        }
+        ParallelArrays { values1: keys, values2: values }
+    }
+
+    #[bench]
+    fn indirect_pointing_file_array(b: &mut test::Bencher) {
+
+        let store = get_test_data_large(4_000_000, 15);
+        let mut rng = rand::thread_rng();
+        let between = Range::new(0, 4_000_000);
+
+        let (keys, values) = to_indirect_arrays(&store);
+
+        File::create("test_pointing_file_array/indirect_perf").unwrap().write_all(&vec_to_bytes_u32(&keys)).unwrap();
+        File::create("test_pointing_file_array/data_perf").unwrap().write_all(&vec_to_bytes_u32(&values)).unwrap();
+
+        let store = PointingArrayFileReader { start_and_end_file: "indirect_perf".to_string(), data_file: "data_perf".to_string(), persistence: "test_pointing_file_array".to_string() };
+
+        b.iter(|| {
+            store.get_values(between.ind_sample(&mut rng))
+        })
+    }
+
+    #[bench]
+    fn indirect_pointing_mayda(b: &mut test::Bencher) {
+        let mut rng = rand::thread_rng();
+        let between = Range::new(0, 4_000_000);
+        let store = get_test_data_large(4_000_000, 15);
+        let mayda = IndexIdToMultipleParentCompressedMaydaINDIRECTOne::new(&store);
+
+        b.iter(|| {
+            mayda.get_values(between.ind_sample(&mut rng))
+        })
+    }
+
+    #[bench]
+    fn indirect_pointing_uncompressed_im(b: &mut test::Bencher) {
+        let mut rng = rand::thread_rng();
+        let between = Range::new(0, 4_000_000);
+        let store = get_test_data_large(4_000_000, 15);
+        let mayda = IndexIdToMultipleParent::new(&store);
+
+        b.iter(|| {
+            mayda.get_values(between.ind_sample(&mut rng))
+        })
+    }
+
+}
+
+
+
 

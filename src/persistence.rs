@@ -53,7 +53,7 @@ impl MetaData {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct KVStoreMetaData {
     pub path:               String,
     pub key_has_duplicates: bool, // In the sense of 1:n   1key, n values
@@ -67,7 +67,7 @@ pub struct KVStoreMetaData {
 //     }
 // }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub enum LoadingType {
     InMemory,
     Disk,
@@ -79,13 +79,13 @@ impl Default for LoadingType {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub enum KVStoreType {
     ParallelArrays,
-    PointingArrays,
+    IndexIdToMultipleParentIndirect,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct IDList {
     pub path:        String,
     pub size:        u64,
@@ -93,7 +93,7 @@ pub struct IDList {
     pub doc_id_type: bool,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub enum IDDataType {
     U32,
     U64,
@@ -109,6 +109,8 @@ pub trait IndexIdToParent: Debug + HeapSizeOf + Sync + Send + persistence_data::
     fn get_value(&self, id: u64) -> Option<u32> {
         self.get_values(id).map(|el| el[0])
     }
+
+    //last needs to be the largest value_id
     fn get_keys(&self) -> Vec<u32>;
 
 }
@@ -237,12 +239,21 @@ impl Persistence {
         //     trace!("data.values2 {:?} \n {:?}", path, data.values2 );
         // }
         // let has_duplicates = has_duplicates(&data.values1);
+
+        //Indirect
+        let indirect_file_path = util::get_file_path(&self.db, &(path.to_string() + ".indirect"));
+        let data_file_path = util::get_file_path(&self.db, &(path.to_string() + ".data"));
+        let store = IndexIdToMultipleParentIndirect::new(&data);
+        File::create(indirect_file_path)?.write_all(&vec_to_bytes_u32(&store.start_and_end)).unwrap();
+        File::create(data_file_path)?.write_all(&vec_to_bytes_u32(&store.data)).unwrap();
+
+        //Parallel
         let encoded: Vec<u8> = serialize(&data, Infinite).unwrap();
         File::create(util::get_file_path(&self.db, &path.to_string()))?.write_all(&encoded)?;
 
         self.meta_data.key_value_stores.push(KVStoreMetaData {
-            loading_type:       LoadingType::InMemory,
-            persistence_type:   KVStoreType::ParallelArrays,
+            loading_type:       LoadingType::Disk,
+            persistence_type:   KVStoreType::IndexIdToMultipleParentIndirect,
             key_has_duplicates: has_duplicates,
             path:               path.to_string(),
         });
@@ -372,6 +383,11 @@ impl Persistence {
     }
 
     #[flame]
+    pub fn get_file_metadata_handle(&self, path: &str) -> Result<fs::Metadata, io::Error> {
+        Ok(fs::metadata(&get_file_path(&self.db, path))?)
+    }
+
+    #[flame]
     pub fn load_fst(&self, path: &str) -> Result<Map, search::SearchError> {
         let mut f = self.get_file_handle(&(path.to_string() + ".fst"))?;
         let mut buffer: Vec<u8> = Vec::new();
@@ -402,19 +418,50 @@ impl Persistence {
         for el in &self.meta_data.key_value_stores {
             info_time!(format!("loaded key_value_store {:?}", &el.path));
 
-            let encoded = file_to_bytes(&get_file_path(&self.db, &el.path))?;
-            let store: ParallelArrays = deserialize(&encoded[..]).unwrap();
-            // let store = parrallel_arrays_to_pointing_array(store.values1, store.values2);
-            if el.key_has_duplicates {
-                // self.cache.index_id_to_parento.insert(el.path.to_string(), Box::new(IndexIdToMultipleParentCompressedSnappy::new(&store)));
-                self.cache
-                    .index_id_to_parento
-                    .insert(el.path.to_string(), Box::new(IndexIdToMultipleParentCompressedMaydaINDIRECTOne::new(&store)));
-            } else {
-                self.cache
-                    .index_id_to_parento
-                    .insert(el.path.to_string(), Box::new(IndexIdToOneParentMayda::new(&store)));
+            match el.loading_type {
+                LoadingType::InMemory => {
+                    let store: Box<IndexIdToParent> = {
+
+                        match el.persistence_type {
+                            KVStoreType::ParallelArrays => {
+                                let encoded = file_to_bytes(&get_file_path(&self.db, &el.path))?;
+                                Box::new(deserialize::<ParallelArrays>(&encoded[..]).unwrap())
+                            },
+                            KVStoreType::IndexIdToMultipleParentIndirect => {
+                                let indirect = file_to_bytes(&(get_file_path(&self.db, &el.path)+ ".indirect"))?;
+                                let data = file_to_bytes(&(get_file_path(&self.db, &el.path)+ ".data"))?;
+                                Box::new(IndexIdToMultipleParentIndirect::from_data(bytes_to_vec_u32(&indirect), bytes_to_vec_u32(&data)))
+
+                                // let encoded = file_to_bytes(&get_file_path(&self.db, &el.path))?;
+                                // Box::new(deserialize::<IndexIdToMultipleParentIndirect>(&encoded[..]).unwrap())
+                            },
+                        }
+
+                    };
+
+                    if el.key_has_duplicates {
+                        // self.cache.index_id_to_parento.insert(el.path.to_string(), Box::new(IndexIdToMultipleParentCompressedSnappy::new(&store)));
+                        self.cache
+                            .index_id_to_parento
+                            .insert(el.path.to_string(), Box::new(IndexIdToMultipleParentCompressedMaydaINDIRECTOne::new(&*store)));
+                    } else {
+                        self.cache
+                            .index_id_to_parento
+                            .insert(el.path.to_string(), Box::new(IndexIdToOneParentMayda::new(&*store)));
+                    }
+
+                },
+                LoadingType::Disk => {
+
+                    let store = PointingArrayFileReader { start_and_end_file: el.path.to_string()+ ".indirect", data_file: el.path.to_string()+ ".data", persistence: self.db.to_string()};
+                    self.cache
+                        .index_id_to_parento
+                        .insert(el.path.to_string(), Box::new(store));
+
+                },
             }
+
+
         }
 
         // Load Boost Indices
