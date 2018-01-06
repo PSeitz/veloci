@@ -8,7 +8,6 @@ use heapsize::{heap_size_of, HeapSizeOf};
 #[allow(unused_imports)]
 use bincode::{deserialize, serialize, Infinite};
 
-use util::*;
 use persistence::*;
 use persistence;
 use create;
@@ -22,6 +21,9 @@ use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use mayda::{Uniform, Encode};
 use std::sync::Mutex;
 use lru_cache::LruCache;
+
+use std::io::Cursor;
+use std::fs;
 
 pub trait TypeInfo: Sync + Send  {
     fn type_name(&self) -> String;
@@ -561,8 +563,6 @@ pub fn id_to_parent_to_array_of_array_mayda_indirect_one_reuse_existing(store: &
 
     data.shrink_to_fit();
 
-    // println!("WAAAAAAAAA {:?}", start_and_end_pos);
-
     (start_and_end_pos.len()/2, to_uniform(&start_and_end_pos), to_uniform(&data))
 }
 
@@ -675,16 +675,12 @@ fn test_pointing_array() {
 }
 
 
-use std::io::Cursor;
-use std::io;
-use std::fs;
-
-
 #[derive(Debug)]
 pub struct PointingArrayFileReader {
-    pub start_and_end_file:  String, // Vec<u32>  start, end, start, end
-    pub data_file:           String, // Vec data
-    pub persistence: String,
+    pub start_and_end_file:  fs::File, // Vec<u32>  start, end, start, end
+    pub data_file:           fs::File, // Vec data
+    pub data_metadata:       fs::Metadata, // Vec data
+    // pub persistence: String,
 }
 
 
@@ -693,16 +689,17 @@ impl PointingArrayFileReader {
     //     PointingArrayFileReader { start_and_end_file: key.0.clone(), data_file: key.1.clone(), persistence }
     // }
 
-    fn get_file_handle(&self, path: &str) -> Result<File, io::Error> {
-        Ok(File::open(&get_file_path(&self.persistence, path))?)
-    }
+    // fn get_file_handle(&self, path: &str) -> Result<File, io::Error> {
+    //     Ok(File::open(&get_file_path(&self.persistence, path))?)
+    // }
 
-    fn get_file_metadata_handle(&self, path: &str) -> Result<fs::Metadata, io::Error> {
-        Ok(fs::metadata(&get_file_path(&self.persistence, path))?)
-    }
+    // fn get_file_metadata_handle(&self, path: &str) -> Result<fs::Metadata, io::Error> {
+    //     Ok(fs::metadata(&get_file_path(&self.persistence, path))?)
+    // }
     fn get_size(&self) -> usize {
-        let file = self.get_file_metadata_handle(&self.start_and_end_file).unwrap();// -> Result<File, io::Error>
-        file.len() as usize / 8
+        // let file = self.get_file_metadata_handle(&self.start_and_end_file).unwrap();// -> Result<File, io::Error>
+        // file.len() as usize / 8
+        self.data_metadata.len() as usize / 8
     }
 
 }
@@ -714,8 +711,8 @@ impl  IndexIdToParent for PointingArrayFileReader {
         if find >= self.get_size() as u64 {return None;}
         let mut offsets:Vec<u8> = Vec::with_capacity(8);
         offsets.resize(8, 0);
-        let mut file = self.get_file_handle(&self.start_and_end_file).unwrap();// -> Result<File, io::Error>
-        load_bytes(&mut offsets, &mut file, find as u64 * 8);
+        // let mut file = self.get_file_handle(&self.start_and_end_file).unwrap();// -> Result<File, io::Error>
+        load_bytes(&mut offsets, &self.start_and_end_file, find as u64 * 8);
 
         let mut rdr = Cursor::new(offsets);
 
@@ -726,10 +723,10 @@ impl  IndexIdToParent for PointingArrayFileReader {
             return None;
         }
 
-        let mut data_file = self.get_file_handle(&self.data_file).unwrap();// -> Result<File, io::Error>
+        // let mut data_file = self.get_file_handle(&self.data_file).unwrap();// -> Result<File, io::Error>
         let mut data_bytes:Vec<u8> = Vec::with_capacity(end as usize - start as usize);
         data_bytes.resize(end as usize - start as usize, 0);
-        load_bytes(&mut data_bytes, &mut data_file, start as u64);
+        load_bytes(&mut data_bytes, &self.data_file, start as u64);
 
         Some(bytes_to_vec_u32(&data_bytes))
     }
@@ -741,17 +738,53 @@ impl  IndexIdToParent for PointingArrayFileReader {
 }
 impl HeapSizeOf for PointingArrayFileReader {
     fn heap_size_of_children(&self) -> usize {
-        self.start_and_end_file.heap_size_of_children() + self.data_file.heap_size_of_children()
+        // self.start_and_end_file.heap_size_of_children() + self.data_file.heap_size_of_children()
+        // persistence
+        0
     }
 }
 
-fn load_bytes(buffer: &mut Vec<u8>, file: &mut File, offset: u64) {
-    // @Temporary Use Result
-    file.seek(SeekFrom::Start(offset)).unwrap();
-    file.read_exact(buffer).unwrap();
+// fn load_bytes(buffer: &mut Vec<u8>, file: &mut File, offset: u64) {
+//     // @Temporary Use Result
+//     file.seek(SeekFrom::Start(offset)).unwrap();
+//     file.read_exact(buffer).unwrap();
+// }
+
+// use std::os::ext::fs::FileExt;
+
+#[cfg(any(windows))]
+fn load_bytes(buffer: &mut Vec<u8>, file: &File, offset: u64) {
+    use std::os::windows::fs::FileExt;
+    let mut data_read = 0;
+    while data_read < buffer.len() {
+        let yep = file.seek_read(buffer, offset).unwrap();
+        data_read += yep;
+    }
+
 }
 
+// use std::io::BufReader;
+// use std::io::prelude::*;
 
+#[cfg(any(unix))]
+fn load_bytes(buffer: &mut Vec<u8>, file: &File, offset: u64) {
+    use std::os::unix::fs::FileExt;
+    let mut data_read = 0;
+    while data_read < buffer.len() {
+        let yep = file.read_at(buffer, offset).unwrap();
+        data_read += yep;
+    }
+    // let yep = file.read_at(buffer, offset).unwrap();
+    // if yep != buffer.len(){
+    //     panic!("Wanted to read {:?}, but got {:?}", buffer.len(), yep);
+    // }
+
+
+    // let mut buf_reader = BufReader::new(file);
+    // buf_reader.read_exact(buffer).unwrap();
+
+
+}
 
 
 
@@ -923,7 +956,11 @@ mod test_indirect {
         File::create("test_pointing_file_array/indirect").unwrap().write_all(&vec_to_bytes_u32(&keys)).unwrap();
         File::create("test_pointing_file_array/data").unwrap().write_all(&vec_to_bytes_u32(&values)).unwrap();
 
-        let store = PointingArrayFileReader { start_and_end_file: "indirect".to_string(), data_file: "data".to_string(), persistence: persistence };
+
+        let start_and_end_file = File::open(&get_file_path("test_pointing_file_array", "indirect")).unwrap();
+        let data_file = File::open(&get_file_path("test_pointing_file_array", "data")).unwrap();
+        let data_metadata = fs::metadata(&get_file_path("test_pointing_file_array", "indirect")).unwrap();
+        let store = PointingArrayFileReader { start_and_end_file, data_file, data_metadata };
         check_test_data(&store);
 
     }
@@ -984,8 +1021,12 @@ mod test_indirect {
 
         File::create("test_pointing_file_array/indirect_perf").unwrap().write_all(&vec_to_bytes_u32(&keys)).unwrap();
         File::create("test_pointing_file_array/data_perf").unwrap().write_all(&vec_to_bytes_u32(&values)).unwrap();
+        // let store = PointingArrayFileReader { start_and_end_file: "indirect_perf".to_string(), data_file: "data_perf".to_string(), persistence: "test_pointing_file_array".to_string() };
 
-        let store = PointingArrayFileReader { start_and_end_file: "indirect_perf".to_string(), data_file: "data_perf".to_string(), persistence: "test_pointing_file_array".to_string() };
+        let start_and_end_file = File::open(&get_file_path("test_pointing_file_array", "indirect_perf")).unwrap();
+        let data_file = File::open(&get_file_path("test_pointing_file_array", "data_perf")).unwrap();
+        let data_metadata = fs::metadata(&get_file_path("test_pointing_file_array", "data_perf")).unwrap();
+        let store = PointingArrayFileReader { start_and_end_file, data_file, data_metadata };
 
         b.iter(|| {
             store.get_values(between.ind_sample(&mut rng))

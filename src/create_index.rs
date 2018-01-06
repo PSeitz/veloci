@@ -108,19 +108,26 @@ fn create_jmdict_index() -> Result<(), io::Error> {
         "boost": "commonness",
         "options": { "boost_type": "int" }
     },
-    { "fulltext": "kanji[].text" },
-    { "fulltext": "kana[].text" },
+    { "fulltext": "kanji[].text", "options":{"tokenize":false} },
+    { "fulltext": "kanji[].conjugated[].form", "options":{"tokenize":false} },
+    { "fulltext": "kana[].text" , "options":{"tokenize":false} },
+    { "fulltext": "kana[].conjugated[].form" , "options":{"tokenize":false} },
+    { "fulltext": "kana[].romaji" , "options":{"tokenize":true} },
     {
         "fulltext": "meanings.ger[].text",
-        "options": { "tokenize": true  }
+        "options": { "tokenize": true }
+    },
+    {
+        "fulltext": "meanings.eng[]",
+        "options": { "tokenize": true }
+    },
+    {
+        "fulltext": "pos",
+        "options": { "tokenize": false }
     },
     {
         "boost": "meanings.ger[].rank",
         "options": { "boost_type": "int" }
-    },
-    {
-        "fulltext": "meanings.eng[]",
-        "options": { "tokenize": true  }
     },
     {
         "boost": "kanji[].commonness",

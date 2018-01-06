@@ -38,6 +38,8 @@ use num::{self, Integer, NumCast};
 #[allow(unused_imports)]
 use heapsize::{heap_size_of, HeapSizeOf};
 
+use std::env;
+
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
 pub struct MetaData {
     pub id_lists:         FnvHashMap<String, IDList>,
@@ -76,6 +78,19 @@ pub enum LoadingType {
 impl Default for LoadingType {
     fn default() -> LoadingType {
         LoadingType::InMemory
+    }
+}
+
+use std::str::FromStr;
+
+impl FromStr for LoadingType {
+    type Err = ();
+    fn from_str(s: &str) -> Result<LoadingType, ()> {
+        match s {
+            "InMemory" => Ok(LoadingType::InMemory),
+            "Disk" => Ok(LoadingType::Disk),
+            _ => Err(()),
+        }
     }
 }
 
@@ -134,7 +149,7 @@ pub struct PersistenceCache {
     // pub index_id_to_parent: HashMap<(String,String), Vec<Vec<u32>>>,
     pub index_id_to_parento:    HashMap<String, Box<IndexIdToParent>>,
     pub boost_valueid_to_value: HashMap<String, Box<IndexIdToParent>>,
-    pub index_64:               HashMap<String, Vec<u64>>,
+    index_64:               HashMap<String, Vec<u64>>,
     // index_32: HashMap<String, Vec<u32>>,
     pub fst: HashMap<String, Map>,
 }
@@ -181,16 +196,35 @@ pub fn get_readable_size(value: usize) -> ColoredString {
 }
 
 impl Persistence {
+
+    fn get_fst_sizes(&self) -> usize {
+        self.cache.fst.iter().map(|(_,v)| v.as_fst().size()).sum()
+    }
+
     pub fn print_heap_sizes(&self) {
         info!("cache.index_64 {}", get_readable_size(self.cache.index_64.heap_size_of_children()));
         info!("cache.index_id_to_parento {}", get_readable_size(self.cache.index_id_to_parento.heap_size_of_children()));
         info!("cache.boost_valueid_to_value {}", get_readable_size(self.cache.boost_valueid_to_value.heap_size_of_children()));
+        info!("cache.fst {}", get_readable_size( self.get_fst_sizes()));
+        info!("------");
+        let total_size = self.get_fst_sizes()
+            + self.cache.index_id_to_parento.heap_size_of_children()
+            + self.cache.index_64.heap_size_of_children()
+            + self.cache.boost_valueid_to_value.heap_size_of_children();
+
+        info!("totale size {}", get_readable_size(total_size) );
 
         let mut print_and_size = vec![];
         // Add a row per time
         for (k, v) in &self.cache.index_id_to_parento {
 
             print_and_size.push((v.heap_size_of_children(), v.type_name(), k ));
+            // println!("{:?} {:?} mb", k, v.heap_size_of_children() / 1_000_000);
+            // table.add_row(row![v.type_name(), k, get_readable_size(v.heap_size_of_children() )]);
+        }
+
+        for (k, v) in &self.cache.fst {
+            print_and_size.push((v.as_fst().size(), "FST".to_string(), k ));
             // println!("{:?} {:?} mb", k, v.heap_size_of_children() / 1_000_000);
             // table.add_row(row![v.type_name(), k, get_readable_size(v.heap_size_of_children() )]);
         }
@@ -248,11 +282,11 @@ impl Persistence {
         File::create(data_file_path)?.write_all(&vec_to_bytes_u32(&store.data)).unwrap();
 
         //Parallel
-        let encoded: Vec<u8> = serialize(&data, Infinite).unwrap();
-        File::create(util::get_file_path(&self.db, &path.to_string()))?.write_all(&encoded)?;
+        // let encoded: Vec<u8> = serialize(&data, Infinite).unwrap();
+        // File::create(util::get_file_path(&self.db, &path.to_string()))?.write_all(&encoded)?;
 
         self.meta_data.key_value_stores.push(KVStoreMetaData {
-            loading_type:       LoadingType::Disk,
+            loading_type:       LoadingType::InMemory,
             persistence_type:   KVStoreType::IndexIdToMultipleParentIndirect,
             key_has_duplicates: has_duplicates,
             path:               path.to_string(),
@@ -357,7 +391,6 @@ impl Persistence {
         .get(&(path.to_string() + ".offsets"))
     }
 
-
     #[flame]
     pub fn get_valueid_to_parent(&self, path: &str) -> Result<&Box<IndexIdToParent>, search::SearchError> {
         self.cache.index_id_to_parento.get(path)
@@ -378,8 +411,10 @@ impl Persistence {
     }
 
     #[flame]
-    pub fn get_file_handle(&self, path: &str) -> Result<File, io::Error> {
-        Ok(File::open(&get_file_path(&self.db, path))?)
+    pub fn get_file_handle(&self, path: &str) -> Result<File, search::SearchError> {
+        Ok(File::open(&get_file_path(&self.db, path)).map_err(|_err| {
+            search::SearchError::StringError(format!("Could not open {:?}", path))
+        })?)
     }
 
     #[flame]
@@ -418,7 +453,13 @@ impl Persistence {
         for el in &self.meta_data.key_value_stores {
             info_time!(format!("loaded key_value_store {:?}", &el.path));
 
-            match el.loading_type {
+            let mut loading_type = el.loading_type.clone();
+            if let Some(val) = env::var_os("LoadingType") {
+                loading_type = LoadingType::from_str(&val.into_string().unwrap())
+                .map_err(|_err| search::SearchError::StringError("only InMemory or Disk allowed for LoadingType environment variable".to_string()))?;
+            }
+
+            match loading_type {
                 LoadingType::InMemory => {
                     let store: Box<IndexIdToParent> = {
 
@@ -453,7 +494,12 @@ impl Persistence {
                 },
                 LoadingType::Disk => {
 
-                    let store = PointingArrayFileReader { start_and_end_file: el.path.to_string()+ ".indirect", data_file: el.path.to_string()+ ".data", persistence: self.db.to_string()};
+                    let start_and_end_file = self.get_file_handle(&(el.path.to_string()+ ".indirect"))?;
+                    let data_file = self.get_file_handle(&(el.path.to_string()+ ".data"))?;
+                    let data_metadata = self.get_file_metadata_handle(&(el.path.to_string()+ ".indirect"))?;
+                    let store = PointingArrayFileReader { start_and_end_file, data_file, data_metadata };
+
+                    // let store = PointingArrayFileReader { start_and_end_file: el.path.to_string()+ ".indirect", data_file: el.path.to_string()+ ".data", persistence: self.db.to_string()};
                     self.cache
                         .index_id_to_parento
                         .insert(el.path.to_string(), Box::new(store));
@@ -468,10 +514,7 @@ impl Persistence {
         for el in &self.meta_data.boost_stores {
             let encoded = file_to_bytes(&get_file_path(&self.db, &el.path))?;
             let store: ParallelArrays = deserialize(&encoded[..]).unwrap();
-            // let store = parrallel_arrays_to_pointing_array(store.values1, store.values2);
-            let data = id_to_parent_to_array_of_array(&store);
-            let data = data.iter().map(|el| if el.len() > 0 { el[0] as i32 } else { NOT_FOUND }).collect();
-            self.cache.boost_valueid_to_value.insert(el.path.to_string(), Box::new(IndexIdToOneParent { data }));
+            self.cache.boost_valueid_to_value.insert(el.path.to_string(), Box::new(IndexIdToOneParentMayda::new(&store)));
         }
 
         // Load FST

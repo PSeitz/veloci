@@ -1,7 +1,8 @@
 use std::io::prelude::*;
-use std::io;
 use std::io::SeekFrom;
 use std::str;
+
+use search;
 
 #[derive(Debug)]
 pub struct DocLoader {}
@@ -14,9 +15,9 @@ impl DocLoader {
     }
 
     #[flame]
-    pub fn get_doc(persistence: &Persistence, pos: usize) -> Result<String, io::Error> {
+    pub fn get_doc(persistence: &Persistence, pos: usize) -> Result<String, search::SearchError> {
         let (start, end) = {
-            let offsets = persistence.cache.index_64.get("data.offsets").unwrap();
+            let offsets = persistence.get_offsets("data").unwrap();
             (offsets[pos] as usize, offsets[pos as usize + 1] as usize) // @Temporary array access by get - option
         };
 
