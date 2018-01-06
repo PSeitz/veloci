@@ -58,10 +58,10 @@ multipart = "=0.13.3"
 router = "0.5.1"
 
 [dependencies.bodyparser]
-git = "https://github.com/iron/body-parser.git"
+version = "0.7.0"
 
 [dependencies.urlencoded]
-version = "*"
+version = "0.5.0"
 
 [dev-dependencies]
 env_logger = "0.3"
