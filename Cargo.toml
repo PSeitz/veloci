@@ -15,8 +15,8 @@ lazy_static = "0.2.2"
 fnv = "1.0.3"
 bit-set = "0.4.0"
 bit-vec = "0.4.2"
-# fst = "0.3"
-fst = { git = "https://github.com/PSeitz/fst"}
+fst = "0.3"
+# fst = { git = "https://github.com/PSeitz/fst"}
 fst-levenshtein = "0.2.0"
 log = "0.4"
 env_logger = "0.3"

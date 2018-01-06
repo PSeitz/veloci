@@ -8,6 +8,9 @@ use heapsize::{heap_size_of, HeapSizeOf};
 #[allow(unused_imports)]
 use bincode::{deserialize, serialize, Infinite};
 
+#[allow(unused_imports)]
+use util::*;
+
 use persistence::*;
 use persistence;
 use create;
