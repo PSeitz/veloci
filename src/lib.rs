@@ -120,7 +120,5 @@ pub mod facet;
 
 #[cfg(test)]
 mod tests;
-#[cfg(test)]
-mod bench_jmdict;
 
 use std::str;
