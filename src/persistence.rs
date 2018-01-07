@@ -497,7 +497,7 @@ impl Persistence {
                     let start_and_end_file = self.get_file_handle(&(el.path.to_string()+ ".indirect"))?;
                     let data_file = self.get_file_handle(&(el.path.to_string()+ ".data"))?;
                     let data_metadata = self.get_file_metadata_handle(&(el.path.to_string()+ ".indirect"))?;
-                    let store = PointingArrayFileReader { start_and_end_file, data_file, data_metadata };
+                    let store = PointingArrayFileReader::new( start_and_end_file, data_file, data_metadata );
 
                     // let store = PointingArrayFileReader { start_and_end_file: el.path.to_string()+ ".indirect", data_file: el.path.to_string()+ ".data", persistence: self.db.to_string()};
                     self.cache

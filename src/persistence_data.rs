@@ -22,7 +22,8 @@ use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 
 #[allow(unused_imports)]
 use mayda::{Uniform, Encode};
-use std::sync::Mutex;
+// use std::sync::Mutex;
+use parking_lot::Mutex;
 use lru_cache::LruCache;
 
 use std::io::Cursor;
@@ -71,7 +72,7 @@ impl_type_info!(PointingArrays, ParallelArrays, IndexIdToOneParent,
     IndexIdToMultipleParent, IndexIdToMultipleParentIndirect, IndexIdToMultipleParentCompressedSnappy,
     IndexIdToMultipleParentCompressedMaydaDIRECT, IndexIdToMultipleParentCompressedMaydaINDIRECT,
     IndexIdToMultipleParentCompressedMaydaINDIRECTOne, IndexIdToMultipleParentCompressedMaydaINDIRECTOneReuse,
-     IndexIdToOneParentMayda, PointingArrayFileReader, PointingArrayFileReader_2);
+     IndexIdToOneParentMayda, PointingArrayFileReader);
 
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
@@ -124,7 +125,7 @@ impl IndexIdToMultipleParentCompressedSnappy {
 impl IndexIdToParent for IndexIdToMultipleParentCompressedSnappy {
     fn get_values(&self, id: u64) -> Option<Vec<u32>> {
         self.data.get(id as usize).map(|el| {
-            bytes_to_vec_u32(&SNAP_DECODER.lock().unwrap().decompress_vec(el).unwrap())
+            bytes_to_vec_u32(&SNAP_DECODER.lock().decompress_vec(el).unwrap())
         })
     }
     fn get_keys(&self) -> Vec<u32> {
@@ -695,7 +696,7 @@ impl<'a>  IndexIdToParent for PointingArrayFileReader_2<'a> {
     }
 
     fn get_keys(&self) -> Vec<u32> {
-        None
+        unimplemented!()
     }
 }
 impl<'a> HeapSizeOf for PointingArrayFileReader_2<'a> {
@@ -705,19 +706,29 @@ impl<'a> HeapSizeOf for PointingArrayFileReader_2<'a> {
 }
 
 
+impl<'a> TypeInfo for PointingArrayFileReader_2<'a>   {
+    fn type_name(&self) -> String {
+        "String".to_string()
+    }
+    fn type_of(&self) -> String {
+        "String".to_string()
+    }
+}
+
+
 #[derive(Debug)]
 pub struct PointingArrayFileReader {
-    pub start_and_end_file:  fs::File, // Vec<u32>  start, end, start, end
-    pub data_file:           fs::File, // Vec data
-    pub data_metadata:       fs::Metadata, // Vec data
+    pub start_and_end_file:  Mutex<fs::File>,
+    pub data_file:           Mutex<fs::File>,
+    pub data_metadata:       Mutex<fs::Metadata>,
     // pub persistence: String,
 }
 
 
 impl PointingArrayFileReader {
-    // fn newo(key:&(String, String), persistence: String) -> Self {
-    //     PointingArrayFileReader { start_and_end_file: key.0.clone(), data_file: key.1.clone(), persistence }
-    // }
+    pub fn new(start_and_end_file:fs::File, data_file: fs::File, data_metadata:fs::Metadata,) -> Self {
+        PointingArrayFileReader { start_and_end_file: Mutex::new(start_and_end_file), data_file: Mutex::new(data_file), data_metadata: Mutex::new(data_metadata)  }
+    }
 
     // fn get_file_handle(&self, path: &str) -> Result<File, io::Error> {
     //     Ok(File::open(&get_file_path(&self.persistence, path))?)
@@ -729,7 +740,7 @@ impl PointingArrayFileReader {
     fn get_size(&self) -> usize {
         // let file = self.get_file_metadata_handle(&self.start_and_end_file).unwrap();// -> Result<File, io::Error>
         // file.len() as usize / 8
-        self.data_metadata.len() as usize / 8
+        self.data_metadata.lock().len() as usize / 8
     }
 
 }
@@ -742,7 +753,7 @@ impl  IndexIdToParent for PointingArrayFileReader {
         let mut offsets:Vec<u8> = Vec::with_capacity(8);
         offsets.resize(8, 0);
         // let mut file = self.get_file_handle(&self.start_and_end_file).unwrap();// -> Result<File, io::Error>
-        load_bytes(&mut offsets, &self.start_and_end_file, find as u64 * 8);
+        load_bytes(&mut offsets, &self.start_and_end_file.lock(), find as u64 * 8);
 
         let mut rdr = Cursor::new(offsets);
 
@@ -756,7 +767,7 @@ impl  IndexIdToParent for PointingArrayFileReader {
         // let mut data_file = self.get_file_handle(&self.data_file).unwrap();// -> Result<File, io::Error>
         let mut data_bytes:Vec<u8> = Vec::with_capacity(end as usize - start as usize);
         data_bytes.resize(end as usize - start as usize, 0);
-        load_bytes(&mut data_bytes, &self.data_file, start as u64);
+        load_bytes(&mut data_bytes, &self.data_file.lock(), start as u64);
 
         Some(bytes_to_vec_u32(&data_bytes))
     }
@@ -996,7 +1007,7 @@ mod test_indirect {
         let start_and_end_file = File::open(&get_file_path("test_pointing_file_array", "indirect")).unwrap();
         let data_file = File::open(&get_file_path("test_pointing_file_array", "data")).unwrap();
         let data_metadata = fs::metadata(&get_file_path("test_pointing_file_array", "indirect")).unwrap();
-        let store = PointingArrayFileReader { start_and_end_file, data_file, data_metadata };
+        let store = PointingArrayFileReader::new(start_and_end_file, data_file, data_metadata);
         check_test_data(&store);
 
     }
@@ -1062,7 +1073,7 @@ mod test_indirect {
         let start_and_end_file = File::open(&get_file_path("test_pointing_file_array", "indirect_perf")).unwrap();
         let data_file = File::open(&get_file_path("test_pointing_file_array", "data_perf")).unwrap();
         let data_metadata = fs::metadata(&get_file_path("test_pointing_file_array", "data_perf")).unwrap();
-        let store = PointingArrayFileReader { start_and_end_file, data_file, data_metadata };
+        let store = PointingArrayFileReader::new(start_and_end_file, data_file, data_metadata );
 
         b.iter(|| {
             store.get_values(between.ind_sample(&mut rng))
