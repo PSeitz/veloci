@@ -1066,6 +1066,7 @@ mod test_indirect {
 
         let (keys, values) = to_indirect_arrays(&store);
 
+        fs::create_dir_all("test_pointing_file_array").unwrap();
         File::create("test_pointing_file_array/indirect_perf").unwrap().write_all(&vec_to_bytes_u32(&keys)).unwrap();
         File::create("test_pointing_file_array/data_perf").unwrap().write_all(&vec_to_bytes_u32(&values)).unwrap();
         // let store = PointingArrayFileReader { start_and_end_file: "indirect_perf".to_string(), data_file: "data_perf".to_string(), persistence: "test_pointing_file_array".to_string() };

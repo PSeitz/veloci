@@ -1,11 +1,26 @@
+#![feature(test)]
+
+// #[macro_use]
+// extern crate serde_derive;
+
+#[macro_use]
+extern crate serde_json;
+
+extern crate rand;
+extern crate serde;
+extern crate search_lib;
+extern crate test;
+
 #[cfg(test)]
-mod bench {
+mod bench_jmdict {
     extern crate env_logger;
     extern crate rand;
-
-    use persistence;
-    use search;
-    use search_field;
+    
+    
+    // use search_lib::*;
+    use search_lib::persistence;
+    use search_lib::search;
+    use search_lib::search_field;
     use serde_json;
 
     use test::Bencher;
@@ -259,4 +274,9 @@ mod bench {
     // }
 
 
+}
+
+
+fn main() {
+    unimplemented!();
 }

@@ -81,6 +81,9 @@ path = "src/server.rs"
 name = "create_index"
 path = "src/create_index.rs"
 
+[[bench]]
+name = "bench_jmdict"
+path = "benches/bench_jmdict.rs"
 
 # [[bench]]
 # name = "bench_collection"
