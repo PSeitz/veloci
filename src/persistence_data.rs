@@ -1000,6 +1000,7 @@ mod test_indirect {
         let store = get_test_data();
         let (keys, values) = to_indirect_arrays(&store);
 
+        fs::create_dir_all("test_pointing_file_array").unwrap();
         File::create("test_pointing_file_array/indirect").unwrap().write_all(&vec_to_bytes_u32(&keys)).unwrap();
         File::create("test_pointing_file_array/data").unwrap().write_all(&vec_to_bytes_u32(&values)).unwrap();
 
