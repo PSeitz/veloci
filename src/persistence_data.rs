@@ -70,7 +70,8 @@ macro_rules! impl_type_info_single {
 impl_type_info!(PointingArrays, ParallelArrays, IndexIdToOneParent,
     IndexIdToMultipleParent, IndexIdToMultipleParentIndirect, IndexIdToMultipleParentCompressedSnappy,
     IndexIdToMultipleParentCompressedMaydaDIRECT, IndexIdToMultipleParentCompressedMaydaINDIRECT,
-    IndexIdToMultipleParentCompressedMaydaINDIRECTOne, IndexIdToMultipleParentCompressedMaydaINDIRECTOneReuse, IndexIdToOneParentMayda, PointingArrayFileReader);
+    IndexIdToMultipleParentCompressedMaydaINDIRECTOne, IndexIdToMultipleParentCompressedMaydaINDIRECTOneReuse,
+     IndexIdToOneParentMayda, PointingArrayFileReader, PointingArrayFileReader_2);
 
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
@@ -679,6 +680,32 @@ fn test_pointing_array() {
 
 
 #[derive(Debug)]
+pub struct PointingArrayFileReader_2<'a> {
+    pub start_and_end_file:  fs::File, // Vec<u32>  start, end, start, end
+    pub data_file:           fs::File, // Vec data
+    pub data_metadata:       fs::Metadata, // Vec data
+    pub persistence:         &'a Persistence, // Vec data
+    // pub persistence: String,
+}
+
+impl<'a>  IndexIdToParent for PointingArrayFileReader_2<'a> {
+
+    fn get_values(&self, find: u64) -> Option<Vec<u32>> {
+        None
+    }
+
+    fn get_keys(&self) -> Vec<u32> {
+        None
+    }
+}
+impl<'a> HeapSizeOf for PointingArrayFileReader_2<'a> {
+    fn heap_size_of_children(&self) -> usize {
+        0
+    }
+}
+
+
+#[derive(Debug)]
 pub struct PointingArrayFileReader {
     pub start_and_end_file:  fs::File, // Vec<u32>  start, end, start, end
     pub data_file:           fs::File, // Vec data
@@ -753,41 +780,47 @@ impl HeapSizeOf for PointingArrayFileReader {
 //     file.read_exact(buffer).unwrap();
 // }
 
+fn load_bytes(buffer: &mut Vec<u8>, mut file: &File, offset: u64) {
+    // @Temporary Use Result
+    file.seek(SeekFrom::Start(offset)).unwrap();
+    file.read_exact(buffer).unwrap();
+}
+
 // use std::os::ext::fs::FileExt;
 
-#[cfg(any(windows))]
-fn load_bytes(buffer: &mut Vec<u8>, file: &File, offset: u64) {
-    use std::os::windows::fs::FileExt;
-    let mut data_read = 0;
-    while data_read < buffer.len() {
-        let yep = file.seek_read(buffer, offset).unwrap();
-        data_read += yep;
-    }
+// #[cfg(any(windows))]
+// fn load_bytes(buffer: &mut Vec<u8>, file: &File, offset: u64) {
+//     use std::os::windows::fs::FileExt;
+//     let mut data_read = 0;
+//     while data_read < buffer.len() {
+//         let yep = file.seek_read(buffer, offset).unwrap();
+//         data_read += yep;
+//     }
 
-}
+// }
 
-// use std::io::BufReader;
-// use std::io::prelude::*;
+// // use std::io::BufReader;
+// // use std::io::prelude::*;
 
-#[cfg(any(unix))]
-fn load_bytes(buffer: &mut Vec<u8>, file: &File, offset: u64) {
-    use std::os::unix::fs::FileExt;
-    let mut data_read = 0;
-    while data_read < buffer.len() {
-        let yep = file.read_at(buffer, offset).unwrap();
-        data_read += yep;
-    }
-    // let yep = file.read_at(buffer, offset).unwrap();
-    // if yep != buffer.len(){
-    //     panic!("Wanted to read {:?}, but got {:?}", buffer.len(), yep);
-    // }
-
-
-    // let mut buf_reader = BufReader::new(file);
-    // buf_reader.read_exact(buffer).unwrap();
+// #[cfg(any(unix))]
+// fn load_bytes(buffer: &mut Vec<u8>, file: &File, offset: u64) {
+//     use std::os::unix::fs::FileExt;
+//     let mut data_read = 0;
+//     while data_read < buffer.len() {
+//         let yep = file.read_at(buffer, offset).unwrap();
+//         data_read += yep;
+//     }
+//     // let yep = file.read_at(buffer, offset).unwrap();
+//     // if yep != buffer.len(){
+//     //     panic!("Wanted to read {:?}, but got {:?}", buffer.len(), yep);
+//     // }
 
 
-}
+//     // let mut buf_reader = BufReader::new(file);
+//     // buf_reader.read_exact(buffer).unwrap();
+
+
+// }
 
 
 
