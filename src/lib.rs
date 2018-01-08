@@ -1,4 +1,6 @@
+#![feature(specialization)]
 #![feature(dotdoteq_in_patterns)]
+#![feature(inclusive_range)]
 #![feature(inclusive_range_syntax)]
 #![feature(conservative_impl_trait)]
 #![feature(plugin)]

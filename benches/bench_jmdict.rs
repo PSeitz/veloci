@@ -15,8 +15,7 @@ extern crate test;
 mod bench_jmdict {
     extern crate env_logger;
     extern crate rand;
-    
-    
+
     // use search_lib::*;
     use search_lib::persistence;
     use search_lib::search;

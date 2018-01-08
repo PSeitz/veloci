@@ -17,6 +17,7 @@ use fnv::FnvHashMap;
 use bincode::{deserialize, serialize, Infinite};
 
 use create;
+#[allow(unused_imports)]
 use mayda;
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use log;
@@ -58,14 +59,14 @@ impl MetaData {
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct KVStoreMetaData {
     pub path:               String,
-    pub key_has_duplicates: bool, // In the sense of 1:n   1key, n values
+    pub is_1_to_n:          bool, // In the sense of 1:n   1key, n values
     pub persistence_type:   KVStoreType,
     pub loading_type:       LoadingType,
 }
 
 // impl KVStoreMetaData {
-//     fn new(valid_path: &str, parentid_path: &str, key_has_duplicates: bool, persistence_type: KVStoreType, loading_type: LoadingType) -> KVStoreMetaData {
-//         KVStoreMetaData{persistence_type:KVStoreType::ParallelArrays, key_has_duplicates:has_duplicates, valid_path: valid_path.clone(), parentid_path:parentid_path.clone()}
+//     fn new(valid_path: &str, parentid_path: &str, is_1_to_n: bool, persistence_type: KVStoreType, loading_type: LoadingType) -> KVStoreMetaData {
+//         KVStoreMetaData{persistence_type:KVStoreType::ParallelArrays, is_1_to_n:has_duplicates, valid_path: valid_path.clone(), parentid_path:parentid_path.clone()}
 //     }
 // }
 
@@ -118,15 +119,17 @@ use persistence_data;
 
 pub trait IndexIdToParent: Debug + HeapSizeOf + Sync + Send + persistence_data::TypeInfo {
     fn get_values(&self, id: u64) -> Option<Vec<u32>>;
-    fn get_values_compr(&self, _id: u64) -> Option<mayda::Uniform<u32>>{
-        unimplemented!()
-    }
     fn get_value(&self, id: u64) -> Option<u32> {
         self.get_values(id).map(|el| el[0])
     }
 
     //last needs to be the largest value_id
     fn get_keys(&self) -> Vec<u32>;
+
+    fn is_1_to_n(&self) -> bool {
+        let keys = self.get_keys();
+        keys.iter().any(|key| self.get_values(*key as u64).map(|values| values.len() > 1).unwrap_or(false))
+    }
 
 }
 
@@ -171,19 +174,19 @@ pub struct Persistence {
 //     return false;
 // }
 
-fn has_valid_duplicates(data: &Vec<&create::GetValueId>) -> bool {
-    if data.len() == 0 {
-        return false;
-    }
-    let mut prev = data[0].get_value_id();
-    for el in data[1..].iter() {
-        if el.get_value_id() == prev {
-            return true;
-        }
-        prev = el.get_value_id();
-    }
-    return false;
-}
+// fn has_valid_duplicates(data: &Vec<&create::GetValueId>) -> bool {
+//     if data.len() == 0 {
+//         return false;
+//     }
+//     let mut prev = data[0].get_value_id();
+//     for el in data[1..].iter() {
+//         if el.get_value_id() == prev {
+//             return true;
+//         }
+//         prev = el.get_value_id();
+//     }
+//     return false;
+// }
 
 use colored::*;
 
@@ -264,9 +267,25 @@ impl Persistence {
         Ok(Persistence { meta_data, db, ..Default::default() })
     }
 
+    pub fn write_indirect_index(&mut self, data: &IndexIdToParent, path: &str) -> Result<(), io::Error> {
+        let indirect_file_path = util::get_file_path(&self.db, &(path.to_string() + ".indirect"));
+        let data_file_path = util::get_file_path(&self.db, &(path.to_string() + ".data"));
+        let store = IndexIdToMultipleParentIndirect::new(data);
+
+        File::create(indirect_file_path)?.write_all(&vec_to_bytes_u32(&store.start_and_end)).unwrap();
+        File::create(data_file_path)?.write_all(&vec_to_bytes_u32(&store.data)).unwrap();
+        self.meta_data.key_value_stores.push(KVStoreMetaData {
+            loading_type:       LoadingType::InMemory,
+            persistence_type:   KVStoreType::IndexIdToMultipleParentIndirect,
+            is_1_to_n:          store.is_1_to_n(),
+            path:               path.to_string(),
+        });
+
+        Ok(())
+    }
+
     #[flame]
     pub fn write_tuple_pair(&mut self, tuples: &mut Vec<create::ValIdPair>, path: &str) -> Result<(), io::Error> {
-        let has_duplicates = has_valid_duplicates(&tuples.iter().map(|el| el as &create::GetValueId).collect());
         let data = valid_pair_to_parallel_arrays(tuples);
         // if data.values1.len() > 0 {
         //     trace!("data.values1 {:?} \n {:?}", path, data.values1 );
@@ -274,29 +293,18 @@ impl Persistence {
         // }
         // let has_duplicates = has_duplicates(&data.values1);
 
-        //Indirect
-        let indirect_file_path = util::get_file_path(&self.db, &(path.to_string() + ".indirect"));
-        let data_file_path = util::get_file_path(&self.db, &(path.to_string() + ".data"));
-        let store = IndexIdToMultipleParentIndirect::new(&data);
-        File::create(indirect_file_path)?.write_all(&vec_to_bytes_u32(&store.start_and_end)).unwrap();
-        File::create(data_file_path)?.write_all(&vec_to_bytes_u32(&store.data)).unwrap();
-
+        self.write_indirect_index(&data, path)?;
         //Parallel
         // let encoded: Vec<u8> = serialize(&data, Infinite).unwrap();
         // File::create(util::get_file_path(&self.db, &path.to_string()))?.write_all(&encoded)?;
 
-        self.meta_data.key_value_stores.push(KVStoreMetaData {
-            loading_type:       LoadingType::InMemory,
-            persistence_type:   KVStoreType::IndexIdToMultipleParentIndirect,
-            key_has_duplicates: has_duplicates,
-            path:               path.to_string(),
-        });
+
         Ok(())
     }
     #[flame]
     pub fn write_boost_tuple_pair(&mut self, tuples: &mut Vec<create::ValIdToValue>, path: &str) -> Result<(), io::Error> {
         // let boost_paths = util::boost_path(path);
-        let has_duplicates = has_valid_duplicates(&tuples.iter().map(|el| el as &create::GetValueId).collect());
+        // let has_duplicates = has_valid_duplicates(&tuples.iter().map(|el| el as &create::GetValueId).collect());
         let data = boost_pair_to_parallel_arrays(tuples);
         // let data = parrallel_arrays_to_pointing_array(data.values1, data.values2);
         let encoded: Vec<u8> = serialize(&data, Infinite).unwrap();
@@ -306,7 +314,7 @@ impl Persistence {
         self.meta_data.boost_stores.push(KVStoreMetaData {
             loading_type:       LoadingType::InMemory,
             persistence_type:   KVStoreType::ParallelArrays,
-            key_has_duplicates: has_duplicates,
+            is_1_to_n:          data.is_1_to_n(),
             path:               boost_path.to_string(),
         });
         Ok(())
@@ -473,18 +481,16 @@ impl Persistence {
                                 let data = file_to_bytes(&(get_file_path(&self.db, &el.path)+ ".data"))?;
                                 Box::new(IndexIdToMultipleParentIndirect::from_data(bytes_to_vec_u32(&indirect), bytes_to_vec_u32(&data)))
 
-                                // let encoded = file_to_bytes(&get_file_path(&self.db, &el.path))?;
-                                // Box::new(deserialize::<IndexIdToMultipleParentIndirect>(&encoded[..]).unwrap())
                             },
                         }
 
                     };
 
-                    if el.key_has_duplicates {
+                    if el.is_1_to_n {
                         // self.cache.index_id_to_parento.insert(el.path.to_string(), Box::new(IndexIdToMultipleParentCompressedSnappy::new(&store)));
                         self.cache
                             .index_id_to_parento
-                            .insert(el.path.to_string(), Box::new(IndexIdToMultipleParentCompressedMaydaINDIRECTOne::new(&*store)));
+                            .insert(el.path.to_string(), Box::new(IndexIdToMultipleParentCompressedMaydaINDIRECTOne::<u32>::new(&*store)));
                     } else {
                         self.cache
                             .index_id_to_parento
