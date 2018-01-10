@@ -66,12 +66,6 @@ macro_rules! impl_type_info_single_templ {
     }
 }
 
-// impl_type_info!(PointingArrays,
-//     IndexIdToMultipleParentCompressedSnappy,
-//     PointingArrayFileReader);
-
-// impl_type_info!(PointingArrays);
-
 impl_type_info_single_templ!(IndexIdToMultipleParentCompressedMaydaINDIRECTOne);
 impl_type_info_single_templ!(IndexIdToMultipleParentCompressedMaydaINDIRECTOneReuse);
 impl_type_info_single_templ!(IndexIdToMultipleParentIndirect);
@@ -530,30 +524,18 @@ impl<T: IndexIdToParentData> PointingArrayFileReader<T> {
     pub fn new(start_and_end_file:fs::File, data_file: fs::File, data_metadata:fs::Metadata,) -> Self {
         PointingArrayFileReader { start_and_end_file: Mutex::new(start_and_end_file), data_file: Mutex::new(data_file), data_metadata: Mutex::new(data_metadata), ok:PhantomData  }
     }
-    // fn get_file_handle(&self, path: &str) -> Result<File, io::Error> {
-    //     Ok(File::open(&get_file_path(&self.persistence, path))?)
-    // }
-    // fn get_file_metadata_handle(&self, path: &str) -> Result<fs::Metadata, io::Error> {
-    //     Ok(fs::metadata(&get_file_path(&self.persistence, path))?)
-    // }
     fn get_size(&self) -> usize {
-        // let file = self.get_file_metadata_handle(&self.start_and_end_file).unwrap();// -> Result<File, io::Error>
-        // file.len() as usize / 8
         self.data_metadata.lock().len() as usize / 8
     }
 
 }
-
 
 impl<T: IndexIdToParentData>  IndexIdToParent for PointingArrayFileReader<T> {
     type Output = T;
     default fn get_values(&self, find: u64) -> Option<Vec<T>> {
         get_u32_values_from_pointing_file(find, self.get_size(), &self.start_and_end_file, &self.data_file).map(|el| el.iter().map(|el| NumCast::from(*el).unwrap()).collect())
     }
-
     fn get_keys(&self) -> Vec<T> {
-        // let file = self.get_file_metadata_handle(&self.start_and_end_file).unwrap();// -> Result<File, io::Error>
-        // (0..self.get_size() as u32).collect()
         (NumCast::from(0).unwrap()..NumCast::from(self.get_size()).unwrap()).collect()
     }
 }
