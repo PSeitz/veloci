@@ -204,7 +204,7 @@ fn add_text<T: Tokenizer>(text: String, terms: &mut FnvHashMap<String, TermInfo>
     {
         let stat = terms.entry(text.to_string()).or_insert(TermInfo::default());
         stat.num_occurences += 1;
-    }    
+    }
 
     //Add lowercase version for search
     // {
@@ -413,7 +413,7 @@ pub fn create_fulltext_index(data: &Value, mut persistence: &mut Persistence, in
         }
 
         for (path, mut tokens) in tokens_in_path.iter_mut() {
-            persistence.write_tuple_pair(&mut tokens, &concat(&path, ".tokens"))?;
+            persistence.write_tuple_pair_dedup(&mut tokens, &concat(&path, ".tokens"), true)?;
         }
 
         for (path, mut tokens) in value_id_to_token_ids_in_path.iter_mut() {

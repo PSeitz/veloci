@@ -13,7 +13,7 @@ use fnv::FnvHashMap;
 use util;
 use ordered_float::OrderedFloat;
 // use hit_collector::HitCollector;
-
+use itertools::Itertools;
 #[allow(unused_imports)]
 use fst::{IntoStreamer, Map, MapBuilder, Set};
 #[allow(unused_imports)]
@@ -333,14 +333,14 @@ fn get_hits_in_field_one_term(persistence: &Persistence, options: &RequestSearch
 pub fn get_text_for_ids(persistence: &Persistence, path:&str, ids: &[u32]) -> Vec<String> {
     let mut faccess:persistence::FileSearch = persistence.get_file_search(path);
     let offsets = persistence.get_offsets(path).unwrap();
-    ids.iter().map(|id| faccess.get_text_for_id(*id as usize, offsets)).collect()
+    ids.iter().map(|id| faccess.get_text_for_id(*id as usize, &**offsets)).collect()
 }
 
 #[flame]
 pub fn get_text_for_id_disk(persistence: &Persistence, path:&str, id: u32) -> String {
     let mut faccess:persistence::FileSearch = persistence.get_file_search(path);
     let offsets = persistence.get_offsets(path).unwrap();
-    faccess.get_text_for_id(id as usize, offsets)
+    faccess.get_text_for_id(id as usize, &**offsets)
 }
 
 #[flame]
@@ -350,38 +350,29 @@ pub fn get_text_for_id(persistence: &Persistence, path:&str, id: u32) -> String 
     let mut bytes = vec![];
     ord_to_term(map.as_fst(), id as u64, &mut bytes);
     str::from_utf8(&bytes).unwrap().to_string()
-
-    // let mut faccess:persistence::FileSearch = persistence.get_file_search(path);
-    // let offsets = persistence.get_offsets(path).unwrap();
-    // faccess.get_text_for_id(id as usize, offsets)
 }
 
 #[flame]
 pub fn get_text_for_id_2(persistence: &Persistence, path:&str, id: u32, bytes: &mut Vec<u8>) {
     let map = persistence.cache.fst.get(path).expect(&format!("fst not found loaded in cache {} ", path));
-
     ord_to_term(map.as_fst(), id as u64, bytes);
-
-    // let mut faccess:persistence::FileSearch = persistence.get_file_search(path);
-    // let offsets = persistence.get_offsets(path).unwrap();
-    // faccess.get_text_for_id(id as usize, offsets)
 }
 
 
 #[flame]
 pub fn get_id_text_map_for_ids(persistence: &Persistence, path:&str, ids: &[u32]) -> FnvHashMap<u32, String> {
-    let mut faccess:persistence::FileSearch = persistence.get_file_search(path);
-    let offsets = persistence.get_offsets(path).unwrap();
-    ids.iter().map(|id| (*id, faccess.get_text_for_id(*id as usize, offsets))).collect()
+    let map = persistence.cache.fst.get(path).expect(&format!("fst not found loaded in cache {} ", path));
+    ids.iter().map(|id| {
+        let mut bytes = vec![];
+        ord_to_term(map.as_fst(), *id as u64, &mut bytes);
+        (*id, str::from_utf8(&bytes).unwrap().to_string())
+    }).collect()
 }
-
-use itertools::Itertools;
-
 
 #[flame]
 pub fn resolve_snippets(persistence: &Persistence, path: &str, result: &mut SearchFieldResult) -> Result<(), search::SearchError> {
     let token_kvdata = persistence.get_valueid_to_parent(&concat(path, ".tokens"))?;
-    let mut value_id_to_token_hits:FnvHashMap<u32, Vec<u32>> = FnvHashMap::default(); 
+    let mut value_id_to_token_hits:FnvHashMap<u32, Vec<u32>> = FnvHashMap::default();
 
     //TODO snippety only for top x best scores?
     for (token_id, _) in result.hits.iter() {
@@ -429,10 +420,10 @@ pub fn resolve_token_hits(persistence: &Persistence, path: &str, result: &mut Se
 
             // let ref parent_ids_for_token_opt = token_kvdata.get(*value_id as usize);
             if let Some(parent_ids_for_token) = token_kvdata.get_values(*term_id as u64) {
+                let token_text_length = text_offsets.get_value(1 + *term_id as u64).unwrap() - text_offsets.get_value(*term_id as u64).unwrap();
                 token_hits.reserve(parent_ids_for_token.len());
                 for token_parentval_id in parent_ids_for_token {
-                    let parent_text_length = text_offsets[1 + token_parentval_id as usize] - text_offsets[token_parentval_id as usize];
-                    let token_text_length = text_offsets[1 + *term_id as usize] - text_offsets[*term_id as usize];
+                    let parent_text_length = text_offsets.get_value(1 + token_parentval_id as u64).unwrap() - text_offsets.get_value(token_parentval_id as u64).unwrap();
                     // let adjusted_score = 2.0/(parent_text_length as f32 - token_text_length as f32) + 0.2;
                     // let adjusted_score = score / (parent_text_length as f32 - token_text_length as f32 + 1.0);
                     let adjusted_score = score * (token_text_length as f32  / parent_text_length as f32 );
@@ -477,7 +468,6 @@ pub fn resolve_token_hits(persistence: &Persistence, path: &str, result: &mut Se
         result.hits.reserve(token_hits.len());
         // let mut current_group_id = token_hits[0].0;
         // let mut current_score = token_hits[0].1;
-
         // let mut value_id_to_token_hits:FnvHashMap<u32, Vec<u32>> = FnvHashMap::default();
 
         for (parent_id, group) in &token_hits.iter().group_by(|el| el.0) {

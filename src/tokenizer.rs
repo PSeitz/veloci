@@ -37,6 +37,20 @@ impl Tokenizer for SimpleTokenizer {
 #[allow(unused_imports)]
 use test;
 
+
+#[test]
+fn test_tokenizer_control_sequences() {
+    let tokenizer = SimpleTokenizer{};
+    let mut vec:Vec<String> = vec![];
+    tokenizer.get_tokens("das \n ist ein txt, test", &mut |token:&str, _is_seperator: bool|{
+        vec.push(token.to_string());
+    });
+
+    // for el in vec {
+    //     print!("{}", el);
+    // }
+}
+
 #[bench]
 fn bench_iter(b: &mut test::Bencher) {
     b.iter(|| {

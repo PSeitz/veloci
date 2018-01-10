@@ -1,3 +1,4 @@
+#![feature(step_trait)]
 #![feature(specialization)]
 #![feature(dotdoteq_in_patterns)]
 #![feature(inclusive_range)]
