@@ -1,4 +1,3 @@
-
 use regex::Regex;
 use std::io::prelude::*;
 use std::io;
@@ -31,7 +30,12 @@ pub fn normalize_text(text: &str) -> String {
 use search::Hit;
 
 pub fn hits_map_to_vec(hits: FnvHashMap<u32, f32>) -> Vec<Hit> {
-    hits.iter().map(|(id, score)| Hit { id:    *id, score: *score }).collect()
+    hits.iter()
+        .map(|(id, score)| Hit {
+            id: *id,
+            score: *score,
+        })
+        .collect()
 }
 
 pub fn hits_vec_to_map(vec_hits: Vec<Hit>) -> FnvHashMap<u32, f32> {
@@ -79,16 +83,29 @@ pub fn remove_array_marker(path: &str) -> String {
     path.split(".")
         .collect::<Vec<_>>()
         .iter()
-        .map(|el| if el.ends_with("[]") { &el[0..el.len() - 2] } else { el })
+        .map(|el| {
+            if el.ends_with("[]") {
+                &el[0..el.len() - 2]
+            } else {
+                el
+            }
+        })
         .collect::<Vec<_>>()
         .join(".")
 }
 
 pub fn extract_prop_name(path: &str) -> &str {
     path.split(".")
-        .map(|el| if el.ends_with("[]") { &el[0..el.len() - 2] } else { el })
+        .map(|el| {
+            if el.ends_with("[]") {
+                &el[0..el.len() - 2]
+            } else {
+                el
+            }
+        })
         .filter(|el| *el != "textindex")
-        .last().expect(&format!("could not extract prop name from path {:?}", path))
+        .last()
+        .expect(&format!("could not extract prop name from path {:?}", path))
 }
 
 pub fn get_steps_to_anchor(path: &str) -> Vec<String> {
@@ -105,61 +122,63 @@ pub fn get_steps_to_anchor(path: &str) -> Vec<String> {
         }
     }
 
-    paths.push(path.to_string()+ ".textindex"); // add path to index
+    paths.push(path.to_string() + ".textindex"); // add path to index
     return paths;
 }
-
 
 use std::collections::HashMap;
 use itertools::Itertools;
 #[derive(Debug, Default, Clone, Serialize)]
-pub struct NodeTree{
+pub struct NodeTree {
     pub next: HashMap<String, NodeTree>,
-    pub is_leaf: bool
+    pub is_leaf: bool,
 }
 
 impl NodeTree {
     pub fn new() -> NodeTree {
-        NodeTree{next: HashMap::default(), is_leaf:false}
+        NodeTree {
+            next: HashMap::default(),
+            is_leaf: false,
+        }
     }
     pub fn new_leaf() -> NodeTree {
-        NodeTree{next: HashMap::default(), is_leaf:true}
+        NodeTree {
+            next: HashMap::default(),
+            is_leaf: true,
+        }
     }
 }
 
-
 pub fn to_node_tree(paths: Vec<Vec<String>>) -> NodeTree {
     let mut tree = NodeTree::new();
-    for (key, group) in &paths.into_iter().group_by(|el| el.get(0).map(|el| el.clone())) {
+    for (key, group) in &paths
+        .into_iter()
+        .group_by(|el| el.get(0).map(|el| el.clone()))
+    {
         let key = key.unwrap();
         let mut next_paths = group.collect_vec();
 
         let mut is_leaf = false;
-        for ref mut el in next_paths.iter_mut(){
+        for ref mut el in next_paths.iter_mut() {
             el.remove(0);
-            if el.len() == 0{ //removing last part means it's a leaf
+            if el.len() == 0 {
+                //removing last part means it's a leaf
                 is_leaf = true;
             }
         }
 
-        next_paths.retain(|el|el.len()!=0); //remove empty paths
+        next_paths.retain(|el| el.len() != 0); //remove empty paths
 
-        if next_paths.len()==0 {
+        if next_paths.len() == 0 {
             tree.next.insert(key.to_string(), NodeTree::new_leaf());
-        }else{
+        } else {
             let mut sub_tree = to_node_tree(next_paths);
             sub_tree.is_leaf = is_leaf;
             tree.next.insert(key.to_string(), sub_tree);
         }
     }
     tree
-
 }
-
-
-
-
-
 
 // assert_eq!(re.replace("1078910", ""), " ");
 

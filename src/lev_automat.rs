@@ -78,8 +78,11 @@ impl LevenshteinIC {
 
 impl fmt::Debug for LevenshteinIC {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "Levenshtein(query: {:?}, distance: {:?})",
-               self.prog.query, self.prog.dist)
+        write!(
+            f,
+            "Levenshtein(query: {:?}, distance: {:?})",
+            self.prog.query, self.prog.dist
+        )
     }
 }
 
@@ -91,7 +94,7 @@ struct DynamicLevenshtein {
 
 impl DynamicLevenshtein {
     fn start(&self) -> Vec<usize> {
-        (0..self.query.chars().count()+1).collect()
+        (0..self.query.chars().count() + 1).collect()
     }
 
     fn is_match(&self, state: &[usize]) -> bool {
@@ -104,10 +107,10 @@ impl DynamicLevenshtein {
     }
 
     fn accept(&self, state: &[usize], chr: Option<char>) -> Vec<usize> {
-        let mut next = vec![state[0]+1];
+        let mut next = vec![state[0] + 1];
         for (i, c) in self.query.chars().enumerate() {
             let cost = if Some(c) == chr { 0 } else { 1 };
-            let v = cmp::min(cmp::min(next[i]+1, state[i+1]+1), state[i]+cost);
+            let v = cmp::min(cmp::min(next[i] + 1, state[i + 1] + 1), state[i] + cost);
             next.push(cmp::min(v, self.dist + 1));
         }
         next
@@ -117,10 +120,14 @@ impl DynamicLevenshtein {
 impl Automaton for LevenshteinIC {
     type State = Option<usize>;
 
-    fn start(&self) -> Option<usize> { Some(0) }
+    fn start(&self) -> Option<usize> {
+        Some(0)
+    }
 
     fn is_match(&self, state: &Option<usize>) -> bool {
-        state.map(|state| self.dfa.states[state].is_match).unwrap_or(false)
+        state
+            .map(|state| self.dfa.states[state].is_match)
+            .unwrap_or(false)
     }
 
     fn can_match(&self, state: &Option<usize>) -> bool {
@@ -193,8 +200,20 @@ impl DfaBuilder {
                 let lev_next = self.lev.accept(&lev_state, Some(c));
                 let next_si = self.cached_state(&lev_next);
                 if let Some(next_si) = next_si {
-                    self.add_utf8_sequences(true, dfa_si, next_si, c.to_lowercase().next().unwrap(), c.to_lowercase().next().unwrap());
-                    self.add_utf8_sequences(true, dfa_si, next_si, c.to_uppercase().next().unwrap(), c.to_uppercase().next().unwrap());
+                    self.add_utf8_sequences(
+                        true,
+                        dfa_si,
+                        next_si,
+                        c.to_lowercase().next().unwrap(),
+                        c.to_lowercase().next().unwrap(),
+                    );
+                    self.add_utf8_sequences(
+                        true,
+                        dfa_si,
+                        next_si,
+                        c.to_uppercase().next().unwrap(),
+                        c.to_uppercase().next().unwrap(),
+                    );
                     // self.add_utf8_sequences(true, dfa_si, next_si, c, c);
                     if !seen.contains(&next_si) {
                         seen.insert(next_si);
@@ -230,11 +249,7 @@ impl DfaBuilder {
         })
     }
 
-    fn add_mismatch_utf8_states(
-        &mut self,
-        from_si: usize,
-        lev_state: &[usize],
-    ) -> Option<(usize, Vec<usize>)> {
+    fn add_mismatch_utf8_states(&mut self, from_si: usize, lev_state: &[usize]) -> Option<(usize, Vec<usize>)> {
         let mismatch_state = self.lev.accept(lev_state, None);
         let to_si = match self.cached(&mismatch_state) {
             None => return None,
@@ -246,33 +261,19 @@ impl DfaBuilder {
         return Some((to_si, mismatch_state));
     }
 
-    fn add_utf8_sequences(
-        &mut self,
-        overwrite: bool,
-        from_si: usize,
-        to_si: usize,
-        from_chr: char,
-        to_chr: char,
-    ) {
+    fn add_utf8_sequences(&mut self, overwrite: bool, from_si: usize, to_si: usize, from_chr: char, to_chr: char) {
         for seq in Utf8Sequences::new(from_chr, to_chr) {
             let mut fsi = from_si;
-            for range in &seq.as_slice()[0..seq.len()-1] {
+            for range in &seq.as_slice()[0..seq.len() - 1] {
                 let tsi = self.new_state(false);
                 self.add_utf8_range(overwrite, fsi, tsi, range);
                 fsi = tsi;
             }
-            self.add_utf8_range(
-                overwrite, fsi, to_si, &seq.as_slice()[seq.len()-1]);
+            self.add_utf8_range(overwrite, fsi, to_si, &seq.as_slice()[seq.len() - 1]);
         }
     }
 
-    fn add_utf8_range(
-        &mut self,
-        overwrite: bool,
-        from: usize,
-        to: usize,
-        range: &Utf8Range,
-    ) {
+    fn add_utf8_range(&mut self, overwrite: bool, from: usize, to: usize, range: &Utf8Range) {
         for b in range.start as usize..range.end as usize + 1 {
             if overwrite || self.dfa.states[from].next[b].is_none() {
                 if let Some(state) = self.dfa.states[from].next[b] {
@@ -292,11 +293,10 @@ impl DfaBuilder {
     }
 }
 
-
 #[test]
 fn testo() {
-    use fst::{IntoStreamer, Streamer, Set};
-    
+    use fst::{IntoStreamer, Set, Streamer};
+
     let set = Set::from_iter(vec!["A", "Ächtung", "ächtung"]).unwrap();
     let lev = LevenshteinIC::new("ächtung", 0).unwrap();
     let mut stream = set.search(&lev).into_stream();
@@ -304,9 +304,7 @@ fn testo() {
     while let Some(key) = stream.next() {
         keys.push(key.to_vec());
     }
-    assert_eq!(keys, vec![
-        "Ächtung".as_bytes(), "ächtung".as_bytes()
-    ]);
+    assert_eq!(keys, vec!["Ächtung".as_bytes(), "ächtung".as_bytes()]);
 
     let set = Set::from_iter(vec!["äbUß"]).unwrap();
     let lev = LevenshteinIC::new("Äuß", 1).unwrap();
@@ -315,9 +313,5 @@ fn testo() {
     while let Some(key) = stream.next() {
         keys.push(key.to_vec());
     }
-    assert_eq!(keys, vec![
-        "äbUß".as_bytes()
-    ]);
-
-
+    assert_eq!(keys, vec!["äbUß".as_bytes()]);
 }

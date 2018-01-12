@@ -1,5 +1,3 @@
-
-
 // use bit_set::BitSet;
 
 // use std::collections::HashMap;
@@ -95,7 +93,6 @@
 // //     }
 // // }
 
-
 // use std::cmp;
 // const BUCKET_SIZE:u32 = 131072;
 
@@ -190,7 +187,6 @@
 
 // //     fn get_text_lines<F>(folder:&str, path: &str, exact_search:Option<String>, character: Option<&str>, mut fun: F) -> Result<(), SearchError>
 // // where F: FnMut(&str, u32) {
-
 
 // }
 
@@ -339,7 +335,6 @@
 //         assert_eq!(yop.next(), None);
 //         assert_eq!(yop.next(), None);
 
-
 //         let mut extended = BucketedScoreList::default();
 //         extended.extend(&scores);
 //         let mut yop = extended.iter();
@@ -422,10 +417,7 @@
 //     two.extend(one);
 // }
 
-
 // // static  K100K = 100000;
-
-
 
 // #[allow(dead_code)]
 // static K1K: u32 =   1000;
@@ -443,7 +435,6 @@
 // static K3MIO: u32 = 3000000;
 // #[allow(dead_code)]
 // static MIO: u32 =   1000000;
-
 
 // #[cfg(test)]
 // mod testo {
@@ -529,8 +520,6 @@
 //             }
 //         });
 //     }
-
-
 
 //     // #[bench]
 //     // fn quadratic_noo_(b: &mut Bencher) {

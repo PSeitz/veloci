@@ -13,10 +13,9 @@
 #![feature(plugin, custom_attribute)]
 #![plugin(flamer)]
 
-extern crate flame;
 extern crate crossbeam_channel;
 extern crate crossbeam_utils;
-
+extern crate flame;
 
 #[macro_use]
 extern crate serde_derive;
@@ -27,12 +26,12 @@ extern crate serde_json;
 extern crate rand;
 extern crate serde;
 // extern crate tokio_timer;
+extern crate chrono;
 extern crate fnv;
 extern crate fst;
 extern crate fst_levenshtein;
-extern crate regex;
-extern crate chrono;
 extern crate rayon;
+extern crate regex;
 
 extern crate flexi_logger;
 // extern crate env_logger;
@@ -47,14 +46,15 @@ extern crate test;
 extern crate bit_set;
 extern crate bit_vec;
 
-extern crate num;
-extern crate itertools;
-extern crate parking_lot;
 extern crate chashmap;
-extern crate trie;
+extern crate itertools;
 extern crate lru_cache;
+extern crate num;
+extern crate parking_lot;
+extern crate trie;
 
-#[macro_use] extern crate prettytable;
+#[macro_use]
+extern crate prettytable;
 
 extern crate levenshtein_automaton;
 // extern crate bodyparser;
@@ -76,12 +76,12 @@ extern crate heapsize_derive;
 
 extern crate byteorder;
 
-extern crate sled;
 extern crate json_converter;
 extern crate ordered_float;
+extern crate sled;
 
-extern crate mayda;
 extern crate colored;
+extern crate mayda;
 extern crate utf8_ranges;
 
 // use fst::{IntoStreamer, Streamer, Set, MapBuilder};

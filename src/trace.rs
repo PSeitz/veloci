@@ -8,22 +8,35 @@ use chrono::Local;
 /// <br>
 /// i.e. with timestamp and file location.
 pub fn format_log(record: &Record) -> String {
-    if module_path!().split("::").nth(0) == record.module_path().unwrap_or("<unnamed>").split("::").nth(0) {
-        format!("[{}] {} [{}:{}] {}",
+    if module_path!().split("::").nth(0)
+        == record
+            .module_path()
+            .unwrap_or("<unnamed>")
+            .split("::")
+            .nth(0)
+    {
+        format!(
+            "[{}] {} [{}:{}] {}",
             Local::now().format("%Y-%m-%d %H:%M:%S%.6f %:z"),
             record.level(),
             record.file().unwrap_or("<unnamed>"),
             record.line().unwrap_or(0),
-            &record.args())
-    }else{
-        format!("[{}] {} [{}] {}",
+            &record.args()
+        )
+    } else {
+        format!(
+            "[{}] {} [{}] {}",
             Local::now().format("%Y-%m-%d %H:%M:%S%.6f %:z"),
             record.level(),
             record.module_path().unwrap_or("<unnamed>"),
-            &record.args())
+            &record.args()
+        )
     }
 }
 
-pub fn enable_log(){
-    flexi_logger::Logger::with_env().format(format_log).start().unwrap();
+pub fn enable_log() {
+    flexi_logger::Logger::with_env()
+        .format(format_log)
+        .start()
+        .unwrap();
 }

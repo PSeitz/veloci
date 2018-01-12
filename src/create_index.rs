@@ -1,5 +1,5 @@
-extern crate flexi_logger;
 extern crate env_logger;
+extern crate flexi_logger;
 extern crate fst;
 extern crate fst_levenshtein;
 extern crate search_lib;
@@ -16,18 +16,20 @@ use std::io;
 use std::time::Instant;
 use std::str;
 
-
 fn main() {
     // env_logger::init().unwrap();
     search_lib::trace::enable_log();
-    std::env::args().nth(1).expect("require command line parameter");
+    std::env::args()
+        .nth(1)
+        .expect("require command line parameter");
 
-    for jeppo in std::env::args().skip(1){
+    for jeppo in std::env::args().skip(1) {
         match jeppo.as_ref() {
-            "healthcare" => println!("{:?}",create_healtcare()),
-            "jmdict" => println!("{:?}",create_jmdict_index()),
-            "gutenberg" => println!("{:?}",create_book_index()),
-            "thalia" => println!("{:?}",create_thalia_index()),
+            "healthcare" => println!("{:?}", create_healtcare()),
+            "jmdict" => println!("{:?}", create_jmdict_index()),
+            "gutenberg" => println!("{:?}", create_book_index()),
+            "thalia" => println!("{:?}", create_thalia_index()),
+            "thalia_big" => println!("{:?}", create_thalia_index_big()),
             _ => {}
         };
     }
@@ -53,6 +55,21 @@ fn main() {
     // server::start_server();
 }
 
+static TAHLIA_INDICES: &str = r#"
+[
+    { "fulltext":"MATNR"  },
+    { "fulltext":"ISMTITLE",     "options":{"tokenize":true}  },
+    { "fulltext":"ISMORIGTITLE", "options":{"tokenize":true}  },
+    { "fulltext":"ISMSUBTITLE1", "options":{"tokenize":true}  },
+    { "fulltext":"ISMSUBTITLE2", "options":{"tokenize":true}  },
+    { "fulltext":"ISMSUBTITLE3", "options":{"tokenize":true}  },
+    { "fulltext":"ISMARTIST",    "options":{"tokenize":true}  },
+    { "fulltext":"ISMLANGUAGES", "options":{"tokenize":false} },
+    { "fulltext":"ISMPUBLDATE",  "options":{"tokenize":false} },
+    { "fulltext":"EAN11",        "options":{"tokenize":false} },
+    { "fulltext":"ISMORIDCODE",  "options":{"tokenize":false} }
+]
+"#;
 
 #[allow(dead_code)]
 fn create_thalia_index() {
@@ -76,29 +93,34 @@ fn create_thalia_index() {
     let json = search_lib::create_from_csv::convert_to_json("./data 2.csv", headers);
     println!("converted json");
 
-    File::create("thalia.json").unwrap().write_all(&serde_json::to_string_pretty(&json).unwrap().as_bytes()).unwrap();
-    let indices = r#"
-    [
-        { "fulltext":"MATNR"  },
-        { "fulltext":"ISMTITLE",     "options":{"tokenize":true}  },
-        { "fulltext":"ISMORIGTITLE", "options":{"tokenize":true}  },
-        { "fulltext":"ISMSUBTITLE1", "options":{"tokenize":true}  },
-        { "fulltext":"ISMSUBTITLE2", "options":{"tokenize":true}  },
-        { "fulltext":"ISMSUBTITLE3", "options":{"tokenize":true}  },
-        { "fulltext":"ISMARTIST",    "options":{"tokenize":true}  },
-        { "fulltext":"ISMLANGUAGES", "options":{"tokenize":false} },
-        { "fulltext":"ISMPUBLDATE",  "options":{"tokenize":false} },
-        { "fulltext":"EAN11",        "options":{"tokenize":false} },
-        { "fulltext":"ISMORIDCODE",  "options":{"tokenize":false} }
-    ]
-    "#;
+    File::create("thalia.json")
+        .unwrap()
+        .write_all(&serde_json::to_string_pretty(&json).unwrap().as_bytes())
+        .unwrap();
 
-    println!("{:?}", search_lib::create::create_indices_json("thalia", json, indices));
+    println!(
+        "{:?}",
+        search_lib::create::create_indices_json("thalia", json, TAHLIA_INDICES)
+    );
+    // File::create("MATNR").unwrap().write_all(all_terms.join("\n").as_bytes()).unwrap();
+
+    // println!("{:?}", search_lib::create::create_indices_csv("csv_test", "./data.csv", TAHLIA_INDICES));
+}
+#[allow(dead_code)]
+fn create_thalia_index_big() -> Result<(), io::Error> {
+    let mut f = File::open("thalia_big.json")?;
+    let mut json = String::new();
+    f.read_to_string(&mut json)?;
+
+    println!(
+        "{:?}",
+        search_lib::create::create_indices("thalia", &json, TAHLIA_INDICES)
+    );
     // File::create("MATNR").unwrap().write_all(all_terms.join("\n").as_bytes()).unwrap();
 
     // println!("{:?}", search_lib::create::create_indices_csv("csv_test", "./data.csv", indices));
+    Ok(())
 }
-
 
 #[allow(dead_code)]
 fn create_jmdict_index() -> Result<(), io::Error> {
@@ -142,7 +164,10 @@ fn create_jmdict_index() -> Result<(), io::Error> {
     let mut f = File::open("jmdict.json")?;
     let mut s = String::new();
     f.read_to_string(&mut s)?;
-    println!("{:?}", search_lib::create::create_indices("jmdict", &s, indices));
+    println!(
+        "{:?}",
+        search_lib::create::create_indices("jmdict", &s, indices)
+    );
     Ok(())
 }
 
@@ -153,14 +178,21 @@ fn create_book_index() -> Result<(), io::Error> {
     let mut s = String::new();
     f.read_to_string(&mut s)?;
 
+    let books = (0..100)
+        .map(|_el| json!({"title":"PRIDE AND PREJUDICE", "content":s}))
+        .collect::<Vec<_>>();
 
-    let books = (0..100).map(|_el| json!({"title":"PRIDE AND PREJUDICE", "content":s})).collect::<Vec<_>>();
-
-    println!("{:?}", search_lib::create::create_indices("gutenberg", &serde_json::to_string_pretty(&books).unwrap(), indices));
+    println!(
+        "{:?}",
+        search_lib::create::create_indices(
+            "gutenberg",
+            &serde_json::to_string_pretty(&books).unwrap(),
+            indices
+        )
+    );
     // println!("{:?}", search_lib::create::create_indices("gutenberg", &json!({"title":"PRIDE AND PREJUDICE", "content":s}).to_string(), indices));
     Ok(())
 }
-
 
 // #[allow(dead_code)]
 // pub fn testfst(term: &str, max_distance: u32) -> Result<(Vec<String>), fst_levenshtein::Error> {
@@ -211,7 +243,6 @@ fn test_build_fst() -> Result<(), fst::Error> {
     let lines = s.lines().collect::<Vec<&str>>();
     println!("lines: {:?}", lines.len());
 
-
     let wtr = io::BufWriter::new(File::create("map.fst")?);
     // Create a builder that can be used to insert new key-value pairs.
     let mut build = MapBuilder::new(wtr)?;
@@ -228,8 +259,10 @@ fn test_build_fst() -> Result<(), fst::Error> {
     // Finish construction of the map and flush its contents to disk.
     build.finish()?;
 
-    println!("test_build_fst ms: {}", (now.elapsed().as_secs() as f64 * 1_000.0) + (now.elapsed().subsec_nanos() as f64 / 1000_000.0));
-
+    println!(
+        "test_build_fst ms: {}",
+        (now.elapsed().as_secs() as f64 * 1_000.0) + (now.elapsed().subsec_nanos() as f64 / 1000_000.0)
+    );
 
     Ok(())
 }
@@ -441,16 +474,6 @@ fn test_build_fst() -> Result<(), fst::Error> {
 
 // }
 
-
-
-
-
-
-
-
-
-
-
 fn create_healtcare() -> Result<(), io::Error> {
     let indices = r#"
     [
@@ -632,12 +655,9 @@ fn create_healtcare() -> Result<(), io::Error> {
     let mut f = File::open("healthcare.json")?;
     let mut s = String::new();
     f.read_to_string(&mut s)?;
-    println!("{:?}", search_lib::create::create_indices("healthcare", &s, indices));
+    println!(
+        "{:?}",
+        search_lib::create::create_indices("healthcare", &s, indices)
+    );
     Ok(())
 }
-
-
-
-
-
-

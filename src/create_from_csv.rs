@@ -1,13 +1,12 @@
-
 use csv;
-
 
 use serde_json;
 
-
-pub fn convert_to_json(csv_path: &str, headers:Vec<String>) -> serde_json::Value {
-
-    let mut rdr = csv::Reader::from_file(csv_path).unwrap().has_headers(false).escape(Some(b'\\'));
+pub fn convert_to_json(csv_path: &str, headers: Vec<String>) -> serde_json::Value {
+    let mut rdr = csv::Reader::from_file(csv_path)
+        .unwrap()
+        .has_headers(false)
+        .escape(Some(b'\\'));
     let mut data = vec![];
     for record in rdr.decode() {
         let els: Vec<Option<String>> = record.unwrap();
@@ -21,7 +20,6 @@ pub fn convert_to_json(csv_path: &str, headers:Vec<String>) -> serde_json::Value
     }
     json!(data)
 }
-
 
 // fn get_allterms_csv(csv_path: &str, attr_pos: usize, options: &FulltextIndexOptions) -> FnvHashMap<String, TermInfo> {
 //     // char escapeChar = 'a';
@@ -117,8 +115,6 @@ pub fn convert_to_json(csv_path: &str, headers:Vec<String>) -> serde_json::Value
 
 //     Ok(())
 // }
-
-
 
 // pub fn create_indices_csv(folder: &str, csv_path: &str, indices: &str) -> Result<(), CreateError> {
 //     // let indices_json:Result<Vec<CreateIndex>> = serde_json::from_str(indices);

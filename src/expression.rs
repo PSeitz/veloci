@@ -1,11 +1,8 @@
-
-
 #[derive(Debug)]
 pub struct ScoreExpression {
     expression: String,
-    ops:        Vec<OperatorType>,
+    ops: Vec<OperatorType>,
 }
-
 
 #[derive(Debug)]
 enum OperatorType {
@@ -39,7 +36,10 @@ enum OperationStep {
 impl ScoreExpression {
     pub fn new(expression: String) -> Self {
         let ops = ScoreExpression::parse(&expression);
-        ScoreExpression { expression: expression, ops:        ops }
+        ScoreExpression {
+            expression: expression,
+            ops: ops,
+        }
     }
 
     fn parse(expression: &str) -> Vec<OperatorType> {

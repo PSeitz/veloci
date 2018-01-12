@@ -29,7 +29,6 @@ mod tests {
 
     use facet;
     fn get_test_data() -> String {
-
         json!([
             {
                 "commonness": 123456,
@@ -182,7 +181,6 @@ mod tests {
         };
     }
 
-
     #[test]
     fn test_paths() {
         let paths = util::get_steps_to_anchor("meanings.ger[]");
@@ -205,24 +203,26 @@ mod tests {
     #[test]
     fn test_json_request() {
         warn!("can log from the test too");
-        let requesto: search::Request = serde_json::from_str(r#"{"search":{"path":"asdf", "terms":[ "asdf"], "levenshtein_distance":1}}"#)
-            .unwrap();
+        let requesto: search::Request = serde_json::from_str(r#"{"search":{"path":"asdf", "terms":[ "asdf"], "levenshtein_distance":1}}"#).unwrap();
         println!("mjjaaa {:?}", requesto);
         assert_eq!(requesto.search.unwrap().levenshtein_distance, Some(1));
     }
-
 
     fn search_testo_to_doc(req: Value) -> search::SearchResultWithDoc {
         search_testo_to_doco(req).expect("search error")
     }
 
     fn search_testo_to_doco(req: Value) -> Result<search::SearchResultWithDoc, search::SearchError> {
-        let pers = PERSISTENCES.get(&"default".to_string()).expect("Can't find loaded persistence");
+        let pers = PERSISTENCES
+            .get(&"default".to_string())
+            .expect("Can't find loaded persistence");
         Ok(search::to_search_result(&pers, search_testo_to_hitso(req)?))
     }
 
     fn search_testo_to_hitso(req: Value) -> Result<search::SearchResult, search::SearchError> {
-        let pers = PERSISTENCES.get(&"default".to_string()).expect("Can't find loaded persistence");
+        let pers = PERSISTENCES
+            .get(&"default".to_string())
+            .expect("Can't find loaded persistence");
         let requesto: search::Request = serde_json::from_str(&req.to_string()).expect("Can't parse json");
         let hits = search::search(requesto, &pers)?;
         Ok(hits)
@@ -757,7 +757,6 @@ mod tests {
 
     }
 
-
     // fn load_test_data() -> &'static persistence::Persistence  {
     //     let persistences = PERSISTENCES.read().unwrap();
     //     persistences.get(&"default".to_string()).unwrap()
@@ -800,17 +799,15 @@ mod tests {
     fn create_and_delete_file_in_subfolder() {
         fs::create_dir_all("subFolder1").unwrap();
         let some_terms = vec!["yep, yep"];
-        File::create("subFolder1/test1").unwrap().write_all(some_terms.join("\n").as_bytes()).unwrap();
+        File::create("subFolder1/test1")
+            .unwrap()
+            .write_all(some_terms.join("\n").as_bytes())
+            .unwrap();
         assert_eq!("lines", "lines");
         println!("{:?}", fs::remove_dir_all("subFolder1"));
     }
 
-
-
 }
-
-
-
 
 // #[cfg(test)]
 // mod test {
