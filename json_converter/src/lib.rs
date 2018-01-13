@@ -7,40 +7,56 @@ extern crate serde_json;
 extern crate fnv;
 extern crate test;
 extern crate flame;
+extern crate rayon;
+extern crate chashmap;
 
 use fnv::FnvHashMap;
 use serde_json::Value;
 use std::str;
+use std::borrow::Cow;
+use rayon::prelude::*;
+use chashmap::CHashMap;
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 pub mod bench;
 
 pub struct ForEachOpt {
 }
 
-pub fn convert_to_string(value: &Value) -> String {
+#[inline(always)]
+pub fn convert_to_string(value: &Value) -> Cow<str> {
     match value {
-        &Value::String(ref s) => s.as_str().to_string(),
-        &Value::Number(ref i) if i.is_u64() => i.as_u64().unwrap().to_string(),
-        &Value::Number(ref i) if i.is_f64() => i.as_f64().unwrap().to_string(),
-        &Value::Bool(ref i) => i.to_string(),
-        _ => "".to_string(),
+        &Value::String(ref s) => Cow::from(s.as_str()),
+        &Value::Number(ref i) if i.is_u64() => Cow::from(i.as_u64().unwrap().to_string()),
+        &Value::Number(ref i) if i.is_f64() => Cow::from(i.as_f64().unwrap().to_string()),
+        &Value::Bool(ref i) => Cow::from(i.to_string()),
+        _ => Cow::from(""),
     }
 }
 
-#[flame]
 pub fn for_each_element<F, F2>(data: &Value, id_provider: &mut IDProvider, opt: &mut ForEachOpt, cb_text: &mut F, cb_ids: &mut F2)
 where
     F: FnMut(&str, &str, u32),
     F2: FnMut(&str, u32, u32)
 {
+    let mut path = String::with_capacity(25);
     if let Some(arr) = data.as_array() {
-        for el in arr {
+
+        // arr.par_iter().for_each(|el| {
+        //     let mut path = String::with_capacity(25);
+        //     let root_id = id_provider.get_id("");
+        //     for_each_elemento(el, id_provider, root_id, &mut path, "", opt, cb_text, cb_ids);
+        //     path.clear();
+        // });
+
+        for el in arr.iter() {
             let root_id = id_provider.get_id("");
-            for_each_elemento(el, id_provider, root_id, &mut "".to_owned(), "", opt, cb_text, cb_ids);
+            for_each_elemento(el, id_provider, root_id, &mut path, "", opt, cb_text, cb_ids);
+            path.clear();
         }
     } else {
         let root_id = id_provider.get_id("");
-        for_each_elemento(data, id_provider, root_id, &mut "".to_owned(), "", opt, cb_text, cb_ids);
+        for_each_elemento(data, id_provider, root_id, &mut path, "", opt, cb_text, cb_ids);
     }
 
 }
@@ -50,10 +66,9 @@ where
     F: FnMut(&str, &str, u32),
     F2: FnMut(&str, u32, u32)
 {
-    
+
     if let Some(arr) = data.as_array() {
-        let delimiter = if current_path.len() == 0 || current_path.ends_with(".") {""} else {"."};
-        // current_path = current_path + delimiter + current_el_name + "[]";
+        let delimiter: &'static str = if current_path.len() == 0 || current_path.ends_with(".") {""} else {"."};
         current_path.push_str(delimiter);
         current_path.push_str(current_el_name);
         current_path.push_str("[]");
@@ -65,8 +80,7 @@ where
             unsafe {current_path.as_mut_vec().truncate(prev_len); }
         }
     } else if let Some(obj) = data.as_object() {
-        let delimiter = if current_path.len() == 0 || current_path.ends_with(".") {""} else {"."};
-        // current_path = current_path + delimiter + current_el_name;
+        let delimiter: &'static str = if current_path.len() == 0 || current_path.ends_with(".") {""} else {"."};
         current_path.push_str(delimiter);
         current_path.push_str(current_el_name);
         let prev_len = current_path.len();
@@ -77,14 +91,44 @@ where
     } else {
         current_path.push_str(current_el_name);
         current_path.push_str(".textindex");
-        cb_text(&convert_to_string(&data), &current_path , parent_id);
-        // cb_text(data.as_str().unwrap(), &(current_path + current_el_name + ".textindex") , parent_id);
+        cb_text(convert_to_string(&data).as_ref(), &current_path , parent_id);
     }
 }
 
 pub trait IDProvider {
     fn get_id(&mut self, path: &str) -> u32;
 }
+
+#[derive(Debug, Default)]
+pub struct ConcurrentIDHolder {
+    pub ids: CHashMap<String, AtomicUsize>
+}
+
+impl IDProvider for ConcurrentIDHolder {
+    fn get_id(&mut self, path: &str) -> u32{
+        {
+            if let Some(e) = self.ids.get_mut(path) {
+                return e.fetch_add(1, Ordering::SeqCst) as u32;
+            }
+        }
+
+        {
+            self.ids.upsert(path.to_string(), || AtomicUsize::new(0), |_exisitng|{});
+        }
+
+        if let Some(e) = self.ids.get_mut(path) {
+            return e.fetch_add(1, Ordering::SeqCst) as u32;
+        }
+        panic!("path not existing in id holder");
+
+    }
+}
+impl ConcurrentIDHolder {
+    pub fn new() -> ConcurrentIDHolder {
+        ConcurrentIDHolder{ids: CHashMap::default()}
+    }
+}
+
 
 #[derive(Debug)]
 pub struct IDHolder {
@@ -93,8 +137,16 @@ pub struct IDHolder {
 
 impl IDProvider for IDHolder {
     fn get_id(&mut self, path: &str) -> u32{
-        let stat = self.ids.entry(path.to_string()).and_modify(|e| { *e += 1 }).or_insert(0);
-        *stat
+        {
+            if let Some(e) = self.ids.get_mut(path) {
+                *e += 1;
+                return *e;
+            }
+        }
+
+        self.ids.insert(path.to_string(), 0);
+        return 0;
+
     }
 }
 
@@ -115,7 +167,12 @@ fn test_foreach() {
             "stuff": "yii"
         },{
             "stuff": "yaa"
-        }]
+        }],
+        "address": [
+            {
+                "line": [ "line1" ]
+            }
+        ]
     });
 
     let mut opt = ForEachOpt {};
@@ -127,16 +184,6 @@ fn test_foreach() {
     let mut callback_ids = |path: &str, val_id: u32, parent_val_id: u32| {
         println!("IDS: path {} val_id {} parent_val_id {}",path, val_id, parent_val_id);
     };
-
-
-    let data = json!({
-        "address": [
-            {
-                "line": [ "line1" ]
-            }
-        ]
-    });
-
 
     for_each_element(&data, &mut id_holder, &mut opt, &mut cb_text, &mut callback_ids);
 
