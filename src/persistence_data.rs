@@ -176,11 +176,11 @@ pub struct IndexIdToMultipleParentIndirect<T: IndexIdToParentData> {
 }
 impl<T: IndexIdToParentData> IndexIdToMultipleParentIndirect<T> {
     #[allow(dead_code)]
-    pub fn new(data: &IndexIdToParent<Output = T> ) -> IndexIdToMultipleParentIndirect<T> {
+    pub fn new(data: &IndexIdToParent<Output = T>) -> IndexIdToMultipleParentIndirect<T> {
         IndexIdToMultipleParentIndirect::new_sort_and_dedup(data, false)
     }
     #[allow(dead_code)]
-    pub fn new_sort_and_dedup(data: &IndexIdToParent<Output = T>, sort_and_dedup:bool ) -> IndexIdToMultipleParentIndirect<T> {
+    pub fn new_sort_and_dedup(data: &IndexIdToParent<Output = T>, sort_and_dedup: bool) -> IndexIdToMultipleParentIndirect<T> {
         let (start_and_end_pos, data) = to_indirect_arrays_dedup(data, 0, sort_and_dedup);
         IndexIdToMultipleParentIndirect {
             start_and_end: start_and_end_pos,
@@ -256,9 +256,6 @@ impl<T: IndexIdToParentData> IndexIdToMultipleParentCompressedMaydaINDIRECTOne<T
             data,
             size,
         }
-
-
-        
     }
 }
 
@@ -393,7 +390,6 @@ impl<T: IndexIdToParentData> IndexIdToParent for IndexIdToOneParent<T> {
     }
 }
 
-
 // lazy_static! {
 //     static ref NOT_FOUND_U64: u64 = {
 //         let not_found_u64 = u32::MAX;
@@ -401,7 +397,6 @@ impl<T: IndexIdToParentData> IndexIdToParent for IndexIdToOneParent<T> {
 //         yo
 //     };
 // }
-
 
 #[derive(Debug, HeapSizeOf)]
 pub struct IndexIdToOneParentMayda<T: IndexIdToParentData> {
@@ -446,7 +441,7 @@ impl<T: IndexIdToParentData> IndexIdToParent for IndexIdToOneParentMayda<T> {
         //     _ => Some(val),
         // }
     }
-    fn get_mutliple_value(&self, range: std::ops::RangeInclusive<usize>) -> Option<Vec<T>>{
+    fn get_mutliple_value(&self, range: std::ops::RangeInclusive<usize>) -> Option<Vec<T>> {
         Some(self.data.access(range))
     }
     fn get_keys(&self) -> Vec<T> {
@@ -598,25 +593,45 @@ impl<T: IndexIdToParentData> IndexIdToParent for SingleArrayFileReader<T> {
 
 impl IndexIdToParent for SingleArrayFileReader<u64> {
     fn get_value(&self, find: u64) -> Option<u64> {
-        get_reader(std::mem::size_of::<u64>(), find, 1, &self.data_file, &self.data_metadata).map(|mut rdr|{
-            rdr.read_u64::<LittleEndian>().unwrap()
-        })
+        get_reader(
+            std::mem::size_of::<u64>(),
+            find,
+            1,
+            &self.data_file,
+            &self.data_metadata,
+        ).map(|mut rdr| rdr.read_u64::<LittleEndian>().unwrap())
     }
 
-    fn get_mutliple_value(&self, range: std::ops::RangeInclusive<usize>) -> Option<Vec<Self::Output>>{
-        get_bytes(std::mem::size_of::<u64>(), range.start as u64, range.size_hint().0 as u64, &self.data_file, &self.data_metadata).map(|bytes|{
+    fn get_mutliple_value(&self, range: std::ops::RangeInclusive<usize>) -> Option<Vec<Self::Output>> {
+        get_bytes(
+            std::mem::size_of::<u64>(),
+            range.start as u64,
+            range.size_hint().0 as u64,
+            &self.data_file,
+            &self.data_metadata,
+        ).map(|bytes| {
             bytes_to_vec_u64(&bytes) // TODO Performance In place bytes to u64 ?
         })
     }
 }
 impl IndexIdToParent for SingleArrayFileReader<u32> {
     fn get_value(&self, find: u64) -> Option<u32> {
-        get_reader(std::mem::size_of::<u32>(), find, 1, &self.data_file, &self.data_metadata).map(|mut rdr|{
-            rdr.read_u32::<LittleEndian>().unwrap()
-        })
+        get_reader(
+            std::mem::size_of::<u32>(),
+            find,
+            1,
+            &self.data_file,
+            &self.data_metadata,
+        ).map(|mut rdr| rdr.read_u32::<LittleEndian>().unwrap())
     }
-    fn get_mutliple_value(&self, range: std::ops::RangeInclusive<usize>) -> Option<Vec<Self::Output>>{
-        get_bytes(std::mem::size_of::<u32>(), range.start as u64, range.size_hint().0 as u64, &self.data_file, &self.data_metadata).map(|bytes|{
+    fn get_mutliple_value(&self, range: std::ops::RangeInclusive<usize>) -> Option<Vec<Self::Output>> {
+        get_bytes(
+            std::mem::size_of::<u32>(),
+            range.start as u64,
+            range.size_hint().0 as u64,
+            &self.data_file,
+            &self.data_metadata,
+        ).map(|bytes| {
             bytes_to_vec_u32(&bytes) // TODO Performance In place bytes to u32 ?
         })
     }
@@ -642,7 +657,7 @@ fn get_bytes(block_size: usize, find: u64, num_elem: u64, data_file: &Mutex<fs::
 }
 fn get_reader(block_size: usize, find: u64, num_elem: u64, data_file: &Mutex<fs::File>, data_metadata: &Mutex<fs::Metadata>) -> Option<Cursor<Vec<u8>>> {
     // Some(Cursor::new(bytes))
-    get_bytes(block_size, find, num_elem, data_file, data_metadata).map(|bytes|Cursor::new(bytes))
+    get_bytes(block_size, find, num_elem, data_file, data_metadata).map(|bytes| Cursor::new(bytes))
 }
 
 #[derive(Debug)]
@@ -670,7 +685,8 @@ impl<T: IndexIdToParentData> PointingArrayFileReader<T> {
 impl<T: IndexIdToParentData> IndexIdToParent for PointingArrayFileReader<T> {
     type Output = T;
     default fn get_values(&self, find: u64) -> Option<Vec<T>> {
-        get_u32_values_from_pointing_file( //FIXME BUG BUG
+        get_u32_values_from_pointing_file(
+            //FIXME BUG BUG
             find,
             self.get_size(),
             &self.start_and_end_file,
@@ -866,8 +882,7 @@ fn to_indirect_arrays_dedup<T: Integer + Clone + NumCast + mayda::utility::Bits 
     for valid in 0..=num::cast(last_id).unwrap() {
         let start = offset;
         if let Some(mut vals) = store.get_values(valid as u64) {
-
-            if sort_and_dedup{
+            if sort_and_dedup {
                 vals.sort();
                 vals.dedup();
             }

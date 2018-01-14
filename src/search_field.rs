@@ -477,14 +477,14 @@ pub fn resolve_token_hits(persistence: &Persistence, path: &str, result: &mut Se
 
             // let ref parent_ids_for_token_opt = token_kvdata.get(*value_id as usize);
             if let Some(parent_ids_for_token) = token_kvdata.get_values(*term_id as u64) {
-
-                let token_text_length_offsets = text_offsets.get_mutliple_value(*term_id as usize ..= *term_id as usize + 1 ).unwrap();
+                let token_text_length_offsets = text_offsets
+                    .get_mutliple_value(*term_id as usize..=*term_id as usize + 1)
+                    .unwrap();
                 let token_text_length = token_text_length_offsets[1] - token_text_length_offsets[0];
                 // let token_text_length = text_offsets.get_value(1 + *term_id as u64).unwrap() - text_offsets.get_value(*term_id as u64).unwrap();
                 token_hits.reserve(parent_ids_for_token.len());
                 for token_parentval_id in parent_ids_for_token {
-
-                    if let Some(offsets) = text_offsets.get_mutliple_value(token_parentval_id as usize ..= token_parentval_id as usize + 1 ) {
+                    if let Some(offsets) = text_offsets.get_mutliple_value(token_parentval_id as usize..=token_parentval_id as usize + 1) {
                         let parent_text_length = offsets[1] - offsets[0];
                         let adjusted_score = score * (token_text_length as f32 / parent_text_length as f32);
                         trace!(

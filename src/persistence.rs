@@ -125,18 +125,18 @@ where
 pub trait IndexIdToParent: Debug + HeapSizeOf + Sync + Send + persistence_data::TypeInfo {
     type Output: IndexIdToParentData;
     fn get_values(&self, id: u64) -> Option<Vec<Self::Output>>;
-    fn get_mutliple_values(&self, range: std::ops::RangeInclusive<usize>) -> Vec<Option<Vec<Self::Output>>>{
+    fn get_mutliple_values(&self, range: std::ops::RangeInclusive<usize>) -> Vec<Option<Vec<Self::Output>>> {
         let mut dat = Vec::with_capacity(range.size_hint().0);
-        for i in range{
+        for i in range {
             // dat.extend(self.get_values(i as u64).unwrap());
             dat.push(self.get_values(i as u64))
         }
         dat
     }
 
-    fn get_mutliple_value(&self, range: std::ops::RangeInclusive<usize>) -> Option<Vec<Self::Output>>{
+    fn get_mutliple_value(&self, range: std::ops::RangeInclusive<usize>) -> Option<Vec<Self::Output>> {
         let mut dat = Vec::with_capacity(range.size_hint().0);
-        for i in range{
+        for i in range {
             dat.push(self.get_value(i as u64).unwrap())
         }
         Some(dat)
@@ -191,7 +191,6 @@ pub struct Persistence {
     pub cache: PersistenceCache,
 }
 
-
 use colored::*;
 
 pub fn get_readable_size(value: usize) -> ColoredString {
@@ -212,9 +211,18 @@ impl Persistence {
     }
 
     pub fn print_heap_sizes(&self) {
-        info!("cache.index_64 {}", get_readable_size_for_childs(&self.cache.index_64) );
-        info!("cache.index_id_to_parento {}", get_readable_size_for_childs(&self.cache.index_id_to_parento) );
-        info!("cache.boost_valueid_to_value {}", get_readable_size_for_childs(&self.cache.boost_valueid_to_value) );
+        info!(
+            "cache.index_64 {}",
+            get_readable_size_for_childs(&self.cache.index_64)
+        );
+        info!(
+            "cache.index_id_to_parento {}",
+            get_readable_size_for_childs(&self.cache.index_id_to_parento)
+        );
+        info!(
+            "cache.boost_valueid_to_value {}",
+            get_readable_size_for_childs(&self.cache.boost_valueid_to_value)
+        );
         info!("cache.fst {}", get_readable_size(self.get_fst_sizes()));
         info!("------");
         let total_size = self.get_fst_sizes() + self.cache.index_id_to_parento.heap_size_of_children() + self.cache.index_64.heap_size_of_children()
@@ -486,17 +494,19 @@ impl Persistence {
 
             match loading_type {
                 LoadingType::InMemory => {
-
                     let indirect = file_to_bytes(&(get_file_path(&self.db, &el.path) + ".indirect"))?;
                     let data = file_to_bytes(&(get_file_path(&self.db, &el.path) + ".data"))?;
                     let indirect_u32 = bytes_to_vec_u32(&indirect);
                     let data_u32 = bytes_to_vec_u32(&data);
-                    let store = IndexIdToMultipleParentCompressedMaydaINDIRECTOne{size: indirect_u32.len() / 2, start_and_end:to_monotone(&indirect_u32), data:to_uniform(&data_u32) };
+                    let store = IndexIdToMultipleParentCompressedMaydaINDIRECTOne {
+                        size: indirect_u32.len() / 2,
+                        start_and_end: to_monotone(&indirect_u32),
+                        data: to_uniform(&data_u32),
+                    };
                     if el.is_1_to_n {
-                        self.cache.index_id_to_parento.insert(
-                            el.path.to_string(),
-                            Box::new(store),
-                        );
+                        self.cache
+                            .index_id_to_parento
+                            .insert(el.path.to_string(), Box::new(store));
                     } else {
                         self.cache.index_id_to_parento.insert(
                             el.path.to_string(),
@@ -729,7 +739,7 @@ pub fn bytes_to_vec_u64(data: &[u8]) -> Vec<u64> {
 }
 
 fn file_to_bytes(s1: &str) -> Result<Vec<u8>, io::Error> {
-    let file_size = {fs::metadata(s1)?.len() as usize};
+    let file_size = { fs::metadata(s1)?.len() as usize };
     let f = File::open(s1)?;
     let mut reader = std::io::BufReader::new(f);
     let mut buffer: Vec<u8> = Vec::with_capacity(file_size);

@@ -41,33 +41,17 @@ impl Tokenizer for SimpleTokenizerCharsIterate {
         F: FnMut(&'a str, bool),
     {
         let mut last_byte_pos = 0;
-        for (pos, char) in orignal.char_indices(){
+        for (pos, char) in orignal.char_indices() {
             match char {
-                ' '
-                | '\t' | '\n' | '\r'
-                |'('
-                |')'
-                |','
-                |'.'
-                |'…'
-                |';'
-                |'・'
-                |'’'
-                |'-'
-                |'\\'
-                |'{'
-                |'}'
-                |'\''
-                |'"'
-                |'“' => {
+                ' ' | '\t' | '\n' | '\r' | '(' | ')' | ',' | '.' | '…' | ';' | '・' | '’' | '-' | '\\' | '{' | '}' | '\'' | '"' | '“' => {
                     if pos != last_byte_pos {
                         cb_text(&orignal[last_byte_pos..pos], false);
                     }
-                    let next_pos = pos+ char.len_utf8();
+                    let next_pos = pos + char.len_utf8();
                     cb_text(&orignal[pos..next_pos], false);
                     last_byte_pos = next_pos;
-                },
-                _ => {},
+                }
+                _ => {}
             }
         }
 
@@ -89,40 +73,22 @@ impl Tokenizer for SimpleTokenizerCharsIterateGroupTokens {
     {
         let mut last_returned_byte = 0;
         let mut last_was_token = false;
-        for (pos, char) in orignal.char_indices(){
+        for (pos, char) in orignal.char_indices() {
             match char {
-                ' '
-                | '\t' | '\n' | '\r'
-                |'('
-                |')'
-                |','
-                |'.'
-                |'…'
-                |';'
-                |'・'
-                |'’'
-                |'-'
-                |'\\'
-                |'{'
-                |'}'
-                |'\''
-                |'"'
-                |'“' => {
+                ' ' | '\t' | '\n' | '\r' | '(' | ')' | ',' | '.' | '…' | ';' | '・' | '’' | '-' | '\\' | '{' | '}' | '\'' | '"' | '“' => {
                     if !last_was_token {
                         cb_text(&orignal[last_returned_byte..pos], false);
                         last_was_token = true;
                         last_returned_byte = pos;
                     }
-                    
-                },
+                }
                 _ => {
                     if last_was_token {
                         cb_text(&orignal[last_returned_byte..pos], true);
                         last_was_token = false;
                         last_returned_byte = pos;
                     }
-
-                },
+                }
             }
         }
 
@@ -159,16 +125,10 @@ fn test_tokenizer_control_sequences_grouped() {
             vec.push(token.to_string());
         },
     );
-    assert_eq!(vec, vec!["das",
-                        " \n ",
-                        "ist",
-                        " ",
-                        "ein",
-                        " ",
-                        "txt",
-                        ", ",
-                        "test"])
-
+    assert_eq!(
+        vec,
+        vec!["das", " \n ", "ist", " ", "ein", " ", "txt", ", ", "test"]
+    )
 }
 #[test]
 fn test_tokenizer_control_sequences_alt() {
@@ -180,19 +140,12 @@ fn test_tokenizer_control_sequences_alt() {
             vec.push(token.to_string());
         },
     );
-        assert_eq!(vec, vec!["das",
-                        " ",
-                        "\n",
-                        " ",
-                        "ist",
-                        " ",
-                        "ein",
-                        " ",
-                        "txt",
-                        ",",
-                        " ",
-                        "test"])
-
+    assert_eq!(
+        vec,
+        vec![
+            "das", " ", "\n", " ", "ist", " ", "ein", " ", "txt", ",", " ", "test"
+        ]
+    )
 }
 
 // #[bench]
@@ -230,13 +183,10 @@ fn bench_custom_stuff(b: &mut test::Bencher) {
     let tokenizer = SimpleTokenizerCharsIterate {};
     let text = get_test_book();
     b.iter(|| {
-        let mut vec: Vec<String> = Vec::with_capacity(text.len()/5);
-        tokenizer.get_tokens(
-            &text,
-            &mut |token: &str, _is_seperator: bool| {
-                vec.push(token.to_string());
-            },
-        );
+        let mut vec: Vec<String> = Vec::with_capacity(text.len() / 5);
+        tokenizer.get_tokens(&text, &mut |token: &str, _is_seperator: bool| {
+            vec.push(token.to_string());
+        });
         vec
     })
 }
@@ -245,13 +195,10 @@ fn bench_custom_stuff_no_copy(b: &mut test::Bencher) {
     let tokenizer = SimpleTokenizerCharsIterate {};
     let text = get_test_book();
     b.iter(|| {
-        let mut vec = Vec::with_capacity(text.len()/5);
-        tokenizer.get_tokens(
-            &text,
-            &mut |token: &str, _is_seperator: bool| {
-                vec.push(token);
-            },
-        );
+        let mut vec = Vec::with_capacity(text.len() / 5);
+        tokenizer.get_tokens(&text, &mut |token: &str, _is_seperator: bool| {
+            vec.push(token);
+        });
         // vec
     })
 }
@@ -261,13 +208,10 @@ fn bench_custom_stuff_grouped_no_copy(b: &mut test::Bencher) {
     let tokenizer = SimpleTokenizerCharsIterateGroupTokens {};
     let text = get_test_book();
     b.iter(|| {
-        let mut vec = Vec::with_capacity(text.len()/5);
-        tokenizer.get_tokens(
-            &text,
-            &mut |token: &str, _is_seperator: bool| {
-                vec.push(token);
-            },
-        );
+        let mut vec = Vec::with_capacity(text.len() / 5);
+        tokenizer.get_tokens(&text, &mut |token: &str, _is_seperator: bool| {
+            vec.push(token);
+        });
         // vec
     })
 }
@@ -276,9 +220,7 @@ fn bench_custom_stuff_grouped_no_copy(b: &mut test::Bencher) {
 fn bench_regex_has_tokens(b: &mut test::Bencher) {
     let tokenizer = SimpleTokenizer {};
     let text = get_test_book();
-    b.iter(|| {
-        tokenizer.has_tokens(&text )
-    })
+    b.iter(|| tokenizer.has_tokens(&text))
 }
 
 // #[bench]
@@ -309,12 +251,11 @@ fn bench_regex_has_tokens(b: &mut test::Bencher) {
 //     })
 // }
 
-
 #[bench]
 fn bench_split_reserve(b: &mut test::Bencher) {
     let text = get_test_book();
     b.iter(|| {
-        let mut vec: Vec<String> = Vec::with_capacity(text.len()/5);
+        let mut vec: Vec<String> = Vec::with_capacity(text.len() / 5);
         for token in (&text).split(" ") {
             vec.push(token.to_string());
         }
@@ -322,18 +263,16 @@ fn bench_split_reserve(b: &mut test::Bencher) {
     })
 }
 
-
 #[bench]
 fn bench_split_iterate_only(b: &mut test::Bencher) {
     let text = get_test_book();
     b.iter(|| {
-        let mut vec: Vec<&str> = Vec::with_capacity(text.len()/5);
+        let mut vec: Vec<&str> = Vec::with_capacity(text.len() / 5);
         for token in (&text).split(" ") {
             vec.push(token);
         }
     })
 }
-
 
 // #[allow(unused_imports)]
 // use util;

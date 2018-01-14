@@ -180,7 +180,10 @@ fn store_full_text_info(persistence: &mut Persistence, all_terms: FnvHashMap<Str
     let mut offsets_fst: FnvHashMap<String, TermInfo> = FnvHashMap::default();
     for (i, offset) in offsets.iter().enumerate() {
         let padding = 1;
-        offsets_fst.insert(format!("{:0padding$}", i, padding = padding), TermInfo::new(*offset as u32));
+        offsets_fst.insert(
+            format!("{:0padding$}", i, padding = padding),
+            TermInfo::new(*offset as u32),
+        );
     }
     store_fst(persistence, &offsets_fst, &concat(&path, ".offsets")).expect("Could not store fst");
     //TEST FST AS ID MAPPER
@@ -230,7 +233,7 @@ use byteorder::{LittleEndian, WriteBytesExt};
 use tokenizer::*;
 
 fn add_count_text(terms: &mut FnvHashMap<String, TermInfo>, text: &str) {
-    if !terms.contains_key(text){
+    if !terms.contains_key(text) {
         terms.insert(text.to_string(), TermInfo::default());
     }
     let stat = terms.get_mut(text).unwrap();
@@ -285,7 +288,11 @@ pub fn get_allterms(data: &Value, fulltext_info_for_path: &FnvHashMap<String, Fu
     let mut opt = json_converter::ForEachOpt {};
     let mut id_holder = json_converter::IDHolder::new();
 
-    let num_elements = if let Some(arr) = data.as_array() {arr.len() } else{ 1 };
+    let num_elements = if let Some(arr) = data.as_array() {
+        arr.len()
+    } else {
+        1
+    };
 
     let tokenizer = SimpleTokenizerCharsIterateGroupTokens {};
     let default_fulltext_options = FulltextIndexOptions::new_with_tokenize();
@@ -297,8 +304,11 @@ pub fn get_allterms(data: &Value, fulltext_info_for_path: &FnvHashMap<String, Fu
                 .and_then(|el| el.options.as_ref())
                 .unwrap_or(&default_fulltext_options);
 
-            if !terms_in_path.contains_key(path){
-                terms_in_path.insert(path.to_string(), FnvHashMap::with_capacity_and_hasher(num_elements, Default::default()));
+            if !terms_in_path.contains_key(path) {
+                terms_in_path.insert(
+                    path.to_string(),
+                    FnvHashMap::with_capacity_and_hasher(num_elements, Default::default()),
+                );
             }
             let mut terms = terms_in_path.get_mut(path).unwrap();
 
@@ -342,7 +352,11 @@ pub fn get_allterms(data: &Value, fulltext_info_for_path: &FnvHashMap<String, Fu
 pub fn create_fulltext_index(data: &Value, mut persistence: &mut Persistence, indices_json: &Vec<CreateIndex>) -> Result<(), io::Error> {
     // let data: Value = serde_json::from_str(data_str).unwrap();
 
-    let num_elements = if let Some(arr) = data.as_array() {arr.len() } else{ 1 };
+    let num_elements = if let Some(arr) = data.as_array() {
+        arr.len()
+    } else {
+        1
+    };
 
     let fulltext_info_for_path: FnvHashMap<String, Fulltext> = indices_json
         .iter()
@@ -378,7 +392,9 @@ pub fn create_fulltext_index(data: &Value, mut persistence: &mut Persistence, in
         info_time!(format!("extract text and ids"));
         let mut cb_text = |value: &str, path: &str, parent_val_id: u32| {
             // let value = value.to_string();
-            let tokens_to_parent = tokens_in_path.entry(path.to_string()).or_insert(Vec::with_capacity(num_elements));
+            let tokens_to_parent = tokens_in_path
+                .entry(path.to_string())
+                .or_insert(Vec::with_capacity(num_elements));
             let tuples = text_tuples_to_parent_in_path
                 .entry(path.to_string())
                 .or_insert(Vec::with_capacity(num_elements));
