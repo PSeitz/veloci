@@ -191,29 +191,6 @@ pub struct Persistence {
     pub cache: PersistenceCache,
 }
 
-// fn has_duplicates<T: Copy + Clone + Integer>(data: &Vec<T>) -> bool {
-//     if data.len() == 0 {return false;}
-//     let mut prev = data[0];
-//     for el in data[1..].iter() {
-//         if *el == prev {return true; }
-//         prev = *el;
-//     }
-//     return false;
-// }
-
-// fn has_valid_duplicates(data: &Vec<&create::GetValueId>) -> bool {
-//     if data.len() == 0 {
-//         return false;
-//     }
-//     let mut prev = data[0].get_value_id();
-//     for el in data[1..].iter() {
-//         if el.get_value_id() == prev {
-//             return true;
-//         }
-//         prev = el.get_value_id();
-//     }
-//     return false;
-// }
 
 use colored::*;
 
@@ -320,11 +297,6 @@ impl Persistence {
 
     pub fn write_tuple_pair_dedup(&mut self, tuples: &mut Vec<create::ValIdPair>, path: &str, sort_and_dedup: bool) -> Result<(), io::Error> {
         let data = valid_pair_to_parallel_arrays::<u32>(tuples);
-
-        //     trace!("data.values1 {:?} \n {:?}", path, data.values1 );
-        //     trace!("data.values2 {:?} \n {:?}", path, data.values2 );
-        // }
-        // let has_duplicates = has_duplicates(&data.values1);
 
         self.write_indirect_index(&data, path, sort_and_dedup)?;
         //Parallel

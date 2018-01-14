@@ -176,6 +176,15 @@ fn store_full_text_info(persistence: &mut Persistence, all_terms: FnvHashMap<Str
     )?;
     let offsets = get_string_offsets(sorted_terms);
 
+    //TEST FST AS ID MAPPER
+    let mut offsets_fst: FnvHashMap<String, TermInfo> = FnvHashMap::default();
+    for (i, offset) in offsets.iter().enumerate() {
+        let padding = 1;
+        offsets_fst.insert(format!("{:0padding$}", i, padding = padding), TermInfo::new(*offset as u32));
+    }
+    store_fst(persistence, &offsets_fst, &concat(&path, ".offsets")).expect("Could not store fst");
+    //TEST FST AS ID MAPPER
+
     persistence.write_index(
         &persistence::vec_to_bytes_u64(&offsets),
         &offsets,
