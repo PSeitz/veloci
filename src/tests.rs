@@ -511,7 +511,7 @@ mod tests {
             });
             let requesto: search::RequestSearchPart = serde_json::from_str(&req.to_string()).expect("Can't parse json");
             let mut pers = PERSISTENCES.get(&"default".to_string()).unwrap();
-            let results = search_field::get_hits_in_field(&mut pers, &requesto).unwrap();
+            let results = search_field::get_hits_in_field(&mut pers, &requesto, None).unwrap();
             let mut all_terms = results.terms.values().collect::<Vec<&String>>();
             all_terms.sort();
             // assert_eq!(all_terms, ["majestät", "majestätischer", "majestätischer anblick", "majestätisches", "majestätisches aussehen"]);

@@ -116,7 +116,7 @@ impl StepExecutor for PlanStepType {
                 output_next_steps,
                 ..
             } => {
-                let field_result = search_field::get_hits_in_field(persistence, &mut req)?;
+                let field_result = search_field::get_hits_in_field(persistence, &mut req, None)?;
                 output_next_steps.send(field_result)?;
                 // Ok(field_result.hits)
                 Ok(())

@@ -644,7 +644,7 @@ pub fn add_token_values_to_tokens(persistence: &mut Persistence, data_str: &str,
             .map(|el| util::normalize_text(el))
             .collect::<Vec<_>>();
 
-        let hits = search_field::get_hits_in_field(persistence, &options)?;
+        let hits = search_field::get_hits_in_field(persistence, &options, None)?;
         if hits.hits.len() == 1 {
             tuples.push(ValIdToValue {
                 valid: *hits.hits.iter().nth(0).unwrap().0,

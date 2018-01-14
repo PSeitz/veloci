@@ -125,13 +125,17 @@ where
 pub trait IndexIdToParent: Debug + HeapSizeOf + Sync + Send + persistence_data::TypeInfo {
     type Output: IndexIdToParentData;
     fn get_values(&self, id: u64) -> Option<Vec<Self::Output>>;
-    fn get_mutliple_values(&self, range: std::ops::RangeInclusive<usize>) -> Vec<Option<Vec<Self::Output>>> {
-        let mut dat = Vec::with_capacity(range.size_hint().0);
-        for i in range {
-            // dat.extend(self.get_values(i as u64).unwrap());
-            dat.push(self.get_values(i as u64))
-        }
-        dat
+    // fn get_mutliple_values(&self, range: std::ops::RangeInclusive<usize>) -> Vec<Option<Vec<Self::Output>>> {
+    //     let mut dat = Vec::with_capacity(range.size_hint().0);
+    //     for i in range {
+    //         // dat.extend(self.get_values(i as u64).unwrap());
+    //         dat.push(self.get_values(i as u64))
+    //     }
+    //     dat
+    // }
+
+    fn get_count_for_id(&self, id: u64) -> Option<usize> {
+        self.get_values(id).map(|el| el.len())
     }
 
     fn get_mutliple_value(&self, range: std::ops::RangeInclusive<usize>) -> Option<Vec<Self::Output>> {

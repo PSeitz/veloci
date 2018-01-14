@@ -9,6 +9,7 @@ use util::concat;
 use std::cmp;
 use std::cmp::Ordering;
 use fnv::FnvHashMap;
+use fnv::FnvHashSet;
 use util;
 use ordered_float::OrderedFloat;
 // use hit_collector::HitCollector;
@@ -197,7 +198,7 @@ pub fn suggest_multi(persistence: &Persistence, req: Request) -> Result<SuggestF
             .iter()
             .map(|el| util::normalize_text(el))
             .collect::<Vec<_>>();
-        search_results.push(get_hits_in_field(persistence, &search_part)?);
+        search_results.push(get_hits_in_field(persistence, &search_part, None)?);
     }
     info_time!("suggest to vec/sort");
     Ok(get_text_score_id_from_result(
@@ -234,7 +235,7 @@ pub fn highlight(persistence: &Persistence, options: &mut RequestSearchPart) -> 
 
     Ok(get_text_score_id_from_result(
         false,
-        vec![get_hits_in_field(persistence, &options)?],
+        vec![get_hits_in_field(persistence, &options, None)?],
         options.skip.unwrap_or(0),
         options.top.unwrap_or(usize::max_value()),
     ))
@@ -258,18 +259,18 @@ pub fn highlight(persistence: &Persistence, options: &mut RequestSearchPart) -> 
 // }
 
 #[flame]
-pub fn get_hits_in_field(persistence: &Persistence, options: &RequestSearchPart) -> Result<SearchFieldResult, SearchError> {
+pub fn get_hits_in_field(persistence: &Persistence, options: &RequestSearchPart, filter: Option<&FnvHashSet<u32>>) -> Result<SearchFieldResult, SearchError> {
     let mut options = options.clone();
     options.path = options.path.to_string() + ".textindex";
 
     if options.terms.len() == 1 {
-        return get_hits_in_field_one_term(&persistence, &options);
+        return get_hits_in_field_one_term(&persistence, &options, filter);
     } else {
         let mut all_hits: FnvHashMap<String, SearchFieldResult> = FnvHashMap::default();
         for term in &options.terms {
             let mut options = options.clone();
             options.terms = vec![term.to_string()];
-            let hits: SearchFieldResult = get_hits_in_field_one_term(&persistence, &options)?;
+            let hits: SearchFieldResult = get_hits_in_field_one_term(&persistence, &options, filter)?;
             all_hits.insert(term.to_string(), hits); // todo
         }
     }
@@ -278,7 +279,7 @@ pub fn get_hits_in_field(persistence: &Persistence, options: &RequestSearchPart)
 }
 
 #[flame]
-fn get_hits_in_field_one_term(persistence: &Persistence, options: &RequestSearchPart) -> Result<SearchFieldResult, SearchError> {
+fn get_hits_in_field_one_term(persistence: &Persistence, options: &RequestSearchPart, filter: Option<&FnvHashSet<u32>>) -> Result<SearchFieldResult, SearchError> {
     debug_time!(format!("{} get_hits_in_field", &options.path));
     // let mut hits:FnvHashMap<u32, f32> = FnvHashMap::default();
     let mut result = SearchFieldResult::default();
@@ -348,7 +349,7 @@ fn get_hits_in_field_one_term(persistence: &Persistence, options: &RequestSearch
     trace!("hits in textindex: {:?}", result.hits);
 
     if options.resolve_token_to_parent_hits.unwrap_or(true) {
-        resolve_token_hits(persistence, &options.path, &mut result, options)?;
+        resolve_token_hits(persistence, &options.path, &mut result, options, filter)?;
     }
 
     if options.token_value.is_some() {
@@ -442,7 +443,7 @@ pub fn resolve_snippets(persistence: &Persistence, path: &str, result: &mut Sear
 }
 
 #[flame]
-pub fn resolve_token_hits(persistence: &Persistence, path: &str, result: &mut SearchFieldResult, options: &RequestSearchPart) -> Result<(), search::SearchError> {
+pub fn resolve_token_hits(persistence: &Persistence, path: &str, result: &mut SearchFieldResult, options: &RequestSearchPart, filter: Option<&FnvHashSet<u32>>) -> Result<(), search::SearchError> {
     let has_tokens = persistence
         .meta_data
         .fulltext_indices
@@ -484,6 +485,13 @@ pub fn resolve_token_hits(persistence: &Persistence, path: &str, result: &mut Se
                 // let token_text_length = text_offsets.get_value(1 + *term_id as u64).unwrap() - text_offsets.get_value(*term_id as u64).unwrap();
                 token_hits.reserve(parent_ids_for_token.len());
                 for token_parentval_id in parent_ids_for_token {
+
+                    if let Some(filter) = filter {
+                       if filter.contains(&token_parentval_id){
+                            continue;
+                       }
+                    }
+
                     if let Some(offsets) = text_offsets.get_mutliple_value(token_parentval_id as usize..=token_parentval_id as usize + 1) {
                         let parent_text_length = offsets[1] - offsets[0];
                         let adjusted_score = score * (token_text_length as f32 / parent_text_length as f32);

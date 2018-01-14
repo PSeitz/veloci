@@ -268,6 +268,15 @@ impl<T: IndexIdToParentData> IndexIdToParent for IndexIdToMultipleParentCompress
     fn get_keys(&self) -> Vec<T> {
         (NumCast::from(0).unwrap()..NumCast::from(self.start_and_end.len() / 2).unwrap()).collect()
     }
+
+    fn get_count_for_id(&self, id: u64) -> Option<usize> {
+        if id >= self.size as u64 {
+            None
+        } else {
+            let positions = self.start_and_end.access((id * 2) as usize..=((id * 2) as usize + 1));
+            (positions[1] - positions[0]).to_usize()
+        }
+    }
 }
 
 // impl IndexIdToParent for IndexIdToMultipleParentCompressedMaydaINDIRECTOne<u32> {
@@ -291,7 +300,7 @@ impl<T: IndexIdToParentData> IndexIdToParent for IndexIdToMultipleParentCompress
 //     }
 // }
 
-#[inline(always)]
+#[inline]
 fn get_values_indirect_generic<T, K, M>(id: u64, size: u64, start_and_end: &T, data: &K) -> Option<Vec<M>>
 where
     T: mayda::utility::Access<std::ops::RangeInclusive<usize>, Output = Vec<M>> + mayda::utility::Access<std::ops::Range<usize>, Output = Vec<M>>,
@@ -1103,9 +1112,9 @@ fn test_snap() {
 
 #[cfg(test)]
 mod test {
+    use test;
     use super::*;
     use rand;
-    use test;
 
     fn get_test_data_1_to_1() -> IndexIdToOneParent<u64> {
         let values = vec![5, 6, 9, 9, 9, 50000];
@@ -1146,7 +1155,7 @@ mod test {
     #[test]
     fn test_index_id_to_multiple_vec_vec_flat() {
         let data = get_test_data_1_to_n();
-        let mut store = IndexIdToMultipleParent::new(&data);
+        let store = IndexIdToMultipleParent::new(&data);
         check_test_data_1_to_n(&store);
     }
 
@@ -1157,7 +1166,6 @@ mod test {
     }
 
     mod test_direct_1_to_1 {
-        use test;
         use super::*;
 
         #[test]
@@ -1179,7 +1187,6 @@ mod test {
     }
 
     mod test_indirect {
-        use test;
         use super::*;
         use rand::distributions::{IndependentSample, Range};
         #[test]
