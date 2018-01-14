@@ -9,9 +9,19 @@ pub trait Tokenizer {
 }
 
 lazy_static! {
-    static ref TOKENIZER:Regex  = Regex::new(r#"([\s\(\),.…;・’\-\[\]{}'"“])+|([^\s\(\),.…;・’\-\[\]{}'"“]*)"#).unwrap();
+    // static ref TOKENIZER:Regex  = Regex::new(r#"([\s\(\),.…;・’\-\[\]{}'"“])+|([^\s\(\),.…;・’\-\[\]{}'"“]*)"#).unwrap();
     // static ref TOKENIZER:Regex  = Regex::new(r#"([\s])+|([^\s]*)"#).unwrap();
     static ref SEPERATORS:Regex = Regex::new(r#"(?P<seperator>[\s\(\),.…;・’\-\[\]{}'"“]+)"#).unwrap();
+}
+
+
+fn is_default_seperator(char:char) -> bool {
+    match char {
+        ' ' | '\t' | '\n' | '\r' | '(' | ')' | ',' | '.' | '…' | ';' | '・' | '’' | '-' | '\\' | '{' | '}' | '\'' | '"' | '“' => {
+            true
+        }
+        _ => false
+    }
 }
 
 #[derive(Debug)]
@@ -21,29 +31,10 @@ impl Tokenizer for SimpleTokenizer {
     where
         F: FnMut(&'a str, bool),
     {
-        for cap in TOKENIZER.captures_iter(orignal) {
-            // cb_text(&cap[0], *&cap.get(1).is_some());
-            // println!("{:?} {:?}", &cap[0], &cap.get(1).is_some());
-            //println!("Month: {} Day: {} Year: {}", &cap[2], &cap[3], &cap[1]);
-        }
-    }
-
-    fn has_tokens(&self, orignal: &str) -> bool {
-        SEPERATORS.is_match(orignal)
-    }
-}
-
-#[derive(Debug)]
-pub struct SimpleTokenizerCharsIterate {}
-impl Tokenizer for SimpleTokenizerCharsIterate {
-    fn get_tokens<'a, F>(&self, orignal: &'a str, cb_text: &mut F)
-    where
-        F: FnMut(&'a str, bool),
-    {
         let mut last_byte_pos = 0;
         for (pos, char) in orignal.char_indices() {
-            match char {
-                ' ' | '\t' | '\n' | '\r' | '(' | ')' | ',' | '.' | '…' | ';' | '・' | '’' | '-' | '\\' | '{' | '}' | '\'' | '"' | '“' => {
+            match is_default_seperator(char) {
+                true => {
                     if pos != last_byte_pos {
                         cb_text(&orignal[last_byte_pos..pos], false);
                     }
@@ -51,7 +42,7 @@ impl Tokenizer for SimpleTokenizerCharsIterate {
                     cb_text(&orignal[pos..next_pos], false);
                     last_byte_pos = next_pos;
                 }
-                _ => {}
+                false => {}
             }
         }
 
@@ -74,15 +65,15 @@ impl Tokenizer for SimpleTokenizerCharsIterateGroupTokens {
         let mut last_returned_byte = 0;
         let mut last_was_token = false;
         for (pos, char) in orignal.char_indices() {
-            match char {
-                ' ' | '\t' | '\n' | '\r' | '(' | ')' | ',' | '.' | '…' | ';' | '・' | '’' | '-' | '\\' | '{' | '}' | '\'' | '"' | '“' => {
+            match is_default_seperator(char) {
+                true => {
                     if !last_was_token {
                         cb_text(&orignal[last_returned_byte..pos], false);
                         last_was_token = true;
                         last_returned_byte = pos;
                     }
                 }
-                _ => {
+                false => {
                     if last_was_token {
                         cb_text(&orignal[last_returned_byte..pos], true);
                         last_was_token = false;
@@ -132,7 +123,7 @@ fn test_tokenizer_control_sequences_grouped() {
 }
 #[test]
 fn test_tokenizer_control_sequences_alt() {
-    let tokenizer = SimpleTokenizerCharsIterate {};
+    let tokenizer = SimpleTokenizer {};
     let mut vec: Vec<String> = vec![];
     tokenizer.get_tokens(
         "das \n ist ein txt, test",
@@ -162,25 +153,10 @@ fn test_tokenizer_control_sequences_alt() {
 //     })
 // }
 
-// #[bench]
-// fn bench_regex_closure(b: &mut test::Bencher) {
-//     let tokenizer = SimpleTokenizer {};
-//     let text = get_test_book();
-//     b.iter(|| {
-//         let mut vec: Vec<String> = vec![];
-//         tokenizer.get_tokens(
-//             &text,
-//             &mut |token: &str, _is_seperator: bool| {
-//                 vec.push(token.to_string());
-//             },
-//         );
-//         vec
-//     })
-// }
 
 #[bench]
 fn bench_custom_stuff(b: &mut test::Bencher) {
-    let tokenizer = SimpleTokenizerCharsIterate {};
+    let tokenizer = SimpleTokenizer {};
     let text = get_test_book();
     b.iter(|| {
         let mut vec: Vec<String> = Vec::with_capacity(text.len() / 5);
@@ -192,7 +168,7 @@ fn bench_custom_stuff(b: &mut test::Bencher) {
 }
 #[bench]
 fn bench_custom_stuff_no_copy(b: &mut test::Bencher) {
-    let tokenizer = SimpleTokenizerCharsIterate {};
+    let tokenizer = SimpleTokenizer {};
     let text = get_test_book();
     b.iter(|| {
         let mut vec = Vec::with_capacity(text.len() / 5);
@@ -215,29 +191,6 @@ fn bench_custom_stuff_grouped_no_copy(b: &mut test::Bencher) {
         // vec
     })
 }
-
-#[bench]
-fn bench_regex_has_tokens(b: &mut test::Bencher) {
-    let tokenizer = SimpleTokenizer {};
-    let text = get_test_book();
-    b.iter(|| tokenizer.has_tokens(&text))
-}
-
-// #[bench]
-// fn bench_regex_closure_box(b: &mut test::Bencher) {
-//     let tokenizer = Box::new(SimpleTokenizer {});
-//     let text = get_test_book();
-//     b.iter(|| {
-//         let mut vec: Vec<String> = vec![];
-//         tokenizer.get_tokens(
-//             &text,
-//             &mut |token: &str, _is_seperator: bool| {
-//                 vec.push(token.to_string());
-//             },
-//         );
-//         vec
-//     })
-// }
 
 // #[bench]
 // fn bench_split(b: &mut test::Bencher) {
