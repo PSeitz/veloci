@@ -28,7 +28,7 @@ mod tests {
     // use fnv::FnvHashMap;
 
     use facet;
-    fn get_test_data() -> String {
+    pub fn get_test_data() -> String {
         json!([
             {
                 "commonness": 123456,

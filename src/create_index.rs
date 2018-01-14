@@ -100,7 +100,7 @@ fn create_thalia_index() {
 
     println!(
         "{:?}",
-        search_lib::create::create_indices_json("thalia", json, TAHLIA_INDICES)
+        search_lib::create::create_indices_json("thalia", &json, TAHLIA_INDICES)
     );
     // File::create("MATNR").unwrap().write_all(all_terms.join("\n").as_bytes()).unwrap();
 
