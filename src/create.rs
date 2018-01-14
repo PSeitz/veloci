@@ -278,7 +278,7 @@ pub fn get_allterms(data: &Value, fulltext_info_for_path: &FnvHashMap<String, Fu
 
     let num_elements = if let Some(arr) = data.as_array() {arr.len() } else{ 1 };
 
-    let tokenizer = SimpleTokenizer {};
+    let tokenizer = SimpleTokenizerCharsIterateGroupTokens {};
     let default_fulltext_options = FulltextIndexOptions::new_with_tokenize();
 
     {
@@ -364,7 +364,7 @@ pub fn create_fulltext_index(data: &Value, mut persistence: &mut Persistence, in
 
     let default_fulltext_options = FulltextIndexOptions::new_with_tokenize();
 
-    let tokenizer = SimpleTokenizer {};
+    let tokenizer = SimpleTokenizerCharsIterateGroupTokens {};
     {
         info_time!(format!("extract text and ids"));
         let mut cb_text = |value: &str, path: &str, parent_val_id: u32| {
