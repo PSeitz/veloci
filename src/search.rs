@@ -86,6 +86,8 @@ pub struct RequestSearchPart {
     pub top: Option<usize>,
     pub skip: Option<usize>,
     pub snippet_info: Option<SnippetInfo>,
+    #[serde(default)]
+    pub fast_field: bool,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -186,6 +188,7 @@ impl Default for BoostFunction {
 pub struct SearchResult {
     pub num_hits: u64,
     pub data: Vec<Hit>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub facets: Option<FnvHashMap<String, Vec<(String, usize)>>>,
 }
 
@@ -260,32 +263,165 @@ pub fn apply_top_skip<T: Clone>(hits: Vec<T>, skip: usize, mut top: usize) -> Ve
     hits[skip..top].to_vec()
 }
 
-#[flame]
-pub fn search_query(request: &str, persistence: &Persistence, top: Option<usize>, skip: Option<usize>, levenshtein: Option<usize>) -> Request {
-    // let req = persistence.meta_data.fulltext_indices.key
+fn extract_field_name(field: &str) -> String {
+    field
+    .chars()
+    .take(field.chars().count() - 10) //remove .textindex
+    .into_iter()
+    .collect()
+}
 
-    let terms = request.split(" ").collect::<Vec<&str>>();
+fn get_default_levenshtein(term: &str) -> usize {
+    match term.chars().count() {
+        0..=3 => 0,
+        4..=7 => 1,
+        _ => 2,
+    }
+}
 
-    info_time!("generating search query");
-    let parts: Vec<Request> = persistence
+fn get_all_field_names(persistence: &Persistence) -> Vec<String> {
+    persistence
         .meta_data
         .fulltext_indices
         .keys()
-        .flat_map(|field| {
-            let field_name: String = field
-                .chars()
-                .take(field.chars().count() - 10)
-                .into_iter()
-                .collect();
+        .map(|field| extract_field_name(field))
+        .collect()
+}
 
+#[flame]
+pub fn suggest_query(request: &str, persistence: &Persistence, mut top: Option<usize>, mut skip: Option<usize>, levenshtein: Option<usize>, fields:Option<Vec<String>>) -> Request {
+    // let req = persistence.meta_data.fulltext_indices.key
+
+    if top.is_none() {top = Some(10); }
+    // if skip.is_none() {top = Some(0); }
+
+    let requests = get_all_field_names(&persistence)
+        .iter()
+        .filter(|el| {
+            if let Some(ref filter) = fields {
+                return filter.contains(el);
+            }
+            return true;
+        })
+        .map(|field_name| {
+            let levenshtein_distance = levenshtein.unwrap_or_else(|| get_default_levenshtein(request));
+            let starts_with = if request.chars().count() <= 3 {
+                None
+            } else {
+                Some(true)
+            };
+            RequestSearchPart {
+                path: field_name.to_string(),
+                terms: vec![request.to_string()],
+                levenshtein_distance: Some(levenshtein_distance as u32),
+                starts_with: starts_with,
+                top: top,
+                skip: skip,
+                ..Default::default()
+            }
+        }).collect();
+
+    return Request {
+        suggest: Some(requests),
+        top: top.unwrap_or(10),
+        skip: skip.unwrap_or(0),
+        ..Default::default()
+    }
+
+
+}
+
+use regex::Regex;
+pub fn normalize_to_single_space(text: &str) -> String {
+    lazy_static! {
+        static ref REGEXES:Vec<Regex> = vec![
+            Regex::new(r"\s\s+").unwrap() // replace tabs, newlines, double spaces with single spaces
+        ];
+
+    }
+    let mut new_str = text.to_owned();
+    for ref tupl in &*REGEXES {
+        new_str = tupl.replace_all(&new_str, " ").into_owned();
+    }
+
+    new_str.trim().to_owned()
+}
+
+#[flame]
+pub fn search_query(request: &str, persistence: &Persistence, top: Option<usize>, skip: Option<usize>, mut operator: Option<String>, levenshtein: Option<usize>, facetlimit: Option<usize>, facets: Option<Vec<String>>) -> Request {
+    // let req = persistence.meta_data.fulltext_indices.key
+
+    let terms:Vec<String> = if operator.is_none() && request.contains(" AND "){
+
+        operator = Some("and".to_string());
+
+        let mut s = String::from(request);
+        while let Some(pos) = s.find(" AND ") {
+            s.splice(pos..=pos+4, " ");
+        }
+        s = normalize_to_single_space(&s);
+        s.split(" ").map(|el|el.to_string()).collect()
+    }else{
+        request.split(" ").map(|el|el.to_string()).collect()
+    };
+
+    // let terms = request.split(" ").map(|el|el.to_string()).collect::<Vec<&str>>();
+    let op = operator.map(|op| op.to_lowercase()).unwrap_or("or".to_string());
+
+    let facets_req: Option<Vec<FacetRequest>> = facets.map(|facets_fields|{
+        facets_fields.iter().map(|f| {
+            FacetRequest{field: f.to_string(), top: facetlimit.unwrap_or(5)}
+        }).collect()
+    });
+
+    if op == "and" {
+        let requests: Vec<Request> = terms
+            .iter()
+            .map(|term| {
+                let levenshtein_distance = levenshtein.unwrap_or_else(|| get_default_levenshtein(term));
+
+
+                let parts = get_all_field_names(&persistence)
+                .iter()
+                .map(|field_name| {
+                    let part = RequestSearchPart {
+                        path: field_name.to_string(),
+                        terms: vec![term.to_string()],
+                        levenshtein_distance: Some(levenshtein_distance as u32),
+                        resolve_token_to_parent_hits: Some(true),
+                        ..Default::default()
+                    };
+                    Request {
+                        search: Some(part),
+                        ..Default::default()
+                    }
+                }).collect();
+
+                Request {
+                    or: Some(parts), // or over fields
+                    ..Default::default()
+                }
+            })
+            .collect();
+
+        return Request {
+            and: Some(requests), // and for terms
+            top: top.unwrap_or(10),
+            skip: skip.unwrap_or(0),
+            facets: facets_req,
+            ..Default::default()
+        }
+    }
+
+
+    info_time!("generating search query");
+    let parts: Vec<Request> = get_all_field_names(&persistence)
+        .iter()
+        .flat_map(|field_name| {
             let requests: Vec<Request> = terms
                 .iter()
                 .map(|term| {
-                    let levenshtein_distance = levenshtein.unwrap_or_else(|| match term.chars().count() {
-                        0..=3 => 0,
-                        3..=7 => 1,
-                        _ => 2,
-                    });
+                    let levenshtein_distance = levenshtein.unwrap_or_else(|| get_default_levenshtein(term));
                     let part = RequestSearchPart {
                         path: field_name.to_string(),
                         terms: vec![term.to_string()],
@@ -308,8 +444,10 @@ pub fn search_query(request: &str, persistence: &Persistence, top: Option<usize>
         or: Some(parts),
         top: top.unwrap_or(10),
         skip: skip.unwrap_or(0),
+        facets: facets_req,
         ..Default::default()
     }
+
 }
 
 use facet;
@@ -339,11 +477,16 @@ pub fn search(request: Request, persistence: &Persistence) -> Result<SearchResul
     search_result.data = hits_to_sorted_array(res.hits);
     search_result.num_hits = search_result.data.len() as u64;
 
-    let hit_ids = search_result.data.iter().map(|el| el.id).collect();
     if let Some(facets_req) = request.facets {
+        let mut hit_ids:Vec<u32> = {
+            debug_time!("get_and_sort_for_factes");
+            let mut hit_ids:Vec<u32> = search_result.data.iter().map(|el| el.id).collect();
+            hit_ids.sort_unstable();
+            hit_ids
+        };
         search_result.facets = Some(
             facets_req
-                .iter()
+                .par_iter()
                 .map(|facet_req| {
                     (
                         facet_req.field.to_string(),
@@ -367,6 +510,17 @@ pub fn get_shortest_result<T: std::iter::ExactSizeIterator>(results: &Vec<T>) ->
         }
     }
     shortest.0
+}
+
+#[flame]
+pub fn get_longest_result<T: std::iter::ExactSizeIterator>(results: &Vec<T>) -> usize {
+    let mut longest = (0, std::u64::MIN);
+    for (index, res) in results.iter().enumerate() {
+        if (res.len() as u64) > longest.1 {
+            longest = (index, res.len() as u64);
+        }
+    }
+    longest.0
 }
 
 // #[flame]
@@ -412,16 +566,24 @@ pub fn get_shortest_result<T: std::iter::ExactSizeIterator>(results: &Vec<T>) ->
 use search_field::*;
 
 #[flame]
-pub fn union_hits(vec: Vec<SearchFieldResult>) -> SearchFieldResult {
-    let mut result = SearchFieldResult::default();
+pub fn union_hits(mut or_results: Vec<SearchFieldResult>) -> SearchFieldResult {
 
-    result.hits = vec.iter().fold(
-        FnvHashMap::default(),
-        |mut acc, x| -> FnvHashMap<u32, f32> {
-            acc.extend(&x.hits);
-            acc
-        },
-    );
+    let index_longest = get_longest_result(&or_results.iter().map(|el| el.hits.iter()).collect());
+    let longest_result = or_results.swap_remove(index_longest).hits;
+
+    let mut result = SearchFieldResult::default();
+    result.hits = longest_result;
+    for res in or_results {
+        result.hits.extend(&res.hits);
+    }
+
+    // result.hits = or_results.iter().fold(
+    //     FnvHashMap::default(),
+    //     |mut acc, x| -> FnvHashMap<u32, f32> {
+    //         acc.extend(&x.hits);
+    //         acc
+    //     },
+    // );
 
     result
 }

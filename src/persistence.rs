@@ -27,6 +27,8 @@ use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use log;
 
 #[allow(unused_imports)]
+use rayon::prelude::*;
+#[allow(unused_imports)]
 use fst::{IntoStreamer, Map, MapBuilder, Set};
 
 use prettytable::Table;
@@ -61,6 +63,12 @@ pub struct KVStoreMetaData {
     pub is_1_to_n: bool, // In the sense of 1:n   1key, n values
     pub persistence_type: KVStoreType,
     pub loading_type: LoadingType,
+    #[serde(default = "default_max_value_id")]
+    pub max_value_id: u32, // max value on the "right" side key -> value, key -> value ..
+}
+
+fn default_max_value_id() -> u32 {
+    std::u32::MAX
 }
 
 // impl KVStoreMetaData {
@@ -124,7 +132,44 @@ where
 
 pub trait IndexIdToParent: Debug + HeapSizeOf + Sync + Send + persistence_data::TypeInfo {
     type Output: IndexIdToParentData;
+
+    #[inline]
     fn get_values(&self, id: u64) -> Option<Vec<Self::Output>>;
+
+    #[inline]
+    fn append_values(&self, id: u64, vec: &mut Vec<Self::Output>){
+        if let Some(vals) = self.get_values(id) {
+            vec.reserve(vals.len());
+            for id in vals {
+                vec.push(id);
+            }
+        }
+    }
+
+    #[inline]
+    fn append_values_for_ids(&self, ids: &[u32], vec: &mut Vec<Self::Output>){
+        for id in ids {
+            if let Some(vals) = self.get_values(*id as u64) {
+                vec.reserve(vals.len());
+                for id in vals {
+                    vec.push(id);
+                }
+            }
+        }
+    }
+
+    #[inline]
+    fn count_values_for_ids(&self, ids: &[u32], hits: &mut FnvHashMap<Self::Output, usize>){
+        for id in ids {
+            if let Some(vals) = self.get_values(*id as u64) {
+                // vec.reserve(vals.len());
+                for id in vals {
+                    let stat = hits.entry(id).or_insert(0);
+                    *stat += 1;
+                }
+            }
+        }
+    }
     // fn get_mutliple_values(&self, range: std::ops::RangeInclusive<usize>) -> Vec<Option<Vec<Self::Output>>> {
     //     let mut dat = Vec::with_capacity(range.size_hint().0);
     //     for i in range {
@@ -134,10 +179,12 @@ pub trait IndexIdToParent: Debug + HeapSizeOf + Sync + Send + persistence_data::
     //     dat
     // }
 
+    #[inline]
     fn get_count_for_id(&self, id: u64) -> Option<usize> {
         self.get_values(id).map(|el| el.len())
     }
 
+    #[inline]
     fn get_mutliple_value(&self, range: std::ops::RangeInclusive<usize>) -> Option<Vec<Self::Output>> {
         let mut dat = Vec::with_capacity(range.size_hint().0);
         for i in range {
@@ -146,6 +193,7 @@ pub trait IndexIdToParent: Debug + HeapSizeOf + Sync + Send + persistence_data::
         Some(dat)
     }
 
+    #[inline]
     fn get_value(&self, id: u64) -> Option<Self::Output> {
         self.get_values(id).map(|el| el[0])
     }
@@ -153,6 +201,7 @@ pub trait IndexIdToParent: Debug + HeapSizeOf + Sync + Send + persistence_data::
     //last needs to be the largest value_id
     fn get_keys(&self) -> Vec<Self::Output>;
 
+    #[inline]
     fn is_1_to_n(&self) -> bool {
         let keys = self.get_keys();
         keys.iter().any(|key| {
@@ -284,7 +333,7 @@ impl Persistence {
         })
     }
 
-    pub fn write_indirect_index(&mut self, data: &IndexIdToParent<Output = u32>, path: &str, sort_and_dedup: bool) -> Result<(), io::Error> {
+    pub fn write_indirect_index(&mut self, data: &IndexIdToParent<Output = u32>, path: &str, sort_and_dedup: bool, max_value_id:u32) -> Result<(), io::Error> {
         let indirect_file_path = util::get_file_path(&self.db, &(path.to_string() + ".indirect"));
         let data_file_path = util::get_file_path(&self.db, &(path.to_string() + ".data"));
         let store = IndexIdToMultipleParentIndirect::new_sort_and_dedup(data, sort_and_dedup);
@@ -296,6 +345,7 @@ impl Persistence {
             persistence_type: KVStoreType::IndexIdToMultipleParentIndirect,
             is_1_to_n: store.is_1_to_n(),
             path: path.to_string(),
+            max_value_id: max_value_id,
         });
 
         Ok(())
@@ -309,8 +359,8 @@ impl Persistence {
 
     pub fn write_tuple_pair_dedup(&mut self, tuples: &mut Vec<create::ValIdPair>, path: &str, sort_and_dedup: bool) -> Result<(), io::Error> {
         let data = valid_pair_to_parallel_arrays::<u32>(tuples);
-
-        self.write_indirect_index(&data, path, sort_and_dedup)?;
+        let max_value_id = tuples.iter().max_by_key(|el| el.parent_val_id).map(|el| el.parent_val_id).unwrap_or(0);
+        self.write_indirect_index(&data, path, sort_and_dedup, max_value_id)?;
         //Parallel
         // let encoded: Vec<u8> = serialize(&data, Infinite).unwrap();
         // File::create(util::get_file_path(&self.db, &path.to_string()))?.write_all(&encoded)?;
@@ -332,6 +382,7 @@ impl Persistence {
             persistence_type: KVStoreType::ParallelArrays,
             is_1_to_n: data.is_1_to_n(),
             path: boost_path.to_string(),
+            max_value_id: tuples.iter().max_by_key(|el| el.value).unwrap().value,
         });
         Ok(())
     }
@@ -488,7 +539,22 @@ impl Persistence {
             }
         }
 
-        for el in &self.meta_data.key_value_stores {
+        // let r: Result<Vec<_>, SearchError> = steps
+        //         .into_par_iter()
+        //         .map(|step| {
+        //             step.execute_step(persistence)
+        //             // execute_step(step.clone(), persistence)
+        //         })
+        //         .collect();
+
+        //     if r.is_err() {
+        //         Err(r.unwrap_err())
+        //     } else {
+        //         Ok(())
+        //     }
+
+
+        let loaded_data: Result<Vec<(String, Box<IndexIdToParent<Output = u32>>)>, SearchError> = self.meta_data.key_value_stores.clone().into_par_iter().map(|el| {
             info_time!(format!("loaded key_value_store {:?}", &el.path));
 
             let mut loading_type = el.loading_type.clone();
@@ -502,21 +568,54 @@ impl Persistence {
                     let data = file_to_bytes(&(get_file_path(&self.db, &el.path) + ".data"))?;
                     let indirect_u32 = bytes_to_vec_u32(&indirect);
                     let data_u32 = bytes_to_vec_u32(&data);
-                    let store = IndexIdToMultipleParentCompressedMaydaINDIRECTOne {
-                        size: indirect_u32.len() / 2,
-                        start_and_end: to_monotone(&indirect_u32),
-                        data: to_uniform(&data_u32),
-                    };
-                    if el.is_1_to_n {
-                        self.cache
-                            .index_id_to_parento
-                            .insert(el.path.to_string(), Box::new(store));
-                    } else {
-                        self.cache.index_id_to_parento.insert(
-                            el.path.to_string(),
-                            Box::new(IndexIdToOneParentMayda::<u32>::new(&store)),
-                        );
+
+                    // return Ok((el.path.to_string(), Box::new(IndexIdToMultipleParentIndirect{start_and_end: indirect_u32, data:data_u32}) as Box<IndexIdToParent<Output = u32>> ));
+                    // self.cache
+                    //         .index_id_to_parento
+                    //         .insert(el.path.to_string(), Box::new(IndexIdToMultipleParentIndirect{start_and_end: indirect_u32, data:data_u32}));
+
+                    // {
+                    //     let start_and_end_file = self.get_file_handle(&(el.path.to_string() + ".indirect"))?;
+                    //     let data_file = self.get_file_handle(&(el.path.to_string() + ".data"))?;
+                    //     let data_metadata = self.get_file_metadata_handle(&(el.path.to_string() + ".indirect"))?;
+                    //     let store = PointingArrayFileReader::new(start_and_end_file, data_file, data_metadata);
+                    //     // self.cache
+                    //     //         .index_id_to_parento
+                    //     //         .insert(el.path.to_string(), Box::new(IndexIdToMultipleParent::new(&store)));
+
+                    //     return Ok((el.path.to_string(), Box::new(IndexIdToMultipleParent::new(&store)) as Box<IndexIdToParent<Output = u32>> ));
+                    // }
+
+
+                    {
+                        let store = IndexIdToMultipleParentCompressedMaydaINDIRECTOne {
+                            size: indirect_u32.len() / 2,
+                            start_and_end: to_monotone(&indirect_u32),
+                            data: to_uniform(&data_u32),
+                        };
+
+                        return Ok((el.path.to_string(), Box::new(store) as Box<IndexIdToParent<Output = u32>> ));
+                        // if el.is_1_to_n {
+                        //     return Ok((el.path.to_string(), Box::new(store) as Box<IndexIdToParent<Output = u32>> ));
+                        // } else {
+                        //     return Ok((el.path.to_string(), Box::new(IndexIdToOneParentMayda::<u32>::new(&store)) as Box<IndexIdToParent<Output = u32>> ));
+                        // }
                     }
+                    // self.cache
+                    //         .index_id_to_parento
+                    //         .insert(el.path.to_string(), Box::new(store));
+
+
+                    // if el.is_1_to_n {
+                    //     self.cache
+                    //         .index_id_to_parento
+                    //         .insert(el.path.to_string(), Box::new(store));
+                    // } else {
+                    //     self.cache.index_id_to_parento.insert(
+                    //         el.path.to_string(),
+                    //         Box::new(IndexIdToOneParentMayda::<u32>::new(&store)),
+                    //     );
+                    // }
 
                     // let store: Box<IndexIdToParent<Output = u32>> = {
                     //     match el.persistence_type {
@@ -556,12 +655,23 @@ impl Persistence {
                     let store = PointingArrayFileReader::new(start_and_end_file, data_file, data_metadata);
 
                     // let store = PointingArrayFileReader { start_and_end_file: el.path.to_string()+ ".indirect", data_file: el.path.to_string()+ ".data", persistence: self.db.to_string()};
-                    self.cache
-                        .index_id_to_parento
-                        .insert(el.path.to_string(), Box::new(store));
+                    // self.cache
+                    //     .index_id_to_parento
+                    //     .insert(el.path.to_string(), Box::new(store));
+
+                    return Ok((el.path.to_string(), Box::new(store) as Box<IndexIdToParent<Output = u32>> ));
                 }
             }
-        }
+        }).collect();
+
+        match loaded_data {
+            Err(e) => return Err(e),
+            Ok(dat) => {
+                for el in dat {
+                    self.cache.index_id_to_parento.insert(el.0, el.1);
+                }
+            },
+        };
 
         // Load Boost Indices
         for el in &self.meta_data.boost_stores {

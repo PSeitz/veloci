@@ -1,3 +1,7 @@
+#![feature(splice)]
+#![feature(entry_and_modify)]
+#![recursion_limit="128"]
+#![feature(iterator_step_by)]
 #![feature(step_trait)]
 #![feature(specialization)]
 #![feature(dotdoteq_in_patterns)]
@@ -109,6 +113,7 @@ pub mod create_from_json;
 pub mod create_from_csv;
 pub mod doc_loader;
 pub mod persistence;
+pub mod persistence_data_indirect;
 pub mod persistence_data;
 pub mod search_field;
 pub mod expression;

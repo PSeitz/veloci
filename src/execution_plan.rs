@@ -203,75 +203,89 @@ pub fn plan_creator(request: Request) -> PlanStepType {
         // part.terms = part.terms.iter().map(|el| util::normalize_text(el)).collect::<Vec<_>>();
         plan_creator_search_part(part, request.boost)
     } else {
+
+        //TODO HANDLE SUGGEST
         //TODO ADD ERROR
         plan_creator_search_part(request.search.unwrap(), request.boost)
     }
 }
 
 #[flame]
-pub fn plan_creator_search_part(request: RequestSearchPart, mut boost: Option<Vec<RequestBoostPart>>) -> PlanStepType {
+pub fn plan_creator_search_part(mut request: RequestSearchPart, mut boost: Option<Vec<RequestBoostPart>>) -> PlanStepType {
     let paths = util::get_steps_to_anchor(&request.path);
-
-    let mut steps = vec![];
 
     let (field_tx, field_rx): (PlanDataSender, PlanDataReceiver) = unbounded();
 
-    //search in fields
-    steps.push(PlanStepType::FieldSearch {
-        plans_output: field_rx.clone(),
-        req: request,
-        input_prev_steps: vec![],
-        output_next_steps: field_tx,
-    });
+    request.fast_field = boost.is_none() && !request.snippet.unwrap_or(false); // fast_field disabled for boosting or _highlighting_ currently
 
-    let (mut tx, mut rx): (PlanDataSender, PlanDataReceiver) = unbounded();
-
-    steps.push(PlanStepType::ValueIdToParent {
-        plans_output: rx.clone(),
-        input_prev_steps: vec![field_rx],
-        output_next_steps: tx.clone(),
-        path: concat(&paths.last().unwrap(), ".valueIdToParent"),
-        trace_info: "term hits hit to column".to_string(),
-    });
-
-    for i in (0..paths.len() - 1).rev() {
-        if boost.is_some() {
-            boost.as_mut().unwrap().retain(|boost| {
-                let apply_boost = boost.path.starts_with(&paths[i]);
-                if apply_boost {
-                    let (next_tx, next_rx): (PlanDataSender, PlanDataReceiver) = unbounded();
-                    tx = next_tx;
-                    steps.push(PlanStepType::Boost {
-                        plans_output: next_rx.clone(),
-                        req: boost.clone(),
-                        input_prev_steps: vec![rx.clone()],
-                        output_next_steps: tx.clone(),
-                    });
-                    rx = next_rx;
-                }
-                apply_boost
-            });
+    if request.fast_field {
+        PlanStepType::FieldSearch {
+            plans_output: field_rx.clone(),
+            req: request,
+            input_prev_steps: vec![],
+            output_next_steps: field_tx,
         }
+    }else{
 
-        let (next_tx, next_rx): (PlanDataSender, PlanDataReceiver) = unbounded();
-        tx = next_tx;
-        // let will_apply_boost = boost.map(|boost| boost.path.starts_with(&paths[i])).unwrap_or(false);
-        steps.push(PlanStepType::ValueIdToParent {
-            plans_output: next_rx.clone(),
-            input_prev_steps: vec![rx.clone()],
-            output_next_steps: tx.clone(),
-            path: concat(&paths[i], ".valueIdToParent"),
-            trace_info: "Joining to anchor".to_string(),
+        let mut steps = vec![];
+        //search in fields
+        steps.push(PlanStepType::FieldSearch {
+            plans_output: field_rx.clone(),
+            req: request,
+            input_prev_steps: vec![],
+            output_next_steps: field_tx,
         });
 
-        rx = next_rx;
+        let (mut tx, mut rx): (PlanDataSender, PlanDataReceiver) = unbounded();
+
+        steps.push(PlanStepType::ValueIdToParent {
+            plans_output: rx.clone(),
+            input_prev_steps: vec![field_rx],
+            output_next_steps: tx.clone(),
+            path: concat(&paths.last().unwrap(), ".valueIdToParent"),
+            trace_info: "term hits hit to column".to_string(),
+        });
+
+        for i in (0..paths.len() - 1).rev() {
+            if boost.is_some() {
+                boost.as_mut().unwrap().retain(|boost| {
+                    let apply_boost = boost.path.starts_with(&paths[i]);
+                    if apply_boost {
+                        let (next_tx, next_rx): (PlanDataSender, PlanDataReceiver) = unbounded();
+                        tx = next_tx;
+                        steps.push(PlanStepType::Boost {
+                            plans_output: next_rx.clone(),
+                            req: boost.clone(),
+                            input_prev_steps: vec![rx.clone()],
+                            output_next_steps: tx.clone(),
+                        });
+                        rx = next_rx;
+                    }
+                    apply_boost
+                });
+            }
+
+            let (next_tx, next_rx): (PlanDataSender, PlanDataReceiver) = unbounded();
+            tx = next_tx;
+            // let will_apply_boost = boost.map(|boost| boost.path.starts_with(&paths[i])).unwrap_or(false);
+            steps.push(PlanStepType::ValueIdToParent {
+                plans_output: next_rx.clone(),
+                input_prev_steps: vec![rx.clone()],
+                output_next_steps: tx.clone(),
+                path: concat(&paths[i], ".valueIdToParent"),
+                trace_info: "Joining to anchor".to_string(),
+            });
+
+            rx = next_rx;
+        }
+
+        PlanStepType::FromAttribute {
+            plans_output: rx.clone(),
+            steps: steps,
+            output_next_steps: rx,
+        }
     }
 
-    PlanStepType::FromAttribute {
-        plans_output: rx.clone(),
-        steps: steps,
-        output_next_steps: rx,
-    }
 
     // (steps, rx)
 }

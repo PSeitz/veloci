@@ -32,7 +32,8 @@ mod tests {
         json!([
             {
                 "commonness": 123456,
-                "ent_seq": "99999"
+                "ent_seq": "99999",
+                "tags": ["nice", "cool"]
             },
             {
                 "nofulltext":"my tokens",
@@ -106,6 +107,7 @@ mod tests {
             },
             {
                 "id": 123456,
+                "tags": ["nice", "cool"],
                 "gender": "female",
                 "birthDate": "1950-08-19",
                 "address": [
@@ -142,6 +144,7 @@ mod tests {
                 ],
                 "commonness": 1,
                 "misc": [],
+                "tags": ["nice", "cool"],
                 "kanji": [
                     {
                         "text": "柔らかい",
@@ -162,6 +165,27 @@ mod tests {
                     ]
                 },
                 "ent_seq": "1605630"
+            },
+            {
+                "sub_level": [{"text":"Prolog:\nthis is story of a guy who went out to rule the world, but then died. the end"}],
+                "commonness": 515151,
+                "ent_seq": "25",
+                "tags": ["nice", "cool"]
+            },
+            {
+                "commonness": 30,
+                "ent_seq": "26",
+                "tags": ["nice", "coolo"]
+            },
+            {
+                "commonness": 20,
+                "ent_seq": "27",
+                "tags": ["Eis", "cool"]
+            },
+            {
+                "commonness": 20,
+                "ent_seq": "28",
+                "tags": ["nice", "cool"]
             }
         ]).to_string()
     }
@@ -275,6 +299,20 @@ mod tests {
                     *INDEX_CREATEDO = true;
                 }
             }
+        }
+
+
+        it "simple_search"{
+            let req = json!({
+                "search": {
+                    "terms":["urge"],
+                    "path": "meanings.eng[]"
+                }
+            });
+
+            let hits = search_testo_to_doc(req).data;
+            assert_eq!(hits.len(), 1);
+            assert_eq!(hits[0].doc["ent_seq"], "1587690");
         }
 
         it "makes organizing tests easy" {
@@ -561,6 +599,22 @@ mod tests {
             assert_eq!(results.iter().map(|el| el.0.clone()).collect::<Vec<String>>(), ["Prolog:\nthis is a <b>story</b> of a guy who went ... "]);
         }
 
+        it "should highlight on sub_level field"{
+            let req = json!({
+                "terms":["story"],
+                "path": "sub_level[].text",
+                "levenshtein_distance": 0,
+                "starts_with":true,
+                "snippet":true,
+                "top":10,
+                "skip":0
+            });
+            let mut requesto: search::RequestSearchPart = serde_json::from_str(&req.to_string()).expect("Can't parse json");
+            let mut pers = PERSISTENCES.get(&"default".to_string()).unwrap();
+            let results = search_field::highlight(&mut pers, &mut requesto).unwrap();
+            assert_eq!(results.iter().map(|el| el.0.clone()).collect::<Vec<String>>(), ["Prolog:\nthis is <b>story</b> of a guy who went ... "]);
+        }
+
         it "real suggest with score"{
             let req = json!({
                 "terms":["majes"],
@@ -718,7 +772,7 @@ mod tests {
 
             let pers = PERSISTENCES.get(&"default".to_string()).unwrap();
 
-            let yep = facet::get_facet(&pers, &search::FacetRequest{field:"tags[]".to_string(), top:10}, &vec![0, 1, 2, 3]);
+            let yep = facet::get_facet(&pers, &search::FacetRequest{field:"tags[]".to_string(), top:10}, &vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
             println!("{:?}", yep);
         }
 

@@ -4,7 +4,7 @@ use search_field::*;
 use util;
 use itertools::Itertools;
 
-// use fnv::FnvHashMap;
+use fnv::FnvHashMap;
 
 //TODO Check ignorecase, check duplicates in facet data
 pub fn get_facet(persistence: &Persistence, req: &FacetRequest, ids: &Vec<u32>) -> Result<Vec<(String, usize)>, SearchError> {
@@ -12,6 +12,37 @@ pub fn get_facet(persistence: &Persistence, req: &FacetRequest, ids: &Vec<u32>) 
     trace!("get_facet for ids {:?}", ids);
     let steps = util::get_steps_to_anchor(&req.field);
     println!("{:?}", steps);
+
+    //nice special case
+    if steps.len() == 1 {
+        let path = steps.first().unwrap().to_string() + ".parentToValueId";
+        let kv_store = persistence.get_valueid_to_parent(&path)?;
+        let mut hits = FnvHashMap::default();
+        {
+            debug_time!(format!("facet count_values_for_ids {:?}", req.field));
+            kv_store.count_values_for_ids(&ids, &mut hits);
+        }
+
+        debug_time!(format!("facet collect and get texts {:?}", req.field));
+        let mut groups:Vec<(u32, usize)> = hits.iter().map(|ref tupl| (*tupl.0, *tupl.1)).collect();
+
+        //TODO MERGECODE with below
+        groups.sort_by(|a, b| b.1.cmp(&a.1));
+        groups = apply_top_skip(groups, 0, req.top);
+        let groups_with_text = groups
+        .iter()
+        .map(|el| {
+            (
+                get_text_for_id(persistence, steps.last().unwrap(), el.0),
+                el.1,
+            )
+        })
+        .collect();
+        debug!("{:?}", groups_with_text);
+        return Ok(groups_with_text)
+
+    }
+
 
     let mut next_level_ids = {
         debug_time!(format!("facets in field first join {:?}", req.field));
@@ -51,7 +82,7 @@ pub fn get_facet(persistence: &Persistence, req: &FacetRequest, ids: &Vec<u32>) 
             )
         })
         .collect();
-    println!("{:?}", groups_with_text);
+    debug!("{:?}", groups_with_text);
     Ok(groups_with_text)
 }
 
@@ -60,12 +91,15 @@ pub fn join_for_n_to_m(persistence: &Persistence, value_ids: &[u32], path: &str)
     let kv_store = persistence.get_valueid_to_parent(path)?;
     let mut hits = vec![];
     hits.reserve(value_ids.len()); // reserve by statistics
-    for id in value_ids {
-        if let Some(value_ids) = kv_store.get_values(*id as u64) {
-            trace!("adding value_ids {:?}", value_ids);
-            hits.extend(value_ids.iter());
-        }
-    }
+
+    kv_store.append_values_for_ids(value_ids, &mut hits);
+
+    // for id in value_ids {
+    //     if let Some(value_ids) = kv_store.get_values(*id as u64) {
+    //         trace!("adding value_ids {:?}", value_ids);
+    //         hits.extend(value_ids.iter());
+    //     }
+    // }
     trace!("hits {:?}", hits);
     // Ok(value_ids.iter().flat_map(|el| kv_store.get_values(*el as u64).unwrap_or(vec![])).collect())
     // Ok(kv_store.get_values(value_id as u64))

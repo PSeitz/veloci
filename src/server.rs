@@ -135,11 +135,6 @@ fn extract_qp(req: &mut Request) -> Result<(HashMap<String, String>), IronError>
     match req.get_ref::<UrlEncodedQuery>() {
         Ok(ref hashmap) => {
             info!("Parsed GET request query string:\n {:?}", hashmap);
-            // let ref query = hashmap.get("query").expect("not query parameter found").iter().nth(0).unwrap();
-            // let ref top =   hashmap.get("top").map(|el|el.iter().nth(0).unwrap().parse::<usize>().unwrap());
-            // let ref skip =  hashmap.get("skip").map(|el|el.iter().nth(0).unwrap().parse::<usize>().unwrap());
-            // let ref levenshtein =  hashmap.get("levenshtein").map(|el|el.iter().nth(0).unwrap().parse::<usize>().unwrap());
-            // info!("query {:?} top {:?} skip {:?}", query, top, skip);
 
             Ok(hashmap
                 .iter()
@@ -172,6 +167,7 @@ pub fn start_server() {
     router.post("/:database/search", search_handler, "search");
     router.get("/:database/search", search_get_handler, "search_get");
     router.post("/:database/suggest", suggest_handler, "suggest");
+    router.get("/:database/suggest", suggest_get_handler, "suggest");
     router.post("/:database/highlight", highlight_handler, "highlight");
     // let mut pers = Persistence::load("csv_test".to_string()).expect("Could not load persistence");
 
@@ -215,10 +211,83 @@ pub fn start_server() {
 
         // Extract the decoded data as hashmap, using the UrlEncodedQuery plugin.
         let map = extract_qp(req)?;
-        map.get("query").expect("not query parameter found");
+        // map.get("query").ok_or(IronError::new(
+        //     StringError("query parameter not found".to_string()),
+        //     status::BadRequest,
+        // ))?;
+
+        if map.get("query").is_none(){
+            return Ok(Response::with((
+                status::BadRequest,
+                "query parameter not found".to_string(),
+            )));
+        }
+
+        // map.get("query").ok_or(IronError::new(
+        //     StringError("query parameter not found".to_string()),
+        //     status::BadRequest,
+        // ))?;
         let persistence = PERSISTENCES.get(&database).unwrap();
+
+        let facetlimit = map.get("facetlimit")
+                .map(|el| el.parse::<usize>().unwrap())
+                .clone();
+
+        // map.get("facets").clone().split(",").map(|facet|{
+        //     {"field":facet, top:facetlimit}
+        // }).collect();
+        let facets: Option<Vec<String>> = map.get("facets").clone().map(|el| el.split(",").map(|f|f.to_string()).collect());
+        // "facets": [ {"field":"ISMLANGUAGES"}, {"field":"ISMARTIST"}, {"field":"GENRE"}, {"field":"VERLAG[]"}   ]
+
         let request = search::search_query(
             map.get("query").unwrap(),
+            &persistence,
+            map.get("top")
+                .map(|el| el.parse::<usize>().unwrap())
+                .clone(),
+            map.get("skip")
+                .map(|el| el.parse::<usize>().unwrap())
+                .clone(),
+            map.get("operator").map(|el| el.to_string()),
+            map.get("levenshtein")
+                .map(|el| el.parse::<usize>().unwrap())
+                .clone(),
+            facetlimit,
+            facets
+        );
+
+        // println!("{}", serde_json::to_string(&request).unwrap());
+        search_in_persistence(&persistence, request, enable_flame(req).unwrap_or(false))
+    }
+
+    fn suggest_get_handler(req: &mut Request) -> IronResult<Response> {
+        info_time!("search request total");
+        let database = req.extensions
+            .get::<Router>()
+            .unwrap()
+            .find("database")
+            .expect("could not find collection name in url")
+            .to_string();
+        ensure_database(&database);
+
+        let map = extract_qp(req)?;
+
+        if map.get("query").is_none(){
+            return Ok(Response::with((
+                status::BadRequest,
+                "query parameter not found".to_string(),
+            )));
+        }
+
+        let query = map.get("query").ok_or(IronError::new(
+            StringError("query parameter not found".to_string()),
+            status::BadRequest,
+        ))?;
+
+        let persistence = PERSISTENCES.get(&database).unwrap();
+        let fields: Option<Vec<String>> = map.get("fields").clone().map(|el| el.split(",").map(|f|f.to_string()).collect());
+        let request = search::suggest_query(
+            query,
             &persistence,
             map.get("top")
                 .map(|el| el.parse::<usize>().unwrap())
@@ -229,8 +298,11 @@ pub fn start_server() {
             map.get("levenshtein")
                 .map(|el| el.parse::<usize>().unwrap())
                 .clone(),
+            fields
         );
-        search_in_persistence(&persistence, request, enable_flame(req).unwrap_or(false))
+
+        let db = req.extensions.get::<Router>().unwrap().find("database").expect("could not find collection name in url").to_string();
+        excute_suggest(request, db, enable_flame(req).unwrap_or(false))
     }
 
     fn get_body<T: 'static>(req: &mut Request) -> Result<T, IronError>
@@ -313,17 +385,14 @@ pub fn start_server() {
     }
 
     fn suggest_handler(req: &mut Request) -> IronResult<Response> {
-        let database = req.extensions
-            .get::<Router>()
-            .unwrap()
-            .find("database")
-            .expect("could not find collection name in url")
-            .to_string();
-        ensure_database(&database);
+        let db = req.extensions.get::<Router>().unwrap().find("database").expect("could not find collection name in url").to_string();
+        excute_suggest(get_body(req)?, db, enable_flame(req).unwrap_or(false))
+    }
+    fn excute_suggest(struct_body: search::Request, db:String, flame: bool) -> IronResult<Response> {
+        ensure_database(&db);
 
-        let struct_body: search::Request = get_body(req)?;
         info_time!("search total");
-        let persistence = PERSISTENCES.get(&database).unwrap();
+        let persistence = PERSISTENCES.get(&db).unwrap();
 
         info!("Suggesting ... ");
         let hits = search_field::suggest_multi(&persistence, struct_body).unwrap();
@@ -331,7 +400,7 @@ pub fn start_server() {
         // Ok(Response::with((status::Ok, Header(headers::ContentType::json()), serde_json::to_string(&hits).unwrap())))
 
         return_flame_or(
-            enable_flame(req).unwrap_or(false),
+            flame,
             serde_json::to_string(&hits).unwrap(),
         )
     }
@@ -450,15 +519,8 @@ pub fn start_server() {
             )));
         }
         let contents = get_multipart_file_contents(&entry.1.iter().last().unwrap())?;
-        // let data: serde_json::Value = serde_json::from_str(&contents).expect("InvalidJson");
 
-        // Start up a test.
         let indices = r#"[] "#;
-        // let indices = r#"
-        // [
-        //     { "fulltext":"address[].line[]", "options":{"tokenize":true} }
-        // ]
-        // "#;
 
         println!(
             "{:?}",
@@ -478,22 +540,10 @@ pub fn start_server() {
             persistence::Persistence::load(database.to_string()).expect("could not load persistence"),
         );
 
-        // if enable_flame{
-        //     let mut flame = vec![];
-        //     flame::dump_html(&mut flame).unwrap();
-        //     Ok(Response::with((status::Ok, Header(headers::ContentType::html()), String::from_utf8(flame).unwrap() )))
-
-        // }else{
-        //     Ok(Response::with((status::Ok, "database created" )))
-
-        // }
-
         return_flame_or(
             enable_flame,
             serde_json::to_string(&json!({"result": "database created"})).unwrap(),
         )
-
-        // Ok(Response::with((status::Ok, schema::convert_to_schema(&data).unwrap())))
     }
 
     fn return_flame_or(enable_flame: bool, content: String) -> IronResult<Response> {

@@ -110,47 +110,6 @@ where
         fun(&term, id as u32);
     }
 
-    // if exact_search.is_some() {
-    //     let mut faccess:persistence::FileSearch = persistence.get_file_search(&options.path);
-    //     let result = faccess.binary_search(&exact_search.unwrap(), persistence)?;
-    //     if result.1 != -1 {
-    //         fun(&result.0, result.1 as u32 );
-    //     }
-
-    // }else if character.is_some() {
-    //     debug!("Search CharOffset for: {:?}", character.unwrap());
-    //     let char_offset_info_opt = persistence.get_create_char_offset_info(&options.path, character.unwrap())?;
-    //     debug!("CharOffset: {:?}", char_offset_info_opt);
-    //     if char_offset_info_opt.is_none() {
-    //         return Ok(())
-    //     }
-    //     let char_offset_info = char_offset_info_opt.unwrap();
-    //     let mut f = persistence.get_file_handle(&options.path)?;
-    //     let mut buffer:Vec<u8> = Vec::with_capacity((char_offset_info.byte_range_end - char_offset_info.byte_range_start) as usize);
-    //     unsafe { buffer.set_len(char_offset_info.byte_range_end as usize - char_offset_info.byte_range_start as usize); }
-
-    //     f.seek(SeekFrom::Start(char_offset_info.byte_range_start as u64))?;
-    //     f.read_exact(&mut buffer)?;
-    //     // let s = unsafe {str::from_utf8_unchecked(&buffer)};
-    //     let s = str::from_utf8(&buffer)?; // @Temporary  -> use unchecked if stable
-    //     // trace!("Loaded Text: {}", s);
-    //     let lines = s.lines();
-    //     let mut pos = 0;
-    //     for line in lines{
-    //         fun(&line, char_offset_info.line_offset as u32 + pos );
-    //         pos += 1;
-    //     }
-    //     debug!("Checked {:?} lines", pos);
-
-    // }else{
-    //     let mut f = persistence.get_file_handle(&options.path)?;
-    //     let mut s = String::new();
-    //     f.read_to_string(&mut s)?;
-    //     let lines = s.lines();
-    //     for (line_pos, line) in lines.enumerate(){
-    //         fun(&line, line_pos as u32)
-    //     }
-    // }
     Ok(())
 }
 
@@ -174,7 +133,6 @@ fn get_text_score_id_from_result(suggest_text: bool, results: Vec<SearchFieldRes
                     }else{
                         res.highlight.get(&term_n_score.0).unwrap()
                     };
-                    // let term = res.terms.get(&term_n_score.0).unwrap();
                     (term.to_string(), *term_n_score.1, *term_n_score.0)
                 })
                 .collect::<SuggestFieldResult>()
@@ -191,6 +149,8 @@ pub fn suggest_multi(persistence: &Persistence, req: Request) -> Result<SuggestF
     let mut search_results = vec![];
     for mut search_part in search_parts {
         search_part.return_term = Some(true);
+        search_part.top = Some(req.top);
+        search_part.skip = Some(req.skip);
         search_part.resolve_token_to_parent_hits = Some(false);
         // search_part.term = util::normalize_text(&search_part.term);
         search_part.terms = search_part
@@ -277,7 +237,7 @@ pub fn get_hits_in_field(persistence: &Persistence, options: &RequestSearchPart,
 
     Ok(SearchFieldResult::default())
 }
-
+use std;
 #[flame]
 fn get_hits_in_field_one_term(persistence: &Persistence, options: &RequestSearchPart, filter: Option<&FnvHashSet<u32>>) -> Result<SearchFieldResult, SearchError> {
     debug_time!(format!("{} get_hits_in_field", &options.path));
@@ -306,7 +266,21 @@ fn get_hits_in_field_one_term(persistence: &Persistence, options: &RequestSearch
     );
     // trace!("Will Check exact {:?}", options.exact);
     trace!("Will Check starts_with {:?}", options.starts_with);
+
+
+    //TODO Move to topn struct
+    // let mut vec_hits:Vec<(u32, f32)> = vec![];
+    // let limit_result = options.top.is_some();
+    // let mut num = 0;
+    // let mut worst_score = -1.0;
+    // let mut top_n_search = 100000000;
+    // if limit_result {
+    //     top_n_search = options.top.unwrap() + options.skip.unwrap_or(0) + 10;
+    // }
+    //TODO Move to topnstruct
+
     {
+
         let teh_callback = |line: &str, line_pos: u32| {
             // trace!("Checking {} with {}", line, term);
 
@@ -327,20 +301,54 @@ fn get_hits_in_field_one_term(persistence: &Persistence, options: &RequestSearch
                 get_default_score(&options.terms[0], line, prefix_matches)
             };
             options.boost.map(|boost_val| score = score * boost_val); // @FixMe Move out of loop?
-            debug!("Hit: {:?}\tid: {:?} score: {:?}", line, line_pos, score);
             // hits.insert(line_pos, score);
             // result.hits.push(Hit{id:line_pos, score:score});
+
+            // num+=1;
+            // if limit_result && top_n_search < result.hits.len() {
+            //     if score < worst_score {
+            //         // debug!("ABORT SCORE {:?}", score);
+            //         return;
+            //     }
+            //     if (vec_hits.len()%(top_n_search*5))==0 {
+            //         vec_hits.sort_unstable_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(Ordering::Equal));
+            //         vec_hits.resize(top_n_search, (0, 0.0));
+            //         worst_score = vec_hits.last().unwrap().1;
+            //         debug!("new worst {:?}", worst_score);
+            //     }
+
+            //     vec_hits.push((line_pos, score));
+            //     debug!("Hit: {:?}\tid: {:?} score: {:?}", line, line_pos, score);
+
+            //     if options.return_term.unwrap_or(false) {
+            //         result.terms.insert(line_pos, line.to_string());
+            //     }
+            //     return;
+
+            // }
+            debug!("Hit: {:?}\tid: {:?} score: {:?}", line, line_pos, score);
+
             result.hits.insert(line_pos, score);
+
             if options.return_term.unwrap_or(false) {
                 result.terms.insert(line_pos, line.to_string());
             }
+
             // if log_enabled!(Level::Trace) {
             //     backtrace.insert(line_pos, score, line.to_string());
             // }
         };
         // let exact_search = if options.exact.unwrap_or(false) {Some(options.term.to_string())} else {None};
         get_text_lines(persistence, options, teh_callback)?;
+
     }
+
+    // {
+    //     if limit_result {
+    //         result.hits = vec_hits.into_iter().collect();
+    //     }
+    // }
+
     debug!(
         "{:?} hits in textindex {:?}",
         result.hits.len(),
@@ -348,9 +356,60 @@ fn get_hits_in_field_one_term(persistence: &Persistence, options: &RequestSearch
     );
     trace!("hits in textindex: {:?}", result.hits);
 
-    if options.resolve_token_to_parent_hits.unwrap_or(true) {
-        resolve_token_hits(persistence, &options.path, &mut result, options, filter)?;
+
+    if options.fast_field{
+        debug_time!(format!("{} fast_field", &options.path));
+        let mut fast_field_res = FnvHashMap::default();
+        for (term_id, score) in result.hits.iter() {
+            let token_kvdata = persistence.get_valueid_to_parent(&concat(&options.path, ".tokens.to_anchor"))?;
+
+            if let Some(anchor_score) = token_kvdata.get_values(*term_id as u64) {
+                fast_field_res.reserve(anchor_score.len()/2);
+                for (anchor_id, token_in_anchor_score) in anchor_score.iter().tuples() {
+
+                    if let Some(filter) = filter {
+                        if filter.contains(&anchor_id){
+                            continue;
+                        }
+                    }
+
+                    let final_score = score * (*token_in_anchor_score as f32);
+                    trace!(
+                            "anchor_id {:?} term_id {:?}, token_in_anchor_score {:?} score {:?} to final_score {:?}",
+                            anchor_id,
+                            term_id,
+                            token_in_anchor_score,
+                            score,
+                            final_score
+                        );
+
+                    // anchor_hits.insert(*anchor_id as u32, score * (*token_in_anchor_score as f32));
+                    // fast_field_res.insert(*anchor_id as u32, final_score); //take max
+                    // let entry = fast_field_res.entry(*anchor_id as u32);
+                    fast_field_res.entry(*anchor_id as u32)
+                        .and_modify(|e| {
+                            if *e < final_score {
+                                *e = final_score;
+                            }
+                        })
+                        .or_insert(final_score);
+                }
+            }
+        }
+
+        debug!(
+            "found {:?} token in {:?} anchors",
+            result.hits.len(),
+            fast_field_res.len()
+        );
+
+        result.hits = fast_field_res;
+    }else{
+        if options.resolve_token_to_parent_hits.unwrap_or(true) || options.fast_field {
+            resolve_token_hits(persistence, &options.path, &mut result, options, filter)?;
+        }
     }
+
 
     if options.token_value.is_some() {
         debug!("Token Boosting: \n");
@@ -364,6 +423,7 @@ fn get_hits_in_field_one_term(persistence: &Persistence, options: &RequestSearch
         //     el.score = *hits.get(&el.id).unwrap();
         // }
     }
+
 
     Ok(result)
 }
@@ -442,6 +502,7 @@ pub fn resolve_snippets(persistence: &Persistence, path: &str, result: &mut Sear
     Ok(())
 }
 
+//TODO REMOVE fast_field FROM METHOD?
 #[flame]
 pub fn resolve_token_hits(persistence: &Persistence, path: &str, result: &mut SearchFieldResult, options: &RequestSearchPart, filter: Option<&FnvHashSet<u32>>) -> Result<(), search::SearchError> {
     let has_tokens = persistence
@@ -449,12 +510,12 @@ pub fn resolve_token_hits(persistence: &Persistence, path: &str, result: &mut Se
         .fulltext_indices
         .get(path)
         .map_or(false, |fulltext_info| fulltext_info.tokenize);
-    debug!("has_tokens {:?} {:?}", path, has_tokens);
-    if !has_tokens {
+    debug!("has_tokens {:?} {:?} is_fast_field {}", path, has_tokens, options.fast_field);
+    if !has_tokens && !options.fast_field {
         return Ok(());
     }
 
-    let resolve_snippets = options.snippet.unwrap_or(false);
+    let add_snippets = options.snippet.unwrap_or(false);
 
     debug_time!(format!("{} resolve_token_hits", path));
     let text_offsets = persistence.get_offsets(path).expect(&format!(
@@ -462,59 +523,81 @@ pub fn resolve_token_hits(persistence: &Persistence, path: &str, result: &mut Se
         concat(path, ".offsets")
     ));
 
-    let token_kvdata = persistence.get_valueid_to_parent(&concat(path, ".tokens"))?;
-    debug!("Checking Tokens in {:?}", &concat(path, ".tokens"));
+    let token_path = if options.fast_field{
+        concat(path, ".tokens.to_anchor")
+    }else {
+        concat(path, ".tokens")
+    };
+
+    let token_kvdata = persistence.get_valueid_to_parent(&token_path)?;
+    debug!("Checking Tokens in {:?}", &token_path);
     persistence::trace_index_id_to_parent(token_kvdata);
     // trace!("All Tokens: {:?}", token_kvdata.get_values());
 
     // let token_kvdata = persistence.cache.index_id_to_parent.get(&key).expect(&format!("Could not find {:?} in index_id_to_parent cache", key));
     // let mut token_hits:FnvHashMap<u32, f32> = FnvHashMap::default();
     let mut token_hits: Vec<(u32, f32, u32)> = vec![];
-
+    // let mut anchor_hits = FnvHashMap::default();
     {
-        debug_time!(format!("{} adding parent_id from tokens", path));
+        debug_time!(format!("{} adding parent_id from tokens", token_path));
         for (term_id, score) in result.hits.iter() {
-            // let parent_ids_for_token = token_kvdata.get_parent_val_ids(*value_id, &cache_lock);
 
-            // let ref parent_ids_for_token_opt = token_kvdata.get(*value_id as usize);
-            if let Some(parent_ids_for_token) = token_kvdata.get_values(*term_id as u64) {
-                let token_text_length_offsets = text_offsets
-                    .get_mutliple_value(*term_id as usize..=*term_id as usize + 1)
-                    .unwrap();
-                let token_text_length = token_text_length_offsets[1] - token_text_length_offsets[0];
-                // let token_text_length = text_offsets.get_value(1 + *term_id as u64).unwrap() - text_offsets.get_value(*term_id as u64).unwrap();
-                token_hits.reserve(parent_ids_for_token.len());
-                for token_parentval_id in parent_ids_for_token {
+            if options.fast_field{
+                if let Some(anchor_score) = token_kvdata.get_values(*term_id as u64) {
+                    token_hits.reserve(anchor_score.len()/2);
+                    for (anchor_id, token_in_anchor_score) in anchor_score.iter().tuples() {
 
-                    if let Some(filter) = filter {
-                       if filter.contains(&token_parentval_id){
-                            continue;
-                       }
-                    }
+                        if let Some(filter) = filter {
+                            if filter.contains(&anchor_id){
+                                continue;
+                            }
+                        }
 
-                    if let Some(offsets) = text_offsets.get_mutliple_value(token_parentval_id as usize..=token_parentval_id as usize + 1) {
-                        let parent_text_length = offsets[1] - offsets[0];
-                        let adjusted_score = score * (token_text_length as f32 / parent_text_length as f32);
+                        let final_score = score * (*token_in_anchor_score as f32);
                         trace!(
-                            "value_id {:?} parent_l {:?}, token_l {:?} score {:?} to adjusted_score {:?}",
-                            token_parentval_id,
-                            parent_text_length,
-                            token_text_length,
-                            score,
-                            adjusted_score
-                        );
-                        token_hits.push((token_parentval_id, adjusted_score, *term_id));
+                                "anchor_id {:?} term_id {:?}, token_in_anchor_score {:?} score {:?} to final_score {:?}",
+                                anchor_id,
+                                term_id,
+                                token_in_anchor_score,
+                                score,
+                                final_score
+                            );
+
+                        // anchor_hits.insert(*anchor_id as u32, score * (*token_in_anchor_score as f32));
+                        token_hits.push((*anchor_id as u32, final_score, *term_id));
                     }
+                }
+            }else{
+                // let ref parent_ids_for_token_opt = token_kvdata.get(*value_id as usize);
+                if let Some(parent_ids_for_token) = token_kvdata.get_values(*term_id as u64) {
+                    let token_text_length_offsets = text_offsets
+                        .get_mutliple_value(*term_id as usize..=*term_id as usize + 1)
+                        .unwrap();
+                    let token_text_length = token_text_length_offsets[1] - token_text_length_offsets[0];
 
-                    // let parent_text_length = text_offsets.get_value(1 + token_parentval_id as u64).unwrap() - text_offsets.get_value(token_parentval_id as u64).unwrap();
-                    // let adjusted_score = 2.0/(parent_text_length as f32 - token_text_length as f32) + 0.2;
-                    // let adjusted_score = score / (parent_text_length as f32 - token_text_length as f32 + 1.0);
+                    token_hits.reserve(parent_ids_for_token.len());
+                    for token_parentval_id in parent_ids_for_token {
 
-                    // let the_score = token_hits.entry(*token_parentval_id as u32) // @Temporary
-                    //     .or_insert(*hits.get(token_parentval_id).unwrap_or(&0.0));
-                    // *the_score += adjusted_score;
+                        if let Some(filter) = filter {
+                           if filter.contains(&token_parentval_id){
+                                continue;
+                           }
+                        }
 
-                    // token_hits.push((*token_parentval_id, score, value_id));
+                        if let Some(offsets) = text_offsets.get_mutliple_value(token_parentval_id as usize..=token_parentval_id as usize + 1) {
+                            let parent_text_length = offsets[1] - offsets[0];
+                            let adjusted_score = score * (token_text_length as f32 / parent_text_length as f32);
+                            trace!(
+                                "value_id {:?} parent_l {:?}, token_l {:?} score {:?} to adjusted_score {:?}",
+                                token_parentval_id,
+                                parent_text_length,
+                                token_text_length,
+                                score,
+                                adjusted_score
+                            );
+                            token_hits.push((token_parentval_id, adjusted_score, *term_id));
+                        }
+                    }
                 }
             }
 
@@ -522,6 +605,10 @@ pub fn resolve_token_hits(persistence: &Persistence, path: &str, result: &mut Se
             // trace!("value_id {:?}", value_id);
             // trace!("parent_ids_for_token {:?}", parent_ids_for_token);
         }
+    }
+
+    if options.fast_field {
+        
     }
 
     debug!(
@@ -538,21 +625,18 @@ pub fn resolve_token_hits(persistence: &Persistence, path: &str, result: &mut Se
     // hits.extend(token_hits);
     trace!("{} token_hits in textindex: {:?}", path, token_hits);
     if token_hits.len() > 0 {
-        if resolve_snippets {
+        if add_snippets || options.fast_field{
             result.hits.clear(); //only document hits for highlightung
         }
         // token_hits.sort_by(|a, b| b.0.partial_cmp(&a.0).unwrap_or(Ordering::Equal)); // sort by parent_id=value_id
         result.hits.reserve(token_hits.len());
-        // let mut current_group_id = token_hits[0].0;
-        // let mut current_score = token_hits[0].1;
-        // let mut value_id_to_token_hits:FnvHashMap<u32, Vec<u32>> = FnvHashMap::default();
 
-        for (parent_id, group) in &token_hits.iter().group_by(|el| el.0) {
+        for (parent_id, group) in &token_hits.iter().group_by(|el| el.0) {//Group by anchor
             let (mut t1, t2) = group.tee();
             let max_score = t1.max_by_key(|el| OrderedFloat(el.1.abs())).unwrap().1;
-            // let max_score2 = t2.max_by_key(|el| OrderedFloat(el.1.abs())).unwrap().1;
+
             result.hits.insert(parent_id, max_score);
-            if resolve_snippets {
+            if add_snippets {
                 //value_id_to_token_hits.insert(parent_id, t2.map(|el| el.2).collect_vec()); //TODO maybe store hits here, in case only best x are needed
                 let snippet_config = options
                     .snippet_info
