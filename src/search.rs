@@ -289,7 +289,7 @@ fn get_all_field_names(persistence: &Persistence) -> Vec<String> {
 }
 
 #[flame]
-pub fn suggest_query(request: &str, persistence: &Persistence, mut top: Option<usize>, mut skip: Option<usize>, levenshtein: Option<usize>, fields:Option<Vec<String>>) -> Request {
+pub fn suggest_query(request: &str, persistence: &Persistence, mut top: Option<usize>, skip: Option<usize>, levenshtein: Option<usize>, fields:Option<Vec<String>>) -> Request {
     // let req = persistence.meta_data.fulltext_indices.key
 
     if top.is_none() {top = Some(10); }

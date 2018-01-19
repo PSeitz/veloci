@@ -1078,7 +1078,7 @@ mod tests {
             for x in 0..num_ids {
                 let num_values = between.ind_sample(&mut rng) as u64;
 
-                for i in 0..num_values {
+                for _ in 0..num_values {
                     keys.push(x as u32);
                     // values.push(pseudo_rand((x as u32 * i as u32) as u32));
                     values.push(between.ind_sample(&mut rng) as u32);

@@ -2,7 +2,6 @@ use std;
 use std::fs::File;
 use std::io::prelude::*;
 use std::io::SeekFrom;
-use std::cmp::Ordering;
 
 #[allow(unused_imports)]
 use heapsize::{heap_size_of, HeapSizeOf};
@@ -16,9 +15,7 @@ use persistence::*;
 use persistence_data::TypeInfo;
 #[allow(unused_imports)]
 use persistence;
-use create;
 use mayda;
-use snap;
 #[allow(unused_imports)]
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 

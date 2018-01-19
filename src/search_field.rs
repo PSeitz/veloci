@@ -22,7 +22,11 @@ use fst::automaton::*;
 use fst::raw::Fst;
 use lev_automat::*;
 use highlight_field::*;
+use levenshtein_automaton::{DFA, LevenshteinAutomatonBuilder, Distance};
 // use search::Hit;
+
+#[allow(unused_imports)]
+use rayon::prelude::*;
 
 #[allow(unused_imports)]
 use trie::map;
@@ -38,13 +42,13 @@ pub type TermId = u32;
 pub type Score = f32;
 
 fn get_default_score(term1: &str, term2: &str, prefix_matches: bool) -> f32 {
-    return get_default_score2(
-        distance(&term1.to_lowercase(), &term2.to_lowercase()),
+    return get_default_score_for_distance(
+        distance(&term1.to_lowercase(), &term2.to_lowercase()) as u8,
         prefix_matches,
     );
     // return 2.0/(distance(term1, term2) as f32 + 0.2 )
 }
-fn get_default_score2(distance: u32, prefix_matches: bool) -> f32 {
+fn get_default_score_for_distance(distance: u8, prefix_matches: bool) -> f32 {
     if prefix_matches {
         return 2.0 / ((distance as f32 + 1.0).log10() + 0.2);
     } else {
@@ -75,7 +79,7 @@ pub fn ord_to_term(fst: &Fst, mut ord: u64, bytes: &mut Vec<u8>) -> bool {
 #[flame]
 fn get_text_lines<F>(persistence: &Persistence, options: &RequestSearchPart, mut fun: F) -> Result<(), SearchError>
 where
-    F: FnMut(&str, u32),
+    F: FnMut(String, u32),
 {
     // let mut f = persistence.get_file_handle(&(options.path.to_string()+".fst"))?;
     // let mut buffer: Vec<u8> = Vec::new();
@@ -107,7 +111,7 @@ where
     // debug!("hitso {:?}", hits);
 
     for (term, id) in hits {
-        fun(&term, id as u32);
+        fun(term, id as u32);
     }
 
     Ok(())
@@ -144,26 +148,35 @@ fn get_text_score_id_from_result(suggest_text: bool, results: Vec<SearchFieldRes
 pub fn suggest_multi(persistence: &Persistence, req: Request) -> Result<SuggestFieldResult, SearchError> {
     info_time!("suggest time");
     let search_parts: Vec<RequestSearchPart> = req.suggest.ok_or(SearchError::StringError(
-        "only suggest allowed here".to_string(),
+        "only suggest allowed in suggest function".to_string(),
     ))?;
-    let mut search_results = vec![];
-    for mut search_part in search_parts {
+    // let mut search_results = vec![];
+    let top = req.top.clone();
+    let skip = req.skip.clone();
+    let search_results: Result<Vec<_>, SearchError> = search_parts.into_par_iter().map(|ref mut search_part| {
         search_part.return_term = Some(true);
-        search_part.top = Some(req.top);
-        search_part.skip = Some(req.skip);
+        search_part.top = Some(top);
+        search_part.skip = Some(skip);
         search_part.resolve_token_to_parent_hits = Some(false);
-        // search_part.term = util::normalize_text(&search_part.term);
-        search_part.terms = search_part
-            .terms
-            .iter()
-            .map(|el| util::normalize_text(el))
-            .collect::<Vec<_>>();
-        search_results.push(get_hits_in_field(persistence, &search_part, None)?);
-    }
+        get_hits_in_field(persistence, &search_part, None)
+    }).collect();
+    // for mut search_part in search_parts {
+    //     search_part.return_term = Some(true);
+    //     search_part.top = Some(req.top);
+    //     search_part.skip = Some(req.skip);
+    //     search_part.resolve_token_to_parent_hits = Some(false);
+    //     // search_part.term = util::normalize_text(&search_part.term);
+    //     // search_part.terms = search_part
+    //     //     .terms
+    //     //     .iter()
+    //     //     .map(|el| util::normalize_text(el))
+    //     //     .collect::<Vec<_>>();
+    //     // search_results.push(get_hits_in_field(persistence, &search_part, None)?);
+    // }
     info_time!("suggest to vec/sort");
     Ok(get_text_score_id_from_result(
         true,
-        search_results,
+        search_results?,
         req.skip,
         req.top,
     ))
@@ -269,85 +282,97 @@ fn get_hits_in_field_one_term(persistence: &Persistence, options: &RequestSearch
 
 
     //TODO Move to topn struct
-    // let mut vec_hits:Vec<(u32, f32)> = vec![];
-    // let limit_result = options.top.is_some();
-    // let mut num = 0;
-    // let mut worst_score = -1.0;
-    // let mut top_n_search = 100000000;
-    // if limit_result {
-    //     top_n_search = options.top.unwrap() + options.skip.unwrap_or(0) + 10;
-    // }
+    let mut vec_hits:Vec<(u32, f32)> = vec![];
+    let limit_result = options.top.is_some();
+    let mut worst_score = std::f32::MIN;
+    let mut top_n_search = std::u32::MAX;
+    if limit_result {
+        top_n_search = (options.top.unwrap() + options.skip.unwrap_or(0)) as u32;
+    }
     //TODO Move to topnstruct
 
     {
 
-        let teh_callback = |line: &str, line_pos: u32| {
+        let lev_automaton_builder = LevenshteinAutomatonBuilder::new(options.levenshtein_distance.unwrap_or(0) as u8, true);
+        let lower_term = options.terms[0].to_lowercase();
+        let dfa = lev_automaton_builder.build_dfa(&lower_term);
+        // let search_term_length = &lower_term.chars.count();
+        let should_check_prefix_match = options.starts_with.unwrap_or(false) || options.levenshtein_distance.unwrap_or(0) != 0;
+
+        let teh_callback = |line: String, line_pos: u32| {
             // trace!("Checking {} with {}", line, term);
 
             // In the case of levenshtein != 0 or starts_with, we want prefix_matches to have a score boost - so that "awe" scores better for awesome than aber
             let mut prefix_matches = false;
-            if (options.starts_with.unwrap_or(false) || options.levenshtein_distance.unwrap_or(0) != 0) && line.starts_with(&options.terms[0]) {
+            if should_check_prefix_match && line.starts_with(&options.terms[0]) {
                 prefix_matches = true;
             }
 
-            let distance = if options.levenshtein_distance.unwrap_or(0) != 0 {
-                Some(distance(&options.terms[0], line))
-            } else {
-                None
-            }; //TODO: find term for multitoken
-            let mut score = if distance.is_some() {
-                get_default_score2(distance.unwrap(), prefix_matches)
-            } else {
-                get_default_score(&options.terms[0], line, prefix_matches)
-            };
+            // let distance = if options.levenshtein_distance.unwrap_or(0) != 0 {
+            //     // Some(distance(&options.terms[0], &line))
+            //     Some(distance_dfa(&line, &dfa))
+            // } else {
+            //     None
+            // }; 
+            //TODO: find term for multitoken
+
+            let mut score = get_default_score_for_distance(distance_dfa(&line, &dfa, &lower_term), prefix_matches);
+
+            // let mut score = if options.levenshtein_distance.unwrap_or(0) != 0 {
+            //     get_default_score_for_distance(distance_dfa(&line, &dfa, &lower_term), prefix_matches)
+            // } else {
+            //     get_default_score(&options.terms[0], &line, prefix_matches)
+            //     // get_default_score_for_distance(0, prefix_matches)
+            // };
             options.boost.map(|boost_val| score = score * boost_val); // @FixMe Move out of loop?
             // hits.insert(line_pos, score);
             // result.hits.push(Hit{id:line_pos, score:score});
 
-            // num+=1;
-            // if limit_result && top_n_search < result.hits.len() {
-            //     if score < worst_score {
-            //         // debug!("ABORT SCORE {:?}", score);
-            //         return;
-            //     }
-            //     if (vec_hits.len()%(top_n_search*5))==0 {
-            //         vec_hits.sort_unstable_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(Ordering::Equal));
-            //         vec_hits.resize(top_n_search, (0, 0.0));
-            //         worst_score = vec_hits.last().unwrap().1;
-            //         debug!("new worst {:?}", worst_score);
-            //     }
+            if limit_result {
+                if score < worst_score {
+                    // debug!("ABORT SCORE {:?}", score);
+                    return;
+                }
+                if !vec_hits.is_empty() && (vec_hits.len() as u32 % (top_n_search*5))==0 {
+                    vec_hits.sort_unstable_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(Ordering::Equal));
+                    vec_hits.truncate(top_n_search as usize);
+                    worst_score = vec_hits.last().unwrap().1;
+                    trace!("new worst {:?}", worst_score);
+                }
 
-            //     vec_hits.push((line_pos, score));
-            //     debug!("Hit: {:?}\tid: {:?} score: {:?}", line, line_pos, score);
+                vec_hits.push((line_pos, score));
+                debug!("Hit: {:?}\tid: {:?} score: {:?}", line, line_pos, score);
 
-            //     if options.return_term.unwrap_or(false) {
-            //         result.terms.insert(line_pos, line.to_string());
-            //     }
-            //     return;
+                if options.return_term.unwrap_or(false) {
+                    result.terms.insert(line_pos, line);
+                }
+                return;
 
-            // }
-            debug!("Hit: {:?}\tid: {:?} score: {:?}", line, line_pos, score);
+            }
+            debug!("Hit: {:?}\tid: {:?} score: {:?}", &line, line_pos, score);
 
             result.hits.insert(line_pos, score);
 
             if options.return_term.unwrap_or(false) {
-                result.terms.insert(line_pos, line.to_string());
+                result.terms.insert(line_pos, line);
             }
 
-            // if log_enabled!(Level::Trace) {
-            //     backtrace.insert(line_pos, score, line.to_string());
-            // }
         };
         // let exact_search = if options.exact.unwrap_or(false) {Some(options.term.to_string())} else {None};
         get_text_lines(persistence, options, teh_callback)?;
 
     }
 
-    // {
-    //     if limit_result {
-    //         result.hits = vec_hits.into_iter().collect();
-    //     }
-    // }
+
+    {
+        if limit_result {
+            // println!("HITZZZ {:?}", vec_hits);
+            vec_hits.sort_unstable_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(Ordering::Equal));
+            vec_hits.truncate(top_n_search as usize);
+            result.hits = vec_hits.into_iter().collect();
+
+        }
+    }
 
     debug!(
         "{:?} hits in textindex {:?}",
@@ -660,20 +685,39 @@ pub fn resolve_token_hits(persistence: &Persistence, path: &str, result: &mut Se
     Ok(())
 }
 
-fn distance(s1: &str, s2: &str) -> u32 {
+fn distance_dfa(hit: &str, dfa: &DFA, lower_term: &str) -> u8 {
+    let lower_hit = hit.to_lowercase();
+    let mut state = dfa.initial_state();
+    for &b in lower_hit.as_bytes() {
+        state = dfa.transition(state, b);
+    }
+
+    match dfa.distance(state) {
+        Distance::Exact(ok) => {
+            ok
+            // distance(&lower_hit, lower_term)
+        },
+        Distance::AtLeast(u8) => {
+            distance(&lower_hit, lower_term)
+        },
+    }
+
+    
+}
+fn distance(s1: &str, s2: &str) -> u8 {
     let len_s1 = s1.chars().count();
 
-    let mut column: Vec<u32> = Vec::with_capacity(len_s1 + 1);
+    let mut column: Vec<u8> = Vec::with_capacity(len_s1 + 1);
     unsafe {
         column.set_len(len_s1 + 1);
     }
     for x in 0..len_s1 + 1 {
-        column[x] = x as u32;
+        column[x] = x as u8;
     }
 
     for (x, current_char2) in s2.chars().enumerate() {
-        column[0] = x as u32 + 1;
-        let mut lastdiag = x as u32;
+        column[0] = x as u8 + 1;
+        let mut lastdiag = x as u8;
         for (y, current_char1) in s1.chars().enumerate() {
             if current_char1 != current_char2 {
                 lastdiag += 1
@@ -685,3 +729,19 @@ fn distance(s1: &str, s2: &str) -> u32 {
     }
     column[len_s1]
 }
+
+
+// #[test]
+// fn test_dfa() {
+//     let lev_automaton_builder = LevenshteinAutomatonBuilder::new(2, true);
+
+//     // We can now build an entire dfa.
+//     let dfa = lev_automaton_builder.build_dfa("saucisson sec");
+
+//     let mut state = dfa.initial_state();
+//         for &b in "saucissonsec".as_bytes() {
+//         state = dfa.transition(state, b);
+//     }
+
+//    assert_eq!(dfa.distance(state), Distance::Exact(1));
+// }
