@@ -6,22 +6,29 @@ use itertools::Itertools;
 
 use fnv::FnvHashMap;
 
+// fn get_top_facet_group(arg: Type) -> RetType {
+//     unimplemented!();
+// }
+
 //TODO Check ignorecase, check duplicates in facet data
 pub fn get_facet(persistence: &Persistence, req: &FacetRequest, ids: &Vec<u32>) -> Result<Vec<(String, usize)>, SearchError> {
     info_time!(format!("facets in field {:?}", req.field));
     trace!("get_facet for ids {:?}", ids);
     let steps = util::get_steps_to_anchor(&req.field);
-    println!("{:?}", steps);
+    info!("facet on {:?}", steps);
 
     //nice special case
-    if steps.len() == 1 {
-        let path = steps.first().unwrap().to_string() + ".parentToValueId";
+    if steps.len() == 1 || persistence.has_facet_index(&(steps.last().unwrap().to_string() + ".anchor_to_text_id")){
+        let path = if steps.len() == 1 {
+            steps.first().unwrap().to_string() + ".parentToValueId"
+        }else{
+            steps.last().unwrap().to_string() + ".anchor_to_text_id"
+        };
         let kv_store = persistence.get_valueid_to_parent(&path)?;
-        let mut hits = FnvHashMap::default();
-        {
+        let hits = {
             debug_time!(format!("facet count_values_for_ids {:?}", req.field));
-            kv_store.count_values_for_ids(&ids, &mut hits);
-        }
+            kv_store.count_values_for_ids(&ids, Some(req.top as u32))
+        };
 
         debug_time!(format!("facet collect and get texts {:?}", req.field));
         let mut groups:Vec<(u32, usize)> = hits.iter().map(|ref tupl| (*tupl.0, *tupl.1)).collect();

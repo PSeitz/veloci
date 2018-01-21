@@ -22,6 +22,12 @@ use fst::{self, IntoStreamer, MapBuilder, Set};
 pub enum CreateIndex {
     FulltextInfo(Fulltext),
     BoostInfo(Boost),
+    FacetInfo(FacetIndex),
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct FacetIndex {
+    facet: String
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -397,22 +403,7 @@ pub fn get_allterms(data: &Value, fulltext_info_for_path: &FnvHashMap<String, Fu
 
             let mut terms = get_or_insert(&mut terms_in_path, path, &|| FnvHashMap::with_capacity_and_hasher(num_elements, Default::default()) );
 
-            // if !terms_in_path.contains_key(path) {
-            //     terms_in_path.insert(
-            //         path.to_string(),
-            //         FnvHashMap::with_capacity_and_hasher(num_elements, Default::default()),
-            //     );
-            // }
-            // let mut terms = terms_in_path.get_mut(path).unwrap();
-
-            // let mut terms = terms_in_path
-            //     .entry(path.to_string())
-            //     .or_insert(FnvHashMap::with_capacity_and_hasher(num_elements, Default::default()));
-            // let normalized_text = util::normalize_text(value);
             add_text(value, &mut terms, &options, &tokenizer);
-            // if options.add_normal_values.unwrap_or(true){
-            //     add_text(value.to_string(), &mut terms, &options);
-            // }
         };
 
         let mut callback_ids = |_anchor_id: u32, _path: &str, _value_id: u32, _parent_val_id: u32| {};
@@ -433,21 +424,15 @@ pub fn get_allterms(data: &Value, fulltext_info_for_path: &FnvHashMap<String, Fu
     }
     terms_in_path
 
-    // let mut v: Vec<String> = terms.into_iter().collect::<Vec<String>>();
-    // v.sort();
-    // v
 }
-
-// fn get_tokens<T: Tokenizer>(x: T) {
-//     unimplemented!();
-// }
 
 #[derive(Debug, Default, Clone)]
 struct PathData {
     tokens_to_parent: Vec<ValIdPair>,
     tokens_to_anchor: Vec<ValIdPairToken>,
     value_id_to_token_ids: Vec<ValIdPair>,
-    text_id_to_parent: Vec<ValIdPair>
+    text_id_to_parent: Vec<ValIdPair>,
+    anchor_to_text_id: Option<Vec<ValIdPair>>
 }
 
 pub fn create_fulltext_index(data: &Value, mut persistence: &mut Persistence, indices_json: &Vec<CreateIndex>) -> Result<(), io::Error> {
@@ -464,6 +449,7 @@ pub fn create_fulltext_index(data: &Value, mut persistence: &mut Persistence, in
         .flat_map(|index| match index {
             &CreateIndex::FulltextInfo(ref el) => Some(el),
             &CreateIndex::BoostInfo(_) => None,
+            &CreateIndex::FacetInfo(_) => None,
         })
         .map(|fulltext_info| {
             (
@@ -472,6 +458,16 @@ pub fn create_fulltext_index(data: &Value, mut persistence: &mut Persistence, in
             )
         })
         .collect();
+
+    let facet_index: FnvHashSet<String> = indices_json
+        .iter()
+        .flat_map(|index| match index {
+            &CreateIndex::FulltextInfo(_) => None,
+            &CreateIndex::BoostInfo(_) => None,
+            &CreateIndex::FacetInfo(ref el) => Some(el.facet.to_string()+ ".textindex"),
+        })
+        .collect();
+
 
     let all_terms_in_path = get_allterms(&data, &fulltext_info_for_path);
     info_time!("create_fulltext_index");
@@ -490,7 +486,13 @@ pub fn create_fulltext_index(data: &Value, mut persistence: &mut Persistence, in
     {
         info_time!(format!("extract text and ids"));
         let mut cb_text = |anchor_id: u32, value: &str, path: &str, parent_val_id: u32| {
-            let data = get_or_insert(&mut path_data, path, &|| PathData::default() );
+            let data = get_or_insert(&mut path_data, path, &|| {
+                if facet_index.contains(path){
+                    PathData{anchor_to_text_id:Some(vec![]), ..Default::default()}
+                }else {
+                    PathData::default()
+                }
+            });
 
             let all_terms = all_terms_in_path.get(path).unwrap();
 
@@ -509,10 +511,15 @@ pub fn create_fulltext_index(data: &Value, mut persistence: &mut Persistence, in
             }
 
             let text_info = all_terms.get(value).expect("did not found term");
+
             data.text_id_to_parent.push(ValIdPair {
                 valid: text_info.id as u32,
                 parent_val_id: parent_val_id,
             });
+            data.anchor_to_text_id.as_mut().map(| el|el.push(ValIdPair {
+                valid: anchor_id,
+                parent_val_id: text_info.id as u32,
+            }));
             trace!("Found id {:?} for {:?}", text_info, value);
 
             data.tokens_to_anchor.push(ValIdPairToken {
@@ -640,6 +647,11 @@ pub fn create_fulltext_index(data: &Value, mut persistence: &mut Persistence, in
             );
 
             write_tuples(&mut persistence, &path, &mut data.text_id_to_parent)?;
+
+            if let Some(ref mut anchor_to_text_id) = data.anchor_to_text_id {
+                persistence.write_tuple_pair( anchor_to_text_id, &concat(&path, ".anchor_to_text_id"))?;
+            }
+
         }
 
         for (path, all_terms) in all_terms_in_path {
@@ -789,6 +801,7 @@ pub fn create_indices_json(folder: &str, data: &Value, indices: &str) -> Result<
     for el in indices_json {
         match el {
             CreateIndex::FulltextInfo(_) => {}
+            CreateIndex::FacetInfo(_) => {}
             CreateIndex::BoostInfo(boost) => create_boost_index(data, &boost.boost, boost.options, &mut persistence)?,
         }
     }

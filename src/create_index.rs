@@ -57,6 +57,7 @@ fn main() {
 
 static TAHLIA_INDICES: &str = r#"
 [
+    { "facet": "VERLAG[]" },
     { "fulltext":"MATNR"  },
     { "fulltext":"ISMTITLE",     "options":{"tokenize":true}  },
     { "fulltext":"ISMORIGTITLE", "options":{"tokenize":true}  },
@@ -135,18 +136,9 @@ fn create_jmdict_index() -> Result<(), io::Error> {
     { "fulltext": "kana[].text" , "options":{"tokenize":false} },
     { "fulltext": "kana[].conjugated[].form" , "options":{"tokenize":false} },
     { "fulltext": "kana[].romaji" , "options":{"tokenize":true} },
-    {
-        "fulltext": "meanings.ger[].text",
-        "options": { "tokenize": true }
-    },
-    {
-        "fulltext": "meanings.eng[]",
-        "options": { "tokenize": true }
-    },
-    {
-        "fulltext": "pos",
-        "options": { "tokenize": false }
-    },
+    { "fulltext": "meanings.ger[].text", "options": { "tokenize": true } },
+    { "fulltext": "meanings.eng[]", "options": { "tokenize": true } },
+    { "fulltext": "pos", "options": { "tokenize": false } },
     {
         "boost": "meanings.ger[].rank",
         "options": { "boost_type": "int" }

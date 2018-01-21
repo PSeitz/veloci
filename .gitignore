@@ -51,4 +51,6 @@ Cargo.lock
 /test_pointing_file_array/
 /create_perf/
 
+.criterion
+
 

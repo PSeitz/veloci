@@ -115,7 +115,8 @@ impl<T: IndexIdToParentData> IndexIdToParent for IndexIdToMultipleParent<T> {
     }
 
     #[inline]
-    fn count_values_for_ids(&self, ids: &[u32], hits: &mut FnvHashMap<T, usize>){
+    fn count_values_for_ids(&self, ids: &[u32], top:Option<u32>) -> FnvHashMap<T, usize> {
+        let mut hits = FnvHashMap::default();
         let size = self.data.len();
         for id in ids {
             if *id >= size as u32 {
@@ -127,6 +128,7 @@ impl<T: IndexIdToParentData> IndexIdToParent for IndexIdToMultipleParent<T> {
                 }
             }
         }
+        hits
     }
 
 }
@@ -209,7 +211,7 @@ impl<T: IndexIdToParentData> IndexIdToParent for IndexIdToMultipleParentCompress
 //     //     }
 //     // }
 
-//     fn count_values_for_ids(&self, ids: &[u32], hits: &mut FnvHashMap<u32, usize>){
+//     fn count_values_for_ids(&self, ids: &[u32], hits: &mut FnvHashMap<u32, usize>, top:Option<u32>){
 //         let size = self.get_size();
 //         for id in ids {
 //             if *id >= size as u32 {
@@ -546,32 +548,6 @@ fn get_bytes(block_size: usize, find: u64, num_elem: u64, data_file: &Mutex<fs::
 fn get_reader(block_size: usize, find: u64, num_elem: u64, data_file: &Mutex<fs::File>, data_metadata: &Mutex<fs::Metadata>) -> Option<Cursor<Vec<u8>>> {
     // Some(Cursor::new(bytes))
     get_bytes(block_size, find, num_elem, data_file, data_metadata).map(|bytes| Cursor::new(bytes))
-}
-
-
-#[inline(always)]
-fn get_u32_values_from_pointing_file(find: u64, size: usize, start_and_end_file: &Mutex<fs::File>, data_file: &Mutex<fs::File>) -> Option<Vec<u32>> {
-    if find >= size as u64 {
-        return None;
-    }
-    let mut offsets: Vec<u8> = Vec::with_capacity(8);
-    offsets.resize(8, 0);
-    load_bytes_into(&mut offsets, &*start_and_end_file.lock(), find as u64 * 8);
-
-    let mut rdr = Cursor::new(offsets);
-
-    let start = rdr.read_u32::<LittleEndian>().unwrap() * 4;
-    let end = rdr.read_u32::<LittleEndian>().unwrap() * 4;
-
-    if start == end {
-        return None;
-    }
-
-    let mut data_bytes: Vec<u8> = Vec::with_capacity(end as usize - start as usize);
-    data_bytes.resize(end as usize - start as usize, 0);
-    load_bytes_into(&mut data_bytes, &*data_file.lock(), start as u64);
-
-    Some(bytes_to_vec_u32(&data_bytes))
 }
 
 pub fn id_to_parent_to_array_of_array<T: IndexIdToParentData>(store: &IndexIdToParent<Output = T>) -> Vec<Vec<T>> {
@@ -981,9 +957,7 @@ mod tests {
         store.append_values_for_ids(&[0, 1, 2, 3, 4, 5], &mut vec);
         assert_eq!(vec, vec![5, 6, 9, 9, 9, 50000]);
 
-        let mut map = FnvHashMap::default();
-
-        store.count_values_for_ids(&[0, 1, 2, 3, 4, 5], &mut map);
+        let mut map = store.count_values_for_ids(&[0, 1, 2, 3, 4, 5], None);
         assert_eq!(map.get(&5).unwrap(), &1);
         assert_eq!(map.get(&9).unwrap(), &3);
     }
@@ -1025,27 +999,6 @@ mod tests {
     mod test_indirect {
         use super::*;
         use rand::distributions::{IndependentSample, Range};
-        #[test]
-        fn test_pointing_file_array() {
-            let store = get_test_data_1_to_n();
-            let (keys, values) = to_indirect_arrays(&store, 0);
-
-            fs::create_dir_all("test_pointing_file_array").unwrap();
-            File::create("test_pointing_file_array/indirect")
-                .unwrap()
-                .write_all(&vec_to_bytes_u32(&keys))
-                .unwrap();
-            File::create("test_pointing_file_array/data")
-                .unwrap()
-                .write_all(&vec_to_bytes_u32(&values))
-                .unwrap();
-
-            let start_and_end_file = File::open(&get_file_path("test_pointing_file_array", "indirect")).unwrap();
-            let data_file = File::open(&get_file_path("test_pointing_file_array", "data")).unwrap();
-            let data_metadata = fs::metadata(&get_file_path("test_pointing_file_array", "indirect")).unwrap();
-            let store = PointingArrayFileReader::new(start_and_end_file, data_file, data_metadata);
-            check_test_data_1_to_n(&store);
-        }
 
         #[test]
         fn test_pointing_array_index_id_to_multiple_parent_indirect() {
@@ -1090,33 +1043,6 @@ mod tests {
             }
         }
 
-        fn prepare_indirect_pointing_file_array(folder: &str, store: &IndexIdToParent<Output=u32>) -> PointingArrayFileReader<u32> {
-            let (keys, values) = to_indirect_arrays(store, 0);
-
-            fs::create_dir_all(folder).unwrap();
-            let data_path = get_file_path(folder, "data");
-            let indirect_path = get_file_path(folder, "indirect");
-            File::create(&data_path).unwrap().write_all(&vec_to_bytes_u32(&keys)).unwrap();
-            File::create(&indirect_path).unwrap().write_all(&vec_to_bytes_u32(&values)).unwrap();
-
-            let start_and_end_file = File::open(&data_path).unwrap();
-            let data_file = File::open(&data_path).unwrap();
-            let data_metadata = fs::metadata(&data_path).unwrap();
-            let store: PointingArrayFileReader<u32> = PointingArrayFileReader::new(start_and_end_file, data_file, data_metadata);
-            store
-        }
-
-
-        // #[bench]
-        // fn indirect_pointing_file_array(b: &mut test::Bencher) {
-        //     let store = get_test_data_large(40_000, 15);
-        //     let mut rng = rand::thread_rng();
-        //     let between = Range::new(0, 40_000);
-
-        //     let store = prepare_indirect_pointing_file_array("test_pointing_file_array_perf", &store);// PointingArrayFileReader::new(start_and_end_file, data_file, data_metadata);
-
-        //     b.iter(|| store.get_values(between.ind_sample(&mut rng)))
-        // }
 
         #[bench]
         fn indirect_pointing_mayda(b: &mut test::Bencher) {
@@ -1128,25 +1054,6 @@ mod tests {
             b.iter(|| mayda.get_values(between.ind_sample(&mut rng)))
         }
 
-        // #[bench]
-        // fn indirect_pointing_mayda_large_array_700k_sorted_reads(b: &mut test::Bencher) {
-        //     let mut rng = rand::thread_rng();
-        //     // let between = Range::new(0, 40_000_000);
-        //     let store_tmp = get_test_data_large(40_000_000, 15);
-
-        //     let store = prepare_indirect_pointing_file_array("test_pointing_file_array_perf", &store_tmp);// PointingArrayFileReader::new(start_and_end_file, data_file, data_metadata);
-
-        //     // let store = IndexIdToMultipleParentCompressedMaydaINDIRECTOne::<u32>::new(&store_tmp);
-        //     let ids:Vec<u32> = (0 .. 700_000).collect();
-
-        //     b.iter(|| {
-        //         let mut hits = FnvHashMap::default();
-        //         {
-        //             store.count_values_for_ids(&ids, &mut hits);
-        //         }
-        //     })
-        // }
-
 
 
         pub fn bench_fnvhashmap_group_by(num_entries: u32, max_val:u32) -> FnvHashMap<u32, u32>{
@@ -1154,37 +1061,104 @@ mod tests {
             hits.reserve(num_entries as usize);
             let mut rng = rand::thread_rng();
             let between = Range::new(0, max_val);
-            for x in 0..num_entries {
+            for _x in 0..num_entries {
                 let stat = hits.entry(between.ind_sample(&mut rng)).or_insert(0);
                 *stat += 1;
             }
             hits
         }
 
-        pub fn bench_vec_group_by_direct(num_entries: u32, max_val:u32) -> Vec<u32>{
-            let mut hits:Vec<u32> = vec![];
+        pub fn bench_vec_group_by_direct(num_entries: u32, max_val:u32, hits:&mut Vec<u32>) -> &mut Vec<u32>{
+            // let mut hits:Vec<u32> = vec![];
             hits.resize(max_val as usize + 1, 0);
             let mut rng = rand::thread_rng();
             let between = Range::new(0, max_val);
-            for x in 0..num_entries {
+            for _x in 0..num_entries {
                 hits[between.ind_sample(&mut rng) as usize] += 1;
 
             }
             hits
         }
+        pub fn bench_vec_group_by_direct_u16(num_entries: u32, max_val:u32, hits:&mut Vec<u8>) -> &mut Vec<u8>{
+            // let mut hits:Vec<u32> = vec![];
+            hits.resize(max_val as usize + 1, 0);
+            let mut rng = rand::thread_rng();
+            let between = Range::new(0, max_val);
+            for _x in 0..num_entries {
+                hits[between.ind_sample(&mut rng) as usize] += 1;
+            }
+            hits
+        }
 
+        pub fn bench_vec_group_by_flex(num_entries: u32, max_val:u32) -> Vec<u32>{
+            let mut hits:Vec<u32> = vec![];
+            // hits.resize(max_val as usize + 1, 0);
+            let mut rng = rand::thread_rng();
+            let between = Range::new(0, max_val);
+            for _x in 0..num_entries {
+                let id = between.ind_sample(&mut rng) as usize;
+                if hits.len() <= id {
+                    hits.resize(id + 1, 0);
+                }
+                hits[id] += 1;
+
+            }
+            hits
+        }
+
+        // pub fn bench_vec_group_by_rand(num_entries: u32, max_val:u32) -> Vec<u32>{
+        //     let mut hits:Vec<u32> = vec![];
+        //     hits.resize(1, 0);
+        //     let mut rng = rand::thread_rng();
+        //     let between = Range::new(0, max_val);
+        //     for x in 0..num_entries {
+        //         hits[0] = between.ind_sample(&mut rng);
+        //     }
+        //     hits
+        // }
+
+
+        //20x break even ?
         #[bench]
         fn bench_group_by_fnvhashmap_0(b: &mut test::Bencher) {
             b.iter(|| {
-                bench_fnvhashmap_group_by(700_000, 15000);
+                bench_fnvhashmap_group_by(700_000, 5_000_000);
             })
         }
+
         #[bench]
         fn bench_group_by_vec_direct_0(b: &mut test::Bencher) {
             b.iter(|| {
-                bench_fnvhashmap_group_by(700_000, 15000);
+                bench_vec_group_by_direct(700_000, 5_000_000, &mut vec![]);
             })
         }
+        #[bench]
+        fn bench_group_by_vec_direct_u16_0(b: &mut test::Bencher) {
+            b.iter(|| {
+                bench_vec_group_by_direct_u16(700_000, 5_000_000, &mut vec![]);
+            })
+        }
+
+        #[bench]
+        fn bench_group_by_vec_direct_0_pre_alloc(b: &mut test::Bencher) {
+            let mut dat = vec![];
+            b.iter(|| {
+                bench_vec_group_by_direct(700_000, 5_000_000, &mut dat);
+            })
+        }
+
+        #[bench]
+        fn bench_group_by_vec_flex_0(b: &mut test::Bencher) {
+            b.iter(|| {
+                bench_vec_group_by_flex(700_000, 5_000_000);
+            })
+        }
+        // #[bench]
+        // fn bench_group_by_rand_0(b: &mut test::Bencher) {
+        //     b.iter(|| {
+        //         bench_vec_group_by_rand(700_000, 50_000);
+        //     })
+        // }
 
 
         #[bench]

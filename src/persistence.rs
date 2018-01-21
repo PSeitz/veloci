@@ -65,10 +65,16 @@ pub struct KVStoreMetaData {
     pub loading_type: LoadingType,
     #[serde(default = "default_max_value_id")]
     pub max_value_id: u32, // max value on the "right" side key -> value, key -> value ..
+    #[serde(default = "default_avg_join")]
+    pub avg_join_size: u32, // some join statistics
 }
 
+//TODO Only tmp
 fn default_max_value_id() -> u32 {
     std::u32::MAX
+}
+fn default_avg_join() -> u32 {
+    1000
 }
 
 // impl KVStoreMetaData {
@@ -159,7 +165,8 @@ pub trait IndexIdToParent: Debug + HeapSizeOf + Sync + Send + persistence_data::
     }
 
     #[inline]
-    fn count_values_for_ids(&self, ids: &[u32], hits: &mut FnvHashMap<Self::Output, usize>){
+    fn count_values_for_ids(&self, ids: &[u32], top:Option<u32>) -> FnvHashMap<Self::Output, usize> {
+        let mut hits = FnvHashMap::default();
         for id in ids {
             if let Some(vals) = self.get_values(*id as u64) {
                 // vec.reserve(vals.len());
@@ -169,6 +176,7 @@ pub trait IndexIdToParent: Debug + HeapSizeOf + Sync + Send + persistence_data::
                 }
             }
         }
+        hits
     }
     // fn get_mutliple_values(&self, range: std::ops::RangeInclusive<usize>) -> Vec<Option<Vec<Self::Output>>> {
     //     let mut dat = Vec::with_capacity(range.size_hint().0);
@@ -336,7 +344,14 @@ impl Persistence {
     pub fn write_indirect_index(&mut self, data: &IndexIdToParent<Output = u32>, path: &str, sort_and_dedup: bool, max_value_id:u32) -> Result<(), io::Error> {
         let indirect_file_path = util::get_file_path(&self.db, &(path.to_string() + ".indirect"));
         let data_file_path = util::get_file_path(&self.db, &(path.to_string() + ".data"));
+
         let store = IndexIdToMultipleParentIndirect::new_sort_and_dedup(data, sort_and_dedup);
+
+        let avg_join_size = if store.start_and_end.len() == 0 {
+            0
+        }else{
+            store.data.len()/store.start_and_end.len()/2 //Attention, this works only of there is no compression of any kind
+        };
 
         File::create(indirect_file_path)?.write_all(&vec_to_bytes_u32(&store.start_and_end))?;
         File::create(data_file_path)?.write_all(&vec_to_bytes_u32(&store.data))?;
@@ -346,6 +361,7 @@ impl Persistence {
             is_1_to_n: store.is_1_to_n(),
             path: path.to_string(),
             max_value_id: max_value_id,
+            avg_join_size: avg_join_size as u32,
         });
 
         Ok(())
@@ -383,6 +399,7 @@ impl Persistence {
             is_1_to_n: data.is_1_to_n(),
             path: boost_path.to_string(),
             max_value_id: tuples.iter().max_by_key(|el| el.value).unwrap().value,
+            avg_join_size: 1 //FixMe? multiple boosts?
         });
         Ok(())
     }
@@ -483,6 +500,13 @@ impl Persistence {
             .index_id_to_parento
             .get(path)
             .ok_or_else(|| From::from(format!("Did not found path in cache {:?}", path)))
+    }
+
+    #[flame]
+    pub fn has_facet_index(&self, path: &str) -> bool {
+        self.cache
+            .index_id_to_parento
+            .contains_key(path)
     }
 
     #[flame]
@@ -592,6 +616,8 @@ impl Persistence {
                             size: indirect_u32.len() / 2,
                             start_and_end: to_monotone(&indirect_u32),
                             data: to_uniform(&data_u32),
+                            max_value_id: el.max_value_id,
+                            avg_join_size: el.avg_join_size,
                         };
 
                         return Ok((el.path.to_string(), Box::new(store) as Box<IndexIdToParent<Output = u32>> ));
@@ -652,7 +678,7 @@ impl Persistence {
                     let start_and_end_file = self.get_file_handle(&(el.path.to_string() + ".indirect"))?;
                     let data_file = self.get_file_handle(&(el.path.to_string() + ".data"))?;
                     let data_metadata = self.get_file_metadata_handle(&(el.path.to_string() + ".indirect"))?;
-                    let store = PointingArrayFileReader::new(start_and_end_file, data_file, data_metadata);
+                    let store = PointingArrayFileReader::new(start_and_end_file, data_file, data_metadata, el.max_value_id, el.avg_join_size);
 
                     // let store = PointingArrayFileReader { start_and_end_file: el.path.to_string()+ ".indirect", data_file: el.path.to_string()+ ".data", persistence: self.db.to_string()};
                     // self.cache
