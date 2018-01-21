@@ -695,7 +695,6 @@ fn distance_dfa(hit: &str, dfa: &DFA, lower_term: &str) -> u8 {
     match dfa.distance(state) {
         Distance::Exact(ok) => {
             ok
-            // distance(&lower_hit, lower_term)
         },
         Distance::AtLeast(u8) => {
             distance(&lower_hit, lower_term)

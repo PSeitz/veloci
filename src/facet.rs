@@ -6,9 +6,14 @@ use itertools::Itertools;
 
 use fnv::FnvHashMap;
 
-// fn get_top_facet_group(arg: Type) -> RetType {
-//     unimplemented!();
-// }
+pub fn get_top_facet_group<T: IndexIdToParentData>(hits: FnvHashMap<T, usize>, top: u32) -> Vec<(T, u32)> {
+    let mut groups:Vec<(T, u32)> = hits.iter().map(|ref tupl| (*tupl.0, *tupl.1 as u32)).collect();
+
+    //TODO MERGECODE with below
+    groups.sort_by(|a, b| b.1.cmp(&a.1));
+    groups = apply_top_skip(groups, 0, top as usize);
+    groups
+}
 
 //TODO Check ignorecase, check duplicates in facet data
 pub fn get_facet(persistence: &Persistence, req: &FacetRequest, ids: &Vec<u32>) -> Result<Vec<(String, usize)>, SearchError> {
@@ -31,17 +36,20 @@ pub fn get_facet(persistence: &Persistence, req: &FacetRequest, ids: &Vec<u32>) 
         };
 
         debug_time!(format!("facet collect and get texts {:?}", req.field));
-        let mut groups:Vec<(u32, usize)> = hits.iter().map(|ref tupl| (*tupl.0, *tupl.1)).collect();
 
-        //TODO MERGECODE with below
-        groups.sort_by(|a, b| b.1.cmp(&a.1));
-        groups = apply_top_skip(groups, 0, req.top);
+        let groups = get_top_facet_group(hits, req.top as u32);
+        // let mut groups:Vec<(u32, usize)> = hits.iter().map(|ref tupl| (*tupl.0, *tupl.1)).collect();
+
+        // //TODO MERGECODE with below
+        // groups.sort_by(|a, b| b.1.cmp(&a.1));
+        // groups = apply_top_skip(groups, 0, req.top);
+
         let groups_with_text = groups
         .iter()
         .map(|el| {
             (
-                get_text_for_id(persistence, steps.last().unwrap(), el.0),
-                el.1,
+                get_text_for_id(persistence, steps.last().unwrap(), el.0 ),
+                el.1 as usize,
             )
         })
         .collect();

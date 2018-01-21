@@ -84,7 +84,7 @@ path = "src/create_index.rs"
 [[bench]]
 name = "bench_jmdict"
 path = "benches/bench_jmdict.rs"
-
+harness = false
 # [[bench]]
 # name = "bench_collection"
 # path = "bench/bench_collection.rs"

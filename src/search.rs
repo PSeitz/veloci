@@ -257,6 +257,7 @@ pub fn to_search_result(persistence: &Persistence, hits: SearchResult) -> Search
     }
 }
 
+//TODO top skip Option, no copy
 #[flame]
 pub fn apply_top_skip<T: Clone>(hits: Vec<T>, skip: usize, mut top: usize) -> Vec<T> {
     top = cmp::min(top + skip, hits.len());

@@ -558,6 +558,21 @@ impl IndexIdToParent for PointingArrayFileReader<u32> {
 
     #[inline]
     fn count_values_for_ids(&self, ids: &[u32], top:Option<u32>) -> FnvHashMap<u32, usize>{
+
+        // Inserts are cheaper in a vec, bigger max_value_ids are more expensive in a vec
+        // let num_inserts = ids.len() * avg_join_size;
+        // let vec_len = max_value_id + 1;
+
+        // let prefer_vec = num_inserts * 20 < vec_len;
+
+        // let hits_vec = if prefer_vec {
+        //     let dat = vec![];
+        //     dat.resize(vec_len, T::zero());
+        //     dat
+        // }else{
+        //     vec![]
+        // };
+
         let mut hits = FnvHashMap::default();
         let size = self.get_size();
         let mut data_bytes: Vec<u8> = Vec::with_capacity(100);
@@ -585,12 +600,27 @@ impl IndexIdToParent for PointingArrayFileReader<u32> {
             load_bytes_into(&mut data_bytes, &*self.data_file.lock(), start as u64);
 
             let mut rdr = Cursor::new(&data_bytes);
-            while let Ok(id) = rdr.read_u32::<LittleEndian>() {
-                // out_dat.push(el);
-                let stat = hits.entry(id).or_insert(0);
-                *stat += 1;
+
+            if prefer_vec{
+                while let Ok(id) = rdr.read_u32::<LittleEndian>() {
+                    hits_vec[id as usize] += 1;
+                }
+            }else{
+                while let Ok(id) = rdr.read_u32::<LittleEndian>() {
+                    let stat = hits.entry(id).or_insert(0);
+                    *stat += 1;
+                }
             }
+            
         }
+
+        // if prefer_vec{
+        //     hits_vec.sort_unstable_by(|a, b| b.cmp(&a));
+        //     hits_vec = apply_top_skip(hits_vec, 0, top as usize);
+        // }else{
+
+        // }
+
         hits
 
     }
