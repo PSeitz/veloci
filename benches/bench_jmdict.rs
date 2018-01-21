@@ -11,20 +11,121 @@ extern crate search_lib;
 extern crate serde;
 extern crate test;
 
+#[macro_use]
+extern crate criterion;
+
+// use rand::distributions::{IndependentSample, Range};
+use criterion::Criterion;
+use search_lib::*;
+use search_lib::search::*;
+static TEST_FOLDER: &str = "jmdict";
+
+use std::env;
+
+
+
+fn load_persistence_im() -> persistence::Persistence {
+    env::set_var("LoadingType", "InMemory");
+    persistence::Persistence::load(TEST_FOLDER.to_string()).expect("Could not load persistence")
+}
+
+fn load_persistence_disk() -> persistence::Persistence {
+    env::set_var("LoadingType", "Disk");
+    persistence::Persistence::load(TEST_FOLDER.to_string()).expect("Could not load persistence")
+}
+
+// fn load_gutenberg_persistence() -> persistence::Persistence {
+//     persistence::Persistence::load("gutenberg".to_string()).expect("Could not load persistence")
+// }
+
 #[cfg(test)]
 mod bench_jmdict {
     extern crate env_logger;
     extern crate rand;
 
-    // use search_lib::*;
-    use search_lib::persistence;
-    use search_lib::search;
-    use search_lib::search_field;
-    use serde_json;
+    // fn search_testo_to_doc(req: Value) -> Result<Vec<search::DocWithHit>, search::SearchError> {
+    //     let persistences = PERSISTENCES.read().unwrap();
+    //     let pers = persistences.get(&"default".to_string()).unwrap();
+    //     let requesto: search::Request = serde_json::from_str(&req.to_string()).expect("Can't parse json");
+    //     let hits = search::search(requesto, pers)?;
+    //     Ok(search::to_documents(pers, &hits.data))
+    // }
 
-    use test::Bencher;
+    #[bench]
+    fn highlight_in_book(b: &mut Bencher) {
+        let pers = load_gutenberg_persistence();
+        b.iter(|| highlight("pride", "content", &pers));
+    }
 
-    static TEST_FOLDER: &str = "jmdict";
+
+    // #[bench]
+    // fn get_text_ids_fst(b: &mut Bencher) {
+    //     let mut rng = rand::thread_rng();
+    //     let between = Range::new(0, 7000);
+    //     let pers = load_gutenberg_persistence();
+    //     b.iter(|| {
+    //         search_field::get_text_for_id(
+    //             &pers,
+    //             "content.textindex",
+    //             between.ind_sample(&mut rng) as u32,
+    //         )
+    //     });
+    // }
+
+    // #[bench]
+    // fn get_text_ids_fst_cache(b: &mut Bencher) {
+    //     let mut rng = rand::thread_rng();
+    //     let between = Range::new(0, 7000);
+    //     let pers = load_gutenberg_persistence();
+    //     let mut bytes = vec![];
+    //     b.iter(|| {
+    //         search_field::get_text_for_id_2(
+    //             &pers,
+    //             "content.textindex",
+    //             between.ind_sample(&mut rng) as u32,
+    //             &mut bytes,
+    //         )
+    //     });
+    // }
+
+    // #[bench]
+    // fn get_text_ids_disk(b: &mut Bencher) {
+    //     let mut rng = rand::thread_rng();
+    //     let between = Range::new(0, 7000);
+    //     let pers = load_gutenberg_persistence();
+    //     b.iter(|| {
+    //         search_field::get_text_for_id_disk(
+    //             &pers,
+    //             "content.textindex",
+    //             between.ind_sample(&mut rng) as u32,
+    //         )
+    //     });
+    // }
+
+    // #[bench]
+    // fn get_text_ids_cache_fst_cache_bytes(b: &mut Bencher) {
+    //     let mut rng = rand::thread_rng();
+    //     let between = Range::new(0, 7000);
+    //     let pers = load_gutenberg_persistence();
+
+    //     let map = pers.cache.fst.get("content.textindex").unwrap();
+    //     let mut bytes = vec![];
+    //     b.iter(|| {
+    //         search_field::ord_to_term(
+    //             map.as_fst(),
+    //             between.ind_sample(&mut rng) as u64,
+    //             &mut bytes,
+    //         )
+    //     });
+    // }
+
+    // #[test]
+    // fn highlight_in_book_yeah() {
+    //     let pers = load_gutenberg_persistence();
+    //     assert_eq!(highlight("pride", "content", &pers)[0].0, "QUAARK");
+    // }
+
+}
 
     fn get_request(term: &str, levenshtein_distance: u32) -> search::Request {
         let query = json!({
@@ -135,6 +236,12 @@ mod bench_jmdict {
         let hits = search::search(requesto, &pers).unwrap();
         search::to_documents(&pers, &hits.data)
     }
+    fn search_with_facets(term: &str, pers: &persistence::Persistence, levenshtein_distance: u32, facets: Vec<FacetRequest>) -> Vec<search::DocWithHit> {
+        let mut requesto = get_request(term, levenshtein_distance);
+        requesto.facets = Some(facets);
+        let hits = search::search(requesto, &pers).unwrap();
+        search::to_documents(&pers, &hits.data)
+    }
 
     fn suggest(term: &str, path: &str, pers: &persistence::Persistence) -> search_field::SuggestFieldResult {
         let req = json!({
@@ -163,138 +270,105 @@ mod bench_jmdict {
         search_field::highlight(&pers, &mut requesto).unwrap()
     }
 
-    // fn search_testo_to_doc(req: Value) -> Result<Vec<search::DocWithHit>, search::SearchError> {
-    //     let persistences = PERSISTENCES.read().unwrap();
-    //     let pers = persistences.get(&"default".to_string()).unwrap();
-    //     let requesto: search::Request = serde_json::from_str(&req.to_string()).expect("Can't parse json");
-    //     let hits = search::search(requesto, pers)?;
-    //     Ok(search::to_documents(pers, &hits.data))
-    // }
+// fn get_text_ids_cache_fst_cache_bytes(c: &mut Criterion) {
+//     let mut rng = rand::thread_rng();
+//     let between = Range::new(0, 7000);
+//     let pers = load_gutenberg_persistence();
 
-    fn load_persistence() -> persistence::Persistence {
-        persistence::Persistence::load(TEST_FOLDER.to_string()).expect("Could not load persistence")
-    }
+//     let map = pers.cache.fst.get("content.textindex").unwrap();
+//     let mut bytes = vec![];
+//     Criterion::default()
+//         .bench_function("get_text_ids_cache_fst_cache_bytes", |b| b.iter(|| {
+//             search_field::ord_to_term(
+//                 map.as_fst(),
+//                 4350 as u64,
+//                 &mut bytes,
+//             )
+//         }));
 
-    fn load_gutenberg_persistence() -> persistence::Persistence {
-        persistence::Persistence::load("gutenberg".to_string()).expect("Could not load persistence")
-    }
+//     let mut bytes = vec![];
 
-    #[bench]
-    fn search_anschauen(b: &mut Bencher) {
-        let pers = load_persistence();
+//     Criterion::default()
+//     .bench_function("get_text_ids_disk", |b| b.iter(|| {
+//         search_field::get_text_for_id_2(
+//             &pers,
+//             "content.textindex",
+//             4350 as u32,
+//             &mut bytes,
+//         )
+//     }));
 
-        b.iter(|| search("anschauen", &pers, 1));
-    }
+//     Criterion::default()
+//     .bench_function("get_text_ids_fst_cache", |b| b.iter(|| {
+//         search_field::get_text_for_id_2(
+//             &pers,
+//             "content.textindex",
+//             4350 as u32,
+//             &mut bytes,
+//         )
+//     }));
 
-    #[bench]
-    fn search_haus(b: &mut Bencher) {
-        let pers = load_persistence();
+//     Criterion::default()
+//     .bench_function("get_text_ids_fst", |b| b.iter(|| {
+//         search_field::get_text_for_id(
+//             &pers,
+//             "content.textindex",
+//             4350 as u32,
+//         )
+//     }));
+// }
+fn searches(c: &mut Criterion) {
+    let pers = load_persistence_disk();
 
-        b.iter(|| search("haus", &pers, 1));
-    }
+    c.bench_function("jmdict_search_anschauen", |b|
+        b.iter(|| search("anschauen", &pers, 1))
+    );
 
-    #[bench]
-    fn search_japanese(b: &mut Bencher) {
-        let pers = load_persistence();
+    c.bench_function("jmdict_search_haus", |b|
+        b.iter(|| search("haus", &pers, 1))
+    );
 
-        b.iter(|| search("家", &pers, 0));
-    }
+    c.bench_function("jmdict_search_japanese", |b|
+        b.iter(|| search("家", &pers, 0))
+    );
 
-    #[bench]
-    fn suggest_an(b: &mut Bencher) {
-        let pers = load_persistence();
-        b.iter(|| suggest("an", "meanings.ger[].text", &pers));
-    }
+    // let facets: Vec<FacetRequest> = vec![FacetRequest{field:"commonness".to_string(), .. Default::default()}];
 
-    #[bench]
-    fn suggest_a(b: &mut Bencher) {
-        let pers = load_persistence();
-        b.iter(|| suggest("a", "meanings.ger[].text", &pers));
-    }
+    let req = json!({
+        "search": {
+            "terms": ["the"],
+            "path": "meanings.eng[]",
+            "levenshtein_distance":0
+        },
+        "top": 10,
+        "skip": 0,
+        "facets": [ {"field":"commonness"}]
+    });
 
-    #[bench]
-    fn suggest_kana_a(b: &mut Bencher) {
-        let pers = load_persistence();
-        b.iter(|| suggest("あ", "kana[].text", &pers));
-    }
-
-    #[bench]
-    fn highlight_in_book(b: &mut Bencher) {
-        let pers = load_gutenberg_persistence();
-        b.iter(|| highlight("pride", "content", &pers));
-    }
-
-    use rand::distributions::{IndependentSample, Range};
-
-    #[bench]
-    fn get_text_ids_fst(b: &mut Bencher) {
-        let mut rng = rand::thread_rng();
-        let between = Range::new(0, 7000);
-        let pers = load_gutenberg_persistence();
+    let requesto: search::Request = serde_json::from_str(&req.to_string()).expect("Can't parse json");
+    c.bench_function("jmdict_search_with_facets", |b|
         b.iter(|| {
-            search_field::get_text_for_id(
-                &pers,
-                "content.textindex",
-                between.ind_sample(&mut rng) as u32,
-            )
-        });
-    }
+            // search_with_facets("the", &pers, 0, facets.clone())
+            search::search(requesto.clone(), &pers)
+        })
+    );
 
-    #[bench]
-    fn get_text_ids_fst_cache(b: &mut Bencher) {
-        let mut rng = rand::thread_rng();
-        let between = Range::new(0, 7000);
-        let pers = load_gutenberg_persistence();
-        let mut bytes = vec![];
-        b.iter(|| {
-            search_field::get_text_for_id_2(
-                &pers,
-                "content.textindex",
-                between.ind_sample(&mut rng) as u32,
-                &mut bytes,
-            )
-        });
-    }
+    c.bench_function("jmdict_suggest_an", |b|
+        b.iter(|| suggest("an", "meanings.ger[].text", &pers))
+    );
 
-    #[bench]
-    fn get_text_ids_disk(b: &mut Bencher) {
-        let mut rng = rand::thread_rng();
-        let between = Range::new(0, 7000);
-        let pers = load_gutenberg_persistence();
-        b.iter(|| {
-            search_field::get_text_for_id_disk(
-                &pers,
-                "content.textindex",
-                between.ind_sample(&mut rng) as u32,
-            )
-        });
-    }
+    c.bench_function("jmdict_suggest_a", |b|
+        b.iter(|| suggest("a", "meanings.ger[].text", &pers))
+    );
 
-    #[bench]
-    fn get_text_ids_cache_fst_cache_bytes(b: &mut Bencher) {
-        let mut rng = rand::thread_rng();
-        let between = Range::new(0, 7000);
-        let pers = load_gutenberg_persistence();
-
-        let map = pers.cache.fst.get("content.textindex").unwrap();
-        let mut bytes = vec![];
-        b.iter(|| {
-            search_field::ord_to_term(
-                map.as_fst(),
-                between.ind_sample(&mut rng) as u64,
-                &mut bytes,
-            )
-        });
-    }
-
-    // #[test]
-    // fn highlight_in_book_yeah() {
-    //     let pers = load_gutenberg_persistence();
-    //     assert_eq!(highlight("pride", "content", &pers)[0].0, "QUAARK");
-    // }
-
+    c.bench_function("jmdict_suggest_kana_a", |b|
+        b.iter(|| suggest("あ", "kana[].text", &pers))
+    );
 }
 
-fn main() {
-    unimplemented!();
-}
+criterion_group!(benches, searches);
+criterion_main!(benches);
+
+// fn main() {
+//     unimplemented!();
+// }
