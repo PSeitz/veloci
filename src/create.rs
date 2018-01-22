@@ -361,7 +361,7 @@ fn calculate_token_score_in_doc(tokens_to_anchor: &mut Vec<ValIdPairToken>) -> V
 
         let mut exact_match_boost = 1;
         if first.entry_num_tokens == 1 && first.token_pos == 0{
-            exact_match_boost = 10
+            exact_match_boost = 2
         }
 
         for el in group{
@@ -369,7 +369,14 @@ fn calculate_token_score_in_doc(tokens_to_anchor: &mut Vec<ValIdPairToken>) -> V
             num_occurences_in_doc += 1;
         }
 
-        let score = ((255 / (best_pos + 1)) + num_occurences_in_doc ) / first.num_occurences * exact_match_boost;
+        // let mut score = ((20 / (best_pos + 2)) + num_occurences_in_doc.log10() ) / first.num_occurences;
+        let mut score = 20 / (best_pos + 10);
+        score *= exact_match_boost;
+
+        // println!("best_pos {:?}",best_pos);
+        // println!("num_occurences_in_doc {:?}",num_occurences_in_doc);
+        // println!("first.num_occurences {:?}",first.num_occurences);
+        // println!("scorescore {:?}",score);
 
         dat.push(TokenToAnchorScore{valid:first.valid, anchor_id:first.parent_val_id, score:score});
     }

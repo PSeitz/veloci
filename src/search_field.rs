@@ -41,16 +41,16 @@ pub struct SearchFieldResult {
 pub type TermId = u32;
 pub type Score = f32;
 
-fn get_default_score(term1: &str, term2: &str, prefix_matches: bool) -> f32 {
-    return get_default_score_for_distance(
-        distance(&term1.to_lowercase(), &term2.to_lowercase()) as u8,
-        prefix_matches,
-    );
-    // return 2.0/(distance(term1, term2) as f32 + 0.2 )
-}
+// fn get_default_score(term1: &str, term2: &str, prefix_matches: bool) -> f32 {
+//     return get_default_score_for_distance(
+//         distance(&term1.to_lowercase(), &term2.to_lowercase()) as u8,
+//         prefix_matches,
+//     );
+//     // return 2.0/(distance(term1, term2) as f32 + 0.2 )
+// }
 fn get_default_score_for_distance(distance: u8, prefix_matches: bool) -> f32 {
     if prefix_matches {
-        return 2.0 / ((distance as f32 + 1.0).log10() + 0.2);
+        return 2.0 / ((distance as f32 + 1.0).log2() + 0.2);
     } else {
         return 2.0 / (distance as f32 + 0.2);
     }
@@ -302,9 +302,11 @@ fn get_hits_in_field_one_term(persistence: &Persistence, options: &RequestSearch
         let teh_callback = |line: String, line_pos: u32| {
             // trace!("Checking {} with {}", line, term);
 
+            let line_lower = line.to_lowercase();
+
             // In the case of levenshtein != 0 or starts_with, we want prefix_matches to have a score boost - so that "awe" scores better for awesome than aber
             let mut prefix_matches = false;
-            if should_check_prefix_match && line.starts_with(&options.terms[0]) {
+            if should_check_prefix_match && line_lower.starts_with(&lower_term) {
                 prefix_matches = true;
             }
 
@@ -313,10 +315,10 @@ fn get_hits_in_field_one_term(persistence: &Persistence, options: &RequestSearch
             //     Some(distance_dfa(&line, &dfa))
             // } else {
             //     None
-            // }; 
+            // };
             //TODO: find term for multitoken
 
-            let mut score = get_default_score_for_distance(distance_dfa(&line, &dfa, &lower_term), prefix_matches);
+            let mut score = get_default_score_for_distance(distance_dfa(&line_lower, &dfa, &lower_term), prefix_matches);
 
             // let mut score = if options.levenshtein_distance.unwrap_or(0) != 0 {
             //     get_default_score_for_distance(distance_dfa(&line, &dfa, &lower_term), prefix_matches)
@@ -685,8 +687,8 @@ pub fn resolve_token_hits(persistence: &Persistence, path: &str, result: &mut Se
     Ok(())
 }
 
-fn distance_dfa(hit: &str, dfa: &DFA, lower_term: &str) -> u8 {
-    let lower_hit = hit.to_lowercase();
+fn distance_dfa(lower_hit: &str, dfa: &DFA, lower_term: &str) -> u8 {
+    // let lower_hit = hit.to_lowercase();
     let mut state = dfa.initial_state();
     for &b in lower_hit.as_bytes() {
         state = dfa.transition(state, b);
@@ -696,7 +698,7 @@ fn distance_dfa(hit: &str, dfa: &DFA, lower_term: &str) -> u8 {
         Distance::Exact(ok) => {
             ok
         },
-        Distance::AtLeast(u8) => {
+        Distance::AtLeast(_) => {
             distance(&lower_hit, lower_term)
         },
     }

@@ -115,12 +115,11 @@ pub fn bench_naivehashmap_insert_with_lookup(num_hits: u32, token_hits: u32){
 
 #[inline(always)]
 fn pseudo_rand(num: u32) -> u32 {
-
     num * (num % 8)  as u32
 }
 
 
-pub fn bench_naivehashmap_insert_with_lookup__modify(num_hits: u32, token_hits: u32){
+pub fn bench_naivehashmap_insert_with_lookup_modify(num_hits: u32, token_hits: u32){
     let mut hits:NaiveHashMap<u64, f32> = bench_naivehashmap_insert(num_hits);
     for x in 0..token_hits {
         hits.entry(pseudo_rand(x) as u64)
@@ -226,7 +225,7 @@ use super::*;
     }
     // #[bench]
     // fn bench_naivehashmap_insert_with_lookup_300k_mod(b: &mut Bencher) {
-    //     b.iter(|| bench_naivehashmap_insert_with_lookup__modify(K300K, K2MIO));
+    //     b.iter(|| bench_naivehashmap_insert_with_lookup_modify(K300K, K2MIO));
     // }
 
     #[bench]

@@ -51,7 +51,7 @@ mod tests {
                     }
                 ],
                 "meanings": {
-                    "eng" : ["dignity", "majestic appearance", "will test"],
+                    "eng" : ["karlo","dignity", "majestic appearance", "will test"],
                     "ger": ["majestätischer Anblick (m)", "majestätisches Aussehen (n)", "Majestät (f)"]
                 },
                 "ent_seq": "1587680"
@@ -71,7 +71,7 @@ mod tests {
                     }
                 ],
                 "meanings": {
-                    "eng" : ["will", "desire", "urge", "having a long torso"],
+                    "eng" : ["will", "desire", "der große karl",  "urge", "having a long torso"],
                     "ger": ["Wollen (n)", "Wille (m)", "Begeisterung (f)", "begeistern"]
                 },
                 "ent_seq": "1587690"
@@ -374,6 +374,20 @@ mod tests {
             assert_eq!(wa[0].doc["meanings"]["eng"][0], "will");
         }
 
+        it "should prefer exact tokenmatches to fuzzy text hits'"{
+
+            let req = json!({
+                "search": {
+                    "terms":["karl"],
+                    "path": "meanings.eng[]",
+                    "levenshtein_distance": 1
+                }
+            });
+            let wa = search_testo_to_doc(req).data;
+            // assert_eq!(wa.len(), 11);
+            assert_eq!(wa[0].doc["meanings"]["eng"][0], "will");
+        }
+
         it "should search word non tokenized'"{
             let req = json!({
                 "search": {
@@ -628,7 +642,7 @@ mod tests {
             let mut pers = PERSISTENCES.get(&"default".to_string()).unwrap();
             let results = search_field::suggest(&mut pers, &requesto).unwrap();
             // assert_eq!(results.iter().map(|el| el.0.clone()).collect::<Vec<String>>(), ["majestät", "majestätischer", "majestätisches", "majestätischer anblick", "majestätisches aussehen"]);
-            assert_eq!(results.iter().map(|el| el.0.clone()).collect::<Vec<String>>(), ["majestätischer", "majestätisches", "majestätischer Anblick (m)", "majestätisches Aussehen (n)", "Majestät", "Majestät (f)"]);
+            assert_eq!(results.iter().map(|el| el.0.clone()).collect::<Vec<String>>(), ["Majestät", "Majestät (f)", "majestätischer", "majestätisches", "majestätischer Anblick (m)", "majestätisches Aussehen (n)"]);
         }
 
         it "multi real suggest with score"{
@@ -646,11 +660,11 @@ mod tests {
             let mut pers = PERSISTENCES.get(&"default".to_string()).unwrap();
             let results = search_field::suggest_multi(&mut pers, requesto).unwrap();
             // assert_eq!(results.iter().map(|el| el.0.clone()).collect::<Vec<String>>(), ["will", "wille", "will test"]);
-            assert_eq!(results.iter().map(|el| el.0.clone()).collect::<Vec<String>>(), ["will", "will test", "Wille", "Wille (m)"]);
+            assert_eq!(results.iter().map(|el| el.0.clone()).collect::<Vec<String>>(), ["will", "Wille", "Wille (m)", "will test"]);
         }
 
 
-        it "real suggest with boosting score of begeisterung and token value"{
+        it "real suggest with boosting score of 'Begeisterung' and token value"{
             let req = json!({
                 "terms":["begeist"],
                 "path": "meanings.ger[]",
@@ -668,7 +682,7 @@ mod tests {
             let mut pers = PERSISTENCES.get(&"default".to_string()).unwrap();
             let results = search_field::suggest(&mut pers, &requesto).unwrap();
             // assert_eq!(results.iter().map(|el| el.0.clone()).collect::<Vec<String>>(), ["begeisterung", "begeistern"]);
-            assert_eq!(results.iter().map(|el| el.0.clone()).collect::<Vec<String>>(), ["begeistern", "Begeisterung", "Begeisterung (f)"]);
+            assert_eq!(results.iter().map(|el| el.0.clone()).collect::<Vec<String>>(), ["Begeisterung", "begeistern", "Begeisterung (f)"]);
         }
 
         // it "should or connect the checks"{

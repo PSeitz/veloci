@@ -45,11 +45,17 @@ use std::sync::Mutex;
 
 #[derive(Serialize, Deserialize, Default, Clone, Debug)]
 pub struct Request {
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub or: Option<Vec<Request>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub and: Option<Vec<Request>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub search: Option<RequestSearchPart>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub suggest: Option<Vec<RequestSearchPart>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub boost: Option<Vec<RequestBoostPart>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub facets: Option<Vec<FacetRequest>>,
     #[serde(default = "default_top")] pub top: usize,
     #[serde(default = "default_skip")] pub skip: usize,
@@ -73,19 +79,39 @@ pub struct RequestSearchPart {
     pub path: String,
     pub terms: Vec<String>,
     #[serde(default = "default_term_operator")] pub term_operator: TermOperator,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub levenshtein_distance: Option<u32>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub starts_with: Option<bool>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub return_term: Option<bool>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub snippet: Option<bool>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub token_value: Option<RequestBoostPart>,
     // pub exact: Option<bool>,
-    // pub first_char_exact_match: Option<bool>,
     /// boosts the search part with this value
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub boost: Option<f32>,
-    #[serde(default = "default_resolve_token_to_parent_hits")] pub resolve_token_to_parent_hits: Option<bool>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default = "default_resolve_token_to_parent_hits")]
+    pub resolve_token_to_parent_hits: Option<bool>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub top: Option<usize>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub skip: Option<usize>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub snippet_info: Option<SnippetInfo>,
+
     #[serde(default)]
     pub fast_field: bool,
 }
@@ -289,7 +315,6 @@ fn get_all_field_names(persistence: &Persistence) -> Vec<String> {
         .collect()
 }
 
-#[flame]
 pub fn suggest_query(request: &str, persistence: &Persistence, mut top: Option<usize>, skip: Option<usize>, levenshtein: Option<usize>, fields:Option<Vec<String>>) -> Request {
     // let req = persistence.meta_data.fulltext_indices.key
 
@@ -349,7 +374,7 @@ pub fn normalize_to_single_space(text: &str) -> String {
 }
 
 #[flame]
-pub fn search_query(request: &str, persistence: &Persistence, top: Option<usize>, skip: Option<usize>, mut operator: Option<String>, levenshtein: Option<usize>, facetlimit: Option<usize>, facets: Option<Vec<String>>) -> Request {
+pub fn search_query(request: &str, persistence: &Persistence, top: Option<usize>, skip: Option<usize>, mut operator: Option<String>, levenshtein: Option<usize>, facetlimit: Option<usize>, facets: Option<Vec<String>>, fields:Option<Vec<String>>) -> Request {
     // let req = persistence.meta_data.fulltext_indices.key
 
     let terms:Vec<String> = if operator.is_none() && request.contains(" AND "){
@@ -363,7 +388,9 @@ pub fn search_query(request: &str, persistence: &Persistence, top: Option<usize>
         s = normalize_to_single_space(&s);
         s.split(" ").map(|el|el.to_string()).collect()
     }else{
-        request.split(" ").map(|el|el.to_string()).collect()
+        let mut s = String::from(request);
+        s = normalize_to_single_space(&s);
+        s.split(" ").map(|el|el.to_string()).collect()
     };
 
     // let terms = request.split(" ").map(|el|el.to_string()).collect::<Vec<&str>>();
@@ -384,6 +411,12 @@ pub fn search_query(request: &str, persistence: &Persistence, top: Option<usize>
 
                 let parts = get_all_field_names(&persistence)
                 .iter()
+                .filter(|el| {
+                    if let Some(ref filter) = fields {
+                        return filter.contains(el);
+                    }
+                    return true;
+                })
                 .map(|field_name| {
                     let part = RequestSearchPart {
                         path: field_name.to_string(),
@@ -418,6 +451,12 @@ pub fn search_query(request: &str, persistence: &Persistence, top: Option<usize>
     info_time!("generating search query");
     let parts: Vec<Request> = get_all_field_names(&persistence)
         .iter()
+        .filter(|el| {
+            if let Some(ref filter) = fields {
+                return filter.contains(el);
+            }
+            return true;
+        })
         .flat_map(|field_name| {
             let requests: Vec<Request> = terms
                 .iter()
@@ -574,6 +613,10 @@ pub fn union_hits(mut or_results: Vec<SearchFieldResult>) -> SearchFieldResult {
 
     let mut result = SearchFieldResult::default();
     result.hits = longest_result;
+
+    let estimate_additional_elements: usize = or_results.iter().map(|el| el.hits.len()).sum();
+    result.hits.reserve(estimate_additional_elements / 2);
+
     for res in or_results {
         result.hits.extend(&res.hits);
     }
@@ -589,19 +632,6 @@ pub fn union_hits(mut or_results: Vec<SearchFieldResult>) -> SearchFieldResult {
     result
 }
 
-// pub fn intersect_hits(mut and_results:Vec<FnvHashMap<u32, f32>>) -> FnvHashMap<u32, f32> {
-//     let mut all_results: FnvHashMap<u32, f32> = FnvHashMap::default();
-//     let index_shortest = get_shortest_result(&and_results.iter().map(|el| el.iter()).collect());
-
-//     let shortest_result = and_results.swap_remove(index_shortest);
-//     for (k, v) in shortest_result {
-//         if and_results.iter().all(|ref x| x.contains_key(&k)) {
-//             all_results.insert(k, v);
-//         }
-//     }
-//     all_results
-// }
-
 #[flame]
 pub fn intersect_hits(mut and_results: Vec<SearchFieldResult>) -> SearchFieldResult {
     let mut all_results: FnvHashMap<u32, f32> = FnvHashMap::default();
@@ -611,7 +641,9 @@ pub fn intersect_hits(mut and_results: Vec<SearchFieldResult>) -> SearchFieldRes
     for (k, v) in shortest_result {
         if and_results.iter().all(|ref x| x.hits.contains_key(&k)) {
             // if all hits contain this key
-            all_results.insert(k, v);
+            // all_results.insert(k, v);
+            let score:f32 = and_results.iter().map(|el| *el.hits.get(&k).unwrap_or(&0.0)).sum();
+            all_results.insert(k, v + score);
         }
     }
     // all_results

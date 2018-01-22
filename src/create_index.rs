@@ -115,7 +115,7 @@ fn create_thalia_index_big() -> Result<(), io::Error> {
 
     println!(
         "{:?}",
-        search_lib::create::create_indices("thalia", &json, TAHLIA_INDICES)
+        search_lib::create::create_indices("thalia_new", &json, TAHLIA_INDICES)
     );
     // File::create("MATNR").unwrap().write_all(all_terms.join("\n").as_bytes()).unwrap();
 

@@ -223,6 +223,8 @@ pub fn start_server() {
             )));
         }
 
+        info!("get query {:?}", map.get("query").unwrap());
+
         // map.get("query").ok_or(IronError::new(
         //     StringError("query parameter not found".to_string()),
         //     status::BadRequest,
@@ -238,6 +240,7 @@ pub fn start_server() {
         // }).collect();
         let facets: Option<Vec<String>> = map.get("facets").clone().map(|el| el.split(",").map(|f|f.to_string()).collect());
         // "facets": [ {"field":"ISMLANGUAGES"}, {"field":"ISMARTIST"}, {"field":"GENRE"}, {"field":"VERLAG[]"}   ]
+        let fields: Option<Vec<String>> = map.get("fields").clone().map(|el| el.split(",").map(|f|f.to_string()).collect());
 
         let request = search::search_query(
             map.get("query").unwrap(),
@@ -253,15 +256,16 @@ pub fn start_server() {
                 .map(|el| el.parse::<usize>().unwrap())
                 .clone(),
             facetlimit,
-            facets
+            facets,
+            fields
         );
 
-        // println!("{}", serde_json::to_string(&request).unwrap());
+        debug!("{}", serde_json::to_string(&request).unwrap());
         search_in_persistence(&persistence, request, enable_flame(req).unwrap_or(false))
     }
 
     fn suggest_get_handler(req: &mut Request) -> IronResult<Response> {
-        info_time!("search request total");
+        info_time!("suggest request total");
         let database = req.extensions
             .get::<Router>()
             .unwrap()
@@ -278,6 +282,8 @@ pub fn start_server() {
                 "query parameter not found".to_string(),
             )));
         }
+
+        info!("suggest query {:?}", map.get("query").unwrap());
 
         let query = map.get("query").ok_or(IronError::new(
             StringError("query parameter not found".to_string()),

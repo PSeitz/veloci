@@ -957,7 +957,7 @@ mod tests {
         store.append_values_for_ids(&[0, 1, 2, 3, 4, 5], &mut vec);
         assert_eq!(vec, vec![5, 6, 9, 9, 9, 50000]);
 
-        let mut map = store.count_values_for_ids(&[0, 1, 2, 3, 4, 5], None);
+        let map = store.count_values_for_ids(&[0, 1, 2, 3, 4, 5], None);
         assert_eq!(map.get(&5).unwrap(), &1);
         assert_eq!(map.get(&9).unwrap(), &3);
     }
@@ -1014,11 +1014,6 @@ mod tests {
             // let yep = to_uniform(&values);
             // assert_eq!(yep.access(0..=1), vec![5, 6]);
             check_test_data_1_to_n(&mayda);
-        }
-
-        #[inline(always)]
-        fn pseudo_rand(num: u32) -> u32 {
-            num * (num % 8) as u32
         }
 
         fn get_test_data_large(num_ids: usize, max_num_values_per_id: usize) -> ParallelArrays<u32> {

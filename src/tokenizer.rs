@@ -93,150 +93,158 @@ impl Tokenizer for SimpleTokenizerCharsIterateGroupTokens {
     }
 }
 
-#[allow(unused_imports)]
-use test;
 
-use std::fs::File;
-use std::io::prelude::*;
+mod tests {
+    #[allow(unused_imports)]
+    use test;
+    #[allow(unused_imports)]
+    use super::*;
 
-fn get_test_book() -> String {
-    let mut f = File::open("1342-0.txt").unwrap();
-    let mut s = String::new();
-    f.read_to_string(&mut s).unwrap();
-    s
+    use std::fs::File;
+    use std::io::prelude::*;
+
+    #[allow(dead_code)]
+    fn get_test_book() -> String {
+        let mut f = File::open("1342-0.txt").unwrap();
+        let mut s = String::new();
+        f.read_to_string(&mut s).unwrap();
+        s
+    }
+
+    #[test]
+    fn test_tokenizer_control_sequences_grouped() {
+        let tokenizer = SimpleTokenizerCharsIterateGroupTokens {};
+        let mut vec: Vec<String> = vec![];
+        tokenizer.get_tokens(
+            "das \n ist ein txt, test",
+            &mut |token: &str, _is_seperator: bool| {
+                vec.push(token.to_string());
+            },
+        );
+        assert_eq!(
+            vec,
+            vec!["das", " \n ", "ist", " ", "ein", " ", "txt", ", ", "test"]
+        )
+    }
+    #[test]
+    fn test_tokenizer_control_sequences_alt() {
+        let tokenizer = SimpleTokenizer {};
+        let mut vec: Vec<String> = vec![];
+        tokenizer.get_tokens(
+            "das \n ist ein txt, test",
+            &mut |token: &str, _is_seperator: bool| {
+                vec.push(token.to_string());
+            },
+        );
+        assert_eq!(
+            vec,
+            vec![
+                "das", " ", "\n", " ", "ist", " ", "ein", " ", "txt", ",", " ", "test"
+            ]
+        )
+    }
+
+    // #[bench]
+    // fn bench_regex_iter(b: &mut test::Bencher) {
+    //     let text = get_test_book();
+
+    //     b.iter(|| {
+    //         let mut vec: Vec<String> = vec![];
+    //         for cap in TOKENIZER.captures_iter(&text) {
+    //             // cb_text(&cap[0], *&cap.get(1).is_some());
+    //             vec.push(cap[0].to_string());
+    //         }
+    //         vec
+    //     })
+    // }
+
+
+    #[bench]
+    fn bench_custom_stuff(b: &mut test::Bencher) {
+        let tokenizer = SimpleTokenizer {};
+        let text = get_test_book();
+        b.iter(|| {
+            let mut vec: Vec<String> = Vec::with_capacity(text.len() / 5);
+            tokenizer.get_tokens(&text, &mut |token: &str, _is_seperator: bool| {
+                vec.push(token.to_string());
+            });
+            vec
+        })
+    }
+    #[bench]
+    fn bench_custom_stuff_no_copy(b: &mut test::Bencher) {
+        let tokenizer = SimpleTokenizer {};
+        let text = get_test_book();
+        b.iter(|| {
+            let mut vec = Vec::with_capacity(text.len() / 5);
+            tokenizer.get_tokens(&text, &mut |token: &str, _is_seperator: bool| {
+                vec.push(token);
+            });
+            // vec
+        })
+    }
+
+    #[bench]
+    fn bench_custom_stuff_grouped_no_copy(b: &mut test::Bencher) {
+        let tokenizer = SimpleTokenizerCharsIterateGroupTokens {};
+        let text = get_test_book();
+        b.iter(|| {
+            let mut vec = Vec::with_capacity(text.len() / 5);
+            tokenizer.get_tokens(&text, &mut |token: &str, _is_seperator: bool| {
+                vec.push(token);
+            });
+            // vec
+        })
+    }
+
+    // #[bench]
+    // fn bench_split(b: &mut test::Bencher) {
+    //     let text = get_test_book();
+    //     b.iter(|| {
+    //         let mut vec: Vec<String> = vec![];
+    //         for token in (&text).split(" ") {
+    //             vec.push(token.to_string());
+    //         }
+    //         vec
+    //     })
+    // }
+
+    #[bench]
+    fn bench_split_reserve(b: &mut test::Bencher) {
+        let text = get_test_book();
+        b.iter(|| {
+            let mut vec: Vec<String> = Vec::with_capacity(text.len() / 5);
+            for token in (&text).split(" ") {
+                vec.push(token.to_string());
+            }
+            vec
+        })
+    }
+
+    #[bench]
+    fn bench_split_iterate_only(b: &mut test::Bencher) {
+        let text = get_test_book();
+        b.iter(|| {
+            let mut vec: Vec<&str> = Vec::with_capacity(text.len() / 5);
+            for token in (&text).split(" ") {
+                vec.push(token);
+            }
+        })
+    }
+
+    // #[allow(unused_imports)]
+    // use util;
+    // #[bench]
+    // fn bench_normalize_text_and_split(b: &mut test::Bencher) {
+    //     let text = get_test_book();
+    //     b.iter(|| {
+    //         let mut vec: Vec<String> = vec![];
+    //         for token in util::normalize_text(&text).split(" ") {
+    //             vec.push(token.to_string());
+    //         }
+    //         vec
+    //     })
+    // }
 }
 
-#[test]
-fn test_tokenizer_control_sequences_grouped() {
-    let tokenizer = SimpleTokenizerCharsIterateGroupTokens {};
-    let mut vec: Vec<String> = vec![];
-    tokenizer.get_tokens(
-        "das \n ist ein txt, test",
-        &mut |token: &str, _is_seperator: bool| {
-            vec.push(token.to_string());
-        },
-    );
-    assert_eq!(
-        vec,
-        vec!["das", " \n ", "ist", " ", "ein", " ", "txt", ", ", "test"]
-    )
-}
-#[test]
-fn test_tokenizer_control_sequences_alt() {
-    let tokenizer = SimpleTokenizer {};
-    let mut vec: Vec<String> = vec![];
-    tokenizer.get_tokens(
-        "das \n ist ein txt, test",
-        &mut |token: &str, _is_seperator: bool| {
-            vec.push(token.to_string());
-        },
-    );
-    assert_eq!(
-        vec,
-        vec![
-            "das", " ", "\n", " ", "ist", " ", "ein", " ", "txt", ",", " ", "test"
-        ]
-    )
-}
 
-// #[bench]
-// fn bench_regex_iter(b: &mut test::Bencher) {
-//     let text = get_test_book();
-
-//     b.iter(|| {
-//         let mut vec: Vec<String> = vec![];
-//         for cap in TOKENIZER.captures_iter(&text) {
-//             // cb_text(&cap[0], *&cap.get(1).is_some());
-//             vec.push(cap[0].to_string());
-//         }
-//         vec
-//     })
-// }
-
-
-#[bench]
-fn bench_custom_stuff(b: &mut test::Bencher) {
-    let tokenizer = SimpleTokenizer {};
-    let text = get_test_book();
-    b.iter(|| {
-        let mut vec: Vec<String> = Vec::with_capacity(text.len() / 5);
-        tokenizer.get_tokens(&text, &mut |token: &str, _is_seperator: bool| {
-            vec.push(token.to_string());
-        });
-        vec
-    })
-}
-#[bench]
-fn bench_custom_stuff_no_copy(b: &mut test::Bencher) {
-    let tokenizer = SimpleTokenizer {};
-    let text = get_test_book();
-    b.iter(|| {
-        let mut vec = Vec::with_capacity(text.len() / 5);
-        tokenizer.get_tokens(&text, &mut |token: &str, _is_seperator: bool| {
-            vec.push(token);
-        });
-        // vec
-    })
-}
-
-#[bench]
-fn bench_custom_stuff_grouped_no_copy(b: &mut test::Bencher) {
-    let tokenizer = SimpleTokenizerCharsIterateGroupTokens {};
-    let text = get_test_book();
-    b.iter(|| {
-        let mut vec = Vec::with_capacity(text.len() / 5);
-        tokenizer.get_tokens(&text, &mut |token: &str, _is_seperator: bool| {
-            vec.push(token);
-        });
-        // vec
-    })
-}
-
-// #[bench]
-// fn bench_split(b: &mut test::Bencher) {
-//     let text = get_test_book();
-//     b.iter(|| {
-//         let mut vec: Vec<String> = vec![];
-//         for token in (&text).split(" ") {
-//             vec.push(token.to_string());
-//         }
-//         vec
-//     })
-// }
-
-#[bench]
-fn bench_split_reserve(b: &mut test::Bencher) {
-    let text = get_test_book();
-    b.iter(|| {
-        let mut vec: Vec<String> = Vec::with_capacity(text.len() / 5);
-        for token in (&text).split(" ") {
-            vec.push(token.to_string());
-        }
-        vec
-    })
-}
-
-#[bench]
-fn bench_split_iterate_only(b: &mut test::Bencher) {
-    let text = get_test_book();
-    b.iter(|| {
-        let mut vec: Vec<&str> = Vec::with_capacity(text.len() / 5);
-        for token in (&text).split(" ") {
-            vec.push(token);
-        }
-    })
-}
-
-// #[allow(unused_imports)]
-// use util;
-// #[bench]
-// fn bench_normalize_text_and_split(b: &mut test::Bencher) {
-//     let text = get_test_book();
-//     b.iter(|| {
-//         let mut vec: Vec<String> = vec![];
-//         for token in util::normalize_text(&text).split(" ") {
-//             vec.push(token.to_string());
-//         }
-//         vec
-//     })
-// }

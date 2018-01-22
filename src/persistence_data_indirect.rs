@@ -12,6 +12,7 @@ use bincode::{deserialize, serialize, Infinite};
 use util::*;
 
 use persistence::*;
+use search::*;
 use persistence_data::TypeInfo;
 #[allow(unused_imports)]
 use persistence;
@@ -28,6 +29,7 @@ use std::io::Cursor;
 use std::fs;
 #[allow(unused_imports)]
 use std::fmt::Debug;
+#[allow(unused_imports)]
 use num::cast::ToPrimitive;
 use num::{Integer, NumCast};
 use std::marker::PhantomData;
@@ -84,7 +86,7 @@ impl<T: IndexIdToParentData> IndexIdToMultipleParentIndirect<T> {
     }
     #[allow(dead_code)]
     pub fn new_sort_and_dedup(data: &IndexIdToParent<Output = T>, sort_and_dedup: bool) -> IndexIdToMultipleParentIndirect<T> {
-        let (max_value_id, start_and_end_pos, data) = to_indirect_arrays_dedup(data, 0, sort_and_dedup);
+        let (_max_value_id, start_and_end_pos, data) = to_indirect_arrays_dedup(data, 0, sort_and_dedup);
         IndexIdToMultipleParentIndirect {
             start_and_end: start_and_end_pos,
             data,
@@ -170,7 +172,7 @@ pub struct IndexIdToMultipleParentCompressedMaydaINDIRECTOne<T: IndexIdToParentD
     pub data: mayda::Uniform<T>,
     pub size: usize,
     pub max_value_id: u32,
-    pub avg_join_size: u32,
+    pub avg_join_size: f32,
 }
 
 impl<T: IndexIdToParentData> IndexIdToMultipleParentCompressedMaydaINDIRECTOne<T> {
@@ -178,10 +180,10 @@ impl<T: IndexIdToParentData> IndexIdToMultipleParentCompressedMaydaINDIRECTOne<T
     pub fn new(store: &IndexIdToParent<Output = T>) -> IndexIdToMultipleParentCompressedMaydaINDIRECTOne<T> {
         let (max_value_id, size, start_and_end, data) = id_to_parent_to_array_of_array_mayda_indirect_one(store);
         let avg_join_size = if start_and_end.len() == 0 {
-            0
+            0.0
         }else{
-            data.len()/start_and_end.len()/2 //Attention, this works only of there is no compression of any kind
-        } as u32;
+            data.len() as f32/(start_and_end.len() as f32/2.0)//Attention, this works only of there is no compression of any kind
+        };
 
         info!(
             "start_and_end {}",
@@ -363,7 +365,20 @@ impl<T: IndexIdToParentData> IndexIdToParent for IndexIdToMultipleParentCompress
 
 
 
+        // Inserts are cheaper in a vec, bigger max_value_ids are more expensive in a vec
+        let num_inserts = (ids.len() as f32 * self.avg_join_size) as u32;
+        let vec_len = self.max_value_id + 1;
 
+        let prefer_vec = num_inserts * 20 > vec_len;
+        debug!("prefer_vec {} {}>{}", prefer_vec, num_inserts* 20, vec_len );
+
+        let mut hits_vec = if prefer_vec {
+            let mut dat = vec![];
+            dat.resize(vec_len as usize, 0);
+            dat
+        }else{
+            vec![]
+        };
 
 
         let mut positions:Vec<T> = vec![];
@@ -385,15 +400,32 @@ impl<T: IndexIdToParentData> IndexIdToParent for IndexIdToMultipleParentCompress
 
                 self.data.access_into(NumCast::from(positions[0]).unwrap()..NumCast::from(positions[1]).unwrap(), &mut data_cache[0 .. new_len]);
                 for id in data_cache.iter() {
-                    let stat = hits.entry(*id).or_insert(0);
-                    *stat += 1;
-
+                    // let stat = hits.entry(*id).or_insert(0);
+                    // *stat += 1;
+                    if prefer_vec{
+                        hits_vec[id.to_usize().unwrap()] += 1;
+                    }else{
+                        let stat = hits.entry(*id).or_insert(0);
+                        *stat += 1;
+                    }
                     // agg_hits[id.to_usize().unwrap()] += 1;
                 }
+
 
             }
 
         }
+
+
+        if prefer_vec{
+
+            let mut groups: Vec<(u32,u32)> = hits_vec.iter().enumerate().filter(|el| *el.1 != 0).map(|el| (el.0 as u32, *el.1)).collect();
+            groups.sort_by(|a, b| b.1.cmp(&a.1));
+            groups = apply_top_skip(groups, 0, top.unwrap_or(std::u32::MAX) as usize);
+            hits = groups.into_iter().map(|el| (NumCast::from(el.0).unwrap(), el.1 as usize)).collect();
+        }
+
+
         hits
     }
 
@@ -468,7 +500,7 @@ pub struct IndexIdToMultipleParentCompressedMaydaINDIRECTOneReuse<T: IndexIdToPa
 impl<T: IndexIdToParentData> IndexIdToMultipleParentCompressedMaydaINDIRECTOneReuse<T> {
     #[allow(dead_code)]
     pub fn new(store: &IndexIdToParent<Output = T>) -> IndexIdToMultipleParentCompressedMaydaINDIRECTOneReuse<T> {
-        let (max_value_id, size, start_and_end, data) = id_to_parent_to_array_of_array_mayda_indirect_one_reuse_existing(store);
+        let (_max_value_id, size, start_and_end, data) = id_to_parent_to_array_of_array_mayda_indirect_one_reuse_existing(store);
 
         info!(
             "start_and_end {}",
@@ -506,11 +538,11 @@ pub struct PointingArrayFileReader<T: IndexIdToParentData> {
     pub data_metadata: Mutex<fs::Metadata>,
     pub ok: PhantomData<T>,
     pub max_value_id: u32,
-    pub avg_join_size: u32,
+    pub avg_join_size: f32,
 }
 
 impl<T: IndexIdToParentData> PointingArrayFileReader<T> {
-    pub fn new(start_and_end_file: fs::File, data_file: fs::File, data_metadata: fs::Metadata, max_value_id: u32, avg_join_size: u32) -> Self {
+    pub fn new(start_and_end_file: fs::File, data_file: fs::File, data_metadata: fs::Metadata, max_value_id: u32, avg_join_size: f32) -> Self {
         PointingArrayFileReader {
             start_and_end_file: Mutex::new(start_and_end_file),
             data_file: Mutex::new(data_file),
@@ -529,7 +561,7 @@ impl<T: IndexIdToParentData> IndexIdToParent for PointingArrayFileReader<T> {
     type Output = T;
     default fn get_values(&self, find: u64) -> Option<Vec<T>> {
         get_u32_values_from_pointing_file(
-            //FIXME BUG BUG
+            //FIXME BUG BUG if file is not u32
             find,
             self.get_size(),
             &self.start_and_end_file,
@@ -560,18 +592,19 @@ impl IndexIdToParent for PointingArrayFileReader<u32> {
     fn count_values_for_ids(&self, ids: &[u32], top:Option<u32>) -> FnvHashMap<u32, usize>{
 
         // Inserts are cheaper in a vec, bigger max_value_ids are more expensive in a vec
-        // let num_inserts = ids.len() * avg_join_size;
-        // let vec_len = max_value_id + 1;
+        let num_inserts = (ids.len() as f32 * self.avg_join_size) as u32;
+        let vec_len = self.max_value_id + 1;
 
-        // let prefer_vec = num_inserts * 20 < vec_len;
+        let prefer_vec = num_inserts * 20 > vec_len;
+        debug!("prefer_vec {} {}>{}", prefer_vec, num_inserts* 20, vec_len );
 
-        // let hits_vec = if prefer_vec {
-        //     let dat = vec![];
-        //     dat.resize(vec_len, T::zero());
-        //     dat
-        // }else{
-        //     vec![]
-        // };
+        let mut hits_vec = if prefer_vec {
+            let mut dat = vec![];
+            dat.resize(vec_len as usize, 0);
+            dat
+        }else{
+            vec![]
+        };
 
         let mut hits = FnvHashMap::default();
         let size = self.get_size();
@@ -611,15 +644,26 @@ impl IndexIdToParent for PointingArrayFileReader<u32> {
                     *stat += 1;
                 }
             }
-            
+
         }
 
-        // if prefer_vec{
-        //     hits_vec.sort_unstable_by(|a, b| b.cmp(&a));
-        //     hits_vec = apply_top_skip(hits_vec, 0, top as usize);
-        // }else{
+        if prefer_vec{
+            // todo extract top x
+            // let mut best_hits = vec![];
+            // for (i, el) in hits_vec.iter().enumerate() {
+            //     if el == 0{
+            //         continue;
+            //     }
+            //     if
+            // }
 
-        // }
+            let mut groups: Vec<(u32,u32)> = hits_vec.iter().enumerate().filter(|el| *el.1 != 0).map(|el| (el.0 as u32, *el.1)).collect();
+            groups.sort_by(|a, b| b.1.cmp(&a.1));
+            groups = apply_top_skip(groups, 0, top.unwrap_or(std::u32::MAX) as usize);
+            hits = groups.into_iter().map(|el| (el.0 as u32, el.1 as usize)).collect();
+        }else{
+
+        }
 
         hits
 
@@ -943,7 +987,7 @@ mod tests {
             let data_file = File::open(&get_file_path("test_pointing_file_array", "data")).unwrap();
             let data_metadata = fs::metadata(&get_file_path("test_pointing_file_array", "indirect")).unwrap();
 
-            let store = PointingArrayFileReader::new(start_and_end_file, data_file, data_metadata, max_value_id, (values.len() / (keys.len()/2)) as u32 );
+            let store = PointingArrayFileReader::new(start_and_end_file, data_file, data_metadata, max_value_id, values.len() as f32 / (keys.len() as f32 /2.0) );
             check_test_data_1_to_n(&store);
         }
 
@@ -978,7 +1022,7 @@ mod tests {
             for x in 0..num_ids {
                 let num_values = between.ind_sample(&mut rng) as u64;
 
-                for i in 0..num_values {
+                for _i in 0..num_values {
                     keys.push(x as u32);
                     // values.push(pseudo_rand((x as u32 * i as u32) as u32));
                     values.push(between.ind_sample(&mut rng) as u32);
@@ -1002,7 +1046,7 @@ mod tests {
             let start_and_end_file = File::open(&data_path).unwrap();
             let data_file = File::open(&data_path).unwrap();
             let data_metadata = fs::metadata(&data_path).unwrap();
-            let store = PointingArrayFileReader::new(start_and_end_file, data_file, data_metadata, max_value_id, (values.len() / (keys.len()/2)) as u32  );
+            let store = PointingArrayFileReader::new(start_and_end_file, data_file, data_metadata, max_value_id, values.len() as f32 / (keys.len() as f32 /2.0)  );
             store
         }
 

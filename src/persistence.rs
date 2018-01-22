@@ -66,15 +66,15 @@ pub struct KVStoreMetaData {
     #[serde(default = "default_max_value_id")]
     pub max_value_id: u32, // max value on the "right" side key -> value, key -> value ..
     #[serde(default = "default_avg_join")]
-    pub avg_join_size: u32, // some join statistics
+    pub avg_join_size: f32, // some join statistics
 }
 
 //TODO Only tmp
 fn default_max_value_id() -> u32 {
     std::u32::MAX
 }
-fn default_avg_join() -> u32 {
-    1000
+fn default_avg_join() -> f32 {
+    1000.0
 }
 
 // impl KVStoreMetaData {
@@ -165,7 +165,7 @@ pub trait IndexIdToParent: Debug + HeapSizeOf + Sync + Send + persistence_data::
     }
 
     #[inline]
-    fn count_values_for_ids(&self, ids: &[u32], top:Option<u32>) -> FnvHashMap<Self::Output, usize> {
+    fn count_values_for_ids(&self, ids: &[u32], _top:Option<u32>) -> FnvHashMap<Self::Output, usize> {
         let mut hits = FnvHashMap::default();
         for id in ids {
             if let Some(vals) = self.get_values(*id as u64) {
@@ -348,9 +348,9 @@ impl Persistence {
         let store = IndexIdToMultipleParentIndirect::new_sort_and_dedup(data, sort_and_dedup);
 
         let avg_join_size = if store.start_and_end.len() == 0 {
-            0
+            0.0
         }else{
-            store.data.len()/store.start_and_end.len()/2 //Attention, this works only of there is no compression of any kind
+            store.data.len() as f32/(store.start_and_end.len() as f32/2.0)//Attention, this works only of there is no compression of any kind
         };
 
         File::create(indirect_file_path)?.write_all(&vec_to_bytes_u32(&store.start_and_end))?;
@@ -361,7 +361,7 @@ impl Persistence {
             is_1_to_n: store.is_1_to_n(),
             path: path.to_string(),
             max_value_id: max_value_id,
-            avg_join_size: avg_join_size as u32,
+            avg_join_size: avg_join_size as f32,
         });
 
         Ok(())
@@ -399,7 +399,7 @@ impl Persistence {
             is_1_to_n: data.is_1_to_n(),
             path: boost_path.to_string(),
             max_value_id: tuples.iter().max_by_key(|el| el.value).unwrap().value,
-            avg_join_size: 1 //FixMe? multiple boosts?
+            avg_join_size: 1.0 //FixMe? multiple boosts?
         });
         Ok(())
     }
