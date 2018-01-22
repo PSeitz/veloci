@@ -67,7 +67,7 @@ version = "0.5.0"
 env_logger = "0.3"
 pretty_assertions = "0.1.2"
 stainless = "*"
-criterion = "0.1.1"
+criterion = "0.1.2"
 
 [lib]
 name = "search_lib"

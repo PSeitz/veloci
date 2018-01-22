@@ -807,9 +807,9 @@ pub fn add_token_values_to_tokens(persistence: &mut Persistence, data_str: &str,
             .collect::<Vec<_>>();
 
         let hits = search_field::get_hits_in_field(persistence, &options, None)?;
-        if hits.hits.len() == 1 {
+        if hits.hits_vec.len() == 1 {
             tuples.push(ValIdToValue {
-                valid: *hits.hits.iter().nth(0).unwrap().0,
+                valid: hits.hits_vec.iter().nth(0).unwrap().id,
                 value: el.value.unwrap(),
             });
         }

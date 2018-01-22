@@ -156,7 +156,7 @@ impl StepExecutor for PlanStepType {
                 debug_time!("union total");
                 execute_steps(steps, persistence)?;
                 debug_time!("union netto");
-                output_next_steps.send(union_hits(get_data(input_prev_steps)?))?;
+                output_next_steps.send(union_hits_vec(get_data(input_prev_steps)?))?;
                 Ok(())
             }
             PlanStepType::Intersect {
@@ -168,7 +168,7 @@ impl StepExecutor for PlanStepType {
                 debug_time!("intersect total");
                 execute_steps(steps, persistence)?;
                 debug_time!("intersect netto");
-                output_next_steps.send(intersect_hits(get_data(input_prev_steps)?))?;
+                output_next_steps.send(intersect_hits_vec(get_data(input_prev_steps)?))?;
                 Ok(())
             }
             PlanStepType::FromAttribute { steps, .. } => {

@@ -331,7 +331,7 @@ pub fn start_server() {
             Ok(Some(struct_body)) => {
                 info!("Parsed body:\n{:?}", struct_body);
                 // info_time!("search total");
-                Ok((struct_body.clone()))
+                Ok(struct_body.clone())
             }
             Ok(None) => {
                 info!("No body");
@@ -608,6 +608,6 @@ pub fn start_server() {
             "File {:?} ({:?}):",
             saved_file.filename, saved_file.content_type
         );
-        Ok((contents))
+        Ok(contents)
     }
 }
