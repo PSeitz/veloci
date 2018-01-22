@@ -2,8 +2,8 @@
 #![feature(test)]
 #[macro_use]
 extern crate criterion;
-extern crate itertools;
 extern crate fnv;
+extern crate itertools;
 extern crate test;
 extern crate trie;
 
@@ -12,17 +12,17 @@ extern crate trie;
 // use bit_set::BitSet;
 use std::collections::HashMap;
 use fnv::FnvHashMap;
-use std::hash::{Hasher, BuildHasherDefault};
+use std::hash::{BuildHasherDefault, Hasher};
 
 // use trie::map;
 // use trie::map::Map;
 
 #[allow(dead_code)]
-static K1K: u32 =   1000;
+static K1K: u32 = 1000;
 #[allow(dead_code)]
-static K3K: u32 =   3000;
+static K3K: u32 = 3000;
 #[allow(dead_code)]
-static K10K: u32 =  10000;
+static K10K: u32 = 10000;
 #[allow(dead_code)]
 static K100K: u32 = 100000;
 #[allow(dead_code)]
@@ -34,8 +34,7 @@ static K3MIO: u32 = 3000000;
 #[allow(dead_code)]
 static K2MIO: u32 = 2000000;
 #[allow(dead_code)]
-static MIO: u32 =   1000000;
-
+static MIO: u32 = 1000000;
 
 pub struct NaiveHasher(u64);
 impl Default for NaiveHasher {
@@ -60,9 +59,8 @@ impl Hasher for NaiveHasher {
 type NaiveBuildHasher = BuildHasherDefault<NaiveHasher>;
 pub type NaiveHashMap<K, V> = HashMap<K, V, NaiveBuildHasher>;
 
-
-pub fn bench_fnvhashmap_insert(num_entries: u32) -> FnvHashMap<u32, f32>{
-    let mut hits:FnvHashMap<u32, f32> = FnvHashMap::default();
+pub fn bench_fnvhashmap_insert(num_entries: u32) -> FnvHashMap<u32, f32> {
+    let mut hits: FnvHashMap<u32, f32> = FnvHashMap::default();
     hits.reserve(num_entries as usize);
     for x in 0..num_entries {
         hits.insert(pseudo_rand(x), 0.22);
@@ -70,8 +68,8 @@ pub fn bench_fnvhashmap_insert(num_entries: u32) -> FnvHashMap<u32, f32>{
     hits
 }
 
-pub fn bench_naivehashmap_insert(num_entries: u32) -> NaiveHashMap<u64, f32>{
-    let mut hits:NaiveHashMap<u64, f32> = NaiveHashMap::default();
+pub fn bench_naivehashmap_insert(num_entries: u32) -> NaiveHashMap<u64, f32> {
+    let mut hits: NaiveHashMap<u64, f32> = NaiveHashMap::default();
     hits.reserve(num_entries as usize);
     for x in 0..num_entries {
         hits.insert(pseudo_rand(x) as u64, 0.22);
@@ -79,7 +77,7 @@ pub fn bench_naivehashmap_insert(num_entries: u32) -> NaiveHashMap<u64, f32>{
     hits
 }
 
-pub fn bench_triemap_insert(num_entries: u32) -> trie::Map<f32>{
+pub fn bench_triemap_insert(num_entries: u32) -> trie::Map<f32> {
     let mut hits: trie::Map<f32> = trie::Map::default();
     // hits.reserve(num_entries as usize);
     for x in 0..num_entries {
@@ -87,26 +85,24 @@ pub fn bench_triemap_insert(num_entries: u32) -> trie::Map<f32>{
     }
     hits
 }
-pub fn bench_triemap_insert_with_lookup(num_hits: u32, token_hits: u32){
-    let mut hits:trie::Map<f32> = bench_triemap_insert(num_hits);
+pub fn bench_triemap_insert_with_lookup(num_hits: u32, token_hits: u32) {
+    let mut hits: trie::Map<f32> = bench_triemap_insert(num_hits);
     for x in 0..token_hits {
-        let stat = hits.entry(pseudo_rand(x) as usize ).or_insert(0.0);
+        let stat = hits.entry(pseudo_rand(x) as usize).or_insert(0.0);
         *stat += 2.0;
     }
 }
 
-
-pub fn bench_fnvhashmap_insert_with_lookup(num_hits: u32, token_hits: u32){
-    let mut hits:FnvHashMap<u32, f32> = bench_fnvhashmap_insert(num_hits);
+pub fn bench_fnvhashmap_insert_with_lookup(num_hits: u32, token_hits: u32) {
+    let mut hits: FnvHashMap<u32, f32> = bench_fnvhashmap_insert(num_hits);
     for x in 0..token_hits {
         let stat = hits.entry(pseudo_rand(x)).or_insert(0.0);
         *stat += 2.0;
     }
 }
 
-
-pub fn bench_naivehashmap_insert_with_lookup(num_hits: u32, token_hits: u32){
-    let mut hits:NaiveHashMap<u64, f32> = bench_naivehashmap_insert(num_hits);
+pub fn bench_naivehashmap_insert_with_lookup(num_hits: u32, token_hits: u32) {
+    let mut hits: NaiveHashMap<u64, f32> = bench_naivehashmap_insert(num_hits);
     for x in 0..token_hits {
         let stat = hits.entry(pseudo_rand(x) as u64).or_insert(0.0);
         *stat += 2.0;
@@ -115,21 +111,20 @@ pub fn bench_naivehashmap_insert_with_lookup(num_hits: u32, token_hits: u32){
 
 #[inline(always)]
 fn pseudo_rand(num: u32) -> u32 {
-    num * (num % 8)  as u32
+    num * (num % 8) as u32
 }
 
-
-pub fn bench_naivehashmap_insert_with_lookup_modify(num_hits: u32, token_hits: u32){
-    let mut hits:NaiveHashMap<u64, f32> = bench_naivehashmap_insert(num_hits);
+pub fn bench_naivehashmap_insert_with_lookup_modify(num_hits: u32, token_hits: u32) {
+    let mut hits: NaiveHashMap<u64, f32> = bench_naivehashmap_insert(num_hits);
     for x in 0..token_hits {
         hits.entry(pseudo_rand(x) as u64)
-           .and_modify(|e| { *e += 2.0 })
-           .or_insert(0.0);
+            .and_modify(|e| *e += 2.0)
+            .or_insert(0.0);
     }
 }
 
-pub fn bench_vec_insert(num_entries: u32) -> Vec<(u32, f32)>{
-    let mut hits:Vec<(u32, f32)> = vec![];
+pub fn bench_vec_insert(num_entries: u32) -> Vec<(u32, f32)> {
+    let mut hits: Vec<(u32, f32)> = vec![];
     hits.reserve(num_entries as usize);
     for x in 0..num_entries {
         hits.push((pseudo_rand(x), 0.22));
@@ -140,7 +135,7 @@ pub fn bench_vec_insert(num_entries: u32) -> Vec<(u32, f32)>{
 use itertools::Itertools;
 
 pub fn bench_vec_insert_with_group_by_in_2_vec(num_hits: u32, token_hits: u32) -> Vec<(u32, f32)> {
-    let mut hits:Vec<(u32, f32)> = bench_vec_insert(num_hits);
+    let mut hits: Vec<(u32, f32)> = bench_vec_insert(num_hits);
     hits.reserve(token_hits as usize);
     for x in 0..token_hits {
         hits.push((pseudo_rand(x), 0.25));
@@ -149,7 +144,7 @@ pub fn bench_vec_insert_with_group_by_in_2_vec(num_hits: u32, token_hits: u32) -
     }
     hits.sort_unstable_by(|a, b| a.0.cmp(&b.0));
 
-    let mut hits_2:Vec<(u32, f32)> = vec![];
+    let mut hits_2: Vec<(u32, f32)> = vec![];
     hits_2.reserve(hits.len());
 
     for (key, mut group) in &hits.into_iter().group_by(|elt| elt.0) {
@@ -157,7 +152,6 @@ pub fn bench_vec_insert_with_group_by_in_2_vec(num_hits: u32, token_hits: u32) -
     }
     hits_2
 }
-
 
 // fn criterion_benchmark(c: &mut Criterion) {
 //     Criterion::default()
@@ -167,12 +161,11 @@ pub fn bench_vec_insert_with_group_by_in_2_vec(num_hits: u32, token_hits: u32) -
 // criterion_group!(benches, criterion_benchmark);
 // criterion_main!(benches);
 
-
 #[cfg(test)]
 mod bench_collection {
 
-use test::Bencher;
-use super::*;
+    use test::Bencher;
+    use super::*;
 
     // #[bench]
     // fn bench_fnvhashmap_insert_with_lookup_100k(b: &mut Bencher) {
@@ -243,7 +236,6 @@ use super::*;
         b.iter(|| bench_triemap_insert_with_lookup(K300K, 0));
     }
 
-
     // #[bench]
     // fn bench_vec_insert_300k(b: &mut Bencher) {
     //     b.iter(|| bench_vec_insert(K300K));
@@ -269,6 +261,5 @@ use super::*;
     //     let mut hits:NaiveHashMap<u64, f32> = NaiveHashMap::default();
     //     map_bench(&mut hits, b, K300K, K300K);
     // }
-
 
 }

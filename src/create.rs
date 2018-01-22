@@ -27,7 +27,7 @@ pub enum CreateIndex {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct FacetIndex {
-    facet: String
+    facet: String,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -132,7 +132,7 @@ pub struct ValIdPairToken {
 pub struct TokenToAnchorScore {
     pub valid: u32,
     pub anchor_id: u32,
-    pub score: u32
+    pub score: u32,
 }
 
 impl GetValueId for ValIdPair {
@@ -308,11 +308,10 @@ fn add_text<T: Tokenizer>(text: &str, terms: &mut FnvHashMap<String, TermInfo>, 
     }
 }
 
-fn get_or_insert<'a, T, F>(map: &'a mut FnvHashMap<String, T>, key:&str, constructor: &F) -> &'a mut  T
+fn get_or_insert<'a, T, F>(map: &'a mut FnvHashMap<String, T>, key: &str, constructor: &F) -> &'a mut T
 where
-    F: Fn() -> T
+    F: Fn() -> T,
 {
-
     if !map.contains_key(key) {
         map.insert(
             key.to_string(),
@@ -321,11 +320,9 @@ where
         );
     }
     map.get_mut(key).unwrap()
-
 }
 use itertools::Itertools;
 fn calculate_token_score_in_doc(tokens_to_anchor: &mut Vec<ValIdPairToken>) -> Vec<TokenToAnchorScore> {
-
     // TokenToAnchorScore {
     //     pub valid: u32,
     //     pub anchor_id: u32,
@@ -338,21 +335,23 @@ fn calculate_token_score_in_doc(tokens_to_anchor: &mut Vec<ValIdPairToken>) -> V
     // num_occurences: u32,
     tokens_to_anchor.sort_unstable_by(|a, b| {
         let sort_anch = a.parent_val_id.cmp(&b.parent_val_id);
-        if sort_anch == std::cmp::Ordering::Equal{
+        if sort_anch == std::cmp::Ordering::Equal {
             let sort_valid = a.valid.cmp(&b.valid);
-            if sort_valid == std::cmp::Ordering::Equal{
+            if sort_valid == std::cmp::Ordering::Equal {
                 a.token_pos.cmp(&b.token_pos)
-            }else{
+            } else {
                 sort_valid
             }
-        }else{
+        } else {
             sort_anch
         }
     }); // sort by parent id
 
-
     let mut dat = vec![];
-    for (_, mut group) in &tokens_to_anchor.into_iter().group_by(|el| (el.parent_val_id, el.valid)) {
+    for (_, mut group) in &tokens_to_anchor
+        .into_iter()
+        .group_by(|el| (el.parent_val_id, el.valid))
+    {
         let first = group.next().unwrap();
         let best_pos = first.token_pos;
 
@@ -360,12 +359,12 @@ fn calculate_token_score_in_doc(tokens_to_anchor: &mut Vec<ValIdPairToken>) -> V
         let mut num_occurences_in_doc = 1;
 
         let mut exact_match_boost = 1;
-        if first.entry_num_tokens == 1 && first.token_pos == 0{
+        if first.entry_num_tokens == 1 && first.token_pos == 0 {
             exact_match_boost = 2
         }
 
-        for el in group{
-            avg_pos = avg_pos + (el.token_pos - avg_pos)/num_occurences_in_doc;
+        for el in group {
+            avg_pos = avg_pos + (el.token_pos - avg_pos) / num_occurences_in_doc;
             num_occurences_in_doc += 1;
         }
 
@@ -378,11 +377,14 @@ fn calculate_token_score_in_doc(tokens_to_anchor: &mut Vec<ValIdPairToken>) -> V
         // println!("first.num_occurences {:?}",first.num_occurences);
         // println!("scorescore {:?}",score);
 
-        dat.push(TokenToAnchorScore{valid:first.valid, anchor_id:first.parent_val_id, score:score});
+        dat.push(TokenToAnchorScore {
+            valid: first.valid,
+            anchor_id: first.parent_val_id,
+            score: score,
+        });
     }
 
     dat
-
 }
 
 pub fn get_allterms(data: &Value, fulltext_info_for_path: &FnvHashMap<String, Fulltext>) -> FnvHashMap<String, FnvHashMap<String, TermInfo>> {
@@ -408,7 +410,9 @@ pub fn get_allterms(data: &Value, fulltext_info_for_path: &FnvHashMap<String, Fu
                 .and_then(|el| el.options.as_ref())
                 .unwrap_or(&default_fulltext_options);
 
-            let mut terms = get_or_insert(&mut terms_in_path, path, &|| FnvHashMap::with_capacity_and_hasher(num_elements, Default::default()) );
+            let mut terms = get_or_insert(&mut terms_in_path, path, &|| {
+                FnvHashMap::with_capacity_and_hasher(num_elements, Default::default())
+            });
 
             add_text(value, &mut terms, &options, &tokenizer);
         };
@@ -430,7 +434,6 @@ pub fn get_allterms(data: &Value, fulltext_info_for_path: &FnvHashMap<String, Fu
         }
     }
     terms_in_path
-
 }
 
 #[derive(Debug, Default, Clone)]
@@ -439,7 +442,7 @@ struct PathData {
     tokens_to_anchor: Vec<ValIdPairToken>,
     value_id_to_token_ids: Vec<ValIdPair>,
     text_id_to_parent: Vec<ValIdPair>,
-    anchor_to_text_id: Option<Vec<ValIdPair>>
+    anchor_to_text_id: Option<Vec<ValIdPair>>,
 }
 
 pub fn create_fulltext_index(data: &Value, mut persistence: &mut Persistence, indices_json: &Vec<CreateIndex>) -> Result<(), io::Error> {
@@ -471,10 +474,9 @@ pub fn create_fulltext_index(data: &Value, mut persistence: &mut Persistence, in
         .flat_map(|index| match index {
             &CreateIndex::FulltextInfo(_) => None,
             &CreateIndex::BoostInfo(_) => None,
-            &CreateIndex::FacetInfo(ref el) => Some(el.facet.to_string()+ ".textindex"),
+            &CreateIndex::FacetInfo(ref el) => Some(el.facet.to_string() + ".textindex"),
         })
         .collect();
-
 
     let all_terms_in_path = get_allterms(&data, &fulltext_info_for_path);
     info_time!("create_fulltext_index");
@@ -494,9 +496,12 @@ pub fn create_fulltext_index(data: &Value, mut persistence: &mut Persistence, in
         info_time!(format!("extract text and ids"));
         let mut cb_text = |anchor_id: u32, value: &str, path: &str, parent_val_id: u32| {
             let data = get_or_insert(&mut path_data, path, &|| {
-                if facet_index.contains(path){
-                    PathData{anchor_to_text_id:Some(vec![]), ..Default::default()}
-                }else {
+                if facet_index.contains(path) {
+                    PathData {
+                        anchor_to_text_id: Some(vec![]),
+                        ..Default::default()
+                    }
+                } else {
                     PathData::default()
                 }
             });
@@ -523,10 +528,12 @@ pub fn create_fulltext_index(data: &Value, mut persistence: &mut Persistence, in
                 valid: text_info.id as u32,
                 parent_val_id: parent_val_id,
             });
-            data.anchor_to_text_id.as_mut().map(| el|el.push(ValIdPair {
-                valid: anchor_id,
-                parent_val_id: text_info.id as u32,
-            }));
+            data.anchor_to_text_id.as_mut().map(|el| {
+                el.push(ValIdPair {
+                    valid: anchor_id,
+                    parent_val_id: text_info.id as u32,
+                })
+            });
             trace!("Found id {:?} for {:?}", text_info, value);
 
             data.tokens_to_anchor.push(ValIdPairToken {
@@ -537,9 +544,7 @@ pub fn create_fulltext_index(data: &Value, mut persistence: &mut Persistence, in
                 entry_num_tokens: 1,
             });
 
-
             if options.tokenize && tokenizer.has_tokens(value) {
-
                 let mut tokens_to_anchor = vec![];
                 let mut token_pos = 0;
                 tokenizer.get_tokens(value, &mut |token: &str, _is_seperator: bool| {
@@ -568,9 +573,9 @@ pub fn create_fulltext_index(data: &Value, mut persistence: &mut Persistence, in
                         num_occurences: token_info.num_occurences as u32,
                         parent_val_id: anchor_id as u32,
                         token_pos: token_pos as u32,
-                        entry_num_tokens: 0
+                        entry_num_tokens: 0,
                     });
-                    token_pos +=1;
+                    token_pos += 1;
                 });
 
                 for mut el in tokens_to_anchor {
@@ -578,11 +583,12 @@ pub fn create_fulltext_index(data: &Value, mut persistence: &mut Persistence, in
                     data.tokens_to_anchor.push(el);
                 }
             }
-
         };
 
         let mut callback_ids = |_anchor_id: u32, path: &str, value_id: u32, parent_val_id: u32| {
-            let tuples = get_or_insert(&mut tuples_to_parent_in_path, path, &|| Vec::with_capacity(num_elements) );
+            let tuples = get_or_insert(&mut tuples_to_parent_in_path, path, &|| {
+                Vec::with_capacity(num_elements)
+            });
 
             tuples.push(ValIdPair {
                 valid: value_id,
@@ -590,13 +596,18 @@ pub fn create_fulltext_index(data: &Value, mut persistence: &mut Persistence, in
             });
         };
 
-        json_converter::for_each_element(&data, &mut id_holder, &mut opt, &mut cb_text, &mut callback_ids, );
+        json_converter::for_each_element(
+            &data,
+            &mut id_holder,
+            &mut opt,
+            &mut cb_text,
+            &mut callback_ids,
+        );
     }
 
     {
-
-        let write_tuples = |persistence: &mut Persistence, path: &str, tuples: &mut Vec<ValIdPair>|  -> Result<(), io::Error>{
-            persistence.write_tuple_pair( tuples, &concat(&path, ".valueIdToParent"))?;
+        let write_tuples = |persistence: &mut Persistence, path: &str, tuples: &mut Vec<ValIdPair>| -> Result<(), io::Error> {
+            persistence.write_tuple_pair(tuples, &concat(&path, ".valueIdToParent"))?;
             if log_enabled!(log::Level::Trace) {
                 trace!(
                     "{}\n{}",
@@ -609,7 +620,7 @@ pub fn create_fulltext_index(data: &Value, mut persistence: &mut Persistence, in
             for el in tuples.iter_mut() {
                 std::mem::swap(&mut el.parent_val_id, &mut el.valid);
             }
-            persistence.write_tuple_pair( tuples, &concat(&path, ".parentToValueId"))?;
+            persistence.write_tuple_pair(tuples, &concat(&path, ".parentToValueId"))?;
             if log_enabled!(log::Level::Trace) {
                 trace!(
                     "{}\n{}",
@@ -628,17 +639,27 @@ pub fn create_fulltext_index(data: &Value, mut persistence: &mut Persistence, in
                 print_vec(&data.tokens_to_parent, "token_id", "parent_id")
             );
 
-
             let token_to_anchor_score = calculate_token_score_in_doc(&mut data.tokens_to_anchor);
-            let mut token_to_anchor_score_pairs:Vec<ValIdPair> = token_to_anchor_score.iter().flat_map(|el| vec![ValIdPair {
-                    valid: el.valid as u32,
-                    parent_val_id: el.anchor_id as u32,
-                }, ValIdPair {
-                    valid: el.valid as u32,
-                    parent_val_id: el.score as u32,
-                }]).collect();
+            let mut token_to_anchor_score_pairs: Vec<ValIdPair> = token_to_anchor_score
+                .iter()
+                .flat_map(|el| {
+                    vec![
+                        ValIdPair {
+                            valid: el.valid as u32,
+                            parent_val_id: el.anchor_id as u32,
+                        },
+                        ValIdPair {
+                            valid: el.valid as u32,
+                            parent_val_id: el.score as u32,
+                        },
+                    ]
+                })
+                .collect();
 
-            persistence.write_tuple_pair(&mut token_to_anchor_score_pairs, &concat(&path, ".tokens.to_anchor"))?;
+            persistence.write_tuple_pair(
+                &mut token_to_anchor_score_pairs,
+                &concat(&path, ".tokens.to_anchor"),
+            )?;
             trace!(
                 "{}\n{}",
                 &concat(&path, ".tokens.to_anchor"),
@@ -646,7 +667,10 @@ pub fn create_fulltext_index(data: &Value, mut persistence: &mut Persistence, in
             );
 
             // persistence.write_tuple_pair_dedup(&mut data.tokens_to_anchor, &concat(&path, ".tokens.to_anchor"), true)?;
-            persistence.write_tuple_pair(&mut data.value_id_to_token_ids, &concat(&path, ".value_id_to_token_ids"))?;
+            persistence.write_tuple_pair(
+                &mut data.value_id_to_token_ids,
+                &concat(&path, ".value_id_to_token_ids"),
+            )?;
             trace!(
                 "{}\n{}",
                 &concat(&path, ".value_id_to_token_ids"),
@@ -656,9 +680,8 @@ pub fn create_fulltext_index(data: &Value, mut persistence: &mut Persistence, in
             write_tuples(&mut persistence, &path, &mut data.text_id_to_parent)?;
 
             if let Some(ref mut anchor_to_text_id) = data.anchor_to_text_id {
-                persistence.write_tuple_pair( anchor_to_text_id, &concat(&path, ".anchor_to_text_id"))?;
+                persistence.write_tuple_pair(anchor_to_text_id, &concat(&path, ".anchor_to_text_id"))?;
             }
-
         }
 
         for (path, all_terms) in all_terms_in_path {
@@ -669,12 +692,9 @@ pub fn create_fulltext_index(data: &Value, mut persistence: &mut Persistence, in
             store_full_text_info(&mut persistence, all_terms, &path, &options)?;
         }
 
-        for (path, mut tuples) in tuples_to_parent_in_path
-            .iter_mut()
-        {
+        for (path, mut tuples) in tuples_to_parent_in_path.iter_mut() {
             write_tuples(&mut persistence, path, &mut tuples)?;
         }
-
     }
 
     // let path_name = util::get_file_path_name(&paths[i], is_text_index);

@@ -1,6 +1,6 @@
 #![feature(splice)]
 #![feature(entry_and_modify)]
-#![recursion_limit="128"]
+#![recursion_limit = "128"]
 #![feature(iterator_step_by)]
 #![feature(step_trait)]
 #![feature(specialization)]

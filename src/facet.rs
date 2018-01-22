@@ -7,7 +7,9 @@ use itertools::Itertools;
 use fnv::FnvHashMap;
 
 pub fn get_top_facet_group<T: IndexIdToParentData>(hits: FnvHashMap<T, usize>, top: u32) -> Vec<(T, u32)> {
-    let mut groups:Vec<(T, u32)> = hits.iter().map(|ref tupl| (*tupl.0, *tupl.1 as u32)).collect();
+    let mut groups: Vec<(T, u32)> = hits.iter()
+        .map(|ref tupl| (*tupl.0, *tupl.1 as u32))
+        .collect();
 
     //TODO MERGECODE with below
     groups.sort_by(|a, b| b.1.cmp(&a.1));
@@ -23,10 +25,10 @@ pub fn get_facet(persistence: &Persistence, req: &FacetRequest, ids: &Vec<u32>) 
     info!("facet on {:?}", steps);
 
     //nice special case
-    if steps.len() == 1 || persistence.has_facet_index(&(steps.last().unwrap().to_string() + ".anchor_to_text_id")){
+    if steps.len() == 1 || persistence.has_facet_index(&(steps.last().unwrap().to_string() + ".anchor_to_text_id")) {
         let path = if steps.len() == 1 {
             steps.first().unwrap().to_string() + ".parentToValueId"
-        }else{
+        } else {
             steps.last().unwrap().to_string() + ".anchor_to_text_id"
         };
         let kv_store = persistence.get_valueid_to_parent(&path)?;
@@ -45,19 +47,17 @@ pub fn get_facet(persistence: &Persistence, req: &FacetRequest, ids: &Vec<u32>) 
         // groups = apply_top_skip(groups, 0, req.top);
 
         let groups_with_text = groups
-        .iter()
-        .map(|el| {
-            (
-                get_text_for_id(persistence, steps.last().unwrap(), el.0 ),
-                el.1 as usize,
-            )
-        })
-        .collect();
+            .iter()
+            .map(|el| {
+                (
+                    get_text_for_id(persistence, steps.last().unwrap(), el.0),
+                    el.1 as usize,
+                )
+            })
+            .collect();
         debug!("{:?}", groups_with_text);
-        return Ok(groups_with_text)
-
+        return Ok(groups_with_text);
     }
-
 
     let mut next_level_ids = {
         debug_time!(format!("facets in field first join {:?}", req.field));

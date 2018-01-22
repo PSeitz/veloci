@@ -207,7 +207,6 @@ pub fn plan_creator(request: Request) -> PlanStepType {
         // part.terms = part.terms.iter().map(|el| util::normalize_text(el)).collect::<Vec<_>>();
         plan_creator_search_part(part, request.boost)
     } else {
-
         //TODO HANDLE SUGGEST
         //TODO ADD ERROR
         plan_creator_search_part(request.search.unwrap(), request.boost)
@@ -229,8 +228,7 @@ pub fn plan_creator_search_part(mut request: RequestSearchPart, mut boost: Optio
             input_prev_steps: vec![],
             output_next_steps: field_tx,
         }
-    }else{
-
+    } else {
         let mut steps = vec![];
         //search in fields
         steps.push(PlanStepType::FieldSearch {
@@ -289,7 +287,6 @@ pub fn plan_creator_search_part(mut request: RequestSearchPart, mut boost: Optio
             output_next_steps: rx,
         }
     }
-
 
     // (steps, rx)
 }

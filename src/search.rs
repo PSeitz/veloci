@@ -45,18 +45,12 @@ use std::sync::Mutex;
 
 #[derive(Serialize, Deserialize, Default, Clone, Debug)]
 pub struct Request {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub or: Option<Vec<Request>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub and: Option<Vec<Request>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub search: Option<RequestSearchPart>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub suggest: Option<Vec<RequestSearchPart>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub boost: Option<Vec<RequestBoostPart>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub facets: Option<Vec<FacetRequest>>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub or: Option<Vec<Request>>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub and: Option<Vec<Request>>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub search: Option<RequestSearchPart>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub suggest: Option<Vec<RequestSearchPart>>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub boost: Option<Vec<RequestBoostPart>>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub facets: Option<Vec<FacetRequest>>,
     #[serde(default = "default_top")] pub top: usize,
     #[serde(default = "default_skip")] pub skip: usize,
 }
@@ -80,20 +74,15 @@ pub struct RequestSearchPart {
     pub terms: Vec<String>,
     #[serde(default = "default_term_operator")] pub term_operator: TermOperator,
 
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub levenshtein_distance: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub levenshtein_distance: Option<u32>,
 
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub starts_with: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub starts_with: Option<bool>,
 
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub return_term: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub return_term: Option<bool>,
 
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub snippet: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub snippet: Option<bool>,
 
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub token_value: Option<RequestBoostPart>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub token_value: Option<RequestBoostPart>,
     // pub exact: Option<bool>,
     /// boosts the search part with this value
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -103,17 +92,13 @@ pub struct RequestSearchPart {
     #[serde(default = "default_resolve_token_to_parent_hits")]
     pub resolve_token_to_parent_hits: Option<bool>,
 
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub top: Option<usize>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub top: Option<usize>,
 
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub skip: Option<usize>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub skip: Option<usize>,
 
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub snippet_info: Option<SnippetInfo>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub snippet_info: Option<SnippetInfo>,
 
-    #[serde(default)]
-    pub fast_field: bool,
+    #[serde(default)] pub fast_field: bool,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -214,8 +199,7 @@ impl Default for BoostFunction {
 pub struct SearchResult {
     pub num_hits: u64,
     pub data: Vec<Hit>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub facets: Option<FnvHashMap<String, Vec<(String, usize)>>>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub facets: Option<FnvHashMap<String, Vec<(String, usize)>>>,
 }
 
 #[derive(Serialize, Deserialize, Default, Clone, Debug)]
@@ -315,10 +299,12 @@ fn get_all_field_names(persistence: &Persistence) -> Vec<String> {
         .collect()
 }
 
-pub fn suggest_query(request: &str, persistence: &Persistence, mut top: Option<usize>, skip: Option<usize>, levenshtein: Option<usize>, fields:Option<Vec<String>>) -> Request {
+pub fn suggest_query(request: &str, persistence: &Persistence, mut top: Option<usize>, skip: Option<usize>, levenshtein: Option<usize>, fields: Option<Vec<String>>) -> Request {
     // let req = persistence.meta_data.fulltext_indices.key
 
-    if top.is_none() {top = Some(10); }
+    if top.is_none() {
+        top = Some(10);
+    }
     // if skip.is_none() {top = Some(0); }
 
     let requests = get_all_field_names(&persistence)
@@ -345,16 +331,15 @@ pub fn suggest_query(request: &str, persistence: &Persistence, mut top: Option<u
                 skip: skip,
                 ..Default::default()
             }
-        }).collect();
+        })
+        .collect();
 
     return Request {
         suggest: Some(requests),
         top: top.unwrap_or(10),
         skip: skip.unwrap_or(0),
         ..Default::default()
-    }
-
-
+    };
 }
 
 use regex::Regex;
@@ -374,32 +359,47 @@ pub fn normalize_to_single_space(text: &str) -> String {
 }
 
 #[flame]
-pub fn search_query(request: &str, persistence: &Persistence, top: Option<usize>, skip: Option<usize>, mut operator: Option<String>, levenshtein: Option<usize>, facetlimit: Option<usize>, facets: Option<Vec<String>>, fields:Option<Vec<String>>) -> Request {
+pub fn search_query(
+    request: &str,
+    persistence: &Persistence,
+    top: Option<usize>,
+    skip: Option<usize>,
+    mut operator: Option<String>,
+    levenshtein: Option<usize>,
+    facetlimit: Option<usize>,
+    facets: Option<Vec<String>>,
+    fields: Option<Vec<String>>,
+) -> Request {
     // let req = persistence.meta_data.fulltext_indices.key
 
-    let terms:Vec<String> = if operator.is_none() && request.contains(" AND "){
-
+    let terms: Vec<String> = if operator.is_none() && request.contains(" AND ") {
         operator = Some("and".to_string());
 
         let mut s = String::from(request);
         while let Some(pos) = s.find(" AND ") {
-            s.splice(pos..=pos+4, " ");
+            s.splice(pos..=pos + 4, " ");
         }
         s = normalize_to_single_space(&s);
-        s.split(" ").map(|el|el.to_string()).collect()
-    }else{
+        s.split(" ").map(|el| el.to_string()).collect()
+    } else {
         let mut s = String::from(request);
         s = normalize_to_single_space(&s);
-        s.split(" ").map(|el|el.to_string()).collect()
+        s.split(" ").map(|el| el.to_string()).collect()
     };
 
     // let terms = request.split(" ").map(|el|el.to_string()).collect::<Vec<&str>>();
-    let op = operator.map(|op| op.to_lowercase()).unwrap_or("or".to_string());
+    let op = operator
+        .map(|op| op.to_lowercase())
+        .unwrap_or("or".to_string());
 
-    let facets_req: Option<Vec<FacetRequest>> = facets.map(|facets_fields|{
-        facets_fields.iter().map(|f| {
-            FacetRequest{field: f.to_string(), top: facetlimit.unwrap_or(5)}
-        }).collect()
+    let facets_req: Option<Vec<FacetRequest>> = facets.map(|facets_fields| {
+        facets_fields
+            .iter()
+            .map(|f| FacetRequest {
+                field: f.to_string(),
+                top: facetlimit.unwrap_or(5),
+            })
+            .collect()
     });
 
     if op == "and" {
@@ -408,28 +408,28 @@ pub fn search_query(request: &str, persistence: &Persistence, top: Option<usize>
             .map(|term| {
                 let levenshtein_distance = levenshtein.unwrap_or_else(|| get_default_levenshtein(term));
 
-
                 let parts = get_all_field_names(&persistence)
-                .iter()
-                .filter(|el| {
-                    if let Some(ref filter) = fields {
-                        return filter.contains(el);
-                    }
-                    return true;
-                })
-                .map(|field_name| {
-                    let part = RequestSearchPart {
-                        path: field_name.to_string(),
-                        terms: vec![term.to_string()],
-                        levenshtein_distance: Some(levenshtein_distance as u32),
-                        resolve_token_to_parent_hits: Some(true),
-                        ..Default::default()
-                    };
-                    Request {
-                        search: Some(part),
-                        ..Default::default()
-                    }
-                }).collect();
+                    .iter()
+                    .filter(|el| {
+                        if let Some(ref filter) = fields {
+                            return filter.contains(el);
+                        }
+                        return true;
+                    })
+                    .map(|field_name| {
+                        let part = RequestSearchPart {
+                            path: field_name.to_string(),
+                            terms: vec![term.to_string()],
+                            levenshtein_distance: Some(levenshtein_distance as u32),
+                            resolve_token_to_parent_hits: Some(true),
+                            ..Default::default()
+                        };
+                        Request {
+                            search: Some(part),
+                            ..Default::default()
+                        }
+                    })
+                    .collect();
 
                 Request {
                     or: Some(parts), // or over fields
@@ -444,9 +444,8 @@ pub fn search_query(request: &str, persistence: &Persistence, top: Option<usize>
             skip: skip.unwrap_or(0),
             facets: facets_req,
             ..Default::default()
-        }
+        };
     }
-
 
     info_time!("generating search query");
     let parts: Vec<Request> = get_all_field_names(&persistence)
@@ -487,7 +486,6 @@ pub fn search_query(request: &str, persistence: &Persistence, top: Option<usize>
         facets: facets_req,
         ..Default::default()
     }
-
 }
 
 use facet;
@@ -518,9 +516,9 @@ pub fn search(request: Request, persistence: &Persistence) -> Result<SearchResul
     search_result.num_hits = search_result.data.len() as u64;
 
     if let Some(facets_req) = request.facets {
-        let mut hit_ids:Vec<u32> = {
+        let mut hit_ids: Vec<u32> = {
             debug_time!("get_and_sort_for_factes");
-            let mut hit_ids:Vec<u32> = search_result.data.iter().map(|el| el.id).collect();
+            let mut hit_ids: Vec<u32> = search_result.data.iter().map(|el| el.id).collect();
             hit_ids.sort_unstable();
             hit_ids
         };
@@ -607,7 +605,6 @@ use search_field::*;
 
 #[flame]
 pub fn union_hits(mut or_results: Vec<SearchFieldResult>) -> SearchFieldResult {
-
     let index_longest = get_longest_result(&or_results.iter().map(|el| el.hits.iter()).collect());
     let longest_result = or_results.swap_remove(index_longest).hits;
 
@@ -642,7 +639,10 @@ pub fn intersect_hits(mut and_results: Vec<SearchFieldResult>) -> SearchFieldRes
         if and_results.iter().all(|ref x| x.hits.contains_key(&k)) {
             // if all hits contain this key
             // all_results.insert(k, v);
-            let score:f32 = and_results.iter().map(|el| *el.hits.get(&k).unwrap_or(&0.0)).sum();
+            let score: f32 = and_results
+                .iter()
+                .map(|el| *el.hits.get(&k).unwrap_or(&0.0))
+                .sum();
             all_results.insert(k, v + score);
         }
     }

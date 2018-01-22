@@ -13,7 +13,7 @@ use bincode::{deserialize, serialize, Infinite};
 use util::*;
 
 use persistence::*;
-pub  use persistence_data_indirect::*;
+pub use persistence_data_indirect::*;
 #[allow(unused_imports)]
 use persistence;
 use create;
@@ -101,21 +101,20 @@ impl<T: IndexIdToParentData> IndexIdToMultipleParent<T> {
 impl<T: IndexIdToParentData> IndexIdToParent for IndexIdToMultipleParent<T> {
     type Output = T;
     fn get_values(&self, id: u64) -> Option<Vec<T>> {
-        let vec:Option<Vec<T>> = self.data
+        let vec: Option<Vec<T>> = self.data
             .get(id as usize)
             .map(|el| el.iter().map(|el| NumCast::from(*el).unwrap()).collect());
-        if vec.is_some() && vec.as_ref().unwrap().len() == 0{
+        if vec.is_some() && vec.as_ref().unwrap().len() == 0 {
             return None;
         }
         vec
-
     }
     fn get_keys(&self) -> Vec<T> {
         (NumCast::from(0).unwrap()..NumCast::from(self.data.len()).unwrap()).collect()
     }
 
     #[inline]
-    fn count_values_for_ids(&self, ids: &[u32], top:Option<u32>) -> FnvHashMap<T, usize> {
+    fn count_values_for_ids(&self, ids: &[u32], top: Option<u32>) -> FnvHashMap<T, usize> {
         let mut hits = FnvHashMap::default();
         let size = self.data.len();
         for id in ids {
@@ -130,7 +129,6 @@ impl<T: IndexIdToParentData> IndexIdToParent for IndexIdToMultipleParent<T> {
         }
         hits
     }
-
 }
 
 // lazy_static! {
@@ -200,7 +198,6 @@ impl<T: IndexIdToParentData> IndexIdToParent for IndexIdToMultipleParentCompress
 //     }
 // }
 
-
 // impl IndexIdToParent for IndexIdToMultipleParentIndirect<u32> {
 //     // fn get_values(&self, id: u64) -> Option<Vec<u32>> {
 //     //     if id >= self.get_size() as u64 {None }
@@ -231,7 +228,6 @@ impl<T: IndexIdToParentData> IndexIdToParent for IndexIdToMultipleParentCompress
 //         }
 //     }
 // }
-
 
 #[derive(Debug, HeapSizeOf)]
 pub struct IndexIdToOneParent<T: IndexIdToParentData> {
@@ -935,7 +931,7 @@ mod tests {
     }
 
     fn get_test_data_1_to_n() -> ParallelArrays<u32> {
-        let keys =   vec![0, 0, 1, 2, 3, 3];
+        let keys = vec![0, 0, 1, 2, 3, 3];
         let values = vec![5, 6, 9, 9, 9, 50000];
 
         let store = ParallelArrays {
@@ -1038,7 +1034,6 @@ mod tests {
             }
         }
 
-
         #[bench]
         fn indirect_pointing_mayda(b: &mut test::Bencher) {
             let mut rng = rand::thread_rng();
@@ -1049,10 +1044,8 @@ mod tests {
             b.iter(|| mayda.get_values(between.ind_sample(&mut rng)))
         }
 
-
-
-        pub fn bench_fnvhashmap_group_by(num_entries: u32, max_val:u32) -> FnvHashMap<u32, u32>{
-            let mut hits:FnvHashMap<u32, u32> = FnvHashMap::default();
+        pub fn bench_fnvhashmap_group_by(num_entries: u32, max_val: u32) -> FnvHashMap<u32, u32> {
+            let mut hits: FnvHashMap<u32, u32> = FnvHashMap::default();
             hits.reserve(num_entries as usize);
             let mut rng = rand::thread_rng();
             let between = Range::new(0, max_val);
@@ -1063,18 +1056,7 @@ mod tests {
             hits
         }
 
-        pub fn bench_vec_group_by_direct(num_entries: u32, max_val:u32, hits:&mut Vec<u32>) -> &mut Vec<u32>{
-            // let mut hits:Vec<u32> = vec![];
-            hits.resize(max_val as usize + 1, 0);
-            let mut rng = rand::thread_rng();
-            let between = Range::new(0, max_val);
-            for _x in 0..num_entries {
-                hits[between.ind_sample(&mut rng) as usize] += 1;
-
-            }
-            hits
-        }
-        pub fn bench_vec_group_by_direct_u16(num_entries: u32, max_val:u32, hits:&mut Vec<u8>) -> &mut Vec<u8>{
+        pub fn bench_vec_group_by_direct(num_entries: u32, max_val: u32, hits: &mut Vec<u32>) -> &mut Vec<u32> {
             // let mut hits:Vec<u32> = vec![];
             hits.resize(max_val as usize + 1, 0);
             let mut rng = rand::thread_rng();
@@ -1084,9 +1066,19 @@ mod tests {
             }
             hits
         }
+        pub fn bench_vec_group_by_direct_u16(num_entries: u32, max_val: u32, hits: &mut Vec<u8>) -> &mut Vec<u8> {
+            // let mut hits:Vec<u32> = vec![];
+            hits.resize(max_val as usize + 1, 0);
+            let mut rng = rand::thread_rng();
+            let between = Range::new(0, max_val);
+            for _x in 0..num_entries {
+                hits[between.ind_sample(&mut rng) as usize] += 1;
+            }
+            hits
+        }
 
-        pub fn bench_vec_group_by_flex(num_entries: u32, max_val:u32) -> Vec<u32>{
-            let mut hits:Vec<u32> = vec![];
+        pub fn bench_vec_group_by_flex(num_entries: u32, max_val: u32) -> Vec<u32> {
+            let mut hits: Vec<u32> = vec![];
             // hits.resize(max_val as usize + 1, 0);
             let mut rng = rand::thread_rng();
             let between = Range::new(0, max_val);
@@ -1096,7 +1088,6 @@ mod tests {
                     hits.resize(id + 1, 0);
                 }
                 hits[id] += 1;
-
             }
             hits
         }
@@ -1111,7 +1102,6 @@ mod tests {
         //     }
         //     hits
         // }
-
 
         //20x break even ?
         #[bench]
@@ -1154,7 +1144,6 @@ mod tests {
         //         bench_vec_group_by_rand(700_000, 50_000);
         //     })
         // }
-
 
         #[bench]
         fn indirect_pointing_uncompressed_im(b: &mut test::Bencher) {

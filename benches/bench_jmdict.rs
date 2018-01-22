@@ -22,8 +22,6 @@ static TEST_FOLDER: &str = "jmdict";
 
 use std::env;
 
-
-
 fn load_persistence_im() -> persistence::Persistence {
     env::set_var("LoadingType", "InMemory");
     persistence::Persistence::load(TEST_FOLDER.to_string()).expect("Could not load persistence")
@@ -56,7 +54,6 @@ mod bench_jmdict {
         let pers = load_gutenberg_persistence();
         b.iter(|| highlight("pride", "content", &pers));
     }
-
 
     // #[bench]
     // fn get_text_ids_fst(b: &mut Bencher) {
@@ -127,8 +124,8 @@ mod bench_jmdict {
 
 }
 
-    fn get_request(term: &str, levenshtein_distance: u32) -> search::Request {
-        let query = json!({
+fn get_request(term: &str, levenshtein_distance: u32) -> search::Request {
+    let query = json!({
             "or": [
                 {
                     "search": {
@@ -227,24 +224,24 @@ mod bench_jmdict {
             "skip": 0
         });
 
-        let requesto: search::Request = serde_json::from_str(&query.to_string()).expect("Can't parse json");
-        requesto
-    }
+    let requesto: search::Request = serde_json::from_str(&query.to_string()).expect("Can't parse json");
+    requesto
+}
 
-    fn search(term: &str, pers: &persistence::Persistence, levenshtein_distance: u32) -> Vec<search::DocWithHit> {
-        let requesto = get_request(term, levenshtein_distance);
-        let hits = search::search(requesto, &pers).unwrap();
-        search::to_documents(&pers, &hits.data)
-    }
-    fn search_with_facets(term: &str, pers: &persistence::Persistence, levenshtein_distance: u32, facets: Vec<FacetRequest>) -> Vec<search::DocWithHit> {
-        let mut requesto = get_request(term, levenshtein_distance);
-        requesto.facets = Some(facets);
-        let hits = search::search(requesto, &pers).unwrap();
-        search::to_documents(&pers, &hits.data)
-    }
+fn search(term: &str, pers: &persistence::Persistence, levenshtein_distance: u32) -> Vec<search::DocWithHit> {
+    let requesto = get_request(term, levenshtein_distance);
+    let hits = search::search(requesto, &pers).unwrap();
+    search::to_documents(&pers, &hits.data)
+}
+fn search_with_facets(term: &str, pers: &persistence::Persistence, levenshtein_distance: u32, facets: Vec<FacetRequest>) -> Vec<search::DocWithHit> {
+    let mut requesto = get_request(term, levenshtein_distance);
+    requesto.facets = Some(facets);
+    let hits = search::search(requesto, &pers).unwrap();
+    search::to_documents(&pers, &hits.data)
+}
 
-    fn suggest(term: &str, path: &str, pers: &persistence::Persistence) -> search_field::SuggestFieldResult {
-        let req = json!({
+fn suggest(term: &str, path: &str, pers: &persistence::Persistence) -> search_field::SuggestFieldResult {
+    let req = json!({
             "terms":[term],
             "path": path,
             "levenshtein_distance": 0,
@@ -252,12 +249,12 @@ mod bench_jmdict {
             "top":10,
             "skip":0
         });
-        let requesto: search::RequestSearchPart = serde_json::from_str(&req.to_string()).expect("Can't parse json");
-        search_field::suggest(&pers, &requesto).unwrap()
-    }
+    let requesto: search::RequestSearchPart = serde_json::from_str(&req.to_string()).expect("Can't parse json");
+    search_field::suggest(&pers, &requesto).unwrap()
+}
 
-    fn highlight(term: &str, path: &str, pers: &persistence::Persistence) -> search_field::SuggestFieldResult {
-        let req = json!({
+fn highlight(term: &str, path: &str, pers: &persistence::Persistence) -> search_field::SuggestFieldResult {
+    let req = json!({
             "terms":[term],
             "path": path,
             "levenshtein_distance": 0,
@@ -266,9 +263,9 @@ mod bench_jmdict {
             "top":10,
             "skip":0
         });
-        let mut requesto: search::RequestSearchPart = serde_json::from_str(&req.to_string()).expect("Can't parse json");
-        search_field::highlight(&pers, &mut requesto).unwrap()
-    }
+    let mut requesto: search::RequestSearchPart = serde_json::from_str(&req.to_string()).expect("Can't parse json");
+    search_field::highlight(&pers, &mut requesto).unwrap()
+}
 
 // fn get_text_ids_cache_fst_cache_bytes(c: &mut Criterion) {
 //     let mut rng = rand::thread_rng();
@@ -318,22 +315,21 @@ mod bench_jmdict {
 //     }));
 // }
 
-
 fn searches(c: &mut Criterion) {
     let pers = load_persistence_disk();
     let pers_im = load_persistence_im();
 
-    c.bench_function("jmdict_search_anschauen", |b|
+    c.bench_function("jmdict_search_anschauen", |b| {
         b.iter(|| search("anschauen", &pers, 1))
-    );
+    });
 
-    c.bench_function("jmdict_search_haus", |b|
+    c.bench_function("jmdict_search_haus", |b| {
         b.iter(|| search("haus", &pers, 1))
-    );
+    });
 
-    c.bench_function("jmdict_search_japanese", |b|
+    c.bench_function("jmdict_search_japanese", |b| {
         b.iter(|| search("家", &pers, 0))
-    );
+    });
 
     // let facets: Vec<FacetRequest> = vec![FacetRequest{field:"commonness".to_string(), .. Default::default()}];
 
@@ -349,31 +345,31 @@ fn searches(c: &mut Criterion) {
     });
 
     let requesto: search::Request = serde_json::from_str(&req.to_string()).expect("Can't parse json");
-    c.bench_function("jmdict_search_with_facets", |b|
+    c.bench_function("jmdict_search_with_facets", |b| {
         b.iter(|| {
             // search_with_facets("the", &pers, 0, facets.clone())
             search::search(requesto.clone(), &pers)
         })
-    );
+    });
 
-    c.bench_function("jmdict_search_with_facets_im", |b|
+    c.bench_function("jmdict_search_with_facets_im", |b| {
         b.iter(|| {
             // search_with_facets("the", &pers, 0, facets.clone())
             search::search(requesto.clone(), &pers_im)
         })
-    );
+    });
 
-    c.bench_function("jmdict_suggest_an", |b|
+    c.bench_function("jmdict_suggest_an", |b| {
         b.iter(|| suggest("an", "meanings.ger[].text", &pers))
-    );
+    });
 
-    c.bench_function("jmdict_suggest_a", |b|
+    c.bench_function("jmdict_suggest_a", |b| {
         b.iter(|| suggest("a", "meanings.ger[].text", &pers))
-    );
+    });
 
-    c.bench_function("jmdict_suggest_kana_a", |b|
+    c.bench_function("jmdict_suggest_kana_a", |b| {
         b.iter(|| suggest("あ", "kana[].text", &pers))
-    );
+    });
 }
 
 criterion_group!(benches, searches);

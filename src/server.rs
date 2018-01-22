@@ -216,7 +216,7 @@ pub fn start_server() {
         //     status::BadRequest,
         // ))?;
 
-        if map.get("query").is_none(){
+        if map.get("query").is_none() {
             return Ok(Response::with((
                 status::BadRequest,
                 "query parameter not found".to_string(),
@@ -232,15 +232,19 @@ pub fn start_server() {
         let persistence = PERSISTENCES.get(&database).unwrap();
 
         let facetlimit = map.get("facetlimit")
-                .map(|el| el.parse::<usize>().unwrap())
-                .clone();
+            .map(|el| el.parse::<usize>().unwrap())
+            .clone();
 
         // map.get("facets").clone().split(",").map(|facet|{
         //     {"field":facet, top:facetlimit}
         // }).collect();
-        let facets: Option<Vec<String>> = map.get("facets").clone().map(|el| el.split(",").map(|f|f.to_string()).collect());
+        let facets: Option<Vec<String>> = map.get("facets")
+            .clone()
+            .map(|el| el.split(",").map(|f| f.to_string()).collect());
         // "facets": [ {"field":"ISMLANGUAGES"}, {"field":"ISMARTIST"}, {"field":"GENRE"}, {"field":"VERLAG[]"}   ]
-        let fields: Option<Vec<String>> = map.get("fields").clone().map(|el| el.split(",").map(|f|f.to_string()).collect());
+        let fields: Option<Vec<String>> = map.get("fields")
+            .clone()
+            .map(|el| el.split(",").map(|f| f.to_string()).collect());
 
         let request = search::search_query(
             map.get("query").unwrap(),
@@ -257,7 +261,7 @@ pub fn start_server() {
                 .clone(),
             facetlimit,
             facets,
-            fields
+            fields,
         );
 
         debug!("{}", serde_json::to_string(&request).unwrap());
@@ -276,7 +280,7 @@ pub fn start_server() {
 
         let map = extract_qp(req)?;
 
-        if map.get("query").is_none(){
+        if map.get("query").is_none() {
             return Ok(Response::with((
                 status::BadRequest,
                 "query parameter not found".to_string(),
@@ -291,7 +295,9 @@ pub fn start_server() {
         ))?;
 
         let persistence = PERSISTENCES.get(&database).unwrap();
-        let fields: Option<Vec<String>> = map.get("fields").clone().map(|el| el.split(",").map(|f|f.to_string()).collect());
+        let fields: Option<Vec<String>> = map.get("fields")
+            .clone()
+            .map(|el| el.split(",").map(|f| f.to_string()).collect());
         let request = search::suggest_query(
             query,
             &persistence,
@@ -304,10 +310,15 @@ pub fn start_server() {
             map.get("levenshtein")
                 .map(|el| el.parse::<usize>().unwrap())
                 .clone(),
-            fields
+            fields,
         );
 
-        let db = req.extensions.get::<Router>().unwrap().find("database").expect("could not find collection name in url").to_string();
+        let db = req.extensions
+            .get::<Router>()
+            .unwrap()
+            .find("database")
+            .expect("could not find collection name in url")
+            .to_string();
         excute_suggest(request, db, enable_flame(req).unwrap_or(false))
     }
 
@@ -391,10 +402,15 @@ pub fn start_server() {
     }
 
     fn suggest_handler(req: &mut Request) -> IronResult<Response> {
-        let db = req.extensions.get::<Router>().unwrap().find("database").expect("could not find collection name in url").to_string();
+        let db = req.extensions
+            .get::<Router>()
+            .unwrap()
+            .find("database")
+            .expect("could not find collection name in url")
+            .to_string();
         excute_suggest(get_body(req)?, db, enable_flame(req).unwrap_or(false))
     }
-    fn excute_suggest(struct_body: search::Request, db:String, flame: bool) -> IronResult<Response> {
+    fn excute_suggest(struct_body: search::Request, db: String, flame: bool) -> IronResult<Response> {
         ensure_database(&db);
 
         info_time!("search total");
@@ -405,10 +421,7 @@ pub fn start_server() {
         info!("Returning ... ");
         // Ok(Response::with((status::Ok, Header(headers::ContentType::json()), serde_json::to_string(&hits).unwrap())))
 
-        return_flame_or(
-            flame,
-            serde_json::to_string(&hits).unwrap(),
-        )
+        return_flame_or(flame, serde_json::to_string(&hits).unwrap())
     }
 
     fn highlight_handler(req: &mut Request) -> IronResult<Response> {

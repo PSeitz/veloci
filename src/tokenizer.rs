@@ -14,13 +14,10 @@ lazy_static! {
     static ref SEPERATORS:Regex = Regex::new(r#"(?P<seperator>[\s\(\),.…;・’\-\[\]{}'"“]+)"#).unwrap();
 }
 
-
-fn is_default_seperator(char:char) -> bool {
+fn is_default_seperator(char: char) -> bool {
     match char {
-        ' ' | '\t' | '\n' | '\r' | '(' | ')' | ',' | '.' | '…' | ';' | '・' | '’' | '-' | '\\' | '{' | '}' | '\'' | '"' | '“' => {
-            true
-        }
-        _ => false
+        ' ' | '\t' | '\n' | '\r' | '(' | ')' | ',' | '.' | '…' | ';' | '・' | '’' | '-' | '\\' | '{' | '}' | '\'' | '"' | '“' => true,
+        _ => false,
     }
 }
 
@@ -93,7 +90,6 @@ impl Tokenizer for SimpleTokenizerCharsIterateGroupTokens {
     }
 }
 
-
 mod tests {
     #[allow(unused_imports)]
     use test;
@@ -157,7 +153,6 @@ mod tests {
     //         vec
     //     })
     // }
-
 
     #[bench]
     fn bench_custom_stuff(b: &mut test::Bencher) {
@@ -246,5 +241,3 @@ mod tests {
     //     })
     // }
 }
-
-
