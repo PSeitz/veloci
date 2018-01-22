@@ -114,7 +114,7 @@ impl<T: IndexIdToParentData> IndexIdToParent for IndexIdToMultipleParent<T> {
     }
 
     #[inline]
-    fn count_values_for_ids(&self, ids: &[u32], top: Option<u32>) -> FnvHashMap<T, usize> {
+    fn count_values_for_ids(&self, ids: &[u32], _top: Option<u32>) -> FnvHashMap<T, usize> {
         let mut hits = FnvHashMap::default();
         let size = self.data.len();
         for id in ids {

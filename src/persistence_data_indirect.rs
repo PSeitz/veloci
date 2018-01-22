@@ -127,7 +127,7 @@ impl<T: IndexIdToParentData> IndexIdToParent for IndexIdToMultipleParentIndirect
     }
 
     #[inline]
-    fn count_values_for_ids(&self, ids: &[u32], top: Option<u32>) -> FnvHashMap<T, usize> {
+    fn count_values_for_ids(&self, ids: &[u32], _top: Option<u32>) -> FnvHashMap<T, usize> {
         let mut hits = FnvHashMap::default();
         let size = self.get_size();
 
@@ -197,6 +197,63 @@ impl<T: IndexIdToParentData> IndexIdToMultipleParentCompressedMaydaINDIRECTOne<T
     }
 }
 
+fn get_collector<T: 'static + IndexIdToParentData>(num_ids: u32, avg_join_size: f32, max_value_id: u32) -> Box<AggregationCollector<T>> {
+    let num_inserts = (num_ids as f32 * avg_join_size) as u32;
+    let vec_len = max_value_id + 1;
+
+    let prefer_vec = num_inserts * 20 > vec_len;
+    debug!("prefer_vec {} {}>{}", prefer_vec, num_inserts * 20, vec_len);
+
+    if prefer_vec {
+        let mut dat = vec![];
+        dat.resize(vec_len as usize, T::zero());
+        return Box::new(dat);
+    } else {
+        return Box::new(FnvHashMap::default());
+    };
+}
+
+trait AggregationCollector<T: IndexIdToParentData> {
+    fn add(&mut self, id: T);
+    fn to_map(self: Box<Self>, top: Option<u32>) -> FnvHashMap<T, usize>;
+}
+
+impl<T: IndexIdToParentData> AggregationCollector<T> for Vec<T> {
+    fn add(&mut self, id: T) {
+        unsafe {
+            let elem = self.get_unchecked_mut(id.to_usize().unwrap());
+            *elem = *elem + T::one();
+        }
+        // self.get_unchecked(id.to_usize().unwrap())[] += 1;
+        // self[id.to_usize().unwrap()] += T::one();
+        // unimplemented!()
+    }
+    fn to_map(self: Box<Self>, top: Option<u32>) -> FnvHashMap<T, usize> {
+        let mut groups: Vec<(u32, T)> = self.iter()
+            .enumerate()
+            .filter(|el| *el.1 != T::zero())
+            .map(|el| (el.0 as u32, *el.1))
+            .collect();
+        groups.sort_by(|a, b| b.1.cmp(&a.1));
+        groups = apply_top_skip(groups, 0, top.unwrap_or(std::u32::MAX) as usize);
+        groups
+            .into_iter()
+            .map(|el| (NumCast::from(el.0).unwrap(), NumCast::from(el.1).unwrap()))
+            .collect()
+    }
+}
+
+impl<T: IndexIdToParentData> AggregationCollector<T> for FnvHashMap<T, usize> {
+    fn add(&mut self, id: T) {
+        let stat = self.entry(id).or_insert(0);
+        *stat += 1;
+    }
+
+    fn to_map(self: Box<Self>, _top: Option<u32>) -> FnvHashMap<T, usize> {
+        *self
+    }
+}
+
 impl<T: IndexIdToParentData> IndexIdToParent for IndexIdToMultipleParentCompressedMaydaINDIRECTOne<T> {
     type Output = T;
     #[inline]
@@ -248,7 +305,9 @@ impl<T: IndexIdToParentData> IndexIdToParent for IndexIdToMultipleParentCompress
 
     #[inline]
     fn count_values_for_ids(&self, ids: &[u32], top: Option<u32>) -> FnvHashMap<T, usize> {
-        let mut hits = FnvHashMap::default();
+        // Inserts are cheaper in a vec, bigger max_value_ids are more expensive in a vec
+        let mut coll: Box<AggregationCollector<T>> = get_collector(ids.len() as u32, self.avg_join_size, self.max_value_id);
+
         // let mut data_cache:Vec<T> = vec![];
         // let chunk_size = 8;
         // let mut positions_vec = Vec::with_capacity(chunk_size * 2);
@@ -302,10 +361,10 @@ impl<T: IndexIdToParentData> IndexIdToParent for IndexIdToMultipleParentCompress
         //         let new_len = data_cache.len();
 
         //         self.data.access_into(start_pos_data..end_pos_data, &mut data_cache[0 .. new_len]);
-
         //         for id in data_cache.iter() {
-        //             let stat = hits.entry(*id).or_insert(0);
-        //             *stat += 1;
+        //             // let stat = hits.entry(*id).or_insert(0);
+        //             // *stat += 1;
+        //             coll.add(*id)
         //         }
         //     }
         //     current_pos=0;
@@ -363,29 +422,12 @@ impl<T: IndexIdToParentData> IndexIdToParent for IndexIdToMultipleParentCompress
 
         //         self.data.access_into(NumCast::from(positions[0]).unwrap()..NumCast::from(positions[1]).unwrap(), &mut data_cache[0 .. new_len]);
         //         for id in data_cache.iter() {
-        //             // let stat = hits.entry(*id).or_insert(0);
-        //             // *stat += 1;
-        //             agg_hits[id.to_usize().unwrap()] += 1;
+        //             coll.add(*id);
         //         }
 
         //     }
 
         // }
-
-        // Inserts are cheaper in a vec, bigger max_value_ids are more expensive in a vec
-        let num_inserts = (ids.len() as f32 * self.avg_join_size) as u32;
-        let vec_len = self.max_value_id + 1;
-
-        let prefer_vec = num_inserts * 20 > vec_len;
-        debug!("prefer_vec {} {}>{}", prefer_vec, num_inserts * 20, vec_len);
-
-        let mut hits_vec = if prefer_vec {
-            let mut dat = vec![];
-            dat.resize(vec_len as usize, 0);
-            dat
-        } else {
-            vec![]
-        };
 
         let mut positions: Vec<T> = vec![];
         positions.resize(2, T::zero());
@@ -414,33 +456,12 @@ impl<T: IndexIdToParentData> IndexIdToParent for IndexIdToMultipleParentCompress
                     &mut data_cache[0..new_len],
                 );
                 for id in data_cache.iter() {
-                    // let stat = hits.entry(*id).or_insert(0);
-                    // *stat += 1;
-                    if prefer_vec {
-                        hits_vec[id.to_usize().unwrap()] += 1;
-                    } else {
-                        let stat = hits.entry(*id).or_insert(0);
-                        *stat += 1;
-                    }
-                    // agg_hits[id.to_usize().unwrap()] += 1;
+                    coll.add(*id);
                 }
             }
         }
 
-        if prefer_vec {
-            let mut groups: Vec<(u32, u32)> = hits_vec
-                .iter()
-                .enumerate()
-                .filter(|el| *el.1 != 0)
-                .map(|el| (el.0 as u32, *el.1))
-                .collect();
-            groups.sort_by(|a, b| b.1.cmp(&a.1));
-            groups = apply_top_skip(groups, 0, top.unwrap_or(std::u32::MAX) as usize);
-            hits = groups
-                .into_iter()
-                .map(|el| (NumCast::from(el.0).unwrap(), el.1 as usize))
-                .collect();
-        }
+        let hits: FnvHashMap<T, usize> = coll.to_map(top);
 
         hits
     }
@@ -622,21 +643,8 @@ impl IndexIdToParent for PointingArrayFileReader<u32> {
     #[inline]
     fn count_values_for_ids(&self, ids: &[u32], top: Option<u32>) -> FnvHashMap<u32, usize> {
         // Inserts are cheaper in a vec, bigger max_value_ids are more expensive in a vec
-        let num_inserts = (ids.len() as f32 * self.avg_join_size) as u32;
-        let vec_len = self.max_value_id + 1;
+        let mut coll: Box<AggregationCollector<u32>> = get_collector(ids.len() as u32, self.avg_join_size, self.max_value_id);
 
-        let prefer_vec = num_inserts * 20 > vec_len;
-        debug!("prefer_vec {} {}>{}", prefer_vec, num_inserts * 20, vec_len);
-
-        let mut hits_vec = if prefer_vec {
-            let mut dat = vec![];
-            dat.resize(vec_len as usize, 0);
-            dat
-        } else {
-            vec![]
-        };
-
-        let mut hits = FnvHashMap::default();
         let size = self.get_size();
         let mut data_bytes: Vec<u8> = Vec::with_capacity(100);
         let mut offsets: Vec<u8> = Vec::with_capacity(8);
@@ -667,46 +675,11 @@ impl IndexIdToParent for PointingArrayFileReader<u32> {
             load_bytes_into(&mut data_bytes, &*self.data_file.lock(), start as u64);
 
             let mut rdr = Cursor::new(&data_bytes);
-
-            if prefer_vec {
-                while let Ok(id) = rdr.read_u32::<LittleEndian>() {
-                    hits_vec[id as usize] += 1;
-                }
-            } else {
-                while let Ok(id) = rdr.read_u32::<LittleEndian>() {
-                    let stat = hits.entry(id).or_insert(0);
-                    *stat += 1;
-                }
+            while let Ok(id) = rdr.read_u32::<LittleEndian>() {
+                coll.add(id);
             }
         }
-
-        if prefer_vec {
-            // todo extract top x
-            // let mut best_hits = vec![];
-            // for (i, el) in hits_vec.iter().enumerate() {
-            //     if el == 0{
-            //         continue;
-            //     }
-            //     if
-            // }
-
-            let mut groups: Vec<(u32, u32)> = hits_vec
-                .iter()
-                .enumerate()
-                .filter(|el| *el.1 != 0)
-                .map(|el| (el.0 as u32, *el.1))
-                .collect();
-            groups.sort_by(|a, b| b.1.cmp(&a.1));
-            groups = apply_top_skip(groups, 0, top.unwrap_or(std::u32::MAX) as usize);
-            hits = groups
-                .into_iter()
-                .map(|el| (el.0 as u32, el.1 as usize))
-                .collect();
-        } else {
-
-        }
-
-        hits
+        coll.to_map(top)
     }
 }
 

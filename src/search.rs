@@ -31,6 +31,7 @@ use util::concat;
 use fst;
 use fst_levenshtein;
 
+use search_field::*;
 #[allow(unused_imports)]
 use execution_plan;
 use execution_plan::*;
@@ -170,30 +171,11 @@ pub enum BoostFunction {
     Add,
 }
 
-// #[derive(Debug)]
-// struct ScoreTrace {
-//     HashMap: <TermId, (ScoreSource, f32, )>
-// }
-
-// #[derive(Debug)]
-// struct ScoreSource {
-//     source: Vec<ScoreTrace>,
-//     f32: score
-// }
-
 impl Default for BoostFunction {
     fn default() -> BoostFunction {
         BoostFunction::Log10
     }
 }
-
-// pub enum CheckOperators {
-//     All,
-//     One
-// }
-// impl Default for CheckOperators {
-//     fn default() -> CheckOperators { CheckOperators::All }
-// }
 
 #[derive(Serialize, Deserialize, Default, Clone, Debug)]
 pub struct SearchResult {
@@ -290,12 +272,18 @@ fn get_default_levenshtein(term: &str) -> usize {
     }
 }
 
-fn get_all_field_names(persistence: &Persistence) -> Vec<String> {
+fn get_all_field_names(persistence: &Persistence, fields: &Option<Vec<String>>) -> Vec<String> {
     persistence
         .meta_data
         .fulltext_indices
         .keys()
         .map(|field| extract_field_name(field))
+        .filter(|el| {
+            if let &Some(ref filter) = fields {
+                return filter.contains(el);
+            }
+            return true;
+        })
         .collect()
 }
 
@@ -307,14 +295,8 @@ pub fn suggest_query(request: &str, persistence: &Persistence, mut top: Option<u
     }
     // if skip.is_none() {top = Some(0); }
 
-    let requests = get_all_field_names(&persistence)
+    let requests = get_all_field_names(&persistence, &fields)
         .iter()
-        .filter(|el| {
-            if let Some(ref filter) = fields {
-                return filter.contains(el);
-            }
-            return true;
-        })
         .map(|field_name| {
             let levenshtein_distance = levenshtein.unwrap_or_else(|| get_default_levenshtein(request));
             let starts_with = if request.chars().count() <= 3 {
@@ -408,14 +390,8 @@ pub fn search_query(
             .map(|term| {
                 let levenshtein_distance = levenshtein.unwrap_or_else(|| get_default_levenshtein(term));
 
-                let parts = get_all_field_names(&persistence)
+                let parts = get_all_field_names(&persistence, &fields)
                     .iter()
-                    .filter(|el| {
-                        if let Some(ref filter) = fields {
-                            return filter.contains(el);
-                        }
-                        return true;
-                    })
                     .map(|field_name| {
                         let part = RequestSearchPart {
                             path: field_name.to_string(),
@@ -448,14 +424,8 @@ pub fn search_query(
     }
 
     info_time!("generating search query");
-    let parts: Vec<Request> = get_all_field_names(&persistence)
+    let parts: Vec<Request> = get_all_field_names(&persistence, &fields)
         .iter()
-        .filter(|el| {
-            if let Some(ref filter) = fields {
-                return filter.contains(el);
-            }
-            return true;
-        })
         .flat_map(|field_name| {
             let requests: Vec<Request> = terms
                 .iter()
@@ -561,48 +531,6 @@ pub fn get_longest_result<T: std::iter::ExactSizeIterator>(results: &Vec<T>) -> 
     longest.0
 }
 
-// #[flame]
-// pub fn search_unrolled(persistence: &Persistence, request: Request) -> Result<FnvHashMap<u32, f32>, SearchError> {
-//     debug_time!("search_unrolled");
-
-//     if let Some(or) = request.or {
-
-//         let vec:Vec<FnvHashMap<u32, f32>> = or.par_iter().map(|x| -> FnvHashMap<u32, f32> {
-//             search_unrolled(persistence, x.clone()).unwrap()
-//         }).collect();
-
-//         debug_time!("search_unrolled_collect_ors");
-//         Ok(union_hits(vec))
-//         // Ok(or.iter().fold(FnvHashMap::default(), |mut acc, x| -> FnvHashMap<u32, f32> {
-//         //     acc.extend(&search_unrolled(persistence, x.clone()).unwrap());
-//         //     acc
-//         // }))
-
-//     } else if let Some(ands) = request.and {
-//         let mut and_results: Vec<FnvHashMap<u32, f32>> = ands.par_iter().map(|x| search_unrolled(persistence, x.clone()).unwrap()).collect(); // @Hack  unwrap forward errors
-
-//         debug_time!("and algorithm");
-//         Ok(intersect_hits(and_results))
-//         // for res in &and_results {
-//         //     all_results.extend(res); // merge all results
-//         // }
-
-//     } else if request.search.is_some() {
-//         Ok(search_raw(persistence, request.search.unwrap(), request.boost)?)
-//     } else {
-//         Ok(FnvHashMap::default())
-//     }
-// }
-
-// pub fn union_hits(vec:Vec<FnvHashMap<u32, f32>>) -> FnvHashMap<u32, f32> {
-//     vec.iter().fold(FnvHashMap::default(), |mut acc, x| -> FnvHashMap<u32, f32> {
-//         acc.extend(x);
-//         acc
-//     })
-// }
-
-use search_field::*;
-
 #[flame]
 pub fn union_hits(mut or_results: Vec<SearchFieldResult>) -> SearchFieldResult {
     let index_longest = get_longest_result(&or_results.iter().map(|el| el.hits.iter()).collect());
@@ -617,14 +545,6 @@ pub fn union_hits(mut or_results: Vec<SearchFieldResult>) -> SearchFieldResult {
     for res in or_results {
         result.hits.extend(&res.hits);
     }
-
-    // result.hits = or_results.iter().fold(
-    //     FnvHashMap::default(),
-    //     |mut acc, x| -> FnvHashMap<u32, f32> {
-    //         acc.extend(&x.hits);
-    //         acc
-    //     },
-    // );
 
     result
 }
@@ -651,6 +571,123 @@ pub fn intersect_hits(mut and_results: Vec<SearchFieldResult>) -> SearchFieldRes
         hits: all_results,
         ..Default::default()
     }
+}
+
+#[flame]
+pub fn intersect_hits_vec(mut and_results: Vec<SearchFieldResult>) -> SearchFieldResult {
+    let index_shortest = get_shortest_result(&and_results.iter().map(|el| el.hits_vec.iter()).collect());
+
+    for res in and_results.iter_mut() {
+        res.hits_vec.sort_unstable_by_key(|el| el.0); //TODO ALSO DEDUP???
+    }
+    let mut shortest_result = and_results.swap_remove(index_shortest).hits_vec;
+
+    // let mut iterators = &and_results.iter().map(|el| el.hits_vec.iter()).collect::<Vec<_>>();
+
+    let mut iterators_and_current = and_results
+        .iter_mut()
+        .map(|el| {
+            let mut iterator = el.hits_vec.iter();
+            let current = iterator.next();
+            (iterator, current)
+        })
+        .filter(|el| el.1.is_some())
+        .map(|el| (el.0, el.1.unwrap()))
+        .collect::<Vec<_>>();
+
+    // shortest_result.retain(|&current_el| {
+    //     let current_id = current_el.0;
+    //     let current_score = current_el.1;
+    //     if iterators_and_current
+    //         .iter_mut()
+    //         .all(|ref mut iter_n_current| {
+    //             if iter_n_current.1 == current_id {
+    //                 return true;
+    //             }
+    //             let iter = &mut iter_n_current.0;
+    //             while let Some(el) = iter.next() {
+    //                 let id = el.0;
+    //                 iter_n_current.1 = id;
+    //                 if id > current_id {
+    //                     return false;
+    //                 }
+    //                 if id == current_id {
+    //                     return true;
+    //                 }
+    //             }
+    //             return false;
+    //         })
+    //     {
+    //         return true;
+    //     }
+    //     {
+    //         return false;
+    //     }
+    // });
+
+    let mut intersected_hits = Vec::with_capacity(shortest_result.len());
+    for current_el in shortest_result.iter_mut() {
+        let current_id = current_el.0;
+        let current_score = current_el.1;
+
+
+        if iterators_and_current
+            .iter_mut()
+            .all(|ref mut iter_n_current| {
+                // let current_data = &mut iter_n_current.1;
+                if (iter_n_current.1).0 == current_id {
+                    return true;
+                }
+                let iter = &mut iter_n_current.0;
+                while let Some(el) = iter.next() {
+                    let id = el.0;
+                    iter_n_current.1 = el;
+                    if id > current_id {
+                        return false;
+                    }
+                    if id == current_id {
+                        return true;
+                    }
+                }
+                return false;
+            })
+        {
+
+            let mut score = iterators_and_current.iter().map(|el| (el.1).1).sum();
+            score += current_score;
+            intersected_hits.push((current_id, score));
+        }
+        {
+        }
+
+    }
+    // all_results
+    SearchFieldResult {
+        hits_vec: intersected_hits,
+        ..Default::default()
+    }
+}
+
+#[test]
+fn intersect_hits_vec_test() {
+    let hits1 = vec![(10, 20.0), (0, 20.0), (5, 20.0)]; // unsorted
+    let hits2 = vec![(0, 20.0), (3, 20.0), (10, 30.0), (20, 30.0)];
+
+    let yop = vec![
+        SearchFieldResult {
+            hits_vec: hits1,
+            ..Default::default()
+        },
+        SearchFieldResult {
+            hits_vec: hits2,
+            ..Default::default()
+        },
+    ];
+
+    let res = intersect_hits_vec(yop);
+    println!("{:?}", res.hits_vec);
+
+    assert_eq!(res.hits_vec, vec![(0, 40.0), (10, 50.0)]);
 }
 
 use expression::ScoreExpression;

@@ -34,6 +34,7 @@ use trie::map;
 #[derive(Debug, Default)]
 pub struct SearchFieldResult {
     pub hits: FnvHashMap<TermId, f32>,
+    pub hits_vec: Vec<(TermId, f32)>,
     pub terms: FnvHashMap<TermId, String>,
     pub highlight: FnvHashMap<TermId, String>,
 }
