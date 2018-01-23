@@ -99,7 +99,11 @@ where
             "fst not found loaded in cache {} ",
             options.path
         )))?;
-    let lev = LevenshteinIC::new(&options.terms[0], options.levenshtein_distance.unwrap_or(0))?;
+    let lev = {
+        debug_time!(format!("{} LevenshteinIC create", &options.path));
+        LevenshteinIC::new(&options.terms[0], options.levenshtein_distance.unwrap_or(0))?
+
+    };
 
     // let stream = map.search(lev).into_stream();
     let hits = if options.starts_with.unwrap_or(false) {
@@ -296,6 +300,7 @@ fn get_hits_in_field_one_term(persistence: &Persistence, options: &RequestSearch
     //TODO Move to topnstruct
 
     {
+        debug_time!(format!("{} levenschwein", &options.path));
         let lev_automaton_builder = LevenshteinAutomatonBuilder::new(options.levenshtein_distance.unwrap_or(0) as u8, true);
         let lower_term = options.terms[0].to_lowercase();
         let dfa = lev_automaton_builder.build_dfa(&lower_term);
@@ -358,7 +363,6 @@ fn get_hits_in_field_one_term(persistence: &Persistence, options: &RequestSearch
 
             // result.hits.insert(line_pos, score);
             result.hits_vec.push(Hit::new(line_pos, score));
-            
 
             if options.return_term.unwrap_or(false) {
                 result.terms.insert(line_pos, line);
@@ -421,8 +425,11 @@ fn get_hits_in_field_one_term(persistence: &Persistence, options: &RequestSearch
             fast_field_res.len()
         );
 
-        fast_field_res.sort_unstable_by(|a, b| b.id.partial_cmp(&a.id).unwrap_or(Ordering::Equal));
-        fast_field_res.dedup_by_key(|b| b.id);
+        {
+            debug_time!(format!("{} fast_field sort and dedup", &options.path));
+            fast_field_res.sort_unstable_by(|a, b| b.id.partial_cmp(&a.id).unwrap_or(Ordering::Equal));
+            fast_field_res.dedup_by_key(|b| b.id); // TODO FixMe Score
+        }
 
 
         result.hits_vec = fast_field_res;

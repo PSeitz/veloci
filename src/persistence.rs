@@ -57,7 +57,7 @@ impl MetaData {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Default)]
 pub struct KVStoreMetaData {
     pub path: String,
     pub is_1_to_n: bool, // In the sense of 1:n   1key, n values
@@ -110,6 +110,12 @@ impl FromStr for LoadingType {
 pub enum KVStoreType {
     ParallelArrays,
     IndexIdToMultipleParentIndirect,
+}
+
+impl Default for KVStoreType {
+    fn default() -> KVStoreType {
+        KVStoreType::IndexIdToMultipleParentIndirect
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
@@ -241,7 +247,6 @@ pub struct PersistenceCache {
     pub index_id_to_parento: HashMap<String, Box<IndexIdToParent<Output = u32>>>,
     pub boost_valueid_to_value: HashMap<String, Box<IndexIdToParent<Output = u32>>>,
     index_64: HashMap<String, Box<IndexIdToParent<Output = u64>>>,
-    // index_32: HashMap<String, Vec<u32>>,
     pub fst: HashMap<String, Map>,
 }
 

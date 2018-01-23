@@ -72,11 +72,6 @@ macro_rules! impl_type_info_single_templ {
     }
 }
 
-// impl_type_info_single_templ!(IndexIdToMultipleParentCompressedMaydaINDIRECTOne);
-// impl_type_info_single_templ!(IndexIdToMultipleParentCompressedMaydaINDIRECTOneReuse);
-// impl_type_info_single_templ!(IndexIdToMultipleParentIndirect);
-// impl_type_info_single_templ!(PointingArrayFileReader);
-
 impl_type_info_single_templ!(IndexIdToMultipleParentCompressedMaydaDIRECT);
 impl_type_info_single_templ!(IndexIdToMultipleParent);
 impl_type_info_single_templ!(IndexIdToOneParentMayda);
@@ -130,36 +125,6 @@ impl<T: IndexIdToParentData> IndexIdToParent for IndexIdToMultipleParent<T> {
         hits
     }
 }
-
-// lazy_static! {
-//     static ref SNAP_DECODER: Mutex<snap::Decoder> = {
-//         Mutex::new(snap::Decoder::new())
-//     };
-// }
-
-// #[derive(Debug, HeapSizeOf)]
-// #[allow(dead_code)]
-// pub struct IndexIdToMultipleParentCompressedSnappy {
-//     data: Vec<Vec<u8>>,
-// }
-// impl IndexIdToMultipleParentCompressedSnappy {
-//     #[allow(dead_code)]
-//     pub fn new(store: &IndexIdToParent<Output=T>) -> IndexIdToMultipleParentCompressedSnappy {
-//         let data = id_to_parent_to_array_of_array_snappy(store);
-//         IndexIdToMultipleParentCompressedSnappy { data }
-//     }
-// }
-
-// impl IndexIdToParent for IndexIdToMultipleParentCompressedSnappy {
-//     fn get_values(&self, id: u64) -> Option<Vec<T>> {
-//         self.data.get(id as usize).map(|el| {
-//             bytes_to_vec_u32(&SNAP_DECODER.lock().decompress_vec(el).unwrap())
-//         })
-//     }
-//     fn get_keys(&self) -> Vec<T> {
-//         (0..self.data.len() as u32).collect()
-//     }
-// }
 
 #[derive(Debug, HeapSizeOf)]
 #[allow(dead_code)]

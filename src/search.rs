@@ -284,7 +284,7 @@ fn get_default_levenshtein(term: &str) -> usize {
     match term.chars().count() {
         0..=3 => 0,
         4..=7 => 1,
-        _ => 2,
+        _ => 1, // levenshtein 2 very slow for IC and long texts
     }
 }
 
@@ -582,12 +582,19 @@ pub fn union_hits_vec(mut or_results: Vec<SearchFieldResult>) -> SearchFieldResu
 
     let mut union_hits = or_results.swap_remove(index_longest).hits_vec;
 
-    for mut res in or_results {
-        union_hits.append(&mut res.hits_vec);
+    {
+        debug_time!("union hits append ".to_string());
+        for mut res in or_results {
+            union_hits.append(&mut res.hits_vec);
+        }
     }
 
+    debug_time!("union hits sort and dedup ".to_string());
     union_hits.sort_unstable_by_key(|el| el.id);
-    union_hits.dedup_by_key(|el| el.id);
+    let prev = union_hits.len();
+    union_hits.dedup_by_key(|el| el.id); // TODO FixMe Score
+
+    debug!("union hits merged from {} to {} hits", prev, union_hits.len() );
 
     // all_results
     SearchFieldResult {

@@ -200,19 +200,23 @@ impl DfaBuilder {
                 let lev_next = self.lev.accept(&lev_state, Some(c));
                 let next_si = self.cached_state(&lev_next);
                 if let Some(next_si) = next_si {
+                    let lower_char = c.to_lowercase().next().unwrap();
+                    let uper_char = c.to_uppercase().next().unwrap();
+                    if lower_char != uper_char {
+                        self.add_utf8_sequences(
+                            true,
+                            dfa_si,
+                            next_si,
+                            lower_char,
+                            lower_char,
+                        );
+                    }
                     self.add_utf8_sequences(
                         true,
                         dfa_si,
                         next_si,
-                        c.to_lowercase().next().unwrap(),
-                        c.to_lowercase().next().unwrap(),
-                    );
-                    self.add_utf8_sequences(
-                        true,
-                        dfa_si,
-                        next_si,
-                        c.to_uppercase().next().unwrap(),
-                        c.to_uppercase().next().unwrap(),
+                        uper_char,
+                        uper_char,
                     );
                     // self.add_utf8_sequences(true, dfa_si, next_si, c, c);
                     if !seen.contains(&next_si) {

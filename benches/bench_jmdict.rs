@@ -345,14 +345,14 @@ fn searches(c: &mut Criterion) {
     });
 
     let requesto: search::Request = serde_json::from_str(&req.to_string()).expect("Can't parse json");
-    c.bench_function("jmdict_search_with_facets", |b| {
+    c.bench_function("jmdict_search_facets", |b| {
         b.iter(|| {
             // search_with_facets("the", &pers, 0, facets.clone())
             search::search(requesto.clone(), &pers)
         })
     });
 
-    c.bench_function("jmdict_search_with_facets_im", |b| {
+    c.bench_function("jmdict_search_facets_im", |b| {
         b.iter(|| {
             // search_with_facets("the", &pers, 0, facets.clone())
             search::search(requesto.clone(), &pers_im)
