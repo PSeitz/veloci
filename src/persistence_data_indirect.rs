@@ -76,27 +76,31 @@ impl_type_info_single_templ!(PointingArrayFileReader);
 pub struct IndexIdToMultipleParentIndirect<T: IndexIdToParentData> {
     pub start_and_end: Vec<T>,
     pub data: Vec<T>,
+    pub max_value_id: u32,
+    pub avg_join_size: f32,
 }
 impl<T: IndexIdToParentData> IndexIdToMultipleParentIndirect<T> {
     #[allow(dead_code)]
-    pub fn new(data: &IndexIdToParent<Output = T>) -> IndexIdToMultipleParentIndirect<T> {
-        IndexIdToMultipleParentIndirect::new_sort_and_dedup(data, false)
+    pub fn new(data: &IndexIdToParent<Output = T>, avg_join_size: f32) -> IndexIdToMultipleParentIndirect<T> {
+        IndexIdToMultipleParentIndirect::new_sort_and_dedup(data, false, avg_join_size)
     }
     #[allow(dead_code)]
-    pub fn new_sort_and_dedup(data: &IndexIdToParent<Output = T>, sort_and_dedup: bool) -> IndexIdToMultipleParentIndirect<T> {
-        let (_max_value_id, start_and_end_pos, data) = to_indirect_arrays_dedup(data, 0, sort_and_dedup);
+    pub fn new_sort_and_dedup(data: &IndexIdToParent<Output = T>, sort_and_dedup: bool, avg_join_size: f32,) -> IndexIdToMultipleParentIndirect<T> {
+        let (max_value_id, start_and_end_pos, data) = to_indirect_arrays_dedup(data, 0, sort_and_dedup);
         IndexIdToMultipleParentIndirect {
             start_and_end: start_and_end_pos,
             data,
+            max_value_id: max_value_id.to_u32().unwrap(),
+            avg_join_size,
         }
     }
-    #[allow(dead_code)]
-    pub fn from_data(start_and_end: Vec<T>, data: Vec<T>) -> IndexIdToMultipleParentIndirect<T> {
-        IndexIdToMultipleParentIndirect {
-            start_and_end,
-            data,
-        }
-    }
+    // #[allow(dead_code)]
+    // pub fn from_data(start_and_end: Vec<T>, data: Vec<T>) -> IndexIdToMultipleParentIndirect<T> {
+    //     IndexIdToMultipleParentIndirect {
+    //         start_and_end,
+    //         data,
+    //     }
+    // }
     fn get_size(&self) -> usize {
         self.start_and_end.len() / 2
     }
@@ -127,8 +131,9 @@ impl<T: IndexIdToParentData> IndexIdToParent for IndexIdToMultipleParentIndirect
     }
 
     #[inline]
-    fn count_values_for_ids(&self, ids: &[u32], _top: Option<u32>) -> FnvHashMap<T, usize> {
-        let mut hits = FnvHashMap::default();
+    fn count_values_for_ids(&self, ids: &[u32], top: Option<u32>) -> FnvHashMap<T, usize> {
+        // let mut hits = FnvHashMap::default();
+        let mut coll: Box<AggregationCollector<T>> = get_collector(ids.len() as u32, self.avg_join_size, self.max_value_id);
         let size = self.get_size();
 
         let mut positions_vec = Vec::with_capacity(8);
@@ -147,14 +152,13 @@ impl<T: IndexIdToParentData> IndexIdToParent for IndexIdToMultipleParentIndirect
             }
 
             for position in positions_vec.iter() {
-                for hit_id in &self.data[NumCast::from(position[0]).unwrap()..NumCast::from(position[1]).unwrap()] {
-                    let stat = hits.entry(*hit_id).or_insert(0);
-                    *stat += 1;
+                for id in &self.data[NumCast::from(position[0]).unwrap()..NumCast::from(position[1]).unwrap()] {
+                    coll.add(*id);
                 }
             }
             positions_vec.clear();
         }
-        hits
+        coll.to_map(top)
     }
 }
 
@@ -217,6 +221,27 @@ trait AggregationCollector<T: IndexIdToParentData> {
     fn add(&mut self, id: T);
     fn to_map(self: Box<Self>, top: Option<u32>) -> FnvHashMap<T, usize>;
 }
+use std::cmp::Ordering;
+fn get_top_n_sort<T: IndexIdToParentData>(dat: &Vec<T>, top: usize) -> Vec<(usize, T)> {
+    let mut top_n:Vec<(usize, T)> = vec![];
+
+    let mut current_worst = T::zero();
+    for el in dat.iter().enumerate().filter(|el| *el.1 != T::zero()) {
+        if *el.1 < current_worst {
+            continue;
+        }
+
+        if !top_n.is_empty() && (top_n.len() % (top * 5)) == 0 {
+            top_n.sort_unstable_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(Ordering::Equal));
+            top_n.truncate(top);
+            current_worst = top_n.last().unwrap().1;
+            trace!("facet new worst {:?}", current_worst);
+        }
+
+        top_n.push((el.0, *el.1));
+    }
+    top_n
+}
 
 impl<T: IndexIdToParentData> AggregationCollector<T> for Vec<T> {
     fn add(&mut self, id: T) {
@@ -229,17 +254,26 @@ impl<T: IndexIdToParentData> AggregationCollector<T> for Vec<T> {
         // unimplemented!()
     }
     fn to_map(self: Box<Self>, top: Option<u32>) -> FnvHashMap<T, usize> {
-        let mut groups: Vec<(u32, T)> = self.iter()
-            .enumerate()
-            .filter(|el| *el.1 != T::zero())
-            .map(|el| (el.0 as u32, *el.1))
-            .collect();
-        groups.sort_by(|a, b| b.1.cmp(&a.1));
-        groups = apply_top_skip(groups, 0, top.unwrap_or(std::u32::MAX) as usize);
-        groups
-            .into_iter()
+        debug_time!("aggregation vec to_map");
+
+        if top.is_some() && top.unwrap() > 0 {
+            get_top_n_sort(&self, top.unwrap() as usize).into_iter()
             .map(|el| (NumCast::from(el.0).unwrap(), NumCast::from(el.1).unwrap()))
             .collect()
+        }else{
+
+            let mut groups: Vec<(u32, T)> = self.iter()
+                .enumerate()
+                .filter(|el| *el.1 != T::zero())
+                .map(|el| (el.0 as u32, *el.1))
+                .collect();
+            groups.sort_by(|a, b| b.1.cmp(&a.1));
+            // groups = apply_top_skip(groups, 0, top.unwrap_or(std::u32::MAX) as usize);
+            groups
+                .into_iter()
+                .map(|el| (NumCast::from(el.0).unwrap(), NumCast::from(el.1).unwrap()))
+                .collect()
+        }
     }
 }
 
@@ -1010,7 +1044,7 @@ mod tests {
         #[test]
         fn test_pointing_array_index_id_to_multiple_parent_indirect() {
             let store = get_test_data_1_to_n();
-            let store = IndexIdToMultipleParentIndirect::new(&store);
+            let store = IndexIdToMultipleParentIndirect::new(&store, 1.0);
             check_test_data_1_to_n(&store);
         }
 

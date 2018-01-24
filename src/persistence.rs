@@ -84,6 +84,7 @@ fn default_avg_join() -> f32 {
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub enum LoadingType {
     InMemory,
+    InMemoryUnCompressed,
     Disk,
 }
 
@@ -99,6 +100,7 @@ impl FromStr for LoadingType {
     type Err = ();
     fn from_str(s: &str) -> Result<LoadingType, ()> {
         match s {
+            "InMemoryUnCompressed" => Ok(LoadingType::InMemoryUnCompressed),
             "InMemory" => Ok(LoadingType::InMemory),
             "Disk" => Ok(LoadingType::Disk),
             _ => Err(()),
@@ -279,11 +281,13 @@ impl Persistence {
     pub fn print_heap_sizes(&self) {
         info!(
             "cache.index_64 {}",
-            get_readable_size_for_childs(&self.cache.index_64)
+            // get_readable_size_for_childs(&self.cache.index_64)
+            get_readable_size(self.cache.index_64.heap_size_of_children())
         );
         info!(
             "cache.index_id_to_parento {}",
-            get_readable_size_for_childs(&self.cache.index_id_to_parento)
+            get_readable_size(self.cache.index_id_to_parento.heap_size_of_children())
+            // get_readable_size_for_childs(&self.cache.index_id_to_parento)
         );
         info!(
             "cache.boost_valueid_to_value {}",
@@ -350,7 +354,7 @@ impl Persistence {
         let indirect_file_path = util::get_file_path(&self.db, &(path.to_string() + ".indirect"));
         let data_file_path = util::get_file_path(&self.db, &(path.to_string() + ".data"));
 
-        let store = IndexIdToMultipleParentIndirect::new_sort_and_dedup(data, sort_and_dedup);
+        let store = IndexIdToMultipleParentIndirect::new_sort_and_dedup(data, sort_and_dedup, 1.0);
 
         let avg_join_size = if store.start_and_end.len() == 0 {
             0.0
@@ -597,6 +601,24 @@ impl Persistence {
                 }
 
                 match loading_type {
+                    LoadingType::InMemoryUnCompressed => {
+                        let indirect = file_to_bytes(&(get_file_path(&self.db, &el.path) + ".indirect"))?;
+                        let data = file_to_bytes(&(get_file_path(&self.db, &el.path) + ".data"))?;
+                        let indirect_u32 = bytes_to_vec_u32(&indirect);
+                        let data_u32 = bytes_to_vec_u32(&data);
+
+                        let store = IndexIdToMultipleParentIndirect {
+                            start_and_end: indirect_u32,
+                            data: data_u32,
+                            max_value_id: el.max_value_id,
+                            avg_join_size: el.avg_join_size,
+                        };
+
+                        return Ok((
+                            el.path.to_string(),
+                            Box::new(store) as Box<IndexIdToParent<Output = u32>>,
+                        ));
+                    }
                     LoadingType::InMemory => {
                         let indirect = file_to_bytes(&(get_file_path(&self.db, &el.path) + ".indirect"))?;
                         let data = file_to_bytes(&(get_file_path(&self.db, &el.path) + ".data"))?;
@@ -738,10 +760,10 @@ impl Persistence {
 
     #[flame]
     pub fn load_index_64(&mut self, path: &str) -> Result<(), search::SearchError> {
-        let loading_type = load_type_from_env()?.unwrap_or(LoadingType::InMemory);
+        let loading_type = load_type_from_env()?.unwrap_or(LoadingType::Disk);
 
         match loading_type {
-            LoadingType::InMemory => {
+            LoadingType::InMemoryUnCompressed | LoadingType::InMemory => { //TODO InMemoryUnCompressed
                 let file_path = get_file_path(&self.db, path);
                 self.cache.index_64.insert(
                     path.to_string(),

@@ -962,13 +962,6 @@ mod tests {
         use rand::distributions::{IndependentSample, Range};
 
         #[test]
-        fn test_pointing_array_index_id_to_multiple_parent_indirect() {
-            let store = get_test_data_1_to_n();
-            let store = IndexIdToMultipleParentIndirect::new(&store);
-            check_test_data_1_to_n(&store);
-        }
-
-        #[test]
         fn test_mayda_compressed_one() {
             let store = get_test_data_1_to_n();
             let mayda = IndexIdToMultipleParentCompressedMaydaINDIRECTOne::<u32>::new(&store);

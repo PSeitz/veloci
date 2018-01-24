@@ -2,3 +2,4 @@
 !/src/*
 !/json_converter/*
 !Cargo.toml
+!index.html

@@ -223,22 +223,6 @@ pub fn highlight(persistence: &Persistence, options: &mut RequestSearchPart) -> 
     ))
 }
 
-// fn intersect(mut and_results: Vec<(String, SearchFieldResult)>) -> Result<SearchFieldResult, SearchError> {
-//     // let mut and_results:Vec<FnvHashMap<u32, f32>> = ands.iter().map(|x| search_unrolled(persistence, x.clone()).unwrap()).collect(); // @Hack  unwrap forward errors
-
-//     let hits = SearchFieldResult{hits: vec![], terms:FnvHashMap::default()};
-
-//     debug_time!("intersect algorithm");
-//     let mut all_results:FnvHashMap<u32, f32> = FnvHashMap::default();
-//     let index_shortest = search::get_shortest_result(&and_results.iter().map(|el| el.iter()).collect());
-
-//     // let shortest_result = and_results.swap_remove(index_shortest);
-//     for (k, v) in shortest_result {
-//         if and_results.iter().all(|ref x| x.contains_key(&k)){
-//             all_results.insert(k, v);
-//         }
-//     }
-// }
 
 #[flame]
 pub fn get_hits_in_field(persistence: &Persistence, options: &RequestSearchPart, filter: Option<&FnvHashSet<u32>>) -> Result<SearchFieldResult, SearchError> {
@@ -396,7 +380,7 @@ fn get_hits_in_field_one_term(persistence: &Persistence, options: &RequestSearch
             let token_kvdata = persistence.get_valueid_to_parent(&concat(&options.path, ".tokens.to_anchor"))?;
 
             if let Some(anchor_score) = token_kvdata.get_values(hit.id as u64) {
-                fast_field_res.reserve(anchor_score.len() / 2);
+                fast_field_res.reserve(1 + anchor_score.len() / 2);
                 for (anchor_id, token_in_anchor_score) in anchor_score.iter().tuples() {
                     if let Some(filter) = filter {
                         if filter.contains(&anchor_id) {
@@ -427,7 +411,7 @@ fn get_hits_in_field_one_term(persistence: &Persistence, options: &RequestSearch
 
         {
             debug_time!(format!("{} fast_field sort and dedup", &options.path));
-            fast_field_res.sort_unstable_by(|a, b| b.id.partial_cmp(&a.id).unwrap_or(Ordering::Equal));
+            fast_field_res.sort_unstable_by(|a, b| b.id.partial_cmp(&a.id).unwrap_or(Ordering::Equal)); //TODO presort data in persistence, k_merge token_hits
             fast_field_res.dedup_by_key(|b| b.id); // TODO FixMe Score
         }
 

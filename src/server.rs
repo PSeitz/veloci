@@ -199,6 +199,12 @@ pub fn start_server() {
         )))
     }
 
+    fn query_param_to_vec(name: &str, map:&HashMap<String, String>) -> Option<Vec<String>> {
+        map.get(name)
+            .clone()
+            .map(|el| el.split(",").map(|f| f.to_string()).collect())
+    }
+
     fn search_get_handler(req: &mut Request) -> IronResult<Response> {
         info_time!("search request total");
         let database = req.extensions
@@ -242,9 +248,16 @@ pub fn start_server() {
             .clone()
             .map(|el| el.split(",").map(|f| f.to_string()).collect());
         // "facets": [ {"field":"ISMLANGUAGES"}, {"field":"ISMARTIST"}, {"field":"GENRE"}, {"field":"VERLAG[]"}   ]
-        let fields: Option<Vec<String>> = map.get("fields")
-            .clone()
-            .map(|el| el.split(",").map(|f| f.to_string()).collect());
+        let fields: Option<Vec<String>> = query_param_to_vec("fields", &map);
+        let boost_fields: HashMap<String,f32> = query_param_to_vec("boost_fields", &map)
+            .map(|mkay|
+                mkay.into_iter()
+                .map(|el|{
+                        let field_n_boost = el.split("->").collect::<Vec<&str>>();
+                        (field_n_boost[0].to_string(), field_n_boost[1].parse::<f32>().unwrap())
+                    }
+                ).collect()
+            ).unwrap_or(HashMap::default());
 
         let request = search::search_query(
             map.get("query").unwrap(),
@@ -262,6 +275,7 @@ pub fn start_server() {
             facetlimit,
             facets,
             fields,
+            boost_fields,
         );
 
         debug!("{}", serde_json::to_string(&request).unwrap());
@@ -295,9 +309,7 @@ pub fn start_server() {
         ))?;
 
         let persistence = PERSISTENCES.get(&database).unwrap();
-        let fields: Option<Vec<String>> = map.get("fields")
-            .clone()
-            .map(|el| el.split(",").map(|f| f.to_string()).collect());
+        let fields: Option<Vec<String>> = query_param_to_vec("fields", &map);
         let request = search::suggest_query(
             query,
             &persistence,
