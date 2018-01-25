@@ -52,21 +52,21 @@ pub struct Request {
     #[serde(skip_serializing_if = "Option::is_none")] pub suggest: Option<Vec<RequestSearchPart>>,
     #[serde(skip_serializing_if = "Option::is_none")] pub boost: Option<Vec<RequestBoostPart>>,
     #[serde(skip_serializing_if = "Option::is_none")] pub facets: Option<Vec<FacetRequest>>,
-    #[serde(default = "default_top")] pub top: usize,
-    #[serde(default = "default_skip")] pub skip: usize,
+    #[serde(skip_serializing_if = "Option::is_none")] #[serde(default = "default_top")] pub top: Option<usize>,
+    #[serde(skip_serializing_if = "Option::is_none")] #[serde(default = "default_skip")] pub skip: Option<usize>,
 }
 
 #[derive(Serialize, Deserialize, Default, Clone, Debug)]
 pub struct FacetRequest {
     pub field: String,
-    #[serde(default = "default_top")] pub top: usize,
+    #[serde(skip_serializing_if = "Option::is_none")] #[serde(default = "default_top")] pub top: Option<usize>,
 }
 
-fn default_top() -> usize {
-    10
+fn default_top() -> Option<usize> {
+    Some(10)
 }
-fn default_skip() -> usize {
-    0
+fn default_skip() -> Option<usize> {
+    None
 }
 
 #[derive(Serialize, Deserialize, Default, Clone, Debug)]
@@ -266,10 +266,12 @@ pub fn to_search_result(persistence: &Persistence, hits: SearchResult) -> Search
 
 
 #[flame]
-pub fn search(request: Request, persistence: &Persistence) -> Result<SearchResult, SearchError> {
+pub fn search(mut request: Request, persistence: &Persistence) -> Result<SearchResult, SearchError> {
     info_time!("search");
-    let skip = request.skip;
-    let top = request.top;
+    request.top = request.top.or(Some(10));
+    request.skip = request.skip;
+    // let skip = request.skip.unwrap_or(0);
+    // let top = request.top.unwrap_or(10);
 
     let plan = plan_creator(request.clone());
     let yep = plan.get_output();
@@ -281,7 +283,6 @@ pub fn search(request: Request, persistence: &Persistence) -> Result<SearchResul
     // println!("{:?}", res);
     // let res = hits_to_array_iter(res.iter());
     // let res = hits_to_sorted_array(res);
-
 
     let mut search_result = SearchResult {
         num_hits: 0,
@@ -319,16 +320,23 @@ pub fn search(request: Request, persistence: &Persistence) -> Result<SearchResul
                 .collect(),
         );
     }
-    search_result.data = apply_top_skip(search_result.data, skip, top);
+    search_result.data = apply_top_skip(search_result.data, request.skip, request.top);
 
     Ok(search_result)
 }
 
-//TODO top skip Option, no copy
+//TODO no copy
 #[flame]
-pub fn apply_top_skip<T: Clone>(hits: Vec<T>, skip: usize, mut top: usize) -> Vec<T> {
-    top = cmp::min(top + skip, hits.len());
-    hits[skip..top].to_vec()
+pub fn apply_top_skip<T: Clone>(hits: Vec<T>, skip: Option<usize>, top: Option<usize>) -> Vec<T> {
+    let skip = skip.unwrap_or(0);
+    if let Some(mut top) = top {
+        top = cmp::min(top + skip, hits.len());
+        hits[skip..top].to_vec()
+    }else{
+        hits[skip..].to_vec()
+    }
+    // top = cmp::min(top + skip, hits.len());
+    // hits[skip..top].to_vec()
 }
 
 fn extract_field_name(field: &str) -> String {
@@ -393,8 +401,8 @@ pub fn suggest_query(request: &str, persistence: &Persistence, mut top: Option<u
 
     return Request {
         suggest: Some(requests),
-        top: top.unwrap_or(10),
-        skip: skip.unwrap_or(0),
+        top: top,
+        skip: skip,
         ..Default::default()
     };
 }
@@ -423,13 +431,14 @@ pub fn search_query(
     skip: Option<usize>,
     mut operator: Option<String>,
     levenshtein: Option<usize>,
-    facetlimit: Option<usize>,
+    mut facetlimit: Option<usize>,
     facets: Option<Vec<String>>,
     fields: Option<Vec<String>>,
     boost_fields: HashMap<String,f32>,
     // boost_fields_opt: Option<Vec<String>>,
 ) -> Request {
     // let req = persistence.meta_data.fulltext_indices.key
+    facetlimit = facetlimit.or(Some(5));
 
     let terms: Vec<String> = if operator.is_none() && request.contains(" AND ") {
         operator = Some("and".to_string());
@@ -456,7 +465,7 @@ pub fn search_query(
             .iter()
             .map(|f| FacetRequest {
                 field: f.to_string(),
-                top: facetlimit.unwrap_or(5),
+                top: facetlimit,
             })
             .collect()
     });
@@ -495,8 +504,8 @@ pub fn search_query(
 
         return Request {
             and: Some(requests), // and for terms
-            top: top.unwrap_or(10),
-            skip: skip.unwrap_or(0),
+            top: top,
+            skip: skip,
             facets: facets_req,
             ..Default::default()
         };
@@ -531,8 +540,8 @@ pub fn search_query(
 
     Request {
         or: Some(parts),
-        top: top.unwrap_or(10),
-        skip: skip.unwrap_or(0),
+        top: top,
+        skip: skip,
         facets: facets_req,
         ..Default::default()
     }
@@ -594,28 +603,57 @@ pub fn union_hits_vec(mut or_results: Vec<SearchFieldResult>) -> SearchFieldResu
     let len_total:usize = or_results.iter().map(|el| el.hits_vec.len()).sum();
     let sum_other_len = len_total as f32 - longest_len;
 
-    if longest_len as f32 * 0.05 > sum_other_len{ // TODO check best value
-        let mut union_hits = or_results.swap_remove(index_longest).hits_vec;
+    // if longest_len as f32 * 0.05 > sum_other_len{ // TODO check best value
+    //     let mut union_hits = or_results.swap_remove(index_longest).hits_vec;
 
-        {
-            debug_time!("union hits append ".to_string());
-            for mut res in or_results {
-                union_hits.append(&mut res.hits_vec);
-            }
-        }
+        //INSERT SUPER SLOW
+        // {
+        //     debug_time!("union hits sort input".to_string());
+        //     for res in or_results.iter_mut() {
+        //         res.hits_vec.sort_unstable_by_key(|el| el.id);
+        //         //TODO ALSO DEDUP???
+        //     }
+        // }
 
-        debug_time!("union hits sort and dedup ".to_string());
-        union_hits.sort_unstable_by_key(|el| el.id);
-        let prev = union_hits.len();
-        union_hits.dedup_by_key(|el| el.id); // TODO FixMe Score
+        // let iterators:Vec<_> = or_results.iter().map(|el| el.hits_vec.iter()).collect();
+        // let mergo = iterators.into_iter().kmerge_by(|a, b| a.id < b.id);
+        // debug_time!("union hits kmerge".to_string());
 
-        debug!("union hits merged from {} to {} hits", prev, union_hits.len() );
+        // for (mut id, mut group) in &mergo.into_iter().group_by(|el| el.id)
+        // {
+        //     let sum_score = group.map(|a| a.score).sum(); // TODO same term = MAX, different terms = SUM
+        //     let mkay = union_hits.binary_search_by_key(&id, |&a| a.id);
+        //     match mkay {
+        //         Ok(pos) => {
+        //             union_hits[pos].score += sum_score;
+        //         },
+        //         Err(pos) => {
+        //             union_hits.insert(pos, Hit::new(id,sum_score))
+        //         },
+        //     }
+        // }
 
-        SearchFieldResult {
-            hits_vec: union_hits,
-            ..Default::default()
-        }
-    }else{
+
+
+    //     {
+    //         debug_time!("union hits append ".to_string());
+    //         for mut res in or_results {
+    //             union_hits.append(&mut res.hits_vec);
+    //         }
+    //     }
+
+    //     debug_time!("union hits sort and dedup ".to_string());
+    //     union_hits.sort_unstable_by_key(|el| el.id);
+    //     let prev = union_hits.len();
+    //     union_hits.dedup_by_key(|el| el.id); // TODO FixMe Score
+
+    //     debug!("union hits merged from {} to {} hits", prev, union_hits.len() );
+
+    //     SearchFieldResult {
+    //         hits_vec: union_hits,
+    //         ..Default::default()
+    //     }
+    // }else{
 
         {
             debug_time!("union hits sort input".to_string());
@@ -640,11 +678,12 @@ pub fn union_hits_vec(mut or_results: Vec<SearchFieldResult>) -> SearchFieldResu
             union_hits.push(Hit::new(id,sum_score));
         }
 
+        // debug!("union hits merged from {} to {} hits", prev, union_hits.len() );
         SearchFieldResult {
             hits_vec: union_hits,
             ..Default::default()
         }
-    }
+    // }
 
 
 }

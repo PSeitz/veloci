@@ -793,7 +793,7 @@ mod tests {
 
             let pers = PERSISTENCES.get(&"default".to_string()).unwrap();
 
-            let yep = facet::get_facet(&pers, &search::FacetRequest{field:"tags[]".to_string(), top:10}, &vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
+            let yep = facet::get_facet(&pers, &search::FacetRequest{field:"tags[]".to_string(), top:Some(10)}, &vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
             println!("{:?}", yep);
         }
 

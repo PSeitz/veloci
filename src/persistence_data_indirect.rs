@@ -12,7 +12,10 @@ use bincode::{deserialize, serialize, Infinite};
 use util::*;
 
 use persistence::*;
+#[allow(unused_imports)]
 use search::*;
+#[allow(unused_imports)]
+use search;
 use persistence_data::TypeInfo;
 #[allow(unused_imports)]
 use persistence;
@@ -38,6 +41,7 @@ use std::marker::PhantomData;
 use fnv::FnvHashMap;
 #[allow(unused_imports)]
 use fnv::FnvHashSet;
+use itertools::Itertools;
 
 macro_rules! mut_if {
     ($name:ident = $value:expr, $($any:expr)+) => (let mut $name = $value;);
@@ -105,7 +109,6 @@ impl<T: IndexIdToParentData> IndexIdToMultipleParentIndirect<T> {
         self.start_and_end.len() / 2
     }
 }
-use itertools::Itertools;
 impl<T: IndexIdToParentData> IndexIdToParent for IndexIdToMultipleParentIndirect<T> {
     type Output = T;
 
@@ -671,6 +674,7 @@ impl IndexIdToParent for PointingArrayFileReader<u32> {
         )
     }
 
+
     #[inline]
     fn count_values_for_ids(&self, ids: &[u32], top: Option<u32>) -> FnvHashMap<u32, usize> {
         // Inserts are cheaper in a vec, bigger max_value_ids are more expensive in a vec
@@ -716,6 +720,7 @@ impl IndexIdToParent for PointingArrayFileReader<u32> {
 
 #[inline(always)]
 fn get_u32_values_from_pointing_file(find: u64, size: usize, start_and_end_file: &Mutex<fs::File>, data_file: &Mutex<fs::File>) -> Option<Vec<u32>> {
+    debug_time!("get_u32_values_from_pointing_file");
     if find >= size as u64 {
         return None;
     }
@@ -732,10 +737,11 @@ fn get_u32_values_from_pointing_file(find: u64, size: usize, start_and_end_file:
         return None;
     }
 
+    debug_time!("load_bytes_into & bytes_to_vec_u32");
     let mut data_bytes: Vec<u8> = Vec::with_capacity(end as usize - start as usize);
     data_bytes.resize(end as usize - start as usize, 0);
     load_bytes_into(&mut data_bytes, &*data_file.lock(), start as u64);
-
+    debug_time!("bytes_to_vec_u32");
     Some(bytes_to_vec_u32(&data_bytes))
 }
 
@@ -916,6 +922,10 @@ pub fn id_to_parent_to_array_of_array_mayda_indirect_one_reuse_existing<T: Integ
 use std::u32;
 
 fn load_bytes_into(buffer: &mut Vec<u8>, mut file: &File, offset: u64) {
+    // let mut reader = std::io::BufReader::new(file);
+    // reader.seek(SeekFrom::Start(offset)).unwrap();
+    // reader.read_exact(buffer).unwrap();
+
     // @Temporary Use Result
     file.seek(SeekFrom::Start(offset)).unwrap();
     file.read_exact(buffer).unwrap();

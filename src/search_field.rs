@@ -132,7 +132,7 @@ where
 pub type SuggestFieldResult = Vec<(String, Score, TermId)>;
 
 #[flame]
-fn get_text_score_id_from_result(suggest_text: bool, results: Vec<SearchFieldResult>, skip: usize, top: usize) -> SuggestFieldResult {
+fn get_text_score_id_from_result(suggest_text: bool, results: Vec<SearchFieldResult>, skip: Option<usize>, top: Option<usize>) -> SuggestFieldResult {
     let mut suggest_result = results
         .iter()
         .flat_map(|res| {
@@ -163,8 +163,8 @@ pub fn suggest_multi(persistence: &Persistence, req: Request) -> Result<SuggestF
         .into_par_iter()
         .map(|ref mut search_part| {
             search_part.return_term = Some(true);
-            search_part.top = Some(top);
-            search_part.skip = Some(skip);
+            search_part.top = top;
+            search_part.skip = skip;
             search_part.resolve_token_to_parent_hits = Some(false);
             get_hits_in_field(persistence, &search_part, None)
         })
@@ -197,12 +197,8 @@ pub fn suggest(persistence: &Persistence, options: &RequestSearchPart) -> Result
         suggest: Some(vec![options.clone()]),
         ..Default::default()
     };
-    if let Some(top) = options.top {
-        req.top = top;
-    }
-    if let Some(skip) = options.skip {
-        req.skip = skip;
-    }
+    req.top = options.top;
+    req.skip = options.skip;
     // let options = vec![options.clone()];
     return suggest_multi(persistence, req);
 }
@@ -218,8 +214,8 @@ pub fn highlight(persistence: &Persistence, options: &mut RequestSearchPart) -> 
     Ok(get_text_score_id_from_result(
         false,
         vec![get_hits_in_field(persistence, &options, None)?],
-        options.skip.unwrap_or(0),
-        options.top.unwrap_or(usize::max_value()),
+        options.skip,
+        options.top,
     ))
 }
 
@@ -379,28 +375,31 @@ fn get_hits_in_field_one_term(persistence: &Persistence, options: &RequestSearch
         for hit in result.hits_vec.iter() {
             let token_kvdata = persistence.get_valueid_to_parent(&concat(&options.path, ".tokens.to_anchor"))?;
 
-            if let Some(anchor_score) = token_kvdata.get_values(hit.id as u64) {
-                fast_field_res.reserve(1 + anchor_score.len() / 2);
-                for (anchor_id, token_in_anchor_score) in anchor_score.iter().tuples() {
-                    if let Some(filter) = filter {
-                        if filter.contains(&anchor_id) {
-                            continue;
-                        }
-                    }
+            token_kvdata.add_fast_field_hits(*hit, &mut fast_field_res, filter);
 
-                    let final_score = hit.score * (*token_in_anchor_score as f32);
-                    trace!(
-                        "anchor_id {:?} term_id {:?}, token_in_anchor_score {:?} score {:?} to final_score {:?}",
-                        anchor_id,
-                        hit.id,
-                        token_in_anchor_score,
-                        hit.score,
-                        final_score
-                    );
+            // if let Some(anchor_score) = token_kvdata.get_values(hit.id as u64) {
+            //     debug_time!(format!("{} adding stuff", &options.path));
+            //     fast_field_res.reserve(1 + anchor_score.len() / 2);
+            //     for (anchor_id, token_in_anchor_score) in anchor_score.iter().tuples() {
+            //         if let Some(filter) = filter {
+            //             if filter.contains(&anchor_id) {
+            //                 continue;
+            //             }
+            //         }
 
-                    fast_field_res.push(Hit::new(*anchor_id,final_score));
-                }
-            }
+            //         let final_score = hit.score * (*token_in_anchor_score as f32);
+            //         trace!(
+            //             "anchor_id {:?} term_id {:?}, token_in_anchor_score {:?} score {:?} to final_score {:?}",
+            //             anchor_id,
+            //             hit.id,
+            //             token_in_anchor_score,
+            //             hit.score,
+            //             final_score
+            //         );
+
+            //         fast_field_res.push(Hit::new(*anchor_id,final_score));
+            //     }
+            // }
         }
 
         debug!(

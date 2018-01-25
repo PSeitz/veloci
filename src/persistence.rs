@@ -1,5 +1,7 @@
 use std::fs::{self, File};
 use std::io::prelude::*;
+
+#[allow(unused_imports)]
 use std::io::{self, Cursor, SeekFrom};
 use std::str;
 use std::collections::HashMap;
@@ -17,13 +19,14 @@ use num::cast::ToPrimitive;
 use serde_json;
 use serde_json::Value;
 
-use fnv::FnvHashMap;
+use fnv::{FnvHashSet, FnvHashMap};
 use bincode::{deserialize, serialize, Infinite};
 
 use create;
 #[allow(unused_imports)]
 use mayda;
-use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
+#[allow(unused_imports)]
+use byteorder::{ByteOrder, LittleEndian, ReadBytesExt, WriteBytesExt};
 use log;
 
 #[allow(unused_imports)]
@@ -41,6 +44,7 @@ use search::{self, SearchError};
 
 #[allow(unused_imports)]
 use heapsize::{heap_size_of, HeapSizeOf};
+use itertools::Itertools;
 
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
 pub struct MetaData {
@@ -149,6 +153,33 @@ pub trait IndexIdToParent: Debug + HeapSizeOf + Sync + Send + persistence_data::
 
     #[inline]
     fn get_values(&self, id: u64) -> Option<Vec<Self::Output>>;
+
+    #[inline]
+    fn add_fast_field_hits(&self, hit: search::Hit, fast_field_res: &mut Vec<search::Hit>, filter: Option<&FnvHashSet<u32>> ){
+        if let Some(anchor_score) = self.get_values(hit.id as u64) {
+            // debug_time!(format!("{} adding stuff", &options.path));
+            fast_field_res.reserve(1 + anchor_score.len() / 2);
+            for (anchor_id, token_in_anchor_score) in anchor_score.iter().tuples() {
+                if let Some(filter) = filter {
+                    if filter.contains(&anchor_id.to_u32().unwrap()) {
+                        continue;
+                    }
+                }
+
+                let final_score = hit.score * token_in_anchor_score.to_f32().unwrap();
+                trace!(
+                    "anchor_id {:?} term_id {:?}, token_in_anchor_score {:?} score {:?} to final_score {:?}",
+                    anchor_id,
+                    hit.id,
+                    token_in_anchor_score,
+                    hit.score,
+                    final_score
+                );
+
+                fast_field_res.push(search::Hit::new(anchor_id.to_u32().unwrap(),final_score));
+            }
+        }
+    }
 
     #[inline]
     fn append_values(&self, id: u64, vec: &mut Vec<Self::Output>) {
@@ -885,37 +916,28 @@ fn load_type_from_env() -> Result<Option<LoadingType>, search::SearchError> {
 }
 
 pub fn vec_to_bytes_u32(data: &Vec<u32>) -> Vec<u8> {
-    let mut wtr: Vec<u8> = Vec::with_capacity(data.len() * std::mem::size_of::<u32>());
-    for el in data {
-        wtr.write_u32::<LittleEndian>(*el).unwrap();
-    }
-    wtr.shrink_to_fit();
+    let mut wtr: Vec<u8> = vec![];
+    wtr.resize(data.len() * std::mem::size_of::<u32>(), 0);
+    LittleEndian::write_u32_into(&data, &mut wtr);
     wtr
 }
 pub fn vec_to_bytes_u64(data: &Vec<u64>) -> Vec<u8> {
-    let mut wtr: Vec<u8> = Vec::with_capacity(data.len() * std::mem::size_of::<u64>());
-    for el in data {
-        wtr.write_u64::<LittleEndian>(*el).unwrap();
-    }
-    wtr.shrink_to_fit();
+    let mut wtr: Vec<u8> = vec![];
+    wtr.resize(data.len() * std::mem::size_of::<u64>(), 0);
+    LittleEndian::write_u64_into(&data, &mut wtr);
     wtr
 }
+
 pub fn bytes_to_vec_u32(data: &[u8]) -> Vec<u32> {
-    let mut out_dat = Vec::with_capacity(data.len() / std::mem::size_of::<u32>());
-    let mut rdr = Cursor::new(data);
-    while let Ok(el) = rdr.read_u32::<LittleEndian>() {
-        out_dat.push(el);
-    }
-    out_dat.shrink_to_fit();
+    let mut out_dat = vec![];
+    out_dat.resize(data.len() / std::mem::size_of::<u32>(), 0);
+    LittleEndian::read_u32_into(&data, &mut out_dat);
     out_dat
 }
 pub fn bytes_to_vec_u64(data: &[u8]) -> Vec<u64> {
-    let mut out_dat = Vec::with_capacity(data.len() / std::mem::size_of::<u64>());
-    let mut rdr = Cursor::new(data);
-    while let Ok(el) = rdr.read_u64::<LittleEndian>() {
-        out_dat.push(el);
-    }
-    out_dat.shrink_to_fit();
+    let mut out_dat = vec![];
+    out_dat.resize(data.len() / std::mem::size_of::<u64>(), 0);
+    LittleEndian::read_u64_into(&data, &mut out_dat);
     out_dat
 }
 

@@ -6,14 +6,14 @@ use itertools::Itertools;
 
 use fnv::FnvHashMap;
 
-pub fn get_top_facet_group<T: IndexIdToParentData>(hits: FnvHashMap<T, usize>, top: u32) -> Vec<(T, u32)> {
+pub fn get_top_facet_group<T: IndexIdToParentData>(hits: FnvHashMap<T, usize>, top: Option<usize>) -> Vec<(T, u32)> {
     let mut groups: Vec<(T, u32)> = hits.iter()
         .map(|ref tupl| (*tupl.0, *tupl.1 as u32))
         .collect();
 
     //TODO MERGECODE with below
     groups.sort_by(|a, b| b.1.cmp(&a.1));
-    groups = apply_top_skip(groups, 0, top as usize);
+    groups = apply_top_skip(groups, None, top);
     groups
 }
 
@@ -34,12 +34,12 @@ pub fn get_facet(persistence: &Persistence, req: &FacetRequest, ids: &Vec<u32>) 
         let kv_store = persistence.get_valueid_to_parent(&path)?;
         let hits = {
             debug_time!(format!("facet count_values_for_ids {:?}", req.field));
-            kv_store.count_values_for_ids(&ids, Some(req.top as u32))
+            kv_store.count_values_for_ids(&ids, req.top.map(|el| el as u32))
         };
 
         debug_time!(format!("facet collect and get texts {:?}", req.field));
 
-        let groups = get_top_facet_group(hits, req.top as u32);
+        let groups = get_top_facet_group(hits, req.top);
         // let mut groups:Vec<(u32, usize)> = hits.iter().map(|ref tupl| (*tupl.0, *tupl.1)).collect();
 
         // //TODO MERGECODE with below
@@ -85,7 +85,7 @@ pub fn get_facet(persistence: &Persistence, req: &FacetRequest, ids: &Vec<u32>) 
             groups.push((key, group.count()));
         }
         groups.sort_by(|a, b| b.1.cmp(&a.1));
-        groups = apply_top_skip(groups, 0, req.top);
+        groups = apply_top_skip(groups, None, req.top);
     }
 
     let groups_with_text = groups
