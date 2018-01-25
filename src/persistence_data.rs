@@ -280,7 +280,11 @@ impl<T: IndexIdToParentData> IndexIdToParent for IndexIdToOneParentMayda<T> {
             return None;
         };
         let val = self.data.access(id as usize);
-        Some(val) // FIXME NOT_FOUND values
+        if  val.to_u32().unwrap() == u32::MAX {
+            None
+        }else{
+            Some(val) // FIXME NOT_FOUND values
+        }
 
         // let not_found_u64 = u32::MAX;
         // let yo = not_found_u64.to_u64().unwrap();

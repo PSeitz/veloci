@@ -869,51 +869,49 @@ pub fn add_boost(persistence: &Persistence, boost: &RequestBoostPart, hits: &mut
         let value_id = &hit.id;
         let mut score = &mut hit.score;
         // let ref vals_opt = boostkv_store.get(*value_id as usize);
-        let ref vals_opt = boostkv_store.get_values(*value_id as u64);
+        let ref val_opt = boostkv_store.get_value(*value_id as u64);
         debug!(
             "Found in boosting for value_id {:?}: {:?}",
-            value_id, vals_opt
+            value_id, val_opt
         );
-        vals_opt.as_ref().map(|values| {
-            if values.len() > 0 {
-                let boost_value = values[0]; // @Temporary // @Hack this should not be an array for this case
-                match boost.boost_fun {
-                    Some(BoostFunction::Log10) => {
-                        debug!(
-                            "boosting value_id {:?} score {:?} with token_value {:?} boost_value {:?} to {:?}",
-                            *value_id,
-                            score,
-                            boost_value,
-                            (boost_value as f32 + boost_param).log10(),
-                            *score + (boost_value as f32 + boost_param).log10()
-                        );
-                        *score += (boost_value as f32 + boost_param).log10(); // @Temporary // @Hack // @Cleanup // @FixMe
-                    }
-                    Some(BoostFunction::Linear) => {
-                        *score *= boost_value as f32 + boost_param; // @Temporary // @Hack // @Cleanup // @FixMe
-                    }
-                    Some(BoostFunction::Add) => {
-                        debug!(
-                            "boosting value_id {:?} score {:?} with token_value {:?} boost_value {:?} to {:?}",
-                            *value_id,
-                            score,
-                            boost_value,
-                            (boost_value as f32 + boost_param),
-                            *score + (boost_value as f32 + boost_param)
-                        );
-                        *score += boost_value as f32 + boost_param;
-                    }
-                    None => {}
-                }
-                expre.as_ref().map(|exp| {
+        val_opt.as_ref().map(|boost_value| {
+            let boost_value = *boost_value;
+            match boost.boost_fun {
+                Some(BoostFunction::Log10) => {
                     debug!(
-                        "expression to {:?} with boost_value {:?}",
-                        exp.get_score(boost_value as f32),
-                        boost_value
+                        "boosting value_id {:?} score {:?} with token_value {:?} boost_value {:?} to {:?}",
+                        *value_id,
+                        score,
+                        boost_value,
+                        (boost_value as f32 + boost_param).log10(),
+                        *score + (boost_value as f32 + boost_param).log10()
                     );
-                    *score += exp.get_score(boost_value as f32)
-                });
+                    *score += (boost_value as f32 + boost_param).log10(); // @Temporary // @Hack // @Cleanup // @FixMe
+                }
+                Some(BoostFunction::Linear) => {
+                    *score *= boost_value as f32 + boost_param; // @Temporary // @Hack // @Cleanup // @FixMe
+                }
+                Some(BoostFunction::Add) => {
+                    debug!(
+                        "boosting value_id {:?} score {:?} with token_value {:?} boost_value {:?} to {:?}",
+                        *value_id,
+                        score,
+                        boost_value,
+                        (boost_value as f32 + boost_param),
+                        *score + (boost_value as f32 + boost_param)
+                    );
+                    *score += boost_value as f32 + boost_param;
+                }
+                None => {}
             }
+            expre.as_ref().map(|exp| {
+                debug!(
+                    "expression to {:?} with boost_value {:?}",
+                    exp.get_score(boost_value as f32),
+                    boost_value
+                );
+                *score += exp.get_score(boost_value as f32)
+            });
         });
     }
     Ok(())

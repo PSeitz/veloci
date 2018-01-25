@@ -167,6 +167,13 @@ mod tests {
                 "ent_seq": "1605630"
             },
             {
+                "meanings": {
+                    "ger": [
+                        "(1) 2 3 weich" // add wich with no commonness
+                    ]
+                },
+            },
+            {
                 "sub_level": [{"text":"Prolog:\nthis is story of a guy who went out to rule the world, but then died. the end"}],
                 "commonness": 515151,
                 "ent_seq": "25",

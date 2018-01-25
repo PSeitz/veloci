@@ -249,9 +249,6 @@ impl<T: IndexIdToParentData> AggregationCollector<T> for Vec<T> {
             let elem = self.get_unchecked_mut(id.to_usize().unwrap());
             *elem = *elem + T::one();
         }
-        // self.get_unchecked(id.to_usize().unwrap())[] += 1;
-        // self[id.to_usize().unwrap()] += T::one();
-        // unimplemented!()
     }
     fn to_map(self: Box<Self>, top: Option<u32>) -> FnvHashMap<T, usize> {
         debug_time!("aggregation vec to_map");
