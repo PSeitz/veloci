@@ -89,7 +89,7 @@ impl<T: IndexIdToParentData> IndexIdToMultipleParentIndirect<T> {
         IndexIdToMultipleParentIndirect::new_sort_and_dedup(data, false, avg_join_size)
     }
     #[allow(dead_code)]
-    pub fn new_sort_and_dedup(data: &IndexIdToParent<Output = T>, sort_and_dedup: bool, avg_join_size: f32,) -> IndexIdToMultipleParentIndirect<T> {
+    pub fn new_sort_and_dedup(data: &IndexIdToParent<Output = T>, sort_and_dedup: bool, avg_join_size: f32) -> IndexIdToMultipleParentIndirect<T> {
         let (max_value_id, start_and_end_pos, data) = to_indirect_arrays_dedup(data, 0, sort_and_dedup);
         IndexIdToMultipleParentIndirect {
             start_and_end: start_and_end_pos,
@@ -226,7 +226,7 @@ trait AggregationCollector<T: IndexIdToParentData> {
 }
 use std::cmp::Ordering;
 fn get_top_n_sort<T: IndexIdToParentData>(dat: &Vec<T>, top: usize) -> Vec<(usize, T)> {
-    let mut top_n:Vec<(usize, T)> = vec![];
+    let mut top_n: Vec<(usize, T)> = vec![];
 
     let mut current_worst = T::zero();
     for el in dat.iter().enumerate().filter(|el| *el.1 != T::zero()) {
@@ -257,11 +257,11 @@ impl<T: IndexIdToParentData> AggregationCollector<T> for Vec<T> {
         debug_time!("aggregation vec to_map");
 
         if top.is_some() && top.unwrap() > 0 {
-            get_top_n_sort(&self, top.unwrap() as usize).into_iter()
-            .map(|el| (NumCast::from(el.0).unwrap(), NumCast::from(el.1).unwrap()))
-            .collect()
-        }else{
-
+            get_top_n_sort(&self, top.unwrap() as usize)
+                .into_iter()
+                .map(|el| (NumCast::from(el.0).unwrap(), NumCast::from(el.1).unwrap()))
+                .collect()
+        } else {
             let mut groups: Vec<(u32, T)> = self.iter()
                 .enumerate()
                 .filter(|el| *el.1 != T::zero())
@@ -673,7 +673,6 @@ impl IndexIdToParent for PointingArrayFileReader<u32> {
             &self.data_file,
         )
     }
-
 
     #[inline]
     fn count_values_for_ids(&self, ids: &[u32], top: Option<u32>) -> FnvHashMap<u32, usize> {

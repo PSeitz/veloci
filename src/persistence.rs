@@ -19,7 +19,7 @@ use num::cast::ToPrimitive;
 use serde_json;
 use serde_json::Value;
 
-use fnv::{FnvHashSet, FnvHashMap};
+use fnv::{FnvHashMap, FnvHashSet};
 use bincode::{deserialize, serialize, Infinite};
 
 use create;
@@ -155,7 +155,7 @@ pub trait IndexIdToParent: Debug + HeapSizeOf + Sync + Send + persistence_data::
     fn get_values(&self, id: u64) -> Option<Vec<Self::Output>>;
 
     #[inline]
-    fn add_fast_field_hits(&self, hit: search::Hit, fast_field_res: &mut Vec<search::Hit>, filter: Option<&FnvHashSet<u32>> ){
+    fn add_fast_field_hits(&self, hit: search::Hit, fast_field_res: &mut Vec<search::Hit>, filter: Option<&FnvHashSet<u32>>) {
         if let Some(anchor_score) = self.get_values(hit.id as u64) {
             // debug_time!(format!("{} adding stuff", &options.path));
             fast_field_res.reserve(1 + anchor_score.len() / 2);
@@ -176,7 +176,7 @@ pub trait IndexIdToParent: Debug + HeapSizeOf + Sync + Send + persistence_data::
                     final_score
                 );
 
-                fast_field_res.push(search::Hit::new(anchor_id.to_u32().unwrap(),final_score));
+                fast_field_res.push(search::Hit::new(anchor_id.to_u32().unwrap(), final_score));
             }
         }
     }
@@ -317,8 +317,7 @@ impl Persistence {
         );
         info!(
             "cache.index_id_to_parento {}",
-            get_readable_size(self.cache.index_id_to_parento.heap_size_of_children())
-            // get_readable_size_for_childs(&self.cache.index_id_to_parento)
+            get_readable_size(self.cache.index_id_to_parento.heap_size_of_children()) // get_readable_size_for_childs(&self.cache.index_id_to_parento)
         );
         info!(
             "cache.boost_valueid_to_value {}",
@@ -794,7 +793,8 @@ impl Persistence {
         let loading_type = load_type_from_env()?.unwrap_or(LoadingType::Disk);
 
         match loading_type {
-            LoadingType::InMemoryUnCompressed | LoadingType::InMemory => { //TODO InMemoryUnCompressed
+            LoadingType::InMemoryUnCompressed | LoadingType::InMemory => {
+                //TODO InMemoryUnCompressed
                 let file_path = get_file_path(&self.db, path);
                 self.cache.index_64.insert(
                     path.to_string(),

@@ -203,21 +203,9 @@ impl DfaBuilder {
                     let lower_char = c.to_lowercase().next().unwrap();
                     let uper_char = c.to_uppercase().next().unwrap();
                     if lower_char != uper_char {
-                        self.add_utf8_sequences(
-                            true,
-                            dfa_si,
-                            next_si,
-                            lower_char,
-                            lower_char,
-                        );
+                        self.add_utf8_sequences(true, dfa_si, next_si, lower_char, lower_char);
                     }
-                    self.add_utf8_sequences(
-                        true,
-                        dfa_si,
-                        next_si,
-                        uper_char,
-                        uper_char,
-                    );
+                    self.add_utf8_sequences(true, dfa_si, next_si, uper_char, uper_char);
                     // self.add_utf8_sequences(true, dfa_si, next_si, c, c);
                     if !seen.contains(&next_si) {
                         seen.insert(next_si);

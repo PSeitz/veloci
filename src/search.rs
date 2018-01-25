@@ -52,14 +52,20 @@ pub struct Request {
     #[serde(skip_serializing_if = "Option::is_none")] pub suggest: Option<Vec<RequestSearchPart>>,
     #[serde(skip_serializing_if = "Option::is_none")] pub boost: Option<Vec<RequestBoostPart>>,
     #[serde(skip_serializing_if = "Option::is_none")] pub facets: Option<Vec<FacetRequest>>,
-    #[serde(skip_serializing_if = "Option::is_none")] #[serde(default = "default_top")] pub top: Option<usize>,
-    #[serde(skip_serializing_if = "Option::is_none")] #[serde(default = "default_skip")] pub skip: Option<usize>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default = "default_top")]
+    pub top: Option<usize>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default = "default_skip")]
+    pub skip: Option<usize>,
 }
 
 #[derive(Serialize, Deserialize, Default, Clone, Debug)]
 pub struct FacetRequest {
     pub field: String,
-    #[serde(skip_serializing_if = "Option::is_none")] #[serde(default = "default_top")] pub top: Option<usize>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default = "default_top")]
+    pub top: Option<usize>,
 }
 
 fn default_top() -> Option<usize> {
@@ -197,8 +203,6 @@ pub struct DocWithHit {
     pub hit: Hit,
 }
 
-
-
 #[derive(Debug, Serialize, Deserialize, Clone, Copy, PartialEq)]
 pub struct Hit {
     pub id: u32,
@@ -206,8 +210,8 @@ pub struct Hit {
 }
 
 impl Hit {
-    pub fn new(id: u32, score:f32) -> Hit {
-        Hit{id, score}
+    pub fn new(id: u32, score: f32) -> Hit {
+        Hit { id, score }
     }
 }
 
@@ -216,7 +220,6 @@ impl From<(u32, f32)> for Hit {
         Hit::new(tupl.0, tupl.1)
     }
 }
-
 
 #[flame]
 fn hits_to_sorted_array(hits: FnvHashMap<u32, f32>) -> Vec<Hit> {
@@ -264,7 +267,6 @@ pub fn to_search_result(persistence: &Persistence, hits: SearchResult) -> Search
     }
 }
 
-
 #[flame]
 pub fn search(mut request: Request, persistence: &Persistence) -> Result<SearchResult, SearchError> {
     info_time!("search");
@@ -290,16 +292,16 @@ pub fn search(mut request: Request, persistence: &Persistence) -> Result<SearchR
         facets: None,
     };
 
-    if res.hits_vec.len()>0 {
+    if res.hits_vec.len() > 0 {
         //TODO extract only top n
-        res.hits_vec.sort_unstable_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(Ordering::Equal)); //TODO Add sort by id when equal
+        res.hits_vec
+            .sort_unstable_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(Ordering::Equal)); //TODO Add sort by id when equal
 
         search_result.data = res.hits_vec;
-    }else{
+    } else {
         search_result.data = hits_to_sorted_array(res.hits);
     }
     search_result.num_hits = search_result.data.len() as u64;
-
 
     if let Some(facets_req) = request.facets {
         let mut hit_ids: Vec<u32> = {
@@ -332,7 +334,7 @@ pub fn apply_top_skip<T: Clone>(hits: Vec<T>, skip: Option<usize>, top: Option<u
     if let Some(mut top) = top {
         top = cmp::min(top + skip, hits.len());
         hits[skip..top].to_vec()
-    }else{
+    } else {
         hits[skip..].to_vec()
     }
     // top = cmp::min(top + skip, hits.len());
@@ -434,7 +436,7 @@ pub fn search_query(
     mut facetlimit: Option<usize>,
     facets: Option<Vec<String>>,
     fields: Option<Vec<String>>,
-    boost_fields: HashMap<String,f32>,
+    boost_fields: HashMap<String, f32>,
     // boost_fields_opt: Option<Vec<String>>,
 ) -> Request {
     // let req = persistence.meta_data.fulltext_indices.key
@@ -479,11 +481,10 @@ pub fn search_query(
                 let parts = get_all_field_names(&persistence, &fields)
                     .iter()
                     .map(|field_name| {
-
                         let part = RequestSearchPart {
                             path: field_name.to_string(),
                             terms: vec![term.to_string()],
-                            boost: boost_fields.get(field_name).map(|el|*el),
+                            boost: boost_fields.get(field_name).map(|el| *el),
                             levenshtein_distance: Some(levenshtein_distance as u32),
                             resolve_token_to_parent_hits: Some(true),
                             ..Default::default()
@@ -522,7 +523,7 @@ pub fn search_query(
                     let part = RequestSearchPart {
                         path: field_name.to_string(),
                         terms: vec![term.to_string()],
-                        boost: boost_fields.get(field_name).map(|el|*el),
+                        boost: boost_fields.get(field_name).map(|el| *el),
                         levenshtein_distance: Some(levenshtein_distance as u32),
                         resolve_token_to_parent_hits: Some(true),
                         ..Default::default()
@@ -548,7 +549,6 @@ pub fn search_query(
 }
 
 use facet;
-
 
 #[flame]
 pub fn get_shortest_result<T: std::iter::ExactSizeIterator>(results: &Vec<T>) -> usize {
@@ -590,7 +590,6 @@ pub fn union_hits(mut or_results: Vec<SearchFieldResult>) -> SearchFieldResult {
     result
 }
 
-
 #[flame]
 pub fn union_hits_vec(mut or_results: Vec<SearchFieldResult>) -> SearchFieldResult {
     if or_results.len() == 1 {
@@ -600,40 +599,38 @@ pub fn union_hits_vec(mut or_results: Vec<SearchFieldResult>) -> SearchFieldResu
     let index_longest = get_longest_result(&or_results.iter().map(|el| el.hits_vec.iter()).collect());
 
     let longest_len = or_results[index_longest].hits_vec.len() as f32;
-    let len_total:usize = or_results.iter().map(|el| el.hits_vec.len()).sum();
+    let len_total: usize = or_results.iter().map(|el| el.hits_vec.len()).sum();
     let sum_other_len = len_total as f32 - longest_len;
 
     // if longest_len as f32 * 0.05 > sum_other_len{ // TODO check best value
     //     let mut union_hits = or_results.swap_remove(index_longest).hits_vec;
 
-        //INSERT SUPER SLOW
-        // {
-        //     debug_time!("union hits sort input".to_string());
-        //     for res in or_results.iter_mut() {
-        //         res.hits_vec.sort_unstable_by_key(|el| el.id);
-        //         //TODO ALSO DEDUP???
-        //     }
-        // }
+    //INSERT SUPER SLOW
+    // {
+    //     debug_time!("union hits sort input".to_string());
+    //     for res in or_results.iter_mut() {
+    //         res.hits_vec.sort_unstable_by_key(|el| el.id);
+    //         //TODO ALSO DEDUP???
+    //     }
+    // }
 
-        // let iterators:Vec<_> = or_results.iter().map(|el| el.hits_vec.iter()).collect();
-        // let mergo = iterators.into_iter().kmerge_by(|a, b| a.id < b.id);
-        // debug_time!("union hits kmerge".to_string());
+    // let iterators:Vec<_> = or_results.iter().map(|el| el.hits_vec.iter()).collect();
+    // let mergo = iterators.into_iter().kmerge_by(|a, b| a.id < b.id);
+    // debug_time!("union hits kmerge".to_string());
 
-        // for (mut id, mut group) in &mergo.into_iter().group_by(|el| el.id)
-        // {
-        //     let sum_score = group.map(|a| a.score).sum(); // TODO same term = MAX, different terms = SUM
-        //     let mkay = union_hits.binary_search_by_key(&id, |&a| a.id);
-        //     match mkay {
-        //         Ok(pos) => {
-        //             union_hits[pos].score += sum_score;
-        //         },
-        //         Err(pos) => {
-        //             union_hits.insert(pos, Hit::new(id,sum_score))
-        //         },
-        //     }
-        // }
-
-
+    // for (mut id, mut group) in &mergo.into_iter().group_by(|el| el.id)
+    // {
+    //     let sum_score = group.map(|a| a.score).sum(); // TODO same term = MAX, different terms = SUM
+    //     let mkay = union_hits.binary_search_by_key(&id, |&a| a.id);
+    //     match mkay {
+    //         Ok(pos) => {
+    //             union_hits[pos].score += sum_score;
+    //         },
+    //         Err(pos) => {
+    //             union_hits.insert(pos, Hit::new(id,sum_score))
+    //         },
+    //     }
+    // }
 
     //     {
     //         debug_time!("union hits append ".to_string());
@@ -655,46 +652,45 @@ pub fn union_hits_vec(mut or_results: Vec<SearchFieldResult>) -> SearchFieldResu
     //     }
     // }else{
 
-        {
-            debug_time!("union hits sort input".to_string());
-            for res in or_results.iter_mut() {
-                res.hits_vec.sort_unstable_by_key(|el| el.id);
-                //TODO ALSO DEDUP???
-            }
+    {
+        debug_time!("union hits sort input".to_string());
+        for res in or_results.iter_mut() {
+            res.hits_vec.sort_unstable_by_key(|el| el.id);
+            //TODO ALSO DEDUP???
         }
+    }
 
-        let iterators:Vec<_> = or_results.iter().map(|el| el.hits_vec.iter()).collect();
+    let iterators: Vec<_> = or_results.iter().map(|el| el.hits_vec.iter()).collect();
 
-        let mut union_hits = Vec::with_capacity(longest_len as usize + sum_other_len as usize  / 2);
-        let mergo = iterators.into_iter().kmerge_by(|a, b| a.id < b.id);
+    let mut union_hits = Vec::with_capacity(longest_len as usize + sum_other_len as usize / 2);
+    let mergo = iterators.into_iter().kmerge_by(|a, b| a.id < b.id);
 
-        debug_time!("union hits kmerge".to_string());
+    debug_time!("union hits kmerge".to_string());
 
-        for (mut id, mut group) in &mergo.into_iter().group_by(|el| el.id)
-        {
-            // let best_score = group.max_by(|a, b| a.score.partial_cmp(&b.score).unwrap_or(Ordering::Equal)).unwrap().score;
-            // union_hits.push(Hit::new(id,best_score));
-            let sum_score = group.map(|a| a.score).sum(); // TODO same term = MAX, different terms = SUM
-            union_hits.push(Hit::new(id,sum_score));
-        }
+    for (mut id, mut group) in &mergo.into_iter().group_by(|el| el.id) {
+        // let best_score = group.max_by(|a, b| a.score.partial_cmp(&b.score).unwrap_or(Ordering::Equal)).unwrap().score;
+        // union_hits.push(Hit::new(id,best_score));
+        let sum_score = group.map(|a| a.score).sum(); // TODO same term = MAX, different terms = SUM
+        union_hits.push(Hit::new(id, sum_score));
+    }
 
-        // debug!("union hits merged from {} to {} hits", prev, union_hits.len() );
-        SearchFieldResult {
-            hits_vec: union_hits,
-            ..Default::default()
-        }
+    // debug!("union hits merged from {} to {} hits", prev, union_hits.len() );
+    SearchFieldResult {
+        hits_vec: union_hits,
+        ..Default::default()
+    }
     // }
-
-
 }
-
-
-
 
 #[test]
 fn union_hits_vec_test() {
     let hits1 = vec![Hit::new(10, 20.0), Hit::new(0, 10.0), Hit::new(5, 20.0)]; // unsorted
-    let hits2 = vec![Hit::new(0, 20.0), Hit::new(3, 20.0), Hit::new(10, 30.0), Hit::new(20, 30.0)];
+    let hits2 = vec![
+        Hit::new(0, 20.0),
+        Hit::new(3, 20.0),
+        Hit::new(10, 30.0),
+        Hit::new(20, 30.0),
+    ];
 
     let yop = vec![
         SearchFieldResult {
@@ -710,10 +706,17 @@ fn union_hits_vec_test() {
     let res = union_hits_vec(yop);
     println!("{:?}", res.hits_vec);
 
-    assert_eq!(res.hits_vec, vec![Hit::new(0, 30.0), Hit::new(3, 20.0), Hit::new(5, 20.0), Hit::new(10, 50.0), Hit::new(20, 30.0)]);
+    assert_eq!(
+        res.hits_vec,
+        vec![
+            Hit::new(0, 30.0),
+            Hit::new(3, 20.0),
+            Hit::new(5, 20.0),
+            Hit::new(10, 50.0),
+            Hit::new(20, 30.0),
+        ]
+    );
 }
-
-
 
 #[flame]
 pub fn intersect_hits(mut and_results: Vec<SearchFieldResult>) -> SearchFieldResult {
@@ -738,7 +741,6 @@ pub fn intersect_hits(mut and_results: Vec<SearchFieldResult>) -> SearchFieldRes
         ..Default::default()
     }
 }
-
 
 #[flame]
 pub fn intersect_hits_vec(mut and_results: Vec<SearchFieldResult>) -> SearchFieldResult {
@@ -800,7 +802,6 @@ pub fn intersect_hits_vec(mut and_results: Vec<SearchFieldResult>) -> SearchFiel
         let current_id = current_el.id;
         let current_score = current_el.score;
 
-
         if iterators_and_current
             .iter_mut()
             .all(|ref mut iter_n_current| {
@@ -820,16 +821,12 @@ pub fn intersect_hits_vec(mut and_results: Vec<SearchFieldResult>) -> SearchFiel
                     }
                 }
                 return false;
-            })
-        {
-
+            }) {
             let mut score = iterators_and_current.iter().map(|el| (el.1).score).sum();
             score += current_score; //TODO SCORE Max oder Sum FOR AND
             intersected_hits.push(Hit::new(current_id, score));
         }
-        {
-        }
-
+        {}
     }
     // all_results
     SearchFieldResult {
@@ -841,7 +838,12 @@ pub fn intersect_hits_vec(mut and_results: Vec<SearchFieldResult>) -> SearchFiel
 #[test]
 fn intersect_hits_vec_test() {
     let hits1 = vec![Hit::new(10, 20.0), Hit::new(0, 20.0), Hit::new(5, 20.0)]; // unsorted
-    let hits2 = vec![Hit::new(0, 20.0), Hit::new(3, 20.0), Hit::new(10, 30.0), Hit::new(20, 30.0)];
+    let hits2 = vec![
+        Hit::new(0, 20.0),
+        Hit::new(3, 20.0),
+        Hit::new(10, 30.0),
+        Hit::new(20, 30.0),
+    ];
 
     let yop = vec![
         SearchFieldResult {
@@ -878,7 +880,6 @@ fn intersect_hits_vec_test() {
 
 //     b.iter(|| intersect_hits_vec())
 // }
-
 
 use expression::ScoreExpression;
 

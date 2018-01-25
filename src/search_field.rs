@@ -102,7 +102,6 @@ where
     let lev = {
         debug_time!(format!("{} LevenshteinIC create", &options.path));
         LevenshteinIC::new(&options.terms[0], options.levenshtein_distance.unwrap_or(0))?
-
     };
 
     // let stream = map.search(lev).into_stream();
@@ -219,7 +218,6 @@ pub fn highlight(persistence: &Persistence, options: &mut RequestSearchPart) -> 
     ))
 }
 
-
 #[flame]
 pub fn get_hits_in_field(persistence: &Persistence, options: &RequestSearchPart, filter: Option<&FnvHashSet<u32>>) -> Result<SearchFieldResult, SearchError> {
     let mut options = options.clone();
@@ -324,7 +322,9 @@ fn get_hits_in_field_one_term(persistence: &Persistence, options: &RequestSearch
                     return;
                 }
                 if !result.hits_vec.is_empty() && (result.hits_vec.len() as u32 % (top_n_search * 5)) == 0 {
-                    result.hits_vec.sort_unstable_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(Ordering::Equal));
+                    result
+                        .hits_vec
+                        .sort_unstable_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(Ordering::Equal));
                     result.hits_vec.truncate(top_n_search as usize);
                     worst_score = result.hits_vec.last().unwrap().score;
                     trace!("new worst {:?}", worst_score);
@@ -355,7 +355,9 @@ fn get_hits_in_field_one_term(persistence: &Persistence, options: &RequestSearch
     {
         if limit_result {
             // println!("HITZZZ {:?}", result.hits_vec.);
-            result.hits_vec.sort_unstable_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(Ordering::Equal));
+            result
+                .hits_vec
+                .sort_unstable_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(Ordering::Equal));
             result.hits_vec.truncate(top_n_search as usize);
             // result.hits = result.hits_vec..into_iter().collect();
         }
@@ -414,58 +416,57 @@ fn get_hits_in_field_one_term(persistence: &Persistence, options: &RequestSearch
             fast_field_res.dedup_by_key(|b| b.id); // TODO FixMe Score
         }
 
-
         result.hits_vec = fast_field_res;
 
-        // //HASHMAP VERSION
-        // debug_time!(format!("{} fast_field", &options.path));
-        // let mut fast_field_res = FnvHashMap::default();
-        // for (term_id, score) in result.hits.iter() {
-        //     let token_kvdata = persistence.get_valueid_to_parent(&concat(&options.path, ".tokens.to_anchor"))?;
+    // //HASHMAP VERSION
+    // debug_time!(format!("{} fast_field", &options.path));
+    // let mut fast_field_res = FnvHashMap::default();
+    // for (term_id, score) in result.hits.iter() {
+    //     let token_kvdata = persistence.get_valueid_to_parent(&concat(&options.path, ".tokens.to_anchor"))?;
 
-        //     if let Some(anchor_score) = token_kvdata.get_values(*term_id as u64) {
-        //         fast_field_res.reserve(anchor_score.len() / 2);
-        //         for (anchor_id, token_in_anchor_score) in anchor_score.iter().tuples() {
-        //             if let Some(filter) = filter {
-        //                 if filter.contains(&anchor_id) {
-        //                     continue;
-        //                 }
-        //             }
+    //     if let Some(anchor_score) = token_kvdata.get_values(*term_id as u64) {
+    //         fast_field_res.reserve(anchor_score.len() / 2);
+    //         for (anchor_id, token_in_anchor_score) in anchor_score.iter().tuples() {
+    //             if let Some(filter) = filter {
+    //                 if filter.contains(&anchor_id) {
+    //                     continue;
+    //                 }
+    //             }
 
-        //             let final_score = score * (*token_in_anchor_score as f32);
-        //             trace!(
-        //                 "anchor_id {:?} term_id {:?}, token_in_anchor_score {:?} score {:?} to final_score {:?}",
-        //                 anchor_id,
-        //                 term_id,
-        //                 token_in_anchor_score,
-        //                 score,
-        //                 final_score
-        //             );
+    //             let final_score = score * (*token_in_anchor_score as f32);
+    //             trace!(
+    //                 "anchor_id {:?} term_id {:?}, token_in_anchor_score {:?} score {:?} to final_score {:?}",
+    //                 anchor_id,
+    //                 term_id,
+    //                 token_in_anchor_score,
+    //                 score,
+    //                 final_score
+    //             );
 
-        //             // anchor_hits.insert(*anchor_id as u32, score * (*token_in_anchor_score as f32));
-        //             // fast_field_res.insert(*anchor_id as u32, final_score); //take max
-        //             // let entry = fast_field_res.entry(*anchor_id as u32);
-        //             fast_field_res
-        //                 .entry(*anchor_id as u32)
-        //                 .and_modify(|e| {
-        //                     if *e < final_score {
-        //                         *e = final_score;
-        //                     }
-        //                 })
-        //                 .or_insert(final_score);
-        //         }
-        //     }
-        // }
+    //             // anchor_hits.insert(*anchor_id as u32, score * (*token_in_anchor_score as f32));
+    //             // fast_field_res.insert(*anchor_id as u32, final_score); //take max
+    //             // let entry = fast_field_res.entry(*anchor_id as u32);
+    //             fast_field_res
+    //                 .entry(*anchor_id as u32)
+    //                 .and_modify(|e| {
+    //                     if *e < final_score {
+    //                         *e = final_score;
+    //                     }
+    //                 })
+    //                 .or_insert(final_score);
+    //         }
+    //     }
+    // }
 
-        // debug!(
-        //     "found {:?} token in {:?} anchors",
-        //     result.hits.len(),
-        //     fast_field_res.len()
-        // );
+    // debug!(
+    //     "found {:?} token in {:?} anchors",
+    //     result.hits.len(),
+    //     fast_field_res.len()
+    // );
 
-        // result.hits = fast_field_res;
+    // result.hits = fast_field_res;
     } else {
-        if options.resolve_token_to_parent_hits.unwrap_or(true)  {
+        if options.resolve_token_to_parent_hits.unwrap_or(true) {
             resolve_token_hits(persistence, &options.path, &mut result, options, filter)?;
         }
     }
@@ -669,7 +670,6 @@ pub fn resolve_token_hits(
         //         }
         //     }
         // }
-
     }
 
     debug!(

@@ -280,9 +280,9 @@ impl<T: IndexIdToParentData> IndexIdToParent for IndexIdToOneParentMayda<T> {
             return None;
         };
         let val = self.data.access(id as usize);
-        if  val.to_u32().unwrap() == u32::MAX {
+        if val.to_u32().unwrap() == u32::MAX {
             None
-        }else{
+        } else {
             Some(val)
         }
 
