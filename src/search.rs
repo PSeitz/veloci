@@ -27,6 +27,7 @@ use itertools::Itertools;
 use persistence::Persistence;
 use doc_loader::DocLoader;
 use util;
+use util::*;
 use util::concat;
 use fst;
 use fst_levenshtein;
@@ -106,6 +107,24 @@ pub struct RequestSearchPart {
     #[serde(skip_serializing_if = "Option::is_none")] pub snippet_info: Option<SnippetInfo>,
 
     #[serde(default)] pub fast_field: bool,
+}
+impl PartialEq for RequestSearchPart {
+    fn eq(&self, other: &RequestSearchPart) -> bool {
+        format!("{:?}", self) == format!("{:?}", other)
+    }
+}
+impl Eq for RequestSearchPart {}
+
+impl PartialOrd for RequestSearchPart {
+    fn partial_cmp(&self, other: &RequestSearchPart) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for RequestSearchPart {
+    fn cmp(&self, other: &RequestSearchPart) -> Ordering {
+        format!("{:?}", self).cmp(&format!("{:?}", other))
+    }
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -341,13 +360,6 @@ pub fn apply_top_skip<T: Clone>(hits: Vec<T>, skip: Option<usize>, top: Option<u
     // hits[skip..top].to_vec()
 }
 
-fn extract_field_name(field: &str) -> String {
-    field
-    .chars()
-    .take(field.chars().count() - 10) //remove .textindex
-    .into_iter()
-    .collect()
-}
 
 fn get_default_levenshtein(term: &str) -> usize {
     match term.chars().count() {
@@ -910,11 +922,12 @@ pub fn add_boost(persistence: &Persistence, boost: &RequestBoostPart, hits: &mut
         let mut score = &mut hit.score;
         // let ref vals_opt = boostkv_store.get(*value_id as usize);
         let ref val_opt = boostkv_store.get_value(*value_id as u64);
-        debug!(
-            "Found in boosting for value_id {:?}: {:?}",
-            value_id, val_opt
-        );
+
         val_opt.as_ref().map(|boost_value| {
+            debug!(
+                "Found in boosting for value_id {:?}: {:?}",
+                value_id, val_opt
+            );
             let boost_value = *boost_value;
             match boost.boost_fun {
                 Some(BoostFunction::Log10) => {
@@ -945,12 +958,13 @@ pub fn add_boost(persistence: &Persistence, boost: &RequestBoostPart, hits: &mut
                 None => {}
             }
             expre.as_ref().map(|exp| {
+                let prev_score = *score;
+                *score += exp.get_score(boost_value as f32);
                 debug!(
-                    "expression to {:?} with boost_value {:?}",
-                    exp.get_score(boost_value as f32),
-                    boost_value
+                    "boost {:?} to {:?} with boost_fun({:?})={:?}", prev_score, score,
+                    boost_value,
+                    exp.get_score(boost_value as f32)
                 );
-                *score += exp.get_score(boost_value as f32)
             });
         });
     }
@@ -1046,7 +1060,7 @@ impl Error for SearchError {
     }
 }
 
-use util::*;
+// use util::*;
 
 // pub fn read_data_single(persistence: &Persistence, id: u32, field: String) -> Result<String, SearchError> {
 //     let steps = util::get_steps_to_anchor(&field);

@@ -737,8 +737,7 @@ fn get_u32_values_from_pointing_file(find: u64, size: usize, start_and_end_file:
     }
 
     debug_time!("load_bytes_into & bytes_to_vec_u32");
-    let mut data_bytes: Vec<u8> = Vec::with_capacity(end as usize - start as usize);
-    data_bytes.resize(end as usize - start as usize, 0);
+    let mut data_bytes: Vec<u8> = vec_with_size_uninitialized(end as usize - start as usize);
     load_bytes_into(&mut data_bytes, &*data_file.lock(), start as u64);
     debug_time!("bytes_to_vec_u32");
     Some(bytes_to_vec_u32(&data_bytes))

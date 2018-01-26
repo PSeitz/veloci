@@ -8,10 +8,16 @@ use std::collections::HashMap;
 use std::fmt::Debug;
 use std::mem;
 use std::marker::Sync;
-use std;
-use util;
-use util::get_file_path;
 use std::env;
+use std;
+
+use util;
+use util::*;
+use util::get_file_path;
+use create;
+#[allow(unused_imports)]
+use search::{self, SearchError};
+use search::*;
 
 use num::{self, Integer, NumCast};
 use num::cast::ToPrimitive;
@@ -22,7 +28,6 @@ use serde_json::Value;
 use fnv::{FnvHashMap, FnvHashSet};
 use bincode::{deserialize, serialize, Infinite};
 
-use create;
 #[allow(unused_imports)]
 use mayda;
 #[allow(unused_imports)]
@@ -39,8 +44,6 @@ use prettytable::format;
 
 use persistence_data::*;
 
-#[allow(unused_imports)]
-use search::{self, SearchError};
 
 #[allow(unused_imports)]
 use heapsize::{heap_size_of, HeapSizeOf};
@@ -274,6 +277,9 @@ pub fn trace_index_id_to_parent<T: IndexIdToParentData>(val: &Box<IndexIdToParen
 use std::u32;
 pub static NOT_FOUND: u32 = u32::MAX;
 
+use lru_time_cache::LruCache;
+
+
 #[derive(Debug, Default)]
 pub struct PersistenceCache {
     // pub index_id_to_parent: HashMap<(String,String), Vec<Vec<u32>>>,
@@ -283,11 +289,12 @@ pub struct PersistenceCache {
     pub fst: HashMap<String, Map>,
 }
 
-#[derive(Debug, Default)]
+#[derive(Default)]
 pub struct Persistence {
     pub db: String, // folder
     pub meta_data: MetaData,
     pub cache: PersistenceCache,
+    pub lru_cache: HashMap<String, LruCache<RequestSearchPart, SearchResult>>,
 }
 
 use colored::*;
@@ -360,6 +367,7 @@ impl Persistence {
         let mut pers = Persistence {
             meta_data,
             db,
+            lru_cache: HashMap::default(),// LruCache::new(50),
             ..Default::default()
         };
         pers.load_all_to_cache()?;
@@ -617,6 +625,10 @@ impl Persistence {
         //     } else {
         //         Ok(())
         //     }
+
+        for el in self.meta_data.key_value_stores.iter(){
+            self.lru_cache.insert(el.path.clone(), LruCache::with_capacity(0));
+        }
 
         let loaded_data: Result<Vec<(String, Box<IndexIdToParent<Output = u32>>)>, SearchError> = self.meta_data
             .key_value_stores
@@ -915,28 +927,26 @@ fn load_type_from_env() -> Result<Option<LoadingType>, search::SearchError> {
     }
 }
 
+
+
 pub fn vec_to_bytes_u32(data: &Vec<u32>) -> Vec<u8> {
-    let mut wtr: Vec<u8> = vec![];
-    wtr.resize(data.len() * std::mem::size_of::<u32>(), 0);
+    let mut wtr: Vec<u8> = vec_with_size_uninitialized(data.len() * std::mem::size_of::<u32>());
     LittleEndian::write_u32_into(&data, &mut wtr);
     wtr
 }
 pub fn vec_to_bytes_u64(data: &Vec<u64>) -> Vec<u8> {
-    let mut wtr: Vec<u8> = vec![];
-    wtr.resize(data.len() * std::mem::size_of::<u64>(), 0);
+    let mut wtr: Vec<u8> = vec_with_size_uninitialized(data.len() * std::mem::size_of::<u64>());
     LittleEndian::write_u64_into(&data, &mut wtr);
     wtr
 }
 
 pub fn bytes_to_vec_u32(data: &[u8]) -> Vec<u32> {
-    let mut out_dat = vec![];
-    out_dat.resize(data.len() / std::mem::size_of::<u32>(), 0);
+    let mut out_dat = vec_with_size_uninitialized(data.len() / std::mem::size_of::<u32>());
     LittleEndian::read_u32_into(&data, &mut out_dat);
     out_dat
 }
 pub fn bytes_to_vec_u64(data: &[u8]) -> Vec<u64> {
-    let mut out_dat = vec![];
-    out_dat.resize(data.len() / std::mem::size_of::<u64>(), 0);
+    let mut out_dat = vec_with_size_uninitialized(data.len() / std::mem::size_of::<u64>());
     LittleEndian::read_u64_into(&data, &mut out_dat);
     out_dat
 }

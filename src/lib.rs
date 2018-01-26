@@ -53,6 +53,7 @@ extern crate bit_vec;
 extern crate chashmap;
 extern crate itertools;
 extern crate lru_cache;
+extern crate lru_time_cache;
 extern crate num;
 extern crate parking_lot;
 extern crate trie;

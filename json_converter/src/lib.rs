@@ -88,7 +88,7 @@ where
             for_each_elemento(value, anchor_id, id_provider, parent_id, &mut current_path, key, opt, cb_text, cb_ids);
             unsafe {current_path.as_mut_vec().truncate(prev_len); }
         }
-    } else {
+    } else if !data.is_null(){
         current_path.push_str(current_el_name);
         current_path.push_str(".textindex");
         cb_text(anchor_id, convert_to_string(&data).as_ref(), &current_path , parent_id);
@@ -164,7 +164,8 @@ fn test_foreach() {
         "a": 1,
         "more": ["ok", "nice"],
         "objects": [{
-            "stuff": "yii"
+            "stuff": "yii",
+            "nothing": null
         },{
             "stuff": "yaa"
         }],

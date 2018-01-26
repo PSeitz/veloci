@@ -11,7 +11,8 @@ use std::io;
 
 use persistence::{LoadingType, Persistence};
 
-use create_from_json;
+use util::*;
+
 use log;
 
 #[allow(unused_imports)]
@@ -149,7 +150,7 @@ impl GetValueId for ValIdPairToken {
 /// Used for boost
 /// e.g. boost value 5000 for id 5
 /// 5 -> 5000
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ValIdToValue {
     pub valid: u32,
     pub value: u32,
@@ -443,11 +444,11 @@ struct PathData {
     value_id_to_token_ids: Vec<ValIdPair>,
     text_id_to_parent: Vec<ValIdPair>,
     anchor_to_text_id: Option<Vec<ValIdPair>>,
+    boost: Option<Vec<ValIdToValue>>,
 }
 
 pub fn create_fulltext_index(data: &Value, mut persistence: &mut Persistence, indices_json: &Vec<CreateIndex>) -> Result<(), io::Error> {
     // let data: Value = serde_json::from_str(data_str).unwrap();
-
     let num_elements = if let Some(arr) = data.as_array() {
         arr.len()
     } else {
@@ -465,6 +466,21 @@ pub fn create_fulltext_index(data: &Value, mut persistence: &mut Persistence, in
             (
                 fulltext_info.fulltext.to_string() + ".textindex",
                 (*fulltext_info).clone(),
+            )
+        })
+        .collect();
+
+    let boost_info_for_path: FnvHashMap<String, Boost> = indices_json
+        .iter()
+        .flat_map(|index| match index {
+            &CreateIndex::FulltextInfo(_) => None,
+            &CreateIndex::BoostInfo(ref el) => Some(el),
+            &CreateIndex::FacetInfo(_) => None,
+        })
+        .map(|boost_info| {
+            (
+                boost_info.boost.to_string() + ".textindex",
+                (*boost_info).clone(),
             )
         })
         .collect();
@@ -496,13 +512,22 @@ pub fn create_fulltext_index(data: &Value, mut persistence: &mut Persistence, in
         info_time!(format!("extract text and ids"));
         let mut cb_text = |anchor_id: u32, value: &str, path: &str, parent_val_id: u32| {
             let data = get_or_insert(&mut path_data, path, &|| {
-                if facet_index.contains(path) {
-                    PathData {
-                        anchor_to_text_id: Some(vec![]),
-                        ..Default::default()
-                    }
-                } else {
-                    PathData::default()
+
+                let boost_info_data = if boost_info_for_path.contains_key(path){
+                    Some(vec![])
+                }else{
+                    None
+                };
+
+                let anchor_to_text_id = if facet_index.contains(path){
+                    Some(vec![])
+                }else{
+                    None
+                };
+                PathData {
+                    anchor_to_text_id: anchor_to_text_id,
+                    boost: boost_info_data,
+                    ..Default::default()
                 }
             });
 
@@ -533,6 +558,16 @@ pub fn create_fulltext_index(data: &Value, mut persistence: &mut Persistence, in
                     valid: anchor_id,
                     parent_val_id: text_info.id as u32,
                 })
+            });
+            data.boost.as_mut().map(|el| {
+                // if options.boost_type == "int" {
+                    let my_int = value.parse::<u32>().expect(&format!("Expected an int value but got {:?}", value));
+                    el.push(ValIdToValue {
+                        valid: parent_val_id,
+                        value: my_int,
+                    });
+                    // println!("PATH ADDINGU {:?} {:?} {:?}", path, parent_val_id, my_int);
+                // } // TODO More cases
             });
             trace!("Found id {:?} for {:?}", text_info, value);
 
@@ -682,6 +717,10 @@ pub fn create_fulltext_index(data: &Value, mut persistence: &mut Persistence, in
             if let Some(ref mut anchor_to_text_id) = data.anchor_to_text_id {
                 persistence.write_tuple_pair(anchor_to_text_id, &concat(&path, ".anchor_to_text_id"))?;
             }
+            if let Some(ref mut tuples) = data.boost {
+                persistence.write_boost_tuple_pair(tuples, &extract_field_name(&path))?; // TODO use .textindex in boost?
+                // persistence.write_tuple_pair(anchor_to_text_id, &concat(&path, ".anchor_to_text_id"))?;
+            }
         }
 
         for (path, all_terms) in all_terms_in_path {
@@ -728,34 +767,6 @@ fn get_string_offsets(data: Vec<&String>) -> Vec<u64> {
     }
     offsets.push(offset as u64);
     offsets
-}
-
-fn create_boost_index(data: &Value, path: &str, options: BoostIndexOptions, persistence: &mut Persistence) -> Result<(), io::Error> {
-    info_time!("create_boost_index");
-
-    let mut opt = create_from_json::ForEachOpt {
-        parent_pos_in_path: 0,
-        current_parent_id_counter: 0,
-        value_id_counter: 0,
-    };
-
-    let mut tuples: Vec<ValIdToValue> = vec![];
-    {
-        let mut callback = |value: &str, value_id: u32, _parent_val_id: u32| {
-            if options.boost_type == "int" {
-                let my_int = value.parse::<u32>().expect("Expected an int value");
-                tuples.push(ValIdToValue {
-                    valid: value_id,
-                    value: my_int,
-                });
-            } // TODO More cases
-        };
-        create_from_json::for_each_element_in_path(&data, &mut opt, &path, &mut callback);
-    }
-
-    persistence.write_boost_tuple_pair(&mut tuples, path)?;
-
-    Ok(())
 }
 
 #[derive(Debug, Clone)]
@@ -825,13 +836,6 @@ pub fn create_indices_json(folder: &str, data: &Value, indices: &str) -> Result<
     let indices_json: Vec<CreateIndex> = serde_json::from_str(indices).unwrap();
     let mut persistence = Persistence::create(folder.to_string())?;
     create_fulltext_index(data, &mut persistence, &indices_json)?;
-    for el in indices_json {
-        match el {
-            CreateIndex::FulltextInfo(_) => {}
-            CreateIndex::FacetInfo(_) => {}
-            CreateIndex::BoostInfo(boost) => create_boost_index(data, &boost.boost, boost.options, &mut persistence)?,
-        }
-    }
 
     info_time!(format!("write json and metadata {:?}", folder));
     if let &Some(arr) = &data.as_array() {

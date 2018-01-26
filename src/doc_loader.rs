@@ -45,3 +45,14 @@ impl DocLoader {
         Ok(s)
     }
 }
+
+
+// fn resize_rawr<T>(vec: &mut Vec<T>, new_len:usize) {
+//     let cap = vec.capacity();
+//     if cap >= new_len{
+
+//     }
+//     vec.reserve(new_len - cap);
+//     vec.capacity()
+
+// }

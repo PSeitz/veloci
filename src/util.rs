@@ -94,6 +94,23 @@ pub fn remove_array_marker(path: &str) -> String {
         .join(".")
 }
 
+pub fn vec_with_size_uninitialized<T>(size:usize) -> Vec<T> {
+    let mut buffer = Vec::with_capacity(size);
+    unsafe {
+        buffer.set_len(size);
+    }
+    buffer
+}
+
+pub fn extract_field_name(field: &str) -> String {
+    field
+    .chars()
+    .take(field.chars().count() - 10) //remove .textindex
+    .into_iter()
+    .collect()
+}
+
+
 pub fn extract_prop_name(path: &str) -> &str {
     path.split(".")
         .map(|el| {
