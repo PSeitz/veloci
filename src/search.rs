@@ -931,7 +931,7 @@ pub fn add_boost(persistence: &Persistence, boost: &RequestBoostPart, hits: &mut
             let boost_value = *boost_value;
             match boost.boost_fun {
                 Some(BoostFunction::Log10) => {
-                    debug!(
+                    trace!(
                         "boosting value_id {:?} score {:?} with token_value {:?} boost_value {:?} to {:?}",
                         *value_id,
                         score,
@@ -945,7 +945,7 @@ pub fn add_boost(persistence: &Persistence, boost: &RequestBoostPart, hits: &mut
                     *score *= boost_value as f32 + boost_param; // @Temporary // @Hack // @Cleanup // @FixMe
                 }
                 Some(BoostFunction::Add) => {
-                    debug!(
+                    trace!(
                         "boosting value_id {:?} score {:?} with token_value {:?} boost_value {:?} to {:?}",
                         *value_id,
                         score,
@@ -960,7 +960,7 @@ pub fn add_boost(persistence: &Persistence, boost: &RequestBoostPart, hits: &mut
             expre.as_ref().map(|exp| {
                 let prev_score = *score;
                 *score += exp.get_score(boost_value as f32);
-                debug!(
+                trace!(
                     "boost {:?} to {:?} with boost_fun({:?})={:?}", prev_score, score,
                     boost_value,
                     exp.get_score(boost_value as f32)
