@@ -931,15 +931,16 @@ pub fn add_boost(persistence: &Persistence, boost: &RequestBoostPart, hits: &mut
             let boost_value = *boost_value;
             match boost.boost_fun {
                 Some(BoostFunction::Log10) => {
+                    let prev_score = *score;
+                    *score += (boost_value as f32 + boost_param).log10(); // @Temporary // @Hack // @Cleanup // @FixMe
                     trace!(
                         "boosting value_id {:?} score {:?} with token_value {:?} boost_value {:?} to {:?}",
                         *value_id,
-                        score,
+                        prev_score,
                         boost_value,
                         (boost_value as f32 + boost_param).log10(),
-                        *score + (boost_value as f32 + boost_param).log10()
+                        *score
                     );
-                    *score += (boost_value as f32 + boost_param).log10(); // @Temporary // @Hack // @Cleanup // @FixMe
                 }
                 Some(BoostFunction::Linear) => {
                     *score *= boost_value as f32 + boost_param; // @Temporary // @Hack // @Cleanup // @FixMe

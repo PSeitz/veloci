@@ -345,7 +345,7 @@ pub fn start_server() {
         let struct_body = req.get::<bodyparser::Struct<T>>();
         match struct_body {
             Ok(Some(struct_body)) => {
-                info!("Parsed body:\n{:?}", struct_body);
+                // info!("Parsed body:\n{:?}", struct_body);
                 // info_time!("search total");
                 Ok(struct_body.clone())
             }
@@ -368,7 +368,7 @@ pub fn start_server() {
 
     #[flame]
     fn search_in_persistence(persistence: &Persistence, request: search_lib::search::Request, enable_flame: bool) -> IronResult<Response> {
-        info!("Searching ... ");
+        // info!("Searching ... ");
         let hits = {
             info_time!("Searching ... ");
             let res = search::search(request, &persistence);
@@ -390,7 +390,7 @@ pub fn start_server() {
             search::to_search_result(&persistence, hits)
         };
 
-        info!("Returning ... ");
+        debug!("Returning ... ");
 
         // Ok(Response::with((status::Ok, Header(headers::ContentType::json()), GzipWriter(serde_json::to_string(&doc).unwrap().as_bytes()) )))
         return_flame_or(enable_flame, serde_json::to_string(&doc).unwrap())
@@ -409,6 +409,8 @@ pub fn start_server() {
         // Ok(Response::with((status::Ok, "*query")))
         info_time!("search total");
         let struct_body: search::Request = get_body(req)?;
+        info!("Parsed body:\n{}", serde_json::to_string(&struct_body).unwrap());
+
         let persistence = PERSISTENCES.get(&database).unwrap();
         search_in_persistence(
             &persistence,
@@ -434,7 +436,7 @@ pub fn start_server() {
 
         info!("Suggesting ... ");
         let hits = search_field::suggest_multi(&persistence, struct_body).unwrap();
-        info!("Returning ... ");
+        debug!("Returning ... ");
         // Ok(Response::with((status::Ok, Header(headers::ContentType::json()), serde_json::to_string(&hits).unwrap())))
 
         return_flame_or(flame, serde_json::to_string(&hits).unwrap())
@@ -454,7 +456,7 @@ pub fn start_server() {
 
         info!("highlighting ... ");
         let hits = search_field::highlight(&persistence, &mut struct_body).unwrap();
-        info!("Returning ... ");
+        debug!("Returning ... ");
         // Ok(Response::with((status::Ok, Header(headers::ContentType::json()), serde_json::to_string(&hits).unwrap())))
 
         return_flame_or(

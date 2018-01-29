@@ -249,6 +249,9 @@ pub fn plan_creator_search_part(mut request: RequestSearchPart, mut boost: Optio
         });
 
         for i in (0..paths.len() - 1).rev() {
+
+
+
             if boost.is_some() {
                 boost.as_mut().unwrap().retain(|boost| {
                     let apply_boost = boost.path.starts_with(&paths[i]);
@@ -261,15 +264,18 @@ pub fn plan_creator_search_part(mut request: RequestSearchPart, mut boost: Optio
                             input_prev_steps: vec![rx.clone()],
                             output_next_steps: tx.clone(),
                         });
+
+                        debug!("PlanCreator Step {:?}", boost);
+
                         rx = next_rx;
                     }
-                    apply_boost
+                    !apply_boost
                 });
             }
 
             let (next_tx, next_rx): (PlanDataSender, PlanDataReceiver) = unbounded();
             tx = next_tx;
-            // let will_apply_boost = boost.map(|boost| boost.path.starts_with(&paths[i])).unwrap_or(false);
+
             steps.push(PlanStepType::ValueIdToParent {
                 plans_output: next_rx.clone(),
                 input_prev_steps: vec![rx.clone()],
@@ -278,7 +284,26 @@ pub fn plan_creator_search_part(mut request: RequestSearchPart, mut boost: Optio
                 trace_info: "Joining to anchor".to_string(),
             });
 
+            debug!("PlanCreator Step {}", concat(&paths[i], ".valueIdToParent"));
+
             rx = next_rx;
+        }
+
+
+        if let Some(boosts) = boost { // Handling boost from anchor to value - TODO FIXME Error when 1:N
+            for boost in boosts {
+                let (next_tx, next_rx): (PlanDataSender, PlanDataReceiver) = unbounded();
+                tx = next_tx;
+                steps.push(PlanStepType::Boost {
+                    plans_output: next_rx.clone(),
+                    req: boost.clone(),
+                    input_prev_steps: vec![rx.clone()],
+                    output_next_steps: tx.clone(),
+                });
+                debug!("PlanCreator Step {:?}", boost);
+                rx = next_rx;
+            }
+
         }
 
         PlanStepType::FromAttribute {
