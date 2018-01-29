@@ -72,6 +72,26 @@ static TAHLIA_INDICES: &str = r#"
 ]
 "#;
 
+static TAHLIA_INDICES_NEW: &str = r#"
+{
+    "facets": ["VERLAG[]"],
+    "fulltext" : {
+        "MATNR" : {}
+        "ISMTITLE"     : {"tokenize":true}
+        "ISMORIGTITLE" : {"tokenize":true}
+        "ISMSUBTITLE1" : {"tokenize":true}
+        "ISMSUBTITLE2" : {"tokenize":true}
+        "ISMSUBTITLE3" : {"tokenize":true}
+        "ISMARTIST"    : {"tokenize":true}
+        "ISMLANGUAGES" : {"tokenize":false}
+        "ISMPUBLDATE"  : {"tokenize":false}
+        "EAN11"        : {"tokenize":false}
+        "ISMORIDCODE"  : {"tokenize":false}
+    }
+}
+
+"#;
+
 #[allow(dead_code)]
 fn create_thalia_index() {
     // let all_terms = loadcsv("./data.csv", 0);

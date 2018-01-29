@@ -566,7 +566,6 @@ pub fn create_fulltext_index(data: &Value, mut persistence: &mut Persistence, in
                         valid: parent_val_id,
                         value: my_int,
                     });
-                    // println!("PATH ADDINGU {:?} {:?} {:?}", path, parent_val_id, my_int);
                 // } // TODO More cases
             });
             trace!("Found id {:?} for {:?}", text_info, value);
