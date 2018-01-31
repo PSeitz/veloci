@@ -750,8 +750,8 @@ mod tests {
         fn test_single_file_array_u32() {
             let store = get_test_data_1_to_1();
 
-            fs::create_dir_all("_u32").unwrap();
-            File::create("_u32/data")
+            fs::create_dir_all("test_single_file_array_u32").unwrap();
+            File::create("test_single_file_array_u32/data")
                 .unwrap()
                 .write_all(&vec_to_bytes_u32(&store.data))
                 .unwrap();
