@@ -756,8 +756,8 @@ mod tests {
                 .write_all(&vec_to_bytes_u32(&store.data))
                 .unwrap();
 
-            let data_file = File::open(&get_file_path("_u32", "data")).unwrap();
-            let data_metadata = fs::metadata(&get_file_path("_u32", "data")).unwrap();
+            let data_file = File::open(&get_file_path("test_single_file_array_u32", "data")).unwrap();
+            let data_metadata = fs::metadata(&get_file_path("test_single_file_array_u32", "data")).unwrap();
             let store = SingleArrayFileReader::<u32>::new(data_file, data_metadata);
             check_test_data_1_to_1(&store);
         }
