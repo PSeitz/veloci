@@ -21,6 +21,8 @@ extern crate crossbeam_channel;
 extern crate crossbeam_utils;
 extern crate flame;
 
+extern crate memmap;
+
 #[macro_use]
 extern crate serde_derive;
 

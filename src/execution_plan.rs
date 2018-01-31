@@ -362,7 +362,6 @@ pub fn execute_steps(steps: Vec<PlanStepType>, persistence: &Persistence) -> Res
         .into_par_iter()
         .map(|step| {
             step.execute_step(persistence)
-            // execute_step(step.clone(), persistence)
         })
         .collect();
 
@@ -371,6 +370,12 @@ pub fn execute_steps(steps: Vec<PlanStepType>, persistence: &Persistence) -> Res
     } else {
         Ok(())
     }
+
+    // for step in steps {
+    //     step.execute_step(persistence)?;
+    // }
+    // Ok(())
+
 
     // let err = steps.par_iter().map(|step|{
     //     let res = execute_step(step.clone(), persistence);

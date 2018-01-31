@@ -186,7 +186,10 @@ pub fn start_server() {
 
     let combined = format!("{}:{}", ip, port);
     println!("Start server {:?}", combined);
-    Iron::new(chain).http(combined).unwrap();
+
+    let mut yop = Iron::new(chain);
+    yop.threads = 2;
+    yop.http(combined).unwrap();
 
     fn handler(_req: &mut Request) -> IronResult<Response> {
         let mut file = File::open("index.html").expect("Server: \"äh wo ist meine index.html\"");

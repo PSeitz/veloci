@@ -205,15 +205,15 @@ fn store_full_text_info(persistence: &mut Persistence, all_terms: FnvHashMap<Str
     let offsets = get_string_offsets(sorted_terms);
 
     //TEST FST AS ID MAPPER
-    let mut offsets_fst: FnvHashMap<String, TermInfo> = FnvHashMap::default();
-    for (i, offset) in offsets.iter().enumerate() {
-        let padding = 1;
-        offsets_fst.insert(
-            format!("{:0padding$}", i, padding = padding),
-            TermInfo::new(*offset as u32),
-        );
-    }
-    store_fst(persistence, &offsets_fst, &concat(&path, ".offsets")).expect("Could not store fst");
+    // let mut offsets_fst: FnvHashMap<String, TermInfo> = FnvHashMap::default();
+    // for (i, offset) in offsets.iter().enumerate() {
+    //     let padding = 1;
+    //     offsets_fst.insert(
+    //         format!("{:0padding$}", i, padding = padding),
+    //         TermInfo::new(*offset as u32),
+    //     );
+    // }
+    // store_fst(persistence, &offsets_fst, &concat(&path, ".offsets")).expect("Could not store fst");
     //TEST FST AS ID MAPPER
 
     persistence.write_index(
@@ -639,9 +639,18 @@ pub fn create_fulltext_index(data: &Value, mut persistence: &mut Persistence, in
         );
     }
 
+    let is_sublevel = |path:&str|{
+        return path.contains("[]");
+    };
+    let is_text_id_to_parent = |path:&str|{
+        return path.ends_with(".textindex");
+    };
+
     {
         let write_tuples = |persistence: &mut Persistence, path: &str, tuples: &mut Vec<ValIdPair>| -> Result<(), io::Error> {
-            persistence.write_tuple_pair(tuples, &concat(&path, ".valueIdToParent"))?;
+            let is_alway_1_to_1 = !is_text_id_to_parent(path); // valueIdToParent relation is always 1 to 1, expect for text_ids, which can have multiple parents
+
+            persistence.write_tuple_pair(tuples, &concat(&path, ".valueIdToParent"), is_alway_1_to_1,)?;
             if log_enabled!(log::Level::Trace) {
                 trace!(
                     "{}\n{}",
@@ -654,7 +663,7 @@ pub fn create_fulltext_index(data: &Value, mut persistence: &mut Persistence, in
             for el in tuples.iter_mut() {
                 std::mem::swap(&mut el.parent_val_id, &mut el.valid);
             }
-            persistence.write_tuple_pair(tuples, &concat(&path, ".parentToValueId"))?;
+            persistence.write_tuple_pair(tuples, &concat(&path, ".parentToValueId"), !is_sublevel(path))?;
             if log_enabled!(log::Level::Trace) {
                 trace!(
                     "{}\n{}",
@@ -666,7 +675,7 @@ pub fn create_fulltext_index(data: &Value, mut persistence: &mut Persistence, in
         };
 
         for (path, mut data) in path_data {
-            persistence.write_tuple_pair_dedup(&mut data.tokens_to_parent, &concat(&path, ".tokens"), true)?;
+            persistence.write_tuple_pair_dedup(&mut data.tokens_to_parent, &concat(&path, ".tokens"), true, false)?;
             trace!(
                 "{}\n{}",
                 &concat(&path, ".tokens"),
@@ -692,7 +701,7 @@ pub fn create_fulltext_index(data: &Value, mut persistence: &mut Persistence, in
 
             persistence.write_tuple_pair(
                 &mut token_to_anchor_score_pairs,
-                &concat(&path, ".tokens.to_anchor"),
+                &concat(&path, ".tokens.to_anchor"), false,
             )?;
             trace!(
                 "{}\n{}",
@@ -703,7 +712,7 @@ pub fn create_fulltext_index(data: &Value, mut persistence: &mut Persistence, in
             // persistence.write_tuple_pair_dedup(&mut data.tokens_to_anchor, &concat(&path, ".tokens.to_anchor"), true)?;
             persistence.write_tuple_pair(
                 &mut data.value_id_to_token_ids,
-                &concat(&path, ".value_id_to_token_ids"),
+                &concat(&path, ".value_id_to_token_ids"), false,
             )?;
             trace!(
                 "{}\n{}",
@@ -714,7 +723,7 @@ pub fn create_fulltext_index(data: &Value, mut persistence: &mut Persistence, in
             write_tuples(&mut persistence, &path, &mut data.text_id_to_parent)?;
 
             if let Some(ref mut anchor_to_text_id) = data.anchor_to_text_id {
-                persistence.write_tuple_pair(anchor_to_text_id, &concat(&path, ".anchor_to_text_id"))?;
+                persistence.write_tuple_pair(anchor_to_text_id, &concat(&path, ".anchor_to_text_id"), false)?; // TODO THIS SHOULD ONLY BE USED IN 1 TO N RELATIONS -FIXME PLZZZZ
             }
             if let Some(ref mut tuples) = data.boost {
                 persistence.write_boost_tuple_pair(tuples, &extract_field_name(&path))?; // TODO use .textindex in boost?

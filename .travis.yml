@@ -4,3 +4,4 @@ rust:
 env:
   - LoadingType=Disk
   - LoadingType=InMemory
+  - LoadingType=InMemoryUnCompressed

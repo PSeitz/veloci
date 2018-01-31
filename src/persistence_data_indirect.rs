@@ -43,6 +43,8 @@ use fnv::FnvHashMap;
 use fnv::FnvHashSet;
 use itertools::Itertools;
 
+use memmap::Mmap;
+
 macro_rules! mut_if {
     ($name:ident = $value:expr, $($any:expr)+) => (let mut $name = $value;);
     ($name:ident = $value:expr,) => (let $name = $value;);
@@ -75,6 +77,7 @@ impl_type_info_single_templ!(IndexIdToMultipleParentCompressedMaydaINDIRECTOne);
 impl_type_info_single_templ!(IndexIdToMultipleParentCompressedMaydaINDIRECTOneReuse);
 impl_type_info_single_templ!(IndexIdToMultipleParentIndirect);
 impl_type_info_single_templ!(PointingArrayFileReader);
+impl_type_info_single_templ!(PointingMMAPFileReader);
 
 #[derive(Serialize, Deserialize, Debug, HeapSizeOf)]
 pub struct IndexIdToMultipleParentIndirect<T: IndexIdToParentData> {
@@ -118,6 +121,9 @@ impl<T: IndexIdToParentData> IndexIdToParent for IndexIdToMultipleParentIndirect
             None
         } else {
             let positions = &self.start_and_end[(id * 2) as usize..=((id * 2) as usize + 1)];
+            if positions[0].to_u32().unwrap() == u32::MAX { //data encoded in indirect array
+                return Some(vec![positions[1]]);
+            }
             if positions[0] == positions[1] {
                 return None;
             }
@@ -148,6 +154,11 @@ impl<T: IndexIdToParentData> IndexIdToParent for IndexIdToMultipleParentIndirect
                 } else {
                     let pos = (*id * 2) as usize;
                     let positions = &self.start_and_end[pos..=pos + 1];
+                    if positions[0].to_u32().unwrap() == u32::MAX { //data encoded in indirect array
+                        coll.add(positions[1]);
+                        continue;
+                    }
+
                     if positions[0] != positions[1] {
                         positions_vec.push(positions);
                     }
@@ -319,6 +330,12 @@ impl<T: IndexIdToParentData> IndexIdToParent for IndexIdToMultipleParentCompress
                     (*id * 2) as usize..=((*id * 2) as usize + 1),
                     &mut positions[0..=1],
                 );
+
+                if positions[0].to_u32().unwrap() == u32::MAX { //data encoded in indirect array
+                    vec.push(positions[1]);
+                    continue;
+                }
+
                 if positions[0] == positions[1] {
                     continue;
                 }
@@ -474,6 +491,12 @@ impl<T: IndexIdToParentData> IndexIdToParent for IndexIdToMultipleParentCompress
                     (*id * 2) as usize..=((*id * 2) as usize + 1),
                     &mut positions[0..=1],
                 );
+
+                if positions[0].to_u32().unwrap() == u32::MAX { //data encoded in indirect array
+                    coll.add(positions[1]);
+                    continue;
+                }
+
                 if positions[0] == positions[1] {
                     continue;
                 }
@@ -562,6 +585,11 @@ where
             (id * 2) as usize..=((id * 2) as usize + 1),
             &mut positions[0..=1],
         );
+
+        if positions[0].to_u32().unwrap() == u32::MAX { //data encoded in indirect array
+            return Some(vec![NumCast::from(positions[1]).unwrap()]);
+        }
+
         if positions[0] == positions[1] {
             return None;
         }
@@ -617,29 +645,112 @@ impl<T: IndexIdToParentData> IndexIdToParent for IndexIdToMultipleParentCompress
     }
 }
 
+
 #[derive(Debug)]
-pub struct PointingArrayFileReader<T: IndexIdToParentData> {
-    pub start_and_end_file: Mutex<fs::File>,
-    pub data_file: Mutex<fs::File>,
-    pub data_metadata: Mutex<fs::Metadata>,
+pub struct PointingMMAPFileReader<T: IndexIdToParentData> {
+    pub start_and_end_file: Mmap,
+    pub data_file: Mmap,
+    pub indirect_metadata: Mutex<fs::Metadata>,
     pub ok: PhantomData<T>,
     pub max_value_id: u32,
     pub avg_join_size: f32,
 }
-
-impl<T: IndexIdToParentData> PointingArrayFileReader<T> {
-    pub fn new(start_and_end_file: fs::File, data_file: fs::File, data_metadata: fs::Metadata, max_value_id: u32, avg_join_size: f32) -> Self {
-        PointingArrayFileReader {
-            start_and_end_file: Mutex::new(start_and_end_file),
-            data_file: Mutex::new(data_file),
-            data_metadata: Mutex::new(data_metadata),
+use memmap::MmapOptions;
+impl<T: IndexIdToParentData> PointingMMAPFileReader<T> {
+    pub fn new(start_and_end_file: fs::File, data_file: fs::File, indirect_metadata: fs::Metadata, data_metadata: fs::Metadata, max_value_id: u32, avg_join_size: f32) -> Self {
+        // println!("OPPEEENIGGGN INDIRECT{:?}", indirect_metadata.len());
+        // println!("OPPEEENIGGGN DATA {:?}", data_metadata.len());
+        let start_and_end_file = unsafe { MmapOptions::new().len(std::cmp::max(indirect_metadata.len() as usize, 4048)).map(&start_and_end_file).unwrap() };
+        let data_file = unsafe { MmapOptions::new().len(std::cmp::max(data_metadata.len() as usize, 4048)).map(&data_file).unwrap() };
+        PointingMMAPFileReader {
+            start_and_end_file: start_and_end_file,
+            data_file: data_file,
+            indirect_metadata: Mutex::new(indirect_metadata),
             ok: PhantomData,
             max_value_id: max_value_id,
             avg_join_size: avg_join_size,
         }
     }
     fn get_size(&self) -> usize {
-        self.data_metadata.lock().len() as usize / 8
+        self.indirect_metadata.lock().len() as usize / 8
+    }
+}
+
+impl<T: IndexIdToParentData> HeapSizeOf for PointingMMAPFileReader<T> {
+    fn heap_size_of_children(&self) -> usize {
+        0 //FIXME
+    }
+}
+
+impl<T: IndexIdToParentData> IndexIdToParent for PointingMMAPFileReader<T> {
+    type Output = T;
+    default fn get_values(&self, find: u64) -> Option<Vec<T>> {
+        get_u32_values_from_pointing_mmap_file(
+            //FIXME BUG BUG if file is not u32
+            find,
+            self.get_size(),
+            &self.start_and_end_file,
+            &self.data_file,
+        ).map(|el| el.iter().map(|el| NumCast::from(*el).unwrap()).collect())
+    }
+    fn get_keys(&self) -> Vec<T> {
+        (NumCast::from(0).unwrap()..NumCast::from(self.get_size()).unwrap()).collect()
+    }
+}
+
+#[inline(always)]
+fn get_u32_values_from_pointing_mmap_file(find: u64, size: usize, start_and_end_file: &Mmap, data_file: &Mmap) -> Option<Vec<u32>> {
+    debug_time!("get_u32_values_from_pointing_file");
+    if find >= size as u64 {
+        return None;
+    }
+
+    let start_pos = find as usize * 8;
+    let start = (&start_and_end_file[start_pos .. start_pos + 4]).read_u32::<LittleEndian>().unwrap();
+    let end = (&start_and_end_file[start_pos + 4 .. start_pos + 8]).read_u32::<LittleEndian>().unwrap();
+
+    if start == u32::MAX { //data encoded in indirect array
+        return Some(vec![end]);
+    }
+
+    if start == end {
+        return None;
+    }
+
+    debug_time!("mmap bytes_to_vec_u32");
+    Some(bytes_to_vec_u32(&data_file[start as usize * 4.. end as usize * 4]))
+}
+
+
+
+
+
+
+
+
+#[derive(Debug)]
+pub struct PointingArrayFileReader<T: IndexIdToParentData> {
+    pub start_and_end_file: Mutex<fs::File>,
+    pub data_file: Mutex<fs::File>,
+    pub start_and_end_: Mutex<fs::Metadata>,
+    pub ok: PhantomData<T>,
+    pub max_value_id: u32,
+    pub avg_join_size: f32,
+}
+
+impl<T: IndexIdToParentData> PointingArrayFileReader<T> {
+    pub fn new(start_and_end_file: fs::File, data_file: fs::File, start_and_end_: fs::Metadata, max_value_id: u32, avg_join_size: f32) -> Self {
+        PointingArrayFileReader {
+            start_and_end_file: Mutex::new(start_and_end_file),
+            data_file: Mutex::new(data_file),
+            start_and_end_: Mutex::new(start_and_end_),
+            ok: PhantomData,
+            max_value_id: max_value_id,
+            avg_join_size: avg_join_size,
+        }
+    }
+    fn get_size(&self) -> usize {
+        self.start_and_end_.lock().len() as usize / 8
     }
 }
 
@@ -697,16 +808,21 @@ impl IndexIdToParent for PointingArrayFileReader<u32> {
 
             let mut rdr = Cursor::new(&offsets);
 
-            let start = rdr.read_u32::<LittleEndian>().unwrap() * 4;
-            let end = rdr.read_u32::<LittleEndian>().unwrap() * 4;
+            let start = rdr.read_u32::<LittleEndian>().unwrap();
+            let end = rdr.read_u32::<LittleEndian>().unwrap();
+
+            if start == u32::MAX { //data encoded in indirect array
+                coll.add(end);
+                continue;
+            }
 
             if start == end {
                 continue;
             }
 
             // let mut data_bytes: Vec<u8> = Vec::with_capacity(end as usize - start as usize);
-            data_bytes.resize(end as usize - start as usize, 0);
-            load_bytes_into(&mut data_bytes, &*self.data_file.lock(), start as u64);
+            data_bytes.resize(end as usize * 4  - start as usize * 4 , 0);
+            load_bytes_into(&mut data_bytes, &*self.data_file.lock(), start as u64 * 4 );
 
             let mut rdr = Cursor::new(&data_bytes);
             while let Ok(id) = rdr.read_u32::<LittleEndian>() {
@@ -729,16 +845,20 @@ fn get_u32_values_from_pointing_file(find: u64, size: usize, start_and_end_file:
 
     let mut rdr = Cursor::new(offsets);
 
-    let start = rdr.read_u32::<LittleEndian>().unwrap() * 4;
-    let end = rdr.read_u32::<LittleEndian>().unwrap() * 4;
+    let start = rdr.read_u32::<LittleEndian>().unwrap();
+    let end = rdr.read_u32::<LittleEndian>().unwrap();
+
+    if start == u32::MAX { //data encoded in indirect array
+        return Some(vec![end]);
+    }
 
     if start == end {
         return None;
     }
 
     debug_time!("load_bytes_into & bytes_to_vec_u32");
-    let mut data_bytes: Vec<u8> = vec_with_size_uninitialized(end as usize - start as usize);
-    load_bytes_into(&mut data_bytes, &*data_file.lock(), start as u64);
+    let mut data_bytes: Vec<u8> = vec_with_size_uninitialized(end as usize * 4 - start as usize * 4);
+    load_bytes_into(&mut data_bytes, &*data_file.lock(), start as u64 * 4 );
     debug_time!("bytes_to_vec_u32");
     Some(bytes_to_vec_u32(&data_bytes))
 }
@@ -854,6 +974,11 @@ fn to_indirect_arrays_dedup<T: Integer + Clone + NumCast + mayda::utility::Bits 
     for valid in 0..=num::cast(last_id).unwrap() {
         let start = offset;
         if let Some(mut vals) = store.get_values(valid as u64) {
+            if vals.len() == 1 { // Special Case Decode value direct into start and end, start is u32::MAX and end is da value
+                start_and_end_pos[valid as usize * 2] = num::cast(u32::MAX).unwrap();
+                start_and_end_pos[(valid as usize * 2) + 1] = num::cast(vals[0]).unwrap();
+                continue;
+            }
             if sort_and_dedup {
                 vals.sort();
                 vals.dedup();
@@ -936,22 +1061,6 @@ mod tests {
     use rand;
     use persistence_data::*;
 
-    fn get_test_data_1_to_1() -> IndexIdToOneParent<u64> {
-        let values = vec![5, 6, 9, 9, 9, 50000];
-        IndexIdToOneParent { data: values }
-    }
-
-    fn check_test_data_1_to_1(store: &IndexIdToParent<Output = u64>) {
-        assert_eq!(store.get_keys(), vec![0, 1, 2, 3, 4, 5]);
-        assert_eq!(store.get_value(0).unwrap(), 5);
-        assert_eq!(store.get_value(1).unwrap(), 6);
-        assert_eq!(store.get_value(2).unwrap(), 9);
-        assert_eq!(store.get_value(3).unwrap(), 9);
-        assert_eq!(store.get_value(4).unwrap(), 9);
-        assert_eq!(store.get_value(5).unwrap(), 50000);
-        assert_eq!(store.get_value(6), None);
-    }
-
     fn get_test_data_1_to_n() -> ParallelArrays<u32> {
         let keys = vec![0, 0, 1, 2, 3, 3];
         let values = vec![5, 6, 9, 9, 9, 50000];
@@ -991,27 +1100,6 @@ mod tests {
     fn test_testdata() {
         let data = get_test_data_1_to_n();
         check_test_data_1_to_n(&data);
-    }
-
-    mod test_direct_1_to_1 {
-        use super::*;
-
-        #[test]
-        fn test_single_file_array() {
-            let store = get_test_data_1_to_1();
-
-            fs::create_dir_all("test_single_file_array").unwrap();
-            File::create("test_single_file_array/data")
-                .unwrap()
-                .write_all(&vec_to_bytes_u64(&store.data))
-                .unwrap();
-
-            let data_file = File::open(&get_file_path("test_single_file_array", "data")).unwrap();
-            let data_metadata = fs::metadata(&get_file_path("test_single_file_array", "data")).unwrap();
-            let store = SingleArrayFileReader::<u64>::new(data_file, data_metadata);
-            check_test_data_1_to_1(&store);
-        }
-
     }
 
     mod test_indirect {

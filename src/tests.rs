@@ -58,7 +58,7 @@ mod tests {
             },
             {
                 "commonness": 20,
-                "tags": ["nice", "cool"],
+                "tags": ["nice"],
                 "kanji": [
                     { "text": "意欲", "commonness": 40},
                     { "text": "意慾", "commonness": 0}
@@ -271,6 +271,7 @@ mod tests {
                     // Start up a test.
                     let indices = r#"
                     [
+                        { "facet":"tags[]"},
                         { "boost":"commonness" , "options":{"boost_type":"int"}},
                         { "fulltext":"ent_seq" },
                         { "boost":"field1[].rank" , "options":{"boost_type":"int"}},
@@ -493,7 +494,18 @@ mod tests {
             assert_eq!(hits.len(), 2);
         }
 
-        it "should search and boost"{
+        it "should find 2 values from token"{
+            let req = json!({
+                "search": {
+                    "terms":["意慾"],
+                    "path": "kanji[].text"
+                }
+            });
+
+            let hits = search_testo_to_doc(req).data;
+            assert_eq!(hits.len(), 2);
+        }
+        it "should search and boosto"{
             let req = json!({
                 "search": {
                     "terms":["意慾"],
@@ -752,7 +764,7 @@ mod tests {
             let hits = search_testo_to_doc(req);
             assert_eq!(hits.data.len(), 2);
             let facets = hits.facets.unwrap();
-            assert_eq!(facets.get("tags[]").unwrap(), &vec![("cool".to_string(), 2), ("nice".to_string(), 2)] );
+            assert_eq!(facets.get("tags[]").unwrap(), &vec![("nice".to_string(), 2), ("cool".to_string(), 1)] );
             assert_eq!(facets.get("commonness").unwrap(), &vec![("20".to_string(), 2)] );
         }
 
