@@ -22,9 +22,12 @@ use snap;
 #[allow(unused_imports)]
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 
+use facet::*;
+
 #[allow(unused_imports)]
 use mayda::{Access, AccessInto, Encode, Uniform};
 use parking_lot::Mutex;
+#[allow(unused_imports)]
 use lru_cache::LruCache;
 
 use std::io::Cursor;
@@ -32,6 +35,7 @@ use std::fs;
 #[allow(unused_imports)]
 use std::fmt::Debug;
 use num::cast::ToPrimitive;
+#[allow(unused_imports)]
 use num::{Integer, NumCast};
 use std::marker::PhantomData;
 
@@ -74,7 +78,7 @@ macro_rules! impl_type_info_single_templ {
 
 impl_type_info_single_templ!(IndexIdToMultipleParentCompressedMaydaDIRECT);
 impl_type_info_single_templ!(IndexIdToMultipleParent);
-impl_type_info_single_templ!(IndexIdToOneParentMayda);
+impl_type_info_single_templ!(IndexIdToOneParentMayda); // TODO ADD TESTST FOR IndexIdToOneParentMayda
 impl_type_info_single_templ!(IndexIdToOneParent);
 // impl_type_info_single_templ!(FSTToOneParent);
 impl_type_info_single_templ!(ParallelArrays);
@@ -224,7 +228,7 @@ impl<T: IndexIdToParentData> IndexIdToParent for IndexIdToOneParent<T> {
         let val = self.data.get(id as usize);
         match val {
             Some(val) => {
-                if val.to_u64().unwrap() == NOT_FOUND.to_u64().unwrap() {
+                if val.to_u32().unwrap() == u32::MAX {
                     None
                 } else {
                     Some(*val)
@@ -236,35 +240,49 @@ impl<T: IndexIdToParentData> IndexIdToParent for IndexIdToOneParent<T> {
     fn get_keys(&self) -> Vec<T> {
         (NumCast::from(0).unwrap()..NumCast::from(self.data.len()).unwrap()).collect()
     }
+
+    #[inline]
+    fn count_values_for_ids(&self, ids: &[u32], top: Option<u32>) -> FnvHashMap<T, usize> {
+        count_values_for_ids(ids, top, self.max_value_id, |id:u64| {self.get_value(id)})
+    }
 }
 
-// lazy_static! {
-//     static ref NOT_FOUND_U64: u64 = {
-//         let not_found_u64 = u32::MAX;
-//         let  yo = not_found_u64.to_u64().unwrap();
-//         yo
-//     };
-// }
+#[inline]
+fn count_values_for_ids<T: IndexIdToParentData, F>(ids: &[u32], top: Option<u32>, max_value_id: u32, get_value: F) -> FnvHashMap<T, usize>
+where
+    F: Fn(u64) -> Option<T>
+{
+    let mut coll: Box<AggregationCollector<T>> = get_collector(ids.len() as u32, 1.0, max_value_id);
+    for id in ids {
+        if let Some(hit) = get_value(*id as u64) {
+            coll.add(hit);
+        }
+    }
+    coll.to_map(top)
+}
 
 #[derive(Debug, HeapSizeOf)]
 pub struct IndexIdToOneParentMayda<T: IndexIdToParentData> {
     pub data: mayda::Uniform<T>,
     pub size: usize,
+    pub max_value_id: u32,
 }
 impl<T: IndexIdToParentData> IndexIdToOneParentMayda<T> {
     #[allow(dead_code)]
-    pub fn new(data: &IndexIdToParent<Output = T>) -> IndexIdToOneParentMayda<T> {
+    pub fn new(data: &IndexIdToParent<Output = T>, max_value_id: u32) -> IndexIdToOneParentMayda<T> {
         let yep = IndexIdToOneParent::new(data);
         IndexIdToOneParentMayda {
             size: yep.data.len(),
             data: to_uniform(&yep.data),
+            max_value_id
         }
     }
     #[allow(dead_code)]
-    pub fn from_vec(data: &Vec<T>) -> IndexIdToOneParentMayda<T> {
+    pub fn from_vec(data: &Vec<T>, max_value_id: u32) -> IndexIdToOneParentMayda<T> {
         IndexIdToOneParentMayda {
             size: data.len(),
             data: to_uniform(&data),
+            max_value_id
         }
     }
 }
@@ -287,13 +305,6 @@ impl<T: IndexIdToParentData> IndexIdToParent for IndexIdToOneParentMayda<T> {
             Some(val)
         }
 
-        // let not_found_u64 = u32::MAX;
-        // let yo = not_found_u64.to_u64().unwrap();
-
-        // match val.to_u64().unwrap() {
-        //     yo => None,
-        //     _ => Some(val),
-        // }
     }
     #[inline]
     fn get_mutliple_value(&self, range: std::ops::RangeInclusive<usize>) -> Option<Vec<T>> {
@@ -301,6 +312,10 @@ impl<T: IndexIdToParentData> IndexIdToParent for IndexIdToOneParentMayda<T> {
     }
     fn get_keys(&self) -> Vec<T> {
         (NumCast::from(0).unwrap()..NumCast::from(self.data.len()).unwrap()).collect()
+    }
+    #[inline]
+    fn count_values_for_ids(&self, ids: &[u32], top: Option<u32>) -> FnvHashMap<T, usize> {
+        count_values_for_ids(ids, top, self.max_value_id, |id:u64| {self.get_value(id)})
     }
 }
 
@@ -413,9 +428,6 @@ impl<T: IndexIdToParentData> SingleArrayFileReader<T> {
             ok: PhantomData,
         }
     }
-    // default fn get_size(&self) -> usize {
-    //     unimplemented!()
-    // }
 }
 impl<T: IndexIdToParentData> GetSize for SingleArrayFileReader<T> {
     default fn get_size(&self) -> usize {

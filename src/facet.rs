@@ -3,7 +3,7 @@ use search::*;
 use search_field::*;
 use util;
 use itertools::Itertools;
-
+use num::{Integer, NumCast};
 use fnv::FnvHashMap;
 
 pub fn get_top_facet_group<T: IndexIdToParentData>(hits: FnvHashMap<T, usize>, top: Option<usize>) -> Vec<(T, u32)> {
@@ -132,3 +132,96 @@ pub fn join_for_n_to_n(persistence: &Persistence, value_ids: &Vec<u32>, path: &s
         .collect())
     // Ok(kv_store.get_values(value_id as u64))
 }
+
+
+
+
+pub trait AggregationCollector<T: IndexIdToParentData> {
+    fn add(&mut self, id: T);
+    fn to_map(self: Box<Self>, top: Option<u32>) -> FnvHashMap<T, usize>;
+}
+
+pub fn get_collector<T: 'static + IndexIdToParentData>(num_ids: u32, avg_join_size: f32, max_value_id: u32) -> Box<AggregationCollector<T>> {
+    let num_inserts = (num_ids as f32 * avg_join_size) as u32;
+    let vec_len = max_value_id + 1;
+
+    let prefer_vec = num_inserts * 20 > vec_len;
+    debug!("prefer_vec {} {}>{}", prefer_vec, num_inserts * 20, vec_len);
+
+    if prefer_vec {
+        let mut dat = vec![];
+        dat.resize(vec_len as usize, T::zero());
+        return Box::new(dat);
+    } else {
+        return Box::new(FnvHashMap::default());
+    };
+}
+
+use std::cmp::Ordering;
+fn get_top_n_sort<T: IndexIdToParentData>(dat: &Vec<T>, top: usize) -> Vec<(usize, T)> {
+    let mut top_n: Vec<(usize, T)> = vec![];
+
+    let mut current_worst = T::zero();
+    for el in dat.iter().enumerate().filter(|el| *el.1 != T::zero()) {
+        if *el.1 < current_worst {
+            continue;
+        }
+
+        if !top_n.is_empty() && (top_n.len() % (top * 5)) == 0 {
+            top_n.sort_unstable_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(Ordering::Equal));
+            top_n.truncate(top);
+            current_worst = top_n.last().unwrap().1;
+            trace!("facet new worst {:?}", current_worst);
+        }
+
+        top_n.push((el.0, *el.1));
+    }
+    top_n
+}
+
+impl<T: IndexIdToParentData> AggregationCollector<T> for Vec<T> {
+    fn add(&mut self, id: T) {
+        unsafe {
+            let elem = self.get_unchecked_mut(id.to_usize().unwrap());
+            *elem = *elem + T::one();
+        }
+    }
+    fn to_map(self: Box<Self>, top: Option<u32>) -> FnvHashMap<T, usize> {
+        debug_time!("aggregation vec to_map");
+
+        if top.is_some() && top.unwrap() > 0 {
+            get_top_n_sort(&self, top.unwrap() as usize)
+                .into_iter()
+                .map(|el| (NumCast::from(el.0).unwrap(), NumCast::from(el.1).unwrap()))
+                .collect()
+        } else {
+            let mut groups: Vec<(u32, T)> = self.iter()
+                .enumerate()
+                .filter(|el| *el.1 != T::zero())
+                .map(|el| (el.0 as u32, *el.1))
+                .collect();
+            groups.sort_by(|a, b| b.1.cmp(&a.1));
+            // groups = apply_top_skip(groups, 0, top.unwrap_or(std::u32::MAX) as usize);
+            groups
+                .into_iter()
+                .map(|el| (NumCast::from(el.0).unwrap(), NumCast::from(el.1).unwrap()))
+                .collect()
+        }
+    }
+}
+
+impl<T: IndexIdToParentData> AggregationCollector<T> for FnvHashMap<T, usize> {
+    fn add(&mut self, id: T) {
+        let stat = self.entry(id).or_insert(0);
+        *stat += 1;
+    }
+
+    fn to_map(self: Box<Self>, _top: Option<u32>) -> FnvHashMap<T, usize> {
+        *self
+    }
+}
+
+
+
+
+

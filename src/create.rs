@@ -199,10 +199,10 @@ fn store_full_text_info(persistence: &mut Persistence, all_terms: FnvHashMap<Str
         path,
         sorted_terms
             .iter()
-            .fold(String::new(), |acc, line| acc + line + "\n")
+            .fold(String::with_capacity(sorted_terms.len()*10), |acc, line| acc + line + "\n")
             .as_bytes(),
     )?;
-    let offsets = get_string_offsets(sorted_terms);
+    let offsets = get_string_offsets(&sorted_terms);
 
     //TEST FST AS ID MAPPER
     // let mut offsets_fst: FnvHashMap<String, TermInfo> = FnvHashMap::default();
@@ -222,7 +222,7 @@ fn store_full_text_info(persistence: &mut Persistence, all_terms: FnvHashMap<Str
         &concat(&path, ".offsets"),
     )?; // String byte offsets
         // persistence.write_index(&all_terms.iter().map(|ref el| el.len() as u32).collect::<Vec<_>>(), &concat(path, ".length"))?;
-    store_fst(persistence, &all_terms, path).expect("Could not store fst"); // @FixMe handle result
+    store_fst(persistence, &all_terms, sorted_terms, path).expect("Could not store fst"); // @FixMe handle result
                                                                             // create_char_offsets(&all_terms, &concat(&path, ""), &mut persistence)?;
     persistence
         .meta_data
@@ -231,16 +231,16 @@ fn store_full_text_info(persistence: &mut Persistence, all_terms: FnvHashMap<Str
     Ok(())
 }
 
-fn store_fst(persistence: &mut Persistence, all_terms: &FnvHashMap<String, TermInfo>, path: &str) -> Result<(), fst::Error> {
+fn store_fst(persistence: &mut Persistence, all_terms: &FnvHashMap<String, TermInfo>, sorted_terms: Vec<&String>, path: &str) -> Result<(), fst::Error> {
     debug_time!(format!("store_fst {:?}", path));
     let wtr = persistence.get_buffered_writer(&concat(&path, ".fst"))?;
     // Create a builder that can be used to insert new key-value pairs.
     let mut build = MapBuilder::new(wtr)?;
 
-    let mut v: Vec<&String> = all_terms.keys().collect::<Vec<&String>>();
-    v.sort();
-    for term in v.iter() {
-        let term_info = all_terms.get(term.clone()).expect("wtf");
+    // let mut v: Vec<&String> = all_terms.keys().collect::<Vec<&String>>();
+    // v.sort();
+    for term in sorted_terms{
+        let term_info = all_terms.get(term).expect("wtf");
         build
             .insert(term, term_info.id as u64)
             .expect("could not insert into fst");
@@ -766,7 +766,7 @@ pub fn create_fulltext_index(data: &Value, mut persistence: &mut Persistence, in
     Ok(())
 }
 
-fn get_string_offsets(data: Vec<&String>) -> Vec<u64> {
+fn get_string_offsets(data: &Vec<&String>) -> Vec<u64> {
     let mut offsets = vec![];
     let mut offset = 0;
     for el in data {

@@ -47,7 +47,7 @@ use iron::{headers, status};
 use iron::modifiers::Header;
 use urlencoded::UrlEncodedQuery;
 
-use multipart::server::{Entries, Multipart, SaveResult, SavedFile};
+use multipart::server::{Entries, Multipart, SaveResult, SavedField};
 use iron::mime::{SubLevel, TopLevel};
 
 use time::precise_time_ns;
@@ -540,18 +540,18 @@ pub fn start_server() {
 
     #[flame]
     fn handle_db_insert(enable_flame: bool, entries: Entries, database: String) -> IronResult<Response> {
-        if entries.files.len() != 1 {
+        if entries.fields.len() != 1 {
             return Ok(Response::with((
                 status::BadRequest,
                 format!(
                     "only single file uploads supported, but got {} entries",
-                    entries.files.len()
+                    entries.fields.len()
                 ),
             )));
         }
 
-        let entry = entries.files.iter().last().unwrap();
-        println!("Field {:?} has {} files:", entry.0, entry.1.len());
+        let entry = entries.fields.iter().last().unwrap();
+        println!("Field {:?} has {} fields:", entry.0, entry.1.len());
         if entry.1.len() != 1 {
             return Ok(Response::with((
                 status::BadRequest,
@@ -604,22 +604,11 @@ pub fn start_server() {
         }
     }
 
-    fn get_multipart_file_contents(saved_file: &SavedFile) -> IronResult<(String)> {
-        let mut file = match File::open(&saved_file.path) {
-            Ok(file) => file,
-            Err(error) => {
-                return Err(IronError::new(
-                    error,
-                    (
-                        status::InternalServerError,
-                        "Server couldn't open saved file",
-                    ),
-                ))
-            }
-        };
-
+    fn get_multipart_file_contents(saved_file: &SavedField) -> IronResult<(String)> {
         let mut contents = String::new();
-        if let Err(error) = file.read_to_string(&mut contents) {
+        // saved_file.data.readable();
+
+        if let Err(error) = saved_file.data.readable().unwrap().read_to_string(&mut contents) {
             return Err(IronError::new(
                 error,
                 (status::BadRequest, "The file was not a text"),
@@ -627,8 +616,35 @@ pub fn start_server() {
         }
         println!(
             "File {:?} ({:?}):",
-            saved_file.filename, saved_file.content_type
+            saved_file.headers.filename, saved_file.headers.content_type
         );
         Ok(contents)
+
+
+        // let mut file = match File::open(&saved_file.path) {
+        //     Ok(file) => file,
+        //     Err(error) => {
+        //         return Err(IronError::new(
+        //             error,
+        //             (
+        //                 status::InternalServerError,
+        //                 "Server couldn't open saved file",
+        //             ),
+        //         ))
+        //     }
+        // };
+
+        // let mut contents = String::new();
+        // if let Err(error) = file.read_to_string(&mut contents) {
+        //     return Err(IronError::new(
+        //         error,
+        //         (status::BadRequest, "The file was not a text"),
+        //     ));
+        // }
+        // println!(
+        //     "File {:?} ({:?}):",
+        //     saved_file.filename, saved_file.content_type
+        // );
+        // Ok(contents)
     }
 }
