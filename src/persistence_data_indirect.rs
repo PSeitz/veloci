@@ -748,6 +748,8 @@ impl IndexIdToParent for PointingArrayFileReader<u32> {
     }
 }
 
+use std::mem;
+
 #[inline(always)]
 fn get_u32_values_from_pointing_file(find: u64, size: usize, start_and_end_file: &Mutex<fs::File>, data_file: &Mutex<fs::File>) -> Option<Vec<u32>> {
     debug_time!("get_u32_values_from_pointing_file");
@@ -772,11 +774,33 @@ fn get_u32_values_from_pointing_file(find: u64, size: usize, start_and_end_file:
     }
 
     debug_time!("load_bytes_into & bytes_to_vec_u32");
-    let mut data_bytes: Vec<u8> = vec_with_size_uninitialized(end as usize * 4 - start as usize * 4);
-    load_bytes_into(&mut data_bytes, &*data_file.lock(), start as u64 * 4 );
-    debug_time!("bytes_to_vec_u32");
-    Some(bytes_to_vec_u32(&data_bytes))
+    // let mut data_bytes: Vec<u8> = vec_with_size_uninitialized(end as usize * 4 - start as usize * 4);
+    // let mut data: Vec<u32> = vec_with_size_uninitialized(end as usize - start as usize);
+    // {
+
+    //     let p = data.as_mut_ptr();
+    //     let len = data.len();
+    //     let cap = data.capacity();
+
+    //     unsafe {
+    //         // complete control of the allocation to which `p` points.
+    //         let ptr = std::mem::transmute::<*mut u32, *mut u8>(p);
+    //         let mut data_bytes = Vec::from_raw_parts(ptr, len*4, cap);
+            
+    //         load_bytes_into(&mut data_bytes, &*data_file.lock(), start as u64 * 4 ); //READ directly into u32 data
+
+    //         // forget about temp data_bytes: no destructor run, so we can use data again
+    //         mem::forget(data_bytes);
+    //     }
+    // }
+    // Some(data)
+
+    Some(get_my_data_danger_zooone(start, end, data_file))
+    // debug_time!("bytes_to_vec_u32");
+    // Some(transmute_bytes_to_vec_u32(data_bytes))
 }
+
+
 
 pub fn id_to_parent_to_array_of_array<T: IndexIdToParentData>(store: &IndexIdToParent<Output = T>) -> Vec<Vec<T>> {
     let mut data: Vec<Vec<T>> = prepare_data_for_array_of_array(store, &Vec::new);
@@ -967,15 +991,6 @@ pub fn id_to_parent_to_array_of_array_mayda_indirect_one_reuse_existing<T: Integ
 
 use std::u32;
 
-fn load_bytes_into(buffer: &mut Vec<u8>, mut file: &File, offset: u64) {
-    // let mut reader = std::io::BufReader::new(file);
-    // reader.seek(SeekFrom::Start(offset)).unwrap();
-    // reader.read_exact(buffer).unwrap();
-
-    // @Temporary Use Result
-    file.seek(SeekFrom::Start(offset)).unwrap();
-    file.read_exact(buffer).unwrap();
-}
 
 #[cfg(test)]
 mod tests {

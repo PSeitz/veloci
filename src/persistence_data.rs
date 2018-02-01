@@ -632,12 +632,6 @@ fn load_bytes(file: &File, offset: u64, num_bytes: usize) -> Vec<u8> {
     data
 }
 
-fn load_bytes_into(buffer: &mut Vec<u8>, mut file: &File, offset: u64) {
-    // @Temporary Use Result
-    file.seek(SeekFrom::Start(offset)).unwrap();
-    file.read_exact(buffer).unwrap();
-}
-
 #[flame]
 pub fn valid_pair_to_parallel_arrays<T: IndexIdToParentData>(tuples: &mut Vec<create::ValIdPair>) -> ParallelArrays<T> {
     tuples.sort_by(|a, b| a.valid.partial_cmp(&b.valid).unwrap_or(Ordering::Equal));

@@ -1069,13 +1069,43 @@ pub fn vec_to_bytes_u64(data: &Vec<u64>) -> Vec<u8> {
 }
 
 pub fn bytes_to_vec_u32(data: &[u8]) -> Vec<u32> {
-    let mut out_dat = vec_with_size_uninitialized(data.len() / std::mem::size_of::<u32>());
-    LittleEndian::read_u32_into(&data, &mut out_dat);
+    let mut out_dat:Vec<u32> = vec_with_size_uninitialized(data.len() / std::mem::size_of::<u32>());
+    // LittleEndian::read_u32_into(&data, &mut out_dat);
+    unsafe{
+
+        //DANGER ZIOONNE
+        let ptr = std::mem::transmute::<*const u8, *const u32>(data.as_ptr());
+        ptr.copy_to_nonoverlapping(out_dat.as_mut_ptr(), data.len() / std::mem::size_of::<u32>());
+    }
     out_dat
+}
+pub fn transmute_bytes_to_vec_u32(mut data: Vec<u8>) -> Vec<u32> {
+
+    // Pull out the various important pieces of information about `v`
+    let p = data.as_mut_ptr();
+    let len = data.len();
+    let cap = data.capacity();
+
+    unsafe {
+        // Cast `v` into the void: no destructor run, so we are in
+        // complete control of the allocation to which `p` points.
+        mem::forget(data);
+        let ptr = std::mem::transmute::<*mut u8, *mut u32>(p);
+        // Put everything back together into a Vec
+        let mut vec = Vec::from_raw_parts(ptr, len, cap);
+        
+        vec.set_len(len/4);
+        vec
+    }
+
 }
 pub fn bytes_to_vec_u64(data: &[u8]) -> Vec<u64> {
     let mut out_dat = vec_with_size_uninitialized(data.len() / std::mem::size_of::<u64>());
-    LittleEndian::read_u64_into(&data, &mut out_dat);
+    // LittleEndian::read_u64_into(&data, &mut out_dat);
+    unsafe{
+        let ptr = std::mem::transmute::<*const u8, *const u64>(data.as_ptr());
+        ptr.copy_to_nonoverlapping(out_dat.as_mut_ptr(), data.len() / std::mem::size_of::<u64>());
+    }
     out_dat
 }
 

@@ -1,3 +1,4 @@
+#![feature(pointer_methods)]
 #![feature(splice)]
 #![feature(entry_and_modify)]
 #![recursion_limit = "128"]

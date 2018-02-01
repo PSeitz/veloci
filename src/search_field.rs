@@ -602,7 +602,7 @@ pub fn resolve_token_hits(
     let mut token_hits: Vec<(u32, f32, u32)> = vec![];
     // let mut anchor_hits = FnvHashMap::default();
     {
-        //HASHMAP VERSION
+        //VEC VERSION
         debug_time!(format!("{} adding parent_id from tokens", token_path));
         for hit in result.hits_vec.iter() {
             // let ref parent_ids_for_token_opt = token_kvdata.get(*value_id as usize);

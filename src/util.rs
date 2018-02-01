@@ -2,8 +2,12 @@ use regex::Regex;
 use std::io::prelude::*;
 use std::io;
 use fnv::FnvHashMap;
-// use std::mem;
+use std::mem;
+use std::io::prelude::*;
 use std::fs::File;
+use std::fs;
+use std::io::SeekFrom;
+use parking_lot::Mutex;
 // use std;
 #[allow(unused_imports)]
 use std;
@@ -101,6 +105,39 @@ pub fn vec_with_size_uninitialized<T>(size:usize) -> Vec<T> {
     }
     buffer
 }
+
+pub fn get_my_data_danger_zooone(start: u32, end: u32, data_file: &Mutex<fs::File>) -> Vec<u32> {
+    let mut data: Vec<u32> = vec_with_size_uninitialized(end as usize - start as usize);
+    {
+
+        let p = data.as_mut_ptr();
+        let len = data.len();
+        let cap = data.capacity();
+
+        unsafe {
+            // complete control of the allocation to which `p` points.
+            let ptr = std::mem::transmute::<*mut u32, *mut u8>(p);
+            let mut data_bytes = Vec::from_raw_parts(ptr, len*4, cap);
+            
+            load_bytes_into(&mut data_bytes, &*data_file.lock(), start as u64 * 4 ); //READ directly into u32 data
+
+            // forget about temp data_bytes: no destructor run, so we can use data again
+            mem::forget(data_bytes);
+        }
+    }
+    data
+}
+
+pub fn load_bytes_into(buffer: &mut Vec<u8>, mut file: &File, offset: u64) {
+    // let mut reader = std::io::BufReader::new(file);
+    // reader.seek(SeekFrom::Start(offset)).unwrap();
+    // reader.read_exact(buffer).unwrap();
+
+    // @Temporary Use Result
+    file.seek(SeekFrom::Start(offset)).unwrap();
+    file.read_exact(buffer).unwrap();
+}
+
 
 pub fn extract_field_name(field: &str) -> String {
     field
