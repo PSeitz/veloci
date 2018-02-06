@@ -1,7 +1,5 @@
 use std;
 use std::fs::File;
-use std::io::prelude::*;
-use std::io::SeekFrom;
 use std::cmp::Ordering;
 
 #[allow(unused_imports)]
@@ -43,6 +41,7 @@ use std::marker::PhantomData;
 use fnv::FnvHashMap;
 #[allow(unused_imports)]
 use fnv::FnvHashSet;
+use std::u32;
 
 pub trait TypeInfo: Sync + Send {
     fn type_name(&self) -> String;
@@ -617,11 +616,6 @@ pub fn to_monotone<T: mayda::utility::Bits>(data: &Vec<T>) -> mayda::Monotone<T>
     uniform
 }
 
-use num;
-
-
-use std::u32;
-
 
 
 
@@ -730,7 +724,7 @@ mod tests {
 
     mod test_direct_1_to_1 {
         use super::*;
-
+        use std::io::prelude::*;
         #[test]
         fn test_index_id_to_parent_im() {
             let store = get_test_data_1_to_1::<u32>();

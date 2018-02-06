@@ -3,7 +3,7 @@ use search::*;
 use search_field::*;
 use util;
 use itertools::Itertools;
-use num::{Integer, NumCast};
+use num::{NumCast};
 use fnv::FnvHashMap;
 
 pub fn get_top_facet_group<T: IndexIdToParentData>(hits: FnvHashMap<T, usize>, top: Option<usize>) -> Vec<(T, u32)> {

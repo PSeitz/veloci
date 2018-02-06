@@ -233,7 +233,6 @@ mod tests {
 
     #[test]
     fn test_json_request() {
-        warn!("can log from the test too");
         let requesto: search::Request = serde_json::from_str(r#"{"search":{"path":"asdf", "terms":[ "asdf"], "levenshtein_distance":1}}"#).unwrap();
         println!("mjjaaa {:?}", requesto);
         assert_eq!(requesto.search.unwrap().levenshtein_distance, Some(1));
@@ -362,8 +361,6 @@ mod tests {
                 }
             });
             let hits = search_testo_to_doc(req).data;
-
-            // println!("hits {:?}", hits);
             assert_eq!(hits.len(), 1);
             assert_eq!(hits[0].doc["ent_seq"], "1587680");
         }
@@ -378,7 +375,6 @@ mod tests {
                 }
             });
             let wa = search_testo_to_doc(req).data;
-            // assert_eq!(wa.len(), 11);
             assert_eq!(wa[0].doc["meanings"]["eng"][0], "will");
         }
 
@@ -392,7 +388,6 @@ mod tests {
                 }
             });
             let wa = search_testo_to_doc(req).data;
-            // assert_eq!(wa.len(), 11);
             assert_eq!(wa[0].doc["meanings"]["eng"][0], "will");
         }
 
@@ -793,20 +788,23 @@ mod tests {
                                                         "kana[].commonness".to_string(),
                                                         "kana[].romaji".to_string(),
                                                         "address[].line[]".to_string()]).unwrap();
-            println!("YEEEYYY");
-            println!("{}", yay);
-
-
-            // assert_eq!(hits[0].doc["meanings"]["ger"][0], "majestätischer Anblick (m)");
+            assert_eq!(yay, json!({
+                "address": [
+                    {"line": ["nuts strees"] },
+                    {"line": ["asdf"] }
+                ],
+                "commonness": "500",
+                "ent_seq": "1587700",
+                "ger": ["der test", "das ist ein guter Treffer"],
+                "kana": [{"text": "いよく"} ]
+            }));
         }
 
 
         it "facet"{
-
             let pers = PERSISTENCES.get(&"default".to_string()).unwrap();
-
             let yep = facet::get_facet(&pers, &search::FacetRequest{field:"tags[]".to_string(), top:Some(10)}, &vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
-            println!("{:?}", yep);
+            assert_eq!(yep.unwrap(), vec![("nice".to_string(), 8), ("cool".to_string(), 8), ("awesome".to_string(), 1), ("coolo".to_string(), 1), ("Eis".to_string(), 1)] );
         }
 
         //MUTLI TERMS

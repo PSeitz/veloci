@@ -88,7 +88,6 @@ where
     // f.read_to_end(&mut buffer)?;
     // buffer.shrink_to_fit();
     // let map = try!(Map::from_bytes(buffer));
-
     // let map = persistence.get_fst(&options.path)?;
 
     let map = persistence
@@ -410,11 +409,11 @@ fn get_hits_in_field_one_term(persistence: &Persistence, options: &RequestSearch
             fast_field_res.len()
         );
 
-        {
-            debug_time!(format!("{} fast_field sort and dedup", &options.path));
-            fast_field_res.sort_unstable_by(|a, b| b.id.partial_cmp(&a.id).unwrap_or(Ordering::Equal)); //TODO presort data in persistence, k_merge token_hits
-            fast_field_res.dedup_by_key(|b| b.id); // TODO FixMe Score
-        }
+        // {
+        //     debug_time!(format!("{} fast_field sort and dedup", &options.path));
+        //     fast_field_res.sort_unstable_by(|a, b| b.id.partial_cmp(&a.id).unwrap_or(Ordering::Equal)); //TODO presort data in persistence, k_merge token_hits
+        //     fast_field_res.dedup_by_key(|b| b.id); // TODO FixMe Score
+        // }
 
         result.hits_vec = fast_field_res;
 

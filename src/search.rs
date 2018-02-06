@@ -315,10 +315,9 @@ pub fn search(mut request: Request, persistence: &Persistence) -> Result<SearchR
         //TODO extract only top n
         res.hits_vec
             .sort_unstable_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(Ordering::Equal)); //TODO Add sort by id when equal
-
         search_result.data = res.hits_vec;
     } else {
-        search_result.data = hits_to_sorted_array(res.hits);
+        search_result.data = hits_to_sorted_array(res.hits); // OBSOLETE
     }
     search_result.num_hits = search_result.data.len() as u64;
 
@@ -1129,7 +1128,7 @@ pub fn read_tree(persistence: &Persistence, id: u32, tree: NodeTree) -> Result<s
     Ok(json)
 }
 
-pub fn read_data(persistence: &Persistence, id: u32, fields: Vec<String>) -> Result<String, SearchError> {
+pub fn read_data(persistence: &Persistence, id: u32, fields: Vec<String>) -> Result<serde_json::Value, SearchError> {
     // let all_steps: FnvHashMap<String, Vec<String>> = fields.iter().map(|field| (field.clone(), util::get_steps_to_anchor(&field))).collect();
     let all_steps: Vec<Vec<String>> = fields
         .iter()
@@ -1140,8 +1139,8 @@ pub fn read_data(persistence: &Persistence, id: u32, fields: Vec<String>) -> Res
 
     let tree = to_node_tree(all_steps);
 
-    let dat = read_tree(persistence, id, tree)?;
-    Ok(serde_json::to_string_pretty(&dat).unwrap())
+    read_tree(persistence, id, tree)
+    // Ok(serde_json::to_string_pretty(&dat).unwrap())
 }
 
 #[flame]

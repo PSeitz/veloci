@@ -1,8 +1,4 @@
 use std;
-use std::fs::File;
-use std::io::prelude::*;
-use std::io::SeekFrom;
-
 #[allow(unused_imports)]
 use heapsize::{heap_size_of, HeapSizeOf};
 #[allow(unused_imports)]
@@ -748,8 +744,6 @@ impl IndexIdToParent for PointingArrayFileReader<u32> {
     }
 }
 
-use std::mem;
-
 #[inline(always)]
 fn get_u32_values_from_pointing_file(find: u64, size: usize, start_and_end_file: &Mutex<fs::File>, data_file: &Mutex<fs::File>) -> Option<Vec<u32>> {
     debug_time!("get_u32_values_from_pointing_file");
@@ -997,6 +991,7 @@ mod tests {
     use test;
     use super::*;
     use rand;
+    use std::fs::File;
     use persistence_data::*;
 
     fn get_test_data_1_to_n() -> ParallelArrays<u32> {
@@ -1042,6 +1037,7 @@ mod tests {
 
     mod test_indirect {
         use super::*;
+        use std::io::prelude::*;
         use rand::distributions::{IndependentSample, Range};
         #[test]
         fn test_pointing_file_array() {
@@ -1105,7 +1101,6 @@ mod tests {
 
                 for _i in 0..num_values {
                     keys.push(x as u32);
-                    // values.push(pseudo_rand((x as u32 * i as u32) as u32));
                     values.push(between.ind_sample(&mut rng) as u32);
                 }
             }

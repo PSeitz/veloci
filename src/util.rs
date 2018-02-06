@@ -3,7 +3,6 @@ use std::io::prelude::*;
 use std::io;
 use fnv::FnvHashMap;
 use std::mem;
-use std::io::prelude::*;
 use std::fs::File;
 use std::fs;
 use std::io::SeekFrom;

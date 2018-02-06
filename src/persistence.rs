@@ -367,7 +367,7 @@ impl Persistence {
             table.add_row(row![row.1, row.2, get_readable_size(row.0)]);
         }
 
-        info!("{}", table);
+        println!("{}", table);
     }
 
     #[flame]
@@ -618,11 +618,14 @@ impl Persistence {
 
     #[flame]
     pub fn load_fst(&self, path: &str) -> Result<Map, search::SearchError> {
-        let mut f = self.get_file_handle(&(path.to_string() + ".fst"))?;
-        let mut buffer: Vec<u8> = Vec::new();
-        f.read_to_end(&mut buffer)?;
-        buffer.shrink_to_fit();
-        Ok(Map::from_bytes(buffer)?)
+        unsafe{
+            Ok(Map::from_path(&get_file_path(&self.db, &(path.to_string() + ".fst")))?) //(path.to_string() + ".fst"))?)
+        }
+        // let mut f = self.get_file_handle(&(path.to_string() + ".fst"))?;
+        // let mut buffer: Vec<u8> = Vec::new();
+        // f.read_to_end(&mut buffer)?;
+        // buffer.shrink_to_fit();
+        // Ok(Map::from_bytes(buffer)?)
     }
 
     #[flame]
@@ -1093,7 +1096,7 @@ pub fn transmute_bytes_to_vec_u32(mut data: Vec<u8>) -> Vec<u32> {
         let ptr = std::mem::transmute::<*mut u8, *mut u32>(p);
         // Put everything back together into a Vec
         let mut vec = Vec::from_raw_parts(ptr, len, cap);
-        
+
         vec.set_len(len/4);
         vec
     }
