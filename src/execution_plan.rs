@@ -244,7 +244,7 @@ pub fn plan_creator_search_part(mut request: RequestSearchPart, mut boost: Optio
             plans_output: rx.clone(),
             input_prev_steps: vec![field_rx],
             output_next_steps: tx.clone(),
-            path: concat(&paths.last().unwrap(), ".valueIdToParent"),
+            path: concat(paths.last().unwrap(), ".valueIdToParent"),
             trace_info: "term hits hit to column".to_string(),
         });
 

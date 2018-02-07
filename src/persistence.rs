@@ -156,7 +156,6 @@ where
 pub trait IndexIdToParent: Debug + HeapSizeOf + Sync + Send + persistence_data::TypeInfo {
     type Output: IndexIdToParentData;
 
-    #[inline]
     fn get_values(&self, id: u64) -> Option<Vec<Self::Output>>;
 
     #[inline]
@@ -481,9 +480,9 @@ impl Persistence {
     }
 
     #[flame]
-    pub fn write_index<T: Clone + Integer + NumCast + Copy + Debug>(&mut self, bytes: &Vec<u8>, data: &Vec<T>, path: &str) -> Result<(), io::Error> {
+    pub fn write_index<T: Clone + Integer + NumCast + Copy + Debug>(&mut self, bytes: &[u8], data: &[T], path: &str) -> Result<(), io::Error> {
         info_time!(format!("Wrote Index {} With size {:?}", path, data.len()));
-        File::create(util::get_file_path(&self.db, path))?.write_all(&bytes)?;
+        File::create(util::get_file_path(&self.db, path))?.write_all(bytes)?;
         info!("Wrote Index {} With size {:?}", path, data.len());
         trace!("{:?}", data);
         let sizo = match mem::size_of::<T>() {
@@ -497,7 +496,7 @@ impl Persistence {
                 path: path.to_string(),
                 size: data.len() as u64,
                 id_type: sizo,
-                doc_id_type: check_is_docid_type(&data),
+                doc_id_type: check_is_docid_type(data),
             },
         );
         Ok(())
@@ -540,9 +539,9 @@ impl Persistence {
     }
 
     #[flame]
-    pub fn write_json_to_disk(&mut self, arro: &Vec<Value>, path: &str) -> Result<(), io::Error> {
+    pub fn write_json_to_disk(&mut self, arro: &[Value], path: &str) -> Result<(), io::Error> {
         let mut offsets = vec![];
-        let mut buffer = File::create(&get_file_path(&self.db, &path))?;
+        let mut buffer = File::create(&get_file_path(&self.db, path))?;
         let mut current_offset = 0;
         // let arro = data.as_array().unwrap();
         for el in arro {
@@ -632,8 +631,7 @@ impl Persistence {
     pub fn get_fst(&self, path: &str) -> Result<&Map, search::SearchError> {
         self.cache
             .fst
-            .get(path)
-            .ok_or(From::from(format!("{} does not exist", path)))
+            .get(path).ok_or_else(|| From::from(format!("{} does not exist", path)))
     }
 
     // pub fn get_create_char_offset_info(&self, path: &str,character: &str) -> Result<Option<OffsetInfo>, search::SearchError> { // @Temporary - replace SearchError
@@ -664,7 +662,7 @@ impl Persistence {
         //         Ok(())
         //     }
 
-        for el in self.meta_data.key_value_stores.iter(){
+        for el in &self.meta_data.key_value_stores{
             self.lru_cache.insert(el.path.clone(), LruCache::with_capacity(0));
         }
 
@@ -704,7 +702,6 @@ impl Persistence {
                                     el.path.to_string(),
                                     Box::new(store) as Box<IndexIdToParent<Output = u32>>,
                                 ));
-
                             },
                             KVStoreType::ParallelArrays => panic!("WAAAAAAA"),
                             KVStoreType::IndexIdToOneParent => {
@@ -718,7 +715,6 @@ impl Persistence {
                                     el.path.to_string(),
                                     Box::new(store) as Box<IndexIdToParent<Output = u32>>,
                                 ));
-
                             },
                         }
 
@@ -745,8 +741,7 @@ impl Persistence {
                                     el.path.to_string(),
                                     Box::new(store) as Box<IndexIdToParent<Output = u32>>,
                                 ));
-
-                                // if el.is_1_to_n {
+                                //if el.is_1_to_n {
                                 //     return Ok((el.path.to_string(), Box::new(store) as Box<IndexIdToParent<Output = u32>> ));
                                 // } else {
                                 //     return Ok((el.path.to_string(), Box::new(IndexIdToOneParentMayda::<u32>::new(&store)) as Box<IndexIdToParent<Output = u32>> ));
@@ -764,7 +759,6 @@ impl Persistence {
                                     el.path.to_string(),
                                     Box::new(store) as Box<IndexIdToParent<Output = u32>>,
                                 ));
-
                             },
                         }
 
@@ -886,7 +880,6 @@ impl Persistence {
                                     el.path.to_string(),
                                     Box::new(store) as Box<IndexIdToParent<Output = u32>>,
                                 ));
-
                             },
                             KVStoreType::ParallelArrays => panic!("WAAAAAAA"),
                             KVStoreType::IndexIdToOneParent => {
@@ -898,7 +891,6 @@ impl Persistence {
                                     el.path.to_string(),
                                     Box::new(store) as Box<IndexIdToParent<Output = u32>>,
                                 ));
-
                             },
                         }
 
@@ -947,8 +939,8 @@ impl Persistence {
                 );
             }
             LoadingType::Disk => {
-                let data_file = self.get_file_handle(&path)?;
-                let data_metadata = self.get_file_metadata_handle(&path)?;
+                let data_file = self.get_file_handle(path)?;
+                let data_metadata = self.get_file_metadata_handle(path)?;
 
                 self.cache.index_64.insert(
                     path.to_string(),
@@ -1060,14 +1052,14 @@ fn load_type_from_env() -> Result<Option<LoadingType>, search::SearchError> {
 
 
 
-pub fn vec_to_bytes_u32(data: &Vec<u32>) -> Vec<u8> {
+pub fn vec_to_bytes_u32(data: &[u32]) -> Vec<u8> {
     let mut wtr: Vec<u8> = vec_with_size_uninitialized(data.len() * std::mem::size_of::<u32>());
-    LittleEndian::write_u32_into(&data, &mut wtr);
+    LittleEndian::write_u32_into(data, &mut wtr);
     wtr
 }
-pub fn vec_to_bytes_u64(data: &Vec<u64>) -> Vec<u8> {
+pub fn vec_to_bytes_u64(data: &[u64]) -> Vec<u8> {
     let mut wtr: Vec<u8> = vec_with_size_uninitialized(data.len() * std::mem::size_of::<u64>());
-    LittleEndian::write_u64_into(&data, &mut wtr);
+    LittleEndian::write_u64_into(data, &mut wtr);
     wtr
 }
 
@@ -1138,12 +1130,13 @@ pub fn load_index_u64(s1: &str) -> Result<Vec<u64>, io::Error> {
 //     Ok(bytes_to_vec::<T>(&mut buffer))
 // }
 
-fn check_is_docid_type<T: Integer + NumCast + Copy>(data: &Vec<T>) -> bool {
+fn check_is_docid_type<T: Integer + NumCast + Copy>(data: &[T]) -> bool {
     for (index, value_id) in data.iter().enumerate() {
         let blub: usize = num::cast(*value_id).unwrap();
         if blub != index {
             return false;
         }
     }
-    return true;
+    true
 }
+

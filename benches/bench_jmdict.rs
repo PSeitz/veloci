@@ -232,14 +232,14 @@ fn get_request(term: &str, levenshtein_distance: u32) -> search::Request {
 
 fn search(term: &str, pers: &persistence::Persistence, levenshtein_distance: u32) -> Vec<search::DocWithHit> {
     let requesto = get_request(term, levenshtein_distance);
-    let hits = search::search(requesto, &pers).unwrap();
-    search::to_documents(&pers, &hits.data)
+    let hits = search::search(requesto, pers).unwrap();
+    search::to_documents(pers, &hits.data)
 }
 fn search_with_facets(term: &str, pers: &persistence::Persistence, levenshtein_distance: u32, facets: Vec<FacetRequest>) -> Vec<search::DocWithHit> {
     let mut requesto = get_request(term, levenshtein_distance);
     requesto.facets = Some(facets);
-    let hits = search::search(requesto, &pers).unwrap();
-    search::to_documents(&pers, &hits.data)
+    let hits = search::search(requesto, pers).unwrap();
+    search::to_documents(pers, &hits.data)
 }
 
 fn suggest(term: &str, path: &str, pers: &persistence::Persistence) -> search_field::SuggestFieldResult {
@@ -252,7 +252,7 @@ fn suggest(term: &str, path: &str, pers: &persistence::Persistence) -> search_fi
             "skip":0
         });
     let requesto: search::RequestSearchPart = serde_json::from_str(&req.to_string()).expect("Can't parse json");
-    search_field::suggest(&pers, &requesto).unwrap()
+    search_field::suggest(pers, &requesto).unwrap()
 }
 
 fn highlight(term: &str, path: &str, pers: &persistence::Persistence) -> search_field::SuggestFieldResult {
@@ -266,7 +266,7 @@ fn highlight(term: &str, path: &str, pers: &persistence::Persistence) -> search_
             "skip":0
         });
     let mut requesto: search::RequestSearchPart = serde_json::from_str(&req.to_string()).expect("Can't parse json");
-    search_field::highlight(&pers, &mut requesto).unwrap()
+    search_field::highlight(pers, &mut requesto).unwrap()
 }
 
 // fn get_text_ids_cache_fst_cache_bytes(c: &mut Criterion) {
@@ -380,7 +380,7 @@ fn searches(c: &mut Criterion) {
     c.bench_function("vecco push", |b| {
         b.iter(|| {
             let mut vec = Vec::with_capacity(1_000_000);
-            for i in 0..1_000_000{
+            for i in 0..1_000_000 {
                 vec.push(Hit::new(i, 0.5));
             }
             vec
@@ -390,7 +390,7 @@ fn searches(c: &mut Criterion) {
     c.bench_function("vecco placement", |b| {
         b.iter(|| {
             let mut vec = Vec::with_capacity(1_000_000);
-            for i in 0..1_000_000{
+            for i in 0..1_000_000 {
                 vec.place_back() <- Hit::new(i, 0.5);
             }
             vec
@@ -400,10 +400,10 @@ fn searches(c: &mut Criterion) {
     c.bench_function("vecco resize", |b| {
         b.iter(|| {
             let mut vec = Vec::with_capacity(1_000_000);
-            unsafe{
+            unsafe {
                 vec.set_len(1_000_000);
             }
-            for i in 0..1_000_000{
+            for i in 0..1_000_000 {
                 vec[i as usize] = Hit::new(i, 0.5);
             }
             vec
@@ -413,11 +413,11 @@ fn searches(c: &mut Criterion) {
     c.bench_function("vecco get_unchecked_mut", |b| {
         b.iter(|| {
             let mut vec = Vec::with_capacity(1_000_000);
-            unsafe{
+            unsafe {
                 vec.set_len(1_000_000);
             }
-            for i in 0..1_000_000{
-                unsafe{
+            for i in 0..1_000_000 {
+                unsafe {
                     let elem = vec.get_unchecked_mut(i as usize);
                     *elem = Hit::new(i, 0.5);
                 }
@@ -429,12 +429,12 @@ fn searches(c: &mut Criterion) {
     c.bench_function("vecco pointer fun", |b| {
         b.iter(|| {
             let mut vec = Vec::with_capacity(1_000_000);
-            unsafe{
+            unsafe {
                 vec.set_len(1_000_000);
             }
             let x_ptr = vec.as_mut_ptr();
-            for i in 0..1_000_000{
-                unsafe{
+            for i in 0..1_000_000 {
+                unsafe {
                     *x_ptr.offset(i as isize) = Hit::new(i, 0.5);
                 }
             }

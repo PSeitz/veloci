@@ -250,7 +250,7 @@ impl DfaBuilder {
             // Some((si, false)) => si,
         };
         self.add_utf8_sequences(false, from_si, to_si, '\u{0}', '\u{10FFFF}');
-        return Some((to_si, mismatch_state));
+        Some((to_si, mismatch_state))
     }
 
     fn add_utf8_sequences(&mut self, overwrite: bool, from_si: usize, to_si: usize, from_chr: char, to_chr: char) {

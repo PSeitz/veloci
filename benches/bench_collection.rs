@@ -72,7 +72,7 @@ pub fn bench_naivehashmap_insert(num_entries: u32) -> NaiveHashMap<u64, f32> {
     let mut hits: NaiveHashMap<u64, f32> = NaiveHashMap::default();
     hits.reserve(num_entries as usize);
     for x in 0..num_entries {
-        hits.insert(pseudo_rand(x) as u64, 0.22);
+        hits.insert(u64::from(pseudo_rand(x)), 0.22);
     }
     hits
 }
@@ -104,7 +104,7 @@ pub fn bench_fnvhashmap_insert_with_lookup(num_hits: u32, token_hits: u32) {
 pub fn bench_naivehashmap_insert_with_lookup(num_hits: u32, token_hits: u32) {
     let mut hits: NaiveHashMap<u64, f32> = bench_naivehashmap_insert(num_hits);
     for x in 0..token_hits {
-        let stat = hits.entry(pseudo_rand(x) as u64).or_insert(0.0);
+        let stat = hits.entry(u64::from(pseudo_rand(x))).or_insert(0.0);
         *stat += 2.0;
     }
 }
@@ -117,7 +117,7 @@ fn pseudo_rand(num: u32) -> u32 {
 pub fn bench_naivehashmap_insert_with_lookup_modify(num_hits: u32, token_hits: u32) {
     let mut hits: NaiveHashMap<u64, f32> = bench_naivehashmap_insert(num_hits);
     for x in 0..token_hits {
-        hits.entry(pseudo_rand(x) as u64)
+        hits.entry(u64::from(pseudo_rand(x)))
             .and_modify(|e| *e += 2.0)
             .or_insert(0.0);
     }

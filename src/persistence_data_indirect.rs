@@ -163,7 +163,7 @@ impl<T: IndexIdToParentData> IndexIdToParent for IndexIdToMultipleParentIndirect
                 }
             }
 
-            for position in positions_vec.iter() {
+            for position in &positions_vec {
                 for id in &self.data[NumCast::from(position[0]).unwrap()..NumCast::from(position[1]).unwrap()] {
                     coll.add(*id);
                 }
@@ -423,7 +423,7 @@ impl<T: IndexIdToParentData> IndexIdToParent for IndexIdToMultipleParentCompress
                     NumCast::from(positions[0]).unwrap()..NumCast::from(positions[1]).unwrap(),
                     &mut data_cache[0..new_len],
                 );
-                for id in data_cache.iter() {
+                for id in &data_cache {
                     coll.add(*id);
                 }
             }
@@ -568,7 +568,7 @@ pub struct PointingMMAPFileReader<T: IndexIdToParentData> {
 }
 use memmap::MmapOptions;
 impl<T: IndexIdToParentData> PointingMMAPFileReader<T> {
-    pub fn new(start_and_end_file: fs::File, data_file: fs::File, indirect_metadata: fs::Metadata, data_metadata: fs::Metadata, max_value_id: u32, avg_join_size: f32) -> Self {
+    pub fn new(start_and_end_file: &fs::File, data_file: &fs::File, indirect_metadata: fs::Metadata, data_metadata: &fs::Metadata, max_value_id: u32, avg_join_size: f32) -> Self {
         // println!("OPPEEENIGGGN INDIRECT{:?}", indirect_metadata.len());
         // println!("OPPEEENIGGGN DATA {:?}", data_metadata.len());
         let start_and_end_file = unsafe { MmapOptions::new().len(std::cmp::max(indirect_metadata.len() as usize, 4048)).map(&start_and_end_file).unwrap() };
@@ -813,7 +813,7 @@ fn prepare_data_for_array_of_array<T: Clone, K: IndexIdToParentData>(store: &Ind
     let mut data = vec![];
     let mut valids = store.get_keys();
     valids.dedup();
-    if valids.len() == 0 {
+    if valids.is_empty() {
         return data;
     }
     data.resize(valids.last().unwrap().to_usize().unwrap() + 1, f());
@@ -833,14 +833,14 @@ fn prepare_data_for_array_of_array<T: Clone, K: IndexIdToParentData>(store: &Ind
 // }
 
 //TODO TRY WITH FROM ITERATOR oder so
-pub fn to_uniform<T: mayda::utility::Bits>(data: &Vec<T>) -> mayda::Uniform<T> {
+pub fn to_uniform<T: mayda::utility::Bits>(data: &[T]) -> mayda::Uniform<T> {
     let mut uniform = mayda::Uniform::new();
-    uniform.encode(&data).unwrap();
+    uniform.encode(data).unwrap();
     uniform
 }
-pub fn to_monotone<T: mayda::utility::Bits>(data: &Vec<T>) -> mayda::Monotone<T> {
+pub fn to_monotone<T: mayda::utility::Bits>(data: &[T]) -> mayda::Monotone<T> {
     let mut uniform = mayda::Monotone::new();
-    uniform.encode(&data).unwrap();
+    uniform.encode(data).unwrap();
     uniform
 }
 
@@ -890,7 +890,7 @@ fn to_indirect_arrays_dedup<T: Integer + Clone + NumCast + mayda::utility::Bits 
     let mut data = vec![];
     let mut valids = store.get_keys();
     valids.dedup();
-    if valids.len() == 0 {
+    if valids.is_empty() {
         return (T::zero(), 0.0, vec![], vec![]);
     }
     let mut start_and_end_pos = vec![];

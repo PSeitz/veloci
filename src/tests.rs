@@ -322,7 +322,7 @@ mod tests {
             assert_eq!(hits[0].doc["ent_seq"], "1587690");
         }
 
-        it "makes organizing tests easy" {
+        it "two tokens hit the same anchor" {
             let req = json!({
                 "search": {
                     "terms":["majestätischer"],

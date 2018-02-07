@@ -95,6 +95,7 @@ where
         .fst
         .get(&options.path)
         .ok_or(SearchError::StringError(format!(
+        .get(&options.path).ok_or_else(|| SearchError::StringError(format!(
             "fst not found loaded in cache {} ",
             options.path
         )))?;
@@ -130,16 +131,16 @@ where
 pub type SuggestFieldResult = Vec<(String, Score, TermId)>;
 
 #[flame]
-fn get_text_score_id_from_result(suggest_text: bool, results: Vec<SearchFieldResult>, skip: Option<usize>, top: Option<usize>) -> SuggestFieldResult {
+fn get_text_score_id_from_result(suggest_text: bool, results: &[SearchFieldResult], skip: Option<usize>, top: Option<usize>) -> SuggestFieldResult {
     let mut suggest_result = results
         .iter()
         .flat_map(|res| {
             res.hits_vec.iter()// @Performance add only "top" elements ?
                 .map(|term_n_score| {
                     let term = if suggest_text{
-                        res.terms.get(&term_n_score.id).unwrap()
+                        &res.terms[&term_n_score.id]
                     }else{
-                        res.highlight.get(&term_n_score.id).unwrap()
+                        &res.highlight[&term_n_score.id]
                     };
                     (term.to_string(), term_n_score.score, term_n_score.id)
                 })
@@ -151,12 +152,12 @@ fn get_text_score_id_from_result(suggest_text: bool, results: Vec<SearchFieldRes
 }
 pub fn suggest_multi(persistence: &Persistence, req: Request) -> Result<SuggestFieldResult, SearchError> {
     info_time!("suggest time");
-    let search_parts: Vec<RequestSearchPart> = req.suggest.ok_or(SearchError::StringError(
+    let search_parts: Vec<RequestSearchPart> = req.suggest.ok_or_else(|| SearchError::StringError(
         "only suggest allowed in suggest function".to_string(),
     ))?;
     // let mut search_results = vec![];
-    let top = req.top.clone();
-    let skip = req.skip.clone();
+    let top = req.top;
+    let skip = req.skip;
     let search_results: Result<Vec<_>, SearchError> = search_parts
         .into_par_iter()
         .map(|ref mut search_part| {
@@ -164,7 +165,7 @@ pub fn suggest_multi(persistence: &Persistence, req: Request) -> Result<SuggestF
             search_part.top = top;
             search_part.skip = skip;
             search_part.resolve_token_to_parent_hits = Some(false);
-            get_hits_in_field(persistence, &search_part, None)
+            get_hits_in_field(persistence, search_part, None)
         })
         .collect();
     // for mut search_part in search_parts {
@@ -183,7 +184,7 @@ pub fn suggest_multi(persistence: &Persistence, req: Request) -> Result<SuggestF
     info_time!("suggest to vec/sort");
     Ok(get_text_score_id_from_result(
         true,
-        search_results?,
+        &search_results?,
         req.skip,
         req.top,
     ))
@@ -198,7 +199,7 @@ pub fn suggest(persistence: &Persistence, options: &RequestSearchPart) -> Result
     req.top = options.top;
     req.skip = options.skip;
     // let options = vec![options.clone()];
-    return suggest_multi(persistence, req);
+    suggest_multi(persistence, req)
 }
 
 // just adds sorting to search
@@ -211,7 +212,7 @@ pub fn highlight(persistence: &Persistence, options: &mut RequestSearchPart) -> 
 
     Ok(get_text_score_id_from_result(
         false,
-        vec![get_hits_in_field(persistence, &options, None)?],
+        &[get_hits_in_field(persistence, options, None)?],
         options.skip,
         options.top,
     ))
@@ -223,13 +224,13 @@ pub fn get_hits_in_field(persistence: &Persistence, options: &RequestSearchPart,
     options.path = options.path.to_string() + ".textindex";
 
     if options.terms.len() == 1 {
-        return get_hits_in_field_one_term(&persistence, &options, filter);
+        return get_hits_in_field_one_term(persistence, &options, filter);
     } else {
         let mut all_hits: FnvHashMap<String, SearchFieldResult> = FnvHashMap::default();
         for term in &options.terms {
             let mut options = options.clone();
             options.terms = vec![term.to_string()];
-            let hits: SearchFieldResult = get_hits_in_field_one_term(&persistence, &options, filter)?;
+            let hits: SearchFieldResult = get_hits_in_field_one_term(persistence, &options, filter)?;
             all_hits.insert(term.to_string(), hits); // todo
         }
     }
@@ -270,10 +271,7 @@ fn get_hits_in_field_one_term(persistence: &Persistence, options: &RequestSearch
     // let mut vec_hits: Vec<(u32, f32)> = vec![];
     let limit_result = options.top.is_some();
     let mut worst_score = std::f32::MIN;
-    let mut top_n_search = std::u32::MAX;
-    if limit_result {
-        top_n_search = (options.top.unwrap() + options.skip.unwrap_or(0)) as u32;
-    }
+    let top_n_search = if limit_result { (options.top.unwrap() + options.skip.unwrap_or(0)) as u32 } else { std::u32::MAX };
     //TODO Move to topnstruct
 
     {
@@ -290,10 +288,7 @@ fn get_hits_in_field_one_term(persistence: &Persistence, options: &RequestSearch
             let line_lower = line.to_lowercase();
 
             // In the case of levenshtein != 0 or starts_with, we want prefix_matches to have a score boost - so that "awe" scores better for awesome than aber
-            let mut prefix_matches = false;
-            if should_check_prefix_match && line_lower.starts_with(&lower_term) {
-                prefix_matches = true;
-            }
+            let prefix_matches = if should_check_prefix_match && line_lower.starts_with(&lower_term) { true } else { false };
 
             // let distance = if options.levenshtein_distance.unwrap_or(0) != 0 {
             //     // Some(distance(&options.terms[0], &line))
@@ -311,7 +306,7 @@ fn get_hits_in_field_one_term(persistence: &Persistence, options: &RequestSearch
             //     get_default_score(&options.terms[0], &line, prefix_matches)
             //     // get_default_score_for_distance(0, prefix_matches)
             // };
-            options.boost.map(|boost_val| score = score * boost_val); // @FixMe Move out of loop?
+            options.boost.map(|boost_val| score *= boost_val); // @FixMe Move out of loop?
                                                                       // hits.insert(line_pos, score);
                                                                       // result.hits.push(Hit{id:line_pos, score:score});
 
@@ -373,7 +368,7 @@ fn get_hits_in_field_one_term(persistence: &Persistence, options: &RequestSearch
         //VEC VERSION
         debug_time!(format!("{} fast_field", &options.path));
         let mut fast_field_res = vec![];
-        for hit in result.hits_vec.iter() {
+        for hit in &result.hits_vec {
             let token_kvdata = persistence.get_valueid_to_parent(&concat(&options.path, ".tokens.to_anchor"))?;
 
             token_kvdata.add_fast_field_hits(*hit, &mut fast_field_res, filter);
@@ -409,11 +404,11 @@ fn get_hits_in_field_one_term(persistence: &Persistence, options: &RequestSearch
             fast_field_res.len()
         );
 
-        // {
-        //     debug_time!(format!("{} fast_field sort and dedup", &options.path));
-        //     fast_field_res.sort_unstable_by(|a, b| b.id.partial_cmp(&a.id).unwrap_or(Ordering::Equal)); //TODO presort data in persistence, k_merge token_hits
-        //     fast_field_res.dedup_by_key(|b| b.id); // TODO FixMe Score
-        // }
+        {
+            debug_time!(format!("{} fast_field sort and dedup", &options.path));
+            fast_field_res.sort_unstable_by(|a, b| b.id.partial_cmp(&a.id).unwrap_or(Ordering::Equal)); //TODO presort data in persistence, k_merge token_hits
+            fast_field_res.dedup_by_key(|b| b.id); // TODO FixMe Score
+        }
 
         result.hits_vec = fast_field_res;
 
@@ -603,7 +598,7 @@ pub fn resolve_token_hits(
     {
         //VEC VERSION
         debug_time!(format!("{} adding parent_id from tokens", token_path));
-        for hit in result.hits_vec.iter() {
+        for hit in &result.hits_vec {
             // let ref parent_ids_for_token_opt = token_kvdata.get(*value_id as usize);
             if let Some(parent_ids_for_token) = token_kvdata.get_values(hit.id as u64) {
                 let token_text_length_offsets = text_offsets
@@ -684,7 +679,7 @@ pub fn resolve_token_hits(
     debug_time!(format!("{} extend token_results", path));
     // hits.extend(token_hits);
     trace!("{} token_hits in textindex: {:?}", path, token_hits);
-    if token_hits.len() > 0 {
+    if !token_hits.is_empty() {
         if add_snippets {
             result.hits_vec.clear(); //only document hits for highlightung
         }
@@ -730,7 +725,7 @@ fn distance_dfa(lower_hit: &str, dfa: &DFA, lower_term: &str) -> u8 {
 
     match dfa.distance(state) {
         Distance::Exact(ok) => ok,
-        Distance::AtLeast(_) => distance(&lower_hit, lower_term),
+        Distance::AtLeast(_) => distance(lower_hit, lower_term),
     }
 }
 fn distance(s1: &str, s2: &str) -> u8 {

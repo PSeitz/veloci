@@ -51,7 +51,7 @@ pub fn highlight_document(persistence: &Persistence, path: &str, value_id: u64, 
     {
         trace_time!("collect token_positions_in_document");
         //collect token_positions_in_document
-        for token_id in token_ids.iter() {
+        for token_id in &token_ids {
             let mut current_pos = 0;
             while let Some(pos) = iter.position(|x| *x == *token_id) {
                 current_pos += pos;
@@ -72,7 +72,7 @@ pub fn highlight_document(persistence: &Persistence, path: &str, value_id: u64, 
     {
         trace_time!("group near tokens");
         let mut previous_token_pos = -num_tokens;
-        for token_pos in token_positions_in_document.into_iter() {
+        for token_pos in token_positions_in_document {
             if token_pos as i64 - previous_token_pos >= num_tokens {
                 grouped.push(vec![]);
             }
@@ -81,7 +81,7 @@ pub fn highlight_document(persistence: &Persistence, path: &str, value_id: u64, 
         }
     }
 
-    let ref get_document_windows = |vec: &Vec<i64>| {
+    let get_document_windows = &(|vec: &Vec<i64>| {
         let start_index = cmp::max(*vec.first().unwrap() as i64 - num_tokens, 0);
         let end_index = cmp::min(
             *vec.last().unwrap() as i64 + num_tokens + 1,
@@ -92,7 +92,7 @@ pub fn highlight_document(persistence: &Persistence, path: &str, value_id: u64, 
             end_index,
             &documents_token_ids[start_index as usize..end_index as usize],
         )
-    };
+    });
 
     //get all required tokenids and their text
     let mut all_tokens = grouped
@@ -119,9 +119,9 @@ pub fn highlight_document(persistence: &Persistence, path: &str, value_id: u64, 
                 String::with_capacity(group.2.len() * 10),
                 |snippet_part_acc, token_id| {
                     if token_ids.contains(token_id) {
-                        snippet_part_acc + &opt.snippet_start_tag + id_to_text.get(token_id).unwrap() + &opt.snippet_end_tag // TODO store token and add
+                        snippet_part_acc + &opt.snippet_start_tag + &id_to_text[token_id] + &opt.snippet_end_tag // TODO store token and add
                     } else {
-                        snippet_part_acc + id_to_text.get(token_id).unwrap()
+                        snippet_part_acc + &id_to_text[token_id]
                     }
                 },
             )

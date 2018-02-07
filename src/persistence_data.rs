@@ -102,7 +102,7 @@ impl<T: IndexIdToParentData> IndexIdToParent for IndexIdToMultipleParent<T> {
         let vec: Option<Vec<T>> = self.data
             .get(id as usize)
             .map(|el| el.iter().map(|el| NumCast::from(*el).unwrap()).collect());
-        if vec.is_some() && vec.as_ref().unwrap().len() == 0 {
+        if vec.is_some() && vec.as_ref().unwrap().is_empty() {
             return None;
         }
         vec
@@ -207,7 +207,7 @@ impl<T: IndexIdToParentData> IndexIdToOneParent<T> {
         let data: Vec<Vec<T>> = id_to_parent_to_array_of_array(data);
         let data = data.iter()
             .map(|el| {
-                if el.len() > 0 {
+                if !el.is_empty() {
                     NumCast::from(el[0]).unwrap()
                 } else {
                     NumCast::from(NOT_FOUND).unwrap()
@@ -277,10 +277,10 @@ impl<T: IndexIdToParentData> IndexIdToOneParentMayda<T> {
         }
     }
     #[allow(dead_code)]
-    pub fn from_vec(data: &Vec<T>, max_value_id: u32) -> IndexIdToOneParentMayda<T> {
+    pub fn from_vec(data: &[T], max_value_id: u32) -> IndexIdToOneParentMayda<T> {
         IndexIdToOneParentMayda {
             size: data.len(),
-            data: to_uniform(&data),
+            data: to_uniform(data),
             max_value_id
         }
     }
@@ -372,21 +372,18 @@ impl<T: IndexIdToParentData> IndexIdToParent for ParallelArrays<T> {
     fn get_values(&self, id: u64) -> Option<Vec<T>> {
         let mut result = Vec::new();
         let casted_id = NumCast::from(id).unwrap();
-        match self.values1.binary_search(&casted_id) {
-            Ok(mut pos) => {
-                //this is not a lower_bounds search so we MUST move to the first hit
-                while pos != 0 && self.values1[pos - 1] == casted_id {
-                    pos -= 1;
-                }
-                let val_len = self.values1.len();
-                while pos < val_len && self.values1[pos] == casted_id {
-                    result.push(self.values2[pos]);
-                    pos += 1;
-                }
-            }
-            Err(_) => {}
-        }
-        if result.len() == 0 {
+        if let Ok(mut pos) = self.values1.binary_search(&casted_id) {
+    //this is not a lower_bounds search so we MUST move to the first hit
+    while pos != 0 && self.values1[pos - 1] == casted_id {
+        pos -= 1;
+    }
+    let val_len = self.values1.len();
+    while pos < val_len && self.values1[pos] == casted_id {
+        result.push(self.values2[pos]);
+        pos += 1;
+    }
+}
+        if result.is_empty() {
             None
         } else {
             Some(result)
@@ -533,7 +530,7 @@ fn get_bytes(block_size: usize, find: u64, num_elem: u64, data_file: &Mutex<fs::
     Some(data_bytes)
 }
 fn get_reader(block_size: usize, find: u64, num_elem: u64, data_file: &Mutex<fs::File>, data_metadata: &Mutex<fs::Metadata>) -> Option<Cursor<Vec<u8>>> {
-    get_bytes(block_size, find, num_elem, data_file, data_metadata).map(|bytes| Cursor::new(bytes))
+    get_bytes(block_size, find, num_elem, data_file, data_metadata).map(Cursor::new)
 }
 
 pub fn id_to_parent_to_array_of_array<T: IndexIdToParentData>(store: &IndexIdToParent<Output = T>) -> Vec<Vec<T>> {
@@ -585,7 +582,7 @@ fn prepare_data_for_array_of_array<T: Clone, K: IndexIdToParentData>(store: &Ind
     let mut data = vec![];
     let mut valids = store.get_keys();
     valids.dedup();
-    if valids.len() == 0 {
+    if valids.is_empty() {
         return data;
     }
     data.resize(valids.last().unwrap().to_usize().unwrap() + 1, f());
@@ -605,14 +602,14 @@ fn prepare_data_for_array_of_array<T: Clone, K: IndexIdToParentData>(store: &Ind
 // }
 
 //TODO TRY WITH FROM ITERATOR oder so
-pub fn to_uniform<T: mayda::utility::Bits>(data: &Vec<T>) -> mayda::Uniform<T> {
+pub fn to_uniform<T: mayda::utility::Bits>(data: &[T]) -> mayda::Uniform<T> {
     let mut uniform = mayda::Uniform::new();
-    uniform.encode(&data).unwrap();
+    uniform.encode(data).unwrap();
     uniform
 }
-pub fn to_monotone<T: mayda::utility::Bits>(data: &Vec<T>) -> mayda::Monotone<T> {
+pub fn to_monotone<T: mayda::utility::Bits>(data: &[T]) -> mayda::Monotone<T> {
     let mut uniform = mayda::Monotone::new();
-    uniform.encode(&data).unwrap();
+    uniform.encode(data).unwrap();
     uniform
 }
 
@@ -631,11 +628,11 @@ pub fn valid_pair_to_parallel_arrays<T: IndexIdToParentData>(tuples: &mut Vec<cr
     tuples.sort_by(|a, b| a.valid.partial_cmp(&b.valid).unwrap_or(Ordering::Equal));
     let valids = tuples
         .iter()
-        .map(|ref el| NumCast::from(el.valid).unwrap())
+        .map(|el| NumCast::from(el.valid).unwrap())
         .collect::<Vec<_>>();
     let parent_val_ids = tuples
         .iter()
-        .map(|ref el| NumCast::from(el.parent_val_id).unwrap())
+        .map(|el| NumCast::from(el.parent_val_id).unwrap())
         .collect::<Vec<_>>();
     ParallelArrays {
         values1: valids,
@@ -648,11 +645,11 @@ pub fn boost_pair_to_parallel_arrays<T: IndexIdToParentData>(tuples: &mut Vec<cr
     tuples.sort_by(|a, b| a.valid.partial_cmp(&b.valid).unwrap_or(Ordering::Equal));
     let valids = tuples
         .iter()
-        .map(|ref el| NumCast::from(el.valid).unwrap())
+        .map(|el| NumCast::from(el.valid).unwrap())
         .collect::<Vec<_>>();
     let values = tuples
         .iter()
-        .map(|ref el| NumCast::from(el.value).unwrap())
+        .map(|el| NumCast::from(el.value).unwrap())
         .collect::<Vec<_>>();
     ParallelArrays {
         values1: valids,

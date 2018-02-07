@@ -116,7 +116,7 @@ fn create_thalia_index() {
 
     File::create("thalia.json")
         .unwrap()
-        .write_all(&serde_json::to_string_pretty(&json).unwrap().as_bytes())
+        .write_all(serde_json::to_string_pretty(&json).unwrap().as_bytes())
         .unwrap();
 
     println!(
@@ -273,7 +273,7 @@ fn test_build_fst() -> Result<(), fst::Error> {
 
     println!(
         "test_build_fst ms: {}",
-        (now.elapsed().as_secs() as f64 * 1_000.0) + (now.elapsed().subsec_nanos() as f64 / 1000_000.0)
+        (now.elapsed().as_secs() as f64 * 1_000.0) + (f64::from(now.elapsed().subsec_nanos()) / 1000_000.0)
     );
 
     Ok(())

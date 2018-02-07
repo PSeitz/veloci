@@ -6,7 +6,7 @@ use itertools::Itertools;
 use num::{NumCast};
 use fnv::FnvHashMap;
 
-pub fn get_top_facet_group<T: IndexIdToParentData>(hits: FnvHashMap<T, usize>, top: Option<usize>) -> Vec<(T, u32)> {
+pub fn get_top_facet_group<T: IndexIdToParentData>(hits: &FnvHashMap<T, usize>, top: Option<usize>) -> Vec<(T, u32)> {
     let mut groups: Vec<(T, u32)> = hits.iter()
         .map(|ref tupl| (*tupl.0, *tupl.1 as u32))
         .collect();
@@ -18,7 +18,7 @@ pub fn get_top_facet_group<T: IndexIdToParentData>(hits: FnvHashMap<T, usize>, t
 }
 
 //TODO Check ignorecase, check duplicates in facet data
-pub fn get_facet(persistence: &Persistence, req: &FacetRequest, ids: &Vec<u32>) -> Result<Vec<(String, usize)>, SearchError> {
+pub fn get_facet(persistence: &Persistence, req: &FacetRequest, ids: &[u32]) -> Result<Vec<(String, usize)>, SearchError> {
     info_time!(format!("facets in field {:?}", req.field));
     trace!("get_facet for ids {:?}", ids);
     let steps = util::get_steps_to_anchor(&req.field);
@@ -34,12 +34,12 @@ pub fn get_facet(persistence: &Persistence, req: &FacetRequest, ids: &Vec<u32>) 
         let kv_store = persistence.get_valueid_to_parent(&path)?;
         let hits = {
             debug_time!(format!("facet count_values_for_ids {:?}", req.field));
-            kv_store.count_values_for_ids(&ids, req.top.map(|el| el as u32))
+            kv_store.count_values_for_ids(ids, req.top.map(|el| el as u32))
         };
 
         debug_time!(format!("facet collect and get texts {:?}", req.field));
 
-        let groups = get_top_facet_group(hits, req.top);
+        let groups = get_top_facet_group(&hits, req.top);
         // let mut groups:Vec<(u32, usize)> = hits.iter().map(|ref tupl| (*tupl.0, *tupl.1)).collect();
 
         // //TODO MERGECODE with below
@@ -63,7 +63,7 @@ pub fn get_facet(persistence: &Persistence, req: &FacetRequest, ids: &Vec<u32>) 
         debug_time!(format!("facets in field first join {:?}", req.field));
         join_for_n_to_m(
             persistence,
-            &ids,
+            ids,
             &(steps.first().unwrap().to_string() + ".parentToValueId"),
         )?
     };
@@ -123,7 +123,7 @@ pub fn join_for_n_to_m(persistence: &Persistence, value_ids: &[u32], path: &str)
 
 //TODO in_place version
 #[flame]
-pub fn join_for_n_to_n(persistence: &Persistence, value_ids: &Vec<u32>, path: &str) -> Result<Vec<u32>, SearchError> {
+pub fn join_for_n_to_n(persistence: &Persistence, value_ids: &[u32], path: &str) -> Result<Vec<u32>, SearchError> {
     let kv_store = persistence.get_valueid_to_parent(path)?;
 
     Ok(value_ids
@@ -158,7 +158,7 @@ pub fn get_collector<T: 'static + IndexIdToParentData>(num_ids: u32, avg_join_si
 }
 
 use std::cmp::Ordering;
-fn get_top_n_sort<T: IndexIdToParentData>(dat: &Vec<T>, top: usize) -> Vec<(usize, T)> {
+fn get_top_n_sort<T: IndexIdToParentData>(dat: &[T], top: usize) -> Vec<(usize, T)> {
     let mut top_n: Vec<(usize, T)> = vec![];
 
     let mut current_worst = T::zero();

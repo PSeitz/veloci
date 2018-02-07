@@ -23,6 +23,7 @@ pub fn normalize_text(text: &str) -> String {
 
     }
     let mut new_str = text.to_owned();
+    // for tupl in &*RElet tupl = &&*REGEXES;
     for ref tupl in &*REGEXES {
         new_str = (tupl.0).replace_all(&new_str, tupl.1).into_owned();
     }
@@ -32,7 +33,7 @@ pub fn normalize_text(text: &str) -> String {
 
 use search::Hit;
 
-pub fn hits_map_to_vec(hits: FnvHashMap<u32, f32>) -> Vec<Hit> {
+pub fn hits_map_to_vec(hits: &FnvHashMap<u32, f32>) -> Vec<Hit> {
     hits.iter()
         .map(|(id, score)| Hit {
             id: *id,
@@ -83,7 +84,7 @@ pub fn get_level(path: &str) -> u32 {
 }
 
 pub fn remove_array_marker(path: &str) -> String {
-    path.split(".")
+    path.split('.')
         .collect::<Vec<_>>()
         .iter()
         .map(|el| {
@@ -148,7 +149,7 @@ pub fn extract_field_name(field: &str) -> String {
 
 
 pub fn extract_prop_name(path: &str) -> &str {
-    path.split(".")
+    path.split('.')
         .map(|el| {
             if el.ends_with("[]") {
                 &el[0..el.len() - 2]
@@ -165,7 +166,7 @@ pub fn get_steps_to_anchor(path: &str) -> Vec<String> {
     let mut paths = vec![];
     let mut current = vec![];
     // let parts = path.split('.')
-    let parts = path.split(".");
+    let parts = path.split('.');
 
     for part in parts {
         current.push(part.to_string());
@@ -176,7 +177,7 @@ pub fn get_steps_to_anchor(path: &str) -> Vec<String> {
     }
 
     paths.push(path.to_string() + ".textindex"); // add path to index
-    return paths;
+    paths
 }
 
 use std::collections::HashMap;
@@ -214,15 +215,15 @@ pub fn to_node_tree(paths: Vec<Vec<String>>) -> NodeTree {
         let mut is_leaf = false;
         for ref mut el in next_paths.iter_mut() {
             el.remove(0);
-            if el.len() == 0 {
+            if el.is_empty() {
                 //removing last part means it's a leaf
                 is_leaf = true;
             }
         }
 
-        next_paths.retain(|el| el.len() != 0); //remove empty paths
+        next_paths.retain(|el| !el.is_empty()); //remove empty paths
 
-        if next_paths.len() == 0 {
+        if next_paths.is_empty() {
             tree.next.insert(key.to_string(), NodeTree::new_leaf());
         } else {
             let mut sub_tree = to_node_tree(next_paths);
