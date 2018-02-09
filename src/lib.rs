@@ -15,11 +15,14 @@
 #![feature(placement_in_syntax)]
 #![feature(box_syntax, box_patterns)]
 #![cfg_attr(feature = "unstable", feature(alloc, heap_api, repr_simd))]
-#![feature(plugin, custom_attribute)]
-#![plugin(flamer)]
+
+#![cfg_attr(feature="flame_it", feature(plugin, custom_attribute))]
+#![cfg_attr(feature="flame_it", plugin(flamer))]
 
 extern crate crossbeam_channel;
 extern crate crossbeam_utils;
+
+#[cfg(feature="flame_it")]
 extern crate flame;
 
 extern crate memmap;

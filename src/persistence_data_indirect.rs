@@ -791,7 +791,7 @@ fn get_u32_values_from_pointing_file(find: u64, size: usize, start_and_end_file:
 
     Some(get_my_data_danger_zooone(start, end, data_file))
     // debug_time!("bytes_to_vec_u32");
-    // Some(transmute_bytes_to_vec_u32(data_bytes))
+    // Some(bytes_to_vec_u32(data_bytes))
 }
 
 

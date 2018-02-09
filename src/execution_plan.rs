@@ -98,6 +98,7 @@ fn get_data(input_prev_steps: Vec<PlanDataReceiver>) -> Result<Vec<SearchFieldRe
     let mut dat = vec![];
     for el in input_prev_steps {
         dat.push(el.recv()?);
+        drop(el);
     }
     Ok(dat)
 }
@@ -105,9 +106,12 @@ fn get_data(input_prev_steps: Vec<PlanDataReceiver>) -> Result<Vec<SearchFieldRe
 pub trait StepExecutor {
     fn execute_step(self, persistence: &Persistence) -> Result<(), SearchError>;
 }
+
+
+
 impl StepExecutor for PlanStepType {
     #[allow(unused_variables)]
-    #[flame]
+    #[cfg_attr(feature="flame_it", flame)]
     fn execute_step(self, persistence: &Persistence) -> Result<(), SearchError> {
         match self {
             PlanStepType::FieldSearch {
@@ -118,6 +122,8 @@ impl StepExecutor for PlanStepType {
             } => {
                 let field_result = search_field::get_hits_in_field(persistence, &mut req, None)?;
                 output_next_steps.send(field_result)?;
+                drop(output_next_steps);
+                for el in input_prev_steps{drop(el);}
                 // Ok(field_result.hits)
                 Ok(())
             }
@@ -134,6 +140,8 @@ impl StepExecutor for PlanStepType {
                     &path,
                     &joop,
                 )?)?;
+                for el in input_prev_steps{drop(el);}
+                drop(output_next_steps);
                 Ok(())
             }
             PlanStepType::Boost {
@@ -145,6 +153,8 @@ impl StepExecutor for PlanStepType {
                 let mut input = input_prev_steps[0].recv()?;
                 add_boost(persistence, &req, &mut input)?;
                 output_next_steps.send(input)?;
+                for el in input_prev_steps{drop(el);}
+                drop(output_next_steps);
                 Ok(())
             }
             PlanStepType::Union {
@@ -157,6 +167,7 @@ impl StepExecutor for PlanStepType {
                 execute_steps(steps, persistence)?;
                 debug_time!("union netto");
                 output_next_steps.send(union_hits_vec(get_data(input_prev_steps)?))?;
+                drop(output_next_steps);
                 Ok(())
             }
             PlanStepType::Intersect {
@@ -169,18 +180,20 @@ impl StepExecutor for PlanStepType {
                 execute_steps(steps, persistence)?;
                 debug_time!("intersect netto");
                 output_next_steps.send(intersect_hits_vec(get_data(input_prev_steps)?))?;
+                drop(output_next_steps);
                 Ok(())
             }
             PlanStepType::FromAttribute { steps, .. } => {
                 execute_steps(steps, persistence)?;
                 // output_next_steps.send(intersect_hits(input_prev_steps.iter().map(|el| el.recv().unwrap()).collect()));
+                // drop(output_next_steps);
                 Ok(())
             }
         }
     }
 }
 
-#[flame]
+#[cfg_attr(feature="flame_it", flame)]
 pub fn plan_creator(request: Request) -> PlanStepType {
     let (tx, rx): (PlanDataSender, PlanDataReceiver) = unbounded();
 
@@ -213,7 +226,7 @@ pub fn plan_creator(request: Request) -> PlanStepType {
     }
 }
 
-#[flame]
+#[cfg_attr(feature="flame_it", flame)]
 pub fn plan_creator_search_part(mut request: RequestSearchPart, mut boost: Option<Vec<RequestBoostPart>>) -> PlanStepType {
     let paths = util::get_steps_to_anchor(&request.path);
 
@@ -316,7 +329,7 @@ pub fn plan_creator_search_part(mut request: RequestSearchPart, mut boost: Optio
     // (steps, rx)
 }
 
-// #[flame]
+// #[cfg_attr(feature="flame_it", flame)]
 // pub fn execute_step(step: PlanStepType, persistence: &Persistence) -> Result<(), SearchError>
 // {
 
@@ -356,7 +369,7 @@ pub fn plan_creator_search_part(mut request: RequestSearchPart, mut boost: Optio
 // }
 use rayon::prelude::*;
 
-#[flame]
+#[cfg_attr(feature="flame_it", flame)]
 pub fn execute_steps(steps: Vec<PlanStepType>, persistence: &Persistence) -> Result<(), SearchError> {
     let r: Result<Vec<_>, SearchError> = steps
         .into_par_iter()

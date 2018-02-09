@@ -369,7 +369,7 @@ impl Persistence {
         println!("{}", table);
     }
 
-    #[flame]
+    #[cfg_attr(feature="flame_it", flame)]
     pub fn load(db: String) -> Result<Self, search::SearchError> {
         let meta_data = MetaData::new(&db);
         let mut pers = Persistence {
@@ -383,7 +383,7 @@ impl Persistence {
         Ok(pers)
     }
 
-    #[flame]
+    #[cfg_attr(feature="flame_it", flame)]
     pub fn create(db: String) -> Result<Self, io::Error> {
         fs::create_dir_all(&db)?;
         let meta_data = MetaData {
@@ -433,7 +433,7 @@ impl Persistence {
         Ok(())
     }
 
-    #[flame]
+    #[cfg_attr(feature="flame_it", flame)]
     pub fn write_tuple_pair(&mut self, tuples: &mut Vec<create::ValIdPair>, path: &str, is_always_1_to_1:bool) -> Result<(), io::Error> {
         self.write_tuple_pair_dedup(tuples, path, false, is_always_1_to_1)?;
         Ok(())
@@ -458,7 +458,7 @@ impl Persistence {
 
         Ok(())
     }
-    #[flame]
+    #[cfg_attr(feature="flame_it", flame)]
     pub fn write_boost_tuple_pair(&mut self, tuples: &mut Vec<create::ValIdToValue>, path: &str) -> Result<(), io::Error> {
         // let boost_paths = util::boost_path(path);
         // let has_duplicates = has_valid_duplicates(&tuples.iter().map(|el| el as &create::GetValueId).collect());
@@ -479,7 +479,7 @@ impl Persistence {
         Ok(())
     }
 
-    #[flame]
+    #[cfg_attr(feature="flame_it", flame)]
     pub fn write_index<T: Clone + Integer + NumCast + Copy + Debug>(&mut self, bytes: &[u8], data: &[T], path: &str) -> Result<(), io::Error> {
         info_time!(format!("Wrote Index {} With size {:?}", path, data.len()));
         File::create(util::get_file_path(&self.db, path))?.write_all(bytes)?;
@@ -516,7 +516,7 @@ impl Persistence {
     //     Ok(())
     // }
 
-    #[flame]
+    #[cfg_attr(feature="flame_it", flame)]
     pub fn write_meta_data(&self) -> Result<(), io::Error> {
         self.write_data(
             "metaData.json",
@@ -524,13 +524,13 @@ impl Persistence {
         )
     }
 
-    #[flame]
+    #[cfg_attr(feature="flame_it", flame)]
     pub fn write_data(&self, path: &str, data: &[u8]) -> Result<(), io::Error> {
         File::create(&get_file_path(&self.db, path))?.write_all(data)?;
         Ok(())
     }
 
-    #[flame]
+    #[cfg_attr(feature="flame_it", flame)]
     pub fn get_buffered_writer(&self, path: &str) -> Result<io::BufWriter<fs::File>, io::Error> {
         Ok(io::BufWriter::new(File::create(&get_file_path(
             &self.db,
@@ -538,7 +538,7 @@ impl Persistence {
         ))?))
     }
 
-    #[flame]
+    #[cfg_attr(feature="flame_it", flame)]
     pub fn write_json_to_disk(&mut self, arro: &[Value], path: &str) -> Result<(), io::Error> {
         let mut offsets = vec![];
         let mut buffer = File::create(&get_file_path(&self.db, path))?;
@@ -560,7 +560,7 @@ impl Persistence {
         Ok(())
     }
 
-    #[flame]
+    #[cfg_attr(feature="flame_it", flame)]
     pub fn get_offsets(&self, path: &str) -> Result<&Box<IndexIdToParent<Output = u64>>, search::SearchError> {
         // Option<&IndexIdToParent<Output=u64>>
         self.cache
@@ -569,7 +569,7 @@ impl Persistence {
             .ok_or_else(|| From::from(format!("Did not found path in cache {:?}", path)))
     }
 
-    #[flame]
+    #[cfg_attr(feature="flame_it", flame)]
     pub fn get_valueid_to_parent(&self, path: &str) -> Result<&Box<IndexIdToParent<Output = u32>>, search::SearchError> {
         self.cache
             .index_id_to_parento
@@ -577,12 +577,12 @@ impl Persistence {
             .ok_or_else(|| From::from(format!("Did not found path in cache {:?}", path)))
     }
 
-    #[flame]
+    #[cfg_attr(feature="flame_it", flame)]
     pub fn has_facet_index(&self, path: &str) -> bool {
         self.cache.index_id_to_parento.contains_key(path)
     }
 
-    #[flame]
+    #[cfg_attr(feature="flame_it", flame)]
     pub fn get_boost(&self, path: &str) -> Result<&Box<IndexIdToParent<Output = u32>>, search::SearchError> {
         self.cache
             .boost_valueid_to_value
@@ -590,32 +590,32 @@ impl Persistence {
             .ok_or_else(|| From::from(format!("Did not found path in cache {:?}", path)))
     }
 
-    #[flame]
+    #[cfg_attr(feature="flame_it", flame)]
     pub fn get_file_search(&self, path: &str) -> FileSearch {
         FileSearch::new(path, self.get_file_handle(path).unwrap())
     }
 
-    #[flame]
+    #[cfg_attr(feature="flame_it", flame)]
     pub fn get_file_handle_complete_path(&self, path: &str) -> Result<File, search::SearchError> {
         Ok(File::open(path).map_err(|err| search::SearchError::StringError(format!("Could not open {} {:?}", path, err)))?)
     }
 
-    #[flame]
+    #[cfg_attr(feature="flame_it", flame)]
     pub fn get_file_metadata_handle_complete_path(&self, path: &str) -> Result<fs::Metadata, io::Error> {
         Ok(fs::metadata(path)?)
     }
 
-    #[flame]
+    #[cfg_attr(feature="flame_it", flame)]
     pub fn get_file_handle(&self, path: &str) -> Result<File, search::SearchError> {
         Ok(File::open(PathBuf::from(get_file_path(&self.db, path))).map_err(|err| search::SearchError::StringError(format!("Could not open {} {:?}", path, err)))?)
     }
 
-    #[flame]
+    #[cfg_attr(feature="flame_it", flame)]
     pub fn get_file_metadata_handle(&self, path: &str) -> Result<fs::Metadata, io::Error> {
         Ok(fs::metadata(PathBuf::from(&get_file_path(&self.db, path)))?)
     }
 
-    #[flame]
+    #[cfg_attr(feature="flame_it", flame)]
     pub fn load_fst(&self, path: &str) -> Result<Map, search::SearchError> {
         unsafe{
             Ok(Map::from_path(&get_file_path(&self.db, &(path.to_string() + ".fst")))?) //(path.to_string() + ".fst"))?)
@@ -627,7 +627,7 @@ impl Persistence {
         // Ok(Map::from_bytes(buffer)?)
     }
 
-    #[flame]
+    #[cfg_attr(feature="flame_it", flame)]
     pub fn get_fst(&self, path: &str) -> Result<&Map, search::SearchError> {
         self.cache
             .fst
@@ -639,7 +639,7 @@ impl Persistence {
     //     return Ok(char_offset.get_char_offset_info(character, &self.cache.index_64).ok());
     // }
 
-    #[flame]
+    #[cfg_attr(feature="flame_it", flame)]
     pub fn load_all_to_cache(&mut self) -> Result<(), search::SearchError> {
         for (_, ref idlist) in &self.meta_data.id_lists.clone() {
             match &idlist.id_type {
@@ -925,7 +925,7 @@ impl Persistence {
         Ok(())
     }
 
-    #[flame]
+    #[cfg_attr(feature="flame_it", flame)]
     pub fn load_index_64(&mut self, path: &str) -> Result<(), search::SearchError> {
         let loading_type = load_type_from_env()?.unwrap_or(LoadingType::Disk);
 
@@ -1050,6 +1050,10 @@ fn load_type_from_env() -> Result<Option<LoadingType>, search::SearchError> {
     }
 }
 
+#[test]
+fn name() {
+    unimplemented!();
+}
 
 
 pub fn vec_to_bytes_u32(data: &[u32]) -> Vec<u8> {
@@ -1073,26 +1077,6 @@ pub fn bytes_to_vec_u32(data: &[u8]) -> Vec<u32> {
         ptr.copy_to_nonoverlapping(out_dat.as_mut_ptr(), data.len() / std::mem::size_of::<u32>());
     }
     out_dat
-}
-pub fn transmute_bytes_to_vec_u32(mut data: Vec<u8>) -> Vec<u32> {
-
-    // Pull out the various important pieces of information about `v`
-    let p = data.as_mut_ptr();
-    let len = data.len();
-    let cap = data.capacity();
-
-    unsafe {
-        // Cast `v` into the void: no destructor run, so we are in
-        // complete control of the allocation to which `p` points.
-        mem::forget(data);
-        let ptr = std::mem::transmute::<*mut u8, *mut u32>(p);
-        // Put everything back together into a Vec
-        let mut vec = Vec::from_raw_parts(ptr, len, cap);
-
-        vec.set_len(len/4);
-        vec
-    }
-
 }
 pub fn bytes_to_vec_u64(data: &[u8]) -> Vec<u64> {
     let mut out_dat = vec_with_size_uninitialized(data.len() / std::mem::size_of::<u64>());

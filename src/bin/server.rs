@@ -1,11 +1,16 @@
 #![feature(plugin, custom_attribute)]
-#![plugin(flamer)]
 #![feature(underscore_lifetimes)]
+
+
+#![cfg_attr(feature="flame_it", feature(plugin, custom_attribute))]
+#![cfg_attr(feature="flame_it", plugin(flamer))]
+
+#[cfg(feature="flame_it")]
+extern crate flame;
 
 extern crate bodyparser;
 extern crate chashmap;
 extern crate env_logger;
-extern crate flame;
 extern crate flexi_logger;
 extern crate fnv;
 extern crate hyper;
@@ -185,11 +190,12 @@ pub fn start_server() {
     let ip = env::var("SERVER_IP").unwrap_or("0.0.0.0".to_string());
 
     let combined = format!("{}:{}", ip, port);
-    println!("Start server {:?}", combined);
 
-    let mut yop = Iron::new(chain);
-    yop.threads = 2;
+    let yop = Iron::new(chain);
+    // yop.threads = 1;
+    println!("Start server {:?} Threads: {:?}", combined, yop.threads);
     yop.http(combined).unwrap();
+
 
     fn handler(_req: &mut Request) -> IronResult<Response> {
         let mut file = File::open("index.html").expect("Server: \"äh wo ist meine index.html\"");
@@ -369,7 +375,7 @@ pub fn start_server() {
         }
     }
 
-    #[flame]
+    #[cfg_attr(feature="flame_it", flame)]
     fn search_in_persistence(persistence: &Persistence, request: search_lib::search::Request, enable_flame: bool) -> IronResult<Response> {
         // info!("Searching ... ");
         let hits = {
@@ -396,7 +402,7 @@ pub fn start_server() {
         debug!("Returning ... ");
 
         // Ok(Response::with((status::Ok, Header(headers::ContentType::json()), GzipWriter(serde_json::to_string(&doc).unwrap().as_bytes()) )))
-        return_flame_or(enable_flame, serde_json::to_string(&doc).unwrap())
+        return_flame_or(enable_flame, GzipWriter(serde_json::to_string(&doc).unwrap().as_bytes()),)
     }
 
     fn search_handler(req: &mut Request) -> IronResult<Response> {
@@ -442,7 +448,7 @@ pub fn start_server() {
         debug!("Returning ... ");
         // Ok(Response::with((status::Ok, Header(headers::ContentType::json()), serde_json::to_string(&hits).unwrap())))
 
-        return_flame_or(flame, serde_json::to_string(&hits).unwrap())
+        return_flame_or(flame, GzipWriter(serde_json::to_string(&hits).unwrap().as_bytes()),)
     }
 
     fn highlight_handler(req: &mut Request) -> IronResult<Response> {
@@ -464,7 +470,8 @@ pub fn start_server() {
 
         return_flame_or(
             enable_flame(req).unwrap_or(false),
-            serde_json::to_string(&hits).unwrap(),
+            // serde_json::to_string(&hits).unwrap(),
+            GzipWriter(serde_json::to_string(&hits).unwrap().as_bytes()),
         )
     }
 
@@ -538,7 +545,7 @@ pub fn start_server() {
         Ok(map.get("flame").is_some())
     }
 
-    #[flame]
+    #[cfg_attr(feature="flame_it", flame)]
     fn handle_db_insert(enable_flame: bool, entries: Entries, database: String) -> IronResult<Response> {
         if entries.fields.len() != 1 {
             return Ok(Response::with((
@@ -582,12 +589,14 @@ pub fn start_server() {
 
         return_flame_or(
             enable_flame,
-            serde_json::to_string(&json!({"result": "database created"})).unwrap(),
+            GzipWriter(serde_json::to_string(&json!({"result": "database created"})).unwrap().as_bytes()),
+            // serde_json::to_string(&json!({"result": "database created"})).unwrap(),
         )
     }
 
-    fn return_flame_or(enable_flame: bool, content: String) -> IronResult<Response> {
-        if enable_flame {
+    #[cfg(flame_it)]
+    fn return_flame_or(enable_flame: bool, content: GzipWriter) -> IronResult<Response> {
+        if enable_flame{
             let mut flame = vec![];
             flame::dump_html(&mut flame).unwrap();
             Ok(Response::with((
@@ -602,6 +611,15 @@ pub fn start_server() {
                 content,
             )))
         }
+    }
+
+    #[cfg(not(flame_it))]
+    fn return_flame_or(_enable_flame: bool, content: GzipWriter) -> IronResult<Response> {
+        Ok(Response::with((
+            status::Ok,
+            Header(headers::ContentType::json()),
+            content,
+        )))
     }
 
     fn get_multipart_file_contents(saved_file: &SavedField) -> IronResult<(String)> {

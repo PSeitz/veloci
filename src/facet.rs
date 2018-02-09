@@ -101,7 +101,7 @@ pub fn get_facet(persistence: &Persistence, req: &FacetRequest, ids: &[u32]) -> 
     Ok(groups_with_text)
 }
 
-#[flame]
+#[cfg_attr(feature="flame_it", flame)]
 pub fn join_for_n_to_m(persistence: &Persistence, value_ids: &[u32], path: &str) -> Result<Vec<u32>, SearchError> {
     let kv_store = persistence.get_valueid_to_parent(path)?;
     let mut hits = vec![];
@@ -122,7 +122,7 @@ pub fn join_for_n_to_m(persistence: &Persistence, value_ids: &[u32], path: &str)
 }
 
 //TODO in_place version
-#[flame]
+#[cfg_attr(feature="flame_it", flame)]
 pub fn join_for_n_to_n(persistence: &Persistence, value_ids: &[u32], path: &str) -> Result<Vec<u32>, SearchError> {
     let kv_store = persistence.get_valueid_to_parent(path)?;
 

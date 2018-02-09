@@ -623,7 +623,7 @@ fn load_bytes(file: &File, offset: u64, num_bytes: usize) -> Vec<u8> {
     data
 }
 
-#[flame]
+#[cfg_attr(feature="flame_it", flame)]
 pub fn valid_pair_to_parallel_arrays<T: IndexIdToParentData>(tuples: &mut Vec<create::ValIdPair>) -> ParallelArrays<T> {
     tuples.sort_by(|a, b| a.valid.partial_cmp(&b.valid).unwrap_or(Ordering::Equal));
     let valids = tuples
@@ -640,7 +640,7 @@ pub fn valid_pair_to_parallel_arrays<T: IndexIdToParentData>(tuples: &mut Vec<cr
     }
 }
 
-#[flame]
+#[cfg_attr(feature="flame_it", flame)]
 pub fn boost_pair_to_parallel_arrays<T: IndexIdToParentData>(tuples: &mut Vec<create::ValIdToValue>) -> ParallelArrays<T> {
     tuples.sort_by(|a, b| a.valid.partial_cmp(&b.valid).unwrap_or(Ordering::Equal));
     let valids = tuples

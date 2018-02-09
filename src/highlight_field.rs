@@ -23,7 +23,7 @@ use itertools::Itertools;
 
 use fnv::FnvHashSet;
 
-#[flame]
+#[cfg_attr(feature="flame_it", flame)]
 pub fn highlight_document(persistence: &Persistence, path: &str, value_id: u64, token_ids: &[u32], opt: &SnippetInfo) -> Result<String, search::SearchError> {
     let value_id_to_token_ids = persistence.get_valueid_to_parent(&concat(path, ".value_id_to_token_ids"))?;
     debug_time!(format!("highlight_document id {}", value_id));

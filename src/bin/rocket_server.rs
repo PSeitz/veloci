@@ -1,7 +1,6 @@
 #![feature(plugin, decl_macro)]
 #![plugin(rocket_codegen)]
 #![feature(plugin, custom_attribute)]
-#![plugin(flamer)]
 #![feature(underscore_lifetimes)]
 
 extern crate rocket;
@@ -10,7 +9,6 @@ extern crate rocket;
 extern crate bodyparser;
 extern crate chashmap;
 extern crate env_logger;
-extern crate flame;
 extern crate flexi_logger;
 extern crate fnv;
 extern crate hyper;
