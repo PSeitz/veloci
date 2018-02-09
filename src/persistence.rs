@@ -641,6 +641,7 @@ impl Persistence {
 
     #[cfg_attr(feature="flame_it", flame)]
     pub fn load_all_to_cache(&mut self) -> Result<(), search::SearchError> {
+        info_time!(format!("loaded persistence {:?}", &self.db));
         for (_, ref idlist) in &self.meta_data.id_lists.clone() {
             match &idlist.id_type {
                 &IDDataType::U32 => {}
