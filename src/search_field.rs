@@ -78,7 +78,7 @@ pub fn ord_to_term(fst: &Fst, mut ord: u64, bytes: &mut Vec<u8>) -> bool {
 }
 
 #[inline(always)]
-#[flame]
+#[cfg_attr(feature="flame_it", flame)]
 fn get_text_lines<F>(persistence: &Persistence, options: &RequestSearchPart, mut fun: F) -> Result<(), SearchError>
 where
     F: FnMut(String, u32),
@@ -93,8 +93,6 @@ where
     let map = persistence
         .cache
         .fst
-        .get(&options.path)
-        .ok_or(SearchError::StringError(format!(
         .get(&options.path).ok_or_else(|| SearchError::StringError(format!(
             "fst not found loaded in cache {} ",
             options.path
@@ -130,7 +128,7 @@ where
 
 pub type SuggestFieldResult = Vec<(String, Score, TermId)>;
 
-#[flame]
+#[cfg_attr(feature="flame_it", flame)]
 fn get_text_score_id_from_result(suggest_text: bool, results: &[SearchFieldResult], skip: Option<usize>, top: Option<usize>) -> SuggestFieldResult {
     let mut suggest_result = results
         .iter()
@@ -218,7 +216,7 @@ pub fn highlight(persistence: &Persistence, options: &mut RequestSearchPart) -> 
     ))
 }
 
-#[flame]
+#[cfg_attr(feature="flame_it", flame)]
 pub fn get_hits_in_field(persistence: &Persistence, options: &RequestSearchPart, filter: Option<&FnvHashSet<u32>>) -> Result<SearchFieldResult, SearchError> {
     let mut options = options.clone();
     options.path = options.path.to_string() + ".textindex";
@@ -238,7 +236,7 @@ pub fn get_hits_in_field(persistence: &Persistence, options: &RequestSearchPart,
     Ok(SearchFieldResult::default())
 }
 use std;
-#[flame]
+#[cfg_attr(feature="flame_it", flame)]
 fn get_hits_in_field_one_term(persistence: &Persistence, options: &RequestSearchPart, filter: Option<&FnvHashSet<u32>>) -> Result<SearchFieldResult, SearchError> {
     debug_time!(format!("{} get_hits_in_field", &options.path));
     // let mut hits:FnvHashMap<u32, f32> = FnvHashMap::default();
@@ -481,7 +479,7 @@ fn get_hits_in_field_one_term(persistence: &Persistence, options: &RequestSearch
     Ok(result)
 }
 
-#[flame]
+#[cfg_attr(feature="flame_it", flame)]
 pub fn get_text_for_ids(persistence: &Persistence, path: &str, ids: &[u32]) -> Vec<String> {
     let mut faccess: persistence::FileSearch = persistence.get_file_search(path);
     let offsets = persistence.get_offsets(path).unwrap();
@@ -490,14 +488,14 @@ pub fn get_text_for_ids(persistence: &Persistence, path: &str, ids: &[u32]) -> V
         .collect()
 }
 
-#[flame]
+#[cfg_attr(feature="flame_it", flame)]
 pub fn get_text_for_id_disk(persistence: &Persistence, path: &str, id: u32) -> String {
     let mut faccess: persistence::FileSearch = persistence.get_file_search(path);
     let offsets = persistence.get_offsets(path).unwrap();
     faccess.get_text_for_id(id as usize, &**offsets)
 }
 
-#[flame]
+#[cfg_attr(feature="flame_it", flame)]
 pub fn get_text_for_id(persistence: &Persistence, path: &str, id: u32) -> String {
     let map = persistence
         .cache
@@ -510,7 +508,7 @@ pub fn get_text_for_id(persistence: &Persistence, path: &str, id: u32) -> String
     str::from_utf8(&bytes).unwrap().to_string()
 }
 
-#[flame]
+#[cfg_attr(feature="flame_it", flame)]
 pub fn get_text_for_id_2(persistence: &Persistence, path: &str, id: u32, bytes: &mut Vec<u8>) {
     let map = persistence
         .cache
@@ -520,7 +518,7 @@ pub fn get_text_for_id_2(persistence: &Persistence, path: &str, id: u32, bytes: 
     ord_to_term(map.as_fst(), id as u64, bytes);
 }
 
-#[flame]
+#[cfg_attr(feature="flame_it", flame)]
 pub fn get_id_text_map_for_ids(persistence: &Persistence, path: &str, ids: &[u32]) -> FnvHashMap<u32, String> {
     let map = persistence
         .cache
@@ -536,7 +534,7 @@ pub fn get_id_text_map_for_ids(persistence: &Persistence, path: &str, ids: &[u32
         .collect()
 }
 
-// #[flame]
+// #[cfg_attr(feature="flame_it", flame)]
 // pub fn resolve_snippets(persistence: &Persistence, path: &str, result: &mut SearchFieldResult) -> Result<(), search::SearchError> {
 //     let token_kvdata = persistence.get_valueid_to_parent(&concat(path, ".tokens"))?;
 //     let mut value_id_to_token_hits: FnvHashMap<u32, Vec<u32>> = FnvHashMap::default();
@@ -555,7 +553,7 @@ pub fn get_id_text_map_for_ids(persistence: &Persistence, path: &str, ids: &[u32
 
 // }
 
-#[flame]
+#[cfg_attr(feature="flame_it", flame)]
 pub fn resolve_token_hits(
     persistence: &Persistence,
     path: &str,
