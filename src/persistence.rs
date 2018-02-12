@@ -71,8 +71,10 @@ pub struct KVStoreMetaData {
     pub is_1_to_n: bool, // In the sense of 1:n   1key, n values
     pub persistence_type: KVStoreType,
     pub loading_type: LoadingType,
-    #[serde(default = "default_max_value_id")] pub max_value_id: u32, // max value on the "right" side key -> value, key -> value ..
-    #[serde(default = "default_avg_join")] pub avg_join_size: f32,    // some join statistics
+    #[serde(default = "default_max_value_id")]
+    pub max_value_id: u32, // max value on the "right" side key -> value, key -> value ..
+    #[serde(default = "default_avg_join")]
+    pub avg_join_size: f32, // some join statistics
 }
 
 //TODO Only tmp
@@ -262,11 +264,8 @@ pub trait IndexIdToParent: Debug + HeapSizeOf + Sync + Send + persistence_data::
     #[inline]
     fn is_1_to_n(&self) -> bool {
         let keys = self.get_keys();
-        keys.iter().any(|key| {
-            self.get_values(NumCast::from(*key).unwrap())
-                .map(|values| values.len() > 1)
-                .unwrap_or(false)
-        })
+        keys.iter()
+            .any(|key| self.get_values(NumCast::from(*key).unwrap()).map(|values| values.len() > 1).unwrap_or(false))
     }
 }
 
@@ -286,7 +285,6 @@ use std::u32;
 pub static NOT_FOUND: u32 = u32::MAX;
 
 use lru_time_cache::LruCache;
-
 
 #[derive(Debug, Default)]
 pub struct PersistenceCache {
@@ -369,13 +367,13 @@ impl Persistence {
         println!("{}", table);
     }
 
-    #[cfg_attr(feature="flame_it", flame)]
+    #[cfg_attr(feature = "flame_it", flame)]
     pub fn load(db: String) -> Result<Self, search::SearchError> {
         let meta_data = MetaData::new(&db);
         let mut pers = Persistence {
             meta_data,
             db,
-            lru_cache: HashMap::default(),// LruCache::new(50),
+            lru_cache: HashMap::default(), // LruCache::new(50),
             ..Default::default()
         };
         pers.load_all_to_cache()?;
@@ -383,12 +381,10 @@ impl Persistence {
         Ok(pers)
     }
 
-    #[cfg_attr(feature="flame_it", flame)]
+    #[cfg_attr(feature = "flame_it", flame)]
     pub fn create(db: String) -> Result<Self, io::Error> {
         fs::create_dir_all(&db)?;
-        let meta_data = MetaData {
-            ..Default::default()
-        };
+        let meta_data = MetaData { ..Default::default() };
         Ok(Persistence {
             meta_data,
             db,
@@ -433,23 +429,25 @@ impl Persistence {
         Ok(())
     }
 
-    #[cfg_attr(feature="flame_it", flame)]
-    pub fn write_tuple_pair(&mut self, tuples: &mut Vec<create::ValIdPair>, path: &str, is_always_1_to_1:bool) -> Result<(), io::Error> {
+    #[cfg_attr(feature = "flame_it", flame)]
+    pub fn write_tuple_pair(&mut self, tuples: &mut Vec<create::ValIdPair>, path: &str, is_always_1_to_1: bool) -> Result<(), io::Error> {
         self.write_tuple_pair_dedup(tuples, path, false, is_always_1_to_1)?;
         Ok(())
     }
 
-    pub fn write_tuple_pair_dedup(&mut self, tuples: &mut Vec<create::ValIdPair>, path: &str, sort_and_dedup: bool, is_always_1_to_1:bool) -> Result<(), io::Error> {
+    pub fn write_tuple_pair_dedup(
+        &mut self,
+        tuples: &mut Vec<create::ValIdPair>,
+        path: &str,
+        sort_and_dedup: bool,
+        is_always_1_to_1: bool,
+    ) -> Result<(), io::Error> {
         let data = valid_pair_to_parallel_arrays::<u32>(tuples);
-        let max_value_id = tuples
-            .iter()
-            .max_by_key(|el| el.parent_val_id)
-            .map(|el| el.parent_val_id)
-            .unwrap_or(0);
+        let max_value_id = tuples.iter().max_by_key(|el| el.parent_val_id).map(|el| el.parent_val_id).unwrap_or(0);
 
         if is_always_1_to_1 {
             self.write_direct_index(&data, path, max_value_id)?;
-        }else{
+        } else {
             self.write_indirect_index(&data, path, sort_and_dedup, max_value_id)?;
         }
         //Parallel
@@ -458,7 +456,7 @@ impl Persistence {
 
         Ok(())
     }
-    #[cfg_attr(feature="flame_it", flame)]
+    #[cfg_attr(feature = "flame_it", flame)]
     pub fn write_boost_tuple_pair(&mut self, tuples: &mut Vec<create::ValIdToValue>, path: &str) -> Result<(), io::Error> {
         // let boost_paths = util::boost_path(path);
         // let has_duplicates = has_valid_duplicates(&tuples.iter().map(|el| el as &create::GetValueId).collect());
@@ -479,7 +477,7 @@ impl Persistence {
         Ok(())
     }
 
-    #[cfg_attr(feature="flame_it", flame)]
+    #[cfg_attr(feature = "flame_it", flame)]
     pub fn write_index<T: Clone + Integer + NumCast + Copy + Debug>(&mut self, bytes: &[u8], data: &[T], path: &str) -> Result<(), io::Error> {
         info_time!(format!("Wrote Index {} With size {:?}", path, data.len()));
         File::create(util::get_file_path(&self.db, path))?.write_all(bytes)?;
@@ -516,29 +514,23 @@ impl Persistence {
     //     Ok(())
     // }
 
-    #[cfg_attr(feature="flame_it", flame)]
+    #[cfg_attr(feature = "flame_it", flame)]
     pub fn write_meta_data(&self) -> Result<(), io::Error> {
-        self.write_data(
-            "metaData.json",
-            serde_json::to_string_pretty(&self.meta_data)?.as_bytes(),
-        )
+        self.write_data("metaData.json", serde_json::to_string_pretty(&self.meta_data)?.as_bytes())
     }
 
-    #[cfg_attr(feature="flame_it", flame)]
+    #[cfg_attr(feature = "flame_it", flame)]
     pub fn write_data(&self, path: &str, data: &[u8]) -> Result<(), io::Error> {
         File::create(&get_file_path(&self.db, path))?.write_all(data)?;
         Ok(())
     }
 
-    #[cfg_attr(feature="flame_it", flame)]
+    #[cfg_attr(feature = "flame_it", flame)]
     pub fn get_buffered_writer(&self, path: &str) -> Result<io::BufWriter<fs::File>, io::Error> {
-        Ok(io::BufWriter::new(File::create(&get_file_path(
-            &self.db,
-            path,
-        ))?))
+        Ok(io::BufWriter::new(File::create(&get_file_path(&self.db, path))?))
     }
 
-    #[cfg_attr(feature="flame_it", flame)]
+    #[cfg_attr(feature = "flame_it", flame)]
     pub fn write_json_to_disk(&mut self, arro: &[Value], path: &str) -> Result<(), io::Error> {
         let mut offsets = vec![];
         let mut buffer = File::create(&get_file_path(&self.db, path))?;
@@ -552,15 +544,11 @@ impl Persistence {
         }
         offsets.push(current_offset as u64);
         // println!("json offsets: {:?}", offsets);
-        self.write_index(
-            &vec_to_bytes_u64(&offsets),
-            &offsets,
-            &(path.to_string() + ".offsets"),
-        )?;
+        self.write_index(&vec_to_bytes_u64(&offsets), &offsets, &(path.to_string() + ".offsets"))?;
         Ok(())
     }
 
-    #[cfg_attr(feature="flame_it", flame)]
+    #[cfg_attr(feature = "flame_it", flame)]
     pub fn get_offsets(&self, path: &str) -> Result<&Box<IndexIdToParent<Output = u64>>, search::SearchError> {
         // Option<&IndexIdToParent<Output=u64>>
         self.cache
@@ -569,7 +557,7 @@ impl Persistence {
             .ok_or_else(|| From::from(format!("Did not found path in cache {:?}", path)))
     }
 
-    #[cfg_attr(feature="flame_it", flame)]
+    #[cfg_attr(feature = "flame_it", flame)]
     pub fn get_valueid_to_parent(&self, path: &str) -> Result<&Box<IndexIdToParent<Output = u32>>, search::SearchError> {
         self.cache
             .index_id_to_parento
@@ -577,12 +565,12 @@ impl Persistence {
             .ok_or_else(|| From::from(format!("Did not found path in cache {:?}", path)))
     }
 
-    #[cfg_attr(feature="flame_it", flame)]
+    #[cfg_attr(feature = "flame_it", flame)]
     pub fn has_facet_index(&self, path: &str) -> bool {
         self.cache.index_id_to_parento.contains_key(path)
     }
 
-    #[cfg_attr(feature="flame_it", flame)]
+    #[cfg_attr(feature = "flame_it", flame)]
     pub fn get_boost(&self, path: &str) -> Result<&Box<IndexIdToParent<Output = u32>>, search::SearchError> {
         self.cache
             .boost_valueid_to_value
@@ -590,34 +578,35 @@ impl Persistence {
             .ok_or_else(|| From::from(format!("Did not found path in cache {:?}", path)))
     }
 
-    #[cfg_attr(feature="flame_it", flame)]
+    #[cfg_attr(feature = "flame_it", flame)]
     pub fn get_file_search(&self, path: &str) -> FileSearch {
         FileSearch::new(path, self.get_file_handle(path).unwrap())
     }
 
-    #[cfg_attr(feature="flame_it", flame)]
+    #[cfg_attr(feature = "flame_it", flame)]
     pub fn get_file_handle_complete_path(&self, path: &str) -> Result<File, search::SearchError> {
         Ok(File::open(path).map_err(|err| search::SearchError::StringError(format!("Could not open {} {:?}", path, err)))?)
     }
 
-    #[cfg_attr(feature="flame_it", flame)]
+    #[cfg_attr(feature = "flame_it", flame)]
     pub fn get_file_metadata_handle_complete_path(&self, path: &str) -> Result<fs::Metadata, io::Error> {
         Ok(fs::metadata(path)?)
     }
 
-    #[cfg_attr(feature="flame_it", flame)]
+    #[cfg_attr(feature = "flame_it", flame)]
     pub fn get_file_handle(&self, path: &str) -> Result<File, search::SearchError> {
-        Ok(File::open(PathBuf::from(get_file_path(&self.db, path))).map_err(|err| search::SearchError::StringError(format!("Could not open {} {:?}", path, err)))?)
+        Ok(File::open(PathBuf::from(get_file_path(&self.db, path)))
+            .map_err(|err| search::SearchError::StringError(format!("Could not open {} {:?}", path, err)))?)
     }
 
-    #[cfg_attr(feature="flame_it", flame)]
+    #[cfg_attr(feature = "flame_it", flame)]
     pub fn get_file_metadata_handle(&self, path: &str) -> Result<fs::Metadata, io::Error> {
         Ok(fs::metadata(PathBuf::from(&get_file_path(&self.db, path)))?)
     }
 
-    #[cfg_attr(feature="flame_it", flame)]
+    #[cfg_attr(feature = "flame_it", flame)]
     pub fn load_fst(&self, path: &str) -> Result<Map, search::SearchError> {
-        unsafe{
+        unsafe {
             Ok(Map::from_path(&get_file_path(&self.db, &(path.to_string() + ".fst")))?) //(path.to_string() + ".fst"))?)
         }
         // let mut f = self.get_file_handle(&(path.to_string() + ".fst"))?;
@@ -627,11 +616,9 @@ impl Persistence {
         // Ok(Map::from_bytes(buffer)?)
     }
 
-    #[cfg_attr(feature="flame_it", flame)]
+    #[cfg_attr(feature = "flame_it", flame)]
     pub fn get_fst(&self, path: &str) -> Result<&Map, search::SearchError> {
-        self.cache
-            .fst
-            .get(path).ok_or_else(|| From::from(format!("{} does not exist", path)))
+        self.cache.fst.get(path).ok_or_else(|| From::from(format!("{} does not exist", path)))
     }
 
     // pub fn get_create_char_offset_info(&self, path: &str,character: &str) -> Result<Option<OffsetInfo>, search::SearchError> { // @Temporary - replace SearchError
@@ -639,7 +626,7 @@ impl Persistence {
     //     return Ok(char_offset.get_char_offset_info(character, &self.cache.index_64).ok());
     // }
 
-    #[cfg_attr(feature="flame_it", flame)]
+    #[cfg_attr(feature = "flame_it", flame)]
     pub fn load_all_to_cache(&mut self) -> Result<(), search::SearchError> {
         info_time!(format!("loaded persistence {:?}", &self.db));
         for (_, ref idlist) in &self.meta_data.id_lists.clone() {
@@ -663,7 +650,7 @@ impl Persistence {
         //         Ok(())
         //     }
 
-        for el in &self.meta_data.key_value_stores{
+        for el in &self.meta_data.key_value_stores {
             self.lru_cache.insert(el.path.clone(), LruCache::with_capacity(0));
         }
 
@@ -676,7 +663,8 @@ impl Persistence {
                 info_time!(format!("loaded key_value_store {:?}", &el.path));
 
                 let mut loading_type = el.loading_type.clone();
-                if let Some(val) = load_type_from_env()? { //Overload Loadingtype from env
+                if let Some(val) = load_type_from_env()? {
+                    //Overload Loadingtype from env
                     loading_type = val;
                 }
 
@@ -685,46 +673,31 @@ impl Persistence {
                 let data_direct_path = get_file_path(&self.db, &el.path) + ".data_direct";
 
                 match loading_type {
-                    LoadingType::InMemoryUnCompressed => {
+                    LoadingType::InMemoryUnCompressed => match el.persistence_type {
+                        KVStoreType::IndexIdToMultipleParentIndirect => {
+                            let indirect_u32 = bytes_to_vec_u32(&file_to_bytes(&indirect_path)?);
+                            let data_u32 = bytes_to_vec_u32(&file_to_bytes(&indirect_data_path)?);
 
-                        match el.persistence_type {
-                            KVStoreType::IndexIdToMultipleParentIndirect => {
-                                let indirect_u32 = bytes_to_vec_u32(&file_to_bytes(&indirect_path)?);
-                                let data_u32 = bytes_to_vec_u32(&file_to_bytes(&indirect_data_path)?);
+                            let store = IndexIdToMultipleParentIndirect {
+                                start_and_end: indirect_u32,
+                                data: data_u32,
+                                max_value_id: el.max_value_id,
+                                avg_join_size: el.avg_join_size,
+                            };
 
-                                let store = IndexIdToMultipleParentIndirect {
-                                    start_and_end: indirect_u32,
-                                    data: data_u32,
-                                    max_value_id: el.max_value_id,
-                                    avg_join_size: el.avg_join_size,
-                                };
-
-                                return Ok((
-                                    el.path.to_string(),
-                                    Box::new(store) as Box<IndexIdToParent<Output = u32>>,
-                                ));
-                            },
-                            KVStoreType::ParallelArrays => panic!("WAAAAAAA"),
-                            KVStoreType::IndexIdToOneParent => {
-
-                                let store = IndexIdToOneParent {
-                                    data: bytes_to_vec_u32(&file_to_bytes(&data_direct_path)?),
-                                    max_value_id: el.max_value_id,
-                                };
-
-                                return Ok((
-                                    el.path.to_string(),
-                                    Box::new(store) as Box<IndexIdToParent<Output = u32>>,
-                                ));
-                            },
+                            return Ok((el.path.to_string(), Box::new(store) as Box<IndexIdToParent<Output = u32>>));
                         }
+                        KVStoreType::ParallelArrays => panic!("WAAAAAAA"),
+                        KVStoreType::IndexIdToOneParent => {
+                            let store = IndexIdToOneParent {
+                                data: bytes_to_vec_u32(&file_to_bytes(&data_direct_path)?),
+                                max_value_id: el.max_value_id,
+                            };
 
-
-                    }
+                            return Ok((el.path.to_string(), Box::new(store) as Box<IndexIdToParent<Output = u32>>));
+                        }
+                    },
                     LoadingType::InMemory => {
-
-
-
                         match el.persistence_type {
                             KVStoreType::IndexIdToMultipleParentIndirect => {
                                 let indirect_u32 = bytes_to_vec_u32(&file_to_bytes(&indirect_path)?);
@@ -738,31 +711,22 @@ impl Persistence {
                                     avg_join_size: el.avg_join_size,
                                 };
 
-                                return Ok((
-                                    el.path.to_string(),
-                                    Box::new(store) as Box<IndexIdToParent<Output = u32>>,
-                                ));
+                                return Ok((el.path.to_string(), Box::new(store) as Box<IndexIdToParent<Output = u32>>));
                                 //if el.is_1_to_n {
                                 //     return Ok((el.path.to_string(), Box::new(store) as Box<IndexIdToParent<Output = u32>> ));
                                 // } else {
                                 //     return Ok((el.path.to_string(), Box::new(IndexIdToOneParentMayda::<u32>::new(&store)) as Box<IndexIdToParent<Output = u32>> ));
                                 // }
-
-                            },
+                            }
                             KVStoreType::ParallelArrays => panic!("WAAAAAAA"),
                             KVStoreType::IndexIdToOneParent => {
-
                                 let data_u32 = bytes_to_vec_u32(&file_to_bytes(&data_direct_path)?);
 
                                 let store = IndexIdToOneParentMayda::from_vec(&data_u32, el.max_value_id);
 
-                                return Ok((
-                                    el.path.to_string(),
-                                    Box::new(store) as Box<IndexIdToParent<Output = u32>>,
-                                ));
-                            },
+                                return Ok((el.path.to_string(), Box::new(store) as Box<IndexIdToParent<Output = u32>>));
+                            }
                         }
-
 
                         // return Ok((el.path.to_string(), Box::new(IndexIdToMultipleParentIndirect{start_and_end: indirect_u32, data:data_u32}) as Box<IndexIdToParent<Output = u32>> ));
                         // self.cache
@@ -847,8 +811,6 @@ impl Persistence {
                         // }
                     }
                     LoadingType::Disk => {
-
-
                         match el.persistence_type {
                             KVStoreType::IndexIdToMultipleParentIndirect => {
                                 let start_and_end_file = self.get_file_handle_complete_path(&indirect_path)?;
@@ -877,25 +839,17 @@ impl Persistence {
                                 //     .index_id_to_parento
                                 //     .insert(el.path.to_string(), Box::new(store));
 
-                                return Ok((
-                                    el.path.to_string(),
-                                    Box::new(store) as Box<IndexIdToParent<Output = u32>>,
-                                ));
-                            },
+                                return Ok((el.path.to_string(), Box::new(store) as Box<IndexIdToParent<Output = u32>>));
+                            }
                             KVStoreType::ParallelArrays => panic!("WAAAAAAA"),
                             KVStoreType::IndexIdToOneParent => {
                                 let data_file = self.get_file_handle_complete_path(&data_direct_path)?;
                                 let data_metadata = self.get_file_metadata_handle_complete_path(&data_direct_path)?;
                                 let store = SingleArrayFileReader::<u32>::new(data_file, data_metadata);
 
-                                return Ok((
-                                    el.path.to_string(),
-                                    Box::new(store) as Box<IndexIdToParent<Output = u32>>,
-                                ));
-                            },
+                                return Ok((el.path.to_string(), Box::new(store) as Box<IndexIdToParent<Output = u32>>));
+                            }
                         }
-
-
                     }
                 }
             })
@@ -912,10 +866,9 @@ impl Persistence {
         for el in &self.meta_data.boost_stores {
             let encoded = file_to_bytes(&get_file_path(&self.db, &el.path))?;
             let store: ParallelArrays<u32> = deserialize(&encoded[..]).unwrap();
-            self.cache.boost_valueid_to_value.insert(
-                el.path.to_string(),
-                Box::new(IndexIdToOneParentMayda::<u32>::new(&store, u32::MAX)),
-            );
+            self.cache
+                .boost_valueid_to_value
+                .insert(el.path.to_string(), Box::new(IndexIdToOneParentMayda::<u32>::new(&store, u32::MAX)));
         }
 
         // Load FST
@@ -926,7 +879,7 @@ impl Persistence {
         Ok(())
     }
 
-    #[cfg_attr(feature="flame_it", flame)]
+    #[cfg_attr(feature = "flame_it", flame)]
     pub fn load_index_64(&mut self, path: &str) -> Result<(), search::SearchError> {
         let loading_type = load_type_from_env()?.unwrap_or(LoadingType::Disk);
 
@@ -943,10 +896,9 @@ impl Persistence {
                 let data_file = self.get_file_handle(path)?;
                 let data_metadata = self.get_file_metadata_handle(path)?;
 
-                self.cache.index_64.insert(
-                    path.to_string(),
-                    Box::new(SingleArrayFileReader::<u64>::new(data_file, data_metadata)),
-                );
+                self.cache
+                    .index_64
+                    .insert(path.to_string(), Box::new(SingleArrayFileReader::<u64>::new(data_file, data_metadata)));
             }
         }
 
@@ -988,8 +940,7 @@ impl FileSearch {
         // let mut buffer:Vec<u8> = Vec::with_capacity(string_size as usize);
         // unsafe { buffer.set_len(string_size as usize); }
         self.buffer.resize(string_size as usize, 0);
-        self.file
-            .seek(SeekFrom::Start(offsets.get_value(pos).unwrap()));
+        self.file.seek(SeekFrom::Start(offsets.get_value(pos).unwrap()));
         self.file.read_exact(&mut self.buffer).unwrap();
         // unsafe {str::from_utf8_unchecked(&buffer)}
         // let s = unsafe {str::from_utf8_unchecked(&buffer)};
@@ -1043,8 +994,9 @@ impl FileSearch {
 
 fn load_type_from_env() -> Result<Option<LoadingType>, search::SearchError> {
     if let Some(val) = env::var_os("LoadingType") {
-        let loading_type = LoadingType::from_str(&val.into_string().unwrap())
-            .map_err(|_err| search::SearchError::StringError("only InMemoryUnCompressed, InMemory or Disk allowed for LoadingType environment variable".to_string()))?;
+        let loading_type = LoadingType::from_str(&val.into_string().unwrap()).map_err(|_err| {
+            search::SearchError::StringError("only InMemoryUnCompressed, InMemory or Disk allowed for LoadingType environment variable".to_string())
+        })?;
         Ok(Some(loading_type))
     } else {
         Ok(None)
@@ -1055,7 +1007,6 @@ fn load_type_from_env() -> Result<Option<LoadingType>, search::SearchError> {
 fn name() {
     unimplemented!();
 }
-
 
 pub fn vec_to_bytes_u32(data: &[u32]) -> Vec<u8> {
     let mut wtr: Vec<u8> = vec_with_size_uninitialized(data.len() * std::mem::size_of::<u32>());
@@ -1069,10 +1020,9 @@ pub fn vec_to_bytes_u64(data: &[u64]) -> Vec<u8> {
 }
 
 pub fn bytes_to_vec_u32(data: &[u8]) -> Vec<u32> {
-    let mut out_dat:Vec<u32> = vec_with_size_uninitialized(data.len() / std::mem::size_of::<u32>());
+    let mut out_dat: Vec<u32> = vec_with_size_uninitialized(data.len() / std::mem::size_of::<u32>());
     // LittleEndian::read_u32_into(&data, &mut out_dat);
-    unsafe{
-
+    unsafe {
         //DANGER ZIOONNE
         let ptr = std::mem::transmute::<*const u8, *const u32>(data.as_ptr());
         ptr.copy_to_nonoverlapping(out_dat.as_mut_ptr(), data.len() / std::mem::size_of::<u32>());
@@ -1082,7 +1032,7 @@ pub fn bytes_to_vec_u32(data: &[u8]) -> Vec<u32> {
 pub fn bytes_to_vec_u64(data: &[u8]) -> Vec<u64> {
     let mut out_dat = vec_with_size_uninitialized(data.len() / std::mem::size_of::<u64>());
     // LittleEndian::read_u64_into(&data, &mut out_dat);
-    unsafe{
+    unsafe {
         let ptr = std::mem::transmute::<*const u8, *const u64>(data.as_ptr());
         ptr.copy_to_nonoverlapping(out_dat.as_mut_ptr(), data.len() / std::mem::size_of::<u64>());
     }
@@ -1124,4 +1074,3 @@ fn check_is_docid_type<T: Integer + NumCast + Copy>(data: &[T]) -> bool {
     }
     true
 }
-

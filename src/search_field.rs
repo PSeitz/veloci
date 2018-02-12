@@ -62,9 +62,7 @@ pub fn ord_to_term(fst: &Fst, mut ord: u64, bytes: &mut Vec<u8>) -> bool {
     bytes.clear();
     let mut node = fst.root();
     while ord != 0 || !node.is_final() {
-        let transition_opt = node.transitions()
-            .take_while(|transition| transition.out.value() <= ord)
-            .last();
+        let transition_opt = node.transitions().take_while(|transition| transition.out.value() <= ord).last();
         if let Some(transition) = transition_opt {
             ord -= transition.out.value();
             bytes.push(transition.inp);
@@ -78,7 +76,7 @@ pub fn ord_to_term(fst: &Fst, mut ord: u64, bytes: &mut Vec<u8>) -> bool {
 }
 
 #[inline(always)]
-#[cfg_attr(feature="flame_it", flame)]
+#[cfg_attr(feature = "flame_it", flame)]
 fn get_text_lines<F>(persistence: &Persistence, options: &RequestSearchPart, mut fun: F) -> Result<(), SearchError>
 where
     F: FnMut(String, u32),
@@ -93,10 +91,8 @@ where
     let map = persistence
         .cache
         .fst
-        .get(&options.path).ok_or_else(|| SearchError::StringError(format!(
-            "fst not found loaded in cache {} ",
-            options.path
-        )))?;
+        .get(&options.path)
+        .ok_or_else(|| SearchError::StringError(format!("fst not found loaded in cache {} ", options.path)))?;
     let lev = {
         debug_time!(format!("{} LevenshteinIC create", &options.path));
         LevenshteinIC::new(&options.terms[0], options.levenshtein_distance.unwrap_or(0))?
@@ -128,7 +124,7 @@ where
 
 pub type SuggestFieldResult = Vec<(String, Score, TermId)>;
 
-#[cfg_attr(feature="flame_it", flame)]
+#[cfg_attr(feature = "flame_it", flame)]
 fn get_text_score_id_from_result(suggest_text: bool, results: &[SearchFieldResult], skip: Option<usize>, top: Option<usize>) -> SuggestFieldResult {
     let mut suggest_result = results
         .iter()
@@ -150,9 +146,8 @@ fn get_text_score_id_from_result(suggest_text: bool, results: &[SearchFieldResul
 }
 pub fn suggest_multi(persistence: &Persistence, req: Request) -> Result<SuggestFieldResult, SearchError> {
     info_time!("suggest time");
-    let search_parts: Vec<RequestSearchPart> = req.suggest.ok_or_else(|| SearchError::StringError(
-        "only suggest allowed in suggest function".to_string(),
-    ))?;
+    let search_parts: Vec<RequestSearchPart> = req.suggest
+        .ok_or_else(|| SearchError::StringError("only suggest allowed in suggest function".to_string()))?;
     // let mut search_results = vec![];
     let top = req.top;
     let skip = req.skip;
@@ -180,12 +175,7 @@ pub fn suggest_multi(persistence: &Persistence, req: Request) -> Result<SuggestF
     //     // search_results.push(get_hits_in_field(persistence, &search_part, None)?);
     // }
     info_time!("suggest to vec/sort");
-    Ok(get_text_score_id_from_result(
-        true,
-        &search_results?,
-        req.skip,
-        req.top,
-    ))
+    Ok(get_text_score_id_from_result(true, &search_results?, req.skip, req.top))
 }
 
 // just adds sorting to search
@@ -202,11 +192,7 @@ pub fn suggest(persistence: &Persistence, options: &RequestSearchPart) -> Result
 
 // just adds sorting to search
 pub fn highlight(persistence: &Persistence, options: &mut RequestSearchPart) -> Result<SuggestFieldResult, SearchError> {
-    options.terms = options
-        .terms
-        .iter()
-        .map(|el| util::normalize_text(el))
-        .collect::<Vec<_>>();
+    options.terms = options.terms.iter().map(|el| util::normalize_text(el)).collect::<Vec<_>>();
 
     Ok(get_text_score_id_from_result(
         false,
@@ -216,7 +202,7 @@ pub fn highlight(persistence: &Persistence, options: &mut RequestSearchPart) -> 
     ))
 }
 
-#[cfg_attr(feature="flame_it", flame)]
+#[cfg_attr(feature = "flame_it", flame)]
 pub fn get_hits_in_field(persistence: &Persistence, options: &RequestSearchPart, filter: Option<&FnvHashSet<u32>>) -> Result<SearchFieldResult, SearchError> {
     let mut options = options.clone();
     options.path = options.path.to_string() + ".textindex";
@@ -236,8 +222,12 @@ pub fn get_hits_in_field(persistence: &Persistence, options: &RequestSearchPart,
     Ok(SearchFieldResult::default())
 }
 use std;
-#[cfg_attr(feature="flame_it", flame)]
-fn get_hits_in_field_one_term(persistence: &Persistence, options: &RequestSearchPart, filter: Option<&FnvHashSet<u32>>) -> Result<SearchFieldResult, SearchError> {
+#[cfg_attr(feature = "flame_it", flame)]
+fn get_hits_in_field_one_term(
+    persistence: &Persistence,
+    options: &RequestSearchPart,
+    filter: Option<&FnvHashSet<u32>>,
+) -> Result<SearchFieldResult, SearchError> {
     debug_time!(format!("{} get_hits_in_field", &options.path));
     // let mut hits:FnvHashMap<u32, f32> = FnvHashMap::default();
     let mut result = SearchFieldResult::default();
@@ -258,10 +248,7 @@ fn get_hits_in_field_one_term(persistence: &Persistence, options: &RequestSearch
     // else { None };
     // let start_char_val = start_char.as_ref().map(String::as_ref);
 
-    trace!(
-        "Will Check distance {:?}",
-        options.levenshtein_distance.unwrap_or(0) != 0
-    );
+    trace!("Will Check distance {:?}", options.levenshtein_distance.unwrap_or(0) != 0);
     // trace!("Will Check exact {:?}", options.exact);
     trace!("Will Check starts_with {:?}", options.starts_with);
 
@@ -269,7 +256,11 @@ fn get_hits_in_field_one_term(persistence: &Persistence, options: &RequestSearch
     // let mut vec_hits: Vec<(u32, f32)> = vec![];
     let limit_result = options.top.is_some();
     let mut worst_score = std::f32::MIN;
-    let top_n_search = if limit_result { (options.top.unwrap() + options.skip.unwrap_or(0)) as u32 } else { std::u32::MAX };
+    let top_n_search = if limit_result {
+        (options.top.unwrap() + options.skip.unwrap_or(0)) as u32
+    } else {
+        std::u32::MAX
+    };
     //TODO Move to topnstruct
 
     {
@@ -286,7 +277,11 @@ fn get_hits_in_field_one_term(persistence: &Persistence, options: &RequestSearch
             let line_lower = line.to_lowercase();
 
             // In the case of levenshtein != 0 or starts_with, we want prefix_matches to have a score boost - so that "awe" scores better for awesome than aber
-            let prefix_matches = if should_check_prefix_match && line_lower.starts_with(&lower_term) { true } else { false };
+            let prefix_matches = if should_check_prefix_match && line_lower.starts_with(&lower_term) {
+                true
+            } else {
+                false
+            };
 
             // let distance = if options.levenshtein_distance.unwrap_or(0) != 0 {
             //     // Some(distance(&options.terms[0], &line))
@@ -305,8 +300,8 @@ fn get_hits_in_field_one_term(persistence: &Persistence, options: &RequestSearch
             //     // get_default_score_for_distance(0, prefix_matches)
             // };
             options.boost.map(|boost_val| score *= boost_val); // @FixMe Move out of loop?
-                                                                      // hits.insert(line_pos, score);
-                                                                      // result.hits.push(Hit{id:line_pos, score:score});
+                                                               // hits.insert(line_pos, score);
+                                                               // result.hits.push(Hit{id:line_pos, score:score});
 
             if limit_result {
                 if score < worst_score {
@@ -355,11 +350,7 @@ fn get_hits_in_field_one_term(persistence: &Persistence, options: &RequestSearch
         }
     }
 
-    debug!(
-        "{:?} hits in textindex {:?}",
-        result.hits_vec.len(),
-        &options.path
-    );
+    debug!("{:?} hits in textindex {:?}", result.hits_vec.len(), &options.path);
     trace!("hits in textindex: {:?}", result.hits_vec);
 
     if options.fast_field {
@@ -396,11 +387,7 @@ fn get_hits_in_field_one_term(persistence: &Persistence, options: &RequestSearch
             // }
         }
 
-        debug!(
-            "found {:?} token in {:?} anchors",
-            result.hits_vec.len(),
-            fast_field_res.len()
-        );
+        debug!("found {:?} token in {:?} anchors", result.hits_vec.len(), fast_field_res.len());
 
         {
             debug_time!(format!("{} fast_field sort and dedup", &options.path));
@@ -465,11 +452,7 @@ fn get_hits_in_field_one_term(persistence: &Persistence, options: &RequestSearch
 
     if options.token_value.is_some() {
         debug!("Token Boosting: \n");
-        search::add_boost(
-            persistence,
-            options.token_value.as_ref().unwrap(),
-            &mut result,
-        )?;
+        search::add_boost(persistence, options.token_value.as_ref().unwrap(), &mut result)?;
 
         // for el in result.hits.iter_mut() {
         //     el.score = *hits.get(&el.id).unwrap();
@@ -479,52 +462,38 @@ fn get_hits_in_field_one_term(persistence: &Persistence, options: &RequestSearch
     Ok(result)
 }
 
-#[cfg_attr(feature="flame_it", flame)]
+#[cfg_attr(feature = "flame_it", flame)]
 pub fn get_text_for_ids(persistence: &Persistence, path: &str, ids: &[u32]) -> Vec<String> {
     let mut faccess: persistence::FileSearch = persistence.get_file_search(path);
     let offsets = persistence.get_offsets(path).unwrap();
-    ids.iter()
-        .map(|id| faccess.get_text_for_id(*id as usize, &**offsets))
-        .collect()
+    ids.iter().map(|id| faccess.get_text_for_id(*id as usize, &**offsets)).collect()
 }
 
-#[cfg_attr(feature="flame_it", flame)]
+#[cfg_attr(feature = "flame_it", flame)]
 pub fn get_text_for_id_disk(persistence: &Persistence, path: &str, id: u32) -> String {
     let mut faccess: persistence::FileSearch = persistence.get_file_search(path);
     let offsets = persistence.get_offsets(path).unwrap();
     faccess.get_text_for_id(id as usize, &**offsets)
 }
 
-#[cfg_attr(feature="flame_it", flame)]
+#[cfg_attr(feature = "flame_it", flame)]
 pub fn get_text_for_id(persistence: &Persistence, path: &str, id: u32) -> String {
-    let map = persistence
-        .cache
-        .fst
-        .get(path)
-        .expect(&format!("fst not found loaded in cache {} ", path));
+    let map = persistence.cache.fst.get(path).expect(&format!("fst not found loaded in cache {} ", path));
 
     let mut bytes = vec![];
     ord_to_term(map.as_fst(), id as u64, &mut bytes);
     str::from_utf8(&bytes).unwrap().to_string()
 }
 
-#[cfg_attr(feature="flame_it", flame)]
+#[cfg_attr(feature = "flame_it", flame)]
 pub fn get_text_for_id_2(persistence: &Persistence, path: &str, id: u32, bytes: &mut Vec<u8>) {
-    let map = persistence
-        .cache
-        .fst
-        .get(path)
-        .expect(&format!("fst not found loaded in cache {} ", path));
+    let map = persistence.cache.fst.get(path).expect(&format!("fst not found loaded in cache {} ", path));
     ord_to_term(map.as_fst(), id as u64, bytes);
 }
 
-#[cfg_attr(feature="flame_it", flame)]
+#[cfg_attr(feature = "flame_it", flame)]
 pub fn get_id_text_map_for_ids(persistence: &Persistence, path: &str, ids: &[u32]) -> FnvHashMap<u32, String> {
-    let map = persistence
-        .cache
-        .fst
-        .get(path)
-        .expect(&format!("fst not found loaded in cache {} ", path));
+    let map = persistence.cache.fst.get(path).expect(&format!("fst not found loaded in cache {} ", path));
     ids.iter()
         .map(|id| {
             let mut bytes = vec![];
@@ -553,7 +522,7 @@ pub fn get_id_text_map_for_ids(persistence: &Persistence, path: &str, ids: &[u32
 
 // }
 
-#[cfg_attr(feature="flame_it", flame)]
+#[cfg_attr(feature = "flame_it", flame)]
 pub fn resolve_token_hits(
     persistence: &Persistence,
     path: &str,
@@ -566,10 +535,7 @@ pub fn resolve_token_hits(
         .fulltext_indices
         .get(path)
         .map_or(false, |fulltext_info| fulltext_info.tokenize);
-    debug!(
-        "has_tokens {:?} {:?} is_fast_field {}",
-        path, has_tokens, options.fast_field
-    );
+    debug!("has_tokens {:?} {:?} is_fast_field {}", path, has_tokens, options.fast_field);
     if !has_tokens && !options.fast_field {
         return Ok(());
     }
@@ -577,10 +543,9 @@ pub fn resolve_token_hits(
     let add_snippets = options.snippet.unwrap_or(false);
 
     debug_time!(format!("{} resolve_token_hits", path));
-    let text_offsets = persistence.get_offsets(path).expect(&format!(
-        "Could not find {:?} in index_64 cache",
-        concat(path, ".offsets")
-    ));
+    let text_offsets = persistence
+        .get_offsets(path)
+        .expect(&format!("Could not find {:?} in index_64 cache", concat(path, ".offsets")));
 
     let token_path = concat(path, ".tokens");
 
@@ -599,9 +564,7 @@ pub fn resolve_token_hits(
         for hit in &result.hits_vec {
             // let ref parent_ids_for_token_opt = token_kvdata.get(*value_id as usize);
             if let Some(parent_ids_for_token) = token_kvdata.get_values(hit.id as u64) {
-                let token_text_length_offsets = text_offsets
-                    .get_mutliple_value(hit.id as usize..=hit.id as usize + 1)
-                    .unwrap();
+                let token_text_length_offsets = text_offsets.get_mutliple_value(hit.id as usize..=hit.id as usize + 1).unwrap();
                 let token_text_length = token_text_length_offsets[1] - token_text_length_offsets[0];
 
                 token_hits.reserve(parent_ids_for_token.len());
@@ -664,11 +627,7 @@ pub fn resolve_token_hits(
         // }
     }
 
-    debug!(
-        "found {:?} token in {:?} texts",
-        result.hits_vec.iter().count(),
-        token_hits.iter().count()
-    );
+    debug!("found {:?} token in {:?} texts", result.hits_vec.iter().count(), token_hits.iter().count());
     {
         // println!("{:?}", token_hits);
         debug_time!(format!("token_hits.sort_by {:?}", path));
@@ -692,17 +651,8 @@ pub fn resolve_token_hits(
             result.hits_vec.push(Hit::new(parent_id, max_score));
             if add_snippets {
                 //value_id_to_token_hits.insert(parent_id, t2.map(|el| el.2).collect_vec()); //TODO maybe store hits here, in case only best x are needed
-                let snippet_config = options
-                    .snippet_info
-                    .as_ref()
-                    .unwrap_or(&search::DEFAULT_SNIPPETINFO);
-                let highlighted_document = highlight_document(
-                    persistence,
-                    path,
-                    parent_id as u64,
-                    &t2.map(|el| el.2).collect_vec(),
-                    snippet_config,
-                )?;
+                let snippet_config = options.snippet_info.as_ref().unwrap_or(&search::DEFAULT_SNIPPETINFO);
+                let highlighted_document = highlight_document(persistence, path, parent_id as u64, &t2.map(|el| el.2).collect_vec(), snippet_config)?;
                 result.highlight.insert(parent_id, highlighted_document);
             }
         }

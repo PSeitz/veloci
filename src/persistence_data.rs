@@ -48,8 +48,12 @@ pub trait TypeInfo: Sync + Send {
     fn type_of(&self) -> String;
 }
 macro_rules! mut_if {
-    ($name:ident = $value:expr, $($any:expr)+) => (let mut $name = $value;);
-    ($name:ident = $value:expr,) => (let $name = $value;);
+    ($name: ident = $value: expr, $($any: expr) +) => {
+        let mut $name = $value;
+    };
+    ($name: ident = $value: expr,) => {
+        let $name = $value;
+    };
 }
 
 macro_rules! impl_type_info_single_templ {
@@ -99,9 +103,7 @@ impl<T: IndexIdToParentData> IndexIdToMultipleParent<T> {
 impl<T: IndexIdToParentData> IndexIdToParent for IndexIdToMultipleParent<T> {
     type Output = T;
     fn get_values(&self, id: u64) -> Option<Vec<T>> {
-        let vec: Option<Vec<T>> = self.data
-            .get(id as usize)
-            .map(|el| el.iter().map(|el| NumCast::from(*el).unwrap()).collect());
+        let vec: Option<Vec<T>> = self.data.get(id as usize).map(|el| el.iter().map(|el| NumCast::from(*el).unwrap()).collect());
         if vec.is_some() && vec.as_ref().unwrap().is_empty() {
             return None;
         }
@@ -145,12 +147,9 @@ impl<T: IndexIdToParentData> IndexIdToMultipleParentCompressedMaydaDIRECT<T> {
 impl<T: IndexIdToParentData> IndexIdToParent for IndexIdToMultipleParentCompressedMaydaDIRECT<T> {
     type Output = T;
     default fn get_values(&self, id: u64) -> Option<Vec<T>> {
-        self.data.get(id as usize).map(|el| {
-            el.decode()
-                .iter()
-                .map(|el| NumCast::from(*el).unwrap())
-                .collect()
-        })
+        self.data
+            .get(id as usize)
+            .map(|el| el.decode().iter().map(|el| NumCast::from(*el).unwrap()).collect())
     }
     fn get_keys(&self) -> Vec<T> {
         (NumCast::from(0).unwrap()..NumCast::from(self.data.len()).unwrap()).collect()
@@ -242,14 +241,14 @@ impl<T: IndexIdToParentData> IndexIdToParent for IndexIdToOneParent<T> {
 
     #[inline]
     fn count_values_for_ids(&self, ids: &[u32], top: Option<u32>) -> FnvHashMap<T, usize> {
-        count_values_for_ids(ids, top, self.max_value_id, |id:u64| {self.get_value(id)})
+        count_values_for_ids(ids, top, self.max_value_id, |id: u64| self.get_value(id))
     }
 }
 
 #[inline]
 fn count_values_for_ids<T: IndexIdToParentData, F>(ids: &[u32], top: Option<u32>, max_value_id: u32, get_value: F) -> FnvHashMap<T, usize>
 where
-    F: Fn(u64) -> Option<T>
+    F: Fn(u64) -> Option<T>,
 {
     let mut coll: Box<AggregationCollector<T>> = get_collector(ids.len() as u32, 1.0, max_value_id);
     for id in ids {
@@ -273,7 +272,7 @@ impl<T: IndexIdToParentData> IndexIdToOneParentMayda<T> {
         IndexIdToOneParentMayda {
             size: yep.data.len(),
             data: to_uniform(&yep.data),
-            max_value_id
+            max_value_id,
         }
     }
     #[allow(dead_code)]
@@ -281,7 +280,7 @@ impl<T: IndexIdToParentData> IndexIdToOneParentMayda<T> {
         IndexIdToOneParentMayda {
             size: data.len(),
             data: to_uniform(data),
-            max_value_id
+            max_value_id,
         }
     }
 }
@@ -303,7 +302,6 @@ impl<T: IndexIdToParentData> IndexIdToParent for IndexIdToOneParentMayda<T> {
         } else {
             Some(val)
         }
-
     }
     #[inline]
     fn get_mutliple_value(&self, range: std::ops::RangeInclusive<usize>) -> Option<Vec<T>> {
@@ -314,7 +312,7 @@ impl<T: IndexIdToParentData> IndexIdToParent for IndexIdToOneParentMayda<T> {
     }
     #[inline]
     fn count_values_for_ids(&self, ids: &[u32], top: Option<u32>) -> FnvHashMap<T, usize> {
-        count_values_for_ids(ids, top, self.max_value_id, |id:u64| {self.get_value(id)})
+        count_values_for_ids(ids, top, self.max_value_id, |id: u64| self.get_value(id))
     }
 }
 
@@ -373,16 +371,16 @@ impl<T: IndexIdToParentData> IndexIdToParent for ParallelArrays<T> {
         let mut result = Vec::new();
         let casted_id = NumCast::from(id).unwrap();
         if let Ok(mut pos) = self.values1.binary_search(&casted_id) {
-    //this is not a lower_bounds search so we MUST move to the first hit
-    while pos != 0 && self.values1[pos - 1] == casted_id {
-        pos -= 1;
-    }
-    let val_len = self.values1.len();
-    while pos < val_len && self.values1[pos] == casted_id {
-        result.push(self.values2[pos]);
-        pos += 1;
-    }
-}
+            //this is not a lower_bounds search so we MUST move to the first hit
+            while pos != 0 && self.values1[pos - 1] == casted_id {
+                pos -= 1;
+            }
+            let val_len = self.values1.len();
+            while pos < val_len && self.values1[pos] == casted_id {
+                result.push(self.values2[pos]);
+                pos += 1;
+            }
+        }
         if result.is_empty() {
             None
         } else {
@@ -390,10 +388,7 @@ impl<T: IndexIdToParentData> IndexIdToParent for ParallelArrays<T> {
         }
     }
     fn get_keys(&self) -> Vec<T> {
-        let mut keys: Vec<T> = self.values1
-            .iter()
-            .map(|el| NumCast::from(*el).unwrap())
-            .collect();
+        let mut keys: Vec<T> = self.values1.iter().map(|el| NumCast::from(*el).unwrap()).collect();
         keys.sort();
         keys.dedup();
         keys
@@ -446,7 +441,6 @@ impl<T: IndexIdToParentData> IndexIdToParent for SingleArrayFileReader<T> {
     type Output = T;
     default fn get_value(&self, _find: u64) -> Option<T> {
         unimplemented!()
-
     }
     default fn get_values(&self, _find: u64) -> Option<Vec<T>> {
         unimplemented!()
@@ -458,13 +452,7 @@ impl<T: IndexIdToParentData> IndexIdToParent for SingleArrayFileReader<T> {
 
 impl IndexIdToParent for SingleArrayFileReader<u64> {
     fn get_value(&self, find: u64) -> Option<u64> {
-        get_reader(
-            std::mem::size_of::<u64>(),
-            find,
-            1,
-            &self.data_file,
-            &self.data_metadata,
-        ).map(|mut rdr| rdr.read_u64::<LittleEndian>().unwrap())
+        get_reader(std::mem::size_of::<u64>(), find, 1, &self.data_file, &self.data_metadata).map(|mut rdr| rdr.read_u64::<LittleEndian>().unwrap())
     }
 
     fn get_mutliple_value(&self, range: std::ops::RangeInclusive<usize>) -> Option<Vec<Self::Output>> {
@@ -480,22 +468,16 @@ impl IndexIdToParent for SingleArrayFileReader<u64> {
     }
 
     fn get_values(&self, find: u64) -> Option<Vec<u64>> {
-        self.get_value(find).map(|el|vec![el])
+        self.get_value(find).map(|el| vec![el])
     }
 }
 impl IndexIdToParent for SingleArrayFileReader<u32> {
     fn get_value(&self, find: u64) -> Option<u32> {
-        get_reader(
-            std::mem::size_of::<u32>(),
-            find,
-            1,
-            &self.data_file,
-            &self.data_metadata,
-        ).map(|mut rdr| rdr.read_u32::<LittleEndian>().unwrap())
+        get_reader(std::mem::size_of::<u32>(), find, 1, &self.data_file, &self.data_metadata).map(|mut rdr| rdr.read_u32::<LittleEndian>().unwrap())
     }
 
     fn get_values(&self, find: u64) -> Option<Vec<u32>> {
-        self.get_value(find).map(|el|vec![el])
+        self.get_value(find).map(|el| vec![el])
     }
 
     fn get_mutliple_value(&self, range: std::ops::RangeInclusive<usize>) -> Option<Vec<Self::Output>> {
@@ -521,11 +503,7 @@ fn get_bytes(block_size: usize, find: u64, num_elem: u64, data_file: &Mutex<fs::
     if find >= size as u64 {
         return None;
     }
-    let data_bytes = load_bytes(
-        &*data_file.lock(),
-        find as u64 * block_size as u64,
-        block_size * num_elem as usize,
-    );
+    let data_bytes = load_bytes(&*data_file.lock(), find as u64 * block_size as u64, block_size * num_elem as usize);
 
     Some(data_bytes)
 }
@@ -613,9 +591,6 @@ pub fn to_monotone<T: mayda::utility::Bits>(data: &[T]) -> mayda::Monotone<T> {
     uniform
 }
 
-
-
-
 fn load_bytes(file: &File, offset: u64, num_bytes: usize) -> Vec<u8> {
     let mut data = vec![];
     data.resize(num_bytes, 0);
@@ -623,34 +598,22 @@ fn load_bytes(file: &File, offset: u64, num_bytes: usize) -> Vec<u8> {
     data
 }
 
-#[cfg_attr(feature="flame_it", flame)]
+#[cfg_attr(feature = "flame_it", flame)]
 pub fn valid_pair_to_parallel_arrays<T: IndexIdToParentData>(tuples: &mut Vec<create::ValIdPair>) -> ParallelArrays<T> {
     tuples.sort_by(|a, b| a.valid.partial_cmp(&b.valid).unwrap_or(Ordering::Equal));
-    let valids = tuples
-        .iter()
-        .map(|el| NumCast::from(el.valid).unwrap())
-        .collect::<Vec<_>>();
-    let parent_val_ids = tuples
-        .iter()
-        .map(|el| NumCast::from(el.parent_val_id).unwrap())
-        .collect::<Vec<_>>();
+    let valids = tuples.iter().map(|el| NumCast::from(el.valid).unwrap()).collect::<Vec<_>>();
+    let parent_val_ids = tuples.iter().map(|el| NumCast::from(el.parent_val_id).unwrap()).collect::<Vec<_>>();
     ParallelArrays {
         values1: valids,
         values2: parent_val_ids,
     }
 }
 
-#[cfg_attr(feature="flame_it", flame)]
+#[cfg_attr(feature = "flame_it", flame)]
 pub fn boost_pair_to_parallel_arrays<T: IndexIdToParentData>(tuples: &mut Vec<create::ValIdToValue>) -> ParallelArrays<T> {
     tuples.sort_by(|a, b| a.valid.partial_cmp(&b.valid).unwrap_or(Ordering::Equal));
-    let valids = tuples
-        .iter()
-        .map(|el| NumCast::from(el.valid).unwrap())
-        .collect::<Vec<_>>();
-    let values = tuples
-        .iter()
-        .map(|el| NumCast::from(el.value).unwrap())
-        .collect::<Vec<_>>();
+    let valids = tuples.iter().map(|el| NumCast::from(el.valid).unwrap()).collect::<Vec<_>>();
+    let values = tuples.iter().map(|el| NumCast::from(el.value).unwrap()).collect::<Vec<_>>();
     ParallelArrays {
         values1: valids,
         values2: values,
@@ -670,9 +633,7 @@ fn test_index_parrallel_arrays() {
 fn test_snap() {
     let mut encoder = snap::Encoder::new();
     let mut data: Vec<Vec<u32>> = vec![];
-    data.push(vec![
-        11, 12, 13, 14, 15, 16, 17, 18, 19, 110, 111, 112, 113, 114, 115, 116, 117, 118
-    ]);
+    data.push(vec![11, 12, 13, 14, 15, 16, 17, 18, 19, 110, 111, 112, 113, 114, 115, 116, 117, 118]);
     data.push(vec![10, 11, 12, 13, 14, 15]);
     data.push(vec![10]);
     info!("data orig {:?}", data.heap_size_of_children());
@@ -687,10 +648,7 @@ fn test_snap() {
             dat
         })
         .collect();
-    info!(
-        "data byteorder compressed {:?}",
-        data5.heap_size_of_children()
-    );
+    info!("data byteorder compressed {:?}", data5.heap_size_of_children());
 
     let mut wtr: Vec<u8> = vec![];
     wtr.write_u32::<LittleEndian>(10).unwrap();
@@ -705,11 +663,17 @@ mod tests {
 
     fn get_test_data_1_to_1<T: IndexIdToParentData>() -> IndexIdToOneParent<T> {
         let values = vec![5, 6, 9, 9, 9, 50000];
-        IndexIdToOneParent { data: values.iter().map(|el| NumCast::from(*el).unwrap()).collect(), max_value_id:50000 }
+        IndexIdToOneParent {
+            data: values.iter().map(|el| NumCast::from(*el).unwrap()).collect(),
+            max_value_id: 50000,
+        }
     }
 
     fn check_test_data_1_to_1<T: IndexIdToParentData>(store: &IndexIdToParent<Output = T>) {
-        assert_eq!(store.get_keys().iter().map(|el| el.to_u32().unwrap()).collect::<Vec<_>>(), vec![0, 1, 2, 3, 4, 5]);
+        assert_eq!(
+            store.get_keys().iter().map(|el| el.to_u32().unwrap()).collect::<Vec<_>>(),
+            vec![0, 1, 2, 3, 4, 5]
+        );
         assert_eq!(store.get_value(0).unwrap().to_u32().unwrap(), 5);
         assert_eq!(store.get_value(1).unwrap().to_u32().unwrap(), 6);
         assert_eq!(store.get_value(2).unwrap().to_u32().unwrap(), 9);

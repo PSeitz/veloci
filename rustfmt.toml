@@ -1,5 +1,5 @@
 comment_width = 180
-max_width = 177
+max_width = 160
 error_on_line_overflow = false
 reorder_imports_in_group = true
 reorder_extern_crates_in_group = true

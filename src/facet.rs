@@ -3,13 +3,11 @@ use search::*;
 use search_field::*;
 use util;
 use itertools::Itertools;
-use num::{NumCast};
+use num::NumCast;
 use fnv::FnvHashMap;
 
 pub fn get_top_facet_group<T: IndexIdToParentData>(hits: &FnvHashMap<T, usize>, top: Option<usize>) -> Vec<(T, u32)> {
-    let mut groups: Vec<(T, u32)> = hits.iter()
-        .map(|ref tupl| (*tupl.0, *tupl.1 as u32))
-        .collect();
+    let mut groups: Vec<(T, u32)> = hits.iter().map(|ref tupl| (*tupl.0, *tupl.1 as u32)).collect();
 
     //TODO MERGECODE with below
     groups.sort_by(|a, b| b.1.cmp(&a.1));
@@ -48,12 +46,7 @@ pub fn get_facet(persistence: &Persistence, req: &FacetRequest, ids: &[u32]) -> 
 
         let groups_with_text = groups
             .iter()
-            .map(|el| {
-                (
-                    get_text_for_id(persistence, steps.last().unwrap(), el.0),
-                    el.1 as usize,
-                )
-            })
+            .map(|el| (get_text_for_id(persistence, steps.last().unwrap(), el.0), el.1 as usize))
             .collect();
         debug!("{:?}", groups_with_text);
         return Ok(groups_with_text);
@@ -61,20 +54,12 @@ pub fn get_facet(persistence: &Persistence, req: &FacetRequest, ids: &[u32]) -> 
 
     let mut next_level_ids = {
         debug_time!(format!("facets in field first join {:?}", req.field));
-        join_for_n_to_m(
-            persistence,
-            ids,
-            &(steps.first().unwrap().to_string() + ".parentToValueId"),
-        )?
+        join_for_n_to_m(persistence, ids, &(steps.first().unwrap().to_string() + ".parentToValueId"))?
     };
     for step in steps.iter().skip(1) {
         debug_time!(format!("facet step {:?}", step));
         debug!("facet step {:?}", step);
-        next_level_ids = join_for_n_to_m(
-            persistence,
-            &next_level_ids,
-            &(step.to_string() + ".parentToValueId"),
-        )?;
+        next_level_ids = join_for_n_to_m(persistence, &next_level_ids, &(step.to_string() + ".parentToValueId"))?;
     }
 
     let mut groups = vec![];
@@ -90,18 +75,13 @@ pub fn get_facet(persistence: &Persistence, req: &FacetRequest, ids: &[u32]) -> 
 
     let groups_with_text = groups
         .iter()
-        .map(|el| {
-            (
-                get_text_for_id(persistence, steps.last().unwrap(), el.0),
-                el.1,
-            )
-        })
+        .map(|el| (get_text_for_id(persistence, steps.last().unwrap(), el.0), el.1))
         .collect();
     debug!("{:?}", groups_with_text);
     Ok(groups_with_text)
 }
 
-#[cfg_attr(feature="flame_it", flame)]
+#[cfg_attr(feature = "flame_it", flame)]
 pub fn join_for_n_to_m(persistence: &Persistence, value_ids: &[u32], path: &str) -> Result<Vec<u32>, SearchError> {
     let kv_store = persistence.get_valueid_to_parent(path)?;
     let mut hits = vec![];
@@ -122,19 +102,13 @@ pub fn join_for_n_to_m(persistence: &Persistence, value_ids: &[u32], path: &str)
 }
 
 //TODO in_place version
-#[cfg_attr(feature="flame_it", flame)]
+#[cfg_attr(feature = "flame_it", flame)]
 pub fn join_for_n_to_n(persistence: &Persistence, value_ids: &[u32], path: &str) -> Result<Vec<u32>, SearchError> {
     let kv_store = persistence.get_valueid_to_parent(path)?;
 
-    Ok(value_ids
-        .iter()
-        .flat_map(|el| kv_store.get_value(*el as u64))
-        .collect())
+    Ok(value_ids.iter().flat_map(|el| kv_store.get_value(*el as u64)).collect())
     // Ok(kv_store.get_values(value_id as u64))
 }
-
-
-
 
 pub trait AggregationCollector<T: IndexIdToParentData> {
     fn add(&mut self, id: T);
@@ -195,11 +169,7 @@ impl<T: IndexIdToParentData> AggregationCollector<T> for Vec<T> {
                 .map(|el| (NumCast::from(el.0).unwrap(), NumCast::from(el.1).unwrap()))
                 .collect()
         } else {
-            let mut groups: Vec<(u32, T)> = self.iter()
-                .enumerate()
-                .filter(|el| *el.1 != T::zero())
-                .map(|el| (el.0 as u32, *el.1))
-                .collect();
+            let mut groups: Vec<(u32, T)> = self.iter().enumerate().filter(|el| *el.1 != T::zero()).map(|el| (el.0 as u32, *el.1)).collect();
             groups.sort_by(|a, b| b.1.cmp(&a.1));
             // groups = apply_top_skip(groups, 0, top.unwrap_or(std::u32::MAX) as usize);
             groups
@@ -220,8 +190,3 @@ impl<T: IndexIdToParentData> AggregationCollector<T> for FnvHashMap<T, usize> {
         *self
     }
 }
-
-
-
-
-

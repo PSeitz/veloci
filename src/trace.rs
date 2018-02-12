@@ -8,13 +8,7 @@ use chrono::Local;
 /// <br>
 /// i.e. with timestamp and file location.
 pub fn format_log(record: &Record) -> String {
-    if module_path!().split("::").nth(0)
-        == record
-            .module_path()
-            .unwrap_or("<unnamed>")
-            .split("::")
-            .nth(0)
-    {
+    if module_path!().split("::").nth(0) == record.module_path().unwrap_or("<unnamed>").split("::").nth(0) {
         format!(
             "[{}] {} [{}:{}] {}",
             Local::now().format("%Y-%m-%d %H:%M:%S%.6f %:z"),
@@ -35,8 +29,5 @@ pub fn format_log(record: &Record) -> String {
 }
 
 pub fn enable_log() {
-    flexi_logger::Logger::with_env()
-        .format(format_log)
-        .start()
-        .unwrap();
+    flexi_logger::Logger::with_env().format(format_log).start().unwrap();
 }

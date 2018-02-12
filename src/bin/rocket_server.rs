@@ -5,7 +5,6 @@
 
 extern crate rocket;
 
-
 extern crate bodyparser;
 extern crate chashmap;
 extern crate env_logger;
@@ -32,7 +31,6 @@ extern crate log;
 extern crate measure_time;
 extern crate search_lib;
 
-
 // use search_lib::search;
 // use search_lib::search_field;
 // use search_lib::persistence::Persistence;
@@ -48,7 +46,6 @@ extern crate search_lib;
 // use std::collections::HashMap;
 // use std::fs::File;
 // use std::io::prelude::*;
-
 
 #[get("/<name>/<age>")]
 fn hello(name: String, age: u8) -> String {

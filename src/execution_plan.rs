@@ -72,24 +72,12 @@ pub trait OutputProvider {
 impl OutputProvider for PlanStepType {
     fn get_output(&self) -> PlanDataReceiver {
         match self {
-            &PlanStepType::FieldSearch {
-                ref plans_output, ..
-            } => plans_output.clone(),
-            &PlanStepType::ValueIdToParent {
-                ref plans_output, ..
-            } => plans_output.clone(),
-            &PlanStepType::Boost {
-                ref plans_output, ..
-            } => plans_output.clone(),
-            &PlanStepType::Union {
-                ref plans_output, ..
-            } => plans_output.clone(),
-            &PlanStepType::Intersect {
-                ref plans_output, ..
-            } => plans_output.clone(),
-            &PlanStepType::FromAttribute {
-                ref plans_output, ..
-            } => plans_output.clone(),
+            &PlanStepType::FieldSearch { ref plans_output, .. } => plans_output.clone(),
+            &PlanStepType::ValueIdToParent { ref plans_output, .. } => plans_output.clone(),
+            &PlanStepType::Boost { ref plans_output, .. } => plans_output.clone(),
+            &PlanStepType::Union { ref plans_output, .. } => plans_output.clone(),
+            &PlanStepType::Intersect { ref plans_output, .. } => plans_output.clone(),
+            &PlanStepType::FromAttribute { ref plans_output, .. } => plans_output.clone(),
         }
     }
 }
@@ -107,11 +95,9 @@ pub trait StepExecutor {
     fn execute_step(self, persistence: &Persistence) -> Result<(), SearchError>;
 }
 
-
-
 impl StepExecutor for PlanStepType {
     #[allow(unused_variables)]
-    #[cfg_attr(feature="flame_it", flame)]
+    #[cfg_attr(feature = "flame_it", flame)]
     fn execute_step(self, persistence: &Persistence) -> Result<(), SearchError> {
         match self {
             PlanStepType::FieldSearch {
@@ -123,7 +109,9 @@ impl StepExecutor for PlanStepType {
                 let field_result = search_field::get_hits_in_field(persistence, &mut req, None)?;
                 output_next_steps.send(field_result)?;
                 drop(output_next_steps);
-                for el in input_prev_steps{drop(el);}
+                for el in input_prev_steps {
+                    drop(el);
+                }
                 // Ok(field_result.hits)
                 Ok(())
             }
@@ -134,13 +122,10 @@ impl StepExecutor for PlanStepType {
                 trace_info: joop,
                 ..
             } => {
-                output_next_steps.send(join_to_parent_with_score(
-                    persistence,
-                    input_prev_steps[0].recv()?,
-                    &path,
-                    &joop,
-                )?)?;
-                for el in input_prev_steps{drop(el);}
+                output_next_steps.send(join_to_parent_with_score(persistence, input_prev_steps[0].recv()?, &path, &joop)?)?;
+                for el in input_prev_steps {
+                    drop(el);
+                }
                 drop(output_next_steps);
                 Ok(())
             }
@@ -153,7 +138,9 @@ impl StepExecutor for PlanStepType {
                 let mut input = input_prev_steps[0].recv()?;
                 add_boost(persistence, &req, &mut input)?;
                 output_next_steps.send(input)?;
-                for el in input_prev_steps{drop(el);}
+                for el in input_prev_steps {
+                    drop(el);
+                }
                 drop(output_next_steps);
                 Ok(())
             }
@@ -193,7 +180,7 @@ impl StepExecutor for PlanStepType {
     }
 }
 
-#[cfg_attr(feature="flame_it", flame)]
+#[cfg_attr(feature = "flame_it", flame)]
 pub fn plan_creator(request: Request) -> PlanStepType {
     let (tx, rx): (PlanDataSender, PlanDataReceiver) = unbounded();
 
@@ -226,7 +213,7 @@ pub fn plan_creator(request: Request) -> PlanStepType {
     }
 }
 
-#[cfg_attr(feature="flame_it", flame)]
+#[cfg_attr(feature = "flame_it", flame)]
 pub fn plan_creator_search_part(mut request: RequestSearchPart, mut boost: Option<Vec<RequestBoostPart>>) -> PlanStepType {
     let paths = util::get_steps_to_anchor(&request.path);
 
@@ -262,9 +249,6 @@ pub fn plan_creator_search_part(mut request: RequestSearchPart, mut boost: Optio
         });
 
         for i in (0..paths.len() - 1).rev() {
-
-
-
             if boost.is_some() {
                 boost.as_mut().unwrap().retain(|boost| {
                     let apply_boost = boost.path.starts_with(&paths[i]);
@@ -302,8 +286,8 @@ pub fn plan_creator_search_part(mut request: RequestSearchPart, mut boost: Optio
             rx = next_rx;
         }
 
-
-        if let Some(boosts) = boost { // Handling boost from anchor to value - TODO FIXME Error when 1:N
+        if let Some(boosts) = boost {
+            // Handling boost from anchor to value - TODO FIXME Error when 1:N
             for boost in boosts {
                 let (next_tx, next_rx): (PlanDataSender, PlanDataReceiver) = unbounded();
                 tx = next_tx;
@@ -316,7 +300,6 @@ pub fn plan_creator_search_part(mut request: RequestSearchPart, mut boost: Optio
                 debug!("PlanCreator Step {:?}", boost);
                 rx = next_rx;
             }
-
         }
 
         PlanStepType::FromAttribute {
@@ -369,14 +352,9 @@ pub fn plan_creator_search_part(mut request: RequestSearchPart, mut boost: Optio
 // }
 use rayon::prelude::*;
 
-#[cfg_attr(feature="flame_it", flame)]
+#[cfg_attr(feature = "flame_it", flame)]
 pub fn execute_steps(steps: Vec<PlanStepType>, persistence: &Persistence) -> Result<(), SearchError> {
-    let r: Result<Vec<_>, SearchError> = steps
-        .into_par_iter()
-        .map(|step| {
-            step.execute_step(persistence)
-        })
-        .collect();
+    let r: Result<Vec<_>, SearchError> = steps.into_par_iter().map(|step| step.execute_step(persistence)).collect();
 
     if r.is_err() {
         Err(r.unwrap_err())
@@ -388,7 +366,6 @@ pub fn execute_steps(steps: Vec<PlanStepType>, persistence: &Persistence) -> Res
     //     step.execute_step(persistence)?;
     // }
     // Ok(())
-
 
     // let err = steps.par_iter().map(|step|{
     //     let res = execute_step(step.clone(), persistence);

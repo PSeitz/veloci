@@ -243,16 +243,12 @@ mod tests {
     }
 
     fn search_testo_to_doco(req: Value) -> Result<search::SearchResultWithDoc, search::SearchError> {
-        let pers = PERSISTENCES
-            .get(&"default".to_string())
-            .expect("Can't find loaded persistence");
+        let pers = PERSISTENCES.get(&"default".to_string()).expect("Can't find loaded persistence");
         Ok(search::to_search_result(&pers, search_testo_to_hitso(req)?))
     }
 
     fn search_testo_to_hitso(req: Value) -> Result<search::SearchResult, search::SearchError> {
-        let pers = PERSISTENCES
-            .get(&"default".to_string())
-            .expect("Can't find loaded persistence");
+        let pers = PERSISTENCES.get(&"default".to_string()).expect("Can't find loaded persistence");
         let requesto: search::Request = serde_json::from_str(&req.to_string()).expect("Can't parse json");
         let hits = search::search(requesto, &pers)?;
         Ok(hits)
@@ -884,10 +880,7 @@ mod tests {
     fn create_and_delete_file_in_subfolder() {
         fs::create_dir_all("subFolder1").unwrap();
         let some_terms = vec!["yep, yep"];
-        File::create("subFolder1/test1")
-            .unwrap()
-            .write_all(some_terms.join("\n").as_bytes())
-            .unwrap();
+        File::create("subFolder1/test1").unwrap().write_all(some_terms.join("\n").as_bytes()).unwrap();
         assert_eq!("lines", "lines");
         println!("{:?}", fs::remove_dir_all("subFolder1"));
     }

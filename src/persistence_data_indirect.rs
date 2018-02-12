@@ -44,8 +44,12 @@ use itertools::Itertools;
 use memmap::Mmap;
 
 macro_rules! mut_if {
-    ($name:ident = $value:expr, $($any:expr)+) => (let mut $name = $value;);
-    ($name:ident = $value:expr,) => (let $name = $value;);
+    ($name: ident = $value: expr, $($any: expr) +) => {
+        let mut $name = $value;
+    };
+    ($name: ident = $value: expr,) => {
+        let $name = $value;
+    };
 }
 
 macro_rules! impl_type_info_single_templ {
@@ -119,7 +123,8 @@ impl<T: IndexIdToParentData> IndexIdToParent for IndexIdToMultipleParentIndirect
             None
         } else {
             let positions = &self.start_and_end[(id * 2) as usize..=((id * 2) as usize + 1)];
-            if positions[0].to_u32().unwrap() == u32::MAX { //data encoded in indirect array
+            if positions[0].to_u32().unwrap() == u32::MAX {
+                //data encoded in indirect array
                 return Some(vec![positions[1]]);
             }
             if positions[0] == positions[1] {
@@ -152,7 +157,8 @@ impl<T: IndexIdToParentData> IndexIdToParent for IndexIdToMultipleParentIndirect
                 } else {
                     let pos = (*id * 2) as usize;
                     let positions = &self.start_and_end[pos..=pos + 1];
-                    if positions[0].to_u32().unwrap() == u32::MAX { //data encoded in indirect array
+                    if positions[0].to_u32().unwrap() == u32::MAX {
+                        //data encoded in indirect array
                         coll.add(positions[1]);
                         continue;
                     }
@@ -193,10 +199,7 @@ impl<T: IndexIdToParentData> IndexIdToMultipleParentCompressedMaydaINDIRECTOne<T
     pub fn new(store: &IndexIdToParent<Output = T>) -> IndexIdToMultipleParentCompressedMaydaINDIRECTOne<T> {
         let (max_value_id, avg_join_size, size, start_and_end, data) = id_to_parent_to_array_of_array_mayda_indirect_one(store);
 
-        info!(
-            "start_and_end {}",
-            get_readable_size(start_and_end.heap_size_of_children())
-        );
+        info!("start_and_end {}", get_readable_size(start_and_end.heap_size_of_children()));
         info!("data {}", get_readable_size(data.heap_size_of_children()));
         IndexIdToMultipleParentCompressedMaydaINDIRECTOne {
             start_and_end,
@@ -208,21 +211,13 @@ impl<T: IndexIdToParentData> IndexIdToMultipleParentCompressedMaydaINDIRECTOne<T
     }
 }
 
-
-
 impl<T: IndexIdToParentData> IndexIdToParent for IndexIdToMultipleParentCompressedMaydaINDIRECTOne<T> {
     type Output = T;
     #[inline]
     fn get_values(&self, id: u64) -> Option<Vec<T>> {
         let mut positions: Vec<T> = vec![];
         positions.resize(2, T::zero());
-        get_values_indirect_generic(
-            id,
-            self.size as u64,
-            &self.start_and_end,
-            &self.data,
-            &mut positions,
-        )
+        get_values_indirect_generic(id, self.size as u64, &self.start_and_end, &self.data, &mut positions)
     }
 
     fn get_keys(&self) -> Vec<T> {
@@ -237,12 +232,11 @@ impl<T: IndexIdToParentData> IndexIdToParent for IndexIdToMultipleParentCompress
             if *id >= self.size as u32 {
                 continue;
             } else {
-                self.start_and_end.access_into(
-                    (*id * 2) as usize..=((*id * 2) as usize + 1),
-                    &mut positions[0..=1],
-                );
+                self.start_and_end
+                    .access_into((*id * 2) as usize..=((*id * 2) as usize + 1), &mut positions[0..=1]);
 
-                if positions[0].to_u32().unwrap() == u32::MAX { //data encoded in indirect array
+                if positions[0].to_u32().unwrap() == u32::MAX {
+                    //data encoded in indirect array
                     vec.push(positions[1]);
                     continue;
                 }
@@ -251,10 +245,7 @@ impl<T: IndexIdToParentData> IndexIdToParent for IndexIdToMultipleParentCompress
                     continue;
                 }
                 let current_len = vec.len();
-                vec.resize(
-                    current_len + positions[1].to_usize().unwrap() - positions[0].to_usize().unwrap(),
-                    T::zero(),
-                );
+                vec.resize(current_len + positions[1].to_usize().unwrap() - positions[0].to_usize().unwrap(), T::zero());
                 let new_len = vec.len();
 
                 self.data.access_into(
@@ -398,12 +389,11 @@ impl<T: IndexIdToParentData> IndexIdToParent for IndexIdToMultipleParentCompress
             if *id >= self.size as u32 {
                 continue;
             } else {
-                self.start_and_end.access_into(
-                    (*id * 2) as usize..=((*id * 2) as usize + 1),
-                    &mut positions[0..=1],
-                );
+                self.start_and_end
+                    .access_into((*id * 2) as usize..=((*id * 2) as usize + 1), &mut positions[0..=1]);
 
-                if positions[0].to_u32().unwrap() == u32::MAX { //data encoded in indirect array
+                if positions[0].to_u32().unwrap() == u32::MAX {
+                    //data encoded in indirect array
                     coll.add(positions[1]);
                     continue;
                 }
@@ -413,10 +403,7 @@ impl<T: IndexIdToParentData> IndexIdToParent for IndexIdToMultipleParentCompress
                 }
 
                 // let current_len = data_cache.len();
-                data_cache.resize(
-                    positions[1].to_usize().unwrap() - positions[0].to_usize().unwrap(),
-                    T::zero(),
-                );
+                data_cache.resize(positions[1].to_usize().unwrap() - positions[0].to_usize().unwrap(), T::zero());
                 let new_len = data_cache.len();
 
                 self.data.access_into(
@@ -448,8 +435,7 @@ impl<T: IndexIdToParentData> IndexIdToParent for IndexIdToMultipleParentCompress
         if id >= self.size as u64 {
             None
         } else {
-            let positions = self.start_and_end
-                .access((id * 2) as usize..=((id * 2) as usize + 1));
+            let positions = self.start_and_end.access((id * 2) as usize..=((id * 2) as usize + 1));
             (positions[1] - positions[0]).to_usize()
         }
     }
@@ -492,12 +478,10 @@ where
     if id >= size as u64 {
         None
     } else {
-        start_and_end.access_into(
-            (id * 2) as usize..=((id * 2) as usize + 1),
-            &mut positions[0..=1],
-        );
+        start_and_end.access_into((id * 2) as usize..=((id * 2) as usize + 1), &mut positions[0..=1]);
 
-        if positions[0].to_u32().unwrap() == u32::MAX { //data encoded in indirect array
+        if positions[0].to_u32().unwrap() == u32::MAX {
+            //data encoded in indirect array
             return Some(vec![NumCast::from(positions[1]).unwrap()]);
         }
 
@@ -522,17 +506,10 @@ impl<T: IndexIdToParentData> IndexIdToMultipleParentCompressedMaydaINDIRECTOneRe
     pub fn new(store: &IndexIdToParent<Output = T>) -> IndexIdToMultipleParentCompressedMaydaINDIRECTOneReuse<T> {
         let (_max_value_id, _avg_join_size, size, start_and_end, data) = id_to_parent_to_array_of_array_mayda_indirect_one_reuse_existing(store);
 
-        info!(
-            "start_and_end {}",
-            get_readable_size(start_and_end.heap_size_of_children())
-        );
+        info!("start_and_end {}", get_readable_size(start_and_end.heap_size_of_children()));
         info!("data {}", get_readable_size(data.heap_size_of_children()));
 
-        IndexIdToMultipleParentCompressedMaydaINDIRECTOneReuse {
-            start_and_end,
-            data,
-            size,
-        }
+        IndexIdToMultipleParentCompressedMaydaINDIRECTOneReuse { start_and_end, data, size }
     }
 }
 
@@ -542,20 +519,13 @@ impl<T: IndexIdToParentData> IndexIdToParent for IndexIdToMultipleParentCompress
     fn get_values(&self, id: u64) -> Option<Vec<T>> {
         let mut positions = vec![];
         positions.resize(2, T::zero());
-        get_values_indirect_generic(
-            id,
-            self.size as u64,
-            &self.start_and_end,
-            &self.data,
-            &mut positions,
-        )
+        get_values_indirect_generic(id, self.size as u64, &self.start_and_end, &self.data, &mut positions)
     }
 
     fn get_keys(&self) -> Vec<T> {
         (NumCast::from(0).unwrap()..NumCast::from(self.start_and_end.len() / 2).unwrap()).collect()
     }
 }
-
 
 #[derive(Debug)]
 pub struct PointingMMAPFileReader<T: IndexIdToParentData> {
@@ -568,11 +538,28 @@ pub struct PointingMMAPFileReader<T: IndexIdToParentData> {
 }
 use memmap::MmapOptions;
 impl<T: IndexIdToParentData> PointingMMAPFileReader<T> {
-    pub fn new(start_and_end_file: &fs::File, data_file: &fs::File, indirect_metadata: fs::Metadata, data_metadata: &fs::Metadata, max_value_id: u32, avg_join_size: f32) -> Self {
+    pub fn new(
+        start_and_end_file: &fs::File,
+        data_file: &fs::File,
+        indirect_metadata: fs::Metadata,
+        data_metadata: &fs::Metadata,
+        max_value_id: u32,
+        avg_join_size: f32,
+    ) -> Self {
         // println!("OPPEEENIGGGN INDIRECT{:?}", indirect_metadata.len());
         // println!("OPPEEENIGGGN DATA {:?}", data_metadata.len());
-        let start_and_end_file = unsafe { MmapOptions::new().len(std::cmp::max(indirect_metadata.len() as usize, 4048)).map(&start_and_end_file).unwrap() };
-        let data_file = unsafe { MmapOptions::new().len(std::cmp::max(data_metadata.len() as usize, 4048)).map(&data_file).unwrap() };
+        let start_and_end_file = unsafe {
+            MmapOptions::new()
+                .len(std::cmp::max(indirect_metadata.len() as usize, 4048))
+                .map(&start_and_end_file)
+                .unwrap()
+        };
+        let data_file = unsafe {
+            MmapOptions::new()
+                .len(std::cmp::max(data_metadata.len() as usize, 4048))
+                .map(&data_file)
+                .unwrap()
+        };
         PointingMMAPFileReader {
             start_and_end_file: start_and_end_file,
             data_file: data_file,
@@ -617,10 +604,11 @@ fn get_u32_values_from_pointing_mmap_file(find: u64, size: usize, start_and_end_
     }
 
     let start_pos = find as usize * 8;
-    let start = (&start_and_end_file[start_pos .. start_pos + 4]).read_u32::<LittleEndian>().unwrap();
-    let end = (&start_and_end_file[start_pos + 4 .. start_pos + 8]).read_u32::<LittleEndian>().unwrap();
+    let start = (&start_and_end_file[start_pos..start_pos + 4]).read_u32::<LittleEndian>().unwrap();
+    let end = (&start_and_end_file[start_pos + 4..start_pos + 8]).read_u32::<LittleEndian>().unwrap();
 
-    if start == u32::MAX { //data encoded in indirect array
+    if start == u32::MAX {
+        //data encoded in indirect array
         return Some(vec![end]);
     }
 
@@ -629,15 +617,8 @@ fn get_u32_values_from_pointing_mmap_file(find: u64, size: usize, start_and_end_
     }
 
     debug_time!("mmap bytes_to_vec_u32");
-    Some(bytes_to_vec_u32(&data_file[start as usize * 4.. end as usize * 4]))
+    Some(bytes_to_vec_u32(&data_file[start as usize * 4..end as usize * 4]))
 }
-
-
-
-
-
-
-
 
 #[derive(Debug)]
 pub struct PointingArrayFileReader<T: IndexIdToParentData> {
@@ -688,12 +669,7 @@ impl<T: IndexIdToParentData> HeapSizeOf for PointingArrayFileReader<T> {
 
 impl IndexIdToParent for PointingArrayFileReader<u32> {
     fn get_values(&self, find: u64) -> Option<Vec<u32>> {
-        get_u32_values_from_pointing_file(
-            find,
-            self.get_size(),
-            &self.start_and_end_file,
-            &self.data_file,
-        )
+        get_u32_values_from_pointing_file(find, self.get_size(), &self.start_and_end_file, &self.data_file)
     }
 
     #[inline]
@@ -711,18 +687,15 @@ impl IndexIdToParent for PointingArrayFileReader<u32> {
                 continue;
             }
 
-            load_bytes_into(
-                &mut offsets,
-                &*self.start_and_end_file.lock(),
-                *id as u64 * 8,
-            );
+            load_bytes_into(&mut offsets, &*self.start_and_end_file.lock(), *id as u64 * 8);
 
             let mut rdr = Cursor::new(&offsets);
 
             let start = rdr.read_u32::<LittleEndian>().unwrap();
             let end = rdr.read_u32::<LittleEndian>().unwrap();
 
-            if start == u32::MAX { //data encoded in indirect array
+            if start == u32::MAX {
+                //data encoded in indirect array
                 coll.add(end);
                 continue;
             }
@@ -732,8 +705,8 @@ impl IndexIdToParent for PointingArrayFileReader<u32> {
             }
 
             // let mut data_bytes: Vec<u8> = Vec::with_capacity(end as usize - start as usize);
-            data_bytes.resize(end as usize * 4  - start as usize * 4 , 0);
-            load_bytes_into(&mut data_bytes, &*self.data_file.lock(), start as u64 * 4 );
+            data_bytes.resize(end as usize * 4 - start as usize * 4, 0);
+            load_bytes_into(&mut data_bytes, &*self.data_file.lock(), start as u64 * 4);
 
             let mut rdr = Cursor::new(&data_bytes);
             while let Ok(id) = rdr.read_u32::<LittleEndian>() {
@@ -759,7 +732,8 @@ fn get_u32_values_from_pointing_file(find: u64, size: usize, start_and_end_file:
     let start = rdr.read_u32::<LittleEndian>().unwrap();
     let end = rdr.read_u32::<LittleEndian>().unwrap();
 
-    if start == u32::MAX { //data encoded in indirect array
+    if start == u32::MAX {
+        //data encoded in indirect array
         return Some(vec![end]);
     }
 
@@ -780,7 +754,7 @@ fn get_u32_values_from_pointing_file(find: u64, size: usize, start_and_end_file:
     //         // complete control of the allocation to which `p` points.
     //         let ptr = std::mem::transmute::<*mut u32, *mut u8>(p);
     //         let mut data_bytes = Vec::from_raw_parts(ptr, len*4, cap);
-            
+
     //         load_bytes_into(&mut data_bytes, &*data_file.lock(), start as u64 * 4 ); //READ directly into u32 data
 
     //         // forget about temp data_bytes: no destructor run, so we can use data again
@@ -793,8 +767,6 @@ fn get_u32_values_from_pointing_file(find: u64, size: usize, start_and_end_file:
     // debug_time!("bytes_to_vec_u32");
     // Some(bytes_to_vec_u32(data_bytes))
 }
-
-
 
 pub fn id_to_parent_to_array_of_array<T: IndexIdToParentData>(store: &IndexIdToParent<Output = T>) -> Vec<Vec<T>> {
     let mut data: Vec<Vec<T>> = prepare_data_for_array_of_array(store, &Vec::new);
@@ -895,10 +867,7 @@ fn to_indirect_arrays_dedup<T: Integer + Clone + NumCast + mayda::utility::Bits 
     }
     let mut start_and_end_pos = vec![];
     let last_id = *valids.last().unwrap();
-    start_and_end_pos.resize(
-        (valids.last().unwrap().to_usize().unwrap() + 1) * 2,
-        T::zero(),
-    );
+    start_and_end_pos.resize((valids.last().unwrap().to_usize().unwrap() + 1) * 2, T::zero());
 
     let mut offset = 0;
 
@@ -911,7 +880,8 @@ fn to_indirect_arrays_dedup<T: Integer + Clone + NumCast + mayda::utility::Bits 
         let start = offset;
         if let Some(mut vals) = store.get_values(valid as u64) {
             num_values += vals.len();
-            if vals.len() == 1 { // Special Case Decode value direct into start and end, start is u32::MAX and end is da value
+            if vals.len() == 1 {
+                // Special Case Decode value direct into start and end, start is u32::MAX and end is da value
                 start_and_end_pos[valid as usize * 2] = num::cast(u32::MAX).unwrap();
                 start_and_end_pos[(valid as usize * 2) + 1] = num::cast(vals[0]).unwrap();
                 continue;
@@ -934,10 +904,7 @@ fn to_indirect_arrays_dedup<T: Integer + Clone + NumCast + mayda::utility::Bits 
                 offset += vals.len() as u64;
 
                 if cache_size > 0 {
-                    cache.insert(
-                        vals,
-                        (num::cast(start).unwrap(), num::cast(offset).unwrap()),
-                    );
+                    cache.insert(vals, (num::cast(start).unwrap(), num::cast(offset).unwrap()));
                 }
                 start_and_end_pos[valid as usize * 2] = num::cast(start).unwrap();
                 start_and_end_pos[(valid as usize * 2) + 1] = num::cast(offset).unwrap();
@@ -952,7 +919,7 @@ fn to_indirect_arrays_dedup<T: Integer + Clone + NumCast + mayda::utility::Bits 
     let max_value_id = *data.iter().max_by_key(|el| *el).unwrap_or(&T::zero());
 
     let avg_join_size = num_values as f32 / std::cmp::max(K::one(), num_ids).to_f32().unwrap();
-    (max_value_id, avg_join_size ,start_and_end_pos, data)
+    (max_value_id, avg_join_size, start_and_end_pos, data)
 }
 
 pub fn id_to_parent_to_array_of_array_mayda_indirect_one<T: Integer + Clone + NumCast + mayda::utility::Bits + Copy, K: IndexIdToParentData>(
@@ -984,7 +951,6 @@ pub fn id_to_parent_to_array_of_array_mayda_indirect_one_reuse_existing<T: Integ
 }
 
 use std::u32;
-
 
 #[cfg(test)]
 mod tests {
@@ -1058,13 +1024,7 @@ mod tests {
             let data_file = File::open(&get_file_path("test_pointing_file_array", "data")).unwrap();
             let data_metadata = fs::metadata(&get_file_path("test_pointing_file_array", "indirect")).unwrap();
 
-            let store = PointingArrayFileReader::new(
-                start_and_end_file,
-                data_file,
-                data_metadata,
-                max_value_id,
-                avg_join_size,
-            );
+            let store = PointingArrayFileReader::new(start_and_end_file, data_file, data_metadata, max_value_id, avg_join_size);
             check_test_data_1_to_n(&store);
         }
 
@@ -1116,25 +1076,13 @@ mod tests {
             fs::create_dir_all(folder).unwrap();
             let data_path = get_file_path(folder, "data");
             let indirect_path = get_file_path(folder, "indirect");
-            File::create(&data_path)
-                .unwrap()
-                .write_all(&vec_to_bytes_u32(&keys))
-                .unwrap();
-            File::create(&indirect_path)
-                .unwrap()
-                .write_all(&vec_to_bytes_u32(&values))
-                .unwrap();
+            File::create(&data_path).unwrap().write_all(&vec_to_bytes_u32(&keys)).unwrap();
+            File::create(&indirect_path).unwrap().write_all(&vec_to_bytes_u32(&values)).unwrap();
 
             let start_and_end_file = File::open(&data_path).unwrap();
             let data_file = File::open(&data_path).unwrap();
             let data_metadata = fs::metadata(&data_path).unwrap();
-            let store = PointingArrayFileReader::new(
-                start_and_end_file,
-                data_file,
-                data_metadata,
-                max_value_id,
-                avg_join_size,
-            );
+            let store = PointingArrayFileReader::new(start_and_end_file, data_file, data_metadata, max_value_id, avg_join_size);
             store
         }
 

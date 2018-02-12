@@ -3,10 +3,7 @@ use csv;
 use serde_json;
 
 pub fn convert_to_json(csv_path: &str, headers: Vec<String>) -> serde_json::Value {
-    let mut rdr = csv::Reader::from_file(csv_path)
-        .unwrap()
-        .has_headers(false)
-        .escape(Some(b'\\'));
+    let mut rdr = csv::Reader::from_file(csv_path).unwrap().has_headers(false).escape(Some(b'\\'));
     let mut data = vec![];
     for record in rdr.decode() {
         let els: Vec<Option<String>> = record.unwrap();

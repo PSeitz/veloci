@@ -26,10 +26,7 @@ where
 
     let path = util::remove_array_marker(path2);
     let paths = path.split(".").collect::<Vec<_>>();
-    debug!(
-        " **** parent in path {:?}",
-        paths[opt.parent_pos_in_path as usize]
-    );
+    debug!(" **** parent in path {:?}", paths[opt.parent_pos_in_path as usize]);
     if let Some(arr) = data.as_array() {
         for el in arr {
             walk(el, 0, opt, &paths, cb);
@@ -65,11 +62,7 @@ where
             if is_last_path {
                 for el in current_el_arr {
                     if !el.is_null() {
-                        cb(
-                            &convert_to_string(&el),
-                            opt.value_id_counter,
-                            opt.current_parent_id_counter,
-                        );
+                        cb(&convert_to_string(&el), opt.value_id_counter, opt.current_parent_id_counter);
                         opt.value_id_counter += 1;
                         // trace!("opt.value_id_counter increase {:?}", opt.value_id_counter);
                     }
@@ -92,11 +85,7 @@ where
             // WALK OBJECT
             if is_last_path {
                 if !next_el.is_null() {
-                    cb(
-                        &convert_to_string(&next_el),
-                        opt.value_id_counter,
-                        opt.current_parent_id_counter,
-                    );
+                    cb(&convert_to_string(&next_el), opt.value_id_counter, opt.current_parent_id_counter);
                     opt.value_id_counter += 1;
                 }
             } else {

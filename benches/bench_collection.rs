@@ -117,9 +117,7 @@ fn pseudo_rand(num: u32) -> u32 {
 pub fn bench_naivehashmap_insert_with_lookup_modify(num_hits: u32, token_hits: u32) {
     let mut hits: NaiveHashMap<u64, f32> = bench_naivehashmap_insert(num_hits);
     for x in 0..token_hits {
-        hits.entry(u64::from(pseudo_rand(x)))
-            .and_modify(|e| *e += 2.0)
-            .or_insert(0.0);
+        hits.entry(u64::from(pseudo_rand(x))).and_modify(|e| *e += 2.0).or_insert(0.0);
     }
 }
 

@@ -14,7 +14,7 @@ impl DocLoader {
         persistence.load_index_64("data.offsets").unwrap();
     }
 
-    #[cfg_attr(feature="flame_it", flame)]
+    #[cfg_attr(feature = "flame_it", flame)]
     pub fn get_doc(persistence: &Persistence, pos: usize) -> Result<String, search::SearchError> {
         let (start, end) = {
             info!("now loading document offsets for id {:?}", pos);
@@ -45,7 +45,6 @@ impl DocLoader {
         Ok(s)
     }
 }
-
 
 // fn resize_rawr<T>(vec: &mut Vec<T>, new_len:usize) {
 //     let cap = vec.capacity();

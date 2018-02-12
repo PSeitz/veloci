@@ -19,9 +19,7 @@ use std::str;
 fn main() {
     // env_logger::init().unwrap();
     search_lib::trace::enable_log();
-    std::env::args()
-        .nth(1)
-        .expect("require command line parameter");
+    std::env::args().nth(1).expect("require command line parameter");
 
     for jeppo in std::env::args().skip(1) {
         match jeppo.as_ref() {
@@ -119,10 +117,7 @@ fn create_thalia_index() {
         .write_all(serde_json::to_string_pretty(&json).unwrap().as_bytes())
         .unwrap();
 
-    println!(
-        "{:?}",
-        search_lib::create::create_indices_json("thalia", &json, TAHLIA_INDICES)
-    );
+    println!("{:?}", search_lib::create::create_indices_json("thalia", &json, TAHLIA_INDICES));
     // File::create("MATNR").unwrap().write_all(all_terms.join("\n").as_bytes()).unwrap();
 
     // println!("{:?}", search_lib::create::create_indices_csv("csv_test", "./data.csv", TAHLIA_INDICES));
@@ -133,10 +128,7 @@ fn create_thalia_index_big() -> Result<(), io::Error> {
     let mut json = String::new();
     f.read_to_string(&mut json)?;
 
-    println!(
-        "{:?}",
-        search_lib::create::create_indices("thalia_new", &json, TAHLIA_INDICES)
-    );
+    println!("{:?}", search_lib::create::create_indices("thalia_new", &json, TAHLIA_INDICES));
     // File::create("MATNR").unwrap().write_all(all_terms.join("\n").as_bytes()).unwrap();
 
     // println!("{:?}", search_lib::create::create_indices_csv("csv_test", "./data.csv", indices));
@@ -176,10 +168,7 @@ fn create_jmdict_index() -> Result<(), io::Error> {
     let mut f = File::open("jmdict.json")?;
     let mut s = String::new();
     f.read_to_string(&mut s)?;
-    println!(
-        "{:?}",
-        search_lib::create::create_indices("jmdict", &s, indices)
-    );
+    println!("{:?}", search_lib::create::create_indices("jmdict", &s, indices));
     Ok(())
 }
 
@@ -190,17 +179,11 @@ fn create_book_index() -> Result<(), io::Error> {
     let mut s = String::new();
     f.read_to_string(&mut s)?;
 
-    let books = (0..100)
-        .map(|_el| json!({"title":"PRIDE AND PREJUDICE", "content":s}))
-        .collect::<Vec<_>>();
+    let books = (0..100).map(|_el| json!({"title":"PRIDE AND PREJUDICE", "content":s})).collect::<Vec<_>>();
 
     println!(
         "{:?}",
-        search_lib::create::create_indices(
-            "gutenberg",
-            &serde_json::to_string_pretty(&books).unwrap(),
-            indices
-        )
+        search_lib::create::create_indices("gutenberg", &serde_json::to_string_pretty(&books).unwrap(), indices)
     );
     // println!("{:?}", search_lib::create::create_indices("gutenberg", &json!({"title":"PRIDE AND PREJUDICE", "content":s}).to_string(), indices));
     Ok(())
@@ -667,9 +650,6 @@ fn create_healtcare() -> Result<(), io::Error> {
     let mut f = File::open("healthcare.json")?;
     let mut s = String::new();
     f.read_to_string(&mut s)?;
-    println!(
-        "{:?}",
-        search_lib::create::create_indices("healthcare", &s, indices)
-    );
+    println!("{:?}", search_lib::create::create_indices("healthcare", &s, indices));
     Ok(())
 }

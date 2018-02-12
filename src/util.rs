@@ -34,12 +34,7 @@ pub fn normalize_text(text: &str) -> String {
 use search::Hit;
 
 pub fn hits_map_to_vec(hits: &FnvHashMap<u32, f32>) -> Vec<Hit> {
-    hits.iter()
-        .map(|(id, score)| Hit {
-            id: *id,
-            score: *score,
-        })
-        .collect()
+    hits.iter().map(|(id, score)| Hit { id: *id, score: *score }).collect()
 }
 
 pub fn hits_vec_to_map(vec_hits: Vec<Hit>) -> FnvHashMap<u32, f32> {
@@ -87,18 +82,12 @@ pub fn remove_array_marker(path: &str) -> String {
     path.split('.')
         .collect::<Vec<_>>()
         .iter()
-        .map(|el| {
-            if el.ends_with("[]") {
-                &el[0..el.len() - 2]
-            } else {
-                el
-            }
-        })
+        .map(|el| if el.ends_with("[]") { &el[0..el.len() - 2] } else { el })
         .collect::<Vec<_>>()
         .join(".")
 }
 
-pub fn vec_with_size_uninitialized<T>(size:usize) -> Vec<T> {
+pub fn vec_with_size_uninitialized<T>(size: usize) -> Vec<T> {
     let mut buffer = Vec::with_capacity(size);
     unsafe {
         buffer.set_len(size);
@@ -109,7 +98,6 @@ pub fn vec_with_size_uninitialized<T>(size:usize) -> Vec<T> {
 pub fn get_my_data_danger_zooone(start: u32, end: u32, data_file: &Mutex<fs::File>) -> Vec<u32> {
     let mut data: Vec<u32> = vec_with_size_uninitialized(end as usize - start as usize);
     {
-
         let p = data.as_mut_ptr();
         let len = data.len();
         let cap = data.capacity();
@@ -117,9 +105,9 @@ pub fn get_my_data_danger_zooone(start: u32, end: u32, data_file: &Mutex<fs::Fil
         unsafe {
             // complete control of the allocation to which `p` points.
             let ptr = std::mem::transmute::<*mut u32, *mut u8>(p);
-            let mut data_bytes = Vec::from_raw_parts(ptr, len*4, cap);
+            let mut data_bytes = Vec::from_raw_parts(ptr, len * 4, cap);
 
-            load_bytes_into(&mut data_bytes, &*data_file.lock(), start as u64 * 4 ); //READ directly into u32 data
+            load_bytes_into(&mut data_bytes, &*data_file.lock(), start as u64 * 4); //READ directly into u32 data
 
             // forget about temp data_bytes: no destructor run, so we can use data again
             mem::forget(data_bytes);
@@ -138,7 +126,6 @@ pub fn load_bytes_into(buffer: &mut [u8], mut file: &File, offset: u64) {
     file.read_exact(buffer).unwrap();
 }
 
-
 pub fn extract_field_name(field: &str) -> String {
     field
     .chars()
@@ -147,16 +134,9 @@ pub fn extract_field_name(field: &str) -> String {
     .collect()
 }
 
-
 pub fn extract_prop_name(path: &str) -> &str {
     path.split('.')
-        .map(|el| {
-            if el.ends_with("[]") {
-                &el[0..el.len() - 2]
-            } else {
-                el
-            }
-        })
+        .map(|el| if el.ends_with("[]") { &el[0..el.len() - 2] } else { el })
         .filter(|el| *el != "textindex")
         .last()
         .expect(&format!("could not extract prop name from path {:?}", path))
@@ -205,10 +185,7 @@ impl NodeTree {
 
 pub fn to_node_tree(paths: Vec<Vec<String>>) -> NodeTree {
     let mut tree = NodeTree::new();
-    for (key, group) in &paths
-        .into_iter()
-        .group_by(|el| el.get(0).map(|el| el.clone()))
-    {
+    for (key, group) in &paths.into_iter().group_by(|el| el.get(0).map(|el| el.clone())) {
         let key = key.unwrap();
         let mut next_paths = group.collect_vec();
 

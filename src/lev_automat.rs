@@ -69,20 +69,13 @@ impl LevenshteinIC {
             dist: distance as usize,
         };
         let dfa = DfaBuilder::new(lev.clone()).build()?;
-        Ok(LevenshteinIC {
-            prog: lev,
-            dfa: dfa,
-        })
+        Ok(LevenshteinIC { prog: lev, dfa: dfa })
     }
 }
 
 impl fmt::Debug for LevenshteinIC {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(
-            f,
-            "Levenshtein(query: {:?}, distance: {:?})",
-            self.prog.query, self.prog.dist
-        )
+        write!(f, "Levenshtein(query: {:?}, distance: {:?})", self.prog.query, self.prog.dist)
     }
 }
 
@@ -125,9 +118,7 @@ impl Automaton for LevenshteinIC {
     }
 
     fn is_match(&self, state: &Option<usize>) -> bool {
-        state
-            .map(|state| self.dfa.states[state].is_match)
-            .unwrap_or(false)
+        state.map(|state| self.dfa.states[state].is_match).unwrap_or(false)
     }
 
     fn can_match(&self, state: &Option<usize>) -> bool {

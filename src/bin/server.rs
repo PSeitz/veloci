@@ -1,11 +1,9 @@
 #![feature(plugin, custom_attribute)]
 #![feature(underscore_lifetimes)]
+#![cfg_attr(feature = "flame_it", feature(plugin, custom_attribute))]
+#![cfg_attr(feature = "flame_it", plugin(flamer))]
 
-
-#![cfg_attr(feature="flame_it", feature(plugin, custom_attribute))]
-#![cfg_attr(feature="flame_it", plugin(flamer))]
-
-#[cfg(feature="flame_it")]
+#[cfg(feature = "flame_it")]
 extern crate flame;
 
 extern crate bodyparser;
@@ -151,10 +149,7 @@ fn extract_qp(req: &mut Request) -> Result<(HashMap<String, String>), IronError>
 
             // Ok(HashMap::default())
         }
-        Err(ref e) => Err(IronError::new(
-            StringError(e.to_string()),
-            status::BadRequest,
-        )),
+        Err(ref e) => Err(IronError::new(StringError(e.to_string()), status::BadRequest)),
     }
 }
 
@@ -196,22 +191,15 @@ pub fn start_server() {
     println!("Start server {:?} Threads: {:?}", combined, yop.threads);
     yop.http(combined).unwrap();
 
-
     fn handler(_req: &mut Request) -> IronResult<Response> {
         let mut file = File::open("index.html").expect("Server: \"äh wo ist meine index.html\"");
         let mut contents = String::new();
         file.read_to_string(&mut contents).unwrap();
-        Ok(Response::with((
-            status::Ok,
-            Header(headers::ContentType::html()),
-            contents,
-        )))
+        Ok(Response::with((status::Ok, Header(headers::ContentType::html()), contents)))
     }
 
     fn query_param_to_vec(name: &str, map: &HashMap<String, String>) -> Option<Vec<String>> {
-        map.get(name)
-            .clone()
-            .map(|el| el.split(",").map(|f| f.to_string()).collect())
+        map.get(name).clone().map(|el| el.split(",").map(|f| f.to_string()).collect())
     }
 
     fn search_get_handler(req: &mut Request) -> IronResult<Response> {
@@ -232,10 +220,7 @@ pub fn start_server() {
         // ))?;
 
         if map.get("query").is_none() {
-            return Ok(Response::with((
-                status::BadRequest,
-                "query parameter not found".to_string(),
-            )));
+            return Ok(Response::with((status::BadRequest, "query parameter not found".to_string())));
         }
 
         info!("get query {:?}", map.get("query").unwrap());
@@ -246,16 +231,12 @@ pub fn start_server() {
         // ))?;
         let persistence = PERSISTENCES.get(&database).unwrap();
 
-        let facetlimit = map.get("facetlimit")
-            .map(|el| el.parse::<usize>().unwrap())
-            .clone();
+        let facetlimit = map.get("facetlimit").map(|el| el.parse::<usize>().unwrap()).clone();
 
         // map.get("facets").clone().split(",").map(|facet|{
         //     {"field":facet, top:facetlimit}
         // }).collect();
-        let facets: Option<Vec<String>> = map.get("facets")
-            .clone()
-            .map(|el| el.split(",").map(|f| f.to_string()).collect());
+        let facets: Option<Vec<String>> = map.get("facets").clone().map(|el| el.split(",").map(|f| f.to_string()).collect());
         // "facets": [ {"field":"ISMLANGUAGES"}, {"field":"ISMARTIST"}, {"field":"GENRE"}, {"field":"VERLAG[]"}   ]
         let fields: Option<Vec<String>> = query_param_to_vec("fields", &map);
         let boost_fields: HashMap<String, f32> = query_param_to_vec("boost_fields", &map)
@@ -263,10 +244,7 @@ pub fn start_server() {
                 mkay.into_iter()
                     .map(|el| {
                         let field_n_boost = el.split("->").collect::<Vec<&str>>();
-                        (
-                            field_n_boost[0].to_string(),
-                            field_n_boost[1].parse::<f32>().unwrap(),
-                        )
+                        (field_n_boost[0].to_string(), field_n_boost[1].parse::<f32>().unwrap())
                     })
                     .collect()
             })
@@ -275,16 +253,10 @@ pub fn start_server() {
         let request = search::search_query(
             map.get("query").unwrap(),
             &persistence,
-            map.get("top")
-                .map(|el| el.parse::<usize>().unwrap())
-                .clone(),
-            map.get("skip")
-                .map(|el| el.parse::<usize>().unwrap())
-                .clone(),
+            map.get("top").map(|el| el.parse::<usize>().unwrap()).clone(),
+            map.get("skip").map(|el| el.parse::<usize>().unwrap()).clone(),
             map.get("operator").map(|el| el.to_string()),
-            map.get("levenshtein")
-                .map(|el| el.parse::<usize>().unwrap())
-                .clone(),
+            map.get("levenshtein").map(|el| el.parse::<usize>().unwrap()).clone(),
             facetlimit,
             facets,
             fields,
@@ -308,33 +280,22 @@ pub fn start_server() {
         let map = extract_qp(req)?;
 
         if map.get("query").is_none() {
-            return Ok(Response::with((
-                status::BadRequest,
-                "query parameter not found".to_string(),
-            )));
+            return Ok(Response::with((status::BadRequest, "query parameter not found".to_string())));
         }
 
         info!("suggest query {:?}", map.get("query").unwrap());
 
-        let query = map.get("query").ok_or(IronError::new(
-            StringError("query parameter not found".to_string()),
-            status::BadRequest,
-        ))?;
+        let query = map.get("query")
+            .ok_or(IronError::new(StringError("query parameter not found".to_string()), status::BadRequest))?;
 
         let persistence = PERSISTENCES.get(&database).unwrap();
         let fields: Option<Vec<String>> = query_param_to_vec("fields", &map);
         let request = search::suggest_query(
             query,
             &persistence,
-            map.get("top")
-                .map(|el| el.parse::<usize>().unwrap())
-                .clone(),
-            map.get("skip")
-                .map(|el| el.parse::<usize>().unwrap())
-                .clone(),
-            map.get("levenshtein")
-                .map(|el| el.parse::<usize>().unwrap())
-                .clone(),
+            map.get("top").map(|el| el.parse::<usize>().unwrap()).clone(),
+            map.get("skip").map(|el| el.parse::<usize>().unwrap()).clone(),
+            map.get("levenshtein").map(|el| el.parse::<usize>().unwrap()).clone(),
             fields,
         );
 
@@ -360,32 +321,23 @@ pub fn start_server() {
             }
             Ok(None) => {
                 info!("No body");
-                Err(IronError::new(
-                    StringError("No body".to_string()),
-                    status::BadRequest,
-                ))
+                Err(IronError::new(StringError("No body".to_string()), status::BadRequest))
             }
             Err(err) => {
                 info!("Error: {:?}", err);
-                Err(IronError::new(
-                    StringError(err.to_string()),
-                    status::BadRequest,
-                ))
+                Err(IronError::new(StringError(err.to_string()), status::BadRequest))
             }
         }
     }
 
-    #[cfg_attr(feature="flame_it", flame)]
+    #[cfg_attr(feature = "flame_it", flame)]
     fn search_in_persistence(persistence: &Persistence, request: search_lib::search::Request, enable_flame: bool) -> IronResult<Response> {
         // info!("Searching ... ");
         let hits = {
             info_time!("Searching ... ");
             let res = search::search(request, &persistence);
             if res.is_err() {
-                return Ok(Response::with((
-                    status::BadRequest,
-                    format!("{:?}", res.unwrap_err()),
-                )));
+                return Ok(Response::with((status::BadRequest, format!("{:?}", res.unwrap_err()))));
 
                 // return Err(IronError::new(StringError(format!("ASDF ASDF {:?}", res.unwrap_err())), status::BadRequest));
             }
@@ -402,7 +354,7 @@ pub fn start_server() {
         debug!("Returning ... ");
 
         // Ok(Response::with((status::Ok, Header(headers::ContentType::json()), GzipWriter(serde_json::to_string(&doc).unwrap().as_bytes()) )))
-        return_flame_or(enable_flame, GzipWriter(serde_json::to_string(&doc).unwrap().as_bytes()),)
+        return_flame_or(enable_flame, GzipWriter(serde_json::to_string(&doc).unwrap().as_bytes()))
     }
 
     fn search_handler(req: &mut Request) -> IronResult<Response> {
@@ -421,11 +373,7 @@ pub fn start_server() {
         info!("Parsed body:\n{}", serde_json::to_string(&struct_body).unwrap());
 
         let persistence = PERSISTENCES.get(&database).unwrap();
-        search_in_persistence(
-            &persistence,
-            struct_body,
-            enable_flame(req).unwrap_or(false),
-        )
+        search_in_persistence(&persistence, struct_body, enable_flame(req).unwrap_or(false))
     }
 
     fn suggest_handler(req: &mut Request) -> IronResult<Response> {
@@ -448,7 +396,7 @@ pub fn start_server() {
         debug!("Returning ... ");
         // Ok(Response::with((status::Ok, Header(headers::ContentType::json()), serde_json::to_string(&hits).unwrap())))
 
-        return_flame_or(flame, GzipWriter(serde_json::to_string(&hits).unwrap().as_bytes()),)
+        return_flame_or(flame, GzipWriter(serde_json::to_string(&hits).unwrap().as_bytes()))
     }
 
     fn highlight_handler(req: &mut Request) -> IronResult<Response> {
@@ -478,17 +426,13 @@ pub fn start_server() {
     // create stuff
     fn handlero(req: &mut Request) -> IronResult<Response> {
         println!("getting 1 request");
-        let header = req.headers
-            .get::<headers::ContentType>()
-            .expect("no content type set")
-            .clone();
+        let header = req.headers.get::<headers::ContentType>().expect("no content type set").clone();
 
         println!("header: {:?}", *header);
         match *header {
             // iron::mime::Mime(TopLevel::Application, SubLevel::Json, _) => Ok(Response::with((status::BadRequest, "error"))),
-            iron::mime::Mime(TopLevel::Application, iron::mime::SubLevel::WwwFormUrlEncoded, _) | iron::mime::Mime(TopLevel::Multipart, iron::mime::SubLevel::FormData, _) => {
-                handle_multipart(req)
-            }
+            iron::mime::Mime(TopLevel::Application, iron::mime::SubLevel::WwwFormUrlEncoded, _)
+            | iron::mime::Mime(TopLevel::Multipart, iron::mime::SubLevel::FormData, _) => handle_multipart(req),
             _ => {
                 let error = format!(
                     "content type has to be {:?}/{:?} or {:?}/{:?} but got {:?}",
@@ -520,22 +464,13 @@ pub fn start_server() {
                 // in a new temporary directory under the OS temporary directory.
                 match multipart.save().temp() {
                     SaveResult::Full(entries) => handle_db_insert(enable_flame, entries, database),
-                    SaveResult::Partial(_, reason) => Ok(Response::with((
-                        status::BadRequest,
-                        format!("error reading request: {}", reason.unwrap_err()),
-                    ))),
-                    SaveResult::Error(error) => Ok(Response::with((
-                        status::BadRequest,
-                        format!("error reading request: {}", error),
-                    ))),
+                    SaveResult::Partial(_, reason) => Ok(Response::with((status::BadRequest, format!("error reading request: {}", reason.unwrap_err())))),
+                    SaveResult::Error(error) => Ok(Response::with((status::BadRequest, format!("error reading request: {}", error)))),
                 }
             }
             Err(err) => {
                 println!("Error: {:?}", err);
-                Ok(Response::with((
-                    status::BadRequest,
-                    "The request is not multipart?",
-                )))
+                Ok(Response::with((status::BadRequest, "The request is not multipart?")))
             }
         }
     }
@@ -545,34 +480,25 @@ pub fn start_server() {
         Ok(map.get("flame").is_some())
     }
 
-    #[cfg_attr(feature="flame_it", flame)]
+    #[cfg_attr(feature = "flame_it", flame)]
     fn handle_db_insert(enable_flame: bool, entries: Entries, database: String) -> IronResult<Response> {
         if entries.fields.len() != 1 {
             return Ok(Response::with((
                 status::BadRequest,
-                format!(
-                    "only single file uploads supported, but got {} entries",
-                    entries.fields.len()
-                ),
+                format!("only single file uploads supported, but got {} entries", entries.fields.len()),
             )));
         }
 
         let entry = entries.fields.iter().last().unwrap();
         println!("Field {:?} has {} fields:", entry.0, entry.1.len());
         if entry.1.len() != 1 {
-            return Ok(Response::with((
-                status::BadRequest,
-                "only single file uploads supported",
-            )));
+            return Ok(Response::with((status::BadRequest, "only single file uploads supported")));
         }
         let contents = get_multipart_file_contents(&entry.1.iter().last().unwrap())?;
 
         let indices = r#"[] "#;
 
-        println!(
-            "{:?}",
-            search_lib::create::create_indices(&database, &contents, indices)
-        );
+        println!("{:?}", search_lib::create::create_indices(&database, &contents, indices));
 
         // {
         //     let mut pers = persistence::Persistence::load(database.to_string()).expect("Could not load persistence");
@@ -596,7 +522,7 @@ pub fn start_server() {
 
     #[cfg(flame_it)]
     fn return_flame_or(enable_flame: bool, content: GzipWriter) -> IronResult<Response> {
-        if enable_flame{
+        if enable_flame {
             let mut flame = vec![];
             flame::dump_html(&mut flame).unwrap();
             Ok(Response::with((
@@ -605,21 +531,13 @@ pub fn start_server() {
                 String::from_utf8(flame).unwrap(),
             )))
         } else {
-            Ok(Response::with((
-                status::Ok,
-                Header(headers::ContentType::json()),
-                content,
-            )))
+            Ok(Response::with((status::Ok, Header(headers::ContentType::json()), content)))
         }
     }
 
     #[cfg(not(flame_it))]
     fn return_flame_or(_enable_flame: bool, content: GzipWriter) -> IronResult<Response> {
-        Ok(Response::with((
-            status::Ok,
-            Header(headers::ContentType::json()),
-            content,
-        )))
+        Ok(Response::with((status::Ok, Header(headers::ContentType::json()), content)))
     }
 
     fn get_multipart_file_contents(saved_file: &SavedField) -> IronResult<(String)> {
@@ -627,17 +545,10 @@ pub fn start_server() {
         // saved_file.data.readable();
 
         if let Err(error) = saved_file.data.readable().unwrap().read_to_string(&mut contents) {
-            return Err(IronError::new(
-                error,
-                (status::BadRequest, "The file was not a text"),
-            ));
+            return Err(IronError::new(error, (status::BadRequest, "The file was not a text")));
         }
-        println!(
-            "File {:?} ({:?}):",
-            saved_file.headers.filename, saved_file.headers.content_type
-        );
+        println!("File {:?} ({:?}):", saved_file.headers.filename, saved_file.headers.content_type);
         Ok(contents)
-
 
         // let mut file = match File::open(&saved_file.path) {
         //     Ok(file) => file,

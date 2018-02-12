@@ -23,7 +23,7 @@ use itertools::Itertools;
 
 use fnv::FnvHashSet;
 
-#[cfg_attr(feature="flame_it", flame)]
+#[cfg_attr(feature = "flame_it", flame)]
 pub fn highlight_document(persistence: &Persistence, path: &str, value_id: u64, token_ids: &[u32], opt: &SnippetInfo) -> Result<String, search::SearchError> {
     let value_id_to_token_ids = persistence.get_valueid_to_parent(&concat(path, ".value_id_to_token_ids"))?;
     debug_time!(format!("highlight_document id {}", value_id));
@@ -33,14 +33,8 @@ pub fn highlight_document(persistence: &Persistence, path: &str, value_id: u64, 
         persistence::trace_index_id_to_parent(value_id_to_token_ids);
         value_id_to_token_ids.get_values(value_id).unwrap()
     };
-    trace!(
-        "documents_token_ids {}",
-        get_readable_size(documents_token_ids.heap_size_of_children())
-    );
-    trace!(
-        "documents_token_ids {}",
-        get_readable_size(documents_token_ids.len() * 4)
-    );
+    trace!("documents_token_ids {}", get_readable_size(documents_token_ids.heap_size_of_children()));
+    trace!("documents_token_ids {}", get_readable_size(documents_token_ids.len() * 4));
 
     let token_ids: FnvHashSet<u32> = token_ids.iter().map(|el| *el).collect(); // FIXME: Performance
 
@@ -83,55 +77,36 @@ pub fn highlight_document(persistence: &Persistence, path: &str, value_id: u64, 
 
     let get_document_windows = &(|vec: &Vec<i64>| {
         let start_index = cmp::max(*vec.first().unwrap() as i64 - num_tokens, 0);
-        let end_index = cmp::min(
-            *vec.last().unwrap() as i64 + num_tokens + 1,
-            documents_token_ids.len() as i64,
-        );
-        (
-            start_index,
-            end_index,
-            &documents_token_ids[start_index as usize..end_index as usize],
-        )
+        let end_index = cmp::min(*vec.last().unwrap() as i64 + num_tokens + 1, documents_token_ids.len() as i64);
+        (start_index, end_index, &documents_token_ids[start_index as usize..end_index as usize])
     });
 
     //get all required tokenids and their text
-    let mut all_tokens = grouped
-        .iter()
-        .map(get_document_windows)
-        .flat_map(|el| el.2)
-        .map(|el| *el)
-        .collect_vec();
+    let mut all_tokens = grouped.iter().map(get_document_windows).flat_map(|el| el.2).map(|el| *el).collect_vec();
     all_tokens.sort();
     all_tokens = all_tokens.into_iter().dedup().collect_vec();
     let id_to_text = get_id_text_map_for_ids(persistence, path, all_tokens.as_slice());
 
-    let estimated_snippet_size = std::cmp::min(
-        opt.max_snippets as u64 * 100,
-        documents_token_ids.len() as u64 * 10,
-    );
+    let estimated_snippet_size = std::cmp::min(opt.max_snippets as u64 * 100, documents_token_ids.len() as u64 * 10);
 
     trace_time!("create snippet string");
     let mut snippet = grouped
         .iter()
         .map(get_document_windows)
         .map(|group| {
-            group.2.iter().fold(
-                String::with_capacity(group.2.len() * 10),
-                |snippet_part_acc, token_id| {
-                    if token_ids.contains(token_id) {
-                        snippet_part_acc + &opt.snippet_start_tag + &id_to_text[token_id] + &opt.snippet_end_tag // TODO store token and add
-                    } else {
-                        snippet_part_acc + &id_to_text[token_id]
-                    }
-                },
-            )
+            group.2.iter().fold(String::with_capacity(group.2.len() * 10), |snippet_part_acc, token_id| {
+                if token_ids.contains(token_id) {
+                    snippet_part_acc + &opt.snippet_start_tag + &id_to_text[token_id] + &opt.snippet_end_tag // TODO store token and add
+                } else {
+                    snippet_part_acc + &id_to_text[token_id]
+                }
+            })
         })
         .take(opt.max_snippets as usize)
         .intersperse(opt.snippet_connector.to_string())
-        .fold(
-            String::with_capacity(estimated_snippet_size as usize),
-            |snippet, snippet_part| snippet + &snippet_part,
-        );
+        .fold(String::with_capacity(estimated_snippet_size as usize), |snippet, snippet_part| {
+            snippet + &snippet_part
+        });
 
     if first_index > num_tokens {
         snippet.insert_str(0, &opt.snippet_connector);

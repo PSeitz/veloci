@@ -111,33 +111,19 @@ mod tests {
     fn test_tokenizer_control_sequences_grouped() {
         let tokenizer = SimpleTokenizerCharsIterateGroupTokens {};
         let mut vec: Vec<String> = vec![];
-        tokenizer.get_tokens(
-            "das \n ist ein txt, test",
-            &mut |token: &str, _is_seperator: bool| {
-                vec.push(token.to_string());
-            },
-        );
-        assert_eq!(
-            vec,
-            vec!["das", " \n ", "ist", " ", "ein", " ", "txt", ", ", "test"]
-        )
+        tokenizer.get_tokens("das \n ist ein txt, test", &mut |token: &str, _is_seperator: bool| {
+            vec.push(token.to_string());
+        });
+        assert_eq!(vec, vec!["das", " \n ", "ist", " ", "ein", " ", "txt", ", ", "test"])
     }
     #[test]
     fn test_tokenizer_control_sequences_alt() {
         let tokenizer = SimpleTokenizer {};
         let mut vec: Vec<String> = vec![];
-        tokenizer.get_tokens(
-            "das \n ist ein txt, test",
-            &mut |token: &str, _is_seperator: bool| {
-                vec.push(token.to_string());
-            },
-        );
-        assert_eq!(
-            vec,
-            vec![
-                "das", " ", "\n", " ", "ist", " ", "ein", " ", "txt", ",", " ", "test"
-            ]
-        )
+        tokenizer.get_tokens("das \n ist ein txt, test", &mut |token: &str, _is_seperator: bool| {
+            vec.push(token.to_string());
+        });
+        assert_eq!(vec, vec!["das", " ", "\n", " ", "ist", " ", "ein", " ", "txt", ",", " ", "test"])
     }
 
     // #[bench]

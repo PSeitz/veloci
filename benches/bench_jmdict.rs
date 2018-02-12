@@ -321,17 +321,11 @@ fn searches(c: &mut Criterion) {
     let pers = load_persistence_disk();
     let pers_im = load_persistence_im();
 
-    c.bench_function("jmdict_search_anschauen", |b| {
-        b.iter(|| search("anschauen", &pers, 1))
-    });
+    c.bench_function("jmdict_search_anschauen", |b| b.iter(|| search("anschauen", &pers, 1)));
 
-    c.bench_function("jmdict_search_haus", |b| {
-        b.iter(|| search("haus", &pers, 1))
-    });
+    c.bench_function("jmdict_search_haus", |b| b.iter(|| search("haus", &pers, 1)));
 
-    c.bench_function("jmdict_search_japanese", |b| {
-        b.iter(|| search("家", &pers, 0))
-    });
+    c.bench_function("jmdict_search_japanese", |b| b.iter(|| search("家", &pers, 0)));
 
     // let facets: Vec<FacetRequest> = vec![FacetRequest{field:"commonness".to_string(), .. Default::default()}];
 
@@ -361,21 +355,13 @@ fn searches(c: &mut Criterion) {
         })
     });
 
-    c.bench_function("jmdict_suggest_an", |b| {
-        b.iter(|| suggest("an", "meanings.ger[].text", &pers))
-    });
+    c.bench_function("jmdict_suggest_an", |b| b.iter(|| suggest("an", "meanings.ger[].text", &pers)));
 
-    c.bench_function("jmdict_suggest_a", |b| {
-        b.iter(|| suggest("a", "meanings.ger[].text", &pers))
-    });
+    c.bench_function("jmdict_suggest_a", |b| b.iter(|| suggest("a", "meanings.ger[].text", &pers)));
 
-    c.bench_function("jmdict_suggest_kana_a", |b| {
-        b.iter(|| suggest("あ", "kana[].text", &pers))
-    });
+    c.bench_function("jmdict_suggest_kana_a", |b| b.iter(|| suggest("あ", "kana[].text", &pers)));
 
-    c.bench_function("jmdict_suggest_kana_a", |b| {
-        b.iter(|| suggest("あ", "kana[].text", &pers))
-    });
+    c.bench_function("jmdict_suggest_kana_a", |b| b.iter(|| suggest("あ", "kana[].text", &pers)));
 
     c.bench_function("vecco push", |b| {
         b.iter(|| {
