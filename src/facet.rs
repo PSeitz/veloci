@@ -5,6 +5,7 @@ use util;
 use itertools::Itertools;
 use num::NumCast;
 use fnv::FnvHashMap;
+use std::cmp::Ordering;
 
 pub fn get_top_facet_group<T: IndexIdToParentData>(hits: &FnvHashMap<T, usize>, top: Option<usize>) -> Vec<(T, u32)> {
     let mut groups: Vec<(T, u32)> = hits.iter().map(|ref tupl| (*tupl.0, *tupl.1 as u32)).collect();
@@ -110,6 +111,7 @@ pub fn join_for_n_to_n(persistence: &Persistence, value_ids: &[u32], path: &str)
     // Ok(kv_store.get_values(value_id as u64))
 }
 
+
 pub trait AggregationCollector<T: IndexIdToParentData> {
     fn add(&mut self, id: T);
     fn to_map(self: Box<Self>, top: Option<u32>) -> FnvHashMap<T, usize>;
@@ -131,13 +133,14 @@ pub fn get_collector<T: 'static + IndexIdToParentData>(num_ids: u32, avg_join_si
     };
 }
 
-use std::cmp::Ordering;
-fn get_top_n_sort<T: IndexIdToParentData>(dat: &[T], top: usize) -> Vec<(usize, T)> {
-    let mut top_n: Vec<(usize, T)> = vec![];
+
+
+fn get_top_n_sort_from_iter<'a, T: IndexIdToParentData, K: IndexIdToParentData, I: Iterator<Item = (K, T)>>(iter: I, top: usize) -> Vec<(K, T)> {
+    let mut top_n: Vec<(K, T)> = vec![];
 
     let mut current_worst = T::zero();
-    for el in dat.iter().enumerate().filter(|el| *el.1 != T::zero()) {
-        if *el.1 < current_worst {
+    for el in iter {
+        if el.1 < current_worst {
             continue;
         }
 
@@ -148,7 +151,7 @@ fn get_top_n_sort<T: IndexIdToParentData>(dat: &[T], top: usize) -> Vec<(usize, 
             trace!("facet new worst {:?}", current_worst);
         }
 
-        top_n.push((el.0, *el.1));
+        top_n.push((el.0, el.1));
     }
     top_n
 }
@@ -164,7 +167,7 @@ impl<T: IndexIdToParentData> AggregationCollector<T> for Vec<T> {
         debug_time!("aggregation vec to_map");
 
         if top.is_some() && top.unwrap() > 0 {
-            get_top_n_sort(&self, top.unwrap() as usize)
+            get_top_n_sort_from_iter(self.iter().enumerate().filter(|el| *el.1 != T::zero()).map(|el| (el.0, *el.1)), top.unwrap() as usize)
                 .into_iter()
                 .map(|el| (NumCast::from(el.0).unwrap(), NumCast::from(el.1).unwrap()))
                 .collect()
@@ -179,6 +182,7 @@ impl<T: IndexIdToParentData> AggregationCollector<T> for Vec<T> {
         }
     }
 }
+
 
 impl<T: IndexIdToParentData> AggregationCollector<T> for FnvHashMap<T, usize> {
     fn add(&mut self, id: T) {

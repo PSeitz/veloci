@@ -117,6 +117,12 @@ pub struct ValIdPair {
     pub parent_val_id: u32,
 }
 
+impl ValIdPair {
+    pub fn new(valid: u32, parent_val_id: u32) -> ValIdPair {
+        ValIdPair { valid: valid, parent_val_id: parent_val_id }
+    }
+}
+
 #[derive(Debug, Default, Clone)]
 pub struct ValIdPairToken {
     pub valid: u32,
@@ -218,10 +224,8 @@ fn store_full_text_info(
     // store_fst(persistence, &offsets_fst, &concat(&path, ".offsets")).expect("Could not store fst");
     //TEST FST AS ID MAPPER
 
-    persistence.write_index(&persistence::vec_to_bytes_u64(&offsets), &offsets, &concat(&path, ".offsets"))?; // String byte offsets
-                                                                                                              // persistence.write_index(&all_terms.iter().map(|ref el| el.len() as u32).collect::<Vec<_>>(), &concat(path, ".length"))?;
-    store_fst(persistence, &all_terms, sorted_terms, path).expect("Could not store fst"); // @FixMe handle result
-                                                                                          // create_char_offsets(&all_terms, &concat(&path, ""), &mut persistence)?;
+    persistence.write_index(&persistence::vec_to_bytes_u64(&offsets), &offsets, &concat(&path, ".offsets"))?;
+    store_fst(persistence, &all_terms, sorted_terms, path).expect("Could not store fst");
     persistence.meta_data.fulltext_indices.insert(path.to_string(), options.clone());
     Ok(())
 }
@@ -491,15 +495,9 @@ pub fn create_fulltext_index(data: &Value, mut persistence: &mut Persistence, in
 
             let text_info = all_terms.get(value).expect("did not found term");
 
-            data.text_id_to_parent.push(ValIdPair {
-                valid: text_info.id as u32,
-                parent_val_id: parent_val_id,
-            });
+            data.text_id_to_parent.push(ValIdPair::new(text_info.id as u32, parent_val_id));
             data.anchor_to_text_id.as_mut().map(|el| {
-                el.push(ValIdPair {
-                    valid: anchor_id,
-                    parent_val_id: text_info.id as u32,
-                })
+                el.push(ValIdPair::new(anchor_id, text_info.id as u32))
             });
             data.boost.as_mut().map(|el| {
                 // if options.boost_type == "int" {
@@ -531,14 +529,8 @@ pub fn create_fulltext_index(data: &Value, mut persistence: &mut Persistence, in
                     let token_info = all_terms.get(token).expect("did not found token");
                     trace!("Adding to tokens {:?} : {:?}", token, token_info);
 
-                    data.value_id_to_token_ids.push(ValIdPair {
-                        valid: text_info.id as u32,
-                        parent_val_id: token_info.id as u32,
-                    });
-                    data.tokens_to_parent.push(ValIdPair {
-                        valid: token_info.id as u32,
-                        parent_val_id: text_info.id as u32,
-                    });
+                    data.value_id_to_token_ids.push(ValIdPair::new(text_info.id as u32, token_info.id as u32));
+                    data.tokens_to_parent.push(ValIdPair::new(token_info.id as u32, text_info.id as u32));
                     tokens_to_anchor.push(ValIdPairToken {
                         valid: token_info.id as u32,
                         num_occurences: token_info.num_occurences as u32,
@@ -559,10 +551,7 @@ pub fn create_fulltext_index(data: &Value, mut persistence: &mut Persistence, in
         let mut callback_ids = |_anchor_id: u32, path: &str, value_id: u32, parent_val_id: u32| {
             let tuples = get_or_insert(&mut tuples_to_parent_in_path, path, &|| Vec::with_capacity(num_elements));
 
-            tuples.push(ValIdPair {
-                valid: value_id,
-                parent_val_id: parent_val_id,
-            });
+            tuples.push(ValIdPair::new(value_id, parent_val_id));
         };
 
         json_converter::for_each_element(&data, &mut id_holder, &mut opt, &mut cb_text, &mut callback_ids);
@@ -604,14 +593,8 @@ pub fn create_fulltext_index(data: &Value, mut persistence: &mut Persistence, in
                 .iter()
                 .flat_map(|el| {
                     vec![
-                        ValIdPair {
-                            valid: el.valid as u32,
-                            parent_val_id: el.anchor_id as u32,
-                        },
-                        ValIdPair {
-                            valid: el.valid as u32,
-                            parent_val_id: el.score as u32,
-                        },
+                        ValIdPair::new(el.valid as u32, el.anchor_id as u32),
+                        ValIdPair::new(el.valid as u32, el.score as u32)
                     ]
                 })
                 .collect();

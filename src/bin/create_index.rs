@@ -70,21 +70,21 @@ static TAHLIA_INDICES: &str = r#"
 ]
 "#;
 
-static TAHLIA_INDICES_NEW: &str = r#"
+static TAHLIA_INDICES_NEW_CONCEPT: &str = r#"
 {
     "facets": ["VERLAG[]"],
     "fulltext" : {
-        "MATNR" : {}
-        "ISMTITLE"     : {"tokenize":true}
-        "ISMORIGTITLE" : {"tokenize":true}
-        "ISMSUBTITLE1" : {"tokenize":true}
-        "ISMSUBTITLE2" : {"tokenize":true}
-        "ISMSUBTITLE3" : {"tokenize":true}
-        "ISMARTIST"    : {"tokenize":true}
-        "ISMLANGUAGES" : {"tokenize":false}
-        "ISMPUBLDATE"  : {"tokenize":false}
-        "EAN11"        : {"tokenize":false}
-        "ISMORIDCODE"  : {"tokenize":false}
+        "MATNR"        : {},
+        "ISMTITLE"     : {"options":{"tokenize":true}  },
+        "ISMORIGTITLE" : {"options":{"tokenize":true}  },
+        "ISMSUBTITLE1" : {"options":{"tokenize":true}  },
+        "ISMSUBTITLE2" : {"options":{"tokenize":true}  },
+        "ISMSUBTITLE3" : {"options":{"tokenize":true}  },
+        "ISMARTIST"    : {"options":{"tokenize":true}  },
+        "ISMLANGUAGES" : {"options":{"tokenize":false} },
+        "ISMPUBLDATE"  : {"options":{"tokenize":false} },
+        "EAN11"        : {"options":{"tokenize":false} },
+        "ISMORIDCODE"  : {"options":{"tokenize":false} }
     }
 }
 
