@@ -283,14 +283,7 @@ fn get_hits_in_field_one_term(
                 false
             };
 
-            // let distance = if options.levenshtein_distance.unwrap_or(0) != 0 {
-            //     // Some(distance(&options.terms[0], &line))
-            //     Some(distance_dfa(&line, &dfa))
-            // } else {
-            //     None
-            // };
             //TODO: find term for multitoken
-
             let mut score = get_default_score_for_distance(distance_dfa(&line_lower, &dfa, &lower_term), prefix_matches);
 
             // let mut score = if options.levenshtein_distance.unwrap_or(0) != 0 {
