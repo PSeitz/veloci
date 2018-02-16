@@ -54,7 +54,10 @@ prettytable-rs = "^0.6"
 utf8-ranges = "1.0.0"
 colored = "1.4"
 
+flate2 = "1.0"
+
 rocket = "0.3.6"
+rocket_contrib = "0.3.6"
 rocket_codegen = "0.3.6"
 
 iron = "0.5.1"
@@ -91,3 +94,10 @@ harness = false
 [[bench]]
 name = "bench_collection"
 path = "benches/bench_collection.rs"
+
+[profile.release]
+opt-level = 3
+debug = false
+lto = true
+codegen-units = 1
+panic = 'unwind'
