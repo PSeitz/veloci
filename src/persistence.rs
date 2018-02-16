@@ -1003,11 +1003,6 @@ fn load_type_from_env() -> Result<Option<LoadingType>, search::SearchError> {
     }
 }
 
-#[test]
-fn name() {
-    unimplemented!();
-}
-
 pub fn vec_to_bytes_u32(data: &[u32]) -> Vec<u8> {
     let mut wtr: Vec<u8> = vec_with_size_uninitialized(data.len() * std::mem::size_of::<u32>());
     LittleEndian::write_u32_into(data, &mut wtr);

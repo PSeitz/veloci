@@ -49,9 +49,58 @@ pub fn boost_path(path: &str) -> (String, String) {
     concat_tuple(path, ".boost.subObjId", ".boost.value")
 }
 
-pub fn concat(path: &str, suffix: &str) -> String {
-    path.to_string() + suffix
+
+
+
+// #[test]
+// fn concatooo() {
+//     concato("nice", "cooel");
+//     concato("nice".to_string(), "cooel");
+//     let yop = "nice".to_string();
+//     concato(&yop, "cooel");
+// }
+
+// trait IntoString {
+//     fn into(&'a self) -> String;
+// }
+
+pub trait IntoString: Sized {
+    fn into_string(self) -> String;
 }
+
+impl<'a> IntoString for &'a String {
+    fn into_string(self) -> String {
+        self.to_string()
+    }
+}
+impl<'a, 'b> IntoString for &'a&'b String {
+    fn into_string(self) -> String {
+        self.to_string()
+    }
+}
+impl<'a> IntoString for &'a str {
+    fn into_string(self) -> String {
+        self.to_string()
+    }
+}
+impl<'a, 'b> IntoString for &'a&'b str {
+    fn into_string(self) -> String {
+        self.to_string()
+    }
+}
+impl IntoString for String {
+    fn into_string(self) -> String {
+        self
+    }
+}
+
+pub fn concat<S: IntoString + AsRef<str>>(path: S, suffix: &str) -> String {
+    path.as_ref().into_string() + suffix
+}
+
+// pub fn concat(path: &str, suffix: &str) -> String {
+//     path.to_string() + suffix
+// }
 
 pub fn get_file_path(folder: &str, path: &str) -> String {
     folder.to_string() + "/" + path

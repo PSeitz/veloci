@@ -224,7 +224,7 @@ fn store_full_text_info(
     // store_fst(persistence, &offsets_fst, &concat(&path, ".offsets")).expect("Could not store fst");
     //TEST FST AS ID MAPPER
 
-    persistence.write_index(&persistence::vec_to_bytes_u64(&offsets), &offsets, &concat(&path, ".offsets"))?;
+    persistence.write_index(&persistence::vec_to_bytes_u64(&offsets), &offsets, &concat(path, ".offsets"))?;
     store_fst(persistence, &all_terms, sorted_terms, path).expect("Could not store fst");
     persistence.meta_data.fulltext_indices.insert(path.to_string(), options.clone());
     Ok(())
@@ -232,7 +232,7 @@ fn store_full_text_info(
 
 fn store_fst(persistence: &mut Persistence, all_terms: &FnvHashMap<String, TermInfo>, sorted_terms: Vec<&String>, path: &str) -> Result<(), fst::Error> {
     debug_time!(format!("store_fst {:?}", path));
-    let wtr = persistence.get_buffered_writer(&concat(&path, ".fst"))?;
+    let wtr = persistence.get_buffered_writer(&concat(path, ".fst"))?;
     // Create a builder that can be used to insert new key-value pairs.
     let mut build = MapBuilder::new(wtr)?;
 
@@ -379,7 +379,7 @@ pub fn get_allterms(data: &Value, fulltext_info_for_path: &FnvHashMap<String, Fu
     let mut opt = json_converter::ForEachOpt {};
     let mut id_holder = json_converter::IDHolder::new();
 
-    let num_elements = if let Some(arr) = data.as_array() { arr.len() } else { 1 };
+    //let num_elements = if let Some(arr) = data.as_array() { arr.len() } else { 1 };
 
     let tokenizer = SimpleTokenizerCharsIterateGroupTokens {};
     let default_fulltext_options = FulltextIndexOptions::new_with_tokenize();
@@ -392,7 +392,7 @@ pub fn get_allterms(data: &Value, fulltext_info_for_path: &FnvHashMap<String, Fu
                 .unwrap_or(&default_fulltext_options);
 
             let mut terms = get_or_insert(&mut terms_in_path, path, &|| {
-                FnvHashMap::with_capacity_and_hasher(num_elements, Default::default())
+                FnvHashMap::default()
             });
 
             add_text(value, &mut terms, &options, &tokenizer);
@@ -549,7 +549,7 @@ pub fn create_fulltext_index(data: &Value, mut persistence: &mut Persistence, in
         };
 
         let mut callback_ids = |_anchor_id: u32, path: &str, value_id: u32, parent_val_id: u32| {
-            let tuples = get_or_insert(&mut tuples_to_parent_in_path, path, &|| Vec::with_capacity(num_elements));
+            let tuples = get_or_insert(&mut tuples_to_parent_in_path, path, &|| vec![]);
 
             tuples.push(ValIdPair::new(value_id, parent_val_id));
         };
