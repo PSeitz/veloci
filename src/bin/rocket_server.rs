@@ -169,6 +169,20 @@ fn search_post(database: String, request: Json<search::Request>) -> String {
     "".to_string()
 }
 
+// impl<'r> Responder<'r> for Result<search::SearchResultWithDoc, search::SearchError> {
+//     fn respond_to(self, req: &Request) -> response::Result<'r> {
+//         let mut response = self.1.respond_to(req)?;
+//         if let Some(ext) = self.0.extension() {
+//             if let Some(ct) = ContentType::from_extension(&ext.to_string_lossy()) {
+//                 response.set_header(ct);
+//             }
+//         }
+
+//         Ok(response)
+//     }
+// }
+
+
 #[get("/<database>/search?<params>")]
 fn search_get(database: String, params: QueryParams) -> Result<search::SearchResultWithDoc, search::SearchError> {
     ensure_database(&database);
