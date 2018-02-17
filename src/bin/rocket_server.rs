@@ -33,10 +33,11 @@ extern crate measure_time;
 extern crate search_lib;
 extern crate flate2;
 #[allow(unused_imports)]
-use rocket::{Request, State, Data, Response};
+use rocket::{Request, State, Data};
+use rocket::response::{self, ResponseBuilder, Response, Responder};
 use rocket::fairing;
 // use rocket::fairing::{AdHoc, Fairing, Info, Kind};
-// use rocket::http::{Method, ContentType, Status};
+use rocket::http::{Method, ContentType, Status};
 #[allow(unused_imports)]
 use rocket_contrib::{Json, Value};
 
@@ -57,6 +58,7 @@ use std::collections::HashMap;
 
 // use flate2::Compression;
 use flate2::read::GzEncoder;
+use std::io::{Cursor, BufReader};
 
 lazy_static! {
     static ref PERSISTENCES: CHashMap<String, Persistence> = {
@@ -64,34 +66,15 @@ lazy_static! {
     };
 }
 
-pub struct Gzip;
+#[derive(Debug)]
+struct SearchResult (search::SearchResultWithDoc);
 
-impl fairing::Fairing for Gzip {
-    fn info(&self) -> fairing::Info {
-        fairing::Info {
-            name: "Gzip compression",
-            kind: fairing::Kind::Response,
-        }
-    }
-
-    fn on_response(&self, request: &Request, response: &mut Response) {
-        use flate2::{Compression};
-        use std::io::{Cursor, Read};
-        let headers = request.headers();
-        if headers
-            .get("Accept-Encoding")
-            .any(|e| e.to_lowercase().contains("gzip"))
-        {
-            response.body_bytes().and_then(|body| {
-                let mut gz = GzEncoder::new(&body[..], Compression::default());
-                let mut buf = Vec::with_capacity(body.len());
-                gz.read_to_end(&mut buf).map(|_| {
-                    response.set_sized_body(Cursor::new(buf));
-                    response.set_raw_header("Content-Encoding", "gzip");
-                })
-                .map_err(|e| eprintln!("{}", e)).ok()
-            });
-        }
+impl<'r> Responder<'r> for SearchResult {
+    fn respond_to(self, req: &Request) -> response::Result<'r> {
+        Response::build()
+                .header(ContentType::JSON)
+                .sized_body(Cursor::new(serde_json::to_string(&self.0).unwrap()))
+                .ok()
     }
 }
 
@@ -127,11 +110,11 @@ fn version() -> String {
     "0.5".to_string()
 }
 
-fn search_in_persistence(persistence: &Persistence, request: search_lib::search::Request, _enable_flame: bool) -> Result<SearchResultWithDoc, SearchError> {
+fn search_in_persistence(persistence: &Persistence, request: search_lib::search::Request, _enable_flame: bool) -> Result<SearchResult, search::SearchError> {
     // info!("Searching ... ");
     let hits = {
         info_time!("Searching ... ");
-        let res = search::search(request, &persistence)?;
+        search::search(request, &persistence)?
         // if let Some(ref err) = res.as_ref().err() {
         //     // unimplemented!();
         //     return serde_json::to_string(&json!({"Error": format!("{:?}", err)})).unwrap();
@@ -142,10 +125,10 @@ fn search_in_persistence(persistence: &Persistence, request: search_lib::search:
     info!("Loading Documents... ");
     let doc = {
         info_time!("Loading Documents...  ");
-        search::to_search_result(&persistence, hits)
+        SearchResult(search::to_search_result(&persistence, hits))
     };
     debug!("Returning ... ");
-    doc
+    Ok(doc)
 
 }
 
@@ -169,22 +152,8 @@ fn search_post(database: String, request: Json<search::Request>) -> String {
     "".to_string()
 }
 
-// impl<'r> Responder<'r> for Result<search::SearchResultWithDoc, search::SearchError> {
-//     fn respond_to(self, req: &Request) -> response::Result<'r> {
-//         let mut response = self.1.respond_to(req)?;
-//         if let Some(ext) = self.0.extension() {
-//             if let Some(ct) = ContentType::from_extension(&ext.to_string_lossy()) {
-//                 response.set_header(ct);
-//             }
-//         }
-
-//         Ok(response)
-//     }
-// }
-
-
 #[get("/<database>/search?<params>")]
-fn search_get(database: String, params: QueryParams) -> Result<search::SearchResultWithDoc, search::SearchError> {
+fn search_get(database: String, params: QueryParams) -> Result<SearchResult, search::SearchError> {
     ensure_database(&database);
     let persistence = PERSISTENCES.get(&database).unwrap();
 
@@ -265,3 +234,34 @@ fn main() {
 }
 
 
+
+
+pub struct Gzip;
+impl fairing::Fairing for Gzip {
+    fn info(&self) -> fairing::Info {
+        fairing::Info {
+            name: "Gzip compression",
+            kind: fairing::Kind::Response,
+        }
+    }
+
+    fn on_response(&self, request: &Request, response: &mut Response) {
+        use flate2::{Compression};
+        use std::io::{Cursor, Read};
+        let headers = request.headers();
+        if headers
+            .get("Accept-Encoding")
+            .any(|e| e.to_lowercase().contains("gzip"))
+        {
+            response.body_bytes().and_then(|body| {
+                let mut gz = GzEncoder::new(&body[..], Compression::default());
+                let mut buf = Vec::with_capacity(body.len());
+                gz.read_to_end(&mut buf).map(|_| {
+                    response.set_sized_body(Cursor::new(buf));
+                    response.set_raw_header("Content-Encoding", "gzip");
+                })
+                .map_err(|e| eprintln!("{}", e)).ok()
+            });
+        }
+    }
+}
