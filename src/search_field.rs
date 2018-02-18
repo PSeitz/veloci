@@ -34,7 +34,6 @@ use trie::map;
 
 #[derive(Debug, Default)]
 pub struct SearchFieldResult {
-    pub hits: FnvHashMap<TermId, f32>,
     pub hits_vec: Vec<search::Hit>,
     pub terms: FnvHashMap<TermId, String>,
     pub highlight: FnvHashMap<TermId, String>,
@@ -390,53 +389,6 @@ fn get_hits_in_field_one_term(
 
         result.hits_vec = fast_field_res;
 
-    // //HASHMAP VERSION
-    // debug_time!(format!("{} fast_field", &options.path));
-    // let mut fast_field_res = FnvHashMap::default();
-    // for (term_id, score) in result.hits.iter() {
-    //     let token_kvdata = persistence.get_valueid_to_parent(&concat(&options.path, ".tokens.to_anchor"))?;
-
-    //     if let Some(anchor_score) = token_kvdata.get_values(*term_id as u64) {
-    //         fast_field_res.reserve(anchor_score.len() / 2);
-    //         for (anchor_id, token_in_anchor_score) in anchor_score.iter().tuples() {
-    //             if let Some(filter) = filter {
-    //                 if filter.contains(&anchor_id) {
-    //                     continue;
-    //                 }
-    //             }
-
-    //             let final_score = score * (*token_in_anchor_score as f32);
-    //             trace!(
-    //                 "anchor_id {:?} term_id {:?}, token_in_anchor_score {:?} score {:?} to final_score {:?}",
-    //                 anchor_id,
-    //                 term_id,
-    //                 token_in_anchor_score,
-    //                 score,
-    //                 final_score
-    //             );
-
-    //             // anchor_hits.insert(*anchor_id as u32, score * (*token_in_anchor_score as f32));
-    //             // fast_field_res.insert(*anchor_id as u32, final_score); //take max
-    //             // let entry = fast_field_res.entry(*anchor_id as u32);
-    //             fast_field_res
-    //                 .entry(*anchor_id as u32)
-    //                 .and_modify(|e| {
-    //                     if *e < final_score {
-    //                         *e = final_score;
-    //                     }
-    //                 })
-    //                 .or_insert(final_score);
-    //         }
-    //     }
-    // }
-
-    // debug!(
-    //     "found {:?} token in {:?} anchors",
-    //     result.hits.len(),
-    //     fast_field_res.len()
-    // );
-
-    // result.hits = fast_field_res;
     } else {
         if options.resolve_token_to_parent_hits.unwrap_or(true) {
             resolve_token_hits(persistence, &options.path, &mut result, options, filter)?;

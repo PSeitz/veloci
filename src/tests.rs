@@ -698,7 +698,7 @@ mod tests {
         // it "should or connect the checks"{
         //     let req = json!({
         //         "search": {
-        //             "terms":["having ]a long",
+        //             "terms":["having a long]",
         //             "path": "meanings.eng[]",
         //             "levenshtein_distance": 1,
         //             "firstCharExactMatch":true,
@@ -724,6 +724,25 @@ mod tests {
                     "path":"commonness",
                     "boost_fun": "Log10",
                     "param": 1
+                }]
+            });
+
+            let hits = search_testo_to_doc(req).data;
+            println!("{:?}", hits);
+            assert_eq!(hits[0].doc["meanings"]["ger"][0], "(1) weich");
+        }
+
+        it "should boost terms"{
+            let req = json!({
+                "search": {
+                    "terms":["weich"], // hits welche and weich
+                    "path": "meanings.ger[]",
+                    "levenshtein_distance": 1,
+                    "firstCharExactMatch":true
+                },
+                "boost_term":[{
+                    "terms":["1605630"], // hits welche and weich
+                    "path": "ent_seq",
                 }]
             });
 

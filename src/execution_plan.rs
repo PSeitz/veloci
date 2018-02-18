@@ -6,10 +6,6 @@ use search::RequestSearchPart;
 use search::RequestBoostPart;
 #[allow(unused_imports)]
 use search::Request;
-#[allow(unused_imports)]
-use search::union_hits;
-#[allow(unused_imports)]
-use search::intersect_hits;
 use search::SearchError;
 use search_field;
 use search::add_boost;
@@ -186,19 +182,19 @@ pub fn plan_creator(request: Request) -> PlanStepType {
 
     if let Some(or) = request.or {
         let steps: Vec<PlanStepType> = or.iter().map(|x| plan_creator(x.clone())).collect();
-        let results_from_prev_steps = steps.iter().map(|el| el.get_output()).collect();
+        let result_channels_from_prev_steps = steps.iter().map(|el| el.get_output()).collect();
         PlanStepType::Union {
             steps,
-            input_prev_steps: results_from_prev_steps,
+            input_prev_steps: result_channels_from_prev_steps,
             output_next_steps: tx,
             plans_output: rx,
         }
     } else if let Some(ands) = request.and {
         let steps: Vec<PlanStepType> = ands.iter().map(|x| plan_creator(x.clone())).collect();
-        let results_from_prev_steps = steps.iter().map(|el| el.get_output()).collect();
+        let result_channels_from_prev_steps = steps.iter().map(|el| el.get_output()).collect();
         PlanStepType::Intersect {
             steps,
-            input_prev_steps: results_from_prev_steps,
+            input_prev_steps: result_channels_from_prev_steps,
             output_next_steps: tx,
             plans_output: rx,
         }
