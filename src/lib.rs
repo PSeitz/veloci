@@ -26,7 +26,6 @@ extern crate flame;
 
 extern crate memmap;
 
-#[macro_use]
 extern crate faster;
 
 #[macro_use]

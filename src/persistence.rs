@@ -25,6 +25,7 @@ use num::cast::ToPrimitive;
 use serde_json;
 use serde_json::Value;
 
+#[allow(unused_imports)]
 use fnv::{FnvHashMap, FnvHashSet};
 use bincode::{deserialize, serialize, Infinite};
 
@@ -48,6 +49,7 @@ use std::path::PathBuf;
 
 #[allow(unused_imports)]
 use heapsize::{heap_size_of, HeapSizeOf};
+#[allow(unused_imports)]
 use itertools::Itertools;
 
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
@@ -160,39 +162,39 @@ pub trait IndexIdToParent: Debug + HeapSizeOf + Sync + Send + persistence_data::
 
     fn get_values(&self, id: u64) -> Option<Vec<Self::Output>>;
 
-    #[inline]
-    fn add_fast_field_hits(&self, hit: search::Hit, fast_field_res: &mut Vec<search::Hit>, filter: Option<&FnvHashSet<u32>>) {
-        if let Some(anchor_score) = self.get_values(hit.id as u64) {
-            debug_time!("add_fast_field_hits");
-            // debug_time!(format!("{} adding stuff", &options.path));
-            fast_field_res.reserve(1 + anchor_score.len() / 2);
-            let mut curr_pos = fast_field_res.len();
-            unsafe {
-                fast_field_res.set_len(curr_pos + anchor_score.len() / 2);
-            }
-            for (anchor_id, token_in_anchor_score) in anchor_score.iter().tuples() {
-                if let Some(filter) = filter {
-                    if filter.contains(&anchor_id.to_u32().unwrap()) {
-                        continue;
-                    }
-                }
+    // #[inline]
+    // fn add_fast_field_hits(&self, hit: search::Hit, fast_field_res: &mut Vec<search::Hit>, filter: Option<&FnvHashSet<u32>>) {
+    //     if let Some(anchor_score) = self.get_values(hit.id as u64) {
+    //         debug_time!("add_fast_field_hits");
+    //         // debug_time!(format!("{} adding stuff", &options.path));
+    //         fast_field_res.reserve(1 + anchor_score.len() / 2);
+    //         let mut curr_pos = fast_field_res.len();
+    //         unsafe {
+    //             fast_field_res.set_len(curr_pos + anchor_score.len() / 2);
+    //         }
+    //         for (anchor_id, token_in_anchor_score) in anchor_score.iter().tuples() {
+    //             if let Some(filter) = filter {
+    //                 if filter.contains(&anchor_id.to_u32().unwrap()) {
+    //                     continue;
+    //                 }
+    //             }
 
-                let final_score = hit.score * token_in_anchor_score.to_f32().unwrap();
-                trace!(
-                    "anchor_id {:?} term_id {:?}, token_in_anchor_score {:?} score {:?} to final_score {:?}",
-                    anchor_id,
-                    hit.id,
-                    token_in_anchor_score,
-                    hit.score,
-                    final_score
-                );
+    //             let final_score = hit.score * token_in_anchor_score.to_f32().unwrap();
+    //             trace!(
+    //                 "anchor_id {:?} term_id {:?}, token_in_anchor_score {:?} score {:?} to final_score {:?}",
+    //                 anchor_id,
+    //                 hit.id,
+    //                 token_in_anchor_score,
+    //                 hit.score,
+    //                 final_score
+    //             );
 
-                // fast_field_res.push(search::Hit::new(anchor_id.to_u32().unwrap(), final_score));
-                fast_field_res[curr_pos] = search::Hit::new(anchor_id.to_u32().unwrap(), final_score);
-                curr_pos += 1;
-            }
-        }
-    }
+    //             // fast_field_res.push(search::Hit::new(anchor_id.to_u32().unwrap(), final_score));
+    //             fast_field_res[curr_pos] = search::Hit::new(anchor_id.to_u32().unwrap(), final_score);
+    //             curr_pos += 1;
+    //         }
+    //     }
+    // }
 
     #[inline]
     fn append_values(&self, id: u64, vec: &mut Vec<Self::Output>) {
@@ -868,12 +870,12 @@ impl Persistence {
             let store: ParallelArrays<u32> = deserialize(&encoded[..]).unwrap();
             self.cache
                 .boost_valueid_to_value
-                .insert(el.path.to_string(), Box::new(IndexIdToOneParentMayda::<u32>::new(&store, u32::MAX)));
+                .insert(el.path.to_string(), Box::new(IndexIdToOneParentMayda::<u32>::new(&store, u32::MAX))); // TODO: enable other Diskbased Types
         }
 
         // Load FST
         for (ref path, _) in &self.meta_data.fulltext_indices {
-            let map = self.load_fst(path)?; // "Could not load FST"
+            let map = self.load_fst(path)?;
             self.cache.fst.insert(path.to_string(), map);
         }
         Ok(())
@@ -884,8 +886,14 @@ impl Persistence {
         let loading_type = load_type_from_env()?.unwrap_or(LoadingType::Disk);
 
         match loading_type {
-            LoadingType::InMemoryUnCompressed | LoadingType::InMemory => {
-                //TODO InMemoryUnCompressed
+            LoadingType::InMemoryUnCompressed => {
+                let file_path = get_file_path(&self.db, path);
+                self.cache.index_64.insert(
+                    path.to_string(),
+                    Box::new(IndexIdToOneParent{data:load_index_u64(&file_path)?, max_value_id: u32::MAX }),
+                );
+            }
+            LoadingType::InMemory => {
                 let file_path = get_file_path(&self.db, path);
                 self.cache.index_64.insert(
                     path.to_string(),
@@ -940,7 +948,7 @@ impl FileSearch {
         // let mut buffer:Vec<u8> = Vec::with_capacity(string_size as usize);
         // unsafe { buffer.set_len(string_size as usize); }
         self.buffer.resize(string_size as usize, 0);
-        self.file.seek(SeekFrom::Start(offsets.get_value(pos).unwrap()));
+        self.file.seek(SeekFrom::Start(offsets.get_value(pos).unwrap())).unwrap();
         self.file.read_exact(&mut self.buffer).unwrap();
         // unsafe {str::from_utf8_unchecked(&buffer)}
         // let s = unsafe {str::from_utf8_unchecked(&buffer)};
@@ -994,7 +1002,8 @@ impl FileSearch {
 
 fn load_type_from_env() -> Result<Option<LoadingType>, search::SearchError> {
     if let Some(val) = env::var_os("LoadingType") {
-        let loading_type = LoadingType::from_str(&val.into_string().unwrap()).map_err(|_err| {
+        let conv_env = val.clone().into_string().map_err(|_err| { search::SearchError::StringError(format!("Could not convert LoadingType environment variable to utf-8: {:?}", val))})?;
+        let loading_type = LoadingType::from_str(&conv_env).map_err(|_err| {
             search::SearchError::StringError("only InMemoryUnCompressed, InMemory or Disk allowed for LoadingType environment variable".to_string())
         })?;
         Ok(Some(loading_type))

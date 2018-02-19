@@ -169,9 +169,10 @@ mod tests {
             {
                 "meanings": {
                     "ger": [
-                        "(1) 2 3 weich" // add wich with no commonness
+                        "(1) 2 3 super nice weich" // add wich with no commonness
                     ]
                 },
+                "ent_seq": "9555"
             },
             {
                 "sub_level": [{"text":"Prolog:\nthis is story of a guy who went out to rule the world, but then died. the end"}],
@@ -573,7 +574,7 @@ mod tests {
             });
             let requesto: search::RequestSearchPart = serde_json::from_str(&req.to_string()).expect("Can't parse json");
             let mut pers = PERSISTENCES.get(&"default".to_string()).unwrap();
-            let results = search_field::get_hits_in_field(&mut pers, &requesto, None).unwrap();
+            let results = search_field::get_hits_in_field(&mut pers, requesto, None).unwrap();
             let mut all_terms = results.terms.values().collect::<Vec<&String>>();
             all_terms.sort();
             // assert_eq!(all_terms, ["majestät", "majestätischer", "majestätischer anblick", "majestätisches", "majestätisches aussehen"]);
@@ -735,20 +736,21 @@ mod tests {
         it "should boost terms"{
             let req = json!({
                 "search": {
-                    "terms":["weich"], // hits welche and weich
+                    "terms":["weich"],
                     "path": "meanings.ger[]",
                     "levenshtein_distance": 1,
                     "firstCharExactMatch":true
                 },
                 "boost_term":[{
-                    "terms":["1605630"], // hits welche and weich
+                    "terms":["9555"],
                     "path": "ent_seq",
+                    "boost": 5.0
                 }]
             });
 
             let hits = search_testo_to_doc(req).data;
             println!("{:?}", hits);
-            assert_eq!(hits[0].doc["meanings"]["ger"][0], "(1) weich");
+            assert_eq!(hits[0].doc["meanings"]["ger"][0], "(1) 2 3 super nice weich");
         }
 
         it "OR connect hits but boost one term"{

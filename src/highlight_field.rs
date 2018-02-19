@@ -36,7 +36,7 @@ pub fn highlight_document(persistence: &Persistence, path: &str, value_id: u64, 
     trace!("documents_token_ids {}", get_readable_size(documents_token_ids.heap_size_of_children()));
     trace!("documents_token_ids {}", get_readable_size(documents_token_ids.len() * 4));
 
-    let token_ids: FnvHashSet<u32> = token_ids.iter().map(|el| *el).collect(); // FIXME: Performance
+    let token_ids: FnvHashSet<u32> = token_ids.iter().cloned().collect(); // FIXME: Performance
 
     let to = std::cmp::min(documents_token_ids.len(), 100);
     trace!("documents_token_ids {:?}", &documents_token_ids[0..to]);
@@ -82,7 +82,7 @@ pub fn highlight_document(persistence: &Persistence, path: &str, value_id: u64, 
     });
 
     //get all required tokenids and their text
-    let mut all_tokens = grouped.iter().map(get_document_windows).flat_map(|el| el.2).map(|el| *el).collect_vec();
+    let mut all_tokens = grouped.iter().map(get_document_windows).flat_map(|el| el.2).cloned().collect_vec();
     all_tokens.sort();
     all_tokens = all_tokens.into_iter().dedup().collect_vec();
     let id_to_text = get_id_text_map_for_ids(persistence, path, all_tokens.as_slice());

@@ -17,7 +17,6 @@ extern crate iron_cors;
 extern crate multipart;
 extern crate router;
 extern crate serde;
-#[macro_use]
 extern crate serde_json;
 extern crate snap;
 extern crate time;
@@ -34,9 +33,11 @@ extern crate search_lib;
 extern crate flate2;
 #[allow(unused_imports)]
 use rocket::{Request, State, Data};
+#[allow(unused_imports)]
 use rocket::response::{self, ResponseBuilder, Response, Responder};
 use rocket::fairing;
 // use rocket::fairing::{AdHoc, Fairing, Info, Kind};
+#[allow(unused_imports)]
 use rocket::http::{Method, ContentType, Status};
 #[allow(unused_imports)]
 use rocket_contrib::{Json, Value};
@@ -58,6 +59,7 @@ use std::collections::HashMap;
 
 // use flate2::Compression;
 use flate2::read::GzEncoder;
+#[allow(unused_imports)]
 use std::io::{Cursor, BufReader};
 
 lazy_static! {
@@ -69,8 +71,20 @@ lazy_static! {
 #[derive(Debug)]
 struct SearchResult (search::SearchResultWithDoc);
 
+#[derive(Debug)]
+struct SuggestResult (search_field::SuggestFieldResult);
+
 impl<'r> Responder<'r> for SearchResult {
-    fn respond_to(self, req: &Request) -> response::Result<'r> {
+    fn respond_to(self, _req: &Request) -> response::Result<'r> {
+        Response::build()
+                .header(ContentType::JSON)
+                .sized_body(Cursor::new(serde_json::to_string(&self.0).unwrap()))
+                .ok()
+    }
+}
+
+impl<'r> Responder<'r> for SuggestResult {
+    fn respond_to(self, _req: &Request) -> response::Result<'r> {
         Response::build()
                 .header(ContentType::JSON)
                 .sized_body(Cursor::new(serde_json::to_string(&self.0).unwrap()))
@@ -93,7 +107,7 @@ struct QueryParams {
 }
 
 fn query_param_to_vec(name: Option<String>) -> Option<Vec<String>> {
-    name.map(|el| el.split(",").map(|f| f.to_string()).collect())
+    name.map(|el| el.split(',').map(|f| f.to_string()).collect())
 }
 
 fn ensure_database(database: &String) {
@@ -115,12 +129,6 @@ fn search_in_persistence(persistence: &Persistence, request: search_lib::search:
     let hits = {
         info_time!("Searching ... ");
         search::search(request, &persistence)?
-        // if let Some(ref err) = res.as_ref().err() {
-        //     // unimplemented!();
-        //     return serde_json::to_string(&json!({"Error": format!("{:?}", err)})).unwrap();
-        // }
-        // res.unwrap()
-        // search::search(request, &persistence).unwrap()
     };
     info!("Loading Documents... ");
     let doc = {
@@ -133,23 +141,21 @@ fn search_in_persistence(persistence: &Persistence, request: search_lib::search:
 }
 
 
-fn excute_suggest(persistence: &Persistence, struct_body: search::Request, _flame: bool) -> String {
+fn excute_suggest(persistence: &Persistence, struct_body: search::Request, _flame: bool) -> Result<SuggestResult, search::SearchError> {
     info_time!("search total");
     info!("Suggesting ... ");
-    let hits = search_field::suggest_multi(&persistence, struct_body).unwrap();
+    let hits = search_field::suggest_multi(persistence, struct_body)?;
     debug!("Returning ... ");
-
-    serde_json::to_string(&hits).unwrap()
+    Ok(SuggestResult(hits))
 }
 
 #[post("/<database>/search", format = "application/json", data = "<request>")]
-fn search_post(database: String, request: Json<search::Request>) -> String {
+fn search_post(database: String, request: Json<search::Request>) -> Result<SearchResult, search::SearchError> {
     ensure_database(&database);
     let persistence = PERSISTENCES.get(&database).unwrap();
 
-    // search_in_persistence(&persistence, request.0, false)
+    search_in_persistence(&persistence, request.0, false)
 
-    "".to_string()
 }
 
 #[get("/<database>/search?<params>")]
@@ -183,21 +189,19 @@ fn search_get(database: String, params: QueryParams) -> Result<SearchResult, sea
     );
 
     debug!("{}", serde_json::to_string(&request).unwrap());
-    // Json(From::from(search_in_persistence(&persistence, request, false)))
-    // Json(From::from(search_in_persistence(&persistence, request, false)))
     search_in_persistence(&persistence, request, false)
 
 }
 
 #[post("/<database>/suggest", format = "application/json", data = "<request>")]
-fn suggest_post(database: String, request: Json<search::Request>) -> String {
+fn suggest_post(database: String, request: Json<search::Request>) -> Result<SuggestResult, search::SearchError> {
     ensure_database(&database);
     let persistence = PERSISTENCES.get(&database).unwrap();
     excute_suggest(&persistence, request.0, false)
 }
 
 #[get("/<database>/suggest?<params>", format = "application/json")]
-fn suggest_get(database: String, params: QueryParams) -> String {
+fn suggest_get(database: String, params: QueryParams) -> Result<SuggestResult, search::SearchError> {
     ensure_database(&database);
     let persistence = PERSISTENCES.get(&database).unwrap();
 
@@ -232,8 +236,6 @@ fn main() {
         .attach(Gzip)
         .launch();
 }
-
-
 
 
 pub struct Gzip;

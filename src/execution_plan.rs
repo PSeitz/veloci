@@ -68,12 +68,12 @@ pub trait OutputProvider {
 impl OutputProvider for PlanStepType {
     fn get_output(&self) -> PlanDataReceiver {
         match self {
-            &PlanStepType::FieldSearch { ref plans_output, .. } => plans_output.clone(),
-            &PlanStepType::ValueIdToParent { ref plans_output, .. } => plans_output.clone(),
-            &PlanStepType::Boost { ref plans_output, .. } => plans_output.clone(),
-            &PlanStepType::Union { ref plans_output, .. } => plans_output.clone(),
-            &PlanStepType::Intersect { ref plans_output, .. } => plans_output.clone(),
-            &PlanStepType::FromAttribute { ref plans_output, .. } => plans_output.clone(),
+            &PlanStepType::FieldSearch { ref plans_output, .. }
+            | &PlanStepType::ValueIdToParent { ref plans_output, .. }
+            | &PlanStepType::Boost { ref plans_output, .. }
+            | &PlanStepType::Union { ref plans_output, .. }
+            | &PlanStepType::Intersect { ref plans_output, .. }
+            | &PlanStepType::FromAttribute { ref plans_output, .. } => plans_output.clone(),
         }
     }
 }
@@ -97,12 +97,12 @@ impl StepExecutor for PlanStepType {
     fn execute_step(self, persistence: &Persistence) -> Result<(), SearchError> {
         match self {
             PlanStepType::FieldSearch {
-                mut req,
+                req,
                 input_prev_steps,
                 output_next_steps,
                 ..
             } => {
-                let field_result = search_field::get_hits_in_field(persistence, &mut req, None)?;
+                let field_result = search_field::get_hits_in_field(persistence, req, None)?;
                 output_next_steps.send(field_result)?;
                 drop(output_next_steps);
                 for el in input_prev_steps {

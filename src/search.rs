@@ -79,19 +79,15 @@ pub struct FacetRequest {
     pub top: Option<usize>,
 }
 
-fn default_top() -> Option<usize> {
-    Some(10)
-}
-fn default_skip() -> Option<usize> {
-    None
-}
+fn default_top() -> Option<usize> {Some(10) }
+fn default_skip() -> Option<usize> {None }
 
 #[derive(Serialize, Deserialize, Default, Clone, Debug)]
 pub struct RequestSearchPart {
     pub path: String,
-    pub terms: Vec<String>,
+    pub terms: Vec<String>,                             //TODO only first term used currently
     #[serde(default = "default_term_operator")]
-    pub term_operator: TermOperator,
+    pub term_operator: TermOperator,                    //TODO unused currently
 
     #[serde(skip_serializing_if = "Option::is_none")]
     pub levenshtein_distance: Option<u32>,
@@ -100,17 +96,15 @@ pub struct RequestSearchPart {
     pub starts_with: Option<bool>,
 
     #[serde(default)]
-    pub ids_only: bool,
+    pub ids_only: bool,                                 //TODO unused currently
 
+    /// Also return the actual text
     #[serde(skip_serializing_if = "Option::is_none")]
     pub return_term: Option<bool>,
 
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub snippet: Option<bool>,
-
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub token_value: Option<RequestBoostPart>,
-    // pub exact: Option<bool>,
+
     /// boosts the search part with this value
     #[serde(skip_serializing_if = "Option::is_none")]
     pub boost: Option<f32>,
@@ -125,9 +119,15 @@ pub struct RequestSearchPart {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub skip: Option<usize>,
 
+    /// return the snippet hit
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub snippet: Option<bool>,
+
+    /// Override default SnippetInfo
     #[serde(skip_serializing_if = "Option::is_none")]
     pub snippet_info: Option<SnippetInfo>,
 
+    /// Internal data
     #[serde(default)]
     pub fast_field: bool,
 }
@@ -163,21 +163,12 @@ pub struct SnippetInfo {
     #[serde(default = "default_max_snippets")]
     pub max_snippets: u32,
 }
-fn default_num_words_around_snippet() -> i64 {
-    5
-}
-fn default_snippet_start() -> String {
-    "<b>".to_string()
-}
-fn default_snippet_end() -> String {
-    "</b>".to_string()
-}
-fn default_snippet_connector() -> String {
-    " ... ".to_string()
-}
-fn default_max_snippets() -> u32 {
-    std::u32::MAX
-}
+
+fn default_num_words_around_snippet() -> i64 { 5 }
+fn default_snippet_start() -> String { "<b>".to_string() }
+fn default_snippet_end() -> String { "</b>".to_string() }
+fn default_snippet_connector() -> String { " ... ".to_string() }
+fn default_max_snippets() -> u32 { std::u32::MAX }
 
 lazy_static! {
     pub static ref DEFAULT_SNIPPETINFO: SnippetInfo = SnippetInfo{
@@ -290,7 +281,7 @@ impl std::fmt::Display for DocWithHit {
 
 // @FixMe Tests should use to_search_result
 #[cfg_attr(feature = "flame_it", flame)]
-pub fn to_documents(persistence: &Persistence, hits: &Vec<Hit>) -> Vec<DocWithHit> {
+pub fn to_documents(persistence: &Persistence, hits: &[Hit]) -> Vec<DocWithHit> {
     // DocLoader::load(persistence);
     hits.iter()
         .map(|ref hit| {
@@ -342,8 +333,12 @@ pub fn search(mut request: Request, persistence: &Persistence) -> Result<SearchR
     };
 
     if let Some(boost_term) = request.boost_term {
-        let r: Result<Vec<_>, SearchError> = boost_term.par_iter()
-            .map(|mut boost_term_req| search_field::get_hits_in_field(persistence, &mut boost_term_req, None))
+        let r: Result<Vec<_>, SearchError> = boost_term.into_par_iter()
+            .map(|mut boost_term_req| {
+                boost_term_req.ids_only = true;
+                boost_term_req.fast_field = true;
+                search_field::get_hits_in_field(persistence, boost_term_req, None)
+            })
             .collect();
 
         res = boost_intersect_hits_vec_multi(res, r?);
@@ -351,7 +346,7 @@ pub fn search(mut request: Request, persistence: &Persistence) -> Result<SearchR
         // let field_result = search_field::get_hits_in_field(persistence, &mut boost_term_req, None)?;
     }
 
-
+    // print!("{:?}", res.hits_vec);
     if res.hits_vec.len() > 0 {
         //TODO extract only top n
         res.hits_vec.sort_unstable_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(Ordering::Equal)); //TODO Add sort by id when equal
@@ -410,7 +405,7 @@ fn get_all_field_names(persistence: &Persistence, fields: &Option<Vec<String>>) 
             if let &Some(ref filter) = fields {
                 return filter.contains(el);
             }
-            return true;
+            true
         })
         .collect()
 }
@@ -447,12 +442,12 @@ pub fn suggest_query(
         })
         .collect();
 
-    return Request {
+    Request {
         suggest: Some(requests),
         top: top,
         skip: skip,
         ..Default::default()
-    };
+    }
 }
 
 use regex::Regex;
@@ -848,8 +843,8 @@ pub fn intersect_hits_vec(mut and_results: Vec<SearchFieldResult>) -> SearchFiel
                     return true;
                 }
             }
-            return false;
-        }) 
+            false
+        })
         {
             let mut score = iterators_and_current.iter().map(|el| (el.1).score).sum();
             score += current_score; //TODO SCORE Max oder Sum FOR AND
@@ -889,12 +884,13 @@ fn intersect_hits_vec_test() {
 pub fn boost_intersect_hits_vec(mut results: SearchFieldResult, mut boost: SearchFieldResult) -> SearchFieldResult {
     results.hits_vec.sort_unstable_by_key(|el| el.id); //TODO SORT NEEDED??
     boost.hits_vec.sort_unstable_by_key(|el| el.id); //TODO SORT NEEDED??
-    
-    let mut boost_iter = boost.hits_vec.iter();
-    apply_boost_from_iter(results, &mut boost_iter)
+
+    let mut boost_iter = boost.hits_vec.into_iter();
+    apply_boost_from_iter(results, &mut boost_iter) // TODO FIXME
+
 }
 
-fn apply_boost_from_iter(mut results: SearchFieldResult, boost_iter: &mut Iterator<Item=&Hit>) -> SearchFieldResult {
+fn apply_boost_from_iter(mut results: SearchFieldResult, boost_iter: &mut Iterator<Item=Hit>) -> SearchFieldResult {
     if let Some(yep) = boost_iter.next(){
         let mut hit_curr = yep;
         for hit in results.hits_vec.iter_mut() {
@@ -925,9 +921,16 @@ pub fn boost_intersect_hits_vec_multi(mut results: SearchFieldResult, mut boost:
         results.hits_vec.sort_unstable_by_key(|el| el.id); //TODO SORT NEEDED??
         for res in boost.iter_mut() {
             res.hits_vec.sort_unstable_by_key(|el| el.id);
+            res.hits_ids.sort_unstable();
         }
     }
-    let mut boost_iter = boost.iter().map(|el| el.hits_vec.iter()).into_iter().kmerge_by(|a, b| a.id < b.id);
+    // let mut boosts =
+    let mut boost_iter = boost.iter()
+        .map(|el| {
+            let boost_val:f32 = el.request.boost.unwrap_or(2.0).clone();
+            el.hits_ids.iter().map(move|id| Hit::new(*id, boost_val ))
+        })
+        .into_iter().kmerge_by(|a, b| a.id < b.id);
 
     debug_time!("boost_intersect_hits_vec_multi".to_string());
     apply_boost_from_iter(results, &mut boost_iter)
@@ -1191,30 +1194,28 @@ pub fn read_tree(persistence: &Persistence, id: u32, tree: NodeTree) -> Result<s
                 let texto = get_text_for_id(persistence, &prop, text_value_id);
                 json[extract_prop_name(prop)] = json!(texto);
             }
-        } else {
-            if let Some(sub_ids) = join_for_1_to_n(persistence, id, &concat(&prop, ".parentToValueId"))? {
-                let is_flat = sub_tree.next.len() == 1 && sub_tree.next.keys().nth(0).unwrap().ends_with("[].textindex");
-                if is_flat {
-                    let flat_prop = sub_tree.next.keys().nth(0).unwrap();
-                    //text_id for value_ids
-                    let text_ids: Vec<u32> = sub_ids
-                        .iter()
-                        .flat_map(|id| join_for_1_to_1(persistence, *id, &concat(&flat_prop, ".parentToValueId")).unwrap())
-                        .collect();
-                    let texto = get_text_for_ids(persistence, flat_prop, &text_ids);
-                    json[extract_prop_name(prop)] = json!(texto);
-                } else {
-                    let is_array = prop.ends_with("[]");
-                    if is_array {
-                        let mut sub_data = vec![];
-                        for sub_id in sub_ids {
-                            sub_data.push(read_tree(persistence, sub_id, sub_tree.clone())?);
-                        }
-                        json[extract_prop_name(prop)] = json!(sub_data);
-                    } else if let Some(sub_id) = sub_ids.get(0) {
-                        // println!("KEIN ARRAY {:?}", sub_tree.clone());
-                        json[extract_prop_name(prop)] = read_tree(persistence, *sub_id, sub_tree.clone())?;
+        } else if let Some(sub_ids) = join_for_1_to_n(persistence, id, &concat(&prop, ".parentToValueId"))? {
+            let is_flat = sub_tree.next.len() == 1 && sub_tree.next.keys().nth(0).unwrap().ends_with("[].textindex");
+            if is_flat {
+                let flat_prop = sub_tree.next.keys().nth(0).unwrap();
+                //text_id for value_ids
+                let text_ids: Vec<u32> = sub_ids
+                    .iter()
+                    .flat_map(|id| join_for_1_to_1(persistence, *id, &concat(&flat_prop, ".parentToValueId")).unwrap())
+                    .collect();
+                let texto = get_text_for_ids(persistence, flat_prop, &text_ids);
+                json[extract_prop_name(prop)] = json!(texto);
+            } else {
+                let is_array = prop.ends_with("[]");
+                if is_array {
+                    let mut sub_data = vec![];
+                    for sub_id in sub_ids {
+                        sub_data.push(read_tree(persistence, sub_id, sub_tree.clone())?);
                     }
+                    json[extract_prop_name(prop)] = json!(sub_data);
+                } else if let Some(sub_id) = sub_ids.get(0) {
+                    // println!("KEIN ARRAY {:?}", sub_tree.clone());
+                    json[extract_prop_name(prop)] = read_tree(persistence, *sub_id, sub_tree.clone())?;
                 }
             }
         }

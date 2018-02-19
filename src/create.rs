@@ -354,7 +354,7 @@ fn calculate_token_score_in_doc(tokens_to_anchor: &mut Vec<ValIdPairToken>) -> V
         }
 
         // let mut score = ((20 / (best_pos + 2)) + num_occurences_in_doc.log10() ) / first.num_occurences;
-        let mut score = 20 / (best_pos + 10);
+        let mut score = 2000 / (best_pos + 10);
         score *= exact_match_boost;
 
         // println!("best_pos {:?}",best_pos);
@@ -423,7 +423,7 @@ struct PathData {
 
 pub fn create_fulltext_index(data: &Value, mut persistence: &mut Persistence, indices_json: &Vec<CreateIndex>) -> Result<(), io::Error> {
     // let data: Value = serde_json::from_str(data_str).unwrap();
-    let num_elements = if let Some(arr) = data.as_array() { arr.len() } else { 1 };
+    // let num_elements = if let Some(arr) = data.as_array() { arr.len() } else { 1 };
 
     let fulltext_info_for_path: FnvHashMap<String, Fulltext> = indices_json
         .iter()
@@ -557,12 +557,8 @@ pub fn create_fulltext_index(data: &Value, mut persistence: &mut Persistence, in
         json_converter::for_each_element(&data, &mut id_holder, &mut opt, &mut cb_text, &mut callback_ids);
     }
 
-    let is_sublevel = |path: &str| {
-        return path.contains("[]");
-    };
-    let is_text_id_to_parent = |path: &str| {
-        return path.ends_with(".textindex");
-    };
+    let is_sublevel = |path: &str| {path.contains("[]") };
+    let is_text_id_to_parent = |path: &str| {path.ends_with(".textindex") };
 
     {
         let write_tuples = |persistence: &mut Persistence, path: &str, tuples: &mut Vec<ValIdPair>| -> Result<(), io::Error> {
@@ -715,7 +711,7 @@ pub fn add_token_values_to_tokens(persistence: &mut Persistence, data_str: &str,
         options.terms = vec![el.text];
         options.terms = options.terms.iter().map(|el| util::normalize_text(el)).collect::<Vec<_>>();
 
-        let hits = search_field::get_hits_in_field(persistence, &options, None)?;
+        let hits = search_field::get_hits_in_field(persistence, options.clone(), None)?;
         if hits.hits_vec.len() == 1 {
             tuples.push(ValIdToValue {
                 valid: hits.hits_vec.iter().nth(0).unwrap().id,

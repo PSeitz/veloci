@@ -120,12 +120,12 @@ impl<T: IndexIdToParentData> IndexIdToParent for IndexIdToMultipleParent<T> {
         for id in ids {
             if *id >= size as u32 {
                 continue;
-            } else {
-                for hit_id in &self.data[*id as usize] {
-                    let stat = hits.entry(*hit_id).or_insert(0);
-                    *stat += 1;
-                }
             }
+            for hit_id in &self.data[*id as usize] {
+                let stat = hits.entry(*hit_id).or_insert(0);
+                *stat += 1;
+            }
+
         }
         hits
     }
@@ -226,7 +226,7 @@ impl<T: IndexIdToParentData> IndexIdToParent for IndexIdToOneParent<T> {
         let val = self.data.get(id as usize);
         match val {
             Some(val) => {
-                if val.to_u32().unwrap() == u32::MAX {
+                if val.to_u64().unwrap() == u32::MAX as u64 {
                     None
                 } else {
                     Some(*val)
@@ -297,7 +297,7 @@ impl<T: IndexIdToParentData> IndexIdToParent for IndexIdToOneParentMayda<T> {
             return None;
         };
         let val = self.data.access(id as usize);
-        if val.to_u32().unwrap() == u32::MAX {
+        if val.to_u64().unwrap() == u32::MAX as u64 {
             None
         } else {
             Some(val)

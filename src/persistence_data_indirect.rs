@@ -154,19 +154,19 @@ impl<T: IndexIdToParentData> IndexIdToParent for IndexIdToMultipleParentIndirect
             for id in id_chunk {
                 if *id >= size as u32 {
                     continue;
-                } else {
-                    let pos = (*id * 2) as usize;
-                    let positions = &self.start_and_end[pos..=pos + 1];
-                    if positions[0].to_u32().unwrap() == u32::MAX {
-                        //data encoded in indirect array
-                        coll.add(positions[1]);
-                        continue;
-                    }
-
-                    if positions[0] != positions[1] {
-                        positions_vec.push(positions);
-                    }
                 }
+                let pos = (*id * 2) as usize;
+                let positions = &self.start_and_end[pos..=pos + 1];
+                if positions[0].to_u32().unwrap() == u32::MAX {
+                    //data encoded in indirect array
+                    coll.add(positions[1]);
+                    continue;
+                }
+
+                if positions[0] != positions[1] {
+                    positions_vec.push(positions);
+                }
+
             }
 
             for position in &positions_vec {
@@ -179,10 +179,6 @@ impl<T: IndexIdToParentData> IndexIdToParent for IndexIdToMultipleParentIndirect
         coll.to_map(top)
     }
 }
-
-// pub fn get_avg_join_size(arg: Type) -> RetType {
-//     unimplemented!();
-// }
 
 #[derive(Debug, HeapSizeOf)]
 #[allow(dead_code)]
@@ -231,28 +227,28 @@ impl<T: IndexIdToParentData> IndexIdToParent for IndexIdToMultipleParentCompress
         for id in ids {
             if *id >= self.size as u32 {
                 continue;
-            } else {
-                self.start_and_end
-                    .access_into((*id * 2) as usize..=((*id * 2) as usize + 1), &mut positions[0..=1]);
-
-                if positions[0].to_u32().unwrap() == u32::MAX {
-                    //data encoded in indirect array
-                    vec.push(positions[1]);
-                    continue;
-                }
-
-                if positions[0] == positions[1] {
-                    continue;
-                }
-                let current_len = vec.len();
-                vec.resize(current_len + positions[1].to_usize().unwrap() - positions[0].to_usize().unwrap(), T::zero());
-                let new_len = vec.len();
-
-                self.data.access_into(
-                    NumCast::from(positions[0]).unwrap()..NumCast::from(positions[1]).unwrap(),
-                    &mut vec[current_len..new_len],
-                );
             }
+            self.start_and_end
+                .access_into((*id * 2) as usize..=((*id * 2) as usize + 1), &mut positions[0..=1]);
+
+            if positions[0].to_u32().unwrap() == u32::MAX {
+                //data encoded in indirect array
+                vec.push(positions[1]);
+                continue;
+            }
+
+            if positions[0] == positions[1] {
+                continue;
+            }
+            let current_len = vec.len();
+            vec.resize(current_len + positions[1].to_usize().unwrap() - positions[0].to_usize().unwrap(), T::zero());
+            let new_len = vec.len();
+
+            self.data.access_into(
+                NumCast::from(positions[0]).unwrap()..NumCast::from(positions[1]).unwrap(),
+                &mut vec[current_len..new_len],
+            );
+
         }
     }
 
@@ -388,32 +384,32 @@ impl<T: IndexIdToParentData> IndexIdToParent for IndexIdToMultipleParentCompress
         for id in ids {
             if *id >= self.size as u32 {
                 continue;
-            } else {
-                self.start_and_end
-                    .access_into((*id * 2) as usize..=((*id * 2) as usize + 1), &mut positions[0..=1]);
-
-                if positions[0].to_u32().unwrap() == u32::MAX {
-                    //data encoded in indirect array
-                    coll.add(positions[1]);
-                    continue;
-                }
-
-                if positions[0] == positions[1] {
-                    continue;
-                }
-
-                // let current_len = data_cache.len();
-                data_cache.resize(positions[1].to_usize().unwrap() - positions[0].to_usize().unwrap(), T::zero());
-                let new_len = data_cache.len();
-
-                self.data.access_into(
-                    NumCast::from(positions[0]).unwrap()..NumCast::from(positions[1]).unwrap(),
-                    &mut data_cache[0..new_len],
-                );
-                for id in &data_cache {
-                    coll.add(*id);
-                }
             }
+            self.start_and_end
+                .access_into((*id * 2) as usize..=((*id * 2) as usize + 1), &mut positions[0..=1]);
+
+            if positions[0].to_u32().unwrap() == u32::MAX {
+                //data encoded in indirect array
+                coll.add(positions[1]);
+                continue;
+            }
+
+            if positions[0] == positions[1] {
+                continue;
+            }
+
+            // let current_len = data_cache.len();
+            data_cache.resize(positions[1].to_usize().unwrap() - positions[0].to_usize().unwrap(), T::zero());
+            let new_len = data_cache.len();
+
+            self.data.access_into(
+                NumCast::from(positions[0]).unwrap()..NumCast::from(positions[1]).unwrap(),
+                &mut data_cache[0..new_len],
+            );
+            for id in &data_cache {
+                coll.add(*id);
+            }
+
         }
 
         let hits: FnvHashMap<T, usize> = coll.to_map(top);
@@ -1044,10 +1040,10 @@ mod tests {
             check_test_data_1_to_n(&mayda);
         }
 
-        #[inline(always)]
-        fn pseudo_rand(num: u32) -> u32 {
-            num * (num % 8) as u32
-        }
+        // #[inline(always)]
+        // fn pseudo_rand(num: u32) -> u32 {
+        //     num * (num % 8) as u32
+        // }
 
         fn get_test_data_large(num_ids: usize, max_num_values_per_id: usize) -> ParallelArrays<u32> {
             let mut rng = rand::thread_rng();
@@ -1070,21 +1066,21 @@ mod tests {
             }
         }
 
-        fn prepare_indirect_pointing_file_array(folder: &str, store: &IndexIdToParent<Output = u32>) -> PointingArrayFileReader<u32> {
-            let (max_value_id, avg_join_size, keys, values) = to_indirect_arrays(store, 0);
+        // fn prepare_indirect_pointing_file_array(folder: &str, store: &IndexIdToParent<Output = u32>) -> PointingArrayFileReader<u32> {
+        //     let (max_value_id, avg_join_size, keys, values) = to_indirect_arrays(store, 0);
 
-            fs::create_dir_all(folder).unwrap();
-            let data_path = get_file_path(folder, "data");
-            let indirect_path = get_file_path(folder, "indirect");
-            File::create(&data_path).unwrap().write_all(&vec_to_bytes_u32(&keys)).unwrap();
-            File::create(&indirect_path).unwrap().write_all(&vec_to_bytes_u32(&values)).unwrap();
+        //     fs::create_dir_all(folder).unwrap();
+        //     let data_path = get_file_path(folder, "data");
+        //     let indirect_path = get_file_path(folder, "indirect");
+        //     File::create(&data_path).unwrap().write_all(&vec_to_bytes_u32(&keys)).unwrap();
+        //     File::create(&indirect_path).unwrap().write_all(&vec_to_bytes_u32(&values)).unwrap();
 
-            let start_and_end_file = File::open(&data_path).unwrap();
-            let data_file = File::open(&data_path).unwrap();
-            let data_metadata = fs::metadata(&data_path).unwrap();
-            let store = PointingArrayFileReader::new(start_and_end_file, data_file, data_metadata, max_value_id, avg_join_size);
-            store
-        }
+        //     let start_and_end_file = File::open(&data_path).unwrap();
+        //     let data_file = File::open(&data_path).unwrap();
+        //     let data_metadata = fs::metadata(&data_path).unwrap();
+        //     let store = PointingArrayFileReader::new(start_and_end_file, data_file, data_metadata, max_value_id, avg_join_size);
+        //     store
+        // }
 
         // #[bench]
         // fn indirect_pointing_file_array(b: &mut test::Bencher) {
