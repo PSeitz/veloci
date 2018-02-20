@@ -332,16 +332,34 @@ pub fn search(mut request: Request, persistence: &Persistence) -> Result<SearchR
     };
 
     if let Some(boost_term) = request.boost_term {
-        info_time!("boost_term");
-        let r: Result<Vec<_>, SearchError> = boost_term.into_par_iter()
-            .map(|mut boost_term_req| {
-                boost_term_req.ids_only = true;
-                boost_term_req.fast_field = true;
-                search_field::get_hits_in_field(persistence, boost_term_req, None)
-            })
-            .collect();
+        if let Some(data) = persistence.term_boost_cache.lock().get(&boost_term) {
+            // let mut boost_iter = data.hits_ids.iter().map(|el|el.clone());
+            // res = apply_boost_from_iter(res, &mut boost_iter)
+            let mut boost_iter = data.iter()
+                .map(|el| {
+                    let boost_val:f32 = el.request.boost.unwrap_or(2.0).clone();
+                    el.hits_ids.iter().map(move|id| Hit::new(*id, boost_val ))
+                })
+                .into_iter().kmerge_by(|a, b| a.id < b.id);
 
-        res = boost_intersect_hits_vec_multi(res, r?);
+            debug_time!("boost_intersect_hits_vec_multi".to_string());
+            res = apply_boost_from_iter(res, &mut boost_iter)
+            // res = boost_intersect_hits_vec_multi(res, data);
+        }else{
+            info_time!("boost_term");
+            let r: Result<Vec<_>, SearchError> = boost_term.into_par_iter()
+                .map(|mut boost_term_req| {
+                    boost_term_req.ids_only = true;
+                    boost_term_req.fast_field = true;
+                    search_field::get_hits_in_field(persistence, boost_term_req, None)
+                })
+                .collect();
+
+            let data = r?;
+            res = boost_intersect_hits_vec_multi(res, data);
+
+        }
+        
 
         // let field_result = search_field::get_hits_in_field(persistence, &mut boost_term_req, None)?;
     }

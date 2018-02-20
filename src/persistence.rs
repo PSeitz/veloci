@@ -283,7 +283,14 @@ pub fn trace_index_id_to_parent<T: IndexIdToParentData>(val: &Box<IndexIdToParen
     }
 }
 
+use search_field;
+// use std::sync::Mutex;
+use parking_lot::Mutex;
 use std::u32;
+use std::time::Duration;
+
+// use parking_lot::RwLock;
+use std::sync::RwLock;
 pub static NOT_FOUND: u32 = u32::MAX;
 
 use lru_time_cache::LruCache;
@@ -297,14 +304,13 @@ pub struct PersistenceCache {
     pub fst: HashMap<String, Map>,
 }
 
-#[derive(Default)]
 pub struct Persistence {
     pub db: String, // folder
     pub meta_data: MetaData,
     pub cache: PersistenceCache,
     pub lru_cache: HashMap<String, LruCache<RequestSearchPart, SearchResult>>,
+    pub term_boost_cache: Mutex<LruCache<Vec<RequestSearchPart>, Vec<search_field::SearchFieldResult>>>,
 }
-
 use colored::*;
 
 pub fn get_readable_size(value: usize) -> ColoredString {
@@ -376,7 +382,8 @@ impl Persistence {
             meta_data,
             db,
             lru_cache: HashMap::default(), // LruCache::new(50),
-            ..Default::default()
+            term_boost_cache: Mutex::new(LruCache::with_expiry_duration_and_capacity(Duration::new(3600, 0), 10)),
+            cache: PersistenceCache::default()
         };
         pers.load_all_to_cache()?;
         pers.print_heap_sizes();
@@ -390,7 +397,9 @@ impl Persistence {
         Ok(Persistence {
             meta_data,
             db,
-            ..Default::default()
+            lru_cache: HashMap::default(),
+            term_boost_cache: Mutex::new(LruCache::with_expiry_duration_and_capacity(Duration::new(3600, 0), 10)),
+            cache: PersistenceCache::default()
         })
     }
 
