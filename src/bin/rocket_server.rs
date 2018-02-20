@@ -43,6 +43,7 @@ use rocket::http::{Method, ContentType, Status};
 use rocket_contrib::{Json, Value};
 
 use search_lib::search;
+use search_lib::query_generator;
 use search_lib::search_field;
 use search_lib::persistence::Persistence;
 use search_lib::persistence;
@@ -103,6 +104,7 @@ struct QueryParams {
     facets: Option<String>,
     facetlimit: Option<usize>,
     boost_fields: Option<String>,
+    boost_terms: Option<String>,
     operator: Option<String>,
 }
 
@@ -175,7 +177,17 @@ fn search_get(database: String, params: QueryParams) -> Result<SearchResult, sea
             })
             .unwrap_or(HashMap::default());
 
-    let request = search::search_query(
+    let boost_terms: HashMap<String, f32> = query_param_to_vec(params.boost_terms).map(|mkay| {
+                mkay.into_iter()
+                    .map(|el| {
+                        let field_n_boost = el.split("->").collect::<Vec<&str>>();
+                        (field_n_boost[0].to_string(), field_n_boost.get(1).map(|el|el.parse::<f32>().unwrap()).unwrap_or(2.0))
+                    })
+                    .collect()
+            })
+            .unwrap_or(HashMap::default());
+
+    let request = query_generator::search_query(
         &params.query,
         &persistence,
         params.top,
@@ -186,6 +198,7 @@ fn search_get(database: String, params: QueryParams) -> Result<SearchResult, sea
         facets,
         fields,
         boost_fields,
+        boost_terms,
     );
 
     debug!("{}", serde_json::to_string(&request).unwrap());
@@ -207,7 +220,7 @@ fn suggest_get(database: String, params: QueryParams) -> Result<SuggestResult, s
 
     let fields: Option<Vec<String>> = query_param_to_vec(params.fields);
 
-    let request = search::suggest_query(
+    let request = query_generator::suggest_query(
         &params.query,
         &persistence,
         params.top,
@@ -231,6 +244,11 @@ fn highlight_post(database: String, mut request: Json<search::RequestSearchPart>
 
 fn main() {
     search_lib::trace::enable_log();
+
+    for preload_db in std::env::args().skip(1) {
+        ensure_database(&preload_db);
+    }
+
     rocket::ignite()
         .mount("/", routes![version, search_get, search_post, suggest_get, suggest_post, highlight_post])
         .attach(Gzip)

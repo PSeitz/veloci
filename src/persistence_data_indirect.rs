@@ -719,13 +719,12 @@ fn get_u32_values_from_pointing_file(find: u64, size: usize, start_and_end_file:
     if find >= size as u64 {
         return None;
     }
-    let mut offsets: Vec<u8> = Vec::with_capacity(8);
-    offsets.resize(8, 0);
+    let mut offsets: Vec<u8> = vec_with_size_uninitialized(8);
     load_bytes_into(&mut offsets, &*start_and_end_file.lock(), find as u64 * 8);
 
     let mut rdr = Cursor::new(offsets);
 
-    let start = rdr.read_u32::<LittleEndian>().unwrap();
+    let start = rdr.read_u32::<LittleEndian>().unwrap(); //TODO AVOID CONVERT
     let end = rdr.read_u32::<LittleEndian>().unwrap();
 
     if start == u32::MAX {
@@ -737,7 +736,7 @@ fn get_u32_values_from_pointing_file(find: u64, size: usize, start_and_end_file:
         return None;
     }
 
-    debug_time!("load_bytes_into & bytes_to_vec_u32");
+    trace_time!("load_bytes_into & bytes_to_vec_u32");
     // let mut data_bytes: Vec<u8> = vec_with_size_uninitialized(end as usize * 4 - start as usize * 4);
     // let mut data: Vec<u32> = vec_with_size_uninitialized(end as usize - start as usize);
     // {

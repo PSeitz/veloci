@@ -541,7 +541,7 @@ pub fn resolve_token_hits(
                 for token_parentval_id in parent_ids_for_token {
                     if should_filter(&filter, &token_parentval_id) { continue; }
 
-                    if let Some(offsets) = text_offsets.get_mutliple_value(token_parentval_id as usize..=token_parentval_id as usize + 1) { // TODO replace with different coring algorithm, not just length
+                    if let Some(offsets) = text_offsets.get_mutliple_value(token_parentval_id as usize..=token_parentval_id as usize + 1) { // TODO replace with different scoring algorithm, not just length
                         let parent_text_length = offsets[1] - offsets[0];
                         let adjusted_score = hit.score * (token_text_length as f32 / parent_text_length as f32);
                         trace!(

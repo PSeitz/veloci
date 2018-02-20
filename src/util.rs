@@ -102,6 +102,7 @@ pub fn concat<S: IntoString + AsRef<str>>(path: S, suffix: &str) -> String {
 //     path.to_string() + suffix
 // }
 
+
 pub fn get_file_path(folder: &str, path: &str) -> String {
     folder.to_string() + "/" + path
 }
@@ -136,6 +137,7 @@ pub fn remove_array_marker(path: &str) -> String {
         .join(".")
 }
 
+#[inline]
 pub fn vec_with_size_uninitialized<T>(size: usize) -> Vec<T> {
     let mut buffer = Vec::with_capacity(size);
     unsafe {
@@ -144,6 +146,7 @@ pub fn vec_with_size_uninitialized<T>(size: usize) -> Vec<T> {
     buffer
 }
 
+#[inline]
 pub fn get_my_data_danger_zooone(start: u32, end: u32, data_file: &Mutex<fs::File>) -> Vec<u32> {
     let mut data: Vec<u32> = vec_with_size_uninitialized(end as usize - start as usize);
     {
@@ -165,6 +168,7 @@ pub fn get_my_data_danger_zooone(start: u32, end: u32, data_file: &Mutex<fs::Fil
     data
 }
 
+#[inline]
 pub fn load_bytes_into(buffer: &mut [u8], mut file: &File, offset: u64) {
     // let mut reader = std::io::BufReader::new(file);
     // reader.seek(SeekFrom::Start(offset)).unwrap();
@@ -175,6 +179,7 @@ pub fn load_bytes_into(buffer: &mut [u8], mut file: &File, offset: u64) {
     file.read_exact(buffer).unwrap();
 }
 
+#[inline]
 pub fn extract_field_name(field: &str) -> String {
     field
     .chars()
@@ -191,6 +196,7 @@ pub fn extract_prop_name(path: &str) -> &str {
         .expect(&format!("could not extract prop name from path {:?}", path))
 }
 
+#[inline]
 pub fn get_steps_to_anchor(path: &str) -> Vec<String> {
     let mut paths = vec![];
     let mut current = vec![];

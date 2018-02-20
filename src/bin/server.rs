@@ -37,6 +37,7 @@ use iron_compress::GzipWriter;
 
 use chashmap::CHashMap;
 
+use search_lib::query_generator;
 use search_lib::search;
 use search_lib::search_field;
 // use create;
@@ -250,7 +251,7 @@ pub fn start_server() {
             })
             .unwrap_or(HashMap::default());
 
-        let request = search::search_query(
+        let request = query_generator::search_query(
             map.get("query").unwrap(),
             &persistence,
             map.get("top").map(|el| el.parse::<usize>().unwrap()).clone(),
@@ -261,6 +262,7 @@ pub fn start_server() {
             facets,
             fields,
             boost_fields,
+            HashMap::default()
         );
 
         debug!("{}", serde_json::to_string(&request).unwrap());
@@ -290,7 +292,7 @@ pub fn start_server() {
 
         let persistence = PERSISTENCES.get(&database).unwrap();
         let fields: Option<Vec<String>> = query_param_to_vec("fields", &map);
-        let request = search::suggest_query(
+        let request = query_generator::suggest_query(
             query,
             &persistence,
             map.get("top").map(|el| el.parse::<usize>().unwrap()).clone(),
