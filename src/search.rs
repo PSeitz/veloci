@@ -332,20 +332,21 @@ pub fn search(mut request: Request, persistence: &Persistence) -> Result<SearchR
     };
 
     if let Some(boost_term) = request.boost_term {
-        if let Some(data) = persistence.term_boost_cache.lock().get(&boost_term) {
-            // let mut boost_iter = data.hits_ids.iter().map(|el|el.clone());
-            // res = apply_boost_from_iter(res, &mut boost_iter)
-            let mut boost_iter = data.iter()
-                .map(|el| {
-                    let boost_val:f32 = el.request.boost.unwrap_or(2.0).clone();
-                    el.hits_ids.iter().map(move|id| Hit::new(*id, boost_val ))
-                })
-                .into_iter().kmerge_by(|a, b| a.id < b.id);
+        // let mut boosto = persistence.term_boost_cache.clone();
+        // if let Some(data) = boosto.read().get(&boost_term) {
+        //     // let mut boost_iter = data.hits_ids.iter().map(|el|el.clone());
+        //     // res = apply_boost_from_iter(res, &mut boost_iter)
+        //     let mut boost_iter = data.iter()
+        //         .map(|el| {
+        //             let boost_val:f32 = el.request.boost.unwrap_or(2.0).clone();
+        //             el.hits_ids.iter().map(move|id| Hit::new(*id, boost_val ))
+        //         })
+        //         .into_iter().kmerge_by(|a, b| a.id < b.id);
 
-            debug_time!("boost_intersect_hits_vec_multi".to_string());
-            res = apply_boost_from_iter(res, &mut boost_iter)
-            // res = boost_intersect_hits_vec_multi(res, data);
-        }else{
+        //     debug_time!("boost_intersect_hits_vec_multi".to_string());
+        //     res = apply_boost_from_iter(res, &mut boost_iter)
+        //     // res = boost_intersect_hits_vec_multi(res, data);
+        // }else{
             info_time!("boost_term");
             let r: Result<Vec<_>, SearchError> = boost_term.into_par_iter()
                 .map(|mut boost_term_req| {
@@ -358,8 +359,7 @@ pub fn search(mut request: Request, persistence: &Persistence) -> Result<SearchR
             let data = r?;
             res = boost_intersect_hits_vec_multi(res, data);
 
-        }
-        
+        // }
 
         // let field_result = search_field::get_hits_in_field(persistence, &mut boost_term_req, None)?;
     }
@@ -709,23 +709,29 @@ pub fn boost_intersect_hits_vec(mut results: SearchFieldResult, mut boost: Searc
 
 }
 
-fn apply_boost_from_iter(mut results: SearchFieldResult, boost_iter: &mut Iterator<Item=Hit>) -> SearchFieldResult {
+fn apply_boost_from_iter(mut results: SearchFieldResult, mut boost_iter: &mut Iterator<Item=Hit>) -> SearchFieldResult {
+
+    let move_boost = |hit:&mut Hit, hit_curr:&mut Hit, boost_iter: &mut Iterator<Item=Hit>|{ //Forward the boost iterator and look for matches
+        while let Some(b_hit) = boost_iter.next() {
+            if b_hit.id > hit.id {
+                *hit_curr = b_hit;
+                break;
+            }else if b_hit.id == hit.id{
+                *hit_curr = b_hit;
+                hit.score *= b_hit.score;
+                break;
+            }
+        }
+    };
+
     if let Some(yep) = boost_iter.next(){
         let mut hit_curr = yep;
-        for hit in results.hits_vec.iter_mut() {
+        for mut hit in results.hits_vec.iter_mut() {
             if hit_curr.id < hit.id {
-                while let Some(b_hit) = boost_iter.next() {
-                    if b_hit.id > hit.id {
-                        hit_curr = b_hit;
-                        break;
-                    }else if b_hit.id == hit.id{
-                        hit_curr = b_hit;
-                        hit.score *= b_hit.score;
-                        break;
-                    }
-                }
+                move_boost(&mut hit, &mut hit_curr, &mut boost_iter);
             }else if hit_curr.id == hit.id{
                 hit.score *= hit_curr.score;
+                move_boost(&mut hit, &mut hit_curr, &mut boost_iter); // Possible multi boosts [id:0->2, id:0->4 ...]
             }
         }
     }
@@ -747,7 +753,7 @@ pub fn boost_intersect_hits_vec_multi(mut results: SearchFieldResult, mut boost:
     let mut boost_iter = boost.iter()
         .map(|el| {
             let boost_val:f32 = el.request.boost.unwrap_or(2.0).clone();
-            el.hits_ids.iter().map(move|id| Hit::new(*id, boost_val ))
+            el.hits_ids.iter().map(move|id| Hit::new(*id, boost_val )) //TODO create version for hits_vec
         })
         .into_iter().kmerge_by(|a, b| a.id < b.id);
 
@@ -759,15 +765,15 @@ pub fn boost_intersect_hits_vec_multi(mut results: SearchFieldResult, mut boost:
 #[test]
 fn boost_intersect_hits_vec_test_multi() {
     let hits1 = vec![Hit::new(10, 20.0), Hit::new(0, 20.0), Hit::new(5, 20.0), Hit::new(60, 20.0)]; // unsorted
-    let boost = vec![Hit::new(0, 20.0), Hit::new(3, 20.0), Hit::new(10, 30.0), Hit::new(70, 30.0)];
-    let boost2 = vec![Hit::new(60, 20.0)];
+    let boost = vec![0, 3, 10, 70];
+    let boost2 = vec![10, 60];
 
-    let boosts = vec![SearchFieldResult {hits_vec: boost, ..Default::default() },SearchFieldResult {hits_vec: boost2, ..Default::default() }];
+    let boosts = vec![SearchFieldResult {hits_ids: boost, ..Default::default() },SearchFieldResult {hits_ids: boost2, ..Default::default() }];
 
     let res = boost_intersect_hits_vec_multi(SearchFieldResult {hits_vec: hits1, ..Default::default() }, boosts);
     // println!("{:?}", res.hits_vec);
 
-    assert_eq!(res.hits_vec, vec![Hit::new(0, 400.0), Hit::new(5, 20.0), Hit::new(10, 600.0), Hit::new(60, 400.0)]);
+    assert_eq!(res.hits_vec, vec![Hit::new(0, 40.0), Hit::new(5, 20.0), Hit::new(10, 80.0), Hit::new(60, 40.0)]);
 }
 
 

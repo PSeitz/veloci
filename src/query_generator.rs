@@ -6,7 +6,7 @@ use regex::Regex;
 use persistence::Persistence;
 use util::*;
 use search::*;
-
+use std;
 
 fn get_default_levenshtein(term: &str) -> usize {
     match term.chars().count() {
@@ -132,8 +132,8 @@ pub fn search_query(
         let requests: Vec<Request> = terms
             .iter()
             .map(|term| {
-                let levenshtein_distance = levenshtein.unwrap_or_else(|| get_default_levenshtein(term));
-
+                let mut levenshtein_distance = levenshtein.unwrap_or_else(|| get_default_levenshtein(term));
+                levenshtein_distance = std::cmp::min(levenshtein_distance, term.chars().count() - 1 );
                 let parts = get_all_field_names(&persistence, &fields)
                     .iter()
                     .map(|field_name| {

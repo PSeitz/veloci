@@ -209,7 +209,7 @@ pub fn get_hits_in_field(persistence: &Persistence, options: RequestSearchPart, 
     options.path = options.path.to_string() + ".textindex";
 
     if options.terms.len() == 1 {
-        let mut hits = get_hits_in_field_one_term(persistence, &options, filter)?;
+        let mut hits = get_hits_in_field_one_term(persistence, &mut options, filter)?;
         hits.request = options;
         return Ok(hits)
     } else {
@@ -217,7 +217,7 @@ pub fn get_hits_in_field(persistence: &Persistence, options: RequestSearchPart, 
         for term in &options.terms {
             let mut options = options.clone();
             options.terms = vec![term.to_string()];
-            let hits: SearchFieldResult = get_hits_in_field_one_term(persistence, &options, filter)?;
+            let hits: SearchFieldResult = get_hits_in_field_one_term(persistence, &mut options, filter)?;
             all_hits.insert(term.to_string(), hits); // todo
         }
     }
@@ -238,7 +238,7 @@ use std;
 #[cfg_attr(feature = "flame_it", flame)]
 fn get_hits_in_field_one_term(
     persistence: &Persistence,
-    options: &RequestSearchPart,
+    options: &mut RequestSearchPart,
     filter: Option<&FnvHashSet<u32>>,
 ) -> Result<SearchFieldResult, SearchError> {
     debug_time!(format!("{} get_hits_in_field", &options.path));
@@ -261,6 +261,12 @@ fn get_hits_in_field_one_term(
     // else { None };
     // let start_char_val = start_char.as_ref().map(String::as_ref);
 
+    //limit levenshtein distance to reasonable values
+    let lower_term = options.terms[0].to_lowercase();
+    options.levenshtein_distance.as_mut().map(|d| {
+        *d = std::cmp::min(*d, lower_term.chars().count() as u32 - 1 );
+    });
+
     trace!("Will Check distance {:?}", options.levenshtein_distance.unwrap_or(0) != 0);
     // trace!("Will Check exact {:?}", options.exact);
     trace!("Will Check starts_with {:?}", options.starts_with);
@@ -279,7 +285,7 @@ fn get_hits_in_field_one_term(
     {
         debug_time!(format!("{} levenschwein", &options.path));
         let lev_automaton_builder = LevenshteinAutomatonBuilder::new(options.levenshtein_distance.unwrap_or(0) as u8, true);
-        let lower_term = options.terms[0].to_lowercase();
+
         let dfa = lev_automaton_builder.build_dfa(&lower_term);
         // let search_term_length = &lower_term.chars.count();
         let should_check_prefix_match = options.starts_with.unwrap_or(false) || options.levenshtein_distance.unwrap_or(0) != 0;

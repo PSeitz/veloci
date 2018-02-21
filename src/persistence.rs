@@ -286,11 +286,13 @@ pub fn trace_index_id_to_parent<T: IndexIdToParentData>(val: &Box<IndexIdToParen
 use search_field;
 // use std::sync::Mutex;
 use parking_lot::Mutex;
+use std::cell::RefCell;
+use std::sync::{Arc};
 use std::u32;
 use std::time::Duration;
 
-// use parking_lot::RwLock;
-use std::sync::RwLock;
+use parking_lot::RwLock;
+// use std::sync::RwLock;
 pub static NOT_FOUND: u32 = u32::MAX;
 
 use lru_time_cache::LruCache;
@@ -309,7 +311,7 @@ pub struct Persistence {
     pub meta_data: MetaData,
     pub cache: PersistenceCache,
     pub lru_cache: HashMap<String, LruCache<RequestSearchPart, SearchResult>>,
-    pub term_boost_cache: Mutex<LruCache<Vec<RequestSearchPart>, Vec<search_field::SearchFieldResult>>>,
+    pub term_boost_cache: Arc<RwLock<LruCache<Vec<RequestSearchPart>, Vec<search_field::SearchFieldResult>>>>,
 }
 use colored::*;
 
@@ -382,7 +384,7 @@ impl Persistence {
             meta_data,
             db,
             lru_cache: HashMap::default(), // LruCache::new(50),
-            term_boost_cache: Mutex::new(LruCache::with_expiry_duration_and_capacity(Duration::new(3600, 0), 10)),
+            term_boost_cache: Arc::new(RwLock::new(LruCache::with_expiry_duration_and_capacity(Duration::new(3600, 0), 10))),
             cache: PersistenceCache::default()
         };
         pers.load_all_to_cache()?;
@@ -398,7 +400,7 @@ impl Persistence {
             meta_data,
             db,
             lru_cache: HashMap::default(),
-            term_boost_cache: Mutex::new(LruCache::with_expiry_duration_and_capacity(Duration::new(3600, 0), 10)),
+            term_boost_cache: Arc::new(RwLock::new(LruCache::with_expiry_duration_and_capacity(Duration::new(3600, 0), 10))),
             cache: PersistenceCache::default()
         })
     }
