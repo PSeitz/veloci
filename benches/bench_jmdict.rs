@@ -20,6 +20,7 @@ extern crate criterion;
 use criterion::Criterion;
 use search_lib::*;
 use search_lib::search::*;
+use search_lib::doc_loader::*;
 static TEST_FOLDER: &str = "jmdict";
 
 use std::env;
@@ -356,6 +357,34 @@ fn searches(c: &mut Criterion) {
     });
 
     c.bench_function("jmdict_suggest_an", |b| b.iter(|| suggest("an", "meanings.ger[].text", &pers)));
+
+    c.bench_function("load_documents_direct", |b| b.iter(|| {
+        DocLoader::get_doc(&pers, 25000 as usize)
+    }));
+
+    // let fields = vec!["commonness".to_string(),
+    //                   "ent_seq".to_string(),
+    //                   "pos[]".to_string(),
+    //                   "meanings.ger[].text".to_string(),
+    //                   "meanings.eng[]".to_string(),
+    //                   "kana[].conjugated[].form".to_string(),
+    //                   "kana[].conjugated[].name".to_string(),
+    //                   "kana[].text".to_string(),
+    //                   "kana[].romaji".to_string(),
+    //                   "kana[].ent_seq".to_string(),
+    //                   "kana[].commonness".to_string(),
+    //                   "kanji[].text".to_string(),
+    //                   "kanji[].commonness".to_string(),
+    //                   "kanji[].ent_seq".to_string(),
+    //                   "misc[]".to_string(),
+    //                   "address[].line[]".to_string()];
+
+    let fields = pers.get_all_properties();
+    let tree = get_read_tree_from_fields(&pers, &fields);
+
+    c.bench_function("load_documents_tree", |b| b.iter(|| {
+        search::read_tree(&pers, 25000, &tree)
+    }));
 
     c.bench_function("jmdict_suggest_a", |b| b.iter(|| suggest("a", "meanings.ger[].text", &pers)));
 

@@ -19,65 +19,9 @@ use chashmap::CHashMap;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 pub mod bench;
-
-
-// trait JSONProvider {
-//     fn iter<'a>(&'a self) -> Box<Iterator<Item=(&'a serde_json::Value)>>;
-// }
-
-// #[derive(Debug)]
-// struct JSONArray {
-//     value: Vec<Value>
-// }
-
-struct JSONArray<T>(Vec<T>);
-
-impl<T> JSONArray<T> {
-    fn iter<'a>(&'a self) -> IterJSONArray<'a, T> {
-        IterJSONArray {
-            inner: self,
-            pos: 0,
-        }
-    }
-}
-
-// You can create a new struct which will contain a reference to your set of data.
-struct IterJSONArray<'a, T: 'a> {
-    inner: &'a JSONArray<T>,
-    // And there is a position used to know where you are in your iteration.
-    pos: usize,
-}
-
-// Now you can just implement the `Iterator` trait on your `IterJSONArray` struct.
-impl<'a, T> Iterator for IterJSONArray<'a, T> {
-    type Item = &'a T;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        if self.pos >= self.inner.0.len() {
-            // Obviously, there isn't any more data to read so let's stop here.
-            None
-        } else {
-            // We increment the position of our iterator.
-            self.pos += 1;
-            // We return the current value pointed by our iterator.
-            self.inner.0.get(self.pos - 1)
-        }
-    }
-}
 use serde_json::{Deserializer, StreamDeserializer};
 #[test]
 fn test_json_blubber() {
-    let data = json!(["a", "b"]);
-    if let Some(arr) = data.as_array() {
-        let yops = JSONArray(arr.to_vec());
-        let mut iter = yops.iter();
-        assert_eq!(iter.next().unwrap(), &json!("a"));
-        assert_eq!(iter.next().unwrap(), &json!("b"));
-    }else{
-        assert!(false);
-    }
-
-
     let data = "{\"k\": 3}1\"cool\"\"stuff\" 3{}  [0, 1, 2]";
 
     let stream:serde_json::StreamDeserializer<serde_json::de::StrRead, Value> = Deserializer::from_str(data).into_iter::<Value>();
@@ -101,49 +45,64 @@ pub fn convert_to_string(value: &Value) -> Cow<str> {
 }
 
 
-// pub fn for_each_elementzzz<'a, F, F2, T>(data:&'a StreamDeserializer<T, Value>, id_provider: &mut IDProvider, opt: &mut ForEachOpt, cb_text: &mut F, cb_ids: &mut F2)
+pub fn for_each_element<'a, F, F2, T>(data: StreamDeserializer<'a, T, Value>, id_provider: &mut IDProvider, opt: &mut ForEachOpt, cb_text: &mut F, cb_ids: &mut F2)
+where
+    F: FnMut(u32, &str, &str, u32),
+    F2: FnMut(u32, &str, u32, u32),
+    T: serde_json::de::Read<'a>
+{
+    let mut path = String::with_capacity(25);
+
+    for el in data {
+        // let root_id = id_provider.get_id("");
+        // for_each_elemento(&el.unwrap(), root_id, id_provider, root_id, &mut path, "", opt, cb_text, cb_ids);
+        // path.clear();
+
+        if let Some(arr) = el.as_ref().unwrap().as_array() {
+            for el in arr.iter() {
+                let root_id = id_provider.get_id("");
+                for_each_elemento(el, root_id, id_provider, root_id, &mut path, "", opt, cb_text, cb_ids);
+                path.clear();
+            }
+        } else {
+            let root_id = id_provider.get_id("");
+            for_each_elemento(el.as_ref().unwrap(), root_id, id_provider, root_id, &mut path, "", opt, cb_text, cb_ids);
+        }
+        path.clear();
+
+    }
+
+
+
+}
+
+
+// pub fn for_each_element<F, F2>(data: &Value, id_provider: &mut IDProvider, opt: &mut ForEachOpt, cb_text: &mut F, cb_ids: &mut F2)
 // where
 //     F: FnMut(u32, &str, &str, u32),
-//     F2: FnMut(u32, &str, u32, u32),
-//     T: serde_json::de::Read<'a>
+//     F2: FnMut(u32, &str, u32, u32)
 // {
 //     let mut path = String::with_capacity(25);
+//     if let Some(arr) = data.as_array() {
 
-//     for el in data {
+//         // arr.par_iter().for_each(|el| {
+//         //     let mut path = String::with_capacity(25);
+//         //     let root_id = id_provider.get_id("");
+//         //     for_each_elemento(el, id_provider, root_id, &mut path, "", opt, cb_text, cb_ids);
+//         //     path.clear();
+//         // });
+
+//         for el in arr.iter() {
+//             let root_id = id_provider.get_id("");
+//             for_each_elemento(el, root_id, id_provider, root_id, &mut path, "", opt, cb_text, cb_ids);
+//             path.clear();
+//         }
+//     } else {
 //         let root_id = id_provider.get_id("");
-//         for_each_elemento(&el.unwrap(), root_id, id_provider, root_id, &mut path, "", opt, cb_text, cb_ids);
-//         path.clear();
+//         for_each_elemento(data, root_id, id_provider, root_id, &mut path, "", opt, cb_text, cb_ids);
 //     }
 
 // }
-
-
-pub fn for_each_element<F, F2>(data: &Value, id_provider: &mut IDProvider, opt: &mut ForEachOpt, cb_text: &mut F, cb_ids: &mut F2)
-where
-    F: FnMut(u32, &str, &str, u32),
-    F2: FnMut(u32, &str, u32, u32)
-{
-    let mut path = String::with_capacity(25);
-    if let Some(arr) = data.as_array() {
-
-        // arr.par_iter().for_each(|el| {
-        //     let mut path = String::with_capacity(25);
-        //     let root_id = id_provider.get_id("");
-        //     for_each_elemento(el, id_provider, root_id, &mut path, "", opt, cb_text, cb_ids);
-        //     path.clear();
-        // });
-
-        for el in arr.iter() {
-            let root_id = id_provider.get_id("");
-            for_each_elemento(el, root_id, id_provider, root_id, &mut path, "", opt, cb_text, cb_ids);
-            path.clear();
-        }
-    } else {
-        let root_id = id_provider.get_id("");
-        for_each_elemento(data, root_id, id_provider, root_id, &mut path, "", opt, cb_text, cb_ids);
-    }
-
-}
 
 pub fn for_each_elemento<F, F2>(data: &Value, anchor_id:u32, id_provider: &mut IDProvider, parent_id:u32, mut current_path:&mut String, current_el_name:&str, opt: &mut ForEachOpt, cb_text: &mut F, cb_ids: &mut F2)
 where
@@ -270,7 +229,10 @@ fn test_foreach() {
         println!("IDS: path {} val_id {} parent_val_id {}",path, val_id, parent_val_id);
     };
 
-    for_each_element(&data, &mut id_holder, &mut opt, &mut cb_text, &mut callback_ids);
+    let data_str = serde_json::to_string(&data).unwrap();
+    let mut stream = Deserializer::from_str(&data_str).into_iter::<Value>();
+
+    for_each_element(stream, &mut id_holder, &mut opt, &mut cb_text, &mut callback_ids);
 
     assert_eq!(2 + 2, 4);
 }

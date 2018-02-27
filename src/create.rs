@@ -10,7 +10,7 @@ use std::{self, str};
 use std::io;
 
 use persistence::{LoadingType, Persistence};
-
+use serde_json::{Deserializer, StreamDeserializer};
 use util::*;
 
 use log;
@@ -381,6 +381,9 @@ pub fn get_allterms(data: &Value, fulltext_info_for_path: &FnvHashMap<String, Fu
 
     //let num_elements = if let Some(arr) = data.as_array() { arr.len() } else { 1 };
 
+    let data_str = serde_json::to_string(&data).unwrap();                                   //TODO: FIXME move to interface
+    let stream = Deserializer::from_str(&data_str).into_iter::<Value>();
+
     let tokenizer = SimpleTokenizerCharsIterateGroupTokens {};
     let default_fulltext_options = FulltextIndexOptions::new_with_tokenize();
 
@@ -400,7 +403,7 @@ pub fn get_allterms(data: &Value, fulltext_info_for_path: &FnvHashMap<String, Fu
 
         let mut callback_ids = |_anchor_id: u32, _path: &str, _value_id: u32, _parent_val_id: u32| {};
 
-        json_converter::for_each_element(&data, &mut id_holder, &mut opt, &mut cb_text, &mut callback_ids);
+        json_converter::for_each_element(stream, &mut id_holder, &mut opt, &mut cb_text, &mut callback_ids);
     }
 
     {
@@ -460,6 +463,9 @@ pub fn create_fulltext_index(data: &Value, mut persistence: &mut Persistence, in
 
     let mut opt = json_converter::ForEachOpt {};
     let mut id_holder = json_converter::IDHolder::new();
+
+    let data_str = serde_json::to_string(&data).unwrap();                                   //TODO: FIXME move to interface
+    let stream = Deserializer::from_str(&data_str).into_iter::<Value>();
 
     let mut path_data: FnvHashMap<String, PathData> = FnvHashMap::default();
 
@@ -554,7 +560,7 @@ pub fn create_fulltext_index(data: &Value, mut persistence: &mut Persistence, in
             tuples.push(ValIdPair::new(value_id, parent_val_id));
         };
 
-        json_converter::for_each_element(&data, &mut id_holder, &mut opt, &mut cb_text, &mut callback_ids);
+        json_converter::for_each_element(stream, &mut id_holder, &mut opt, &mut cb_text, &mut callback_ids);
     }
 
     let is_sublevel = |path: &str| {path.contains("[]") };

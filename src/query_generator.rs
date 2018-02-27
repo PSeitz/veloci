@@ -128,6 +128,8 @@ pub fn search_query(
 
     }).collect();
 
+    let boost_term = if boost_terms_req.is_empty() {None} else{Some(boost_terms_req)};
+
     if op == "and" {
         let requests: Vec<Request> = terms
             .iter()
@@ -163,7 +165,7 @@ pub fn search_query(
             and: Some(requests), // and for terms
             top: top,
             skip: skip,
-            boost_term: Some(boost_terms_req),
+            boost_term: boost_term,
             facets: facets_req,
             ..Default::default()
         };
@@ -196,13 +198,12 @@ pub fn search_query(
         .collect();
 
 
-
     Request {
         or: Some(parts),
         top: top,
         skip: skip,
         facets: facets_req,
-        boost_term: Some(boost_terms_req),
+        boost_term: boost_term,
         ..Default::default()
     }
 }

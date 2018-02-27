@@ -87,6 +87,7 @@ extern crate heapsize;
 extern crate heapsize_derive;
 
 extern crate byteorder;
+extern crate fixedbitset;
 
 extern crate json_converter;
 extern crate ordered_float;

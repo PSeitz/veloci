@@ -798,7 +798,7 @@ mod tests {
             assert_eq!(hits.data.len(), 1);
 
 
-            let yay = search::read_data(&pers, 3, vec!["commonness".to_string(),
+            let yay = search::read_data(&pers, 3, &vec!["commonness".to_string(),
                                                         "ent_seq".to_string(),
                                                         "meanings.ger[]".to_string(),
                                                         "kana[].text".to_string(),
@@ -815,6 +815,50 @@ mod tests {
                 "ger": ["der test", "das ist ein guter Treffer"],
                 "kana": [{"text": "いよく"} ]
             }));
+
+
+            let yay2 = search::read_data(&pers, 3, &vec!["kana[].text".to_string().to_string()]).unwrap();
+            assert_eq!(yay2, json!({
+                "kana": [{"text": "いよく"} ]
+            }));
+
+            println!("MKAY");
+            println!("{}", yay2);
+            // let all_props = pers.get_all_properties();
+
+            // let yay2 = search::read_data(&pers, 3, &all_props).unwrap();
+
+            // assert_eq!(yay2, json!({
+            //     "id": 1234566,
+            //     "gender": "male",
+            //     "tags": ["awesome", "cool"],
+            //     "birthDate": "1960-08-19",
+            //     "address": [
+            //         {
+            //             "line": ["nuts strees"]
+            //         },
+            //         {
+            //             "line": ["asdf"]
+            //         }
+            //     ],
+            //     "commonness": 500,
+            //     "kanji": [
+            //         { "text": "意慾", "commonness": 20}
+            //     ],
+            //     "field1" : [{"text":"awesome", "rank":1}],
+            //     "kana": [
+            //         {
+            //             "text": "いよく"
+            //         }
+            //     ],
+            //     "meanings": {
+            //         "eng" : ["test1"],
+            //         "ger": ["der test", "das ist ein guter Treffer"]
+            //     },
+            //     "ent_seq": "1587700"
+            // }));
+
+
         }
 
 

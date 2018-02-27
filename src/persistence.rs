@@ -285,9 +285,9 @@ pub fn trace_index_id_to_parent<T: IndexIdToParentData>(val: &Box<IndexIdToParen
 
 use search_field;
 // use std::sync::Mutex;
-use parking_lot::Mutex;
-use std::cell::RefCell;
-use std::sync::{Arc};
+// use parking_lot::Mutex;
+// use std::cell::RefCell;
+// use std::sync::{Arc};
 use std::u32;
 use std::time::Duration;
 
@@ -311,7 +311,7 @@ pub struct Persistence {
     pub meta_data: MetaData,
     pub cache: PersistenceCache,
     pub lru_cache: HashMap<String, LruCache<RequestSearchPart, SearchResult>>,
-    pub term_boost_cache: Arc<RwLock<LruCache<Vec<RequestSearchPart>, Vec<search_field::SearchFieldResult>>>>,
+    pub term_boost_cache: RwLock<LruCache<Vec<RequestSearchPart>, Vec<search_field::SearchFieldResult>>>,
 }
 use colored::*;
 
@@ -330,6 +330,10 @@ pub fn get_readable_size_for_childs<T: HeapSizeOf>(value: T) -> ColoredString {
 impl Persistence {
     fn get_fst_sizes(&self) -> usize {
         self.cache.fst.iter().map(|(_, v)| v.as_fst().size()).sum()
+    }
+
+    pub fn get_all_properties(&self) -> Vec<String> {
+        self.meta_data.fulltext_indices.keys().map(|el| util::extract_field_name(el)).collect()
     }
 
     pub fn print_heap_sizes(&self) {
@@ -384,7 +388,7 @@ impl Persistence {
             meta_data,
             db,
             lru_cache: HashMap::default(), // LruCache::new(50),
-            term_boost_cache: Arc::new(RwLock::new(LruCache::with_expiry_duration_and_capacity(Duration::new(3600, 0), 10))),
+            term_boost_cache:RwLock::new(LruCache::with_expiry_duration_and_capacity(Duration::new(3600, 0), 10)),
             cache: PersistenceCache::default()
         };
         pers.load_all_to_cache()?;
@@ -400,7 +404,7 @@ impl Persistence {
             meta_data,
             db,
             lru_cache: HashMap::default(),
-            term_boost_cache: Arc::new(RwLock::new(LruCache::with_expiry_duration_and_capacity(Duration::new(3600, 0), 10))),
+            term_boost_cache:RwLock::new(LruCache::with_expiry_duration_and_capacity(Duration::new(3600, 0), 10)),
             cache: PersistenceCache::default()
         })
     }

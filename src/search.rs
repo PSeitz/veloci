@@ -303,6 +303,12 @@ pub fn to_search_result(persistence: &Persistence, hits: SearchResult) -> Search
 }
 
 use search_field;
+use fixedbitset::FixedBitSet;
+
+#[inline]
+pub fn to_bucket_and_id(value: u32) -> (u16, u16) {
+    ((value >> 16) as u16, value as u16)
+}
 
 #[cfg_attr(feature = "flame_it", flame)]
 pub fn search(mut request: Request, persistence: &Persistence) -> Result<SearchResult, SearchError> {
@@ -331,37 +337,140 @@ pub fn search(mut request: Request, persistence: &Persistence) -> Result<SearchR
         facets: None,
     };
 
-    if let Some(boost_term) = request.boost_term {
-        // let mut boosto = persistence.term_boost_cache.clone();
-        // if let Some(data) = boosto.read().get(&boost_term) {
-        //     // let mut boost_iter = data.hits_ids.iter().map(|el|el.clone());
-        //     // res = apply_boost_from_iter(res, &mut boost_iter)
-        //     let mut boost_iter = data.iter()
-        //         .map(|el| {
-        //             let boost_val:f32 = el.request.boost.unwrap_or(2.0).clone();
-        //             el.hits_ids.iter().map(move|id| Hit::new(*id, boost_val ))
-        //         })
-        //         .into_iter().kmerge_by(|a, b| a.id < b.id);
-
-        //     debug_time!("boost_intersect_hits_vec_multi".to_string());
-        //     res = apply_boost_from_iter(res, &mut boost_iter)
-        //     // res = boost_intersect_hits_vec_multi(res, data);
-        // }else{
+    {
+        // let boosto = persistence.term_boost_cache.clone();
+        if let Some(boost_term) = request.boost_term {
             info_time!("boost_term");
-            let r: Result<Vec<_>, SearchError> = boost_term.into_par_iter()
-                .map(|mut boost_term_req| {
-                    boost_term_req.ids_only = true;
-                    boost_term_req.fast_field = true;
-                    search_field::get_hits_in_field(persistence, boost_term_req, None)
-                })
-                .collect();
+            {
+                persistence.term_boost_cache.write().get(&boost_term);//poke
+            }
 
-            let data = r?;
-            res = boost_intersect_hits_vec_multi(res, data);
+            let mut from_cache = false;
+            // Attentión - The read lock is still help in the else block therefore we need to create an extra scope to avoid deadlocks
+            // This should be probably fixed sometime with better lifetime handling in rust
+            {
+                if let Some(data) = persistence.term_boost_cache.read().peek(&boost_term) {
+                    // let mut boost_iter = data.hits_ids.iter().map(|el|el.clone());
+                    // res = apply_boost_from_iter(res, &mut boost_iter)
+                    info_time!("boost_term_cache");
+                    let mut boost_iter = data.iter()
+                        .map(|el| {
+                            let boost_val:f32 = el.request.boost.unwrap_or(2.0).clone();
+                            el.hits_ids.iter().map(move|id| Hit::new(*id, boost_val ))
+                        })
+                        .into_iter().kmerge_by(|a, b| a.id < b.id);
 
-        // }
+                    {
 
-        // let field_result = search_field::get_hits_in_field(persistence, &mut boost_term_req, None)?;
+                        let mut boost_iter_data:Vec<Hit> = data.iter()
+                        .map(|el| {
+                            let boost_val:f32 = el.request.boost.unwrap_or(2.0).clone();
+                            el.hits_ids.iter().map(move|id| Hit::new(*id, boost_val ))
+                        })
+                        .into_iter().kmerge_by(|a, b| a.id < b.id).collect();
+
+                        {
+                            info_time!("binary search boost");
+                            let mut last_pos = 0;
+                            for hit in res.hits_vec.iter_mut(){
+                                match boost_iter_data[last_pos ..].binary_search_by_key(&hit.id, |&hit| hit.id) {
+                                    Ok(boost_hit) => {
+                                        hit.score *= boost_iter_data[boost_hit].score;
+                                        last_pos =boost_hit;
+                                    },
+                                    Err(pos) => { last_pos = pos;},
+                                }
+                            }
+                        }
+
+                        {
+                            let mut direct_data:Vec<f32> = vec![];
+                            for hit in boost_iter_data.iter() {
+                                if direct_data.len() <= hit.id as usize {
+                                    direct_data.resize(hit.id as usize + 1, 0.0);
+                                }
+                                direct_data[hit.id as usize] = hit.score;
+                            }
+                            info_time!("direct search boost");
+                            for hit in res.hits_vec.iter_mut(){
+                                if let Some(boost_hit) = direct_data.get(hit.id as usize) {
+                                    hit.score *= boost_hit;
+                                }
+                            }
+                        }
+
+                        {
+                            let my_boost = 2.0;
+                            println!("SIZE {:?}", boost_iter_data.last().unwrap().id);
+                            let mut direct_data:FixedBitSet = {
+
+                                let mut ay = FixedBitSet::with_capacity(70000 as usize + 1);
+                                for hit in boost_iter_data.iter() {
+                                    let (_, id_in_bucket) = to_bucket_and_id(hit.id);
+                                    ay.insert(id_in_bucket as usize);
+                                }
+                                ay
+                            };
+                            info_time!("direct search bitset");
+                            for hit in res.hits_vec.iter_mut(){
+                                let (_, id_in_bucket) = to_bucket_and_id(hit.id);
+                                if direct_data.contains(id_in_bucket as usize) {
+                                    hit.score *= my_boost;
+                                }
+                            }
+                        }
+
+                        // { // Hashmap ist doof
+                        //     let mut boost_iter_data:FnvHashMap<u32, f32> = data.iter()
+                        //     .map(|el| {
+                        //         let boost_val:f32 = el.request.boost.unwrap_or(2.0).clone();
+                        //         el.hits_ids.iter().map(move|id| Hit::new(*id, boost_val ))
+                        //     })
+                        //     .into_iter().kmerge_by(|a, b| a.id < b.id).map(|hit| (hit.id, hit.score)).collect();
+
+                        //     info_time!("hashmap boost");
+                        //     for hit in res.hits_vec.iter_mut(){
+                        //         if let Some(boost_hit) = boost_iter_data.get(&hit.id) {
+                        //             hit.score *= boost_hit;
+                        //         }
+                        //     }
+                        // }
+
+                        {
+                            info_time!("merge search boost");
+                            res = apply_boost_from_iter(res, &mut boost_iter_data.into_iter());
+                        }
+
+                        debug_time!("binary search".to_string());
+
+                    }
+
+                    debug_time!("boost_intersect_hits_vec_multi".to_string());
+                    res = apply_boost_from_iter(res, &mut boost_iter);
+
+
+                    from_cache = true;
+
+                }
+            }
+
+            if !from_cache{
+                let r: Result<Vec<_>, SearchError> = boost_term.clone().into_par_iter()
+                    .map(|mut boost_term_req| {
+                        boost_term_req.ids_only = true;
+                        boost_term_req.fast_field = true;
+                        search_field::get_hits_in_field(persistence, boost_term_req, None)
+                    })
+                    .collect();
+                let mut data = r?;
+                res = boost_intersect_hits_vec_multi(res, &mut data);
+                {
+                    persistence.term_boost_cache.write().insert(boost_term.clone(), data);
+                }
+
+            }
+
+        }
     }
 
     // print!("{:?}", res.hits_vec);
@@ -740,7 +849,7 @@ fn apply_boost_from_iter(mut results: SearchFieldResult, mut boost_iter: &mut It
 }
 
 #[cfg_attr(feature = "flame_it", flame)]
-pub fn boost_intersect_hits_vec_multi(mut results: SearchFieldResult, mut boost: Vec<SearchFieldResult>) -> SearchFieldResult {
+pub fn boost_intersect_hits_vec_multi(mut results: SearchFieldResult, boost: &mut Vec<SearchFieldResult>) -> SearchFieldResult {
     {
         debug_time!("boost hits sort input".to_string());
         results.hits_vec.sort_unstable_by_key(|el| el.id); //TODO SORT NEEDED??
@@ -768,9 +877,9 @@ fn boost_intersect_hits_vec_test_multi() {
     let boost = vec![0, 3, 10, 70];
     let boost2 = vec![10, 60];
 
-    let boosts = vec![SearchFieldResult {hits_ids: boost, ..Default::default() },SearchFieldResult {hits_ids: boost2, ..Default::default() }];
+    let mut boosts = vec![SearchFieldResult {hits_ids: boost, ..Default::default() },SearchFieldResult {hits_ids: boost2, ..Default::default() }];
 
-    let res = boost_intersect_hits_vec_multi(SearchFieldResult {hits_vec: hits1, ..Default::default() }, boosts);
+    let res = boost_intersect_hits_vec_multi(SearchFieldResult {hits_vec: hits1, ..Default::default() }, &mut boosts);
     // println!("{:?}", res.hits_vec);
 
     assert_eq!(res.hits_vec, vec![Hit::new(0, 40.0), Hit::new(5, 20.0), Hit::new(10, 80.0), Hit::new(60, 40.0)]);
@@ -802,7 +911,7 @@ fn bench_boost_intersect_hits_vec_multi(b: &mut test::Bencher) {
     let hits1:Vec<Hit> = (0..4_000_00).map(|i|Hit::new(i*5 as u32 , 2.2 as f32)).collect();
     let hits2:Vec<Hit> = (0..40_000).map(|i|Hit::new(i*3 as u32, 2.2 as f32)).collect();
 
-    b.iter(|| boost_intersect_hits_vec_multi(SearchFieldResult {hits_vec: hits1.clone(), ..Default::default() }, vec![SearchFieldResult {hits_vec: hits2.clone(), ..Default::default() }]))
+    b.iter(|| boost_intersect_hits_vec_multi(SearchFieldResult {hits_vec: hits1.clone(), ..Default::default() }, &mut vec![SearchFieldResult {hits_vec: hits2.clone(), ..Default::default() }]))
 }
 
 // #[bench]
@@ -1009,7 +1118,7 @@ impl Error for SearchError {
 // }
 
 #[cfg_attr(feature = "flame_it", flame)]
-pub fn read_tree(persistence: &Persistence, id: u32, tree: NodeTree) -> Result<serde_json::Value, SearchError> {
+pub fn read_tree(persistence: &Persistence, id: u32, tree: &NodeTree) -> Result<serde_json::Value, SearchError> {
     let mut json = json!({});
 
     for (prop, sub_tree) in tree.next.iter() {
@@ -1035,12 +1144,12 @@ pub fn read_tree(persistence: &Persistence, id: u32, tree: NodeTree) -> Result<s
                 if is_array {
                     let mut sub_data = vec![];
                     for sub_id in sub_ids {
-                        sub_data.push(read_tree(persistence, sub_id, sub_tree.clone())?);
+                        sub_data.push(read_tree(persistence, sub_id, &sub_tree)?);
                     }
                     json[extract_prop_name(prop)] = json!(sub_data);
                 } else if let Some(sub_id) = sub_ids.get(0) {
                     // println!("KEIN ARRAY {:?}", sub_tree.clone());
-                    json[extract_prop_name(prop)] = read_tree(persistence, *sub_id, sub_tree.clone())?;
+                    json[extract_prop_name(prop)] = read_tree(persistence, *sub_id, &sub_tree)?;
                 }
             }
         }
@@ -1048,15 +1157,20 @@ pub fn read_tree(persistence: &Persistence, id: u32, tree: NodeTree) -> Result<s
     Ok(json)
 }
 
-pub fn read_data(persistence: &Persistence, id: u32, fields: Vec<String>) -> Result<serde_json::Value, SearchError> {
-    // let all_steps: FnvHashMap<String, Vec<String>> = fields.iter().map(|field| (field.clone(), util::get_steps_to_anchor(&field))).collect();
+//TODO CHECK FIELD VALIDTY
+pub fn get_read_tree_from_fields(_persistence: &Persistence, fields: &[String]) -> util::NodeTree {
     let all_steps: Vec<Vec<String>> = fields.iter().map(|field| util::get_steps_to_anchor(&field)).collect();
     println!("{:?}", all_steps);
+    to_node_tree(all_steps)
+}
+
+pub fn read_data(persistence: &Persistence, id: u32, fields: &[String]) -> Result<serde_json::Value, SearchError> {
+    // let all_steps: FnvHashMap<String, Vec<String>> = fields.iter().map(|field| (field.clone(), util::get_steps_to_anchor(&field))).collect();
+    // let all_steps: Vec<Vec<String>> = fields.iter().map(|field| util::get_steps_to_anchor(&field)).collect();
     // let paths = util::get_steps_to_anchor(&request.path);
-
-    let tree = to_node_tree(all_steps);
-
-    read_tree(persistence, id, tree)
+    // let tree = to_node_tree(all_steps);
+    let tree = get_read_tree_from_fields(persistence, fields);
+    read_tree(persistence, id, &tree)
     // Ok(serde_json::to_string_pretty(&dat).unwrap())
 }
 

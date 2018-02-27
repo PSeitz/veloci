@@ -42,6 +42,7 @@ use rocket::http::{Method, ContentType, Status};
 #[allow(unused_imports)]
 use rocket_contrib::{Json, Value};
 
+use search_lib::doc_loader::*;
 use search_lib::search;
 use search_lib::query_generator;
 use search_lib::search_field;
@@ -160,6 +161,37 @@ fn search_post(database: String, request: Json<search::Request>) -> Result<Searc
 
 }
 
+
+#[get("/<database>/tree/<id>")]
+fn get_doc_for_id_tree(database: String, id: u32) -> Json<Value> {
+    let persistence = PERSISTENCES.get(&database).unwrap();
+    let fields = persistence.get_all_properties();
+    let tree = search::get_read_tree_from_fields(&persistence, &fields);
+
+    Json(search::read_tree(&persistence, id, &tree).unwrap())
+
+}
+
+#[get("/<database>/direct/<id>")]
+fn get_doc_for_id_direct(database: String, id: u32) -> Json<Value> {
+    // let persistence = PERSISTENCES.get(&database).unwrap();
+    // let fields = persistence.get_all_properties();
+    // let tree = search::get_read_tree_from_fields(&persistence, &fields);
+    ensure_database(&database);
+    let persistence = PERSISTENCES.get(&database).unwrap();
+    Json(serde_json::from_str(&DocLoader::get_doc(&persistence, id as usize).unwrap()).unwrap())
+
+}
+// #[get("/<database>/<id>")]
+// fn get_doc_for_id(database: String, id: u32) -> Result<serde_json::Value, search::SearchError> {
+//     let persistence = PERSISTENCES.get(&database).unwrap();
+//     let fields = persistence.get_all_properties();
+//     let tree = search::get_read_tree_from_fields(&persistence, &fields);
+
+//     search::read_tree(&persistence, 25000, &tree)
+
+// }
+
 #[get("/<database>/search?<params>")]
 fn search_get(database: String, params: QueryParams) -> Result<SearchResult, search::SearchError> {
     ensure_database(&database);
@@ -250,7 +282,7 @@ fn main() {
     }
 
     rocket::ignite()
-        .mount("/", routes![version, search_get, search_post, suggest_get, suggest_post, highlight_post])
+        .mount("/", routes![version, get_doc_for_id_direct, get_doc_for_id_tree, search_get, search_post, suggest_get, suggest_post, highlight_post])
         .attach(Gzip)
         .launch();
 }

@@ -9,7 +9,7 @@ use criterion::Criterion;
 use json_converter::ForEachOpt;
 use json_converter::IDHolder;
 use json_converter::for_each_element;
-
+use serde_json::{Deserializer, Value};
 
 fn criterion_benchmark(c: &mut Criterion) {
 
@@ -29,18 +29,19 @@ fn criterion_benchmark(c: &mut Criterion) {
     let mut id_holder = IDHolder::new();
 
     let data = json!(long_string);
+    let data_str = serde_json::to_string(&data).unwrap();
 
     Criterion::default()
         .bench_function("walk json", |b| b.iter(|| {
-                let mut cb_text = |_value: &str, _path: &str, _parent_val_id: u32| {
+            let mut cb_text = |_anchor_id: u32, _value: &str, _path: &str, _parent_val_id: u32| {
                 // println!("TEXT: path {} value {} parent_val_id {}",path, value, parent_val_id);
             };
-            let mut callback_ids = |_path: &str, _val_id: u32, _parent_val_id: u32| {
+            let mut callback_ids = |_anchor_id: u32, _path: &str, _val_id: u32, _parent_val_id: u32| {
                 // println!("IDS: path {} val_id {} parent_val_id {}",path, val_id, parent_val_id);
             };
 
-
-            for_each_element(&data, &mut id_holder, &mut opt, &mut cb_text, &mut callback_ids);
+            let stream = Deserializer::from_str(&data_str).into_iter::<Value>();
+            for_each_element(stream, &mut id_holder, &mut opt, &mut cb_text, &mut callback_ids);
         }));
 }
 
