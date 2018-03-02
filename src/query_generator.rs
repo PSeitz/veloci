@@ -8,11 +8,11 @@ use util::*;
 use search::*;
 use std;
 
-fn get_default_levenshtein(term: &str) -> usize {
+fn get_default_levenshtein(term: &str, levenshtein_auto_limit:usize) -> usize {
     match term.chars().count() {
         0..=3 => 0,
-        4..=7 => 1,
-        _ => 1, // levenshtein 2 very slow for IC and long texts
+        4..=7 => std::cmp::min(1, levenshtein_auto_limit),
+        _ => std::cmp::min(2, levenshtein_auto_limit), // levenshtein 2 very slow for IC and long texts
     }
 }
 
@@ -64,6 +64,7 @@ pub fn search_query(
     skip: Option<usize>,
     mut operator: Option<String>,
     levenshtein: Option<usize>,
+    levenshtein_auto_limit: Option<usize>,
     mut facetlimit: Option<usize>,
     facets: Option<Vec<String>>,
     fields: Option<Vec<String>>,
@@ -134,7 +135,7 @@ pub fn search_query(
         let requests: Vec<Request> = terms
             .iter()
             .map(|term| {
-                let mut levenshtein_distance = levenshtein.unwrap_or_else(|| get_default_levenshtein(term));
+                let mut levenshtein_distance = levenshtein.unwrap_or_else(|| get_default_levenshtein(term, levenshtein_auto_limit.unwrap_or(1)));
                 levenshtein_distance = std::cmp::min(levenshtein_distance, term.chars().count() - 1 );
                 let parts = get_all_field_names(&persistence, &fields)
                     .iter()
@@ -177,7 +178,7 @@ pub fn search_query(
             let requests: Vec<Request> = terms
                 .iter()
                 .map(|term| {
-                    let levenshtein_distance = levenshtein.unwrap_or_else(|| get_default_levenshtein(term));
+                    let levenshtein_distance = levenshtein.unwrap_or_else(|| get_default_levenshtein(term, levenshtein_auto_limit.unwrap_or(1)));
                     let part = RequestSearchPart {
                         path: field_name.to_string(),
                         terms: vec![term.to_string()],
@@ -217,6 +218,7 @@ pub fn suggest_query(
     skip: Option<usize>,
     levenshtein: Option<usize>,
     fields: Option<Vec<String>>,
+    levenshtein_auto_limit: Option<usize>,
 ) -> Request {
     // let req = persistence.meta_data.fulltext_indices.key
 
@@ -228,7 +230,7 @@ pub fn suggest_query(
     let requests = get_all_field_names(&persistence, &fields)
         .iter()
         .map(|field_name| {
-            let levenshtein_distance = levenshtein.unwrap_or_else(|| get_default_levenshtein(request));
+            let levenshtein_distance = levenshtein.unwrap_or_else(|| get_default_levenshtein(request, levenshtein_auto_limit.unwrap_or(1)));
             let starts_with = if request.chars().count() <= 3 { None } else { Some(true) };
             RequestSearchPart {
                 path: field_name.to_string(),

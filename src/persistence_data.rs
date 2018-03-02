@@ -35,6 +35,7 @@ use std::fmt::Debug;
 use num::cast::ToPrimitive;
 #[allow(unused_imports)]
 use num::{Integer, NumCast};
+use num;
 use std::marker::PhantomData;
 
 #[allow(unused_imports)]
@@ -451,10 +452,12 @@ impl<T: IndexIdToParentData> IndexIdToParent for SingleArrayFileReader<T> {
 }
 
 impl IndexIdToParent for SingleArrayFileReader<u64> {
+    #[inline]
     fn get_value(&self, find: u64) -> Option<u64> {
-        get_reader(std::mem::size_of::<u64>(), find, 1, &self.data_file, &self.data_metadata).map(|mut rdr| rdr.read_u64::<LittleEndian>().unwrap())
+        get_reader(std::mem::size_of::<u64>(), find, 1, &self.data_file, &self.data_metadata).map(|mut rdr| rdr.read_u64::<LittleEndian>().unwrap()).filter(|el| *el != num::cast::<u32, u64>(u32::MAX).unwrap())
     }
 
+    #[inline]
     fn get_mutliple_value(&self, range: std::ops::RangeInclusive<usize>) -> Option<Vec<Self::Output>> {
         get_bytes(
             std::mem::size_of::<u64>(),
@@ -467,19 +470,23 @@ impl IndexIdToParent for SingleArrayFileReader<u64> {
         })
     }
 
+    #[inline]
     fn get_values(&self, find: u64) -> Option<Vec<u64>> {
         self.get_value(find).map(|el| vec![el])
     }
 }
 impl IndexIdToParent for SingleArrayFileReader<u32> {
+    #[inline]
     fn get_value(&self, find: u64) -> Option<u32> {
-        get_reader(std::mem::size_of::<u32>(), find, 1, &self.data_file, &self.data_metadata).map(|mut rdr| rdr.read_u32::<LittleEndian>().unwrap())
+        get_reader(std::mem::size_of::<u32>(), find, 1, &self.data_file, &self.data_metadata).map(|mut rdr| rdr.read_u32::<LittleEndian>().unwrap()).filter(|el| *el != u32::MAX)
     }
 
+    #[inline]
     fn get_values(&self, find: u64) -> Option<Vec<u32>> {
         self.get_value(find).map(|el| vec![el])
     }
 
+    #[inline]
     fn get_mutliple_value(&self, range: std::ops::RangeInclusive<usize>) -> Option<Vec<Self::Output>> {
         get_bytes(
             std::mem::size_of::<u32>(),
@@ -498,6 +505,7 @@ impl<T: IndexIdToParentData> HeapSizeOf for SingleArrayFileReader<T> {
     }
 }
 
+#[inline]
 fn get_bytes(block_size: usize, find: u64, num_elem: u64, data_file: &Mutex<fs::File>, data_metadata: &Mutex<fs::Metadata>) -> Option<Vec<u8>> {
     let size = data_metadata.lock().len() as usize / block_size;
     if find >= size as u64 {
@@ -507,6 +515,8 @@ fn get_bytes(block_size: usize, find: u64, num_elem: u64, data_file: &Mutex<fs::
 
     Some(data_bytes)
 }
+
+#[inline]
 fn get_reader(block_size: usize, find: u64, num_elem: u64, data_file: &Mutex<fs::File>, data_metadata: &Mutex<fs::Metadata>) -> Option<Cursor<Vec<u8>>> {
     get_bytes(block_size, find, num_elem, data_file, data_metadata).map(Cursor::new)
 }

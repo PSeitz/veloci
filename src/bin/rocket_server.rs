@@ -101,15 +101,17 @@ struct QueryParams {
     top: Option<usize>,
     skip: Option<usize>,
     levenshtein: Option<usize>,
+    levenshtein_auto_limit: Option<usize>,
     fields: Option<String>,
     facets: Option<String>,
     facetlimit: Option<usize>,
     boost_fields: Option<String>,
     boost_terms: Option<String>,
     operator: Option<String>,
+    select:Option<String>,
 }
 
-fn query_param_to_vec(name: Option<String>) -> Option<Vec<String>> {
+fn query_param_to_vec(name: Option<String>) -> Option<Vec<String>> { // TODO Replace with FromForm ? directly in QueryParams
     name.map(|el| el.split(',').map(|f| f.to_string()).collect())
 }
 
@@ -129,6 +131,7 @@ fn version() -> String {
 
 fn search_in_persistence(persistence: &Persistence, request: search_lib::search::Request, _enable_flame: bool) -> Result<SearchResult, search::SearchError> {
     // info!("Searching ... ");
+    let select = request.select.clone();
     let hits = {
         info_time!("Searching ... ");
         search::search(request, &persistence)?
@@ -136,7 +139,7 @@ fn search_in_persistence(persistence: &Persistence, request: search_lib::search:
     info!("Loading Documents... ");
     let doc = {
         info_time!("Loading Documents...  ");
-        SearchResult(search::to_search_result(&persistence, hits))
+        SearchResult(search::to_search_result(&persistence, hits, select))
     };
     debug!("Returning ... ");
     Ok(doc)
@@ -162,7 +165,7 @@ fn search_post(database: String, request: Json<search::Request>) -> Result<Searc
 }
 
 
-#[get("/<database>/tree/<id>")]
+#[get("/<database>/_idtree/<id>")]
 fn get_doc_for_id_tree(database: String, id: u32) -> Json<Value> {
     let persistence = PERSISTENCES.get(&database).unwrap();
     let fields = persistence.get_all_properties();
@@ -172,7 +175,7 @@ fn get_doc_for_id_tree(database: String, id: u32) -> Json<Value> {
 
 }
 
-#[get("/<database>/direct/<id>")]
+#[get("/<database>/_id/<id>")]
 fn get_doc_for_id_direct(database: String, id: u32) -> Json<Value> {
     // let persistence = PERSISTENCES.get(&database).unwrap();
     // let fields = persistence.get_all_properties();
@@ -219,19 +222,22 @@ fn search_get(database: String, params: QueryParams) -> Result<SearchResult, sea
             })
             .unwrap_or(HashMap::default());
 
-    let request = query_generator::search_query(
+    let mut request = query_generator::search_query(
         &params.query,
         &persistence,
         params.top,
         params.skip,
         params.operator,
         params.levenshtein,
+        params.levenshtein_auto_limit,
         params.facetlimit,
         facets,
         fields,
         boost_fields,
         boost_terms,
     );
+
+    request.select = query_param_to_vec(params.select);
 
     debug!("{}", serde_json::to_string(&request).unwrap());
     search_in_persistence(&persistence, request, false)
@@ -259,6 +265,7 @@ fn suggest_get(database: String, params: QueryParams) -> Result<SuggestResult, s
         params.skip,
         params.levenshtein,
         fields,
+        params.levenshtein_auto_limit,
     );
 
     debug!("{}", serde_json::to_string(&request).unwrap());
@@ -280,11 +287,12 @@ fn main() {
     for preload_db in std::env::args().skip(1) {
         ensure_database(&preload_db);
     }
-
+    println!("Starting Server...");
     rocket::ignite()
         .mount("/", routes![version, get_doc_for_id_direct, get_doc_for_id_tree, search_get, search_post, suggest_get, suggest_post, highlight_post])
         .attach(Gzip)
         .launch();
+
 }
 
 

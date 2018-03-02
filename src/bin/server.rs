@@ -258,11 +258,12 @@ pub fn start_server() {
             map.get("skip").map(|el| el.parse::<usize>().unwrap()).clone(),
             map.get("operator").map(|el| el.to_string()),
             map.get("levenshtein").map(|el| el.parse::<usize>().unwrap()).clone(),
+            map.get("levenshtein_auto_limit").map(|el| el.parse::<usize>().unwrap()).clone(),
             facetlimit,
             facets,
             fields,
             boost_fields,
-            HashMap::default()
+            HashMap::default(),
         );
 
         debug!("{}", serde_json::to_string(&request).unwrap());
@@ -299,6 +300,7 @@ pub fn start_server() {
             map.get("skip").map(|el| el.parse::<usize>().unwrap()).clone(),
             map.get("levenshtein").map(|el| el.parse::<usize>().unwrap()).clone(),
             fields,
+            map.get("levenshtein_auto_limit").map(|el| el.parse::<usize>().unwrap()).clone(),
         );
 
         let db = req.extensions
@@ -350,7 +352,7 @@ pub fn start_server() {
         info!("Loading Documents... ");
         let doc = {
             info_time!("Loading Documents...  ");
-            search::to_search_result(&persistence, hits)
+            search::to_search_result(&persistence, hits, None)
         };
 
         debug!("Returning ... ");

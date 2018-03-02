@@ -165,6 +165,7 @@ pub fn get_my_data_danger_zooone(start: u32, end: u32, data_file: &Mutex<fs::Fil
             mem::forget(data_bytes);
         }
     }
+    data.retain(|el| *el != std::u32::MAX); //TODO ATTENTION u32::MAX could be also a score
     data
 }
 
@@ -200,7 +201,6 @@ pub fn extract_prop_name(path: &str) -> &str {
 pub fn get_steps_to_anchor(path: &str) -> Vec<String> {
     let mut paths = vec![];
     let mut current = vec![];
-    // let parts = path.split('.')
     let parts = path.split('.');
 
     for part in parts {
@@ -215,31 +215,63 @@ pub fn get_steps_to_anchor(path: &str) -> Vec<String> {
     paths
 }
 
+
+macro_rules! print_json {($e:expr) => { println!("{}", serde_json::to_string(&$e).unwrap()); } }
+
+
+/// Also includes for e.g {"meaning":{"ger":["aye"]}}
+/// the [meaning] and [meaning, ger] step, which is skipped in a search (not needed)
+#[inline]
+pub fn get_all_steps_to_anchor(path: &str) -> Vec<String> {
+    let mut paths = vec![];
+    let mut current = vec![];
+    let parts = path.split('.');
+
+    for part in parts {
+        current.push(part.to_string());
+        let joined = current.join(".");
+        paths.push(joined);
+    }
+
+    // paths.push(path.to_string() + ".textindex"); // add path to index
+    paths
+}
+
 use std::collections::HashMap;
 use itertools::Itertools;
-#[derive(Debug, Default, Clone, Serialize)]
-pub struct NodeTree {
-    pub next: HashMap<String, NodeTree>,
-    pub is_leaf: bool,
+
+// #[derive(Debug, Default, Clone, Serialize)]
+// pub struct NodeTree {
+//     #[serde(skip_serializing_if = "HashMap::is_empty")]
+//     pub next: HashMap<String, NodeTree>,
+//     pub is_leaf: bool,
+// }
+
+#[derive(Debug, Clone, Serialize, PartialEq)]
+pub enum NodeTree {
+    Map(HashMap<String, NodeTree>),
+    IsLeaf,
 }
 
 impl NodeTree {
-    pub fn new() -> NodeTree {
-        NodeTree {
-            next: HashMap::default(),
-            is_leaf: false,
-        }
+    pub fn new(map: HashMap<String, NodeTree>) -> NodeTree {
+        // NodeTree {
+        //     next: HashMap::default(),
+        //     is_leaf: false,
+        // }
+        NodeTree::Map(map)
     }
-    pub fn new_leaf() -> NodeTree {
-        NodeTree {
-            next: HashMap::default(),
-            is_leaf: true,
-        }
-    }
+    // pub fn new_leaf() -> NodeTree {
+    //     NodeTree {
+    //         next: HashMap::default(),
+    //         is_leaf: true,
+    //     }
+    // }
 }
 
-pub fn to_node_tree(paths: Vec<Vec<String>>) -> NodeTree {
-    let mut tree = NodeTree::new();
+pub fn to_node_tree(mut paths: Vec<Vec<String>>) -> NodeTree {
+    paths.sort_by_key(|el| el[0].clone()); // sort for group_by
+    let mut next = HashMap::default();
     for (key, group) in &paths.into_iter().group_by(|el| el.get(0).map(|el| el.clone())) {
         let key = key.unwrap();
         let mut next_paths = group.collect_vec();
@@ -256,14 +288,20 @@ pub fn to_node_tree(paths: Vec<Vec<String>>) -> NodeTree {
         next_paths.retain(|el| !el.is_empty()); //remove empty paths
 
         if next_paths.is_empty() {
-            tree.next.insert(key.to_string(), NodeTree::new_leaf());
+            next.insert(key.to_string(), NodeTree::IsLeaf);
         } else {
-            let mut sub_tree = to_node_tree(next_paths);
-            sub_tree.is_leaf = is_leaf;
-            tree.next.insert(key.to_string(), sub_tree);
+            next_paths.sort_by_key(|el| el[0].clone());
+            let sub_tree = if !is_leaf{
+                to_node_tree(next_paths)
+            }else{
+                NodeTree::IsLeaf
+            };
+            // let mut sub_tree = to_node_tree(next_paths);
+            // sub_tree.is_leaf = is_leaf;
+            next.insert(key.to_string(), sub_tree);
         }
     }
-    tree
+    NodeTree::new(next)
 }
 
 // assert_eq!(re.replace("1078910", ""), " ");

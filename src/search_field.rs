@@ -39,6 +39,8 @@ pub struct SearchFieldResult {
     pub terms: FnvHashMap<TermId, String>,
     pub highlight: FnvHashMap<TermId, String>,
     pub request: RequestSearchPart,
+    /// store the term id hits field->Term->Hits, used for whyfound
+    pub term_id_hits_in_field: FnvHashMap<String,FnvHashMap<String, Vec<TermId>>>,
 }
 // pub type TermScore = (TermId, Score);
 pub type TermId = u32;
@@ -418,6 +420,12 @@ fn get_hits_in_field_one_term(
             fast_field_res.dedup_by_key(|b| b.id); // TODO FixMe Score
         }
 
+        if options.store_term_id_hits {
+            let mut map = FnvHashMap::default();
+            map.insert(options.terms[0].clone(), result.hits_vec.iter().map(|el|el.id).collect());// TODO Avoid copy? just store hit?
+            result.term_id_hits_in_field.insert(options.path.to_string(), map);
+        }
+
         result.hits_vec = fast_field_res;
 
     } else {
@@ -440,9 +448,9 @@ fn get_hits_in_field_one_term(
 
 #[cfg_attr(feature = "flame_it", flame)]
 pub fn get_text_for_ids(persistence: &Persistence, path: &str, ids: &[u32]) -> Vec<String> {
-    let mut faccess: persistence::FileSearch = persistence.get_file_search(path);
-    let offsets = persistence.get_offsets(path).unwrap();
-    ids.iter().map(|id| faccess.get_text_for_id(*id as usize, &**offsets)).collect()
+    // let mut faccess: persistence::FileSearch = persistence.get_file_search(path);
+    // let offsets = persistence.get_offsets(path).unwrap();
+    ids.iter().map(|id| get_text_for_id(persistence, path, *id)).collect()
 }
 
 #[cfg_attr(feature = "flame_it", flame)]

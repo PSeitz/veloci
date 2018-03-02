@@ -583,7 +583,7 @@ impl Persistence {
     }
 
     #[cfg_attr(feature = "flame_it", flame)]
-    pub fn has_facet_index(&self, path: &str) -> bool {
+    pub fn has_index(&self, path: &str) -> bool {
         self.cache.index_id_to_parento.contains_key(path)
     }
 

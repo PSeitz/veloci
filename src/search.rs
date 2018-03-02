@@ -63,6 +63,8 @@ pub struct Request {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub facets: Option<Vec<FacetRequest>>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub select: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(default = "default_top")]
     pub top: Option<usize>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -95,7 +97,7 @@ pub struct RequestSearchPart {
     pub starts_with: Option<bool>,
 
     #[serde(default)]
-    pub ids_only: bool,                                 //TODO unused currently
+    pub ids_only: bool,
 
     /// Also return the actual text
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -129,6 +131,10 @@ pub struct RequestSearchPart {
     /// Internal data
     #[serde(default)]
     pub fast_field: bool,
+
+    /// Internal data
+    #[serde(default)]
+    pub store_term_id_hits: bool,
 }
 impl PartialEq for RequestSearchPart {
     fn eq(&self, other: &RequestSearchPart) -> bool {
@@ -280,13 +286,20 @@ impl std::fmt::Display for DocWithHit {
 
 // @FixMe Tests should use to_search_result
 #[cfg_attr(feature = "flame_it", flame)]
-pub fn to_documents(persistence: &Persistence, hits: &[Hit]) -> Vec<DocWithHit> {
+pub fn to_documents(persistence: &Persistence, hits: &[Hit], select:Option<Vec<String>>) -> Vec<DocWithHit> {
     // DocLoader::load(persistence);
     hits.iter()
         .map(|ref hit| {
-            let doc = DocLoader::get_doc(persistence, hit.id as usize).unwrap();
+
+            let doc = if let Some(ref select) = select {
+                read_data(persistence, hit.id, &select).unwrap() // TODO validate fields
+            }else{
+                serde_json::from_str(&DocLoader::get_doc(persistence, hit.id as usize).unwrap()).unwrap()
+            };
+
+            // let doc = DocLoader::get_doc(persistence, hit.id as usize).unwrap();
             DocWithHit {
-                doc: serde_json::from_str(&doc).unwrap(),
+                doc: doc,
                 hit: *hit.clone(),
             }
         })
@@ -294,9 +307,10 @@ pub fn to_documents(persistence: &Persistence, hits: &[Hit]) -> Vec<DocWithHit> 
 }
 
 #[cfg_attr(feature = "flame_it", flame)]
-pub fn to_search_result(persistence: &Persistence, hits: SearchResult) -> SearchResultWithDoc {
+pub fn to_search_result(persistence: &Persistence, hits: SearchResult, select:Option<Vec<String>>) -> SearchResultWithDoc {
+
     SearchResultWithDoc {
-        data: to_documents(&persistence, &hits.data),
+        data: to_documents(&persistence, &hits.data, select),
         num_hits: hits.num_hits,
         facets: hits.facets,
     }
@@ -340,136 +354,7 @@ pub fn search(mut request: Request, persistence: &Persistence) -> Result<SearchR
     {
         // let boosto = persistence.term_boost_cache.clone();
         if let Some(boost_term) = request.boost_term {
-            info_time!("boost_term");
-            {
-                persistence.term_boost_cache.write().get(&boost_term);//poke
-            }
-
-            let mut from_cache = false;
-            // Attentión - The read lock is still help in the else block therefore we need to create an extra scope to avoid deadlocks
-            // This should be probably fixed sometime with better lifetime handling in rust
-            {
-                if let Some(data) = persistence.term_boost_cache.read().peek(&boost_term) {
-                    // let mut boost_iter = data.hits_ids.iter().map(|el|el.clone());
-                    // res = apply_boost_from_iter(res, &mut boost_iter)
-                    info_time!("boost_term_cache");
-                    let mut boost_iter = data.iter()
-                        .map(|el| {
-                            let boost_val:f32 = el.request.boost.unwrap_or(2.0).clone();
-                            el.hits_ids.iter().map(move|id| Hit::new(*id, boost_val ))
-                        })
-                        .into_iter().kmerge_by(|a, b| a.id < b.id);
-
-                    {
-
-                        let mut boost_iter_data:Vec<Hit> = data.iter()
-                        .map(|el| {
-                            let boost_val:f32 = el.request.boost.unwrap_or(2.0).clone();
-                            el.hits_ids.iter().map(move|id| Hit::new(*id, boost_val ))
-                        })
-                        .into_iter().kmerge_by(|a, b| a.id < b.id).collect();
-
-                        {
-                            info_time!("binary search boost");
-                            let mut last_pos = 0;
-                            for hit in res.hits_vec.iter_mut(){
-                                match boost_iter_data[last_pos ..].binary_search_by_key(&hit.id, |&hit| hit.id) {
-                                    Ok(boost_hit) => {
-                                        hit.score *= boost_iter_data[boost_hit].score;
-                                        last_pos =boost_hit;
-                                    },
-                                    Err(pos) => { last_pos = pos;},
-                                }
-                            }
-                        }
-
-                        {
-                            let mut direct_data:Vec<f32> = vec![];
-                            for hit in boost_iter_data.iter() {
-                                if direct_data.len() <= hit.id as usize {
-                                    direct_data.resize(hit.id as usize + 1, 0.0);
-                                }
-                                direct_data[hit.id as usize] = hit.score;
-                            }
-                            info_time!("direct search boost");
-                            for hit in res.hits_vec.iter_mut(){
-                                if let Some(boost_hit) = direct_data.get(hit.id as usize) {
-                                    hit.score *= boost_hit;
-                                }
-                            }
-                        }
-
-                        {
-                            let my_boost = 2.0;
-                            println!("SIZE {:?}", boost_iter_data.last().unwrap().id);
-                            let mut direct_data:FixedBitSet = {
-
-                                let mut ay = FixedBitSet::with_capacity(70000 as usize + 1);
-                                for hit in boost_iter_data.iter() {
-                                    let (_, id_in_bucket) = to_bucket_and_id(hit.id);
-                                    ay.insert(id_in_bucket as usize);
-                                }
-                                ay
-                            };
-                            info_time!("direct search bitset");
-                            for hit in res.hits_vec.iter_mut(){
-                                let (_, id_in_bucket) = to_bucket_and_id(hit.id);
-                                if direct_data.contains(id_in_bucket as usize) {
-                                    hit.score *= my_boost;
-                                }
-                            }
-                        }
-
-                        // { // Hashmap ist doof
-                        //     let mut boost_iter_data:FnvHashMap<u32, f32> = data.iter()
-                        //     .map(|el| {
-                        //         let boost_val:f32 = el.request.boost.unwrap_or(2.0).clone();
-                        //         el.hits_ids.iter().map(move|id| Hit::new(*id, boost_val ))
-                        //     })
-                        //     .into_iter().kmerge_by(|a, b| a.id < b.id).map(|hit| (hit.id, hit.score)).collect();
-
-                        //     info_time!("hashmap boost");
-                        //     for hit in res.hits_vec.iter_mut(){
-                        //         if let Some(boost_hit) = boost_iter_data.get(&hit.id) {
-                        //             hit.score *= boost_hit;
-                        //         }
-                        //     }
-                        // }
-
-                        {
-                            info_time!("merge search boost");
-                            res = apply_boost_from_iter(res, &mut boost_iter_data.into_iter());
-                        }
-
-                        debug_time!("binary search".to_string());
-
-                    }
-
-                    debug_time!("boost_intersect_hits_vec_multi".to_string());
-                    res = apply_boost_from_iter(res, &mut boost_iter);
-
-
-                    from_cache = true;
-
-                }
-            }
-
-            if !from_cache{
-                let r: Result<Vec<_>, SearchError> = boost_term.clone().into_par_iter()
-                    .map(|mut boost_term_req| {
-                        boost_term_req.ids_only = true;
-                        boost_term_req.fast_field = true;
-                        search_field::get_hits_in_field(persistence, boost_term_req, None)
-                    })
-                    .collect();
-                let mut data = r?;
-                res = boost_intersect_hits_vec_multi(res, &mut data);
-                {
-                    persistence.term_boost_cache.write().insert(boost_term.clone(), data);
-                }
-
-            }
-
+            res = apply_boost_term(persistence, res, boost_term)?;
         }
     }
 
@@ -498,6 +383,143 @@ pub fn search(mut request: Request, persistence: &Persistence) -> Result<SearchR
     search_result.data = apply_top_skip(search_result.data, request.skip, request.top);
 
     Ok(search_result)
+}
+
+
+#[cfg_attr(feature = "flame_it", flame)]
+pub fn apply_boost_term(persistence: &Persistence, mut res:SearchFieldResult, boost_term: Vec<RequestSearchPart>) -> Result<SearchFieldResult, SearchError> {
+
+    info_time!("boost_term");
+    {
+        persistence.term_boost_cache.write().get(&boost_term);//poke
+    }
+
+    let mut from_cache = false;
+    // Attentión - The read lock is still active in the else block therefore we need to create an extra scope to avoid deadlocks
+    // This should be probably fixed sometime with better lifetime handling in rust
+    {
+        if let Some(data) = persistence.term_boost_cache.read().peek(&boost_term) {
+            // let mut boost_iter = data.hits_ids.iter().map(|el|el.clone());
+            // res = apply_boost_from_iter(res, &mut boost_iter)
+            info_time!("boost_term_cache");
+            let mut boost_iter = data.iter()
+                .map(|el| {
+                    let boost_val:f32 = el.request.boost.unwrap_or(2.0).clone();
+                    el.hits_ids.iter().map(move|id| Hit::new(*id, boost_val ))
+                })
+                .into_iter().kmerge_by(|a, b| a.id < b.id);
+
+            // {
+            //     let mut boost_iter_data:Vec<Hit> = data.iter()
+            //     .map(|el| {
+            //         let boost_val:f32 = el.request.boost.unwrap_or(2.0).clone();
+            //         el.hits_ids.iter().map(move|id| Hit::new(*id, boost_val ))
+            //     })
+            //     .into_iter().kmerge_by(|a, b| a.id < b.id).collect();
+
+            //     {
+            //         info_time!("binary search boost");
+            //         let mut last_pos = 0;
+            //         for hit in res.hits_vec.iter_mut(){
+            //             match boost_iter_data[last_pos ..].binary_search_by_key(&hit.id, |&hit| hit.id) {
+            //                 Ok(boost_hit) => {
+            //                     hit.score *= boost_iter_data[boost_hit].score;
+            //                     last_pos =boost_hit;
+            //                 },
+            //                 Err(pos) => { last_pos = pos;},
+            //             }
+            //         }
+            //     }
+
+            //     {
+            //         let mut direct_data:Vec<f32> = vec![];
+            //         for hit in boost_iter_data.iter() {
+            //             if direct_data.len() <= hit.id as usize {
+            //                 direct_data.resize(hit.id as usize + 1, 0.0);
+            //             }
+            //             direct_data[hit.id as usize] = hit.score;
+            //         }
+            //         info_time!("direct search boost");
+            //         for hit in res.hits_vec.iter_mut(){
+            //             if let Some(boost_hit) = direct_data.get(hit.id as usize) {
+            //                 hit.score *= boost_hit;
+            //             }
+            //         }
+            //     }
+
+            //     {
+            //         let my_boost = 2.0;
+            //         println!("SIZE {:?}", boost_iter_data.last().unwrap().id);
+            //         let mut direct_data:FixedBitSet = {
+
+            //             let mut ay = FixedBitSet::with_capacity(70000 as usize + 1);
+            //             for hit in boost_iter_data.iter() {
+            //                 let (_, id_in_bucket) = to_bucket_and_id(hit.id);
+            //                 ay.insert(id_in_bucket as usize);
+            //             }
+            //             ay
+            //         };
+            //         info_time!("direct search bitset");
+            //         for hit in res.hits_vec.iter_mut(){
+            //             let (_, id_in_bucket) = to_bucket_and_id(hit.id);
+            //             if direct_data.contains(id_in_bucket as usize) {
+            //                 hit.score *= my_boost;
+            //             }
+            //         }
+            //     }
+
+            //     // { // Hashmap ist doof
+            //     //     let mut boost_iter_data:FnvHashMap<u32, f32> = data.iter()
+            //     //     .map(|el| {
+            //     //         let boost_val:f32 = el.request.boost.unwrap_or(2.0).clone();
+            //     //         el.hits_ids.iter().map(move|id| Hit::new(*id, boost_val ))
+            //     //     })
+            //     //     .into_iter().kmerge_by(|a, b| a.id < b.id).map(|hit| (hit.id, hit.score)).collect();
+
+            //     //     info_time!("hashmap boost");
+            //     //     for hit in res.hits_vec.iter_mut(){
+            //     //         if let Some(boost_hit) = boost_iter_data.get(&hit.id) {
+            //     //             hit.score *= boost_hit;
+            //     //         }
+            //     //     }
+            //     // }
+
+            //     {
+            //         info_time!("merge search boost");
+            //         res = apply_boost_from_iter(res, &mut boost_iter_data.into_iter());
+            //     }
+
+            //     debug_time!("binary search".to_string());
+
+            // }
+
+            debug_time!("boost_intersect_hits_vec_multi".to_string());
+            res = apply_boost_from_iter(res, &mut boost_iter);
+
+
+            from_cache = true;
+
+        }
+    }
+
+    if !from_cache{
+        let r: Result<Vec<_>, SearchError> = boost_term.clone().into_par_iter()
+            .map(|mut boost_term_req| {
+                boost_term_req.ids_only = true;
+                boost_term_req.fast_field = true;
+                search_field::get_hits_in_field(persistence, boost_term_req, None)
+            })
+            .collect();
+        let mut data = r?;
+        res = boost_intersect_hits_vec_multi(res, &mut data);
+        {
+            persistence.term_boost_cache.write().insert(boost_term.clone(), data);
+        }
+
+    }
+    Ok(res)
+
+
 }
 
 //TODO no copy
@@ -556,6 +578,17 @@ pub fn get_longest_result<T: std::iter::ExactSizeIterator>(results: &Vec<T>) -> 
 
 //     result
 // }
+
+fn merge_term_id_hits(results: &mut Vec<SearchFieldResult>) -> FnvHashMap<String,FnvHashMap<String, Vec<TermId>>> {
+    let mut term_id_hits_in_field = FnvHashMap::default();
+    for el in results.iter_mut() {
+        for (k, v) in el.term_id_hits_in_field.drain() {
+            term_id_hits_in_field.insert(k, v);
+        }
+    }
+    term_id_hits_in_field
+}
+
 
 #[cfg_attr(feature = "flame_it", flame)]
 pub fn union_hits_vec(mut or_results: Vec<SearchFieldResult>) -> SearchFieldResult {
@@ -627,6 +660,10 @@ pub fn union_hits_vec(mut or_results: Vec<SearchFieldResult>) -> SearchFieldResu
         }
     }
 
+    let term_id_hits_in_field = {
+        merge_term_id_hits(&mut or_results)
+    };
+
     let iterators: Vec<_> = or_results.iter().map(|el| el.hits_vec.iter()).collect();
 
     let mut union_hits = Vec::with_capacity(longest_len as usize + sum_other_len as usize / 2);
@@ -641,8 +678,10 @@ pub fn union_hits_vec(mut or_results: Vec<SearchFieldResult>) -> SearchFieldResu
         union_hits.push(Hit::new(id, sum_score));
     }
 
+
     // debug!("union hits merged from {} to {} hits", prev, union_hits.len() );
     SearchFieldResult {
+        term_id_hits_in_field:term_id_hits_in_field,
         hits_vec: union_hits,
         ..Default::default()
     }
@@ -708,6 +747,10 @@ pub fn intersect_hits_vec(mut and_results: Vec<SearchFieldResult>) -> SearchFiel
     let mut shortest_result = and_results.swap_remove(index_shortest).hits_vec;
 
     // let mut iterators = &and_results.iter().map(|el| el.hits_vec.iter()).collect::<Vec<_>>();
+
+    let term_id_hits_in_field = {
+        merge_term_id_hits(&mut and_results)
+    };
 
     let mut iterators_and_current = and_results
         .iter_mut()
@@ -781,6 +824,7 @@ pub fn intersect_hits_vec(mut and_results: Vec<SearchFieldResult>) -> SearchFiel
     }
     // all_results
     SearchFieldResult {
+        term_id_hits_in_field: term_id_hits_in_field,
         hits_vec: intersected_hits,
         ..Default::default()
     }
@@ -1110,58 +1154,16 @@ impl Error for SearchError {
 //         let dat:FnvHashMap<u32, Vec<u32>> = join_for_read(persistence, data, &concat(path, ".parentToValueId"))?;
 //         data = dat.get(&id).ok_or(From::from(format!("Could not find id {:?} in  {:?} {:?}", id, path, dat)))?.clone();
 //     }
-
 //     let texto = get_id_text_map_for_ids(persistence, steps.last().unwrap(), &data);
 //     println!("{:?}", texto);
 //     Ok(serde_json::to_string_pretty(&result).unwrap())
 //     // "".to_string()
 // }
 
-#[cfg_attr(feature = "flame_it", flame)]
-pub fn read_tree(persistence: &Persistence, id: u32, tree: &NodeTree) -> Result<serde_json::Value, SearchError> {
-    let mut json = json!({});
-
-    for (prop, sub_tree) in tree.next.iter() {
-        if sub_tree.is_leaf {
-            let text_value_id_opt = join_for_1_to_1(persistence, id, &concat(&prop, ".parentToValueId"))?;
-            if let Some(text_value_id) = text_value_id_opt {
-                let texto = get_text_for_id(persistence, &prop, text_value_id);
-                json[extract_prop_name(prop)] = json!(texto);
-            }
-        } else if let Some(sub_ids) = join_for_1_to_n(persistence, id, &concat(&prop, ".parentToValueId"))? {
-            let is_flat = sub_tree.next.len() == 1 && sub_tree.next.keys().nth(0).unwrap().ends_with("[].textindex");
-            if is_flat {
-                let flat_prop = sub_tree.next.keys().nth(0).unwrap();
-                //text_id for value_ids
-                let text_ids: Vec<u32> = sub_ids
-                    .iter()
-                    .flat_map(|id| join_for_1_to_1(persistence, *id, &concat(&flat_prop, ".parentToValueId")).unwrap())
-                    .collect();
-                let texto = get_text_for_ids(persistence, flat_prop, &text_ids);
-                json[extract_prop_name(prop)] = json!(texto);
-            } else {
-                let is_array = prop.ends_with("[]");
-                if is_array {
-                    let mut sub_data = vec![];
-                    for sub_id in sub_ids {
-                        sub_data.push(read_tree(persistence, sub_id, &sub_tree)?);
-                    }
-                    json[extract_prop_name(prop)] = json!(sub_data);
-                } else if let Some(sub_id) = sub_ids.get(0) {
-                    // println!("KEIN ARRAY {:?}", sub_tree.clone());
-                    json[extract_prop_name(prop)] = read_tree(persistence, *sub_id, &sub_tree)?;
-                }
-            }
-        }
-    }
-    Ok(json)
-}
-
-//TODO CHECK FIELD VALIDTY
-pub fn get_read_tree_from_fields(_persistence: &Persistence, fields: &[String]) -> util::NodeTree {
-    let all_steps: Vec<Vec<String>> = fields.iter().map(|field| util::get_steps_to_anchor(&field)).collect();
-    println!("{:?}", all_steps);
-    to_node_tree(all_steps)
+#[inline]
+fn join_and_get_text_for_ids(persistence: &Persistence, id: u32, prop: &str) -> Result<Option<String>, SearchError>{
+    let text_value_id_opt = join_for_1_to_1(persistence, id, &concat(&prop, ".textindex.parentToValueId"))?;
+    Ok(text_value_id_opt.map(|text_value_id| get_text_for_id(persistence, &concat(&prop, ".textindex"), text_value_id)))
 }
 
 pub fn read_data(persistence: &Persistence, id: u32, fields: &[String]) -> Result<serde_json::Value, SearchError> {
@@ -1170,8 +1172,71 @@ pub fn read_data(persistence: &Persistence, id: u32, fields: &[String]) -> Resul
     // let paths = util::get_steps_to_anchor(&request.path);
     // let tree = to_node_tree(all_steps);
     let tree = get_read_tree_from_fields(persistence, fields);
+    // println!("{}", serde_json::to_string(&tree).unwrap());
     read_tree(persistence, id, &tree)
     // Ok(serde_json::to_string_pretty(&dat).unwrap())
+}
+
+#[cfg_attr(feature = "flame_it", flame)]
+pub fn read_tree(persistence: &Persistence, id: u32, tree: &NodeTree) -> Result<serde_json::Value, SearchError> {
+    let mut json = json!({});
+    match tree {
+        &NodeTree::Map(ref map) => {
+            for (prop, sub_tree) in map.iter() {
+
+                match sub_tree {
+                    &NodeTree::IsLeaf => {
+                        let is_array = prop.ends_with("[]");
+                        if is_array {
+                            if let Some(sub_ids) = join_for_1_to_n(persistence, id, &concat(&prop, ".parentToValueId"))? {
+                                let mut sub_data = vec![];
+                                for sub_id in sub_ids {
+                                    if let Some(texto) = join_and_get_text_for_ids(persistence, sub_id, prop)? {
+                                        sub_data.push(json!(texto));
+                                    }
+                                }
+                                json[extract_prop_name(prop)] = json!(sub_data);
+                            }
+                        } else {
+                            if let Some(texto) = join_and_get_text_for_ids(persistence, id, prop)? {
+                                json[extract_prop_name(prop)] = json!(texto);
+                            }
+                        }
+                    },
+                    &NodeTree::Map(ref _next) => {
+                        if !persistence.has_index(&concat(&prop, ".parentToValueId")) { // Special case a node without information an object in object e.g. there is no information 1:n to store
+                            json[extract_prop_name(prop)] = read_tree(persistence, id, &sub_tree)?;
+                        }else if let Some(sub_ids) = join_for_1_to_n(persistence, id, &concat(&prop, ".parentToValueId"))? {
+                                let is_array = prop.ends_with("[]");
+                                if is_array {
+                                    let mut sub_data = vec![];
+                                    for sub_id in sub_ids {
+                                        sub_data.push(read_tree(persistence, sub_id, &sub_tree)?);
+                                    }
+                                    json[extract_prop_name(prop)] = json!(sub_data);
+                                } else if let Some(sub_id) = sub_ids.get(0) {
+                                    json[extract_prop_name(prop)] = read_tree(persistence, *sub_id, &sub_tree)?;
+                                }
+                        }
+
+                    },
+                }
+
+            }
+        },
+        &NodeTree::IsLeaf => {
+
+        },
+    }
+
+    Ok(json)
+}
+
+//TODO CHECK FIELD VALIDTY
+pub fn get_read_tree_from_fields(_persistence: &Persistence, fields: &[String]) -> util::NodeTree {
+    let all_steps: Vec<Vec<String>> = fields.iter().map(|field| util::get_all_steps_to_anchor(&field)).collect();
+    // println!("{:?}", all_steps);
+    to_node_tree(all_steps)
 }
 
 #[cfg_attr(feature = "flame_it", flame)]
@@ -1253,6 +1318,7 @@ pub fn join_for_read(persistence: &Persistence, input: Vec<u32>, path: &str) -> 
 #[cfg_attr(feature = "flame_it", flame)]
 pub fn join_for_1_to_1(persistence: &Persistence, value_id: u32, path: &str) -> Result<std::option::Option<u32>, SearchError> {
     let kv_store = persistence.get_valueid_to_parent(path)?;
+    // println!("path {:?} id {:?} resulto {:?}", path, value_id, kv_store.get_value(value_id as u64));
     Ok(kv_store.get_value(value_id as u64))
 }
 #[cfg_attr(feature = "flame_it", flame)]

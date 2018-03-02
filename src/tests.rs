@@ -245,7 +245,7 @@ mod tests {
 
     fn search_testo_to_doco(req: Value) -> Result<search::SearchResultWithDoc, search::SearchError> {
         let pers = PERSISTENCES.get(&"default".to_string()).expect("Can't find loaded persistence");
-        Ok(search::to_search_result(&pers, search_testo_to_hitso(req)?))
+        Ok(search::to_search_result(&pers, search_testo_to_hitso(req)?, None))
     }
 
     fn search_testo_to_hitso(req: Value) -> Result<search::SearchResult, search::SearchError> {
@@ -707,11 +707,9 @@ mod tests {
         //             operator:"some"
         //         }]
         //     });
-
         //     let hits = search_testo_to_doc(req).data;
         //     assert_eq!(hits.len(), 1);
         // }
-
 
         it "should rank exact matches pretty good"{
             let req = json!({
@@ -780,24 +778,18 @@ mod tests {
             assert_eq!(facets.get("commonness").unwrap(), &vec![("20".to_string(), 2)] );
         }
 
-        it "read mah data!"{
+        // it "majestät"{
+        //     let pers = PERSISTENCES.get(&"default".to_string()).unwrap();
+        //     let req = json!({
+        //         "search": {"terms":["majestät"], "path": "meanings.ger[]"}
+        //     });
+        //     let hits = search_testo_to_hitso(req).unwrap();
+        //     println!("{:?}", hits);
+        //     assert_eq!(hits.data.len(), 1);
+        // }
 
-            let req = json!({
-                "search": {"terms":["majestät"], "path": "meanings.ger[]"}
-            });
-            let hits = search_testo_to_hitso(req).unwrap();
-            println!("{:?}", hits);
-            // trace::enable_log();
-
-            // search::read_data(id, vec!["ent_seq".to_string(), "field1[].text".to_string(), "kanji[].text".to_string(), "meanings.ger[]".to_string(), "meanings.eng[]".to_string(), "address[].line[]".to_string()]);
-
+        it "read object only partly"{
             let pers = PERSISTENCES.get(&"default".to_string()).unwrap();
-            // search::read_data_single(&pers, id, "ent_seq".to_string());
-            // search::read_data_single(&pers, hits.data[0].id, "meanings.ger[]".to_string()).unwrap();
-
-            assert_eq!(hits.data.len(), 1);
-
-
             let yay = search::read_data(&pers, 3, &vec!["commonness".to_string(),
                                                         "ent_seq".to_string(),
                                                         "meanings.ger[]".to_string(),
@@ -812,55 +804,41 @@ mod tests {
                 ],
                 "commonness": "500",
                 "ent_seq": "1587700",
-                "ger": ["der test", "das ist ein guter Treffer"],
+                "meanings": {
+                    "ger": ["der test", "das ist ein guter Treffer"]
+                },
                 "kana": [{"text": "いよく"} ]
             }));
-
-
-            let yay2 = search::read_data(&pers, 3, &vec!["kana[].text".to_string().to_string()]).unwrap();
-            assert_eq!(yay2, json!({
-                "kana": [{"text": "いよく"} ]
-            }));
-
-            println!("MKAY");
-            println!("{}", yay2);
-            // let all_props = pers.get_all_properties();
-
-            // let yay2 = search::read_data(&pers, 3, &all_props).unwrap();
-
-            // assert_eq!(yay2, json!({
-            //     "id": 1234566,
-            //     "gender": "male",
-            //     "tags": ["awesome", "cool"],
-            //     "birthDate": "1960-08-19",
-            //     "address": [
-            //         {
-            //             "line": ["nuts strees"]
-            //         },
-            //         {
-            //             "line": ["asdf"]
-            //         }
-            //     ],
-            //     "commonness": 500,
-            //     "kanji": [
-            //         { "text": "意慾", "commonness": 20}
-            //     ],
-            //     "field1" : [{"text":"awesome", "rank":1}],
-            //     "kana": [
-            //         {
-            //             "text": "いよく"
-            //         }
-            //     ],
-            //     "meanings": {
-            //         "eng" : ["test1"],
-            //         "ger": ["der test", "das ist ein guter Treffer"]
-            //     },
-            //     "ent_seq": "1587700"
-            // }));
-
 
         }
 
+        it "should skip existing fields which are not existent in the object - None values "{
+            let pers = PERSISTENCES.get(&"default".to_string()).unwrap();
+            //Check None values
+            let yay = search::read_data(&pers, 3, &vec!["mylongtext".to_string()]).unwrap();
+            assert_eq!(yay, json!({}));
+        }
+
+        it "read recreate complete object with read"{
+            let pers = PERSISTENCES.get(&"default".to_string()).unwrap();
+            let all_props = pers.get_all_properties();
+            let yay2 = search::read_data(&pers, 3, &all_props).unwrap();
+
+            assert_eq!(yay2, json!({ //TODO FIX INTEGER TO STRING
+                "id": "1234566",
+                "gender": "male",
+                "tags": ["awesome", "cool"],
+                "birthDate": "1960-08-19",
+                "address": [{"line": ["nuts strees"] }, {"line": ["asdf"] } ],
+                "commonness": "500",
+                "kanji": [{ "text": "意慾", "commonness": "20"} ],
+                "field1" : [{"text":"awesome", "rank":"1"}],
+                "kana": [{"text": "いよく"} ],
+                "meanings": {"eng" : ["test1"], "ger": ["der test", "das ist ein guter Treffer"] },
+                "ent_seq": "1587700"
+            }));
+
+        }
 
         it "facet"{
             let pers = PERSISTENCES.get(&"default".to_string()).unwrap();

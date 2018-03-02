@@ -1,3 +1,4 @@
+#![feature(option_filter)]
 #![feature(pointer_methods)]
 #![feature(splice)]
 #![feature(entry_and_modify)]

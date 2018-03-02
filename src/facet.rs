@@ -24,7 +24,7 @@ pub fn get_facet(persistence: &Persistence, req: &FacetRequest, ids: &[u32]) -> 
     info!("facet on {:?}", steps);
 
     //nice special case
-    if steps.len() == 1 || persistence.has_facet_index(&(steps.last().unwrap().to_string() + ".anchor_to_text_id")) {
+    if steps.len() == 1 || persistence.has_index(&(steps.last().unwrap().to_string() + ".anchor_to_text_id")) {
         let path = if steps.len() == 1 {
             steps.first().unwrap().to_string() + ".parentToValueId"
         } else {
