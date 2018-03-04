@@ -424,7 +424,11 @@ fn get_hits_in_field_one_term(
             let mut map = FnvHashMap::default();
             map.insert(options.terms[0].clone(), result.hits_vec.iter().map(|el|el.id).collect());// TODO Avoid copy? just store hit?
             result.term_id_hits_in_field.insert(options.path.to_string(), map);
+            println!("KKWAZY");
+            
+            println!("{:?}", result.term_id_hits_in_field);
         }
+        println!("KKWAZY");
 
         result.hits_vec = fast_field_res;
 
@@ -611,6 +615,12 @@ pub fn resolve_token_hits(
     // }
     Ok(())
 }
+
+// fn highlight_and_store(persistence: &Persistence, path: &str, valueid:u32, result: &mut FnvHashMap<TermId, String>, snippet_info: &SnippetInfo) -> Result<(), SearchError> {
+//     let highlighted_document = highlight_document(persistence, path, valueid as u64, &t2.map(|el| el.2).collect_vec(), snippet_info)?;
+//     result.insert(valueid, highlighted_document);
+//     Ok(())
+// }
 
 fn distance_dfa(lower_hit: &str, dfa: &DFA, lower_term: &str) -> u8 {
     // let lower_hit = hit.to_lowercase();

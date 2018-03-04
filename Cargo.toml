@@ -81,7 +81,7 @@ version = "0.5.0"
 [dev-dependencies]
 env_logger = "0.3"
 pretty_assertions = "0.1.2"
-stainless = "*"
+stainless = {git = "https://github.com/PSeitz/stainless"}
 criterion = "0.1.2"
 
 [lib]

@@ -198,29 +198,33 @@ pub fn plan_creator(request: Request) -> PlanStepType {
             output_next_steps: tx,
             plans_output: rx,
         }
-    } else if let Some(mut part) = request.search {
+    } else if let Some(part) = request.search.clone() {
         // TODO Tokenize query according to field
         // part.terms = part.terms.iter().map(|el| util::normalize_text(el)).collect::<Vec<_>>();
-        plan_creator_search_part(part, request.boost)
+        plan_creator_search_part(part, request)
     } else {
         //TODO HANDLE SUGGEST
         //TODO ADD ERROR
-        plan_creator_search_part(request.search.unwrap(), request.boost)
+        plan_creator_search_part(request.search.as_ref().unwrap().clone(), request)
     }
 }
 
 #[cfg_attr(feature = "flame_it", flame)]
-pub fn plan_creator_search_part(mut request: RequestSearchPart, mut boost: Option<Vec<RequestBoostPart>>) -> PlanStepType {
-    let paths = util::get_steps_to_anchor(&request.path);
+pub fn plan_creator_search_part(mut request_part: RequestSearchPart, mut request: Request) -> PlanStepType {
+    let paths = util::get_steps_to_anchor(&request_part.path);
 
     let (field_tx, field_rx): (PlanDataSender, PlanDataReceiver) = unbounded();
 
-    request.fast_field = boost.is_none() && !request.snippet.unwrap_or(false); // fast_field disabled for boosting or _highlighting_ currently
+    request_part.fast_field = request.boost.is_none() && !request_part.snippet.unwrap_or(false); // fast_field disabled for boosting or _highlighting_ currently
 
-    if request.fast_field {
+    request_part.store_term_id_hits = request.why_found;
+
+    println!("request.why_found {:?}", request.why_found);
+
+    if request_part.fast_field {
         PlanStepType::FieldSearch {
             plans_output: field_rx.clone(),
-            req: request,
+            req: request_part,
             input_prev_steps: vec![],
             output_next_steps: field_tx,
         }
@@ -229,7 +233,7 @@ pub fn plan_creator_search_part(mut request: RequestSearchPart, mut boost: Optio
         //search in fields
         steps.push(PlanStepType::FieldSearch {
             plans_output: field_rx.clone(),
-            req: request,
+            req: request_part,
             input_prev_steps: vec![],
             output_next_steps: field_tx,
         });
@@ -245,8 +249,8 @@ pub fn plan_creator_search_part(mut request: RequestSearchPart, mut boost: Optio
         });
 
         for i in (0..paths.len() - 1).rev() {
-            if boost.is_some() {
-                boost.as_mut().unwrap().retain(|boost| {
+            if request.boost.is_some() {
+                request.boost.as_mut().unwrap().retain(|boost| {
                     let apply_boost = boost.path.starts_with(&paths[i]);
                     if apply_boost {
                         let (next_tx, next_rx): (PlanDataSender, PlanDataReceiver) = unbounded();
@@ -282,7 +286,7 @@ pub fn plan_creator_search_part(mut request: RequestSearchPart, mut boost: Optio
             rx = next_rx;
         }
 
-        if let Some(boosts) = boost {
+        if let Some(boosts) = request.boost {
             // Handling boost from anchor to value - TODO FIXME Error when 1:N
             for boost in boosts {
                 let (next_tx, next_rx): (PlanDataSender, PlanDataReceiver) = unbounded();

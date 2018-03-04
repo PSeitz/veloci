@@ -70,6 +70,8 @@ pub struct Request {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(default = "default_skip")]
     pub skip: Option<usize>,
+    #[serde(default)]
+    pub why_found: bool,
 }
 
 #[derive(Serialize, Deserialize, Default, Clone, Debug)]
@@ -132,7 +134,7 @@ pub struct RequestSearchPart {
     #[serde(default)]
     pub fast_field: bool,
 
-    /// Internal data
+    /// Internal data used for whyfound
     #[serde(default)]
     pub store_term_id_hits: bool,
 }
@@ -324,6 +326,17 @@ pub fn to_bucket_and_id(value: u32) -> (u16, u16) {
     ((value >> 16) as u16, value as u16)
 }
 
+fn get_why_found(persistence: &Persistence, anchor_ids: &[u32], term_id_hits_in_field: &FnvHashMap<String,FnvHashMap<String, Vec<TermId>>>) -> FnvHashMap<String, Vec<String>> {
+    
+    for (path, term_with_ids) in term_id_hits_in_field.iter() {
+        let paths = util::get_steps_to_anchor(path);
+        println!("{:?}", paths);
+    }
+
+    FnvHashMap::default()
+
+}
+
 #[cfg_attr(feature = "flame_it", flame)]
 pub fn search(mut request: Request, persistence: &Persistence) -> Result<SearchResult, SearchError> {
     info_time!("search");
@@ -338,6 +351,9 @@ pub fn search(mut request: Request, persistence: &Persistence) -> Result<SearchR
     // execute_step(plan, persistence)?;
     let mut res = yep.recv()?;
     drop(yep);
+
+    println!("KWAZY");
+    println!("{:?}", res.term_id_hits_in_field);
 
     // let res = search_unrolled(&persistence, request)?;
     // println!("{:?}", res);
@@ -359,12 +375,16 @@ pub fn search(mut request: Request, persistence: &Persistence) -> Result<SearchR
     }
 
     // print!("{:?}", res.hits_vec);
+
+    let term_id_hits_in_field = res.term_id_hits_in_field;
     if res.hits_vec.len() > 0 {
         //TODO extract only top n
         res.hits_vec.sort_unstable_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(Ordering::Equal)); //TODO Add sort by id when equal
         search_result.data = res.hits_vec;
     }
     search_result.num_hits = search_result.data.len() as u64;
+
+
 
     if let Some(facets_req) = request.facets {
         let mut hit_ids: Vec<u32> = {
@@ -381,6 +401,10 @@ pub fn search(mut request: Request, persistence: &Persistence) -> Result<SearchR
         );
     }
     search_result.data = apply_top_skip(search_result.data, request.skip, request.top);
+
+
+    let anchor_ids:Vec<u32> = search_result.data.iter().map(|el|el.id).collect();
+    get_why_found(&persistence, &anchor_ids, &term_id_hits_in_field);
 
     Ok(search_result)
 }

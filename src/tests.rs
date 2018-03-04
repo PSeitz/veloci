@@ -751,6 +751,22 @@ mod tests {
             assert_eq!(hits[0].doc["meanings"]["ger"][0], "(1) 2 3 super nice weich");
         }
 
+        it "should add why found terms"{
+            let req = json!({
+                "search": {
+                    "terms":["weich"],
+                    "path": "meanings.ger[]",
+                    "levenshtein_distance": 1,
+                    "firstCharExactMatch":true
+                },
+                "why_found":true
+            });
+
+            let hits = search_testo_to_doc(req).data;
+            println!("{:?}", hits);
+            assert_eq!(hits[0].doc["meanings"]["ger"][0], "(1) weich");
+        }
+
         it "OR connect hits but boost one term"{
             let req = json!({
                 "or":[
