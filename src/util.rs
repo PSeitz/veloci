@@ -7,7 +7,7 @@ use std::fs::File;
 use std::fs;
 use std::io::SeekFrom;
 use parking_lot::Mutex;
-use serde_json::{Value, Deserializer, StreamDeserializer};
+use serde_json::{Deserializer, StreamDeserializer, Value};
 use serde_json;
 // use std;
 #[allow(unused_imports)]
@@ -54,17 +54,18 @@ pub fn boost_path(path: &str) -> (String, String) {
 pub fn iter_json_stream<'a, F, T>(data: StreamDeserializer<'a, T, Value>, cb: &mut F)
 where
     F: FnMut(&serde_json::Value),
-    T: serde_json::de::Read<'a>
+    T: serde_json::de::Read<'a>,
 {
     for el in data {
         if let Some(arr) = el.as_ref().unwrap().as_array() {
-            for el in arr.iter() {cb(el); }
+            for el in arr.iter() {
+                cb(el);
+            }
         } else {
             cb(el.as_ref().unwrap());
         }
     }
 }
-
 
 // #[test]
 // fn concatooo() {
@@ -87,7 +88,7 @@ impl<'a> IntoString for &'a String {
         self.to_string()
     }
 }
-impl<'a, 'b> IntoString for &'a&'b String {
+impl<'a, 'b> IntoString for &'a &'b String {
     fn into_string(self) -> String {
         self.to_string()
     }
@@ -97,7 +98,7 @@ impl<'a> IntoString for &'a str {
         self.to_string()
     }
 }
-impl<'a, 'b> IntoString for &'a&'b str {
+impl<'a, 'b> IntoString for &'a &'b str {
     fn into_string(self) -> String {
         self.to_string()
     }
@@ -115,7 +116,6 @@ pub fn concat<S: IntoString + AsRef<str>>(path: S, suffix: &str) -> String {
 // pub fn concat(path: &str, suffix: &str) -> String {
 //     path.to_string() + suffix
 // }
-
 
 pub fn get_file_path(folder: &str, path: &str) -> String {
     folder.to_string() + "/" + path
@@ -229,9 +229,11 @@ pub fn get_steps_to_anchor(path: &str) -> Vec<String> {
     paths
 }
 
-
-macro_rules! print_json {($e:expr) => { println!("{}", serde_json::to_string(&$e).unwrap()); } }
-
+macro_rules! print_json {
+    ($e: expr) => {
+        println!("{}", serde_json::to_string(&$e).unwrap());
+    };
+}
 
 /// Also includes for e.g {"meaning":{"ger":["aye"]}}
 /// the [meaning] and [meaning, ger] step, which is skipped in a search (not needed)
@@ -305,11 +307,7 @@ pub fn to_node_tree(mut paths: Vec<Vec<String>>) -> NodeTree {
             next.insert(key.to_string(), NodeTree::IsLeaf);
         } else {
             next_paths.sort_by_key(|el| el[0].clone());
-            let sub_tree = if !is_leaf{
-                to_node_tree(next_paths)
-            }else{
-                NodeTree::IsLeaf
-            };
+            let sub_tree = if !is_leaf { to_node_tree(next_paths) } else { NodeTree::IsLeaf };
             // let mut sub_tree = to_node_tree(next_paths);
             // sub_tree.is_leaf = is_leaf;
             next.insert(key.to_string(), sub_tree);

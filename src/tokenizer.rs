@@ -16,7 +16,7 @@ lazy_static! {
 
 fn is_default_seperator(char: char) -> bool {
     match char {
-        ' ' | '\t' | '\n' | '\r' | '(' | ')' | ',' | '.' | '…' | ';' | '・' | '’' | '-' | '\\' | '{' | '}' | '\'' | '"' | '“'| '™' => true,
+        ' ' | '\t' | '\n' | '\r' | '(' | ')' | ',' | '.' | '…' | ';' | '・' | '’' | '-' | '\\' | '{' | '}' | '\'' | '"' | '“' | '™' => true,
         _ => false,
     }
 }
@@ -66,14 +66,14 @@ impl Tokenizer for SimpleTokenizerCharsIterateGroupTokens {
                 true => {
                     if char_byte_pos == 0 {
                         last_was_token = true;
-                    }else if !last_was_token{
+                    } else if !last_was_token {
                         cb_text(&orignal[last_returned_byte..char_byte_pos], false);
                         last_was_token = true;
                         last_returned_byte = char_byte_pos;
                     }
                 }
                 false => {
-                    if last_was_token{
+                    if last_was_token {
                         cb_text(&orignal[last_returned_byte..char_byte_pos], true);
                         last_was_token = false;
                         last_returned_byte = char_byte_pos;
@@ -134,7 +134,7 @@ mod tests {
         tokenizer.get_tokens(" Taschenbuch (kartoniert)", &mut |token: &str, _is_seperator: bool| {
             vec.push(token.to_string());
         });
-        assert_eq!(vec, vec![" ","Taschenbuch", " (", "kartoniert", ")"])
+        assert_eq!(vec, vec![" ", "Taschenbuch", " (", "kartoniert", ")"])
     }
     #[test]
     fn test_tokenize_start_with_single_token() {
@@ -143,7 +143,7 @@ mod tests {
         tokenizer.get_tokens("T oll", &mut |token: &str, _is_seperator: bool| {
             vec.push(token.to_string());
         });
-        assert_eq!(vec, vec!["T"," ", "oll"])
+        assert_eq!(vec, vec!["T", " ", "oll"])
     }
 
     // #[bench]

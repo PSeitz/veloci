@@ -929,7 +929,6 @@ mod tests {
     //     ]
     //     "#;
 
-
     //     assert_eq!(normalize_text("Hello"), "Hello");
 
     //     let mut f = File::open("meanings.ger[]").unwrap();

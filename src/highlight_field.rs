@@ -23,7 +23,13 @@ use itertools::Itertools;
 use fnv::FnvHashSet;
 
 #[cfg_attr(feature = "flame_it", flame)]
-pub fn highlight_document(persistence: &Persistence, path: &str, value_id: u64, token_ids: &[u32], opt: &SnippetInfo) -> Result<Option<String>, search::SearchError> {
+pub fn highlight_document(
+    persistence: &Persistence,
+    path: &str,
+    value_id: u64,
+    token_ids: &[u32],
+    opt: &SnippetInfo,
+) -> Result<Option<String>, search::SearchError> {
     let value_id_to_token_ids = persistence.get_valueid_to_parent(&concat(path, ".value_id_to_token_ids"))?;
     debug_time!(format!("highlight_document id {}", value_id));
 
@@ -34,11 +40,13 @@ pub fn highlight_document(persistence: &Persistence, path: &str, value_id: u64, 
         let vals = value_id_to_token_ids.get_values(value_id);
         if let Some(vals) = vals {
             vals
-        }else{
+        } else {
             //got a text id, check if it was hit
-            if  token_ids.contains(&(value_id as u32)) {
-                return Ok(Some(opt.snippet_start_tag.to_string() + &get_text_for_id(persistence, path, value_id as u32) + &opt.snippet_end_tag));
-            }else{
+            if token_ids.contains(&(value_id as u32)) {
+                return Ok(Some(
+                    opt.snippet_start_tag.to_string() + &get_text_for_id(persistence, path, value_id as u32) + &opt.snippet_end_tag,
+                ));
+            } else {
                 return Ok(None); //No hits
             }
         }
@@ -58,7 +66,8 @@ pub fn highlight_document(persistence: &Persistence, path: &str, value_id: u64, 
         for token_id in &token_ids {
             let mut last_pos = 0;
             let mut iter = documents_token_ids.iter();
-            while let Some(pos) = iter.position(|x| *x == *token_id) {  // FIXME: Maybe Performance just walk once over data
+            while let Some(pos) = iter.position(|x| *x == *token_id) {
+                // FIXME: Maybe Performance just walk once over data
                 last_pos += pos;
                 token_positions_in_document.push(last_pos);
                 last_pos += 1;
@@ -128,15 +137,16 @@ pub fn highlight_document(persistence: &Persistence, path: &str, value_id: u64, 
             snippet + &snippet_part
         });
 
-
-    if !token_positions_in_document.is_empty(){
+    if !token_positions_in_document.is_empty() {
         let first_index = *token_positions_in_document.first().unwrap() as i64;
         let last_index = *token_positions_in_document.last().unwrap() as i64;
-        if first_index > num_tokens { // add ... add the beginning
+        if first_index > num_tokens {
+            // add ... add the beginning
             snippet.insert_str(0, &opt.snippet_connector);
         }
 
-        if last_index < documents_token_ids.len() as i64 - num_tokens { // add ... add the end
+        if last_index < documents_token_ids.len() as i64 - num_tokens {
+            // add ... add the end
             snippet.push_str(&opt.snippet_connector);
         }
     }

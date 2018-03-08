@@ -389,8 +389,8 @@ impl Persistence {
             meta_data,
             db,
             lru_cache: HashMap::default(), // LruCache::new(50),
-            term_boost_cache:RwLock::new(LruCache::with_expiry_duration_and_capacity(Duration::new(3600, 0), 10)),
-            cache: PersistenceCache::default()
+            term_boost_cache: RwLock::new(LruCache::with_expiry_duration_and_capacity(Duration::new(3600, 0), 10)),
+            cache: PersistenceCache::default(),
         };
         pers.load_all_to_cache()?;
         pers.print_heap_sizes();
@@ -405,8 +405,8 @@ impl Persistence {
             meta_data,
             db,
             lru_cache: HashMap::default(),
-            term_boost_cache:RwLock::new(LruCache::with_expiry_duration_and_capacity(Duration::new(3600, 0), 10)),
-            cache: PersistenceCache::default()
+            term_boost_cache: RwLock::new(LruCache::with_expiry_duration_and_capacity(Duration::new(3600, 0), 10)),
+            cache: PersistenceCache::default(),
         })
     }
 
@@ -436,7 +436,6 @@ impl Persistence {
 
         Ok(())
     }
-
 
     pub fn write_direct_index(&mut self, data: &IndexIdToParent<Output = u32>, path: &str, max_value_id: u32) -> Result<(), io::Error> {
         let data_file_path = util::get_file_path(&self.db, &(path.to_string() + ".data_direct"));
@@ -575,20 +574,17 @@ impl Persistence {
     //     Ok(())
     // }
 
-
-
     #[cfg_attr(feature = "flame_it", flame)]
     pub fn write_json_to_disk<'a, T>(&mut self, data: StreamDeserializer<'a, T, Value>, path: &str) -> Result<(), io::Error>
-        where
-        T: serde_json::de::Read<'a>
+    where
+        T: serde_json::de::Read<'a>,
     {
-
         let mut offsets = vec![];
         let mut buffer = File::create(&get_file_path(&self.db, path))?;
         let mut current_offset = 0;
         // let arro = data.as_array().unwrap();
 
-        util::iter_json_stream(data, &mut |el:&serde_json::Value|{
+        util::iter_json_stream(data, &mut |el: &serde_json::Value| {
             let el_str = el.to_string().into_bytes();
             buffer.write_all(&el_str).unwrap();
             offsets.push(current_offset as u64);
@@ -742,8 +738,8 @@ impl Persistence {
                                 data: data_u32,
                                 max_value_id: el.max_value_id,
                                 avg_join_size: el.avg_join_size,
-                                num_values:0,
-                                num_ids:0
+                                num_values: 0,
+                                num_ids: 0,
                             };
 
                             return Ok((el.path.to_string(), Box::new(store) as Box<IndexIdToParent<Output = u32>>));
@@ -949,7 +945,10 @@ impl Persistence {
                 let file_path = get_file_path(&self.db, path);
                 self.cache.index_64.insert(
                     path.to_string(),
-                    Box::new(IndexIdToOneParent{data:load_index_u64(&file_path)?, max_value_id: u32::MAX }),
+                    Box::new(IndexIdToOneParent {
+                        data: load_index_u64(&file_path)?,
+                        max_value_id: u32::MAX,
+                    }),
                 );
             }
             LoadingType::InMemory => {
@@ -1061,7 +1060,9 @@ impl FileSearch {
 
 fn load_type_from_env() -> Result<Option<LoadingType>, search::SearchError> {
     if let Some(val) = env::var_os("LoadingType") {
-        let conv_env = val.clone().into_string().map_err(|_err| { search::SearchError::StringError(format!("Could not convert LoadingType environment variable to utf-8: {:?}", val))})?;
+        let conv_env = val.clone()
+            .into_string()
+            .map_err(|_err| search::SearchError::StringError(format!("Could not convert LoadingType environment variable to utf-8: {:?}", val)))?;
         let loading_type = LoadingType::from_str(&conv_env).map_err(|_err| {
             search::SearchError::StringError("only InMemoryUnCompressed, InMemory or Disk allowed for LoadingType environment variable".to_string())
         })?;

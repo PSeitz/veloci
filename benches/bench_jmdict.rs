@@ -364,32 +364,29 @@ fn searches(c: &mut Criterion) {
     let tree = get_read_tree_from_fields(&pers, &fields);
     let single_tree = get_read_tree_from_fields(&pers, &vec!["ent_seq".to_string()]);
 
-    c.bench_function("load_documents_direct_large", |b| b.iter(|| {
-        DocLoader::get_doc(&pers, 166600 as usize)
-    }));
+    c.bench_function("load_documents_direct_large", |b| b.iter(|| DocLoader::get_doc(&pers, 166600 as usize)));
 
-    c.bench_function("load_documents_tree_large", |b| b.iter(|| {
-        search::read_tree(&pers, 166600, &tree)
-    }));
+    c.bench_function("load_documents_tree_large", |b| b.iter(|| search::read_tree(&pers, 166600, &tree)));
 
-    c.bench_function("load_documents_direct_random", |b| b.iter(|| {
-        DocLoader::get_doc(&pers, between.ind_sample(&mut rng) as u32 as usize)
-    }));
+    c.bench_function("load_documents_direct_random", |b| {
+        b.iter(|| DocLoader::get_doc(&pers, between.ind_sample(&mut rng) as u32 as usize))
+    });
 
-    c.bench_function("load_documents_cache:tree_random", |b| b.iter(|| {
-        search::read_tree(&pers, between.ind_sample(&mut rng) as u32, &tree)
-    }));
+    c.bench_function("load_documents_cache:tree_random", |b| {
+        b.iter(|| search::read_tree(&pers, between.ind_sample(&mut rng) as u32, &tree))
+    });
 
-    c.bench_function("load_documents_new_tree_random", |b| b.iter(|| {
-        let fields = pers.get_all_properties();
-        let tree = get_read_tree_from_fields(&pers, &fields);
-        search::read_tree(&pers, between.ind_sample(&mut rng) as u32, &tree)
-    }));
+    c.bench_function("load_documents_new_tree_random", |b| {
+        b.iter(|| {
+            let fields = pers.get_all_properties();
+            let tree = get_read_tree_from_fields(&pers, &fields);
+            search::read_tree(&pers, between.ind_sample(&mut rng) as u32, &tree)
+        })
+    });
 
-    c.bench_function("load_documents_tree_random_single_field", |b| b.iter(|| {
-        search::read_tree(&pers, between.ind_sample(&mut rng) as u32, &single_tree)
-    }));
-
+    c.bench_function("load_documents_tree_random_single_field", |b| {
+        b.iter(|| search::read_tree(&pers, between.ind_sample(&mut rng) as u32, &single_tree))
+    });
 
     c.bench_function("jmdict_suggest_a", |b| b.iter(|| suggest("a", "meanings.ger[].text", &pers)));
 

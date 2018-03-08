@@ -8,7 +8,7 @@ use util::*;
 use search::*;
 use std;
 
-fn get_default_levenshtein(term: &str, levenshtein_auto_limit:usize) -> usize {
+fn get_default_levenshtein(term: &str, levenshtein_auto_limit: usize) -> usize {
     match term.chars().count() {
         0..=3 => 0,
         4..=7 => std::cmp::min(1, levenshtein_auto_limit),
@@ -16,8 +16,8 @@ fn get_default_levenshtein(term: &str, levenshtein_auto_limit:usize) -> usize {
     }
 }
 
-
-fn get_all_field_names(persistence: &Persistence, fields: &Option<Vec<String>>) -> Vec<String> { // TODO ADD WARNING IF fields filter all
+fn get_all_field_names(persistence: &Persistence, fields: &Option<Vec<String>>) -> Vec<String> {
+    // TODO ADD WARNING IF fields filter all
     persistence
         .meta_data
         .fulltext_indices
@@ -47,14 +47,11 @@ pub fn normalize_to_single_space(text: &str) -> String {
     new_str.trim().to_owned()
 }
 
-
-
-fn replace_all_with_space(s: &mut String, remove:&str){
+fn replace_all_with_space(s: &mut String, remove: &str) {
     while let Some(pos) = s.find(remove) {
         s.splice(pos..=pos + remove.len() - 1, " ");
     }
 }
-
 
 #[cfg_attr(feature = "flame_it", flame)]
 pub fn search_query(
@@ -103,39 +100,38 @@ pub fn search_query(
             .collect()
     });
 
-    let boost_terms_req:Vec<RequestSearchPart> = boost_terms
+    let boost_terms_req: Vec<RequestSearchPart> = boost_terms
         .iter()
-        .flat_map(|(boost_term, boost_value):(&String, &f32)| {
+        .flat_map(|(boost_term, boost_value): (&String, &f32)| {
             let mut boost_term = boost_term.to_string();
-            let filter:Option<Vec<String>> = if boost_term.contains(":"){
-                let mut parts:Vec<String> = boost_term.split(":").map(|el|el.to_string()).collect();
+            let filter: Option<Vec<String>> = if boost_term.contains(":") {
+                let mut parts: Vec<String> = boost_term.split(":").map(|el| el.to_string()).collect();
                 boost_term = parts.remove(1);
                 Some(parts)
-            }else{
+            } else {
                 None
             };
 
             get_all_field_names(&persistence, &filter)
-            .iter()
-            .map(|field_name| {
-                RequestSearchPart {
+                .iter()
+                .map(|field_name| RequestSearchPart {
                     path: field_name.to_string(),
                     terms: vec![boost_term.to_string()],
                     boost: Some(*boost_value),
                     ..Default::default()
-                }
-            }).collect::<Vec<_>>()
+                })
+                .collect::<Vec<_>>()
+        })
+        .collect();
 
-    }).collect();
-
-    let boost_term = if boost_terms_req.is_empty() {None} else{Some(boost_terms_req)};
+    let boost_term = if boost_terms_req.is_empty() { None } else { Some(boost_terms_req) };
 
     if op == "and" {
         let requests: Vec<Request> = terms
             .iter()
             .map(|term| {
                 let mut levenshtein_distance = levenshtein.unwrap_or_else(|| get_default_levenshtein(term, levenshtein_auto_limit.unwrap_or(1)));
-                levenshtein_distance = std::cmp::min(levenshtein_distance, term.chars().count() - 1 );
+                levenshtein_distance = std::cmp::min(levenshtein_distance, term.chars().count() - 1);
                 let parts = get_all_field_names(&persistence, &fields)
                     .iter()
                     .map(|field_name| {
@@ -201,7 +197,6 @@ pub fn search_query(
         })
         .collect();
 
-
     Request {
         or: Some(parts),
         top: top,
@@ -212,8 +207,6 @@ pub fn search_query(
         ..Default::default()
     }
 }
-
-
 
 pub fn suggest_query(
     request: &str,

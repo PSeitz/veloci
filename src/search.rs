@@ -75,7 +75,9 @@ pub struct Request {
     pub why_found: bool,
 }
 
-fn skip_false(val: &bool) -> bool { !*val }
+fn skip_false(val: &bool) -> bool {
+    !*val
+}
 
 #[derive(Serialize, Deserialize, Default, Clone, Debug)]
 pub struct FacetRequest {
@@ -85,15 +87,19 @@ pub struct FacetRequest {
     pub top: Option<usize>,
 }
 
-fn default_top() -> Option<usize> {Some(10) }
-fn default_skip() -> Option<usize> {None }
+fn default_top() -> Option<usize> {
+    Some(10)
+}
+fn default_skip() -> Option<usize> {
+    None
+}
 
 #[derive(Serialize, Deserialize, Default, Clone, Debug)]
 pub struct RequestSearchPart {
     pub path: String,
-    pub terms: Vec<String>,                             //TODO only first term used currently
+    pub terms: Vec<String>, //TODO only first term used currently
     #[serde(default = "default_term_operator")]
-    pub term_operator: TermOperator,                    //TODO unused currently
+    pub term_operator: TermOperator, //TODO unused currently
 
     #[serde(skip_serializing_if = "Option::is_none")]
     pub levenshtein_distance: Option<u32>,
@@ -144,7 +150,6 @@ pub struct RequestSearchPart {
     pub store_term_id_hits: bool,
 }
 
-
 impl PartialEq for RequestSearchPart {
     fn eq(&self, other: &RequestSearchPart) -> bool {
         format!("{:?}", self) == format!("{:?}", other)
@@ -178,11 +183,21 @@ pub struct SnippetInfo {
     pub max_snippets: u32,
 }
 
-fn default_num_words_around_snippet() -> i64 { 5 }
-fn default_snippet_start() -> String { "<b>".to_string() }
-fn default_snippet_end() -> String { "</b>".to_string() }
-fn default_snippet_connector() -> String { " ... ".to_string() }
-fn default_max_snippets() -> u32 { std::u32::MAX }
+fn default_num_words_around_snippet() -> i64 {
+    5
+}
+fn default_snippet_start() -> String {
+    "<b>".to_string()
+}
+fn default_snippet_end() -> String {
+    "</b>".to_string()
+}
+fn default_snippet_connector() -> String {
+    " ... ".to_string()
+}
+fn default_max_snippets() -> u32 {
+    std::u32::MAX
+}
 
 lazy_static! {
     pub static ref DEFAULT_SNIPPETINFO: SnippetInfo = SnippetInfo{
@@ -299,29 +314,27 @@ impl std::fmt::Display for DocWithHit {
 
 // @FixMe Tests should use to_search_result
 #[cfg_attr(feature = "flame_it", flame)]
-pub fn to_documents(persistence: &Persistence, hits: &[Hit], select:Option<Vec<String>>, result: &SearchResult) -> Vec<DocWithHit> {
+pub fn to_documents(persistence: &Persistence, hits: &[Hit], select: Option<Vec<String>>, result: &SearchResult) -> Vec<DocWithHit> {
     // DocLoader::load(persistence);
     hits.iter()
         .map(|ref hit| {
-
             let doc = if let Some(ref select) = select {
                 read_data(persistence, hit.id, &select).unwrap() // TODO validate fields
-            }else{
+            } else {
                 serde_json::from_str(&DocLoader::get_doc(persistence, hit.id as usize).unwrap()).unwrap()
             };
 
             DocWithHit {
                 doc: doc,
                 hit: *hit.clone(),
-                why_found: result.why_found_info.get(&hit.id).cloned().unwrap_or(FnvHashMap::default())
+                why_found: result.why_found_info.get(&hit.id).cloned().unwrap_or(FnvHashMap::default()),
             }
         })
         .collect::<Vec<_>>()
 }
 
 #[cfg_attr(feature = "flame_it", flame)]
-pub fn to_search_result(persistence: &Persistence, hits: SearchResult, select:Option<Vec<String>>) -> SearchResultWithDoc {
-
+pub fn to_search_result(persistence: &Persistence, hits: SearchResult, select: Option<Vec<String>>) -> SearchResultWithDoc {
     SearchResultWithDoc {
         data: to_documents(&persistence, &hits.data, select, &hits),
         num_hits: hits.num_hits,
@@ -338,8 +351,11 @@ pub fn to_bucket_and_id(value: u32) -> (u16, u16) {
     ((value >> 16) as u16, value as u16)
 }
 
-fn get_why_found(persistence: &Persistence, anchor_ids: &[u32], term_id_hits_in_field: &FnvHashMap<String,FnvHashMap<String, Vec<TermId>>>) -> Result<FnvHashMap<u32, FnvHashMap<String, Vec<String>>>, SearchError> {
-
+fn get_why_found(
+    persistence: &Persistence,
+    anchor_ids: &[u32],
+    term_id_hits_in_field: &FnvHashMap<String, FnvHashMap<String, Vec<TermId>>>,
+) -> Result<FnvHashMap<u32, FnvHashMap<String, Vec<String>>>, SearchError> {
     info!("why_found info {:?}", term_id_hits_in_field);
     let mut anchor_highlights = FnvHashMap::default();
 
@@ -347,12 +363,12 @@ fn get_why_found(persistence: &Persistence, anchor_ids: &[u32], term_id_hits_in_
         let field_name = &extract_field_name(path); // extract_field_name removes .textindex
         let mut paths = util::get_steps_to_anchor(field_name);
 
-        let all_term_ids_hits_in_path = term_with_ids.iter().fold(vec![], |mut acc, (ref _term, ref hits)|{
+        let all_term_ids_hits_in_path = term_with_ids.iter().fold(vec![], |mut acc, (ref _term, ref hits)| {
             acc.extend(hits.iter());
             acc
         });
 
-        if all_term_ids_hits_in_path.is_empty(){
+        if all_term_ids_hits_in_path.is_empty() {
             continue;
         }
 
@@ -362,19 +378,18 @@ fn get_why_found(persistence: &Persistence, anchor_ids: &[u32], term_id_hits_in_
 
             for value_id in ids {
                 let path = paths.last().unwrap().to_string();
-                let highlighted_document = highlight_field::highlight_document(persistence, &path, value_id as u64, &all_term_ids_hits_in_path, &DEFAULT_SNIPPETINFO).unwrap();
+                let highlighted_document =
+                    highlight_field::highlight_document(persistence, &path, value_id as u64, &all_term_ids_hits_in_path, &DEFAULT_SNIPPETINFO).unwrap();
                 if let Some(highlighted_document) = highlighted_document {
                     let jepp = anchor_highlights.entry(*anchor_id).or_insert(FnvHashMap::default());
                     let mut field_highlights = jepp.entry(field_name.clone()).or_insert(vec![]);
                     field_highlights.push(highlighted_document);
                 }
             }
-
         }
     }
 
     Ok(anchor_highlights)
-
 }
 
 #[cfg_attr(feature = "flame_it", flame)]
@@ -397,9 +412,7 @@ pub fn search(mut request: Request, persistence: &Persistence) -> Result<SearchR
     // let res = hits_to_array_iter(res.iter());
     // let res = hits_to_sorted_array(res);
 
-    let mut search_result = SearchResult {
-        .. Default::default()
-    };
+    let mut search_result = SearchResult { ..Default::default() };
 
     {
         // let boosto = persistence.term_boost_cache.clone();
@@ -415,8 +428,6 @@ pub fn search(mut request: Request, persistence: &Persistence) -> Result<SearchR
         search_result.data = res.hits_vec;
     }
     search_result.num_hits = search_result.data.len() as u64;
-
-
 
     if let Some(facets_req) = request.facets {
         let mut hit_ids: Vec<u32> = {
@@ -434,19 +445,17 @@ pub fn search(mut request: Request, persistence: &Persistence) -> Result<SearchR
     }
     search_result.data = apply_top_skip(search_result.data, request.skip, request.top);
 
-    let anchor_ids:Vec<u32> = search_result.data.iter().map(|el|el.id).collect();
+    let anchor_ids: Vec<u32> = search_result.data.iter().map(|el| el.id).collect();
     let why_found_info = get_why_found(&persistence, &anchor_ids, &term_id_hits_in_field)?;
     search_result.why_found_info = why_found_info;
     Ok(search_result)
 }
 
-
 #[cfg_attr(feature = "flame_it", flame)]
-pub fn apply_boost_term(persistence: &Persistence, mut res:SearchFieldResult, boost_term: Vec<RequestSearchPart>) -> Result<SearchFieldResult, SearchError> {
-
+pub fn apply_boost_term(persistence: &Persistence, mut res: SearchFieldResult, boost_term: Vec<RequestSearchPart>) -> Result<SearchFieldResult, SearchError> {
     info_time!("boost_term");
     {
-        persistence.term_boost_cache.write().get(&boost_term);//poke
+        persistence.term_boost_cache.write().get(&boost_term); //poke
     }
 
     let mut from_cache = false;
@@ -459,10 +468,11 @@ pub fn apply_boost_term(persistence: &Persistence, mut res:SearchFieldResult, bo
             info_time!("boost_term_cache");
             let mut boost_iter = data.iter()
                 .map(|el| {
-                    let boost_val:f32 = el.request.boost.unwrap_or(2.0).clone();
-                    el.hits_ids.iter().map(move|id| Hit::new(*id, boost_val ))
+                    let boost_val: f32 = el.request.boost.unwrap_or(2.0).clone();
+                    el.hits_ids.iter().map(move |id| Hit::new(*id, boost_val))
                 })
-                .into_iter().kmerge_by(|a, b| a.id < b.id);
+                .into_iter()
+                .kmerge_by(|a, b| a.id < b.id);
 
             // {
             //     let mut boost_iter_data:Vec<Hit> = data.iter()
@@ -551,14 +561,14 @@ pub fn apply_boost_term(persistence: &Persistence, mut res:SearchFieldResult, bo
             debug_time!("boost_intersect_hits_vec_multi".to_string());
             res = apply_boost_from_iter(res, &mut boost_iter);
 
-
             from_cache = true;
-
         }
     }
 
-    if !from_cache{
-        let r: Result<Vec<_>, SearchError> = boost_term.clone().into_par_iter()
+    if !from_cache {
+        let r: Result<Vec<_>, SearchError> = boost_term
+            .clone()
+            .into_par_iter()
             .map(|mut boost_term_req| {
                 boost_term_req.ids_only = true;
                 boost_term_req.fast_field = true;
@@ -570,11 +580,8 @@ pub fn apply_boost_term(persistence: &Persistence, mut res:SearchFieldResult, bo
         {
             persistence.term_boost_cache.write().insert(boost_term.clone(), data);
         }
-
     }
     Ok(res)
-
-
 }
 
 //TODO no copy
@@ -590,7 +597,6 @@ pub fn apply_top_skip<T: Clone>(hits: Vec<T>, skip: Option<usize>, top: Option<u
     // top = cmp::min(top + skip, hits.len());
     // hits[skip..top].to_vec()
 }
-
 
 use facet;
 
@@ -634,7 +640,7 @@ pub fn get_longest_result<T: std::iter::ExactSizeIterator>(results: &Vec<T>) -> 
 //     result
 // }
 
-fn merge_term_id_hits(results: &mut Vec<SearchFieldResult>) -> FnvHashMap<String,FnvHashMap<String, Vec<TermId>>> {
+fn merge_term_id_hits(results: &mut Vec<SearchFieldResult>) -> FnvHashMap<String, FnvHashMap<String, Vec<TermId>>> {
     let mut term_id_hits_in_field = FnvHashMap::default();
     for el in results.iter_mut() {
         for (k, v) in el.term_id_hits_in_field.drain() {
@@ -643,7 +649,6 @@ fn merge_term_id_hits(results: &mut Vec<SearchFieldResult>) -> FnvHashMap<String
     }
     term_id_hits_in_field
 }
-
 
 #[cfg_attr(feature = "flame_it", flame)]
 pub fn union_hits_vec(mut or_results: Vec<SearchFieldResult>) -> SearchFieldResult {
@@ -715,9 +720,7 @@ pub fn union_hits_vec(mut or_results: Vec<SearchFieldResult>) -> SearchFieldResu
         }
     }
 
-    let term_id_hits_in_field = {
-        merge_term_id_hits(&mut or_results)
-    };
+    let term_id_hits_in_field = { merge_term_id_hits(&mut or_results) };
 
     let iterators: Vec<_> = or_results.iter().map(|el| el.hits_vec.iter()).collect();
 
@@ -731,10 +734,9 @@ pub fn union_hits_vec(mut or_results: Vec<SearchFieldResult>) -> SearchFieldResu
         union_hits.push(Hit::new(id, sum_score));
     }
 
-
     // debug!("union hits merged from {} to {} hits", prev, union_hits.len() );
     SearchFieldResult {
-        term_id_hits_in_field:term_id_hits_in_field,
+        term_id_hits_in_field: term_id_hits_in_field,
         hits_vec: union_hits,
         ..Default::default()
     }
@@ -801,9 +803,7 @@ pub fn intersect_hits_vec(mut and_results: Vec<SearchFieldResult>) -> SearchFiel
 
     // let mut iterators = &and_results.iter().map(|el| el.hits_vec.iter()).collect::<Vec<_>>();
 
-    let term_id_hits_in_field = {
-        merge_term_id_hits(&mut and_results)
-    };
+    let term_id_hits_in_field = { merge_term_id_hits(&mut and_results) };
 
     let mut iterators_and_current = and_results
         .iter_mut()
@@ -868,8 +868,7 @@ pub fn intersect_hits_vec(mut and_results: Vec<SearchFieldResult>) -> SearchFiel
                 }
             }
             false
-        })
-        {
+        }) {
             let mut score = iterators_and_current.iter().map(|el| (el.1).score).sum();
             score += current_score; //TODO SCORE Max oder Sum FOR AND
             intersected_hits.push(Hit::new(current_id, score));
@@ -904,7 +903,6 @@ fn intersect_hits_vec_test() {
     assert_eq!(res.hits_vec, vec![Hit::new(0, 40.0), Hit::new(10, 50.0)]);
 }
 
-
 #[cfg_attr(feature = "flame_it", flame)]
 pub fn boost_intersect_hits_vec(mut results: SearchFieldResult, mut boost: SearchFieldResult) -> SearchFieldResult {
     results.hits_vec.sort_unstable_by_key(|el| el.id); //TODO SORT NEEDED??
@@ -912,17 +910,16 @@ pub fn boost_intersect_hits_vec(mut results: SearchFieldResult, mut boost: Searc
 
     let mut boost_iter = boost.hits_vec.into_iter();
     apply_boost_from_iter(results, &mut boost_iter) // TODO FIXME
-
 }
 
-fn apply_boost_from_iter(mut results: SearchFieldResult, mut boost_iter: &mut Iterator<Item=Hit>) -> SearchFieldResult {
-
-    let move_boost = |hit:&mut Hit, hit_curr:&mut Hit, boost_iter: &mut Iterator<Item=Hit>|{ //Forward the boost iterator and look for matches
+fn apply_boost_from_iter(mut results: SearchFieldResult, mut boost_iter: &mut Iterator<Item = Hit>) -> SearchFieldResult {
+    let move_boost = |hit: &mut Hit, hit_curr: &mut Hit, boost_iter: &mut Iterator<Item = Hit>| {
+        //Forward the boost iterator and look for matches
         while let Some(b_hit) = boost_iter.next() {
             if b_hit.id > hit.id {
                 *hit_curr = b_hit;
                 break;
-            }else if b_hit.id == hit.id{
+            } else if b_hit.id == hit.id {
                 *hit_curr = b_hit;
                 hit.score *= b_hit.score;
                 break;
@@ -930,12 +927,12 @@ fn apply_boost_from_iter(mut results: SearchFieldResult, mut boost_iter: &mut It
         }
     };
 
-    if let Some(yep) = boost_iter.next(){
+    if let Some(yep) = boost_iter.next() {
         let mut hit_curr = yep;
         for mut hit in results.hits_vec.iter_mut() {
             if hit_curr.id < hit.id {
                 move_boost(&mut hit, &mut hit_curr, &mut boost_iter);
-            }else if hit_curr.id == hit.id{
+            } else if hit_curr.id == hit.id {
                 hit.score *= hit_curr.score;
                 move_boost(&mut hit, &mut hit_curr, &mut boost_iter); // Possible multi boosts [id:0->2, id:0->4 ...]
             }
@@ -956,17 +953,18 @@ pub fn boost_intersect_hits_vec_multi(mut results: SearchFieldResult, boost: &mu
         }
     }
     // let mut boosts =
-    let mut boost_iter = boost.iter()
+    let mut boost_iter = boost
+        .iter()
         .map(|el| {
-            let boost_val:f32 = el.request.boost.unwrap_or(2.0).clone();
-            el.hits_ids.iter().map(move|id| Hit::new(*id, boost_val )) //TODO create version for hits_vec
+            let boost_val: f32 = el.request.boost.unwrap_or(2.0).clone();
+            el.hits_ids.iter().map(move |id| Hit::new(*id, boost_val)) //TODO create version for hits_vec
         })
-        .into_iter().kmerge_by(|a, b| a.id < b.id);
+        .into_iter()
+        .kmerge_by(|a, b| a.id < b.id);
 
     debug_time!("boost_intersect_hits_vec_multi".to_string());
     apply_boost_from_iter(results, &mut boost_iter)
 }
-
 
 #[test]
 fn boost_intersect_hits_vec_test_multi() {
@@ -974,22 +972,44 @@ fn boost_intersect_hits_vec_test_multi() {
     let boost = vec![0, 3, 10, 70];
     let boost2 = vec![10, 60];
 
-    let mut boosts = vec![SearchFieldResult {hits_ids: boost, ..Default::default() },SearchFieldResult {hits_ids: boost2, ..Default::default() }];
+    let mut boosts = vec![
+        SearchFieldResult {
+            hits_ids: boost,
+            ..Default::default()
+        },
+        SearchFieldResult {
+            hits_ids: boost2,
+            ..Default::default()
+        },
+    ];
 
-    let res = boost_intersect_hits_vec_multi(SearchFieldResult {hits_vec: hits1, ..Default::default() }, &mut boosts);
+    let res = boost_intersect_hits_vec_multi(
+        SearchFieldResult {
+            hits_vec: hits1,
+            ..Default::default()
+        },
+        &mut boosts,
+    );
     // println!("{:?}", res.hits_vec);
 
     assert_eq!(res.hits_vec, vec![Hit::new(0, 40.0), Hit::new(5, 20.0), Hit::new(10, 80.0), Hit::new(60, 40.0)]);
 }
-
 
 #[test]
 fn boost_intersect_hits_vec_test() {
     let hits1 = vec![Hit::new(10, 20.0), Hit::new(0, 20.0), Hit::new(5, 20.0)]; // unsorted
     let boost = vec![Hit::new(0, 20.0), Hit::new(3, 20.0), Hit::new(10, 30.0), Hit::new(20, 30.0)];
 
-
-    let res = boost_intersect_hits_vec(SearchFieldResult {hits_vec: hits1, ..Default::default() }, SearchFieldResult {hits_vec: boost, ..Default::default() });
+    let res = boost_intersect_hits_vec(
+        SearchFieldResult {
+            hits_vec: hits1,
+            ..Default::default()
+        },
+        SearchFieldResult {
+            hits_vec: boost,
+            ..Default::default()
+        },
+    );
     // println!("{:?}", res.hits_vec);
 
     assert_eq!(res.hits_vec, vec![Hit::new(0, 400.0), Hit::new(5, 20.0), Hit::new(10, 600.0)]);
@@ -997,18 +1017,42 @@ fn boost_intersect_hits_vec_test() {
 
 #[bench]
 fn bench_boost_intersect_hits_vec(b: &mut test::Bencher) {
-    let hits1:Vec<Hit> = (0..4_000_00).map(|i|Hit::new(i*5 as u32 , 2.2 as f32)).collect();
-    let hits2:Vec<Hit> = (0..40_000).map(|i|Hit::new(i*3 as u32, 2.2 as f32)).collect();
+    let hits1: Vec<Hit> = (0..4_000_00).map(|i| Hit::new(i * 5 as u32, 2.2 as f32)).collect();
+    let hits2: Vec<Hit> = (0..40_000).map(|i| Hit::new(i * 3 as u32, 2.2 as f32)).collect();
 
-    b.iter(|| boost_intersect_hits_vec(SearchFieldResult {hits_vec: hits1.clone(), ..Default::default() }, SearchFieldResult {hits_vec: hits2.clone(), ..Default::default() }))
+    b.iter(|| {
+        boost_intersect_hits_vec(
+            SearchFieldResult {
+                hits_vec: hits1.clone(),
+                ..Default::default()
+            },
+            SearchFieldResult {
+                hits_vec: hits2.clone(),
+                ..Default::default()
+            },
+        )
+    })
 }
 
 #[bench]
 fn bench_boost_intersect_hits_vec_multi(b: &mut test::Bencher) {
-    let hits1:Vec<Hit> = (0..4_000_00).map(|i|Hit::new(i*5 as u32 , 2.2 as f32)).collect();
-    let hits2:Vec<Hit> = (0..40_000).map(|i|Hit::new(i*3 as u32, 2.2 as f32)).collect();
+    let hits1: Vec<Hit> = (0..4_000_00).map(|i| Hit::new(i * 5 as u32, 2.2 as f32)).collect();
+    let hits2: Vec<Hit> = (0..40_000).map(|i| Hit::new(i * 3 as u32, 2.2 as f32)).collect();
 
-    b.iter(|| boost_intersect_hits_vec_multi(SearchFieldResult {hits_vec: hits1.clone(), ..Default::default() }, &mut vec![SearchFieldResult {hits_vec: hits2.clone(), ..Default::default() }]))
+    b.iter(|| {
+        boost_intersect_hits_vec_multi(
+            SearchFieldResult {
+                hits_vec: hits1.clone(),
+                ..Default::default()
+            },
+            &mut vec![
+                SearchFieldResult {
+                    hits_vec: hits2.clone(),
+                    ..Default::default()
+                },
+            ],
+        )
+    })
 }
 
 // #[bench]
@@ -1214,7 +1258,7 @@ impl Error for SearchError {
 // }
 
 #[inline]
-fn join_and_get_text_for_ids(persistence: &Persistence, id: u32, prop: &str) -> Result<Option<String>, SearchError>{
+fn join_and_get_text_for_ids(persistence: &Persistence, id: u32, prop: &str) -> Result<Option<String>, SearchError> {
     let text_value_id_opt = join_for_1_to_1(persistence, id, &concat(&prop, ".textindex.parentToValueId"))?;
     Ok(text_value_id_opt.map(|text_value_id| get_text_for_id(persistence, &concat(&prop, ".textindex"), text_value_id)))
 }
@@ -1236,7 +1280,6 @@ pub fn read_tree(persistence: &Persistence, id: u32, tree: &NodeTree) -> Result<
     match tree {
         &NodeTree::Map(ref map) => {
             for (prop, sub_tree) in map.iter() {
-
                 match sub_tree {
                     &NodeTree::IsLeaf => {
                         let is_array = prop.ends_with("[]");
@@ -1255,31 +1298,28 @@ pub fn read_tree(persistence: &Persistence, id: u32, tree: &NodeTree) -> Result<
                                 json[extract_prop_name(prop)] = json!(texto);
                             }
                         }
-                    },
+                    }
                     &NodeTree::Map(ref _next) => {
-                        if !persistence.has_index(&concat(&prop, ".parentToValueId")) { // Special case a node without information an object in object e.g. there is no information 1:n to store
+                        if !persistence.has_index(&concat(&prop, ".parentToValueId")) {
+                            // Special case a node without information an object in object e.g. there is no information 1:n to store
                             json[extract_prop_name(prop)] = read_tree(persistence, id, &sub_tree)?;
-                        }else if let Some(sub_ids) = join_for_1_to_n(persistence, id, &concat(&prop, ".parentToValueId"))? {
-                                let is_array = prop.ends_with("[]");
-                                if is_array {
-                                    let mut sub_data = vec![];
-                                    for sub_id in sub_ids {
-                                        sub_data.push(read_tree(persistence, sub_id, &sub_tree)?);
-                                    }
-                                    json[extract_prop_name(prop)] = json!(sub_data);
-                                } else if let Some(sub_id) = sub_ids.get(0) {
-                                    json[extract_prop_name(prop)] = read_tree(persistence, *sub_id, &sub_tree)?;
+                        } else if let Some(sub_ids) = join_for_1_to_n(persistence, id, &concat(&prop, ".parentToValueId"))? {
+                            let is_array = prop.ends_with("[]");
+                            if is_array {
+                                let mut sub_data = vec![];
+                                for sub_id in sub_ids {
+                                    sub_data.push(read_tree(persistence, sub_id, &sub_tree)?);
                                 }
+                                json[extract_prop_name(prop)] = json!(sub_data);
+                            } else if let Some(sub_id) = sub_ids.get(0) {
+                                json[extract_prop_name(prop)] = read_tree(persistence, *sub_id, &sub_tree)?;
+                            }
                         }
-
-                    },
+                    }
                 }
-
             }
-        },
-        &NodeTree::IsLeaf => {
-
-        },
+        }
+        &NodeTree::IsLeaf => {}
     }
 
     Ok(json)

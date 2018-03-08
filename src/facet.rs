@@ -84,9 +84,7 @@ pub fn get_facet(persistence: &Persistence, req: &FacetRequest, ids: &[u32]) -> 
     Ok(groups_with_text)
 }
 
-
 pub fn join_anchor_to_leaf(persistence: &Persistence, ids: &[u32], steps: &Vec<String>) -> Result<Vec<u32>, SearchError> {
-
     //Use facet index as shortcut
     if persistence.has_index(&(steps.last().unwrap().to_string() + ".anchor_to_text_id")) {
         return Ok(join_for_n_to_m(persistence, ids, &(steps.last().unwrap().to_string() + ".anchor_to_text_id"))?);
@@ -134,7 +132,6 @@ pub fn join_for_n_to_n(persistence: &Persistence, value_ids: &[u32], path: &str)
     // Ok(kv_store.get_values(value_id as u64))
 }
 
-
 pub trait AggregationCollector<T: IndexIdToParentData> {
     fn add(&mut self, id: T);
     fn to_map(self: Box<Self>, top: Option<u32>) -> FnvHashMap<T, usize>;
@@ -155,8 +152,6 @@ pub fn get_collector<T: 'static + IndexIdToParentData>(num_ids: u32, avg_join_si
         return Box::new(FnvHashMap::default());
     };
 }
-
-
 
 fn get_top_n_sort_from_iter<'a, T: IndexIdToParentData, K: IndexIdToParentData, I: Iterator<Item = (K, T)>>(iter: I, top: usize) -> Vec<(K, T)> {
     let mut top_n: Vec<(K, T)> = vec![];
@@ -190,8 +185,10 @@ impl<T: IndexIdToParentData> AggregationCollector<T> for Vec<T> {
         debug_time!("aggregation vec to_map");
 
         if top.is_some() && top.unwrap() > 0 {
-            get_top_n_sort_from_iter(self.iter().enumerate().filter(|el| *el.1 != T::zero()).map(|el| (el.0, *el.1)), top.unwrap() as usize)
-                .into_iter()
+            get_top_n_sort_from_iter(
+                self.iter().enumerate().filter(|el| *el.1 != T::zero()).map(|el| (el.0, *el.1)),
+                top.unwrap() as usize,
+            ).into_iter()
                 .map(|el| (NumCast::from(el.0).unwrap(), NumCast::from(el.1).unwrap()))
                 .collect()
         } else {
@@ -205,7 +202,6 @@ impl<T: IndexIdToParentData> AggregationCollector<T> for Vec<T> {
         }
     }
 }
-
 
 impl<T: IndexIdToParentData> AggregationCollector<T> for FnvHashMap<T, usize> {
     fn add(&mut self, id: T) {

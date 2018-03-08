@@ -126,7 +126,6 @@ impl<T: IndexIdToParentData> IndexIdToParent for IndexIdToMultipleParent<T> {
                 let stat = hits.entry(*hit_id).or_insert(0);
                 *stat += 1;
             }
-
         }
         hits
     }
@@ -454,7 +453,9 @@ impl<T: IndexIdToParentData> IndexIdToParent for SingleArrayFileReader<T> {
 impl IndexIdToParent for SingleArrayFileReader<u64> {
     #[inline]
     fn get_value(&self, find: u64) -> Option<u64> {
-        get_reader(std::mem::size_of::<u64>(), find, 1, &self.data_file, &self.data_metadata).map(|mut rdr| rdr.read_u64::<LittleEndian>().unwrap()).filter(|el| *el != num::cast::<u32, u64>(u32::MAX).unwrap())
+        get_reader(std::mem::size_of::<u64>(), find, 1, &self.data_file, &self.data_metadata)
+            .map(|mut rdr| rdr.read_u64::<LittleEndian>().unwrap())
+            .filter(|el| *el != num::cast::<u32, u64>(u32::MAX).unwrap())
     }
 
     #[inline]
@@ -478,7 +479,9 @@ impl IndexIdToParent for SingleArrayFileReader<u64> {
 impl IndexIdToParent for SingleArrayFileReader<u32> {
     #[inline]
     fn get_value(&self, find: u64) -> Option<u32> {
-        get_reader(std::mem::size_of::<u32>(), find, 1, &self.data_file, &self.data_metadata).map(|mut rdr| rdr.read_u32::<LittleEndian>().unwrap()).filter(|el| *el != u32::MAX)
+        get_reader(std::mem::size_of::<u32>(), find, 1, &self.data_file, &self.data_metadata)
+            .map(|mut rdr| rdr.read_u32::<LittleEndian>().unwrap())
+            .filter(|el| *el != u32::MAX)
     }
 
     #[inline]
