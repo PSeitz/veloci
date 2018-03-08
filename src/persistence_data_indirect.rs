@@ -634,7 +634,7 @@ impl<T: IndexIdToParentData> IndexIdToParent for PointingMMAPFileReader<T> {
 
 #[inline(always)]
 fn get_u32_values_from_pointing_mmap_file(find: u64, size: usize, start_and_end_file: &Mmap, data_file: &Mmap) -> Option<Vec<u32>> {
-    debug_time!("get_u32_values_from_pointing_file");
+    trace_time!("get_u32_values_from_mmap_file");
     if find >= size as u64 {
         return None;
     }
@@ -755,7 +755,7 @@ impl IndexIdToParent for PointingArrayFileReader<u32> {
 
 #[inline(always)]
 fn get_u32_values_from_pointing_file(find: u64, size: usize, start_and_end_file: &Mutex<fs::File>, data_file: &Mutex<fs::File>) -> Option<Vec<u32>> {
-    debug_time!("get_u32_values_from_pointing_file");
+    trace_time!("get_u32_values_from_pointing_file");
     if find >= size as u64 {
         return None;
     }

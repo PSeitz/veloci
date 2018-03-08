@@ -552,7 +552,7 @@ where
             });
 
             if options.tokenize && tokenizer.has_tokens(value) {
-                if data.value_id_to_token_ids.get_values(text_info.id as u64).is_none() {
+                if data.value_id_to_token_ids.get_values(text_info.id as u64).is_none() { // tokenize text_id only once
                     let mut tokens_to_text_id = vec![];
                     let mut current_token_pos = 0;
                     let mut tokens_ids = vec![];

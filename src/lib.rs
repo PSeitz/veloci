@@ -70,11 +70,6 @@ extern crate trie;
 extern crate prettytable;
 
 extern crate levenshtein_automaton;
-// extern crate bodyparser;
-// extern crate hyper;
-// extern crate iron;
-// extern crate iron_cors;
-// extern crate router;
 extern crate snap;
 extern crate time;
 
@@ -97,20 +92,6 @@ extern crate sled;
 extern crate colored;
 extern crate mayda;
 extern crate utf8_ranges;
-
-// use fst::{IntoStreamer, Streamer, Set, MapBuilder};
-#[allow(unused_imports)]
-use fst::{IntoStreamer, MapBuilder, Set};
-#[allow(unused_imports)]
-use std::io::{self, BufRead};
-#[allow(unused_imports)]
-use fnv::FnvHashSet;
-#[allow(unused_imports)]
-use std::collections::HashSet;
-#[allow(unused_imports)]
-use std::collections::HashMap;
-#[allow(unused_imports)]
-use fnv::FnvHashMap;
 
 #[macro_use]
 extern crate lazy_static;

@@ -12,7 +12,7 @@ pub fn get_top_facet_group<T: IndexIdToParentData>(hits: &FnvHashMap<T, usize>, 
 
     //TODO MERGECODE with below
     groups.sort_by(|a, b| b.1.cmp(&a.1));
-    groups = apply_top_skip(groups, None, top);
+    groups = apply_top_skip(&groups, None, top);
     groups
 }
 
@@ -73,7 +73,7 @@ pub fn get_facet(persistence: &Persistence, req: &FacetRequest, ids: &[u32]) -> 
             groups.push((key, group.count()));
         }
         groups.sort_by(|a, b| b.1.cmp(&a.1));
-        groups = apply_top_skip(groups, None, req.top);
+        groups = apply_top_skip(&groups, None, req.top);
     }
 
     let groups_with_text = groups
@@ -95,7 +95,7 @@ pub fn join_anchor_to_leaf(persistence: &Persistence, ids: &[u32], steps: &Vec<S
         join_for_n_to_m(persistence, ids, &(steps.first().unwrap().to_string() + ".parentToValueId"))?
     };
     for step in steps.iter().skip(1) {
-        debug_time!(format!("facet step {:?}", step));
+        // debug_time!(format!("facet step {:?}", step));
         debug!("facet step {:?}", step);
         next_level_ids = join_for_n_to_m(persistence, &next_level_ids, &(step.to_string() + ".parentToValueId"))?;
     }

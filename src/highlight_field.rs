@@ -31,10 +31,10 @@ pub fn highlight_document(
     opt: &SnippetInfo,
 ) -> Result<Option<String>, search::SearchError> {
     let value_id_to_token_ids = persistence.get_valueid_to_parent(&concat(path, ".value_id_to_token_ids"))?;
-    debug_time!(format!("highlight_document id {}", value_id));
+    trace_time!(format!("highlight_document id {}", value_id));
 
     let documents_token_ids: Vec<u32> = {
-        debug_time!("get documents_token_ids");
+        trace_time!("get documents_token_ids");
         persistence::trace_index_id_to_parent(value_id_to_token_ids);
 
         let vals = value_id_to_token_ids.get_values(value_id);
@@ -84,9 +84,6 @@ pub fn highlight_document(
         return Ok(None); //No hits
     }
     token_positions_in_document.sort();
-
-    println!("documents_token_ids {:?}", documents_token_ids.len());
-    println!("token_positions_in_document {:?}", token_positions_in_document.len());
 
     let num_tokens = opt.num_words_around_snippet * 2; // token seperator token seperator
 

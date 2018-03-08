@@ -356,7 +356,8 @@ fn get_why_found(
     anchor_ids: &[u32],
     term_id_hits_in_field: &FnvHashMap<String, FnvHashMap<String, Vec<TermId>>>,
 ) -> Result<FnvHashMap<u32, FnvHashMap<String, Vec<String>>>, SearchError> {
-    info!("why_found info {:?}", term_id_hits_in_field);
+    debug!("why_found info {:?}", term_id_hits_in_field);
+    info_time!("why_found");
     let mut anchor_highlights = FnvHashMap::default();
 
     for (path, term_with_ids) in term_id_hits_in_field.iter() {
@@ -373,7 +374,7 @@ fn get_why_found(
         }
 
         for anchor_id in anchor_ids {
-            info_time!(format!("highlight anchor_id {:?}", anchor_id));
+            //debug_time!(format!("highlight anchor_id {:?}", anchor_id)); // TODO flip loops and trace time per anchor
             let ids = facet::join_anchor_to_leaf(persistence, &vec![*anchor_id], &paths)?;
 
             for value_id in ids {
@@ -400,12 +401,15 @@ pub fn search(mut request: Request, persistence: &Persistence) -> Result<SearchR
     // let skip = request.skip.unwrap_or(0);
     // let top = request.top.unwrap_or(10);
 
-    let plan = plan_creator(request.clone());
-    let yep = plan.get_output();
-    plan.execute_step(persistence)?;
-    // execute_step(plan, persistence)?;
-    let mut res = yep.recv()?;
-    drop(yep);
+    let mut res={
+        info_time!("search terms");
+        let plan = plan_creator(request.clone());
+        let yep = plan.get_output();
+        plan.execute_step(persistence)?;
+        let mut res = yep.recv()?;
+        drop(yep);
+        res
+    };
 
     // let res = search_unrolled(&persistence, request)?;
     // println!("{:?}", res);
@@ -429,13 +433,21 @@ pub fn search(mut request: Request, persistence: &Persistence) -> Result<SearchR
     }
     search_result.num_hits = search_result.data.len() as u64;
 
+    let topn_results = apply_top_skip(&search_result.data, request.skip, request.top);
+
     if let Some(facets_req) = request.facets {
         let mut hit_ids: Vec<u32> = {
-            debug_time!("get_and_sort_for_factes");
+            debug_time!("get_and_sort_for_factes"); // THIS IS TOO SLOW
             let mut hit_ids: Vec<u32> = search_result.data.iter().map(|el| el.id).collect();
             hit_ids.sort_unstable();
             hit_ids
         };
+
+        // {
+        //     debug_time!("sort only _for_factes");
+        //     search_result.data.sort_unstable_by_key(|a| a.id);
+        // }
+
         search_result.facets = Some(
             facets_req
                 .par_iter()
@@ -443,7 +455,7 @@ pub fn search(mut request: Request, persistence: &Persistence) -> Result<SearchR
                 .collect(),
         );
     }
-    search_result.data = apply_top_skip(search_result.data, request.skip, request.top);
+    search_result.data = topn_results;
 
     let anchor_ids: Vec<u32> = search_result.data.iter().map(|el| el.id).collect();
     let why_found_info = get_why_found(&persistence, &anchor_ids, &term_id_hits_in_field)?;
@@ -586,7 +598,7 @@ pub fn apply_boost_term(persistence: &Persistence, mut res: SearchFieldResult, b
 
 //TODO no copy
 #[cfg_attr(feature = "flame_it", flame)]
-pub fn apply_top_skip<T: Clone>(hits: Vec<T>, skip: Option<usize>, top: Option<usize>) -> Vec<T> {
+pub fn apply_top_skip<T: Clone>(hits: &Vec<T>, skip: Option<usize>, top: Option<usize>) -> Vec<T> {
     let skip = skip.unwrap_or(0);
     if let Some(mut top) = top {
         top = cmp::min(top + skip, hits.len());
@@ -640,20 +652,28 @@ pub fn get_longest_result<T: std::iter::ExactSizeIterator>(results: &Vec<T>) -> 
 //     result
 // }
 
-fn merge_term_id_hits(results: &mut Vec<SearchFieldResult>) -> FnvHashMap<String, FnvHashMap<String, Vec<TermId>>> {
+fn merge_term_id_hits(results: &mut Vec<SearchFieldResult>) -> FnvHashMap<String, FnvHashMap<String, Vec<TermId>>> { //attr -> term -> hits
     let mut term_id_hits_in_field = FnvHashMap::default();
     for el in results.iter_mut() {
-        for (k, v) in el.term_id_hits_in_field.drain() {
-            term_id_hits_in_field.insert(k, v);
+        for (attr, mut v) in el.term_id_hits_in_field.drain() {
+            // term_id_hits_in_field.insert(attr, v);
+            let attr_term_hits = term_id_hits_in_field.entry(attr).or_insert(FnvHashMap::default());
+            for (term, hits) in v.drain() {
+                attr_term_hits.insert(term, hits);
+            }
         }
     }
+    println!("term_id_hits_in_field {:?}", term_id_hits_in_field);
     term_id_hits_in_field
 }
 
 #[cfg_attr(feature = "flame_it", flame)]
 pub fn union_hits_vec(mut or_results: Vec<SearchFieldResult>) -> SearchFieldResult {
+    let term_id_hits_in_field = { merge_term_id_hits(&mut or_results) };
     if or_results.len() == 1 {
-        return or_results.swap_remove(0);
+        let mut res = or_results.swap_remove(0);
+        res.term_id_hits_in_field = term_id_hits_in_field;
+        return res;
     }
 
     let index_longest = get_longest_result(&or_results.iter().map(|el| el.hits_vec.iter()).collect());
@@ -719,8 +739,6 @@ pub fn union_hits_vec(mut or_results: Vec<SearchFieldResult>) -> SearchFieldResu
             //TODO ALSO DEDUP???
         }
     }
-
-    let term_id_hits_in_field = { merge_term_id_hits(&mut or_results) };
 
     let iterators: Vec<_> = or_results.iter().map(|el| el.hits_vec.iter()).collect();
 
@@ -791,8 +809,11 @@ fn union_hits_vec_test() {
 
 #[cfg_attr(feature = "flame_it", flame)]
 pub fn intersect_hits_vec(mut and_results: Vec<SearchFieldResult>) -> SearchFieldResult {
+    let term_id_hits_in_field = { merge_term_id_hits(&mut and_results) };
     if and_results.len() == 1 {
-        return and_results.swap_remove(0);
+        let mut res = and_results.swap_remove(0);
+        res.term_id_hits_in_field = term_id_hits_in_field;
+        return res;
     }
     let index_shortest = get_shortest_result(&and_results.iter().map(|el| el.hits_vec.iter()).collect());
 
@@ -803,7 +824,6 @@ pub fn intersect_hits_vec(mut and_results: Vec<SearchFieldResult>) -> SearchFiel
 
     // let mut iterators = &and_results.iter().map(|el| el.hits_vec.iter()).collect::<Vec<_>>();
 
-    let term_id_hits_in_field = { merge_term_id_hits(&mut and_results) };
 
     let mut iterators_and_current = and_results
         .iter_mut()

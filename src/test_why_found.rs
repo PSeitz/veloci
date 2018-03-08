@@ -121,6 +121,31 @@ mod tests {
             assert_eq!(hits[0].why_found["buch"], vec!["<b>Taschenbuch</b> (kartoniert)"]);
         }
 
+        it "should add highlight multi terms"{
+            let req = json!({
+                "or":[
+                {
+                    "search": {
+                        "terms":["Taschenbuch"],
+                        "path": "buch",
+                        "levenshtein_distance": 1
+                    },
+                    "why_found":true
+                },{
+                    "search": {
+                        "terms":["kartoniert"],
+                        "path": "buch",
+                        "levenshtein_distance": 1
+                    },
+                    "why_found":true
+                }],
+                "why_found":true
+            });
+
+            let hits = search_testo_to_doc(req).data;
+            assert_eq!(hits[0].why_found["buch"], vec!["<b>Taschenbuch</b> (<b>kartoniert</b>)"]);
+        }
+
     }
 
 }

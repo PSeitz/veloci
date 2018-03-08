@@ -54,5 +54,6 @@ Cargo.lock
 /create_perf/
 
 .criterion
+data
 
 
