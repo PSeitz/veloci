@@ -53,15 +53,17 @@ pub fn get_facet(persistence: &Persistence, req: &FacetRequest, ids: &[u32]) -> 
         return Ok(groups_with_text);
     }
 
-    let mut next_level_ids = {
-        debug_time!(format!("facets in field first join {:?}", req.field));
-        join_for_n_to_m(persistence, ids, &(steps.first().unwrap().to_string() + ".parentToValueId"))?
-    };
-    for step in steps.iter().skip(1) {
-        debug_time!(format!("facet step {:?}", step));
-        debug!("facet step {:?}", step);
-        next_level_ids = join_for_n_to_m(persistence, &next_level_ids, &(step.to_string() + ".parentToValueId"))?;
-    }
+    // let mut next_level_ids = {
+    //     debug_time!(format!("facets in field first join {:?}", req.field));
+    //     join_for_n_to_m(persistence, ids, &(steps.first().unwrap().to_string() + ".parentToValueId"))?
+    // };
+    // for step in steps.iter().skip(1) {
+    //     debug_time!(format!("facet step {:?}", step));
+    //     debug!("facet step {:?}", step);
+    //     next_level_ids = join_for_n_to_m(persistence, &next_level_ids, &(step.to_string() + ".parentToValueId"))?;
+    // }
+
+    let mut next_level_ids = join_anchor_to_leaf(persistence, ids, &steps)?;
 
     let mut groups = vec![];
     {
@@ -80,6 +82,27 @@ pub fn get_facet(persistence: &Persistence, req: &FacetRequest, ids: &[u32]) -> 
         .collect();
     debug!("{:?}", groups_with_text);
     Ok(groups_with_text)
+}
+
+
+pub fn join_anchor_to_leaf(persistence: &Persistence, ids: &[u32], steps: &Vec<String>) -> Result<Vec<u32>, SearchError> {
+
+    //Use facet index as shortcut
+    if persistence.has_index(&(steps.last().unwrap().to_string() + ".anchor_to_text_id")) {
+        return Ok(join_for_n_to_m(persistence, ids, &(steps.last().unwrap().to_string() + ".anchor_to_text_id"))?);
+    }
+
+    let mut next_level_ids = {
+        // debug_time!(format!("facets in field first join {:?}", req.field));
+        join_for_n_to_m(persistence, ids, &(steps.first().unwrap().to_string() + ".parentToValueId"))?
+    };
+    for step in steps.iter().skip(1) {
+        debug_time!(format!("facet step {:?}", step));
+        debug!("facet step {:?}", step);
+        next_level_ids = join_for_n_to_m(persistence, &next_level_ids, &(step.to_string() + ".parentToValueId"))?;
+    }
+
+    Ok(next_level_ids)
 }
 
 #[cfg_attr(feature = "flame_it", flame)]

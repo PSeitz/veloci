@@ -23,6 +23,7 @@ use num::{self, Integer, NumCast};
 use num::cast::ToPrimitive;
 
 use serde_json;
+use serde_json::{Deserializer, StreamDeserializer};
 use serde_json::Value;
 
 #[allow(unused_imports)]
@@ -409,25 +410,34 @@ impl Persistence {
         })
     }
 
-    pub fn write_indirect_index(&mut self, data: &IndexIdToParent<Output = u32>, path: &str, sort_and_dedup: bool, max_value_id: u32) -> Result<(), io::Error> {
+    pub fn create_write_indirect_index(&mut self, data: &IndexIdToParent<Output = u32>, path: &str, sort_and_dedup: bool) -> Result<(), io::Error> {
+        let store = IndexIdToMultipleParentIndirect::new_sort_and_dedup(data, sort_and_dedup);
+        self.write_indirect_index(&store, path)?;
+        Ok(())
+    }
+
+    pub fn write_indirect_index(&mut self, store: &IndexIdToMultipleParentIndirect<u32>, path: &str) -> Result<(), io::Error> {
+        let max_value_id = *store.data.iter().max_by_key(|el| *el).unwrap_or(&0);
+        let avg_join_size = calc_avg_join_size(store.num_values, store.num_ids);
+
         let indirect_file_path = util::get_file_path(&self.db, &(path.to_string() + ".indirect"));
         let data_file_path = util::get_file_path(&self.db, &(path.to_string() + ".data"));
-
-        let store = IndexIdToMultipleParentIndirect::new_sort_and_dedup(data, sort_and_dedup);
 
         File::create(indirect_file_path)?.write_all(&vec_to_bytes_u32(&store.start_and_end))?;
         File::create(data_file_path)?.write_all(&vec_to_bytes_u32(&store.data))?;
         self.meta_data.key_value_stores.push(KVStoreMetaData {
-            loading_type: LoadingType::InMemory,
+            loading_type: LoadingType::Disk,
             persistence_type: KVStoreType::IndexIdToMultipleParentIndirect,
             is_1_to_n: store.is_1_to_n(),
             path: path.to_string(),
             max_value_id: max_value_id,
-            avg_join_size: store.avg_join_size,
+            avg_join_size: avg_join_size,
         });
 
         Ok(())
     }
+
+
     pub fn write_direct_index(&mut self, data: &IndexIdToParent<Output = u32>, path: &str, max_value_id: u32) -> Result<(), io::Error> {
         let data_file_path = util::get_file_path(&self.db, &(path.to_string() + ".data_direct"));
 
@@ -435,12 +445,12 @@ impl Persistence {
 
         File::create(data_file_path)?.write_all(&vec_to_bytes_u32(&store.data))?;
         self.meta_data.key_value_stores.push(KVStoreMetaData {
-            loading_type: LoadingType::InMemory,
+            loading_type: LoadingType::Disk,
             persistence_type: KVStoreType::IndexIdToOneParent,
             is_1_to_n: false,
             path: path.to_string(),
             max_value_id: max_value_id,
-            avg_join_size: 1 as f32, //TODO FIXME CHECKO NULLOS
+            avg_join_size: 1 as f32, //TODO FIXME CHECKO NULLOS, 1 is not exact enough
         });
 
         Ok(())
@@ -460,12 +470,12 @@ impl Persistence {
         is_always_1_to_1: bool,
     ) -> Result<(), io::Error> {
         let data = valid_pair_to_parallel_arrays::<u32>(tuples);
-        let max_value_id = tuples.iter().max_by_key(|el| el.parent_val_id).map(|el| el.parent_val_id).unwrap_or(0);
 
         if is_always_1_to_1 {
+            let max_value_id = tuples.iter().max_by_key(|el| el.parent_val_id).map(|el| el.parent_val_id).unwrap_or(0);
             self.write_direct_index(&data, path, max_value_id)?;
         } else {
-            self.write_indirect_index(&data, path, sort_and_dedup, max_value_id)?;
+            self.create_write_indirect_index(&data, path, sort_and_dedup)?;
         }
         //Parallel
         // let encoded: Vec<u8> = serialize(&data, Infinite).unwrap();
@@ -484,7 +494,7 @@ impl Persistence {
         File::create(util::get_file_path(&self.db, &boost_path))?.write_all(&encoded)?;
 
         self.meta_data.boost_stores.push(KVStoreMetaData {
-            loading_type: LoadingType::InMemory,
+            loading_type: LoadingType::Disk,
             persistence_type: KVStoreType::ParallelArrays,
             is_1_to_n: data.is_1_to_n(),
             path: boost_path.to_string(),
@@ -547,18 +557,50 @@ impl Persistence {
         Ok(io::BufWriter::new(File::create(&get_file_path(&self.db, path))?))
     }
 
+    // #[cfg_attr(feature = "flame_it", flame)]
+    // pub fn write_json_to_disk(&mut self, arro: &[Value], path: &str) -> Result<(), io::Error> {
+    //     let mut offsets = vec![];
+    //     let mut buffer = File::create(&get_file_path(&self.db, path))?;
+    //     let mut current_offset = 0;
+    //     // let arro = data.as_array().unwrap();
+    //     for el in arro {
+    //         let el_str = el.to_string().into_bytes();
+    //         buffer.write_all(&el_str)?;
+    //         offsets.push(current_offset as u64);
+    //         current_offset += el_str.len();
+    //     }
+    //     offsets.push(current_offset as u64);
+    //     // println!("json offsets: {:?}", offsets);
+    //     self.write_index(&vec_to_bytes_u64(&offsets), &offsets, &(path.to_string() + ".offsets"))?;
+    //     Ok(())
+    // }
+
+
+
     #[cfg_attr(feature = "flame_it", flame)]
-    pub fn write_json_to_disk(&mut self, arro: &[Value], path: &str) -> Result<(), io::Error> {
+    pub fn write_json_to_disk<'a, T>(&mut self, data: StreamDeserializer<'a, T, Value>, path: &str) -> Result<(), io::Error>
+        where
+        T: serde_json::de::Read<'a>
+    {
+
         let mut offsets = vec![];
         let mut buffer = File::create(&get_file_path(&self.db, path))?;
         let mut current_offset = 0;
         // let arro = data.as_array().unwrap();
-        for el in arro {
+
+        util::iter_json_stream(data, &mut |el:&serde_json::Value|{
             let el_str = el.to_string().into_bytes();
-            buffer.write_all(&el_str)?;
+            buffer.write_all(&el_str).unwrap();
             offsets.push(current_offset as u64);
             current_offset += el_str.len();
-        }
+        });
+
+        // for el in arro {
+        //     let el_str = el.to_string().into_bytes();
+        //     buffer.write_all(&el_str)?;
+        //     offsets.push(current_offset as u64);
+        //     current_offset += el_str.len();
+        // }
         offsets.push(current_offset as u64);
         // println!("json offsets: {:?}", offsets);
         self.write_index(&vec_to_bytes_u64(&offsets), &offsets, &(path.to_string() + ".offsets"))?;
@@ -700,6 +742,8 @@ impl Persistence {
                                 data: data_u32,
                                 max_value_id: el.max_value_id,
                                 avg_join_size: el.avg_join_size,
+                                num_values:0,
+                                num_ids:0
                             };
 
                             return Ok((el.path.to_string(), Box::new(store) as Box<IndexIdToParent<Output = u32>>));

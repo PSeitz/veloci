@@ -26,7 +26,7 @@ fn main() {
             "healthcare" => println!("{:?}", create_healtcare()),
             "jmdict" => println!("{:?}", create_jmdict_index()),
             "gutenberg" => println!("{:?}", create_book_index()),
-            "thalia" => println!("{:?}", create_thalia_index()),
+            // "thalia" => println!("{:?}", create_thalia_index()),
             "thalia_big" => println!("{:?}", create_thalia_index_big()),
             _ => {}
         };
@@ -90,41 +90,42 @@ static TAHLIA_INDICES: &str = r#"
 
 // "#;
 
-#[allow(dead_code)]
-fn create_thalia_index() {
-    // let all_terms = loadcsv("./data.csv", 0);
-    // println!("{:?}", all_terms.len());
+// #[allow(dead_code)]
+// fn create_thalia_index() {
+//     // let all_terms = loadcsv("./data.csv", 0);
+//     // println!("{:?}", all_terms.len());
 
-    let headers = vec![
-        "MATNR".to_string(),
-        "ISMTITLE".to_string(),
-        "ISMORIGTITLE".to_string(),
-        "ISMSUBTITLE1".to_string(),
-        "ISMSUBTITLE2".to_string(),
-        "ISMSUBTITLE3".to_string(),
-        "ISMARTIST".to_string(),
-        "ISMLANGUAGES".to_string(),
-        "ISMPUBLDATE".to_string(),
-        "EAN11".to_string(),
-        "ISMORIDCODE".to_string(),
-    ];
+//     let headers = vec![
+//         "MATNR".to_string(),
+//         "ISMTITLE".to_string(),
+//         "ISMORIGTITLE".to_string(),
+//         "ISMSUBTITLE1".to_string(),
+//         "ISMSUBTITLE2".to_string(),
+//         "ISMSUBTITLE3".to_string(),
+//         "ISMARTIST".to_string(),
+//         "ISMLANGUAGES".to_string(),
+//         "ISMPUBLDATE".to_string(),
+//         "EAN11".to_string(),
+//         "ISMORIDCODE".to_string(),
+//     ];
 
-    let json = search_lib::create_from_csv::convert_to_json("./data 2.csv", headers);
-    println!("converted json");
+//     let json = search_lib::create_from_csv::convert_to_json("./data 2.csv", headers);
+//     println!("converted json");
 
-    File::create("thalia.json")
-        .unwrap()
-        .write_all(serde_json::to_string_pretty(&json).unwrap().as_bytes())
-        .unwrap();
+//     File::create("thalia.json")
+//         .unwrap()
+//         .write_all(serde_json::to_string_pretty(&json).unwrap().as_bytes())
+//         .unwrap();
 
-    println!("{:?}", search_lib::create::create_indices_json("thalia", &json, TAHLIA_INDICES));
-    // File::create("MATNR").unwrap().write_all(all_terms.join("\n").as_bytes()).unwrap();
+//     println!("{:?}", search_lib::create::create_indices_json("thalia", &json, TAHLIA_INDICES));
+//     // File::create("MATNR").unwrap().write_all(all_terms.join("\n").as_bytes()).unwrap();
 
-    // println!("{:?}", search_lib::create::create_indices_csv("csv_test", "./data.csv", TAHLIA_INDICES));
-}
+//     // println!("{:?}", search_lib::create::create_indices_csv("csv_test", "./data.csv", TAHLIA_INDICES));
+// }
+
 #[allow(dead_code)]
 fn create_thalia_index_big() -> Result<(), io::Error> {
-    let mut f = File::open("thalia_big.json")?;
+    let mut f = File::open("data")?;
     let mut json = String::new();
     f.read_to_string(&mut json)?;
 

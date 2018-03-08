@@ -43,11 +43,13 @@ Cargo.lock
 
 /jmdict/
 /mochaTest/
+/mochaTest_wf/
 /healthcare/
 /csv_test/
 /hoho/
 /gutenberg/
 /thalia/
+/thalia2/
 /test_pointing_file_array/
 /create_perf/
 

@@ -260,6 +260,7 @@ pub fn start_server() {
             map.get("levenshtein").map(|el| el.parse::<usize>().unwrap()).clone(),
             map.get("levenshtein_auto_limit").map(|el| el.parse::<usize>().unwrap()).clone(),
             facetlimit,
+            None,
             facets,
             fields,
             boost_fields,

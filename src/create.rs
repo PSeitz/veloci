@@ -9,11 +9,20 @@ use json_converter;
 use std::{self, str};
 use std::io;
 
+use persistence_data_indirect::*;
+
 use persistence::{LoadingType, Persistence};
 use serde_json::{Deserializer, StreamDeserializer};
 use util::*;
 
 use log;
+use num::ToPrimitive;
+#[allow(unused_imports)]
+use sled;
+#[allow(unused_imports)]
+use byteorder::{LittleEndian, WriteBytesExt};
+
+use tokenizer::*;
 
 #[allow(unused_imports)]
 use fst::{self, IntoStreamer, MapBuilder, Set};
@@ -101,7 +110,7 @@ pub fn set_ids(terms: &mut FnvHashMap<String, TermInfo>) {
     v.sort();
     for (i, term) in v.iter().enumerate() {
         // terms.get_mut(term)
-        if let Some(term_info) = terms.get_mut(&term.clone()) {
+        if let Some(term_info) = terms.get_mut(term) {
             term_info.id = i as u32;
         }
     }
@@ -135,7 +144,7 @@ pub struct ValIdPairToken {
 #[derive(Debug, Default, Clone)]
 pub struct TokenToAnchorScore {
     pub valid: u32,
-    pub anchor_id: u32,
+    pub text_id: u32,
     pub score: u32,
 }
 
@@ -191,6 +200,17 @@ fn print_vec(vec: &Vec<ValIdPair>, valid_header: &str, parentid_header: &str) ->
             .join("")
 }
 
+use persistence::IndexIdToParent;
+#[allow(dead_code)]
+fn print_index_id_to_parent(vec: &IndexIdToMultipleParentIndirect<u32>, valid_header: &str, parentid_header: &str) -> String {
+    let keys = vec.get_keys();
+    format!("{}\t{}", valid_header, parentid_header)
+        + &keys.iter()
+            .map(|key| format!("\n{}\t{:?}", key, vec.get_values(*key as u64)))
+            .collect::<Vec<_>>()
+            .join("")
+}
+
 use persistence;
 
 fn store_full_text_info(
@@ -203,14 +223,17 @@ fn store_full_text_info(
     let mut sorted_terms: Vec<&String> = all_terms.keys().collect::<Vec<&String>>();
     sorted_terms.sort();
 
-    persistence.write_data(
-        path,
-        sorted_terms
-            .iter()
-            .fold(String::with_capacity(sorted_terms.len() * 10), |acc, line| acc + line + "\n")
-            .as_bytes(),
-    )?;
-    let offsets = get_string_offsets(&sorted_terms);
+    // Store original strings and offsets
+    // persistence.write_data(
+    //     path,
+    //     sorted_terms
+    //         .iter()
+    //         .fold(String::with_capacity(sorted_terms.len() * 10), |acc, line| acc + line + "\n")
+    //         .as_bytes(),
+    // )?;
+    let offsets = get_string_offsets(&sorted_terms);        // TODO REPLACE OFFSET STUFF IN search field with something else
+    persistence.write_index(&persistence::vec_to_bytes_u64(&offsets), &offsets, &concat(path, ".offsets"))?;
+    // Store original strings and offsets
 
     //TEST FST AS ID MAPPER
     // let mut offsets_fst: FnvHashMap<String, TermInfo> = FnvHashMap::default();
@@ -224,7 +247,6 @@ fn store_full_text_info(
     // store_fst(persistence, &offsets_fst, &concat(&path, ".offsets")).expect("Could not store fst");
     //TEST FST AS ID MAPPER
 
-    persistence.write_index(&persistence::vec_to_bytes_u64(&offsets), &offsets, &concat(path, ".offsets"))?;
     store_fst(persistence, &all_terms, sorted_terms, path).expect("Could not store fst");
     persistence.meta_data.fulltext_indices.insert(path.to_string(), options.clone());
     Ok(())
@@ -250,12 +272,6 @@ fn store_fst(persistence: &mut Persistence, all_terms: &FnvHashMap<String, TermI
 
     Ok(())
 }
-#[allow(unused_imports)]
-use sled;
-#[allow(unused_imports)]
-use byteorder::{LittleEndian, WriteBytesExt};
-
-use tokenizer::*;
 
 fn add_count_text(terms: &mut FnvHashMap<String, TermInfo>, text: &str) {
     if !terms.contains_key(text) {
@@ -281,18 +297,17 @@ fn add_text<T: Tokenizer>(text: &str, terms: &mut FnvHashMap<String, TermInfo>, 
 
     if options.tokenize && tokenizer.has_tokens(&text) {
         tokenizer.get_tokens(&text, &mut |token: &str, _is_seperator: bool| {
-            // let token_str = token.to_string();
             if options.stopwords.as_ref().map(|el| el.contains(token)).unwrap_or(false) {
                 return;
             }
             add_count_text(terms, token);
-
             // //Add lowercase version for non seperators
             // if !is_seperator{
             //     let stat = terms.entry(token_str.to_lowercase().trim().to_string()).or_insert(TermInfo::default());
             //     stat.num_occurences += 1;
             // }
         });
+
     }
 }
 
@@ -310,7 +325,7 @@ where
     map.get_mut(key).unwrap()
 }
 use itertools::Itertools;
-fn calculate_token_score_in_doc(tokens_to_anchor: &mut Vec<ValIdPairToken>) -> Vec<TokenToAnchorScore> {
+fn calculate_token_score_in_doc(tokens_to_text_id: &mut Vec<ValIdPairToken>) -> Vec<TokenToAnchorScore> {
     // TokenToAnchorScore {
     //     pub valid: u32,
     //     pub anchor_id: u32,
@@ -321,7 +336,7 @@ fn calculate_token_score_in_doc(tokens_to_anchor: &mut Vec<ValIdPairToken>) -> V
     // parent_val_id: u32,
     // token_pos: u32,
     // num_occurences: u32,
-    tokens_to_anchor.sort_unstable_by(|a, b| {
+    tokens_to_text_id.sort_unstable_by(|a, b| {
         let sort_anch = a.parent_val_id.cmp(&b.parent_val_id);
         if sort_anch == std::cmp::Ordering::Equal {
             let sort_valid = a.valid.cmp(&b.valid);
@@ -336,7 +351,7 @@ fn calculate_token_score_in_doc(tokens_to_anchor: &mut Vec<ValIdPairToken>) -> V
     }); // sort by parent id
 
     let mut dat = vec![];
-    for (_, mut group) in &tokens_to_anchor.into_iter().group_by(|el| (el.parent_val_id, el.valid)) {
+    for (_, mut group) in &tokens_to_text_id.into_iter().group_by(|el| (el.parent_val_id, el.valid)) {
         let first = group.next().unwrap();
         let best_pos = first.token_pos;
 
@@ -364,7 +379,7 @@ fn calculate_token_score_in_doc(tokens_to_anchor: &mut Vec<ValIdPairToken>) -> V
 
         dat.push(TokenToAnchorScore {
             valid: first.valid,
-            anchor_id: first.parent_val_id,
+            text_id: first.parent_val_id,
             score: score,
         });
     }
@@ -372,7 +387,10 @@ fn calculate_token_score_in_doc(tokens_to_anchor: &mut Vec<ValIdPairToken>) -> V
     dat
 }
 
-pub fn get_allterms(data: &Value, fulltext_info_for_path: &FnvHashMap<String, Fulltext>) -> FnvHashMap<String, FnvHashMap<String, TermInfo>> {
+pub fn get_allterms<'a, T>(stream: StreamDeserializer<'a, T, Value>, fulltext_info_for_path: &FnvHashMap<String, Fulltext>) -> FnvHashMap<String, FnvHashMap<String, TermInfo>>
+where
+    T: serde_json::de::Read<'a>
+{
     info_time!("get_allterms dictionary");
     let mut terms_in_path: FnvHashMap<String, FnvHashMap<String, TermInfo>> = FnvHashMap::default();
 
@@ -380,9 +398,6 @@ pub fn get_allterms(data: &Value, fulltext_info_for_path: &FnvHashMap<String, Fu
     let mut id_holder = json_converter::IDHolder::new();
 
     //let num_elements = if let Some(arr) = data.as_array() { arr.len() } else { 1 };
-
-    let data_str = serde_json::to_string(&data).unwrap();                                   //TODO: FIXME move to interface
-    let stream = Deserializer::from_str(&data_str).into_iter::<Value>();
 
     let tokenizer = SimpleTokenizerCharsIterateGroupTokens {};
     let default_fulltext_options = FulltextIndexOptions::new_with_tokenize();
@@ -407,6 +422,7 @@ pub fn get_allterms(data: &Value, fulltext_info_for_path: &FnvHashMap<String, Fu
     }
 
     {
+        info_time!("set term ids");
         for mut terms in terms_in_path.values_mut() {
             set_ids(&mut terms);
         }
@@ -417,16 +433,18 @@ pub fn get_allterms(data: &Value, fulltext_info_for_path: &FnvHashMap<String, Fu
 #[derive(Debug, Default, Clone)]
 struct PathData {
     tokens_to_parent: Vec<ValIdPair>,
-    tokens_to_anchor: Vec<ValIdPairToken>,
-    value_id_to_token_ids: Vec<ValIdPair>,
+    tokens_to_text_id: Vec<ValIdPairToken>,
+    value_id_to_token_ids: IndexIdToMultipleParentIndirect<u32>,
     text_id_to_parent: Vec<ValIdPair>,
+    text_id_to_anchor: Vec<ValIdPair>,
     anchor_to_text_id: Option<Vec<ValIdPair>>,
     boost: Option<Vec<ValIdToValue>>,
 }
 
-pub fn create_fulltext_index(data: &Value, mut persistence: &mut Persistence, indices_json: &Vec<CreateIndex>) -> Result<(), io::Error> {
-    // let data: Value = serde_json::from_str(data_str).unwrap();
-    // let num_elements = if let Some(arr) = data.as_array() { arr.len() } else { 1 };
+pub fn create_fulltext_index<'a, T>(stream1: StreamDeserializer<'a, T, Value>, stream2: StreamDeserializer<'a, T, Value>, mut persistence: &mut Persistence, indices_json: &Vec<CreateIndex>) -> Result<(), io::Error>
+where
+    T: serde_json::de::Read<'a>
+{
 
     let fulltext_info_for_path: FnvHashMap<String, Fulltext> = indices_json
         .iter()
@@ -457,15 +475,12 @@ pub fn create_fulltext_index(data: &Value, mut persistence: &mut Persistence, in
         })
         .collect();
 
-    let all_terms_in_path = get_allterms(&data, &fulltext_info_for_path);
+    let all_terms_in_path = get_allterms(stream1, &fulltext_info_for_path);
     info_time!("create_fulltext_index");
     trace!("all_terms {:?}", all_terms_in_path);
 
     let mut opt = json_converter::ForEachOpt {};
     let mut id_holder = json_converter::IDHolder::new();
-
-    let data_str = serde_json::to_string(&data).unwrap();                                   //TODO: FIXME move to interface
-    let stream = Deserializer::from_str(&data_str).into_iter::<Value>();
 
     let mut path_data: FnvHashMap<String, PathData> = FnvHashMap::default();
 
@@ -480,7 +495,7 @@ pub fn create_fulltext_index(data: &Value, mut persistence: &mut Persistence, in
             let data = get_or_insert(&mut path_data, path, &|| {
                 let boost_info_data = if boost_info_for_path.contains_key(path) { Some(vec![]) } else { None };
 
-                let anchor_to_text_id = if facet_index.contains(path) { Some(vec![]) } else { None };
+                let anchor_to_text_id = if facet_index.contains(path) && path.contains("[]") { Some(vec![]) } else { None }; //Create facet index only for 1:N
                 PathData {
                     anchor_to_text_id: anchor_to_text_id,
                     boost: boost_info_data,
@@ -502,6 +517,7 @@ pub fn create_fulltext_index(data: &Value, mut persistence: &mut Persistence, in
             let text_info = all_terms.get(value).expect("did not found term");
 
             data.text_id_to_parent.push(ValIdPair::new(text_info.id as u32, parent_val_id));
+            data.text_id_to_anchor.push(ValIdPair::new(text_info.id as u32, anchor_id));
             data.anchor_to_text_id.as_mut().map(|el| {
                 el.push(ValIdPair::new(anchor_id, text_info.id as u32))
             });
@@ -516,40 +532,49 @@ pub fn create_fulltext_index(data: &Value, mut persistence: &mut Persistence, in
             });
             trace!("Found id {:?} for {:?}", text_info, value);
 
-            data.tokens_to_anchor.push(ValIdPairToken {
+            data.tokens_to_text_id.push(ValIdPairToken {
                 valid: text_info.id as u32,
                 num_occurences: text_info.num_occurences as u32,
-                parent_val_id: anchor_id as u32,
+                parent_val_id: text_info.id as u32,
                 token_pos: 0,
                 entry_num_tokens: 1,
             });
 
             if options.tokenize && tokenizer.has_tokens(value) {
-                let mut tokens_to_anchor = vec![];
-                let mut token_pos = 0;
-                tokenizer.get_tokens(value, &mut |token: &str, _is_seperator: bool| {
-                    if options.stopwords.as_ref().map(|el| el.contains(token)).unwrap_or(false) {
-                        return;
-                    }
+                if data.value_id_to_token_ids.get_values(text_info.id as u64).is_none(){
+                    let mut tokens_to_text_id = vec![];
+                    let mut current_token_pos = 0;
+                    let mut tokens_ids = vec![];
 
-                    let token_info = all_terms.get(token).expect("did not found token");
-                    trace!("Adding to tokens {:?} : {:?}", token, token_info);
+                    tokenizer.get_tokens(value, &mut |token: &str, _is_seperator: bool| {
+                        if options.stopwords.as_ref().map(|el| el.contains(token)).unwrap_or(false) {
+                            return;
+                        }
 
-                    data.value_id_to_token_ids.push(ValIdPair::new(text_info.id as u32, token_info.id as u32));
-                    data.tokens_to_parent.push(ValIdPair::new(token_info.id as u32, text_info.id as u32));
-                    tokens_to_anchor.push(ValIdPairToken {
-                        valid: token_info.id as u32,
-                        num_occurences: token_info.num_occurences as u32,
-                        parent_val_id: anchor_id as u32,
-                        token_pos: token_pos as u32,
-                        entry_num_tokens: 0,
+                        let token_info = all_terms.get(token).expect("did not found token");
+                        trace!("Adding to tokens_ids {:?} : {:?}", token, token_info);
+
+                        // data.value_id_to_token_ids.push(ValIdPair::new(text_info.id as u32, token_info.id as u32));
+                        tokens_ids.push(token_info.id as u32);
+                        data.tokens_to_parent.push(ValIdPair::new(token_info.id as u32, text_info.id as u32));
+                        tokens_to_text_id.push(ValIdPairToken {
+                            valid: token_info.id as u32,
+                            num_occurences: token_info.num_occurences as u32,
+                            parent_val_id: text_info.id as u32,
+                            token_pos: current_token_pos as u32,
+                            entry_num_tokens: 0,
+                        });
+                        current_token_pos += 1;
                     });
-                    token_pos += 1;
-                });
 
-                for mut el in tokens_to_anchor {
-                    el.entry_num_tokens = token_pos;
-                    data.tokens_to_anchor.push(el);
+                    //add num tokens info
+                    for mut el in tokens_to_text_id {
+                        el.entry_num_tokens = current_token_pos;
+                        data.tokens_to_text_id.push(el);
+                    }
+                    trace!("Adding for {:?} {:?} token_ids {:?}", value, text_info.id, tokens_ids);
+
+                    data.value_id_to_token_ids.add(text_info.id, tokens_ids);
                 }
             }
         };
@@ -560,7 +585,7 @@ pub fn create_fulltext_index(data: &Value, mut persistence: &mut Persistence, in
             tuples.push(ValIdPair::new(value_id, parent_val_id));
         };
 
-        json_converter::for_each_element(stream, &mut id_holder, &mut opt, &mut cb_text, &mut callback_ids);
+        json_converter::for_each_element(stream2, &mut id_holder, &mut opt, &mut cb_text, &mut callback_ids);
     }
 
     let is_sublevel = |path: &str| {path.contains("[]") };
@@ -590,36 +615,42 @@ pub fn create_fulltext_index(data: &Value, mut persistence: &mut Persistence, in
             persistence.write_tuple_pair_dedup(&mut data.tokens_to_parent, &concat(&path, ".tokens"), true, false)?;
             trace!("{}\n{}", &concat(&path, ".tokens"), print_vec(&data.tokens_to_parent, "token_id", "parent_id"));
 
-            let token_to_anchor_score = calculate_token_score_in_doc(&mut data.tokens_to_anchor);
-            let mut token_to_anchor_score_pairs: Vec<ValIdPair> = token_to_anchor_score
+            let token_to_text_id_score = calculate_token_score_in_doc(&mut data.tokens_to_text_id);
+            let mut token_to_text_score_pairs: Vec<ValIdPair> = token_to_text_id_score
                 .iter()
                 .flat_map(|el| {
                     vec![
-                        ValIdPair::new(el.valid as u32, el.anchor_id as u32),
+                        ValIdPair::new(el.valid as u32, el.text_id as u32),
                         ValIdPair::new(el.valid as u32, el.score as u32)
                     ]
                 })
                 .collect();
 
-            persistence.write_tuple_pair(&mut token_to_anchor_score_pairs, &concat(&path, ".tokens.to_anchor"), false)?;
+            persistence.write_tuple_pair(&mut token_to_text_score_pairs, &concat(&path, ".tokens.to_text_id_score"), false)?;
             trace!(
                 "{}\n{}",
                 &concat(&path, ".tokens.to_anchor"),
-                print_vec(&token_to_anchor_score_pairs, "token_id", "anchor_id")
+                print_vec(&token_to_text_score_pairs, "token_id", "text_id")
             );
 
-            // persistence.write_tuple_pair_dedup(&mut data.tokens_to_anchor, &concat(&path, ".tokens.to_anchor"), true)?;
-            persistence.write_tuple_pair(&mut data.value_id_to_token_ids, &concat(&path, ".value_id_to_token_ids"), false)?;
+            persistence.write_indirect_index(&mut data.value_id_to_token_ids, &concat(&path, ".value_id_to_token_ids"))?;
             trace!(
                 "{}\n{}",
                 &concat(&path, ".value_id_to_token_ids"),
-                print_vec(&data.value_id_to_token_ids, "value_id", "token_id")
+                print_index_id_to_parent(&data.value_id_to_token_ids, "value_id", "token_id")
             );
 
             write_tuples(&mut persistence, &path, &mut data.text_id_to_parent)?;
 
+            persistence.write_tuple_pair(&mut data.text_id_to_anchor, &concat(&path, ".text_id_to_anchor"), false)?;
+            trace!(
+                "{}\n{}",
+                &concat(&path, ".text_id_to_anchor"),
+                print_vec(&data.text_id_to_anchor, "text_id", "anchor_id")
+            );
+
             if let Some(ref mut anchor_to_text_id) = data.anchor_to_text_id {
-                persistence.write_tuple_pair(anchor_to_text_id, &concat(&path, ".anchor_to_text_id"), false)?; // TODO THIS SHOULD ONLY BE USED IN 1 TO N RELATIONS -FIXME PLZZZZ
+                persistence.write_tuple_pair(anchor_to_text_id, &concat(&path, ".anchor_to_text_id"), false)?;
             }
             if let Some(ref mut tuples) = data.boost {
                 persistence.write_boost_tuple_pair(tuples, &extract_field_name(&path))?; // TODO use .textindex in boost?
@@ -733,25 +764,33 @@ pub fn add_token_values_to_tokens(persistence: &mut Persistence, data_str: &str,
 pub fn create_indices_json(folder: &str, data: &Value, indices: &str) -> Result<(), CreateError> {
     info_time!(format!("total time create_indices for {:?}", folder));
 
+    let data_str = serde_json::to_string(&data).unwrap();                                   //TODO: FIXME move to interface
+    // let data: Value = serde_json::from_str(data_str).unwrap();
+    create_indices(folder, &data_str, indices)
+}
+
+pub fn create_indices(folder: &str, data_str: &str, indices: &str) -> Result<(), CreateError> {
+
+    let stream1 = Deserializer::from_str(&data_str).into_iter::<Value>();
+    let stream2 = Deserializer::from_str(&data_str).into_iter::<Value>();
+    let stream3 = Deserializer::from_str(&data_str).into_iter::<Value>();
+
     let indices_json: Vec<CreateIndex> = serde_json::from_str(indices).unwrap();
     let mut persistence = Persistence::create(folder.to_string())?;
-    create_fulltext_index(data, &mut persistence, &indices_json)?;
+    create_fulltext_index(stream1, stream2, &mut persistence, &indices_json)?;
 
     info_time!(format!("write json and metadata {:?}", folder));
-    if let &Some(arr) = &data.as_array() {
-        persistence.write_json_to_disk(arr, "data")?;
-    } else {
-        persistence.write_json_to_disk(&vec![data.clone()], "data")?;
-    }
+    // if let &Some(arr) = &data.as_array() {
+    //     persistence.write_json_to_disk(arr, "data")?;
+    // } else {
+    //     persistence.write_json_to_disk(&vec![data.clone()], "data")?;
+    // }
+
+    persistence.write_json_to_disk(stream3, "data")?;
 
     persistence.write_meta_data()?;
 
     Ok(())
-}
-
-pub fn create_indices(folder: &str, data_str: &str, indices: &str) -> Result<(), CreateError> {
-    let data: Value = serde_json::from_str(data_str).unwrap();
-    create_indices_json(folder, &data, indices)
 }
 
 #[derive(Debug)]

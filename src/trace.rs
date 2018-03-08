@@ -1,6 +1,7 @@
 use log::Record;
 use flexi_logger;
 use chrono::Local;
+use parking_lot::RwLock;
 
 /// A logline-formatter that produces log lines like
 /// <br>
@@ -28,6 +29,14 @@ pub fn format_log(record: &Record) -> String {
     }
 }
 
+static LOG_ENABLED: RwLock<bool> = RwLock::new(false);
+
 pub fn enable_log() {
-    flexi_logger::Logger::with_env().format(format_log).start().unwrap();
+    let mut log_enabledo = LOG_ENABLED.write();
+    {
+        if !*log_enabledo {
+            flexi_logger::Logger::with_env().format(format_log).start().unwrap();
+            *log_enabledo = true;
+        }
+    };
 }

@@ -139,5 +139,7 @@ pub mod facet;
 
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod test_why_found;
 
 use std::str;

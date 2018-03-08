@@ -216,7 +216,6 @@ mod tests {
     #[test]
     fn test_paths() {
         let paths = util::get_steps_to_anchor("meanings.ger[]");
-        println!("NAAA {:?}", paths);
     }
 
     #[test]
@@ -224,18 +223,15 @@ mod tests {
     fn test_binary_search() {
         let x = vec![1, 2, 3, 6, 7, 8];
         let u = x.binary_search(&4).unwrap_err();
-        println!("{:?}", u);
         let value = match x.binary_search(&4) {
             Ok(value) => value,
             Err(value) => value,
         };
-        println!("mjjaaa {}", value);
     }
 
     #[test]
     fn test_json_request() {
         let requesto: search::Request = serde_json::from_str(r#"{"search":{"path":"asdf", "terms":[ "asdf"], "levenshtein_distance":1}}"#).unwrap();
-        println!("mjjaaa {:?}", requesto);
         assert_eq!(requesto.search.unwrap().levenshtein_distance, Some(1));
     }
 
@@ -244,13 +240,13 @@ mod tests {
     }
 
     fn search_testo_to_doco(req: Value) -> Result<search::SearchResultWithDoc, search::SearchError> {
+        let requesto: search::Request = serde_json::from_str(&req.to_string()).expect("Can't parse json");
         let pers = PERSISTENCES.get(&"default".to_string()).expect("Can't find loaded persistence");
-        Ok(search::to_search_result(&pers, search_testo_to_hitso(req)?, None))
+        Ok(search::to_search_result(&pers, search_testo_to_hitso(requesto.clone())?, requesto.select))
     }
 
-    fn search_testo_to_hitso(req: Value) -> Result<search::SearchResult, search::SearchError> {
+    fn search_testo_to_hitso(requesto: search::Request) -> Result<search::SearchResult, search::SearchError> {
         let pers = PERSISTENCES.get(&"default".to_string()).expect("Can't find loaded persistence");
-        let requesto: search::Request = serde_json::from_str(&req.to_string()).expect("Can't parse json");
         let hits = search::search(requesto, &pers)?;
         Ok(hits)
     }
@@ -317,6 +313,25 @@ mod tests {
             let hits = search_testo_to_doc(req).data;
             assert_eq!(hits.len(), 1);
             assert_eq!(hits[0].doc["ent_seq"], "1587690");
+            assert_eq!(hits[0].doc["commonness"], 20);
+            assert_eq!(hits[0].doc["tags"], json!(["nice".to_string()]));
+        }
+
+        it "select single field"{
+            let req = json!({
+                "search": {
+                    "terms":["urge"],
+                    "path": "meanings.eng[]"
+                },
+                "select": ["ent_seq", "tags[]"]
+            });
+
+            let hits = search_testo_to_doc(req).data;
+            assert_eq!(hits.len(), 1);
+            assert_eq!(hits[0].doc["ent_seq"], "1587690");
+            assert_eq!(hits[0].doc.get("commonness"), None); // didn't select
+            assert_eq!(hits[0].doc["tags"], json!(["nice".to_string()]));
+
         }
 
         it "two tokens hit the same anchor" {
@@ -727,7 +742,6 @@ mod tests {
             });
 
             let hits = search_testo_to_doc(req).data;
-            println!("{:?}", hits);
             assert_eq!(hits[0].doc["meanings"]["ger"][0], "(1) weich");
         }
 
@@ -747,7 +761,6 @@ mod tests {
             });
 
             let hits = search_testo_to_doc(req).data;
-            println!("{:?}", hits);
             assert_eq!(hits[0].doc["meanings"]["ger"][0], "(1) 2 3 super nice weich");
         }
 
@@ -763,7 +776,6 @@ mod tests {
             });
 
             let hits = search_testo_to_doc(req).data;
-            println!("{:?}", hits);
             assert_eq!(hits[0].doc["meanings"]["ger"][0], "(1) weich");
         }
 
@@ -776,7 +788,6 @@ mod tests {
             });
 
             let hits = search_testo_to_doc(req).data;
-            println!("{:?}", hits);
             assert_eq!(hits.len(), 2);
             assert_eq!(hits[0].doc["meanings"]["ger"][0], "majestätischer Anblick (m)");
         }
@@ -800,7 +811,6 @@ mod tests {
         //         "search": {"terms":["majestät"], "path": "meanings.ger[]"}
         //     });
         //     let hits = search_testo_to_hitso(req).unwrap();
-        //     println!("{:?}", hits);
         //     assert_eq!(hits.data.len(), 1);
         // }
 
@@ -890,7 +900,6 @@ mod tests {
         //     });
 
         //     let hits = search_test_to_doc(req, &mut pers);
-        //     println!("{:?}", hits);
         //     // assert_eq!(hits.as_ref().unwrap().len(), 2);
         //     assert_eq!(hits[0].doc["meanings"]["ger"][1], "das ist ein guter Treffer");
         // }
@@ -920,7 +929,6 @@ mod tests {
     //     ]
     //     "#;
 
-    //     println!("{:?}", create::create_indices("rightTerms", small_test_json, indices));
 
     //     assert_eq!(normalize_text("Hello"), "Hello");
 
@@ -929,7 +937,6 @@ mod tests {
     //     f.read_to_string(&mut s).unwrap();
 
     //     let lines = s.lines().collect::<Vec<_>>();
-    //     println!("{:?}", lines);
     //     let text = vec!["Anblick", "Aussehen", "Majestät", "majestätischer", "majestätischer Anblick", "majestätisches", "majestätisches Aussehen"];
     //     assert_eq!(lines, text);
 
@@ -964,13 +971,11 @@ mod tests {
 //         let dat2 = r#" [{ "name": "John Doe", "age": 43 }, { "name": "Jaa", "age": 43 }] "#;
 //         let data: Value = serde_json::from_str(dat2).unwrap();
 //         let res = create::create_fulltext_index(&data, "name", opt);
-//         println!("{:?}", res);
 //         let deserialized: create::BoostIndexOptions = serde_json::from_str(r#"{"boost_type":"int"}"#).unwrap();
 
 //         assert_eq!("Hello", "Hello");
 
 //         let service: create::CreateIndex = serde_json::from_str(r#"{"boost_type":"int"}"#).unwrap();
-//         println!("service: {:?}", service);
 
 //     }
 // }

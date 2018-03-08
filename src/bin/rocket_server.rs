@@ -109,6 +109,7 @@ struct QueryParams {
     boost_terms: Option<String>,
     operator: Option<String>,
     select:Option<String>,
+    why_found:Option<String>,
 }
 
 fn query_param_to_vec(name: Option<String>) -> Option<Vec<String>> { // TODO Replace with FromForm ? directly in QueryParams
@@ -231,6 +232,7 @@ fn search_get(database: String, params: QueryParams) -> Result<SearchResult, sea
         params.levenshtein,
         params.levenshtein_auto_limit,
         params.facetlimit,
+        params.why_found.map(|el| el == "true" || el == "TRUE" || el == "True"),
         facets,
         fields,
         boost_fields,
@@ -249,6 +251,15 @@ fn suggest_post(database: String, request: Json<search::Request>) -> Result<Sugg
     ensure_database(&database);
     let persistence = PERSISTENCES.get(&database).unwrap();
     excute_suggest(&persistence, request.0, false)
+}
+
+#[get("/<database>/inspect/<path>/<id>")]
+fn inspect_data(database: String, path: String, id: u64) -> Result<String, search::SearchError> {
+    ensure_database(&database);
+    let persistence = PERSISTENCES.get(&database).unwrap();
+    // persistence.get(path)
+    let data = persistence.get_valueid_to_parent(&path)?;
+    Ok(serde_json::to_string(&data.get_values(id)).unwrap())
 }
 
 #[get("/<database>/suggest?<params>", format = "application/json")]
@@ -289,7 +300,8 @@ fn main() {
     }
     println!("Starting Server...");
     rocket::ignite()
-        .mount("/", routes![version, get_doc_for_id_direct, get_doc_for_id_tree, search_get, search_post, suggest_get, suggest_post, highlight_post])
+        // .mount("/", routes![version, get_doc_for_id_direct, get_doc_for_id_tree, search_get, search_post, suggest_get, suggest_post, highlight_post])
+        .mount("/", routes![version, get_doc_for_id_direct, get_doc_for_id_tree, search_get, search_post, suggest_get, suggest_post, highlight_post, inspect_data])
         .attach(Gzip)
         .launch();
 

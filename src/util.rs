@@ -7,6 +7,8 @@ use std::fs::File;
 use std::fs;
 use std::io::SeekFrom;
 use parking_lot::Mutex;
+use serde_json::{Value, Deserializer, StreamDeserializer};
+use serde_json;
 // use std;
 #[allow(unused_imports)]
 use std;
@@ -49,7 +51,19 @@ pub fn boost_path(path: &str) -> (String, String) {
     concat_tuple(path, ".boost.subObjId", ".boost.value")
 }
 
-
+pub fn iter_json_stream<'a, F, T>(data: StreamDeserializer<'a, T, Value>, cb: &mut F)
+where
+    F: FnMut(&serde_json::Value),
+    T: serde_json::de::Read<'a>
+{
+    for el in data {
+        if let Some(arr) = el.as_ref().unwrap().as_array() {
+            for el in arr.iter() {cb(el); }
+        } else {
+            cb(el.as_ref().unwrap());
+        }
+    }
+}
 
 
 // #[test]

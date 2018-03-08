@@ -18,20 +18,30 @@ use search_field::*;
 // use search::Hit;
 
 use heapsize::HeapSizeOf;
-
 use itertools::Itertools;
 
 use fnv::FnvHashSet;
 
 #[cfg_attr(feature = "flame_it", flame)]
-pub fn highlight_document(persistence: &Persistence, path: &str, value_id: u64, token_ids: &[u32], opt: &SnippetInfo) -> Result<String, search::SearchError> {
+pub fn highlight_document(persistence: &Persistence, path: &str, value_id: u64, token_ids: &[u32], opt: &SnippetInfo) -> Result<Option<String>, search::SearchError> {
     let value_id_to_token_ids = persistence.get_valueid_to_parent(&concat(path, ".value_id_to_token_ids"))?;
     debug_time!(format!("highlight_document id {}", value_id));
 
     let documents_token_ids: Vec<u32> = {
         debug_time!("get documents_token_ids");
         persistence::trace_index_id_to_parent(value_id_to_token_ids);
-        value_id_to_token_ids.get_values(value_id).unwrap()
+
+        let vals = value_id_to_token_ids.get_values(value_id);
+        if let Some(vals) = vals {
+            vals
+        }else{
+            //got a text id, check if it was hit
+            if  token_ids.contains(&(value_id as u32)) {
+                return Ok(Some(opt.snippet_start_tag.to_string() + &get_text_for_id(persistence, path, value_id as u32) + &opt.snippet_end_tag));
+            }else{
+                return Ok(None); //No hits
+            }
+        }
     };
     trace!("documents_token_ids {}", get_readable_size(documents_token_ids.heap_size_of_children()));
     trace!("documents_token_ids {}", get_readable_size(documents_token_ids.len() * 4));
@@ -40,24 +50,34 @@ pub fn highlight_document(persistence: &Persistence, path: &str, value_id: u64, 
 
     let to = std::cmp::min(documents_token_ids.len(), 100);
     trace!("documents_token_ids {:?}", &documents_token_ids[0..to]);
-    let mut iter = documents_token_ids.iter();
+
     let mut token_positions_in_document = vec![];
     {
         trace_time!("collect token_positions_in_document");
         //collect token_positions_in_document
         for token_id in &token_ids {
-            let mut current_pos = 0;
-            while let Some(pos) = iter.position(|x| *x == *token_id) {
-                current_pos += pos;
-                token_positions_in_document.push(current_pos);
-                current_pos += 1;
+            let mut last_pos = 0;
+            let mut iter = documents_token_ids.iter();
+            while let Some(pos) = iter.position(|x| *x == *token_id) {  // FIXME: Maybe Performance just walk once over data
+                last_pos += pos;
+                token_positions_in_document.push(last_pos);
+                last_pos += 1;
             }
         }
+
+        // for (i, id) in documents_token_ids.iter().enumerate() {
+        //     if token_ids.contains(id){
+        //         token_positions_in_document.push(i);
+        //     }
+        // }
+    }
+    if token_positions_in_document.is_empty() {
+        return Ok(None); //No hits
     }
     token_positions_in_document.sort();
 
-    let first_index = *token_positions_in_document.first().unwrap() as i64;
-    let last_index = *token_positions_in_document.last().unwrap() as i64;
+    println!("documents_token_ids {:?}", documents_token_ids.len());
+    println!("token_positions_in_document {:?}", token_positions_in_document.len());
 
     let num_tokens = opt.num_words_around_snippet * 2; // token seperator token seperator
 
@@ -66,12 +86,12 @@ pub fn highlight_document(persistence: &Persistence, path: &str, value_id: u64, 
     {
         trace_time!("group near tokens");
         let mut previous_token_pos = -num_tokens;
-        for token_pos in token_positions_in_document {
-            if token_pos as i64 - previous_token_pos >= num_tokens {
+        for token_pos in token_positions_in_document.iter() {
+            if *token_pos as i64 - previous_token_pos >= num_tokens {
                 grouped.push(vec![]);
             }
-            previous_token_pos = token_pos as i64;
-            grouped.last_mut().unwrap().push(token_pos as i64);
+            previous_token_pos = *token_pos as i64;
+            grouped.last_mut().unwrap().push(*token_pos as i64);
         }
     }
 
@@ -108,13 +128,18 @@ pub fn highlight_document(persistence: &Persistence, path: &str, value_id: u64, 
             snippet + &snippet_part
         });
 
-    if first_index > num_tokens {
-        snippet.insert_str(0, &opt.snippet_connector);
+
+    if !token_positions_in_document.is_empty(){
+        let first_index = *token_positions_in_document.first().unwrap() as i64;
+        let last_index = *token_positions_in_document.last().unwrap() as i64;
+        if first_index > num_tokens { // add ... add the beginning
+            snippet.insert_str(0, &opt.snippet_connector);
+        }
+
+        if last_index < documents_token_ids.len() as i64 - num_tokens { // add ... add the end
+            snippet.push_str(&opt.snippet_connector);
+        }
     }
 
-    if last_index < documents_token_ids.len() as i64 - num_tokens {
-        snippet.push_str(&opt.snippet_connector);
-    }
-
-    Ok(snippet)
+    Ok(Some(snippet))
 }

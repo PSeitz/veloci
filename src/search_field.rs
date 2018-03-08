@@ -355,7 +355,6 @@ fn get_hits_in_field_one_term(
 
     {
         if limit_result {
-            // println!("HITZZZ {:?}", result.hits_vec.);
             result
                 .hits_vec
                 .sort_unstable_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(Ordering::Equal));
@@ -370,14 +369,14 @@ fn get_hits_in_field_one_term(
     if options.fast_field {
         //VEC VERSION
         debug_time!(format!("{} fast_field", &options.path));
-        let mut fast_field_res = vec![];
-        let token_kvdata = persistence.get_valueid_to_parent(&concat(&options.path, ".tokens.to_anchor"))?;
-        for hit in &result.hits_vec {
+        let mut text_ids_hit_score = vec![];
+        let token_kvdata = persistence.get_valueid_to_parent(&concat(&options.path, ".tokens.to_text_id_score"))?;
+        for hit in &result.hits_vec { // iterate over token hits
 
-            if let Some(anchor_score) = token_kvdata.get_values(hit.id as u64) {
+            if let Some(text_id_score) = token_kvdata.get_values(hit.id as u64) {
                 debug_time!(format!("{} adding anchor hits for id {:?}", &options.path, hit.id));
-                let mut curr_pos = unsafe_increase_len(&mut fast_field_res, anchor_score.len() / 2);
-                for (anchor_id, token_in_anchor_score) in anchor_score.iter().tuples() {
+                let mut curr_pos = unsafe_increase_len(&mut text_ids_hit_score, text_id_score.len() / 2);
+                for (anchor_id, token_in_anchor_score) in text_id_score.iter().tuples() {
                     if should_filter(&filter, &anchor_id) { continue; }
 
                     let final_score = hit.score * (*token_in_anchor_score as f32 / 100.0); // TODO ADD LIMIT FOR TOP X
@@ -390,27 +389,69 @@ fn get_hits_in_field_one_term(
                         final_score
                     );
 
-                    // fast_field_res.push(Hit::new(*anchor_id,final_score));
-                    fast_field_res[curr_pos] = search::Hit::new(*anchor_id, final_score);
+                    // text_ids_hit_score.push(Hit::new(*anchor_id,final_score));
+                    text_ids_hit_score[curr_pos] = search::Hit::new(*anchor_id, final_score);
                     curr_pos += 1;
                 }
             }
         }
 
-        let mut fast_field_res_ids = vec![];
-        for id in &result.hits_ids {
-            if let Some(anchor_score) = token_kvdata.get_values(*id as u64) {
+        {   //Collect hits from same text_id and sum boost
+            let mut merged_text_ids_hit_score = vec![];
+            debug_time!(format!("{} merged text_ids_hit_score", &options.path));
+            text_ids_hit_score.sort_unstable_by(|a, b| b.id.partial_cmp(&a.id).unwrap_or(Ordering::Equal));
+            for (text_id, group) in &text_ids_hit_score.iter().group_by(|el| el.id) {
+                merged_text_ids_hit_score.push(search::Hit::new(text_id, group.map(|el|el.score).sum())) //Todo FixMe Perofrmance avoid copy inplace group by
+            }
+
+            text_ids_hit_score = merged_text_ids_hit_score;
+        }
+
+        //resolve text_ids with score to anchor
+        let mut fast_field_res = vec![];
+        let text_id_to_anchor = persistence.get_valueid_to_parent(&concat(&options.path, ".text_id_to_anchor"))?;
+        for hit in text_ids_hit_score {
+            if let Some(anchor_ids) = text_id_to_anchor.get_values(hit.id as u64) {
+                let mut curr_pos = unsafe_increase_len(&mut fast_field_res, anchor_ids.len());
+                for anchor_id in anchor_ids {
+                    if should_filter(&filter, &anchor_id) { continue; }
+
+                    fast_field_res[curr_pos] = search::Hit::new(anchor_id, hit.score);
+                    curr_pos += 1;
+                }
+            }
+        }
+
+
+        let mut text_ids_hit_ids = vec![];
+        for id in &result.hits_ids { // iterate over token hits
+            if let Some(text_id_score) = token_kvdata.get_values(*id as u64) {
                 debug_time!(format!("{} adding anchor ids for id {:?}", &options.path, id));
-                let mut curr_pos = unsafe_increase_len(&mut fast_field_res_ids, anchor_score.len() / 2);
-                for anchor_id in anchor_score.iter().step_by(2) {
+                let mut curr_pos = unsafe_increase_len(&mut text_ids_hit_ids, text_id_score.len() / 2);
+                for text_id in text_id_score.iter().step_by(2) {
                     if should_filter(&filter, &id) { continue; }
 
-                    fast_field_res_ids[curr_pos] = *anchor_id;
+                    text_ids_hit_ids[curr_pos] = *text_id;
+                    curr_pos += 1;
+                }
+            }
+        }
+
+        //resolve text_ids to anchor
+        let mut fast_field_res_ids = vec![];
+        for id in text_ids_hit_ids {
+            if let Some(anchor_ids) = text_id_to_anchor.get_values(id as u64) {
+                let mut curr_pos = unsafe_increase_len(&mut fast_field_res_ids, anchor_ids.len());
+                for anchor_id in anchor_ids {
+                    if should_filter(&filter, &anchor_id) { continue; }
+
+                    fast_field_res_ids[curr_pos] = anchor_id;
                     curr_pos += 1;
                 }
             }
         }
         result.hits_ids = fast_field_res_ids;
+
 
         debug!("found {:?} token in {:?} anchors", result.hits_vec.len(), fast_field_res.len());
 
@@ -424,11 +465,7 @@ fn get_hits_in_field_one_term(
             let mut map = FnvHashMap::default();
             map.insert(options.terms[0].clone(), result.hits_vec.iter().map(|el|el.id).collect());// TODO Avoid copy? just store hit?
             result.term_id_hits_in_field.insert(options.path.to_string(), map);
-            println!("KKWAZY");
-            
-            println!("{:?}", result.term_id_hits_in_field);
         }
-        println!("KKWAZY");
 
         result.hits_vec = fast_field_res;
 
@@ -581,7 +618,6 @@ pub fn resolve_token_hits(
 
     debug!("found {:?} token in {:?} texts", result.hits_vec.iter().count(), token_hits.iter().count());
     {
-        // println!("{:?}", token_hits);
         debug_time!(format!("token_hits.sort_by {:?}", path));
         token_hits.sort_unstable_by(|a, b| a.0.cmp(&b.0)); // sort by parent id
     }
@@ -605,7 +641,9 @@ pub fn resolve_token_hits(
                 //value_id_to_token_hits.insert(parent_id, t2.map(|el| el.2).collect_vec()); //TODO maybe store hits here, in case only best x are needed
                 let snippet_config = options.snippet_info.as_ref().unwrap_or(&search::DEFAULT_SNIPPETINFO);
                 let highlighted_document = highlight_document(persistence, path, parent_id as u64, &t2.map(|el| el.2).collect_vec(), snippet_config)?;
-                result.highlight.insert(parent_id, highlighted_document);
+                if let Some(highlighted_document) = highlighted_document {
+                    result.highlight.insert(parent_id, highlighted_document);
+                }
             }
         }
     }

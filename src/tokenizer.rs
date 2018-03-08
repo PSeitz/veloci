@@ -16,7 +16,7 @@ lazy_static! {
 
 fn is_default_seperator(char: char) -> bool {
     match char {
-        ' ' | '\t' | '\n' | '\r' | '(' | ')' | ',' | '.' | '…' | ';' | '・' | '’' | '-' | '\\' | '{' | '}' | '\'' | '"' | '“' => true,
+        ' ' | '\t' | '\n' | '\r' | '(' | ')' | ',' | '.' | '…' | ';' | '・' | '’' | '-' | '\\' | '{' | '}' | '\'' | '"' | '“'| '™' => true,
         _ => false,
     }
 }
@@ -29,14 +29,14 @@ impl Tokenizer for SimpleTokenizer {
         F: FnMut(&'a str, bool),
     {
         let mut last_byte_pos = 0;
-        for (pos, char) in orignal.char_indices() {
+        for (char_byte_pos, char) in orignal.char_indices() {
             match is_default_seperator(char) {
                 true => {
-                    if pos != last_byte_pos {
-                        cb_text(&orignal[last_byte_pos..pos], false);
+                    if char_byte_pos != last_byte_pos {
+                        cb_text(&orignal[last_byte_pos..char_byte_pos], false);
                     }
-                    let next_pos = pos + char.len_utf8();
-                    cb_text(&orignal[pos..next_pos], false);
+                    let next_pos = char_byte_pos + char.len_utf8();
+                    cb_text(&orignal[char_byte_pos..next_pos], false);
                     last_byte_pos = next_pos;
                 }
                 false => {}
@@ -61,20 +61,22 @@ impl Tokenizer for SimpleTokenizerCharsIterateGroupTokens {
     {
         let mut last_returned_byte = 0;
         let mut last_was_token = false;
-        for (pos, char) in orignal.char_indices() {
+        for (char_byte_pos, char) in orignal.char_indices() {
             match is_default_seperator(char) {
                 true => {
-                    if !last_was_token {
-                        cb_text(&orignal[last_returned_byte..pos], false);
+                    if char_byte_pos == 0 {
                         last_was_token = true;
-                        last_returned_byte = pos;
+                    }else if !last_was_token{
+                        cb_text(&orignal[last_returned_byte..char_byte_pos], false);
+                        last_was_token = true;
+                        last_returned_byte = char_byte_pos;
                     }
                 }
                 false => {
-                    if last_was_token {
-                        cb_text(&orignal[last_returned_byte..pos], true);
+                    if last_was_token{
+                        cb_text(&orignal[last_returned_byte..char_byte_pos], true);
                         last_was_token = false;
-                        last_returned_byte = pos;
+                        last_returned_byte = char_byte_pos;
                     }
                 }
             }
@@ -124,6 +126,24 @@ mod tests {
             vec.push(token.to_string());
         });
         assert_eq!(vec, vec!["das", " ", "\n", " ", "ist", " ", "ein", " ", "txt", ",", " ", "test"])
+    }
+    #[test]
+    fn test_tokenize_taschenbuch_start_with_seperator() {
+        let tokenizer = SimpleTokenizerCharsIterateGroupTokens {};
+        let mut vec: Vec<String> = vec![];
+        tokenizer.get_tokens(" Taschenbuch (kartoniert)", &mut |token: &str, _is_seperator: bool| {
+            vec.push(token.to_string());
+        });
+        assert_eq!(vec, vec![" ","Taschenbuch", " (", "kartoniert", ")"])
+    }
+    #[test]
+    fn test_tokenize_start_with_single_token() {
+        let tokenizer = SimpleTokenizerCharsIterateGroupTokens {};
+        let mut vec: Vec<String> = vec![];
+        tokenizer.get_tokens("T oll", &mut |token: &str, _is_seperator: bool| {
+            vec.push(token.to_string());
+        });
+        assert_eq!(vec, vec!["T"," ", "oll"])
     }
 
     // #[bench]

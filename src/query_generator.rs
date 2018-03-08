@@ -66,6 +66,7 @@ pub fn search_query(
     levenshtein: Option<usize>,
     levenshtein_auto_limit: Option<usize>,
     mut facetlimit: Option<usize>,
+    why_found: Option<bool>,
     facets: Option<Vec<String>>,
     fields: Option<Vec<String>>,
     boost_fields: HashMap<String, f32>,
@@ -105,7 +106,6 @@ pub fn search_query(
     let boost_terms_req:Vec<RequestSearchPart> = boost_terms
         .iter()
         .flat_map(|(boost_term, boost_value):(&String, &f32)| {
-            println!("{:?}", boost_term);
             let mut boost_term = boost_term.to_string();
             let filter:Option<Vec<String>> = if boost_term.contains(":"){
                 let mut parts:Vec<String> = boost_term.split(":").map(|el|el.to_string()).collect();
@@ -114,7 +114,6 @@ pub fn search_query(
             }else{
                 None
             };
-            println!("{:?}", boost_term);
 
             get_all_field_names(&persistence, &filter)
             .iter()
@@ -150,6 +149,7 @@ pub fn search_query(
                         };
                         Request {
                             search: Some(part),
+                            why_found: why_found.unwrap_or(false),
                             ..Default::default()
                         }
                     })
@@ -157,6 +157,7 @@ pub fn search_query(
 
                 Request {
                     or: Some(parts), // or over fields
+                    why_found: why_found.unwrap_or(false),
                     ..Default::default()
                 }
             })
@@ -168,6 +169,7 @@ pub fn search_query(
             skip: skip,
             boost_term: boost_term,
             facets: facets_req,
+            why_found: why_found.unwrap_or(false),
             ..Default::default()
         };
     }
@@ -189,6 +191,7 @@ pub fn search_query(
                     };
                     Request {
                         search: Some(part),
+                        why_found: why_found.unwrap_or(false),
                         ..Default::default()
                     }
                 })
@@ -204,6 +207,7 @@ pub fn search_query(
         top: top,
         skip: skip,
         facets: facets_req,
+        why_found: why_found.unwrap_or(false),
         boost_term: boost_term,
         ..Default::default()
     }

@@ -82,12 +82,18 @@ impl_type_info_single_templ!(IndexIdToMultipleParentIndirect);
 impl_type_info_single_templ!(PointingArrayFileReader);
 impl_type_info_single_templ!(PointingMMAPFileReader);
 
-#[derive(Serialize, Deserialize, Debug, HeapSizeOf)]
+pub fn calc_avg_join_size(num_values:u32, num_ids:u32) -> f32 {
+    num_values as f32 / std::cmp::max(1, num_ids).to_f32().unwrap()
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, HeapSizeOf, Default)]
 pub struct IndexIdToMultipleParentIndirect<T: IndexIdToParentData> {
     pub start_and_end: Vec<T>,
     pub data: Vec<T>,
     pub max_value_id: u32,
     pub avg_join_size: f32,
+    pub num_values: u32,
+    pub num_ids: u32,
 }
 impl<T: IndexIdToParentData> IndexIdToMultipleParentIndirect<T> {
     #[allow(dead_code)]
@@ -96,13 +102,30 @@ impl<T: IndexIdToParentData> IndexIdToMultipleParentIndirect<T> {
     }
     #[allow(dead_code)]
     pub fn new_sort_and_dedup(data: &IndexIdToParent<Output = T>, sort_and_dedup: bool) -> IndexIdToMultipleParentIndirect<T> {
-        let (max_value_id, avg_join_size, start_and_end_pos, data) = to_indirect_arrays_dedup(data, 0, sort_and_dedup);
+        let (max_value_id, num_values, num_ids, start_and_end_pos, data) = to_indirect_arrays_dedup(data, 0, sort_and_dedup);
+
         IndexIdToMultipleParentIndirect {
             start_and_end: start_and_end_pos,
             data,
             max_value_id: max_value_id.to_u32().unwrap(),
-            avg_join_size,
+            avg_join_size: calc_avg_join_size(num_values, num_ids),
+            num_values,
+            num_ids
         }
+    }
+
+    pub fn add(&mut self, id:T, add_data:Vec<T>) {
+        let pos: usize = num::cast(id).unwrap();
+        let required_size = (pos+1) * 2;
+        if self.start_and_end.len() < required_size{
+            self.start_and_end.resize(required_size, num::cast(0).unwrap());
+        }
+        let start = self.data.len();
+        self.data.extend(add_data.iter());
+        self.start_and_end[pos*2] = num::cast(start).unwrap();
+        self.start_and_end[pos*2+1] = num::cast(self.data.len()).unwrap();
+        self.num_values+=1;
+        self.num_ids+=add_data.len() as u32;
     }
     // #[allow(dead_code)]
     // pub fn from_data(start_and_end: Vec<T>, data: Vec<T>) -> IndexIdToMultipleParentIndirect<T> {
@@ -115,6 +138,27 @@ impl<T: IndexIdToParentData> IndexIdToMultipleParentIndirect<T> {
         self.start_and_end.len() / 2
     }
 }
+
+#[test]
+fn test_pointing_array_add() {
+    let mut def = IndexIdToMultipleParentIndirect::default();
+    def.add(0 as u32, vec![1, 2, 3]);
+    def.add(2 as u32, vec![3, 4, 3]);
+    assert_eq!(def.get_values(0), Some(vec![1, 2, 3]));
+    assert_eq!(def.get_values(2), Some(vec![3, 4, 3]));
+    assert_eq!(def.get_values(1), None);
+}
+#[test]
+fn test_pointing_array_add_out_of_order() {
+    let mut def = IndexIdToMultipleParentIndirect::default();
+    def.add(5 as u32, vec![2,0,1]);
+    def.add(3 as u32, vec![4,0,6]);
+    assert_eq!(def.get_values(5), Some(vec![2,0,1]));
+    assert_eq!(def.get_values(3), Some(vec![4,0,6]));
+    assert_eq!(def.get_values(1), None);
+    assert_eq!(def.get_keys(), vec![0, 1, 2, 3, 4, 5]);
+}
+
 impl<T: IndexIdToParentData> IndexIdToParent for IndexIdToMultipleParentIndirect<T> {
     type Output = T;
 
@@ -194,7 +238,7 @@ pub struct IndexIdToMultipleParentCompressedMaydaINDIRECTOne<T: IndexIdToParentD
 impl<T: IndexIdToParentData> IndexIdToMultipleParentCompressedMaydaINDIRECTOne<T> {
     #[allow(dead_code)]
     pub fn new(store: &IndexIdToParent<Output = T>) -> IndexIdToMultipleParentCompressedMaydaINDIRECTOne<T> {
-        let (max_value_id, avg_join_size, size, start_and_end, data) = id_to_parent_to_array_of_array_mayda_indirect_one(store);
+        let (max_value_id, num_values, num_ids, size, start_and_end, data) = id_to_parent_to_array_of_array_mayda_indirect_one(store);
 
         info!("start_and_end {}", get_readable_size(start_and_end.heap_size_of_children()));
         info!("data {}", get_readable_size(data.heap_size_of_children()));
@@ -203,7 +247,7 @@ impl<T: IndexIdToParentData> IndexIdToMultipleParentCompressedMaydaINDIRECTOne<T
             data,
             size,
             max_value_id: NumCast::from(max_value_id).unwrap(),
-            avg_join_size,
+            avg_join_size:calc_avg_join_size(num_values, num_ids),
         }
     }
 }
@@ -501,7 +545,7 @@ pub struct IndexIdToMultipleParentCompressedMaydaINDIRECTOneReuse<T: IndexIdToPa
 impl<T: IndexIdToParentData> IndexIdToMultipleParentCompressedMaydaINDIRECTOneReuse<T> {
     #[allow(dead_code)]
     pub fn new(store: &IndexIdToParent<Output = T>) -> IndexIdToMultipleParentCompressedMaydaINDIRECTOneReuse<T> {
-        let (_max_value_id, _avg_join_size, size, start_and_end, data) = id_to_parent_to_array_of_array_mayda_indirect_one_reuse_existing(store);
+        let (_max_value_id, _num_values, _num_ids, size, start_and_end, data) = id_to_parent_to_array_of_array_mayda_indirect_one_reuse_existing(store);
 
         info!("start_and_end {}", get_readable_size(start_and_end.heap_size_of_children()));
         info!("data {}", get_readable_size(data.heap_size_of_children()));
@@ -543,8 +587,6 @@ impl<T: IndexIdToParentData> PointingMMAPFileReader<T> {
         max_value_id: u32,
         avg_join_size: f32,
     ) -> Self {
-        // println!("OPPEEENIGGGN INDIRECT{:?}", indirect_metadata.len());
-        // println!("OPPEEENIGGGN DATA {:?}", data_metadata.len());
         let start_and_end_file = unsafe {
             MmapOptions::new()
                 .len(std::cmp::max(indirect_metadata.len() as usize, 4048))
@@ -845,7 +887,7 @@ pub fn to_monotone<T: mayda::utility::Bits>(data: &[T]) -> mayda::Monotone<T> {
 fn to_indirect_arrays<T: Integer + Clone + NumCast + mayda::utility::Bits + Copy, K: IndexIdToParentData>(
     store: &IndexIdToParent<Output = K>,
     cache_size: usize,
-) -> (T, f32, Vec<T>, Vec<T>) {
+) -> (T, u32, u32, Vec<T>, Vec<T>) {
     to_indirect_arrays_dedup(store, cache_size, false)
 }
 
@@ -853,16 +895,17 @@ fn to_indirect_arrays_dedup<T: Integer + Clone + NumCast + mayda::utility::Bits 
     store: &IndexIdToParent<Output = K>,
     cache_size: usize,
     sort_and_dedup: bool,
-) -> (T, f32, Vec<T>, Vec<T>) {
+) -> (T, u32,u32, Vec<T>, Vec<T>) {
     let mut data = vec![];
     let mut valids = store.get_keys();
     valids.dedup();
     if valids.is_empty() {
-        return (T::zero(), 0.0, vec![], vec![]);
+        return (T::zero(), 0,0, vec![], vec![]);
     }
     let mut start_and_end_pos = vec![];
     let last_id = *valids.last().unwrap();
-    start_and_end_pos.resize((valids.last().unwrap().to_usize().unwrap() + 1) * 2, num::cast(u32::MAX).unwrap());
+    // start_and_end_pos.resize((valids.last().unwrap().to_usize().unwrap() + 1) * 2, num::cast(u32::MAX).unwrap()); // don't use u32::MAX u32::MAX means the data is directly encoded
+    start_and_end_pos.resize((valids.last().unwrap().to_usize().unwrap() + 1) * 2, num::cast(0).unwrap());
 
     let mut offset = 0;
 
@@ -913,18 +956,19 @@ fn to_indirect_arrays_dedup<T: Integer + Clone + NumCast + mayda::utility::Bits 
     data.shrink_to_fit();
     let max_value_id = *data.iter().max_by_key(|el| *el).unwrap_or(&T::zero());
 
-    let avg_join_size = num_values as f32 / std::cmp::max(K::one(), num_ids).to_f32().unwrap();
-    (max_value_id, avg_join_size, start_and_end_pos, data)
+    // let avg_join_size = num_values as f32 / std::cmp::max(K::one(), num_ids).to_f32().unwrap();
+    (max_value_id, num_values as u32, num::cast(num_ids).unwrap(), start_and_end_pos, data)
 }
 
 pub fn id_to_parent_to_array_of_array_mayda_indirect_one<T: Integer + Clone + NumCast + mayda::utility::Bits + Copy, K: IndexIdToParentData>(
     store: &IndexIdToParent<Output = K>,
-) -> (T, f32, usize, mayda::Monotone<T>, mayda::Uniform<T>) {
+) -> (T, u32, u32, usize, mayda::Monotone<T>, mayda::Uniform<T>) {
     //start, end, data
-    let (max_value_id, avg_join_size, start_and_end_pos, data) = to_indirect_arrays(store, 0);
+    let (max_value_id, num_values, num_ids, start_and_end_pos, data) = to_indirect_arrays(store, 0);
     (
         max_value_id,
-        avg_join_size,
+        num_values,
+        num_ids,
         start_and_end_pos.len() / 2,
         to_monotone(&start_and_end_pos),
         to_uniform(&data),
@@ -933,12 +977,13 @@ pub fn id_to_parent_to_array_of_array_mayda_indirect_one<T: Integer + Clone + Nu
 
 pub fn id_to_parent_to_array_of_array_mayda_indirect_one_reuse_existing<T: Integer + Clone + NumCast + mayda::utility::Bits + Copy, K: IndexIdToParentData>(
     store: &IndexIdToParent<Output = K>,
-) -> (T, f32, usize, mayda::Uniform<T>, mayda::Uniform<T>) {
+) -> (T, u32, u32, usize, mayda::Uniform<T>, mayda::Uniform<T>) {
     //start, end, data
-    let (max_value_id, avg_join_size, start_and_end_pos, data) = to_indirect_arrays(store, 250);
+    let (max_value_id, num_values, num_ids, start_and_end_pos, data) = to_indirect_arrays(store, 250);
     (
         max_value_id,
-        avg_join_size,
+        num_values,
+        num_ids,
         start_and_end_pos.len() / 2,
         to_uniform(&start_and_end_pos),
         to_uniform(&data),
@@ -1005,7 +1050,7 @@ mod tests {
         #[test]
         fn test_pointing_file_array() {
             let store = get_test_data_1_to_n();
-            let (max_value_id, avg_join_size, keys, values) = to_indirect_arrays(&store, 0);
+            let (max_value_id, num_values, num_ids, keys, values) = to_indirect_arrays(&store, 0);
 
             fs::create_dir_all("test_pointing_file_array").unwrap();
             File::create("test_pointing_file_array/indirect")
@@ -1021,7 +1066,7 @@ mod tests {
             let data_file = File::open(&get_file_path("test_pointing_file_array", "data")).unwrap();
             let data_metadata = fs::metadata(&get_file_path("test_pointing_file_array", "indirect")).unwrap();
 
-            let store = PointingArrayFileReader::new(start_and_end_file, data_file, data_metadata, max_value_id, avg_join_size);
+            let store = PointingArrayFileReader::new(start_and_end_file, data_file, data_metadata, max_value_id, calc_avg_join_size(num_values, num_ids));
             check_test_data_1_to_n(&store);
         }
 
