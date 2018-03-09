@@ -88,12 +88,6 @@ fn default_avg_join() -> f32 {
     1000.0
 }
 
-// impl KVStoreMetaData {
-//     fn new(valid_path: &str, parentid_path: &str, is_1_to_n: bool, persistence_type: KVStoreType, loading_type: LoadingType) -> KVStoreMetaData {
-//         KVStoreMetaData{persistence_type:KVStoreType::ParallelArrays, is_1_to_n:has_duplicates, valid_path: valid_path.clone(), parentid_path:parentid_path.clone()}
-//     }
-// }
-
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub enum LoadingType {
     InMemory,
@@ -285,18 +279,14 @@ pub fn trace_index_id_to_parent<T: IndexIdToParentData>(val: &Box<IndexIdToParen
 }
 
 use search_field;
-// use std::sync::Mutex;
-// use parking_lot::Mutex;
-// use std::cell::RefCell;
-// use std::sync::{Arc};
 use std::u32;
 use std::time::Duration;
 
 use parking_lot::RwLock;
 // use std::sync::RwLock;
+use lru_time_cache::LruCache;
 pub static NOT_FOUND: u32 = u32::MAX;
 
-use lru_time_cache::LruCache;
 
 #[derive(Debug, Default)]
 pub struct PersistenceCache {
@@ -536,7 +526,6 @@ impl Persistence {
     //         build.insert(line, i).unwrap();
     //     }
     //     build.finish()?;
-    //     println!("test_build_fst ms: {}", (now.elapsed().as_secs() as f64 * 1_000.0) + (now.elapsed().subsec_nanos() as f64 / 1000_000.0));
     //     Ok(())
     // }
 
@@ -569,7 +558,6 @@ impl Persistence {
     //         current_offset += el_str.len();
     //     }
     //     offsets.push(current_offset as u64);
-    //     // println!("json offsets: {:?}", offsets);
     //     self.write_index(&vec_to_bytes_u64(&offsets), &offsets, &(path.to_string() + ".offsets"))?;
     //     Ok(())
     // }
@@ -873,23 +861,23 @@ impl Persistence {
                                 let start_and_end_file = self.get_file_handle_complete_path(&indirect_path)?;
                                 let data_file = self.get_file_handle_complete_path(&indirect_data_path)?;
                                 let indirect_metadata = self.get_file_metadata_handle_complete_path(&indirect_path)?;
-                                // let data_metadata = self.get_file_metadata_handle(&(el.path.to_string() + ".data"))?;
-                                // let store = PointingMMAPFileReader::new(
-                                //     start_and_end_file,
-                                //     data_file,
-                                //     indirect_metadata,
-                                //     data_metadata,
-                                //     el.max_value_id,
-                                //     el.avg_join_size,
-                                // );
-                                let store = PointingArrayFileReader::new(
-                                    start_and_end_file,
-                                    data_file,
+                                let data_metadata = self.get_file_metadata_handle(&(el.path.to_string() + ".data"))?;
+                                let store = PointingMMAPFileReader::new(
+                                    &start_and_end_file,
+                                    &data_file,
                                     indirect_metadata,
-                                    // data_metadata,
+                                    &data_metadata,
                                     el.max_value_id,
                                     el.avg_join_size,
                                 );
+                                // let store = PointingArrayFileReader::new(
+                                //     start_and_end_file,
+                                //     data_file,
+                                //     indirect_metadata,
+                                //     // data_metadata,
+                                //     el.max_value_id,
+                                //     el.avg_join_size,
+                                // );
 
                                 // let store = PointingArrayFileReader { start_and_end_file: el.path.to_string()+ ".indirect", data_file: el.path.to_string()+ ".data", persistence: self.db.to_string()};
                                 // self.cache
@@ -902,7 +890,7 @@ impl Persistence {
                             KVStoreType::IndexIdToOneParent => {
                                 let data_file = self.get_file_handle_complete_path(&data_direct_path)?;
                                 let data_metadata = self.get_file_metadata_handle_complete_path(&data_direct_path)?;
-                                let store = SingleArrayFileReader::<u32>::new(data_file, data_metadata);
+                                let store = SingleArrayMMAP::<u32>::new(data_file, data_metadata, el.max_value_id);
 
                                 return Ok((el.path.to_string(), Box::new(store) as Box<IndexIdToParent<Output = u32>>));
                             }

@@ -116,7 +116,6 @@
 //         // let bucket = ((index & 0b11111111111111111110000000000000) / 8192) as usize;
 //         // let pos =      (index & 0b00000000000000000111111111111111) as usize;
 //         // let bucket = ((index & 0b11111111111111111000000000000000) / 32768) as usize;
-//         // println!("index {:?} bucket {:?} pos{:?}", index, bucket, pos);
 
 //         let (pos, bucket) = BucketedScoreList::split_index(index);
 //         if pos > index as usize { panic!("pos > index {:?}", index);}
@@ -176,7 +175,6 @@
 //             for el in self.iter() {
 //                 if !fun(el.0, el.1){
 //                     to_be_removed.push(el.0);
-//                     // println!("Remove");
 //                     // self.insert(el.0 as u64, f32::NEG_INFINITY);
 //                 }
 //             }
@@ -227,7 +225,6 @@
 
 // //     // while current_bucket[*pos] == f32::NEG_INFINITY {
 // //     //     *pos+=1;
-// //     //     // println!("pos {:?} bucket {:?} ", pos, bucket);
 // //     //     if current_bucket.get(*pos).is_none() {
 // //     //         moveToNextBucket!(pos, bucket, list, current_bucket);
 // //     //         while current_bucket.len() == 0 { // find next filled bucket
@@ -269,7 +266,6 @@
 //     // let mut current_bitvecIter = &list.arr[*bucket].iter();
 //     while current_bucket[*pos] == f32::NEG_INFINITY {
 //         *pos+=1;
-//         // println!("pos {:?} bucket {:?} ", pos, bucket);
 //         if current_bucket.get(*pos).is_none() {
 //             moveToNextBucket!(pos, bucket, list, current_bucket);
 //             while current_bucket.len() == 0 { // find next filled bucket
@@ -356,9 +352,6 @@
 
 //     // let ja = asdf.next();
 //     // ja.next();
-//     // for el in scores.iter() {
-//     //     println!("{:?}", el);
-//     // }
 //     // let jaja = vec![];
 //     // jaja.iter().next();
 

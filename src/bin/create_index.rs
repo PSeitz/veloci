@@ -32,12 +32,7 @@ fn main() {
         };
     }
 
-    // println!("{:?}",create_healtcare());
-
     // create_thalia_index();
-    // println!("{:?}",create_jmdict_index());
-    // println!("{:?}",create_book_index());
-
     // {
     //     let my_time = util::MeasureTime::new("jmdict load time", util::MeasureTimeLogLevel::Print);
     //     let mut _pers:persistence::Persistence = persistence::Persistence::load("jmdict".to_string()).expect("could not load jmdict");
@@ -45,11 +40,6 @@ fn main() {
 
     // let doc_loader = doc_loader::DocLoader::new("jmdict", "data");
     // let now = Instant::now();
-    // println!("{:?}", doc_loader.get_doc(1000).unwrap());
-    // println!("Load Time: {}", (now.elapsed().as_secs() as f64 * 1_000.0) + (now.elapsed().subsec_nanos() as f64 / 1000_000.0));
-
-    // println!("{:?}",test_build_fst());
-
     // server::start_server();
 }
 
@@ -93,7 +83,6 @@ static TAHLIA_INDICES: &str = r#"
 // #[allow(dead_code)]
 // fn create_thalia_index() {
 //     // let all_terms = loadcsv("./data.csv", 0);
-//     // println!("{:?}", all_terms.len());
 
 //     let headers = vec![
 //         "MATNR".to_string(),
@@ -110,7 +99,6 @@ static TAHLIA_INDICES: &str = r#"
 //     ];
 
 //     let json = search_lib::create_from_csv::convert_to_json("./data 2.csv", headers);
-//     println!("converted json");
 
 //     File::create("thalia.json")
 //         .unwrap()
@@ -132,7 +120,6 @@ fn create_thalia_index_big() -> Result<(), io::Error> {
     println!("{:?}", search_lib::create::create_indices("thalia_new", &json, TAHLIA_INDICES));
     // File::create("MATNR").unwrap().write_all(all_terms.join("\n").as_bytes()).unwrap();
 
-    // println!("{:?}", search_lib::create::create_indices_csv("csv_test", "./data.csv", indices));
     Ok(())
 }
 
@@ -237,7 +224,6 @@ fn test_build_fst() -> Result<(), fst::Error> {
     let mut s = String::new();
     f.read_to_string(&mut s)?;
     let lines = s.lines().collect::<Vec<&str>>();
-    println!("lines: {:?}", lines.len());
 
     let wtr = io::BufWriter::new(File::create("map.fst")?);
     // Create a builder that can be used to insert new key-value pairs.
@@ -248,10 +234,6 @@ fn test_build_fst() -> Result<(), fst::Error> {
         build.insert(line, i).unwrap();
         i += 1;
     }
-
-    // println!("mapsize: {:?}", build.len());
-    // println!("lines: {:?}", lines.len());
-    // println(dupl_terms_checker.len())
     // Finish construction of the map and flush its contents to disk.
     build.finish()?;
 

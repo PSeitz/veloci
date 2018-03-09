@@ -43,6 +43,7 @@ use fnv::FnvHashSet;
 use itertools::Itertools;
 
 use memmap::Mmap;
+use memmap::MmapOptions;
 
 macro_rules! mut_if {
     ($name: ident = $value: expr, $($any: expr) +) => {
@@ -195,7 +196,6 @@ impl<T: IndexIdToParentData> IndexIdToParent for IndexIdToMultipleParentIndirect
 
         let mut positions_vec = Vec::with_capacity(8);
         for id_chunk in &ids.into_iter().chunks(8) {
-            // println!("id {:?}", id);
             for id in id_chunk {
                 if *id >= size as u32 {
                     continue;
@@ -307,7 +307,6 @@ impl<T: IndexIdToParentData> IndexIdToParent for IndexIdToMultipleParentCompress
         // let mut current_pos = 0;
         // // for id_chunk in &ids.into_iter().chunks(chunk_size) {
         // for mut x in (0..ids.len()).step_by(chunk_size) {
-        //     // println!("id {:?}", id);
         //     // for id in &ids[x..x+chunk_size] {
         //     let ende = std::cmp::min(x+chunk_size, ids.len());
         //     for mut id_pos in x..ende {
@@ -574,7 +573,8 @@ pub struct PointingMMAPFileReader<T: IndexIdToParentData> {
     pub max_value_id: u32,
     pub avg_join_size: f32,
 }
-use memmap::MmapOptions;
+
+
 impl<T: IndexIdToParentData> PointingMMAPFileReader<T> {
     pub fn new(
         start_and_end_file: &fs::File,
@@ -652,7 +652,7 @@ fn get_u32_values_from_pointing_mmap_file(find: u64, size: usize, start_and_end_
         return None;
     }
 
-    debug_time!("mmap bytes_to_vec_u32");
+    trace_time!("mmap bytes_to_vec_u32");
     Some(bytes_to_vec_u32(&data_file[start as usize * 4..end as usize * 4]))
 }
 
@@ -718,7 +718,6 @@ impl IndexIdToParent for PointingArrayFileReader<u32> {
         let mut offsets: Vec<u8> = Vec::with_capacity(8);
         offsets.resize(8, 0);
         for id in ids {
-            // println!("{:?}", id);
             if *id >= size as u32 {
                 continue;
             }

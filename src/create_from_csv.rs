@@ -62,7 +62,7 @@ pub fn convert_to_json(csv_path: &str, headers: Vec<String>) -> serde_json::Valu
 // ) -> Result<(), io::Error> {
 //     let now = Instant::now();
 //     let all_terms = get_allterms_csv(csv_path, attr_pos, &options);
-//     println!("all_terms {} {}ms", csv_path, (now.elapsed().as_secs() as f64 * 1_000.0) + (now.elapsed().subsec_nanos() as f64 / 1000_000.0));
+//     info!("all_terms {} {}ms", csv_path, (now.elapsed().as_secs() as f64 * 1_000.0) + (now.elapsed().subsec_nanos() as f64 / 1000_000.0));
 
 //     let mut tuples: Vec<ValIdPair> = vec![];
 //     let mut tokens: Vec<ValIdPair> = vec![];
@@ -108,14 +108,14 @@ pub fn convert_to_json(csv_path: &str, headers: Vec<String>) -> serde_json::Valu
 
 //     store_full_text_info(&mut persistence, all_terms, &attr_name, &options)?;
 
-//     println!("createIndexComplete {} {}ms", attr_name, (now.elapsed().as_secs() as f64 * 1_000.0) + (now.elapsed().subsec_nanos() as f64 / 1000_000.0));
+//     info!("createIndexComplete {} {}ms", attr_name, (now.elapsed().as_secs() as f64 * 1_000.0) + (now.elapsed().subsec_nanos() as f64 / 1000_000.0));
 
 //     Ok(())
 // }
 
 // pub fn create_indices_csv(folder: &str, csv_path: &str, indices: &str) -> Result<(), CreateError> {
 //     // let indices_json:Result<Vec<CreateIndex>> = serde_json::from_str(indices);
-//     // println!("{:?}", indices_json);
+//     // info!("{:?}", indices_json);
 //     let indices_json: Vec<CreateIndex> = serde_json::from_str(indices)?;
 //     let mut persistence = Persistence::create(folder.to_string())?;
 //     for el in indices_json {

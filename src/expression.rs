@@ -50,7 +50,7 @@ impl ScoreExpression {
             match next_char {
                 ' ' => {
                     let val = current.parse::<f32>();
-                    // println!("{:?}", val);
+                    // trace!("{:?}", val);
                     if val.is_ok() {
                         operations.push(OperatorType::Float(val.unwrap()));
                     }
@@ -91,7 +91,7 @@ impl ScoreExpression {
         if val.is_ok() {
             operations.push(OperatorType::Float(val.unwrap()));
         }
-        // println!("{:?}", operations);
+        // trace!("{:?}", operations);
         operations
     }
 

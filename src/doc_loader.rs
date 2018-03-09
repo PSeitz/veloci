@@ -29,14 +29,11 @@ impl DocLoader {
         unsafe {
             buffer.set_len(end - start);
         }
-        // println!("Buffer Create Time: {}", (now.elapsed().as_secs() as f64 * 1_000.0) + (now.elapsed().subsec_nanos() as f64 / 1000_000.0));
 
         f.seek(SeekFrom::Start(start as u64))?;
         f.read_exact(&mut buffer)?;
-        // println!("Load Buffer: {}", (now.elapsed().as_secs() as f64 * 1_000.0) + (now.elapsed().subsec_nanos() as f64 / 1000_000.0));
 
         let s = unsafe { String::from_utf8_unchecked(buffer) };
-        // println!("To String: {}", (now.elapsed().as_secs() as f64 * 1_000.0) + (now.elapsed().subsec_nanos() as f64 / 1000_000.0));
 
         Ok(s)
     }

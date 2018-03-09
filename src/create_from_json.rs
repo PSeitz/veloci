@@ -48,15 +48,15 @@ where
 
         let is_parent_path_pos = i == opt.parent_pos_in_path && i != 0;
         let comp = paths[i as usize];
-        // println!("MOVE TO NEXT");
-        // println!("{:?}", comp);
-        // println!("{:?}", current_el.to_string());
-        // println!("{:?}", current_el.get(comp));
+        // trace!("MOVE TO NEXT");
+        // trace!("{:?}", comp);
+        // trace!("{:?}", current_el.to_string());
+        // trace!("{:?}", current_el.get(comp));
         if !current_el.get(comp).is_some() {
             break;
         }
         let next_el = &current_el[comp];
-        // println!("{:?}", next_el);
+        // trace!("{:?}", next_el);
         if let Some(current_el_arr) = next_el.as_array() {
             // WALK ARRAY
             if is_last_path {

@@ -5,15 +5,15 @@ fn test_hit_coll() {
     let yo: Box<HitCollector> = Box::new(VecHitCollector { hits_vec: vec![] });
 
     for x in yo.iter() {
-        println!("{:?}", x); // x: i32
+        info!("{:?}", x); // x: i32
     }
 
     for x in yo.iter() {
-        println!("{:?}", x); // x: i32
+        info!("{:?}", x); // x: i32
     }
 
     // for x in yo.into_iter() {
-    //     println!("{:?}", x); // x: i32
+    //     info!("{:?}", x); // x: i32
     // }
 }
 

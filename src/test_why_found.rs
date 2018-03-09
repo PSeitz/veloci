@@ -103,7 +103,6 @@ mod tests {
             });
 
             let hits = search_testo_to_doc(req).data;
-            println!("{:?}", hits);
             assert_eq!(hits[0].why_found["viele[]"], vec!["<b>treffers</b>", "super <b>treffers</b>"]);
         }
 

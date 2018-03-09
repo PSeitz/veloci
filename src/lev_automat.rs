@@ -95,7 +95,6 @@ impl DynamicLevenshtein {
     }
 
     fn can_match(&self, state: &[usize]) -> bool {
-        // println!("can_match {:?}", state);
         state.iter().min().map(|&n| n <= self.dist).unwrap_or(false)
     }
 
@@ -172,7 +171,6 @@ impl DfaBuilder {
 
     fn build(mut self) -> Result<Dfa, SearchError> {
         let mut stack = vec![self.lev.start()];
-        // println!("stack {:?}", stack);
         let mut seen = HashSet::new();
         let query = self.lev.query.clone(); // temp work around of borrowck
         while let Some(lev_state) = stack.pop() {

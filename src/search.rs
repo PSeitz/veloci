@@ -412,7 +412,6 @@ pub fn search(mut request: Request, persistence: &Persistence) -> Result<SearchR
     };
 
     // let res = search_unrolled(&persistence, request)?;
-    // println!("{:?}", res);
     // let res = hits_to_array_iter(res.iter());
     // let res = hits_to_sorted_array(res);
 
@@ -436,6 +435,7 @@ pub fn search(mut request: Request, persistence: &Persistence) -> Result<SearchR
     let topn_results = apply_top_skip(&search_result.data, request.skip, request.top);
 
     if let Some(facets_req) = request.facets {
+        info_time!(format!("all_facets {:?}", facets_req.iter().map(|el|el.field.clone()).collect::<Vec<_>>()));
         let mut hit_ids: Vec<u32> = {
             debug_time!("get_and_sort_for_factes"); // THIS IS TOO SLOW
             let mut hit_ids: Vec<u32> = search_result.data.iter().map(|el| el.id).collect();
@@ -526,7 +526,6 @@ pub fn apply_boost_term(persistence: &Persistence, mut res: SearchFieldResult, b
 
             //     {
             //         let my_boost = 2.0;
-            //         println!("SIZE {:?}", boost_iter_data.last().unwrap().id);
             //         let mut direct_data:FixedBitSet = {
 
             //             let mut ay = FixedBitSet::with_capacity(70000 as usize + 1);
@@ -663,7 +662,7 @@ fn merge_term_id_hits(results: &mut Vec<SearchFieldResult>) -> FnvHashMap<String
             }
         }
     }
-    println!("term_id_hits_in_field {:?}", term_id_hits_in_field);
+    debug!("term_id_hits_in_field {:?}", term_id_hits_in_field);
     term_id_hits_in_field
 }
 
@@ -778,7 +777,6 @@ fn union_hits_vec_test() {
     ];
 
     let res = union_hits_vec(yop);
-    println!("{:?}", res.hits_vec);
 
     assert_eq!(
         res.hits_vec,
@@ -1010,7 +1008,6 @@ fn boost_intersect_hits_vec_test_multi() {
         },
         &mut boosts,
     );
-    // println!("{:?}", res.hits_vec);
 
     assert_eq!(res.hits_vec, vec![Hit::new(0, 40.0), Hit::new(5, 20.0), Hit::new(10, 80.0), Hit::new(60, 40.0)]);
 }
@@ -1030,7 +1027,6 @@ fn boost_intersect_hits_vec_test() {
             ..Default::default()
         },
     );
-    // println!("{:?}", res.hits_vec);
 
     assert_eq!(res.hits_vec, vec![Hit::new(0, 400.0), Hit::new(5, 20.0), Hit::new(10, 600.0)]);
 }
@@ -1272,7 +1268,6 @@ impl Error for SearchError {
 //         data = dat.get(&id).ok_or(From::from(format!("Could not find id {:?} in  {:?} {:?}", id, path, dat)))?.clone();
 //     }
 //     let texto = get_id_text_map_for_ids(persistence, steps.last().unwrap(), &data);
-//     println!("{:?}", texto);
 //     Ok(serde_json::to_string_pretty(&result).unwrap())
 //     // "".to_string()
 // }
@@ -1289,7 +1284,6 @@ pub fn read_data(persistence: &Persistence, id: u32, fields: &[String]) -> Resul
     // let paths = util::get_steps_to_anchor(&request.path);
     // let tree = to_node_tree(all_steps);
     let tree = get_read_tree_from_fields(persistence, fields);
-    // println!("{}", serde_json::to_string(&tree).unwrap());
     read_tree(persistence, id, &tree)
     // Ok(serde_json::to_string_pretty(&dat).unwrap())
 }
@@ -1348,7 +1342,6 @@ pub fn read_tree(persistence: &Persistence, id: u32, tree: &NodeTree) -> Result<
 //TODO CHECK FIELD VALIDTY
 pub fn get_read_tree_from_fields(_persistence: &Persistence, fields: &[String]) -> util::NodeTree {
     let all_steps: Vec<Vec<String>> = fields.iter().map(|field| util::get_all_steps_to_anchor(&field)).collect();
-    // println!("{:?}", all_steps);
     to_node_tree(all_steps)
 }
 
@@ -1431,7 +1424,7 @@ pub fn join_for_read(persistence: &Persistence, input: Vec<u32>, path: &str) -> 
 #[cfg_attr(feature = "flame_it", flame)]
 pub fn join_for_1_to_1(persistence: &Persistence, value_id: u32, path: &str) -> Result<std::option::Option<u32>, SearchError> {
     let kv_store = persistence.get_valueid_to_parent(path)?;
-    // println!("path {:?} id {:?} resulto {:?}", path, value_id, kv_store.get_value(value_id as u64));
+    // trace!("path {:?} id {:?} resulto {:?}", path, value_id, kv_store.get_value(value_id as u64));
     Ok(kv_store.get_value(value_id as u64))
 }
 #[cfg_attr(feature = "flame_it", flame)]
@@ -1526,10 +1519,7 @@ pub fn join_for_1_to_n(persistence: &Persistence, value_id: u32, path: &str) -> 
 //     };
 
 //     let lines_checked = s.lines().count() as f64;
-//     println!("levenshtein ms: {}", ms);
-//     println!("Lines : {}", lines_checked );
 //     let ms_per_1000 = ((ms as f64) / lines_checked) * 1000.0;
-//     println!("ms per 1000 lookups: {}", ms_per_1000);
 //     Ok((hits))
 
 // }

@@ -44,6 +44,9 @@ use fnv::FnvHashMap;
 use fnv::FnvHashSet;
 use std::u32;
 
+use memmap::Mmap;
+use memmap::MmapOptions;
+
 pub trait TypeInfo: Sync + Send {
     fn type_name(&self) -> String;
     fn type_of(&self) -> String;
@@ -88,6 +91,7 @@ impl_type_info_single_templ!(IndexIdToOneParent);
 impl_type_info_single_templ!(ParallelArrays);
 
 impl_type_info_single_templ!(SingleArrayFileReader);
+impl_type_info_single_templ!(SingleArrayMMAP);
 
 #[derive(Debug, HeapSizeOf)]
 pub struct IndexIdToMultipleParent<T: IndexIdToParentData> {
@@ -400,6 +404,92 @@ impl<T: IndexIdToParentData> HeapSizeOf for ParallelArrays<T> {
     }
 }
 
+
+
+#[derive(Debug)]
+pub struct SingleArrayMMAP<T: IndexIdToParentData> {
+    pub data_file: Mmap,    //TODO CHECK MUTEX NEEEDED
+    pub data_metadata: Mutex<fs::Metadata>,     //TODO PLS FIXME max_value_id??, avg_join_size??
+    pub max_value_id: u32,
+    pub ok: PhantomData<T>,
+}
+
+impl<T: IndexIdToParentData> SingleArrayMMAP<T> {
+    pub fn new(data_file: fs::File, data_metadata: fs::Metadata, max_value_id: u32) -> Self {
+        let data_file = unsafe {
+            MmapOptions::new()
+                .len(std::cmp::max(data_metadata.len() as usize, 4048))
+                .map(&data_file)
+                .unwrap()
+        };
+        SingleArrayMMAP {
+            data_file: data_file,
+            data_metadata: Mutex::new(data_metadata),
+            max_value_id,
+            ok: PhantomData,
+        }
+    }
+    fn get_size(&self) -> usize {
+        self.data_metadata.lock().len() as usize / 4
+    }
+}
+impl<T: IndexIdToParentData> HeapSizeOf for SingleArrayMMAP<T> {
+    fn heap_size_of_children(&self) -> usize {
+        0
+    }
+}
+
+impl<T: IndexIdToParentData> IndexIdToParent for SingleArrayMMAP<T> {
+    type Output = T;
+    default fn get_value(&self, _find: u64) -> Option<T> { // implemented for u32, u64
+        unimplemented!()
+    }
+    default fn get_values(&self, find: u64) -> Option<Vec<T>> {
+        self.get_value(find).map(|el| vec![el])
+    }
+    fn get_keys(&self) -> Vec<T> {
+        (NumCast::from(0).unwrap()..NumCast::from(self.get_size()).unwrap()).collect()
+    }
+    #[inline]
+    fn count_values_for_ids(&self, ids: &[u32], top: Option<u32>) -> FnvHashMap<T, usize> {
+        count_values_for_ids(ids, top, self.max_value_id, |id: u64| self.get_value(id))
+    }
+}
+
+impl IndexIdToParent for SingleArrayMMAP<u32> {
+    #[inline]
+    fn get_value(&self, find: u64) -> Option<u32> {
+        if find >= self.get_size() as u64 {
+            return None;
+        }
+        let pos = find as usize * 4;
+        let id = (&self.data_file[pos..pos + 4]).read_u32::<LittleEndian>().unwrap();
+        if id == u32::MAX {
+            None
+        }else{
+            Some(NumCast::from(id).unwrap())
+        }
+    }
+}
+impl IndexIdToParent for SingleArrayMMAP<u64> {
+    #[inline]
+    fn get_value(&self, find: u64) -> Option<u64> {
+        if find >= self.get_size() as u64 {
+            return None;
+        }
+        let pos = find as usize * 8;
+        let id = (&self.data_file[pos..pos + 8]).read_u64::<LittleEndian>().unwrap();
+        if id == u32::MAX as u64 {
+            None
+        }else{
+            Some(NumCast::from(id).unwrap())
+        }
+    }
+}
+
+
+
+
 #[derive(Debug)]
 pub struct SingleArrayFileReader<T: IndexIdToParentData> {
     pub data_file: Mutex<fs::File>,
@@ -545,7 +635,6 @@ pub fn id_to_parent_to_array_of_array_snappy(store: &IndexIdToParent<Output = u3
     for valid in valids {
         let mut encoder = snap::Encoder::new();
         let mut vals = store.get_values(NumCast::from(valid).unwrap()).unwrap();
-        // println!("{:?}", vals);
         // let mut dat = vec_to_bytes_u32(&vals);
         let mut dat = encoder.compress_vec(&vec_to_bytes_u32(&vals)).unwrap();
         dat.shrink_to_fit();

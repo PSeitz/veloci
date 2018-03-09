@@ -947,7 +947,7 @@ mod tests {
         let some_terms = vec!["yep, yep"];
         File::create("subFolder1/test1").unwrap().write_all(some_terms.join("\n").as_bytes()).unwrap();
         assert_eq!("lines", "lines");
-        println!("{:?}", fs::remove_dir_all("subFolder1"));
+        info!("{:?}", fs::remove_dir_all("subFolder1"));
     }
 
 }

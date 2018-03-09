@@ -327,7 +327,7 @@ where
     map.get_mut(key).unwrap()
 }
 use itertools::Itertools;
-fn calculate_token_score_in_doc(tokens_to_text_id: &mut Vec<ValIdPairToken>) -> Vec<TokenToAnchorScore> {
+fn calculate_token_score_in_doc(tokens_to_anchor_id: &mut Vec<ValIdPairToken>) -> Vec<TokenToAnchorScore> {
     // TokenToAnchorScore {
     //     pub valid: u32,
     //     pub anchor_id: u32,
@@ -338,7 +338,7 @@ fn calculate_token_score_in_doc(tokens_to_text_id: &mut Vec<ValIdPairToken>) -> 
     // parent_val_id: u32,
     // token_pos: u32,
     // num_occurences: u32,
-    tokens_to_text_id.sort_unstable_by(|a, b| {
+    tokens_to_anchor_id.sort_unstable_by(|a, b| {
         let sort_anch = a.parent_val_id.cmp(&b.parent_val_id);
         if sort_anch == std::cmp::Ordering::Equal {
             let sort_valid = a.valid.cmp(&b.valid);
@@ -353,7 +353,7 @@ fn calculate_token_score_in_doc(tokens_to_text_id: &mut Vec<ValIdPairToken>) -> 
     }); // sort by parent id
 
     let mut dat = vec![];
-    for (_, mut group) in &tokens_to_text_id.into_iter().group_by(|el| (el.parent_val_id, el.valid)) {
+    for (_, mut group) in &tokens_to_anchor_id.into_iter().group_by(|el| (el.parent_val_id, el.valid)) {
         let first = group.next().unwrap();
         let best_pos = first.token_pos;
 
@@ -365,7 +365,9 @@ fn calculate_token_score_in_doc(tokens_to_text_id: &mut Vec<ValIdPairToken>) -> 
             exact_match_boost = 2
         }
 
+        let mut num_occurences = 1;
         for el in group {
+            num_occurences = el.num_occurences;
             avg_pos = avg_pos + (el.token_pos - avg_pos) / num_occurences_in_doc;
             num_occurences_in_doc += 1;
         }
@@ -374,10 +376,12 @@ fn calculate_token_score_in_doc(tokens_to_text_id: &mut Vec<ValIdPairToken>) -> 
         let mut score = 2000 / (best_pos + 10);
         score *= exact_match_boost;
 
-        // println!("best_pos {:?}",best_pos);
-        // println!("num_occurences_in_doc {:?}",num_occurences_in_doc);
-        // println!("first.num_occurences {:?}",first.num_occurences);
-        // println!("scorescore {:?}",score);
+        score = (score as f32 / (num_occurences as f32 + 10.).log10()) as u32; //+10 so 1 is bigger than 1
+
+        // trace!("best_pos {:?}",best_pos);
+        // trace!("num_occurences_in_doc {:?}",num_occurences_in_doc);
+        // trace!("first.num_occurences {:?}",first.num_occurences);
+        // trace!("scorescore {:?}",score);
 
         dat.push(TokenToAnchorScore {
             valid: first.valid,
@@ -436,7 +440,7 @@ where
 #[derive(Debug, Default, Clone)]
 struct PathData {
     tokens_to_parent: Vec<ValIdPair>,
-    tokens_to_text_id: Vec<ValIdPairToken>,
+    tokens_to_anchor_id: Vec<ValIdPairToken>,
     value_id_to_token_ids: IndexIdToMultipleParentIndirect<u32>,
     text_id_to_parent: Vec<ValIdPair>,
     text_id_to_anchor: Vec<ValIdPair>,
@@ -543,7 +547,7 @@ where
             });
             trace!("Found id {:?} for {:?}", text_info, value);
 
-            data.tokens_to_text_id.push(ValIdPairToken {
+            data.tokens_to_anchor_id.push(ValIdPairToken {
                 valid: text_info.id as u32,
                 num_occurences: text_info.num_occurences as u32,
                 parent_val_id: text_info.id as u32,
@@ -553,7 +557,7 @@ where
 
             if options.tokenize && tokenizer.has_tokens(value) {
                 if data.value_id_to_token_ids.get_values(text_info.id as u64).is_none() { // tokenize text_id only once
-                    let mut tokens_to_text_id = vec![];
+                    let mut tokens_to_anchor_id = vec![];
                     let mut current_token_pos = 0;
                     let mut tokens_ids = vec![];
 
@@ -568,7 +572,7 @@ where
                         // data.value_id_to_token_ids.push(ValIdPair::new(text_info.id as u32, token_info.id as u32));
                         tokens_ids.push(token_info.id as u32);
                         data.tokens_to_parent.push(ValIdPair::new(token_info.id as u32, text_info.id as u32));
-                        tokens_to_text_id.push(ValIdPairToken {
+                        tokens_to_anchor_id.push(ValIdPairToken {
                             valid: token_info.id as u32,
                             num_occurences: token_info.num_occurences as u32,
                             parent_val_id: text_info.id as u32,
@@ -579,9 +583,9 @@ where
                     });
 
                     //add num tokens info
-                    for mut el in tokens_to_text_id {
+                    for mut el in tokens_to_anchor_id {
                         el.entry_num_tokens = current_token_pos;
-                        data.tokens_to_text_id.push(el);
+                        data.tokens_to_anchor_id.push(el);
                     }
                     trace!("Adding for {:?} {:?} token_ids {:?}", value, text_info.id, tokens_ids);
 
@@ -626,7 +630,7 @@ where
             persistence.write_tuple_pair_dedup(&mut data.tokens_to_parent, &concat(&path, ".tokens"), true, false)?;
             trace!("{}\n{}", &concat(&path, ".tokens"), print_vec(&data.tokens_to_parent, "token_id", "parent_id"));
 
-            let token_to_text_id_score = calculate_token_score_in_doc(&mut data.tokens_to_text_id);
+            let token_to_text_id_score = calculate_token_score_in_doc(&mut data.tokens_to_anchor_id);
             let mut token_to_text_score_pairs: Vec<ValIdPair> = token_to_text_id_score
                 .iter()
                 .flat_map(|el| {
