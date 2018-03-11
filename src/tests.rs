@@ -874,23 +874,32 @@ mod tests {
 
         //MUTLI TERMS
 
-        // { // multi terms attribute ALL
-        //     let req = json!({
-        //         "or":[{"search": {"terms":["alle","Words"], "path": "meanings.ger[]", "term_operator": "ALL"}} ]
-        //     });
+        it "should handle multi terms and connected"{ // multi terms attribute ALL
+            let req = json!({
+                "or":[{"search": {"terms":["alle","Words"], "path": "meanings.ger[]", "term_operator": "ALL"}} ]
+            });
 
-        //     let hits = search_test_to_doc(req, &mut pers);
-        //     assert_eq!(hits[0].doc["meanings"]["ger"][2], "alle meine Words");
-        // }
+            let hits = search_testo_to_doc(req);
+            assert_eq!(hits.data[0].doc["meanings"]["ger"][2], "alle meine Words");
+        }
 
-        // { // multi terms attribute ALL
-        //     let req = json!({
-        //         "or":[{"search": {"terms":["alle","Words", "TRIFFTNICHT"], "path": "meanings.ger[]", "term_operator": "ANY"}} ]
-        //     });
+        it "should handle multi terms or connected"{ // multi terms attribute ALL
+            let req = json!({
+                "or":[{"search": {"terms":["alle","Words", "TRIFFTNICHTS"], "path": "meanings.ger[]", "term_operator": "ANY"}} ]
+            });
 
-        //     let hits = search_test_to_doc(req, &mut pers);
-        //     assert_eq!(hits[0].doc["meanings"]["ger"][2], "alle meine Words");
-        // }
+            let hits = search_testo_to_doc(req);
+            assert_eq!(hits.data[0].doc["meanings"]["ger"][2], "alle meine Words");
+        }
+
+        it "should handle multi terms or connected n hits"{ // multi terms attribute ALL
+            let req = json!({
+                "or":[{"search": {"terms":["alle","Words", "TRIFFTNICHTS"], "path": "meanings.ger[]", "term_operator": "ALL"}} ]
+            });
+
+            let hits = search_testo_to_doc(req);
+            assert_eq!(hits.data.len(), 0);
+        }
 
         // { // terms
         //     let req = json!({

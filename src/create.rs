@@ -448,6 +448,38 @@ struct PathData {
     boost: Option<Vec<ValIdToValue>>,
 }
 
+fn check_similarity(data: &FnvHashMap<String, FnvHashMap<String, TermInfo>>) {
+
+    let mut map:FnvHashMap<String, FnvHashMap<String,(f32, f32)>> = FnvHashMap::default();
+
+    info_time!(format!("check_similarity"));
+    for (path, terms) in data {
+        
+        let num_terms = terms.len();
+        for (path_comp, terms_comp) in data.iter().filter(|&(path_comp, _)|path_comp!=path) {
+            let num_similar = terms.keys().filter(|term|terms_comp.contains_key(term.as_str())).count();
+            let similiarity = num_similar as f32 / num_terms as f32;
+            //println!("Similiarity {:?} {:?} {:?}", path, path_comp, num_similar as f32 / num_terms as f32);
+            if map.contains_key(path_comp) {
+                let aha = map.get_mut(path_comp).unwrap().get_mut(path).unwrap();
+                aha.1 = similiarity;
+                // map.get_mut(path_comp).1 = num_similar as f32 / num_terms as f32
+            }else{
+                let entry = map.entry(path.to_string()).or_insert(FnvHashMap::default());
+                entry.insert(path_comp.to_string(), (similiarity, 0.));
+
+            }
+        }
+    }
+
+    
+    for (path, sub) in map {
+        for (path2, data) in sub {
+            println!("{} {} {} {}", path, path2, data.0, data.1 );
+        }
+    }
+}
+
 pub fn create_fulltext_index<'a, T>(
     stream1: StreamDeserializer<'a, T, Value>,
     stream2: StreamDeserializer<'a, T, Value>,
@@ -487,6 +519,7 @@ where
         .collect();
 
     let all_terms_in_path = get_allterms(stream1, &fulltext_info_for_path);
+    // check_similarity(&all_terms_in_path);
     info_time!("create_fulltext_index");
     trace!("all_terms {:?}", all_terms_in_path);
 
@@ -550,7 +583,7 @@ where
             data.tokens_to_anchor_id.push(ValIdPairToken {
                 valid: text_info.id as u32,
                 num_occurences: text_info.num_occurences as u32,
-                parent_val_id: text_info.id as u32,
+                parent_val_id: anchor_id,
                 token_pos: 0,
                 entry_num_tokens: 1,
             });
@@ -575,7 +608,7 @@ where
                         tokens_to_anchor_id.push(ValIdPairToken {
                             valid: token_info.id as u32,
                             num_occurences: token_info.num_occurences as u32,
-                            parent_val_id: text_info.id as u32,
+                            parent_val_id: anchor_id,
                             token_pos: current_token_pos as u32,
                             entry_num_tokens: 0,
                         });
@@ -627,7 +660,7 @@ where
         };
 
         for (path, mut data) in path_data {
-            persistence.write_tuple_pair_dedup(&mut data.tokens_to_parent, &concat(&path, ".tokens"), true, false)?;
+            persistence.write_tuple_pair_dedup(&mut data.tokens_to_parent, &concat(&path, ".tokens_to_parent"), true, false)?;
             trace!("{}\n{}", &concat(&path, ".tokens"), print_vec(&data.tokens_to_parent, "token_id", "parent_id"));
 
             let token_to_text_id_score = calculate_token_score_in_doc(&mut data.tokens_to_anchor_id);
@@ -641,11 +674,11 @@ where
                 })
                 .collect();
 
-            persistence.write_tuple_pair(&mut token_to_text_score_pairs, &concat(&path, ".tokens.to_text_id_score"), false)?;
+            persistence.write_tuple_pair(&mut token_to_text_score_pairs, &concat(&path, ".tokens.to_anchor_id_score"), false)?;
             trace!(
                 "{}\n{}",
                 &concat(&path, ".tokens.to_anchor"),
-                print_vec(&token_to_text_score_pairs, "token_id", "text_id")
+                print_vec(&token_to_text_score_pairs, "token_id", "anchor_id")
             );
 
             persistence.write_indirect_index(&mut data.value_id_to_token_ids, &concat(&path, ".value_id_to_token_ids"))?;
