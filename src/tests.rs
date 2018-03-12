@@ -14,6 +14,7 @@ mod tests {
     use create;
     #[allow(unused_imports)]
     use search_field;
+    use query_generator;
     use search;
     #[allow(unused_imports)]
     use serde_json;
@@ -241,6 +242,14 @@ mod tests {
 
     fn search_testo_to_doco(req: Value) -> Result<search::SearchResultWithDoc, search::SearchError> {
         let requesto: search::Request = serde_json::from_str(&req.to_string()).expect("Can't parse json");
+        search_testo_to_doco_req(requesto)
+    }
+    fn search_testo_to_doco_qp(qp: query_generator::SearchQueryGeneratorParameters) -> search::SearchResultWithDoc {
+        let pers = PERSISTENCES.get(&"default".to_string()).expect("Can't find loaded persistence");
+        let requesto = query_generator::search_query(&pers, qp);
+        search::to_search_result(&pers, search_testo_to_hitso(requesto.clone()).expect("search error"), requesto.select)
+    }
+    fn search_testo_to_doco_req(requesto: search::Request) -> Result<search::SearchResultWithDoc, search::SearchError> {
         let pers = PERSISTENCES.get(&"default".to_string()).expect("Can't find loaded persistence");
         Ok(search::to_search_result(&pers, search_testo_to_hitso(requesto.clone())?, requesto.select))
     }
@@ -315,6 +324,46 @@ mod tests {
             assert_eq!(hits[0].doc["ent_seq"], "1587690");
             assert_eq!(hits[0].doc["commonness"], 20);
             assert_eq!(hits[0].doc["tags"], json!(["nice".to_string()]));
+        }
+
+        it "simple_search querygenerator"{
+            let mut params = query_generator::SearchQueryGeneratorParameters::default();
+            params.search_term="urge".to_string();
+
+            let hits = search_testo_to_doco_qp(params).data;
+            assert_eq!(hits.len(), 1);
+            assert_eq!(hits[0].doc["ent_seq"], "1587690");
+            assert_eq!(hits[0].doc["commonness"], 20);
+            assert_eq!(hits[0].doc["tags"], json!(["nice".to_string()]));
+        }
+
+        it "simple_search querygenerator OR connect"{
+            let mut params = query_generator::SearchQueryGeneratorParameters::default();
+            params.search_term="urge OR いよく".to_string();
+
+            let hits = search_testo_to_doco_qp(params).data;
+            assert_eq!(hits.len(), 2);
+            assert_eq!(hits[0].doc["ent_seq"], "1587690");
+            assert_eq!(hits[0].doc["commonness"], 20);
+            assert_eq!(hits[0].doc["tags"], json!(["nice".to_string()]));
+        }
+
+        it "simple_search querygenerator and"{
+            let mut params = query_generator::SearchQueryGeneratorParameters::default();
+            params.search_term="urge AND いよく".to_string();
+
+            let hits = search_testo_to_doco_qp(params).data;
+            assert_eq!(hits.len(), 1);
+            assert_eq!(hits[0].doc["ent_seq"], "1587690");
+            assert_eq!(hits[0].doc["commonness"], 20);
+            assert_eq!(hits[0].doc["tags"], json!(["nice".to_string()]));
+        }
+        it "simple_search querygenerator and no hit"{
+            let mut params = query_generator::SearchQueryGeneratorParameters::default();
+            params.search_term="urge AND いよく AND awesome".to_string();
+
+            let hits = search_testo_to_doco_qp(params).data;
+            assert_eq!(hits.len(), 0);
         }
 
         it "select single field"{
@@ -874,32 +923,32 @@ mod tests {
 
         //MUTLI TERMS
 
-        it "should handle multi terms and connected"{ // multi terms attribute ALL
-            let req = json!({
-                "or":[{"search": {"terms":["alle","Words"], "path": "meanings.ger[]", "term_operator": "ALL"}} ]
-            });
+        // it "should handle multi terms and connected"{ // multi terms attribute ALL
+        //     let req = json!({
+        //         "or":[{"search": {"terms":["alle","Words"], "path": "meanings.ger[]", "term_operator": "ALL"}} ]
+        //     });
 
-            let hits = search_testo_to_doc(req);
-            assert_eq!(hits.data[0].doc["meanings"]["ger"][2], "alle meine Words");
-        }
+        //     let hits = search_testo_to_doc(req);
+        //     assert_eq!(hits.data[0].doc["meanings"]["ger"][2], "alle meine Words");
+        // }
 
-        it "should handle multi terms or connected"{ // multi terms attribute ALL
-            let req = json!({
-                "or":[{"search": {"terms":["alle","Words", "TRIFFTNICHTS"], "path": "meanings.ger[]", "term_operator": "ANY"}} ]
-            });
+        // it "should handle multi terms or connected"{ // multi terms attribute ALL
+        //     let req = json!({
+        //         "or":[{"search": {"terms":["alle","Words", "TRIFFTNICHTS"], "path": "meanings.ger[]", "term_operator": "ANY"}} ]
+        //     });
 
-            let hits = search_testo_to_doc(req);
-            assert_eq!(hits.data[0].doc["meanings"]["ger"][2], "alle meine Words");
-        }
+        //     let hits = search_testo_to_doc(req);
+        //     assert_eq!(hits.data[0].doc["meanings"]["ger"][2], "alle meine Words");
+        // }
 
-        it "should handle multi terms or connected n hits"{ // multi terms attribute ALL
-            let req = json!({
-                "or":[{"search": {"terms":["alle","Words", "TRIFFTNICHTS"], "path": "meanings.ger[]", "term_operator": "ALL"}} ]
-            });
+        // it "should handle multi terms or connected n hits"{ // multi terms attribute ALL
+        //     let req = json!({
+        //         "or":[{"search": {"terms":["alle","Words", "TRIFFTNICHTS"], "path": "meanings.ger[]", "term_operator": "ALL"}} ]
+        //     });
 
-            let hits = search_testo_to_doc(req);
-            assert_eq!(hits.data.len(), 0);
-        }
+        //     let hits = search_testo_to_doc(req);
+        //     assert_eq!(hits.data.len(), 0);
+        // }
 
         // { // terms
         //     let req = json!({

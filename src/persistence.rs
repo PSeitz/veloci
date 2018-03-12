@@ -605,7 +605,11 @@ impl Persistence {
         self.cache
             .index_id_to_parento
             .get(path)
-            .ok_or_else(|| From::from(format!("Did not found path in cache {:?}", path)))
+            .ok_or_else(|| {
+                let error = format!("Did not found path in cache {:?}", path);
+                println!("{:?}", error);
+                From::from(error)
+            })
     }
 
     #[cfg_attr(feature = "flame_it", flame)]

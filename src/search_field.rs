@@ -220,6 +220,7 @@ pub fn highlight(persistence: &Persistence, options: &mut RequestSearchPart) -> 
     ))
 }
 
+
 #[cfg_attr(feature = "flame_it", flame)]
 pub fn get_hits_in_field(persistence: &Persistence, options: RequestSearchPart, filter: Option<&FnvHashSet<u32>>) -> Result<SearchFieldResult, SearchError> {
     let mut options = options.clone();
@@ -231,60 +232,68 @@ pub fn get_hits_in_field(persistence: &Persistence, options: RequestSearchPart, 
         return Ok(hits);
     } else {
         // let mut all_hits: FnvHashMap<String, SearchFieldResult> = FnvHashMap::default();
-        let mut all_hits_results = vec![];
-        for term in &options.terms {
-            let mut options = options.clone();
-            options.terms = vec![term.to_string()];
-            all_hits_results.push(get_term_ids_in_field(persistence, &mut options, filter)?);
-            // let hits: SearchFieldResult = get_hits_in_field_one_term(persistence, &mut options, filter)?;
-            // all_hits.insert(term.to_string(), hits); // todo
-        }
+        // let mut all_hits_results = vec![];
+        // for term in &options.terms {
+        //     let mut options = options.clone();
+        //     options.terms = vec![term.to_string()];
+        //     all_hits_results.push(get_term_ids_in_field(persistence, &mut options)?);
+        //     // let hits: SearchFieldResult = get_hits_in_field_one_term(persistence, &mut options, filter)?;
+        //     // all_hits.insert(term.to_string(), hits); // todo
+        // }
 
-        // Boost tokens from same text_id
-        // Get text_ids for token_ids
-        let token_to_text_id = persistence.get_valueid_to_parent(&concat(&options.path, ".tokens_to_parent"))?;
-        let mut text_id_bvs = vec![];
-        { //TEEEEEEEEEEEEEEEEEEEEEEEEEST
-            for token_hits in all_hits_results.iter() {
-                let mut bv = BitVec::new();
-                info_time!(format!("{} WAAAA BITS SETZEN WAAA", &options.path));
-                for hit in &token_hits.hits_vec {
-                    if let Some(text_ids) = token_to_text_id.get_values(hit.id as u64) {
-                        for text_id in text_ids.iter() {
-                            bv.set(*text_id as usize, true);
-                        }
-                    }
-                }
-                text_id_bvs.push(bv);
-            }
-        }
+        // get_boost_text_ids(persistence, &options, &all_hits_results)?;
 
-        if options.fast_field {
-            for res in all_hits_results.iter_mut() {
-                *res = resolve_token_to_anchor(persistence, &options, filter, &res)?;
-            }
-        } else {
-            // if options.resolve_token_to_parent_hits.unwrap_or(true) {
-            //     resolve_token_hits(persistence, &options.path, &mut result, options, filter)?;
-            // }
-        }
+        // if options.fast_field {
+        //     for res in all_hits_results.iter_mut() {
+        //         *res = resolve_token_to_anchor(persistence, &options, filter, &res)?;
+        //     }
+        // } else {
+        //     // if options.resolve_token_to_parent_hits.unwrap_or(true) {
+        //     //     resolve_token_hits(persistence, &options.path, &mut result, options, filter)?;
+        //     // }
+        // }
 
-        match options.term_operator {
-            search::TermOperator::ALL => {
-                return Ok(search::intersect_hits_vec(all_hits_results))
-            },
-            search::TermOperator::ANY => {
-                return Ok(search::union_hits_vec(all_hits_results))
-            },
-        }
-
-        
+        // match options.term_operator {
+        //     search::TermOperator::ALL => {
+        //         return Ok(search::intersect_hits_vec(all_hits_results))
+        //     },
+        //     search::TermOperator::ANY => {
+        //         return Ok(search::union_hits_vec(all_hits_results))
+        //     },
+        // }
 
 
-        
+
     }
 
-    // Ok(SearchFieldResult::default())
+    Ok(SearchFieldResult::default())
+}
+
+fn get_boost_text_ids(persistence: &Persistence, options: &RequestSearchPart, all_hits_results: &Vec<SearchFieldResult>) -> Result<(), SearchError> {
+// Boost tokens from same text_id
+// Get text_ids for token_ids
+    let token_to_text_id = persistence.get_valueid_to_parent(&concat(&options.path, ".tokens_to_parent"))?;
+    let mut text_id_bvs = vec![];
+    { //TEEEEEEEEEEEEEEEEEEEEEEEEEST
+        info_time!(format!("{} WAAAA BITS SETZEN WAAA", &options.path));
+        for token_hits in all_hits_results.iter() {
+            let mut bv = BitVec::new();
+            for hit in &token_hits.hits_vec {
+                if let Some(text_ids) = token_to_text_id.get_values(hit.id as u64) {
+                    for text_id in text_ids.iter() {
+                        let id = *text_id as usize;
+                        if bv.len() <= id + 1 {
+                            bv.grow(id + 1, false);
+                        }
+                        bv.set(id, true);
+                    }
+                }
+            }
+            text_id_bvs.push(bv);
+        }
+    }
+
+    Ok(())
 }
 
 #[cfg_attr(feature = "flame_it", flame)]
@@ -295,7 +304,7 @@ fn get_hits_in_field_one_term(
 ) -> Result<SearchFieldResult, SearchError> {
     debug_time!(format!("{} get_hits_in_field", &options.path));
 
-    let mut result = get_term_ids_in_field(persistence, options, filter)?;
+    let mut result = get_term_ids_in_field(persistence, options)?;
 
     debug!("{:?} hits in textindex {:?}", result.hits_vec.len(), &options.path);
     trace!("hits in textindex: {:?}", result.hits_vec);
@@ -307,8 +316,6 @@ fn get_hits_in_field_one_term(
             resolve_token_hits(persistence, &options.path, &mut result, options, filter)?;
         }
     }
-
-    
 
     Ok(result)
 }
@@ -327,8 +334,7 @@ use std;
 #[cfg_attr(feature = "flame_it", flame)]
 fn get_term_ids_in_field(
     persistence: &Persistence,
-    options: &mut RequestSearchPart,
-    filter: Option<&FnvHashSet<u32>>,
+    options: &mut RequestSearchPart
 ) -> Result<SearchFieldResult, SearchError> {
 
     let mut result = SearchFieldResult::default();
@@ -465,44 +471,44 @@ fn resolve_token_to_anchor(
             if let Some(text_id_score) = token_kvdata.get_values(hit.id as u64) {
                 trace_time!(format!("{} adding anchor hits for id {:?}", &options.path, hit.id));
                 let mut curr_pos = unsafe_increase_len(&mut anchor_ids_hits, text_id_score.len() / 2);
-                for (text_id, token_in_text_id_score) in text_id_score.iter().tuples().filter(|&(id, _)|!should_filter(&filter, &id))  {
+                for (anchor_id, token_in_text_id_score) in text_id_score.iter().tuples().filter(|&(id, _)|!should_filter(&filter, &id))  {
 
                     let final_score = hit.score * (*token_in_text_id_score as f32 / 100.0); // TODO ADD LIMIT FOR TOP X
-                    trace!(
-                        "text_id {:?} term_id {:?}, token_in_text_id_score {:?} score {:?} to final_score {:?}",
-                        text_id,
-                        hit.id,
-                        token_in_text_id_score,
-                        hit.score,
-                        final_score
-                    );
+                    // trace!(
+                    //     "anchor_id {:?} term_id {:?}, token_in_text_id_score {:?} score {:?} to final_score {:?}",
+                    //     anchor_id,
+                    //     hit.id,
+                    //     token_in_text_id_score,
+                    //     hit.score,
+                    //     final_score
+                    // );
 
-                    // anchor_ids_hits.push(Hit::new(*text_id,final_score));
-                    anchor_ids_hits[curr_pos] = search::Hit::new(*text_id, final_score);
+                    // anchor_ids_hits.push(Hit::new(*anchor_id,final_score));
+                    anchor_ids_hits[curr_pos] = search::Hit::new(*anchor_id, final_score);
                     curr_pos += 1;
                 }
             }
         }
-        info!("{} found {:?} token in {:?} text_ids", &options.path, result.hits_vec.len(), anchor_ids_hits.len());
+        debug!("{} found {:?} token in {:?} anchor_ids", &options.path, result.hits_vec.len(), anchor_ids_hits.len());
     }
 
-    { //TEEEEEEEEEEEEEEEEEEEEEEEEEST
-        let mut the_bits = FixedBitSet::with_capacity(7000);
-        info_time!(format!("{} WAAAA BITS SETZEN WAAA", &options.path));
-        for hit in &result.hits_vec {
-            // iterate over token hits
-            if let Some(text_id_score) = token_kvdata.get_values(hit.id as u64) {
-                //trace_time!(format!("{} adding anchor hits for id {:?}", &options.path, hit.id));
-                for (text_id, _) in text_id_score.iter().tuples() {
-                    let yep = *text_id as usize;
-                    if the_bits.len() <= yep + 1{
-                        the_bits.grow(yep + 1);
-                    }
-                    the_bits.insert(yep);
-                }
-            }
-        }
-    }
+    // { //TEEEEEEEEEEEEEEEEEEEEEEEEEST
+    //     let mut the_bits = FixedBitSet::with_capacity(7000);
+    //     info_time!(format!("{} WAAAA BITS SETZEN WAAA", &options.path));
+    //     for hit in &result.hits_vec {
+    //         // iterate over token hits
+    //         if let Some(text_id_score) = token_kvdata.get_values(hit.id as u64) {
+    //             //trace_time!(format!("{} adding anchor hits for id {:?}", &options.path, hit.id));
+    //             for (text_id, _) in text_id_score.iter().tuples() {
+    //                 let yep = *text_id as usize;
+    //                 if the_bits.len() <= yep + 1{
+    //                     the_bits.grow(yep + 1);
+    //                 }
+    //                 the_bits.insert(yep);
+    //             }
+    //         }
+    //     }
+    // }
 
     // let text_id_to_anchor = persistence.get_valueid_to_parent(&concat(&options.path, ".text_id_to_anchor"))?;
     // let mut anchor_hits = vec![];
@@ -535,7 +541,8 @@ fn resolve_token_to_anchor(
 
     {
         debug_time!(format!("{} fast_field sort and dedup sum", &options.path));
-        anchor_ids_hits.sort_unstable_by(|a, b| b.id.partial_cmp(&a.id).unwrap_or(Ordering::Equal)); //TODO presort data in persistence, k_merge token_hits
+        // anchor_ids_hits.sort_unstable_by(|a, b| b.id.partial_cmp(&a.id).unwrap_or(Ordering::Equal)); //TODO presort data in persistence, k_merge token_hits
+        anchor_ids_hits.sort_unstable_by_key(|a| a.id); //TODO presort data in persistence, k_merge token_hits
         anchor_ids_hits.dedup_by( |a, b|{
             if a.id == b.id{
                 b.score += a.score; // TODO: Check if b is always kept and a discarded in case of equality
@@ -577,7 +584,7 @@ fn resolve_token_to_anchor(
     // // IDS ONLY - scores müssen draußen bleiben
 
 
-
+    trace!("anchor id hits {:?}", anchor_ids_hits);
     res.hits_vec = anchor_ids_hits;
 
 

@@ -583,47 +583,48 @@ where
             data.tokens_to_anchor_id.push(ValIdPairToken {
                 valid: text_info.id as u32,
                 num_occurences: text_info.num_occurences as u32,
-                parent_val_id: anchor_id,
+                parent_val_id: anchor_id as u32,
                 token_pos: 0,
                 entry_num_tokens: 1,
             });
 
             if options.tokenize && tokenizer.has_tokens(value) {
-                if data.value_id_to_token_ids.get_values(text_info.id as u64).is_none() { // tokenize text_id only once
-                    let mut tokens_to_anchor_id = vec![];
-                    let mut current_token_pos = 0;
-                    let mut tokens_ids = vec![];
+                let mut tokens_to_anchor_id = vec![];
+                let mut current_token_pos = 0;
+                let mut tokens_ids = vec![];
 
-                    tokenizer.get_tokens(value, &mut |token: &str, _is_seperator: bool| {
-                        if options.stopwords.as_ref().map(|el| el.contains(token)).unwrap_or(false) {
-                            return;
-                        }
-
-                        let token_info = all_terms.get(token).expect("did not found token");
-                        trace!("Adding to tokens_ids {:?} : {:?}", token, token_info);
-
-                        // data.value_id_to_token_ids.push(ValIdPair::new(text_info.id as u32, token_info.id as u32));
-                        tokens_ids.push(token_info.id as u32);
-                        data.tokens_to_parent.push(ValIdPair::new(token_info.id as u32, text_info.id as u32));
-                        tokens_to_anchor_id.push(ValIdPairToken {
-                            valid: token_info.id as u32,
-                            num_occurences: token_info.num_occurences as u32,
-                            parent_val_id: anchor_id,
-                            token_pos: current_token_pos as u32,
-                            entry_num_tokens: 0,
-                        });
-                        current_token_pos += 1;
-                    });
-
-                    //add num tokens info
-                    for mut el in tokens_to_anchor_id {
-                        el.entry_num_tokens = current_token_pos;
-                        data.tokens_to_anchor_id.push(el);
+                tokenizer.get_tokens(value, &mut |token: &str, _is_seperator: bool| {
+                    if options.stopwords.as_ref().map(|el| el.contains(token)).unwrap_or(false) {
+                        return;
                     }
-                    trace!("Adding for {:?} {:?} token_ids {:?}", value, text_info.id, tokens_ids);
 
+                    let token_info = all_terms.get(token).expect("did not found token");
+                    trace!("Adding to tokens_ids {:?} : {:?}", token, token_info);
+
+                    // data.value_id_to_token_ids.push(ValIdPair::new(text_info.id as u32, token_info.id as u32));
+                    tokens_ids.push(token_info.id as u32);
+                    data.tokens_to_parent.push(ValIdPair::new(token_info.id as u32, text_info.id as u32));
+                    tokens_to_anchor_id.push(ValIdPairToken {
+                        valid: token_info.id as u32,
+                        num_occurences: token_info.num_occurences as u32,
+                        parent_val_id: anchor_id as u32,
+                        token_pos: current_token_pos as u32,
+                        entry_num_tokens: 0,
+                    });
+                    current_token_pos += 1;
+                });
+
+                //add num tokens info
+                for mut el in tokens_to_anchor_id {
+                    el.entry_num_tokens = current_token_pos;
+                    data.tokens_to_anchor_id.push(el);
+                }
+
+                if data.value_id_to_token_ids.get_values(text_info.id as u64).is_none() { // store relation value_id -> text_ids only once
+                    trace!("Adding for {:?} {:?} token_ids {:?}", value, text_info.id, tokens_ids);
                     data.value_id_to_token_ids.add(text_info.id, tokens_ids);
                 }
+
             }
         };
 
@@ -663,8 +664,8 @@ where
             persistence.write_tuple_pair_dedup(&mut data.tokens_to_parent, &concat(&path, ".tokens_to_parent"), true, false)?;
             trace!("{}\n{}", &concat(&path, ".tokens"), print_vec(&data.tokens_to_parent, "token_id", "parent_id"));
 
-            let token_to_text_id_score = calculate_token_score_in_doc(&mut data.tokens_to_anchor_id);
-            let mut token_to_text_score_pairs: Vec<ValIdPair> = token_to_text_id_score
+            let token_to_anchor_id_score = calculate_token_score_in_doc(&mut data.tokens_to_anchor_id);
+            let mut token_to_anchor_id_score_pairs: Vec<ValIdPair> = token_to_anchor_id_score
                 .iter()
                 .flat_map(|el| {
                     vec![
@@ -674,11 +675,11 @@ where
                 })
                 .collect();
 
-            persistence.write_tuple_pair(&mut token_to_text_score_pairs, &concat(&path, ".tokens.to_anchor_id_score"), false)?;
+            persistence.write_tuple_pair(&mut token_to_anchor_id_score_pairs, &concat(&path, ".tokens.to_anchor_id_score"), false)?;
             trace!(
                 "{}\n{}",
                 &concat(&path, ".tokens.to_anchor"),
-                print_vec(&token_to_text_score_pairs, "token_id", "anchor_id")
+                print_vec(&token_to_anchor_id_score_pairs, "token_id", "anchor_id")
             );
 
             persistence.write_indirect_index(&mut data.value_id_to_token_ids, &concat(&path, ".value_id_to_token_ids"))?;

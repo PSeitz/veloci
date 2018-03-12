@@ -53,54 +53,72 @@ fn replace_all_with_space(s: &mut String, remove: &str) {
     }
 }
 
+#[derive(Debug, Default, Clone, Serialize, Deserialize)]
+pub struct SearchQueryGeneratorParameters {
+    pub search_term: String,
+    pub top: Option<usize>,
+    pub skip: Option<usize>,
+    pub operator: Option<String>,
+    pub levenshtein: Option<usize>,
+    pub levenshtein_auto_limit: Option<usize>,
+    pub facetlimit: Option<usize>,
+    pub why_found: Option<bool>,
+    pub facets: Option<Vec<String>>,
+    pub fields: Option<Vec<String>>,
+    pub boost_fields: HashMap<String, f32>,
+    pub boost_terms: HashMap<String, f32>,
+}
+
 #[cfg_attr(feature = "flame_it", flame)]
 pub fn search_query(
-    request: &str,
-    persistence: &Persistence,
-    top: Option<usize>,
-    skip: Option<usize>,
-    mut operator: Option<String>,
-    levenshtein: Option<usize>,
-    levenshtein_auto_limit: Option<usize>,
-    mut facetlimit: Option<usize>,
-    why_found: Option<bool>,
-    facets: Option<Vec<String>>,
-    fields: Option<Vec<String>>,
-    boost_fields: HashMap<String, f32>,
-    boost_terms: HashMap<String, f32>,
+    // request: &str,
+    // persistence: &Persistence,
+    // top: Option<usize>,
+    // skip: Option<usize>,
+    // mut operator: Option<String>,
+    // levenshtein: Option<usize>,
+    // levenshtein_auto_limit: Option<usize>,
+    // mut facetlimit: Option<usize>,
+    // why_found: Option<bool>,
+    // facets: Option<Vec<String>>,
+    // fields: Option<Vec<String>>,
+    // boost_fields: HashMap<String, f32>,
+    // boost_terms: HashMap<String, f32>,
     // boost_fields_opt: Option<Vec<String>>,
+    persistence: &Persistence,
+    mut opt:SearchQueryGeneratorParameters
 ) -> Request {
     // let req = persistence.meta_data.fulltext_indices.key
-    facetlimit = facetlimit.or(Some(5));
+    opt.facetlimit = opt.facetlimit.or(Some(5));
     info_time!("generating search query");
-    let terms: Vec<String> = if operator.is_none() && request.contains(" AND ") {
-        operator = Some("and".to_string());
+    let terms: Vec<String> = if opt.operator.is_none() && opt.search_term.contains(" AND ") {
+        opt.operator = Some("and".to_string());
 
-        let mut s = String::from(request);
+        let mut s = opt.search_term.to_string();
         replace_all_with_space(&mut s, " AND ");
         s = normalize_to_single_space(&s);
         s.split(" ").map(|el| el.to_string()).collect()
     } else {
-        let mut s = String::from(request);
+        let mut s = opt.search_term.to_string();
         replace_all_with_space(&mut s, " OR ");
         s = normalize_to_single_space(&s);
         s.split(" ").map(|el| el.to_string()).collect()
     };
 
-    // let terms = request.split(" ").map(|el|el.to_string()).collect::<Vec<&str>>();
-    let op = operator.map(|op| op.to_lowercase()).unwrap_or("or".to_string());
+    // let terms = opt.search_term.split(" ").map(|el|el.to_string()).collect::<Vec<&str>>();
+    let op = opt.operator.as_ref().map(|op| op.to_lowercase()).unwrap_or("or".to_string());
 
-    let facets_req: Option<Vec<FacetRequest>> = facets.map(|facets_fields| {
+    let facets_req: Option<Vec<FacetRequest>> = opt.facets.as_ref().map(|facets_fields| {
         facets_fields
             .iter()
             .map(|f| FacetRequest {
                 field: f.to_string(),
-                top: facetlimit,
+                top: opt.facetlimit,
             })
             .collect()
     });
 
-    let boost_terms_req: Vec<RequestSearchPart> = boost_terms
+    let boost_terms_req: Vec<RequestSearchPart> = opt.boost_terms
         .iter()
         .flat_map(|(boost_term, boost_value): (&String, &f32)| {
             let mut boost_term = boost_term.to_string();
@@ -126,26 +144,26 @@ pub fn search_query(
 
     let boost_term = if boost_terms_req.is_empty() { None } else { Some(boost_terms_req) };
 
-    if op == "and" {
+    let mut request = if op == "and" {
         let requests: Vec<Request> = terms
             .iter()
             .map(|term| {
-                let mut levenshtein_distance = levenshtein.unwrap_or_else(|| get_default_levenshtein(term, levenshtein_auto_limit.unwrap_or(1)));
+                let mut levenshtein_distance = opt.levenshtein.unwrap_or_else(|| get_default_levenshtein(term, opt.levenshtein_auto_limit.unwrap_or(1)));
                 levenshtein_distance = std::cmp::min(levenshtein_distance, term.chars().count() - 1);
-                let parts = get_all_field_names(&persistence, &fields)
+                let parts = get_all_field_names(&persistence, &opt.fields)
                     .iter()
                     .map(|field_name| {
                         let part = RequestSearchPart {
                             path: field_name.to_string(),
                             terms: vec![term.to_string()],
-                            boost: boost_fields.get(field_name).map(|el| *el),
+                            boost: opt.boost_fields.get(field_name).map(|el| *el),
                             levenshtein_distance: Some(levenshtein_distance as u32),
                             resolve_token_to_parent_hits: Some(true),
                             ..Default::default()
                         };
                         Request {
                             search: Some(part),
-                            why_found: why_found.unwrap_or(false),
+                            why_found: opt.why_found.unwrap_or(false),
                             ..Default::default()
                         }
                     })
@@ -153,41 +171,35 @@ pub fn search_query(
 
                 Request {
                     or: Some(parts), // or over fields
-                    why_found: why_found.unwrap_or(false),
+                    why_found: opt.why_found.unwrap_or(false),
                     ..Default::default()
                 }
             })
             .collect();
 
-        return Request {
+        Request {
             and: Some(requests), // and for terms
-            top: top,
-            skip: skip,
-            boost_term: boost_term,
-            facets: facets_req,
-            why_found: why_found.unwrap_or(false),
             ..Default::default()
-        };
-    }
-
-    let parts: Vec<Request> = get_all_field_names(&persistence, &fields)
+        }
+    }else{
+        let parts: Vec<Request> = get_all_field_names(&persistence, &opt.fields)
         .iter()
         .flat_map(|field_name| {
             let requests: Vec<Request> = terms
                 .iter()
                 .map(|term| {
-                    let levenshtein_distance = levenshtein.unwrap_or_else(|| get_default_levenshtein(term, levenshtein_auto_limit.unwrap_or(1)));
+                    let levenshtein_distance = opt.levenshtein.unwrap_or_else(|| get_default_levenshtein(term, opt.levenshtein_auto_limit.unwrap_or(1)));
                     let part = RequestSearchPart {
                         path: field_name.to_string(),
                         terms: vec![term.to_string()],
-                        boost: boost_fields.get(field_name).map(|el| *el),
+                        boost: opt.boost_fields.get(field_name).map(|el| *el),
                         levenshtein_distance: Some(levenshtein_distance as u32),
                         resolve_token_to_parent_hits: Some(true),
                         ..Default::default()
                     };
                     Request {
                         search: Some(part),
-                        why_found: why_found.unwrap_or(false),
+                        why_found: opt.why_found.unwrap_or(false),
                         ..Default::default()
                     }
                 })
@@ -196,16 +208,28 @@ pub fn search_query(
             requests
         })
         .collect();
+        Request {
+            or: Some(parts),
+            ..Default::default()
+        }
+    };
+    request.top = opt.top;
+    request.skip = opt.skip;
+    request.facets = facets_req;
+    request.why_found = opt.why_found.unwrap_or(false);
+    request.boost_term = boost_term;
 
-    Request {
-        or: Some(parts),
-        top: top,
-        skip: skip,
-        facets: facets_req,
-        why_found: why_found.unwrap_or(false),
-        boost_term: boost_term,
-        ..Default::default()
-    }
+    // Request {
+    //     or: Some(parts),
+    //     top: opt.top,
+    //     skip: opt.skip,
+    //     facets: facets_req,
+    //     why_found: opt.why_found.unwrap_or(false),
+    //     boost_term: boost_term,
+    //     ..Default::default()
+    // }
+
+    request
 }
 
 pub fn suggest_query(

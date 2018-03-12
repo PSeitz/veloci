@@ -739,16 +739,43 @@ pub fn union_hits_vec(mut or_results: Vec<SearchFieldResult>) -> SearchFieldResu
         }
     }
 
-    let iterators: Vec<_> = or_results.iter().map(|el| el.hits_vec.iter()).collect();
+    let mut terms = or_results.iter().map(|res|res.request.terms[0].to_string()).collect::<Vec<_>>();
+    terms.sort();
+    terms.dedup();
+    println!("or connect search terms {:?}", terms);
+
+    let iterators: Vec<_> = or_results.iter().map(|res| {
+                let term_id = terms.iter().position(|ref x| x == &&res.request.terms[0]).unwrap();
+                res.hits_vec.iter().map(move |el| (term_id as u8, el))
+            }
+        ).collect();
 
     let mut union_hits = Vec::with_capacity(longest_len as usize + sum_other_len as usize / 2);
-    let mergo = iterators.into_iter().kmerge_by(|a, b| a.id < b.id);
+    let mergo = iterators.into_iter().kmerge_by(|a, b| a.1.id < b.1.id);
 
     debug_time!("union hits kmerge".to_string());
 
-    for (mut id, mut group) in &mergo.into_iter().group_by(|el| el.id) {
-        let sum_score = group.map(|a| a.score).sum(); // TODO same term = MAX, different terms = SUM
+    // for (mut id, mut group) in &mergo.into_iter().group_by(|el| el.1.id) {
+    //     let sum_score = group.map(|a| a.1.score).sum(); // TODO same term = MAX, different terms = SUM
+    //     union_hits.push(Hit::new(id, sum_score));
+    // }
+
+    let mut term_id_hits = 0;
+    for (mut id, mut group) in &mergo.into_iter().group_by(|el| el.1.id) {
+        let (mut t1, t2) = group.tee();
+        let mut sum_score = t1.map(|a| a.1.score).sum(); // TODO same term = MAX, different terms = SUM
+
+        for el in t2 {
+            let term_id = el.0;
+            set_bit_at(&mut term_id_hits, term_id);
+        }
+
+        let num_terms = term_id_hits.count_ones() as f32;
+        if num_terms >= 2.0 {println!("num_terms {:?}", num_terms);}
+        sum_score = sum_score * num_terms * num_terms;
         union_hits.push(Hit::new(id, sum_score));
+
+        term_id_hits = 0;
     }
 
     // debug!("union hits merged from {} to {} hits", prev, union_hits.len() );
@@ -760,6 +787,22 @@ pub fn union_hits_vec(mut or_results: Vec<SearchFieldResult>) -> SearchFieldResu
     // }
 }
 
+// fn get_bit_at(input: u32, n: u8) -> bool {
+//     if n < 32 {
+//         input & (1 << n) != 0
+//     } else {
+//         false
+//     }
+// }
+
+#[inline]
+fn set_bit_at(input: &mut u32, n: u8) {
+    if n < 32 {
+        *input = *input | (1 << n)
+    }
+}
+
+
 #[test]
 fn union_hits_vec_test() {
     let hits1 = vec![Hit::new(10, 20.0), Hit::new(0, 10.0), Hit::new(5, 20.0)]; // unsorted
@@ -767,10 +810,12 @@ fn union_hits_vec_test() {
 
     let yop = vec![
         SearchFieldResult {
+            request: RequestSearchPart{ terms: vec!["a".to_string()] , ..Default::default()},
             hits_vec: hits1,
             ..Default::default()
         },
         SearchFieldResult {
+            request: RequestSearchPart{ terms: vec!["b".to_string()] , ..Default::default()},
             hits_vec: hits2,
             ..Default::default()
         },
@@ -780,7 +825,7 @@ fn union_hits_vec_test() {
 
     assert_eq!(
         res.hits_vec,
-        vec![Hit::new(0, 30.0), Hit::new(3, 20.0), Hit::new(5, 20.0), Hit::new(10, 50.0), Hit::new(20, 30.0)]
+        vec![Hit::new(0, 120.0), Hit::new(3, 20.0), Hit::new(5, 20.0), Hit::new(10, 200.0), Hit::new(20, 30.0)]
     );
 }
 
