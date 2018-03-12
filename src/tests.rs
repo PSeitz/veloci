@@ -176,6 +176,12 @@ mod tests {
                 "ent_seq": "9555"
             },
             {
+                "meanings": {
+                    "ger": [ "alle meine Words"]
+                },
+                "ent_seq": "1000"
+            },
+            {
                 "sub_level": [{"text":"Prolog:\nthis is story of a guy who went out to rule the world, but then died. the end"}],
                 "commonness": 515151,
                 "ent_seq": "25",
@@ -530,6 +536,24 @@ mod tests {
 
             let hits = search_testo_to_doc(req).data;
             assert_eq!(hits.len(), 0);
+        }
+
+        it "AND connect hits different fields - same text 'alle meine words' appears again"{
+            let req = json!({
+                "and":[
+                    {"search": {
+                        "terms":["words"],
+                        "path": "meanings.ger[]"
+                    }},
+                    {"search": {
+                        "terms":["1000"],
+                        "path": "ent_seq"
+                    }}
+                ]
+            });
+
+            let hits = search_testo_to_doc(req).data;
+            assert_eq!(hits.len(), 1);
         }
 
         it "OR connect hits"{
@@ -917,7 +941,7 @@ mod tests {
 
         it "facet"{
             let pers = PERSISTENCES.get(&"default".to_string()).unwrap();
-            let yep = facet::get_facet(&pers, &search::FacetRequest{field:"tags[]".to_string(), top:Some(10)}, &vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
+            let yep = facet::get_facet(&pers, &search::FacetRequest{field:"tags[]".to_string(), top:Some(10)}, &vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14]);
             assert_eq!(yep.unwrap(), vec![("nice".to_string(), 8), ("cool".to_string(), 8), ("awesome".to_string(), 1), ("coolo".to_string(), 1), ("Eis".to_string(), 1)] );
         }
 
