@@ -2,6 +2,7 @@
 #![plugin(rocket_codegen)]
 #![feature(plugin, custom_attribute)]
 #![feature(underscore_lifetimes)]
+#![feature(type_ascription)]
 
 extern crate rocket;
 extern crate rocket_contrib;
@@ -17,6 +18,7 @@ extern crate iron_cors;
 extern crate multipart;
 extern crate router;
 extern crate serde;
+#[macro_use]
 extern crate serde_json;
 extern crate snap;
 extern crate time;
@@ -71,6 +73,7 @@ lazy_static! {
 
 #[derive(Debug)]
 struct SearchResult(search::SearchResultWithDoc);
+struct SearchErroro(search::SearchError);
 
 #[derive(Debug)]
 struct SuggestResult(search_field::SuggestFieldResult);
@@ -80,6 +83,15 @@ impl<'r> Responder<'r> for SearchResult {
         Response::build()
             .header(ContentType::JSON)
             .sized_body(Cursor::new(serde_json::to_string(&self.0).unwrap()))
+            .ok()
+    }
+}
+impl<'r> Responder<'r> for SearchErroro {
+    fn respond_to(self, _req: &Request) -> response::Result<'r> {
+        let formatted_error:String = format!("{:?}", &self.0);
+        Response::build()
+            .header(ContentType::JSON)
+            .sized_body(Cursor::new(serde_json::to_string(&json!({"error":formatted_error})).unwrap()))
             .ok()
     }
 }
@@ -115,13 +127,14 @@ fn query_param_to_vec(name: Option<String>) -> Option<Vec<String>> {
     name.map(|el| el.split(',').map(|f| f.to_string()).collect())
 }
 
-fn ensure_database(database: &String) {
+fn ensure_database(database: &String) -> Result<(), search::SearchError>  {
     if !PERSISTENCES.contains_key(database) {
         PERSISTENCES.insert(
             database.clone(),
-            persistence::Persistence::load(database.clone()).expect("could not load persistence"),
+            persistence::Persistence::load(database.clone())?,
         );
     }
+    Ok(())
 }
 
 #[get("/version")]
@@ -155,7 +168,7 @@ fn excute_suggest(persistence: &Persistence, struct_body: search::Request, _flam
 
 #[post("/<database>/search", format = "application/json", data = "<request>")]
 fn search_post(database: String, request: Json<search::Request>) -> Result<SearchResult, search::SearchError> {
-    ensure_database(&database);
+    ensure_database(&database)?;
     let persistence = PERSISTENCES.get(&database).unwrap();
 
     search_in_persistence(&persistence, request.0, false)
@@ -175,7 +188,7 @@ fn get_doc_for_id_direct(database: String, id: u32) -> Json<Value> {
     // let persistence = PERSISTENCES.get(&database).unwrap();
     // let fields = persistence.get_all_properties();
     // let tree = search::get_read_tree_from_fields(&persistence, &fields);
-    ensure_database(&database);
+    ensure_database(&database).unwrap();
     let persistence = PERSISTENCES.get(&database).unwrap();
     Json(serde_json::from_str(&DocLoader::get_doc(&persistence, id as usize).unwrap()).unwrap())
 }
@@ -191,7 +204,7 @@ fn get_doc_for_id_direct(database: String, id: u32) -> Json<Value> {
 
 #[get("/<database>/search?<params>")]
 fn search_get(database: String, params: QueryParams) -> Result<SearchResult, search::SearchError> {
-    ensure_database(&database);
+    ensure_database(&database)?;
     let persistence = PERSISTENCES.get(&database).unwrap();
 
     let facets: Option<Vec<String>> = query_param_to_vec(params.facets);
@@ -249,14 +262,14 @@ fn search_get(database: String, params: QueryParams) -> Result<SearchResult, sea
 
 #[post("/<database>/suggest", format = "application/json", data = "<request>")]
 fn suggest_post(database: String, request: Json<search::Request>) -> Result<SuggestResult, search::SearchError> {
-    ensure_database(&database);
+    ensure_database(&database)?;
     let persistence = PERSISTENCES.get(&database).unwrap();
     excute_suggest(&persistence, request.0, false)
 }
 
 #[get("/<database>/inspect/<path>/<id>")]
 fn inspect_data(database: String, path: String, id: u64) -> Result<String, search::SearchError> {
-    ensure_database(&database);
+    ensure_database(&database)?;
     let persistence = PERSISTENCES.get(&database).unwrap();
     // persistence.get(path)
     let data = persistence.get_valueid_to_parent(&path)?;
@@ -265,7 +278,7 @@ fn inspect_data(database: String, path: String, id: u64) -> Result<String, searc
 
 #[get("/<database>/suggest?<params>", format = "application/json")]
 fn suggest_get(database: String, params: QueryParams) -> Result<SuggestResult, search::SearchError> {
-    ensure_database(&database);
+    ensure_database(&database)?;
     let persistence = PERSISTENCES.get(&database).unwrap();
 
     let fields: Option<Vec<String>> = query_param_to_vec(params.fields);
@@ -286,7 +299,7 @@ fn suggest_get(database: String, params: QueryParams) -> Result<SuggestResult, s
 
 #[post("/<database>/highlight", format = "application/json", data = "<request>")]
 fn highlight_post(database: String, mut request: Json<search::RequestSearchPart>) -> String {
-    ensure_database(&database);
+    ensure_database(&database).unwrap();;
     let persistence = PERSISTENCES.get(&database).unwrap();
     let hits = search_field::highlight(&persistence, &mut request).unwrap();
     serde_json::to_string(&hits).unwrap()
@@ -296,7 +309,7 @@ fn main() {
     search_lib::trace::enable_log();
 
     for preload_db in std::env::args().skip(1) {
-        ensure_database(&preload_db);
+        ensure_database(&preload_db).unwrap();
     }
     println!("Starting Server...");
     rocket::ignite()

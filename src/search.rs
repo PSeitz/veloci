@@ -45,6 +45,7 @@ use rayon::prelude::*;
 use crossbeam_channel;
 #[allow(unused_imports)]
 use std::sync::Mutex;
+use half::f16;
 
 #[derive(Serialize, Deserialize, Default, Clone, Debug)]
 pub struct Request {
@@ -666,6 +667,8 @@ fn merge_term_id_hits(results: &mut Vec<SearchFieldResult>) -> FnvHashMap<String
     term_id_hits_in_field
 }
 
+use kmerge_by;
+
 #[cfg_attr(feature = "flame_it", flame)]
 pub fn union_hits_vec(mut or_results: Vec<SearchFieldResult>) -> SearchFieldResult {
     let term_id_hits_in_field = { merge_term_id_hits(&mut or_results) };
@@ -742,40 +745,81 @@ pub fn union_hits_vec(mut or_results: Vec<SearchFieldResult>) -> SearchFieldResu
     let mut terms = or_results.iter().map(|res|res.request.terms[0].to_string()).collect::<Vec<_>>();
     terms.sort();
     terms.dedup();
+
+    let mut fields = or_results.iter().map(|res|res.request.path.to_string()).collect::<Vec<_>>();
+    fields.sort();
+    fields.dedup();
     println!("or connect search terms {:?}", terms);
 
     let iterators: Vec<_> = or_results.iter().map(|res| {
-                let term_id = terms.iter().position(|ref x| x == &&res.request.terms[0]).unwrap();
-                res.hits_vec.iter().map(move |el| (term_id as u8, el))
+                let term_id = terms.iter().position(|ref x| x == &&res.request.terms[0]).unwrap() as u8;
+                let field_id = fields.iter().position(|ref x| x == &&res.request.path).unwrap() as u8;
+                res.hits_vec.iter().map(move |el| (el, term_id, field_id))
             }
         ).collect();
 
+    // if iterators.len() == 2 {
+    //     let ki_ku = iterators.merge_join_by(ku, |i, j| i.cmp(j)).map(|either| {
+    //         match either {
+    //             Left(_) => "Ki",
+    //             Right(_) => "Ku",
+    //             Both(_, _) => "KiKu"
+    //         }
+    //     });
+    // }else{
+    // }
+
+    // let iterators: Vec<_> = or_results.iter().map(|res| {
+    //             res.hits_vec.iter()
+    //         }
+    //     ).collect();
+
     let mut union_hits = Vec::with_capacity(longest_len as usize + sum_other_len as usize / 2);
-    let mergo = iterators.into_iter().kmerge_by(|a, b| a.1.id < b.1.id);
+    // let mergo = iterators.into_iter().kmerge_by(|a, b| a.1.id < b.1.id);
+    // let mergo = iterators.into_iter().kmerge_by(|a, b| a.id < b.id);
+
+    // let mergo = kmerge_by::kmerge_by(iterators.into_iter(), |a, b| a.id < b.id);
+    let mergo = kmerge_by::kmerge_by(iterators.into_iter(), |a, b| a.0.id < b.0.id);
 
     debug_time!("union hits kmerge".to_string());
 
-    // for (mut id, mut group) in &mergo.into_iter().group_by(|el| el.1.id) {
-    //     let sum_score = group.map(|a| a.1.score).sum(); // TODO same term = MAX, different terms = SUM
+    // for (mut id, mut group) in &mergo.into_iter().group_by(|el| el.0.id) {
+    //     let sum_score = group.map(|a| a.0.score).sum(); // TODO same term = MAX, different terms = SUM
     //     union_hits.push(Hit::new(id, sum_score));
     // }
 
     let mut term_id_hits = 0;
-    for (mut id, mut group) in &mergo.into_iter().group_by(|el| el.1.id) {
-        let (mut t1, t2) = group.tee();
-        let mut sum_score = t1.map(|a| a.1.score).sum(); // TODO same term = MAX, different terms = SUM
+    // let mut field_id_hits = 0;
+    for (mut id, mut group) in &mergo.into_iter().group_by(|el| el.0.id) {
+    // for (mut id, mut group) in &mergo.into_iter().group_by(|el| el.id) {
+        // let (mut t1, t2) = group.tee();
+        // let mut sum_score = t1.map(|a| a.0.score).sum(); // TODO same term = MAX, different terms = SUM
 
-        for el in t2 {
-            let term_id = el.0;
+        let mut sum_score = 0.;
+        // let mut num_hits = 0;
+        for el in group {
+            // num_hits +=1;
+            // let field_id = el.2;
+            // set_bit_at(&mut field_id_hits, field_id);
+            let term_id = el.1;
             set_bit_at(&mut term_id_hits, term_id);
+            sum_score += el.0.score;
         }
 
-        let num_terms = term_id_hits.count_ones() as f32;
-        if num_terms >= 2.0 {println!("num_terms {:?}", num_terms);}
-        sum_score = sum_score * num_terms * num_terms;
+        let num_distinct_terms = term_id_hits.count_ones() as f32;
+        // let num_fields = field_id_hits.count_ones() as f32;
+        // let field_locality_boost = num_hits as f32 / num_fields;
+        // // if num_distinct_terms >= 2.0 {println!("num_distinct_terms {:?}", num_distinct_terms);}
+        // sum_score = sum_score * num_distinct_terms * num_distinct_terms * field_locality_boost;
+
+        sum_score = sum_score * num_distinct_terms * num_distinct_terms;
+
+        // let mut sum_score = group.map(|a| a.1.score).sum();
+        // let mut sum_score = group.map(|a| a.score).sum();
         union_hits.push(Hit::new(id, sum_score));
 
         term_id_hits = 0;
+        // field_id_hits = 0;
     }
 
     // debug!("union hits merged from {} to {} hits", prev, union_hits.len() );
@@ -787,6 +831,8 @@ pub fn union_hits_vec(mut or_results: Vec<SearchFieldResult>) -> SearchFieldResu
     // }
 }
 
+
+
 // fn get_bit_at(input: u32, n: u8) -> bool {
 //     if n < 32 {
 //         input & (1 << n) != 0
@@ -797,9 +843,7 @@ pub fn union_hits_vec(mut or_results: Vec<SearchFieldResult>) -> SearchFieldResu
 
 #[inline]
 fn set_bit_at(input: &mut u32, n: u8) {
-    if n < 32 {
-        *input = *input | (1 << n)
-    }
+    *input = *input | (1 << n)
 }
 
 
@@ -1339,11 +1383,15 @@ pub fn read_tree(persistence: &Persistence, id: u32, tree: &NodeTree) -> Result<
     match tree {
         &NodeTree::Map(ref map) => {
             for (prop, sub_tree) in map.iter() {
+                let current_path = concat(&prop, ".parentToValueId");
+                let is_array = prop.ends_with("[]");
+                // println!("{:?} {:?}", current_path, id);
                 match sub_tree {
                     &NodeTree::IsLeaf => {
-                        let is_array = prop.ends_with("[]");
                         if is_array {
-                            if let Some(sub_ids) = join_for_1_to_n(persistence, id, &concat(&prop, ".parentToValueId"))? {
+                            // println!("Checking id {:?} id {:?}", id, current_path);
+                            if let Some(sub_ids) = join_for_1_to_n(persistence, id, &current_path)? {
+                                // println!("{:?} sub_ids1 {:?}", &current_path, sub_ids);
                                 let mut sub_data = vec![];
                                 for sub_id in sub_ids {
                                     if let Some(texto) = join_and_get_text_for_ids(persistence, sub_id, prop)? {
@@ -1353,17 +1401,18 @@ pub fn read_tree(persistence: &Persistence, id: u32, tree: &NodeTree) -> Result<
                                 json[extract_prop_name(prop)] = json!(sub_data);
                             }
                         } else {
+                            // println!("id {:?}", id);
                             if let Some(texto) = join_and_get_text_for_ids(persistence, id, prop)? {
                                 json[extract_prop_name(prop)] = json!(texto);
                             }
                         }
                     }
                     &NodeTree::Map(ref _next) => {
-                        if !persistence.has_index(&concat(&prop, ".parentToValueId")) {
+                        if !persistence.has_index(&current_path) {
                             // Special case a node without information an object in object e.g. there is no information 1:n to store
                             json[extract_prop_name(prop)] = read_tree(persistence, id, &sub_tree)?;
-                        } else if let Some(sub_ids) = join_for_1_to_n(persistence, id, &concat(&prop, ".parentToValueId"))? {
-                            let is_array = prop.ends_with("[]");
+                        } else if let Some(sub_ids) = join_for_1_to_n(persistence, id, &current_path)? {
+                            // println!("sub_ids2 {:?}", sub_ids);
                             if is_array {
                                 let mut sub_data = vec![];
                                 for sub_id in sub_ids {

@@ -96,7 +96,7 @@ pub fn join_anchor_to_leaf(persistence: &Persistence, ids: &[u32], steps: &Vec<S
     };
     for step in steps.iter().skip(1) {
         // debug_time!(format!("facet step {:?}", step));
-        debug!("facet step {:?}", step);
+        trace!("facet step {:?}", step);
         next_level_ids = join_for_n_to_m(persistence, &next_level_ids, &(step.to_string() + ".parentToValueId"))?;
     }
 

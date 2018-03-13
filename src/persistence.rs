@@ -62,9 +62,9 @@ pub struct MetaData {
 }
 
 impl MetaData {
-    pub fn new(folder: &str) -> MetaData {
-        let json = util::file_as_string(&(folder.to_string() + "/metaData.json")).unwrap();
-        serde_json::from_str(&json).unwrap()
+    pub fn new(folder: &str) -> Result<MetaData,SearchError> {
+        let json = util::file_as_string(&(folder.to_string() + "/metaData.json"))?;
+        Ok(serde_json::from_str(&json)?)
     }
 }
 
@@ -374,7 +374,7 @@ impl Persistence {
 
     #[cfg_attr(feature = "flame_it", flame)]
     pub fn load(db: String) -> Result<Self, search::SearchError> {
-        let meta_data = MetaData::new(&db);
+        let meta_data = MetaData::new(&db)?;
         let mut pers = Persistence {
             meta_data,
             db,

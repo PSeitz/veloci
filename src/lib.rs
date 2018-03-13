@@ -95,9 +95,11 @@ extern crate utf8_ranges;
 
 #[macro_use]
 extern crate lazy_static;
+extern crate half;
 
 #[macro_use]
 pub mod util;
+pub mod kmerge_by;
 pub mod search;
 pub mod create;
 pub mod query_generator;

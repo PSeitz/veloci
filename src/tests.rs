@@ -81,6 +81,7 @@ mod tests {
                 "id": 1234566,
                 "gender": "male",
                 "tags": ["awesome", "cool"],
+                "sinlge_value_multi": ["wert"],
                 "birthDate": "1960-08-19",
                 "address": [
                     {
@@ -927,6 +928,7 @@ mod tests {
                 "id": "1234566",
                 "gender": "male",
                 "tags": ["awesome", "cool"],
+                "sinlge_value_multi": ["wert"],
                 "birthDate": "1960-08-19",
                 "address": [{"line": ["nuts strees"] }, {"line": ["asdf"] } ],
                 "commonness": "500",

@@ -454,7 +454,7 @@ fn check_similarity(data: &FnvHashMap<String, FnvHashMap<String, TermInfo>>) {
 
     info_time!(format!("check_similarity"));
     for (path, terms) in data {
-        
+
         let num_terms = terms.len();
         for (path_comp, terms_comp) in data.iter().filter(|&(path_comp, _)|path_comp!=path) {
             let num_similar = terms.keys().filter(|term|terms_comp.contains_key(term.as_str())).count();
@@ -472,7 +472,6 @@ fn check_similarity(data: &FnvHashMap<String, FnvHashMap<String, TermInfo>>) {
         }
     }
 
-    
     for (path, sub) in map {
         for (path2, data) in sub {
             println!("{} {} {} {}", path, path2, data.0, data.1 );
