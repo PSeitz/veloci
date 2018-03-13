@@ -595,7 +595,7 @@ where
 
                 tokenizer.get_tokens(value, &mut |token: &str, _is_seperator: bool| {
                     if options.stopwords.as_ref().map(|el| el.contains(token)).unwrap_or(false) {
-                        return;
+                        return; //TODO return here also prevents proper recreation of text with tokens
                     }
 
                     let token_info = all_terms.get(token).expect("did not found token");
