@@ -80,11 +80,18 @@ pub struct Request {
     pub text_locality: bool,
 }
 
-// #[derive(Serialize, Deserialize, Clone, Debug)]
-// enum TextLocalitySetting {
-//     Enabled,
-//     Fields(Vec<String>),
-// }
+#[derive(Serialize, Deserialize, Clone, Debug)]
+enum TextLocalitySetting {
+    Enabled,
+    Disabled,
+    Fields(Vec<String>),
+}
+
+impl Default for TextLocalitySetting {
+    fn default() -> TextLocalitySetting {
+        TextLocalitySetting::Disabled
+    }
+}
 
 fn skip_false(val: &bool) -> bool {
     !*val

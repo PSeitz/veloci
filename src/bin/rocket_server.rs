@@ -12,11 +12,6 @@ extern crate chashmap;
 extern crate env_logger;
 extern crate flexi_logger;
 extern crate fnv;
-extern crate hyper;
-extern crate iron;
-extern crate iron_cors;
-extern crate multipart;
-extern crate router;
 extern crate serde;
 #[macro_use]
 extern crate serde_json;
@@ -24,7 +19,6 @@ extern crate snap;
 extern crate time;
 extern crate urlencoded;
 
-extern crate iron_compress;
 #[macro_use]
 extern crate lazy_static;
 #[macro_use]
