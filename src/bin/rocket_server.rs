@@ -120,6 +120,7 @@ struct QueryParams { //TODO serialize directly into SearchQueryGeneratorParamete
     operator: Option<String>,
     select: Option<String>,
     why_found: Option<String>,
+    text_locality: Option<String>,
 }
 
 fn query_param_to_vec(name: Option<String>) -> Option<Vec<String>> {
@@ -243,6 +244,7 @@ fn search_get(database: String, params: QueryParams) -> Result<SearchResult, sea
         levenshtein_auto_limit: params.levenshtein_auto_limit,
         facetlimit: params.facetlimit,
         why_found : params.why_found.map(|el| el == "true" || el == "TRUE" || el == "True"),
+        text_locality : params.text_locality.map(|el| el == "true" || el == "TRUE" || el == "True"),
         facets : facets,
         fields : fields,
         boost_fields : boost_fields,

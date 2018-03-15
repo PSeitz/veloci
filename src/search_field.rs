@@ -29,6 +29,7 @@ use bit_vec::BitVec;
 
 #[allow(unused_imports)]
 use rayon::prelude::*;
+use util::*;
 
 #[allow(unused_imports)]
 use trie::map;
@@ -319,15 +320,7 @@ fn get_hits_in_field_one_term(
 
     Ok(result)
 }
-#[inline]
-fn unsafe_increase_len<T>(vec: &mut Vec<T>, add: usize) -> usize {
-    vec.reserve(1 + add);
-    let curr_pos = vec.len();
-    unsafe {
-        vec.set_len(curr_pos + add);
-    }
-    curr_pos
-}
+
 
 use std;
 

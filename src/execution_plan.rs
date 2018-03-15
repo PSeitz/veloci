@@ -217,7 +217,7 @@ pub fn plan_creator_search_part(mut request_part: RequestSearchPart, mut request
 
     request_part.fast_field = request.boost.is_none() && !request_part.snippet.unwrap_or(false); // fast_field disabled for boosting or _highlighting_ currently
 
-    request_part.store_term_id_hits = request.why_found;
+    request_part.store_term_id_hits = request.why_found || request.text_locality;
 
     if request_part.fast_field {
         PlanStepType::FieldSearch {

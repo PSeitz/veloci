@@ -1026,12 +1026,12 @@ mod tests {
         assert_eq!(map.get(&9).unwrap(), &3);
     }
 
-    #[test]
-    fn test_index_id_to_multiple_vec_vec_flat() {
-        let data = get_test_data_1_to_n();
-        let store = IndexIdToMultipleParent::new(&data);
-        check_test_data_1_to_n(&store);
-    }
+    // #[test]
+    // fn test_index_id_to_multiple_vec_vec_flat() {
+    //     let data = get_test_data_1_to_n();
+    //     let store = IndexIdToMultipleParent::new(&data);
+    //     check_test_data_1_to_n(&store);
+    // }
 
     // #[test]
     // fn test_testdata() {
@@ -1170,15 +1170,15 @@ mod tests {
         //     })
         // }
 
-        #[bench]
-        fn indirect_pointing_uncompressed_im(b: &mut test::Bencher) {
-            let mut rng = rand::thread_rng();
-            let between = Range::new(0, 40_000);
-            let store = get_test_data_large(40_000, 15);
-            let mayda = IndexIdToMultipleParent::<u32>::new(&store);
+        // #[bench]
+        // fn indirect_pointing_uncompressed_im(b: &mut test::Bencher) {
+        //     let mut rng = rand::thread_rng();
+        //     let between = Range::new(0, 40_000);
+        //     let store = get_test_data_large(40_000, 15);
+        //     let mayda = IndexIdToMultipleParent::<u32>::new(&store);
 
-            b.iter(|| mayda.get_values(between.ind_sample(&mut rng)))
-        }
+        //     b.iter(|| mayda.get_values(between.ind_sample(&mut rng)))
+        // }
 
     }
 

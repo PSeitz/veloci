@@ -46,6 +46,7 @@ use crossbeam_channel;
 #[allow(unused_imports)]
 use std::sync::Mutex;
 use half::f16;
+use fixedbitset::FixedBitSet;
 
 #[derive(Serialize, Deserialize, Default, Clone, Debug)]
 pub struct Request {
@@ -74,7 +75,16 @@ pub struct Request {
     #[serde(skip_serializing_if = "skip_false")]
     #[serde(default)]
     pub why_found: bool,
+    #[serde(skip_serializing_if = "skip_false")]
+    #[serde(default)]
+    pub text_locality: bool,
 }
+
+// #[derive(Serialize, Deserialize, Clone, Debug)]
+// enum TextLocalitySetting {
+//     Enabled,
+//     Fields(Vec<String>),
+// }
 
 fn skip_false(val: &bool) -> bool {
     !*val
@@ -278,7 +288,7 @@ pub struct DocWithHit {
     pub why_found: FnvHashMap<String, Vec<String>>,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, Copy, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct Hit {
     pub id: u32,
     pub score: f32,
@@ -318,7 +328,7 @@ impl std::fmt::Display for DocWithHit {
 pub fn to_documents(persistence: &Persistence, hits: &[Hit], select: Option<Vec<String>>, result: &SearchResult) -> Vec<DocWithHit> {
     // DocLoader::load(persistence);
     hits.iter()
-        .map(|ref hit| {
+        .map(|hit| {
             let doc = if let Some(ref select) = select {
                 read_data(persistence, hit.id, &select).unwrap() // TODO validate fields
             } else {
@@ -327,7 +337,7 @@ pub fn to_documents(persistence: &Persistence, hits: &[Hit], select: Option<Vec<
 
             DocWithHit {
                 doc: doc,
-                hit: *hit.clone(),
+                hit: hit.clone(),
                 why_found: result.why_found_info.get(&hit.id).cloned().unwrap_or(FnvHashMap::default()),
             }
         })
@@ -345,7 +355,6 @@ pub fn to_search_result(persistence: &Persistence, hits: SearchResult, select: O
 
 use search_field;
 use highlight_field;
-use fixedbitset::FixedBitSet;
 
 #[inline]
 pub fn to_bucket_and_id(value: u32) -> (u16, u16) {
@@ -394,6 +403,125 @@ fn get_why_found(
     Ok(anchor_highlights)
 }
 
+fn boost_text_locality_all(
+    persistence: &Persistence,
+    term_id_hits_in_field: &FnvHashMap<String, FnvHashMap<String, Vec<TermId>>>,
+) -> Result<(Vec<Hit>), SearchError> {
+    debug!("boost_text_locality_all {:?}", term_id_hits_in_field);
+    info_time!("boost_text_locality_all");
+    let mut boost_anchor:Vec<Hit> = vec![];
+
+    let r: Result<Vec<_>, SearchError> = term_id_hits_in_field.into_par_iter().map(|(path, term_with_ids)| {
+        boost_text_locality(persistence, path, term_with_ids)
+    }).collect();
+
+    info_time!("collect sort_boost");
+    if r.is_err() {
+        return Err(r.unwrap_err());
+    } else {
+        let boosts = r.unwrap();
+        // for boost in boosts {
+        //     boost_anchor.extend(boost.iter().cloned());
+        // }
+
+        let mergo = boosts.into_iter().kmerge_by(|a, b| a.id < b.id);
+        for (mut id, mut group) in &mergo.into_iter().group_by(|el| el.id) {
+            let best_score = group.map(|el| el.score).max_by(|a, b| b.partial_cmp(&a).unwrap_or(Ordering::Equal)).unwrap();
+            boost_anchor.push(Hit::new(id, best_score));
+        }
+
+    }
+
+    // info_time!("sort_boost");
+    // boost_anchor.sort_unstable_by_key(|el| el.id); //TODO GROUP BY MAX instead sort dedup
+
+    // boost_anchor.dedup_by( |a, b|{
+    //     if a.id == b.id{
+    //         if a.score > b.score {
+    //             b.score = a.score; //TODO ADD TEST, KEEP ONLY BESTE SCORE VOMG RANK HER
+    //         }
+    //         true
+    //     }else{
+    //         false
+    //     }
+    // });
+
+    Ok(boost_anchor)
+}
+
+pub fn boost_text_locality(persistence: &Persistence, path: &str, term_with_ids: &FnvHashMap<String, Vec<TermId>>) -> Result<(Vec<Hit>), SearchError> {
+    let mut boost_anchor = vec![];
+    if term_with_ids.len() <= 1 { // No boost for single term hits
+        return Ok(vec![]);
+    }
+    let token_to_text_id = persistence.get_valueid_to_parent(&concat(&path, ".tokens_to_parent"))?;
+    let mut terms_text_ids: Vec<_> = vec![];
+    let mut boost_text_ids = vec![];
+    {
+        trace_time!("text_locality_boost get and group text_ids");
+        for (_, ids) in term_with_ids {
+            let mut text_ids = get_all_value_ids(&ids, token_to_text_id);
+            text_ids.sort_unstable();
+            terms_text_ids.push(text_ids);
+        }
+        let mergo = terms_text_ids.into_iter().kmerge_by(|a, b| a < b);
+        for (mut id, mut group) in &mergo.into_iter().group_by(|el| *el) {
+            let num_hits_in_same_text = group.count();
+            if num_hits_in_same_text > 1 {
+                boost_text_ids.push((id, num_hits_in_same_text));
+            }
+        }
+    }
+    let text_id_to_anchor = persistence.get_valueid_to_parent(&concat(&path, ".text_id_to_anchor"))?;
+    trace_time!("text_locality_boost text_ids to anchor");
+
+    for text_id in boost_text_ids {
+        let num_hits_in_same_text = text_id.1;
+        if let Some(anchor_ids) = text_id_to_anchor.get_values(text_id.0 as u64) {
+            for anchor_id in anchor_ids {
+                boost_anchor.push(Hit::new(anchor_id, num_hits_in_same_text as f32 * num_hits_in_same_text as f32));
+            }
+        }
+    }
+    boost_anchor.sort_unstable_by_key(|el| el.id);
+    Ok(boost_anchor)
+}
+
+use persistence::*;
+fn get_all_value_ids(ids:&[u32], token_to_text_id: &Box<IndexIdToParent<Output = u32>>) -> Vec<u32> {
+    let mut text_ids:Vec<u32> = vec![];
+    for id in ids {
+        if let Some(ids) = token_to_text_id.get_values(*id as u64) {
+            text_ids.extend(ids.iter()); // TODO move data, swap first
+        }
+    }
+    text_ids
+}
+
+fn top_n_sort(data: Vec<Hit>, top_n:u32) -> Vec<Hit> {
+    let mut worst_score = std::f32::MIN;
+
+    let mut new_data:Vec<Hit> = Vec::with_capacity(top_n as usize * 5 + 1);
+    for el in data {
+        if el.score < worst_score {
+            continue;
+        }
+        if !new_data.is_empty() && (new_data.len() as u32 % (top_n * 5)) == 0 {
+            new_data.sort_unstable_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(Ordering::Equal));
+            new_data.truncate(top_n as usize);
+            worst_score = new_data.last().unwrap().score;
+            trace!("new worst {:?}", worst_score);
+        }
+
+        new_data.push(el);
+
+    }
+    new_data.sort_unstable_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(Ordering::Equal));
+    new_data
+
+}
+
+
 #[cfg_attr(feature = "flame_it", flame)]
 pub fn search(mut request: Request, persistence: &Persistence) -> Result<SearchResult, SearchError> {
     info_time!("search");
@@ -412,10 +540,6 @@ pub fn search(mut request: Request, persistence: &Persistence) -> Result<SearchR
         res
     };
 
-    // let res = search_unrolled(&persistence, request)?;
-    // let res = hits_to_array_iter(res.iter());
-    // let res = hits_to_sorted_array(res);
-
     let mut search_result = SearchResult { ..Default::default() };
 
     {
@@ -425,29 +549,23 @@ pub fn search(mut request: Request, persistence: &Persistence) -> Result<SearchR
         }
     }
 
-    let term_id_hits_in_field = res.term_id_hits_in_field;
-    if res.hits_vec.len() > 0 {
-        //TODO extract only top n
-        res.hits_vec.sort_unstable_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(Ordering::Equal)); //TODO Add sort by id when equal
-        search_result.data = res.hits_vec;
+    if request.text_locality {
+        info_time!("boost_text_locality_all");
+        let boost_anchor = boost_text_locality_all(&persistence, &res.term_id_hits_in_field)?;
+        res = apply_boost_from_iter(res, &mut boost_anchor.iter().cloned());
     }
-    search_result.num_hits = search_result.data.len() as u64;
-
-    let topn_results = apply_top_skip(&search_result.data, request.skip, request.top);
+    let term_id_hits_in_field = res.term_id_hits_in_field;
 
     if let Some(facets_req) = request.facets {
         info_time!(format!("all_facets {:?}", facets_req.iter().map(|el|el.field.clone()).collect::<Vec<_>>()));
-        let mut hit_ids: Vec<u32> = {
-            debug_time!("get_and_sort_for_factes"); // THIS IS TOO SLOW
-            let mut hit_ids: Vec<u32> = search_result.data.iter().map(|el| el.id).collect();
+
+        let hit_ids: Vec<u32> = { // get sorted ids, for facets
+            debug_time!("get_and_sort_for_factes");
+            let mut hit_ids:Vec<u32> = res.hits_vec.iter().map(|el|el.id).collect();
+            debug_time!("get_and_sort_for_factes sort only!!!");
             hit_ids.sort_unstable();
             hit_ids
         };
-
-        // {
-        //     debug_time!("sort only _for_factes");
-        //     search_result.data.sort_unstable_by_key(|a| a.id);
-        // }
 
         search_result.facets = Some(
             facets_req
@@ -456,11 +574,27 @@ pub fn search(mut request: Request, persistence: &Persistence) -> Result<SearchR
                 .collect(),
         );
     }
+
+
+    search_result.num_hits = res.hits_vec.len() as u64;
+    {
+        debug_time!("sort search by score");
+        if let Some(top) = request.top {
+            search_result.data = top_n_sort(res.hits_vec, top as u32 + request.skip.unwrap_or(0) as u32);//TODO Add sort by id when equal
+        }else{
+            search_result.data = res.hits_vec;
+            search_result.data.sort_unstable_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(Ordering::Equal)); //TODO Add sort by id when equal
+        }
+    }
+    let topn_results = apply_top_skip(&search_result.data, request.skip, request.top);
     search_result.data = topn_results;
 
-    let anchor_ids: Vec<u32> = search_result.data.iter().map(|el| el.id).collect();
-    let why_found_info = get_why_found(&persistence, &anchor_ids, &term_id_hits_in_field)?;
-    search_result.why_found_info = why_found_info;
+
+    if request.why_found {
+        let anchor_ids: Vec<u32> = search_result.data.iter().map(|el| el.id).collect();
+        let why_found_info = get_why_found(&persistence, &anchor_ids, &term_id_hits_in_field)?;
+        search_result.why_found_info = why_found_info;
+    }
     Ok(search_result)
 }
 
@@ -749,37 +883,30 @@ pub fn union_hits_vec(mut or_results: Vec<SearchFieldResult>) -> SearchFieldResu
     let mut fields = or_results.iter().map(|res|res.request.path.to_string()).collect::<Vec<_>>();
     fields.sort();
     fields.dedup();
-    println!("or connect search terms {:?}", terms);
+    info!("or connect search terms {:?}", terms);
 
     let iterators: Vec<_> = or_results.iter().map(|res| {
                 let term_id = terms.iter().position(|ref x| x == &&res.request.terms[0]).unwrap() as u8;
                 let field_id = fields.iter().position(|ref x| x == &&res.request.path).unwrap() as u8;
-                res.hits_vec.iter().map(move |el| (el, term_id, field_id))
+                // res.hits_vec.iter().map(move |el| (el.hit, f16::from_f32(el.score), term_id, field_id))
+                res.hits_vec.iter().map(move |hit| {
+                    MiniHit{
+                        id:hit.id,
+                        score:f16::from_f32(hit.score),
+                        term_id:term_id,
+                        field_id:field_id,
+                    }
+                })
             }
         ).collect();
 
-    // if iterators.len() == 2 {
-    //     let ki_ku = iterators.merge_join_by(ku, |i, j| i.cmp(j)).map(|either| {
-    //         match either {
-    //             Left(_) => "Ki",
-    //             Right(_) => "Ku",
-    //             Both(_, _) => "KiKu"
-    //         }
-    //     });
-    // }else{
-    // }
-
-    // let iterators: Vec<_> = or_results.iter().map(|res| {
-    //             res.hits_vec.iter()
-    //         }
-    //     ).collect();
 
     let mut union_hits = Vec::with_capacity(longest_len as usize + sum_other_len as usize / 2);
     // let mergo = iterators.into_iter().kmerge_by(|a, b| a.1.id < b.1.id);
-    // let mergo = iterators.into_iter().kmerge_by(|a, b| a.id < b.id);
+    let mergo = iterators.into_iter().kmerge_by(|a, b| a.id < b.id);
 
     // let mergo = kmerge_by::kmerge_by(iterators.into_iter(), |a, b| a.id < b.id);
-    let mergo = kmerge_by::kmerge_by(iterators.into_iter(), |a, b| a.0.id < b.0.id);
+    // let mergo = kmerge_by::kmerge_by(iterators.into_iter(), |a, b| a.id < b.id);
 
     debug_time!("union hits kmerge".to_string());
 
@@ -790,34 +917,26 @@ pub fn union_hits_vec(mut or_results: Vec<SearchFieldResult>) -> SearchFieldResu
 
     let mut term_id_hits = 0;
     // let mut field_id_hits = 0;
-    for (mut id, mut group) in &mergo.into_iter().group_by(|el| el.0.id) {
-    // for (mut id, mut group) in &mergo.into_iter().group_by(|el| el.id) {
-        // let (mut t1, t2) = group.tee();
-        // let mut sum_score = t1.map(|a| a.0.score).sum(); // TODO same term = MAX, different terms = SUM
+    for (mut id, mut group) in &mergo.into_iter().group_by(|el| el.id) {
 
         let mut sum_score = 0.;
         // let mut num_hits = 0;
         for el in group {
             // num_hits +=1;
-            // let field_id = el.2;
-            // set_bit_at(&mut field_id_hits, field_id);
-            let term_id = el.1;
-            set_bit_at(&mut term_id_hits, term_id);
-            sum_score += el.0.score;
+            // set_bit_at(&mut field_id_hits, el.field_id);
+            set_bit_at(&mut term_id_hits, el.term_id);
+            sum_score += el.score.to_f32();
         }
 
         let num_distinct_terms = term_id_hits.count_ones() as f32;
         // let num_fields = field_id_hits.count_ones() as f32;
         // let field_locality_boost = num_hits as f32 / num_fields;
-        // // if num_distinct_terms >= 2.0 {println!("num_distinct_terms {:?}", num_distinct_terms);}
         // sum_score = sum_score * num_distinct_terms * num_distinct_terms * field_locality_boost;
 
         sum_score = sum_score * num_distinct_terms * num_distinct_terms;
 
-        // let mut sum_score = group.map(|a| a.1.score).sum();
         // let mut sum_score = group.map(|a| a.score).sum();
         union_hits.push(Hit::new(id, sum_score));
-
         term_id_hits = 0;
         // field_id_hits = 0;
     }
@@ -831,6 +950,13 @@ pub fn union_hits_vec(mut or_results: Vec<SearchFieldResult>) -> SearchFieldResu
     // }
 }
 
+#[derive(Debug)]
+struct MiniHit {
+    id: u32,
+    score: f16,
+    term_id: u8,
+    field_id: u8,
+}
 
 
 // fn get_bit_at(input: u32, n: u8) -> bool {
@@ -1022,12 +1148,12 @@ pub fn boost_intersect_hits_vec(mut results: SearchFieldResult, mut boost: Searc
 fn apply_boost_from_iter(mut results: SearchFieldResult, mut boost_iter: &mut Iterator<Item = Hit>) -> SearchFieldResult {
     let move_boost = |hit: &mut Hit, hit_curr: &mut Hit, boost_iter: &mut Iterator<Item = Hit>| {
         //Forward the boost iterator and look for matches
-        while let Some(b_hit) = boost_iter.next() {
+        while let Some(ref b_hit) = boost_iter.next() {
             if b_hit.id > hit.id {
-                *hit_curr = b_hit;
+                *hit_curr = b_hit.clone(); //TODO LOW maybe change data pointed to by hit_curr
                 break;
             } else if b_hit.id == hit.id {
-                *hit_curr = b_hit;
+                *hit_curr = b_hit.clone();
                 hit.score *= b_hit.score;
                 break;
             }
@@ -1571,49 +1697,3 @@ pub fn join_for_1_to_n(persistence: &Persistence, value_id: u32, path: &str) -> 
 //     hits
 // }
 
-// #[cfg_attr(feature="flame_it", flame)]
-// pub fn search_raw(
-//     persistence: &Persistence, mut request: RequestSearchPart, boost: Option<Vec<RequestBoostPart>>
-// ) -> Result<FnvHashMap<u32, f32>, SearchError> {
-//     // request.term = util::normalize_text(&request.term);
-//     request.terms = request.terms.iter().map(|el| util::normalize_text(el)).collect::<Vec<_>>();
-//     debug_time!("search and join to anchor");
-
-//     let step = plan_creator_search_part(request.clone(), boost);
-
-//     let yep = step.get_output();
-
-//     execute_step(step, persistence)?;
-//     let hits = yep.recv().unwrap();
-//     Ok(hits)
-// }
-
-// pub fn test_levenshtein(term:&str, max_distance:u32) -> Result<(Vec<String>), io::Error> {
-
-//     use std::time::SystemTime;
-
-//     let mut f = try!(File::open("de_full_2.txt"));
-//     let mut s = String::new();
-//     try!(f.read_to_string(&mut s));
-
-//     let now = SystemTime::now();
-
-//     let lines = s.lines();
-//     let mut hits = vec![];
-//     for line in lines{
-//         let distance = distance(term, line);
-//         if distance < max_distance {
-//             hits.push(line.to_string())
-//         }
-//     }
-
-//     let ms = match now.elapsed() {
-//         Ok(elapsed) => {(elapsed.as_secs() as f64) * 1_000.0 + (elapsed.subsec_nanos() as f64 / 1000_000.0)}
-//         Err(_e) => {-1.0}
-//     };
-
-//     let lines_checked = s.lines().count() as f64;
-//     let ms_per_1000 = ((ms as f64) / lines_checked) * 1000.0;
-//     Ok((hits))
-
-// }

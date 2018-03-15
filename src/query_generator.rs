@@ -63,6 +63,7 @@ pub struct SearchQueryGeneratorParameters {
     pub levenshtein_auto_limit: Option<usize>,
     pub facetlimit: Option<usize>,
     pub why_found: Option<bool>,
+    pub text_locality: Option<bool>,
     pub facets: Option<Vec<String>>,
     pub fields: Option<Vec<String>>,
     pub boost_fields: HashMap<String, f32>,
@@ -164,6 +165,7 @@ pub fn search_query(
                         Request {
                             search: Some(part),
                             why_found: opt.why_found.unwrap_or(false),
+                            text_locality: opt.text_locality.unwrap_or(false),
                             ..Default::default()
                         }
                     })
@@ -172,6 +174,7 @@ pub fn search_query(
                 Request {
                     or: Some(parts), // or over fields
                     why_found: opt.why_found.unwrap_or(false),
+                    text_locality: opt.text_locality.unwrap_or(false),
                     ..Default::default()
                 }
             })
@@ -200,6 +203,7 @@ pub fn search_query(
                     Request {
                         search: Some(part),
                         why_found: opt.why_found.unwrap_or(false),
+                        text_locality: opt.text_locality.unwrap_or(false),
                         ..Default::default()
                     }
                 })
@@ -217,6 +221,7 @@ pub fn search_query(
     request.skip = opt.skip;
     request.facets = facets_req;
     request.why_found = opt.why_found.unwrap_or(false);
+    request.text_locality = opt.text_locality.unwrap_or(false);
     request.boost_term = boost_term;
 
     // Request {

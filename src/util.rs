@@ -35,6 +35,16 @@ pub fn normalize_text(text: &str) -> String {
 
 use search::Hit;
 
+#[inline]
+pub fn unsafe_increase_len<T>(vec: &mut Vec<T>, add: usize) -> usize {
+    vec.reserve(1 + add);
+    let curr_pos = vec.len();
+    unsafe {
+        vec.set_len(curr_pos + add);
+    }
+    curr_pos
+}
+
 pub fn hits_map_to_vec(hits: &FnvHashMap<u32, f32>) -> Vec<Hit> {
     hits.iter().map(|(id, score)| Hit { id: *id, score: *score }).collect()
 }

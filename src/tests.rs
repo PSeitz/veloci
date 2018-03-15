@@ -135,7 +135,7 @@ mod tests {
                     }
                 ],
                 "meanings": {
-                    "ger": ["welch", "guter nicht Treffer", "alle meine Words"]
+                    "ger": ["welch", "guter nicht Treffer", "alle meine Words", "text", "localität"]
                 },
                 "ent_seq": "1920240",
                 "mylongtext": "Prolog:\nthis is a story of a guy who went out to rule the world, but then died. the end"
@@ -178,7 +178,7 @@ mod tests {
             },
             {
                 "meanings": {
-                    "ger": [ "alle meine Words"]
+                    "ger": ["text localität", "alle meine Words"]
                 },
                 "ent_seq": "1000"
             },
@@ -864,6 +864,19 @@ mod tests {
             let hits = search_testo_to_doc(req).data;
             assert_eq!(hits.len(), 2);
             assert_eq!(hits[0].doc["meanings"]["ger"][0], "majestätischer Anblick (m)");
+        }
+
+        it "boost text localitaet"{
+            let req = json!({
+                "or":[
+                    {"search": {"terms":["text"],      "path": "meanings.ger[]"}, "text_locality": true},
+                    {"search": {"terms":["localität"], "path": "meanings.ger[]"}, "text_locality": true},
+                ],
+                "text_locality": true
+            });
+
+            let hits = search_testo_to_doc(req).data;
+            assert_eq!(hits[0].doc["meanings"]["ger"][0], "text localität");
         }
 
         it "search and get facet"{

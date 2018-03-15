@@ -450,10 +450,6 @@ impl<T: IndexIdToParentData> IndexIdToParent for SingleArrayMMAP<T> {
     fn get_keys(&self) -> Vec<T> {
         (NumCast::from(0).unwrap()..NumCast::from(self.get_size()).unwrap()).collect()
     }
-    #[inline]
-    fn count_values_for_ids(&self, ids: &[u32], top: Option<u32>) -> FnvHashMap<T, usize> {
-        count_values_for_ids(ids, top, self.max_value_id, |id: u64| self.get_value(id))
-    }
 }
 
 impl IndexIdToParent for SingleArrayMMAP<u32> {
