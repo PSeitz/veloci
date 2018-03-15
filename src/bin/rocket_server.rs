@@ -88,10 +88,10 @@ impl<'r> Responder<'r> for SearchResult {
 }
 impl<'r> Responder<'r> for SearchErroro {
     fn respond_to(self, _req: &Request) -> response::Result<'r> {
-        let formatted_error:String = format!("{:?}", &self.0);
+        let formatted_error: String = format!("{:?}", &self.0);
         Response::build()
             .header(ContentType::JSON)
-            .sized_body(Cursor::new(serde_json::to_string(&json!({"error":formatted_error})).unwrap()))
+            .sized_body(Cursor::new(serde_json::to_string(&json!({ "error": formatted_error })).unwrap()))
             .ok()
     }
 }
@@ -106,7 +106,8 @@ impl<'r> Responder<'r> for SuggestResult {
 }
 
 #[derive(FromForm)]
-struct QueryParams { //TODO serialize directly into SearchQueryGeneratorParameters
+struct QueryParams {
+    //TODO serialize directly into SearchQueryGeneratorParameters
     query: String,
     top: Option<usize>,
     skip: Option<usize>,
@@ -128,12 +129,9 @@ fn query_param_to_vec(name: Option<String>) -> Option<Vec<String>> {
     name.map(|el| el.split(',').map(|f| f.to_string()).collect())
 }
 
-fn ensure_database(database: &String) -> Result<(), search::SearchError>  {
+fn ensure_database(database: &String) -> Result<(), search::SearchError> {
     if !PERSISTENCES.contains_key(database) {
-        PERSISTENCES.insert(
-            database.clone(),
-            persistence::Persistence::load(database.clone())?,
-        );
+        PERSISTENCES.insert(database.clone(), persistence::Persistence::load(database.clone())?);
     }
     Ok(())
 }
@@ -236,25 +234,22 @@ fn search_get(database: String, params: QueryParams) -> Result<SearchResult, sea
         .unwrap_or(HashMap::default());
 
     let q_params = query_generator::SearchQueryGeneratorParameters {
-        search_term : params.query.to_string(),
+        search_term: params.query.to_string(),
         top: params.top,
         skip: params.skip,
-        operator : params.operator,
+        operator: params.operator,
         levenshtein: params.levenshtein,
         levenshtein_auto_limit: params.levenshtein_auto_limit,
         facetlimit: params.facetlimit,
-        why_found : params.why_found.map(|el| el == "true" || el == "TRUE" || el == "True"),
-        text_locality : params.text_locality.map(|el| el == "true" || el == "TRUE" || el == "True"),
-        facets : facets,
-        fields : fields,
-        boost_fields : boost_fields,
-        boost_terms : boost_terms,
+        why_found: params.why_found.map(|el| el == "true" || el == "TRUE" || el == "True"),
+        text_locality: params.text_locality.map(|el| el == "true" || el == "TRUE" || el == "True"),
+        facets: facets,
+        fields: fields,
+        boost_fields: boost_fields,
+        boost_terms: boost_terms,
     };
 
-    let mut request = query_generator::search_query(
-        &persistence,
-        q_params,
-    );
+    let mut request = query_generator::search_query(&persistence, q_params);
 
     request.select = query_param_to_vec(params.select);
 

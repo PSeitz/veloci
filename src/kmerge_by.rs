@@ -1,4 +1,3 @@
-
 // use size_hint;
 use itertools::Itertools;
 
@@ -22,25 +21,22 @@ macro_rules! clone_fields {
 /// The meanings of `PartialOrd` and `Ord` are reversed so as to turn the heap used in
 /// `KMerge` into a min-heap.
 struct HeadTail<I>
-    where I: Iterator
+where
+    I: Iterator,
 {
     head: I::Item,
     tail: I,
 }
 
 impl<I> HeadTail<I>
-    where I: Iterator
+where
+    I: Iterator,
 {
     /// Constructs a `HeadTail` from an `Iterator`. Returns `None` if the `Iterator` is empty.
     #[inline]
     fn new(mut it: I) -> Option<HeadTail<I>> {
         let head = it.next();
-        head.map(|h| {
-            HeadTail {
-                head: h,
-                tail: it,
-            }
-        })
+        head.map(|h| HeadTail { head: h, tail: it })
     }
 
     /// Get the next element and update `head`, returning the old head in `Some`.
@@ -63,8 +59,9 @@ impl<I> HeadTail<I>
 }
 
 impl<I> Clone for HeadTail<I>
-    where I: Iterator + Clone,
-          I::Item: Clone
+where
+    I: Iterator + Clone,
+    I::Item: Clone,
 {
     #[inline]
     fn clone(&self) -> Self {
@@ -75,7 +72,8 @@ impl<I> Clone for HeadTail<I>
 /// Make `data` a heap (min-heap w.r.t the sorting).
 #[inline]
 fn heapify<T, S>(data: &mut [T], mut less_than: S)
-    where S: FnMut(&T, &T) -> bool
+where
+    S: FnMut(&T, &T) -> bool,
 {
     for i in (0..data.len() / 2).rev() {
         sift_down(data, i, &mut less_than);
@@ -85,7 +83,8 @@ fn heapify<T, S>(data: &mut [T], mut less_than: S)
 /// Sift down element at `index` (`heap` is a min-heap wrt the ordering)
 #[inline]
 fn sift_down<T, S>(heap: &mut [T], index: usize, mut less_than: S)
-    where S: FnMut(&T, &T) -> bool
+where
+    S: FnMut(&T, &T) -> bool,
 {
     debug_assert!(index <= heap.len());
     let mut pos = index;
@@ -117,15 +116,17 @@ fn sift_down<T, S>(heap: &mut [T], index: usize, mut less_than: S)
 /// See [`.kmerge()`](../trait.Itertools.html#method.kmerge) for more information.
 #[must_use = "iterator adaptors are lazy and do nothing unless consumed"]
 pub struct KMerge<I>
-    where I: Iterator
+where
+    I: Iterator,
 {
     heap: Vec<HeadTail<I>>,
 }
 
 pub fn kmerge<I>(iterable: I) -> KMerge<<I::Item as IntoIterator>::IntoIter>
-    where I: IntoIterator,
-          I::Item: IntoIterator,
-          <<I as IntoIterator>::Item as IntoIterator>::Item: PartialOrd
+where
+    I: IntoIterator,
+    I::Item: IntoIterator,
+    <<I as IntoIterator>::Item as IntoIterator>::Item: PartialOrd,
 {
     let iter = iterable.into_iter();
     let (lower, _) = iter.size_hint();
@@ -136,8 +137,9 @@ pub fn kmerge<I>(iterable: I) -> KMerge<<I::Item as IntoIterator>::IntoIter>
 }
 
 impl<I> Clone for KMerge<I>
-    where I: Iterator + Clone,
-          I::Item: Clone
+where
+    I: Iterator + Clone,
+    I::Item: Clone,
 {
     #[inline]
     fn clone(&self) -> KMerge<I> {
@@ -146,8 +148,9 @@ impl<I> Clone for KMerge<I>
 }
 
 impl<I> Iterator for KMerge<I>
-    where I: Iterator,
-          I::Item: PartialOrd
+where
+    I: Iterator,
+    I::Item: PartialOrd,
 {
     type Item = I::Item;
 
@@ -167,10 +170,7 @@ impl<I> Iterator for KMerge<I>
 
     #[inline]
     fn size_hint(&self) -> (usize, Option<usize>) {
-        self.heap.iter()
-                 .map(|i| i.size_hint())
-                 .fold1(add)
-                 .unwrap_or((0, Some(0)))
+        self.heap.iter().map(|i| i.size_hint()).fold1(add).unwrap_or((0, Some(0)))
     }
 }
 
@@ -183,7 +183,8 @@ impl<I> Iterator for KMerge<I>
 /// information.
 #[must_use = "iterator adaptors are lazy and do nothing unless consumed"]
 pub struct KMergeBy<I, F>
-    where I: Iterator,
+where
+    I: Iterator,
 {
     heap: Vec<HeadTail<I>>,
     less_than: F,
@@ -193,25 +194,27 @@ pub struct KMergeBy<I, F>
 ///
 /// Equivalent to `iterable.into_iter().kmerge_by(less_than)`.
 #[inline]
-pub fn kmerge_by<I, F>(iterable: I, mut less_than: F)
-    -> KMergeBy<<I::Item as IntoIterator>::IntoIter, F>
-    where I: IntoIterator,
-          I::Item: IntoIterator,
-          F: FnMut(&<<I as IntoIterator>::Item as IntoIterator>::Item,
-                   &<<I as IntoIterator>::Item as IntoIterator>::Item) -> bool
+pub fn kmerge_by<I, F>(iterable: I, mut less_than: F) -> KMergeBy<<I::Item as IntoIterator>::IntoIter, F>
+where
+    I: IntoIterator,
+    I::Item: IntoIterator,
+    F: FnMut(&<<I as IntoIterator>::Item as IntoIterator>::Item, &<<I as IntoIterator>::Item as IntoIterator>::Item) -> bool,
 {
     let iter = iterable.into_iter();
     let (lower, _) = iter.size_hint();
     let mut heap: Vec<_> = Vec::with_capacity(lower);
     heap.extend(iter.filter_map(|it| HeadTail::new(it.into_iter())));
     heapify(&mut heap, |a, b| less_than(&a.head, &b.head));
-    KMergeBy { heap: heap, less_than: less_than }
+    KMergeBy {
+        heap: heap,
+        less_than: less_than,
+    }
 }
 
-
 impl<I, F> Iterator for KMergeBy<I, F>
-    where I: Iterator,
-          F: FnMut(&I::Item, &I::Item) -> bool
+where
+    I: Iterator,
+    F: FnMut(&I::Item, &I::Item) -> bool,
 {
     type Item = I::Item;
 
@@ -232,15 +235,9 @@ impl<I, F> Iterator for KMergeBy<I, F>
 
     #[inline]
     fn size_hint(&self) -> (usize, Option<usize>) {
-        self.heap.iter()
-                 .map(|i| i.size_hint())
-                 .fold1(add)
-                 .unwrap_or((0, Some(0)))
+        self.heap.iter().map(|i| i.size_hint()).fold1(add).unwrap_or((0, Some(0)))
     }
 }
-
-
-
 
 use std::usize;
 use std::cmp;
@@ -268,8 +265,6 @@ pub fn add_scalar(sh: SizeHint, x: usize) -> SizeHint {
     hi = hi.and_then(|elt| elt.checked_add(x));
     (low, hi)
 }
-
-
 
 /// Return the minimum
 #[inline]

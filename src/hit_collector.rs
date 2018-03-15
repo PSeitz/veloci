@@ -47,7 +47,8 @@ struct VecHitCollectorIter<'a> {
 }
 impl<'a> Iterator for VecHitCollectorIter<'a> {
     type Item = search::Hit;
-    fn next(&mut self) -> Option<search::Hit> {//TODO RETURN BY REF
+    fn next(&mut self) -> Option<search::Hit> {
+        //TODO RETURN BY REF
         if self.pos >= self.hits_vec.len() {
             None
         } else {
@@ -66,7 +67,8 @@ pub struct VecHitCollectorIntoIter {
 }
 impl Iterator for VecHitCollectorIntoIter {
     type Item = search::Hit;
-    fn next(&mut self) -> Option<search::Hit> { //TODO RETURN BY REF
+    fn next(&mut self) -> Option<search::Hit> {
+        //TODO RETURN BY REF
         if self.pos >= self.hits_vec.len() {
             None
         } else {

@@ -87,7 +87,7 @@ pub fn search_query(
     // boost_terms: HashMap<String, f32>,
     // boost_fields_opt: Option<Vec<String>>,
     persistence: &Persistence,
-    mut opt:SearchQueryGeneratorParameters
+    mut opt: SearchQueryGeneratorParameters,
 ) -> Request {
     // let req = persistence.meta_data.fulltext_indices.key
     opt.facetlimit = opt.facetlimit.or(Some(5));
@@ -149,7 +149,8 @@ pub fn search_query(
         let requests: Vec<Request> = terms
             .iter()
             .map(|term| {
-                let mut levenshtein_distance = opt.levenshtein.unwrap_or_else(|| get_default_levenshtein(term, opt.levenshtein_auto_limit.unwrap_or(1)));
+                let mut levenshtein_distance = opt.levenshtein
+                    .unwrap_or_else(|| get_default_levenshtein(term, opt.levenshtein_auto_limit.unwrap_or(1)));
                 levenshtein_distance = std::cmp::min(levenshtein_distance, term.chars().count() - 1);
                 let parts = get_all_field_names(&persistence, &opt.fields)
                     .iter()
@@ -184,34 +185,35 @@ pub fn search_query(
             and: Some(requests), // and for terms
             ..Default::default()
         }
-    }else{
+    } else {
         let parts: Vec<Request> = get_all_field_names(&persistence, &opt.fields)
-        .iter()
-        .flat_map(|field_name| {
-            let requests: Vec<Request> = terms
-                .iter()
-                .map(|term| {
-                    let levenshtein_distance = opt.levenshtein.unwrap_or_else(|| get_default_levenshtein(term, opt.levenshtein_auto_limit.unwrap_or(1)));
-                    let part = RequestSearchPart {
-                        path: field_name.to_string(),
-                        terms: vec![term.to_string()],
-                        boost: opt.boost_fields.get(field_name).map(|el| *el),
-                        levenshtein_distance: Some(levenshtein_distance as u32),
-                        resolve_token_to_parent_hits: Some(true),
-                        ..Default::default()
-                    };
-                    Request {
-                        search: Some(part),
-                        why_found: opt.why_found.unwrap_or(false),
-                        text_locality: opt.text_locality.unwrap_or(false),
-                        ..Default::default()
-                    }
-                })
-                .collect();
+            .iter()
+            .flat_map(|field_name| {
+                let requests: Vec<Request> = terms
+                    .iter()
+                    .map(|term| {
+                        let levenshtein_distance = opt.levenshtein
+                            .unwrap_or_else(|| get_default_levenshtein(term, opt.levenshtein_auto_limit.unwrap_or(1)));
+                        let part = RequestSearchPart {
+                            path: field_name.to_string(),
+                            terms: vec![term.to_string()],
+                            boost: opt.boost_fields.get(field_name).map(|el| *el),
+                            levenshtein_distance: Some(levenshtein_distance as u32),
+                            resolve_token_to_parent_hits: Some(true),
+                            ..Default::default()
+                        };
+                        Request {
+                            search: Some(part),
+                            why_found: opt.why_found.unwrap_or(false),
+                            text_locality: opt.text_locality.unwrap_or(false),
+                            ..Default::default()
+                        }
+                    })
+                    .collect();
 
-            requests
-        })
-        .collect();
+                requests
+            })
+            .collect();
         Request {
             or: Some(parts),
             ..Default::default()

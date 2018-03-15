@@ -574,7 +574,6 @@ pub struct PointingMMAPFileReader<T: IndexIdToParentData> {
     pub avg_join_size: f32,
 }
 
-
 impl<T: IndexIdToParentData> PointingMMAPFileReader<T> {
     pub fn new(
         start_and_end_file: &fs::File,

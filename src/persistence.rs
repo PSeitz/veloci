@@ -62,7 +62,7 @@ pub struct MetaData {
 }
 
 impl MetaData {
-    pub fn new(folder: &str) -> Result<MetaData,SearchError> {
+    pub fn new(folder: &str) -> Result<MetaData, SearchError> {
         let json = util::file_as_string(&(folder.to_string() + "/metaData.json"))?;
         Ok(serde_json::from_str(&json)?)
     }
@@ -286,7 +286,6 @@ use parking_lot::RwLock;
 // use std::sync::RwLock;
 use lru_time_cache::LruCache;
 pub static NOT_FOUND: u32 = u32::MAX;
-
 
 #[derive(Debug, Default)]
 pub struct PersistenceCache {
@@ -602,14 +601,11 @@ impl Persistence {
 
     #[cfg_attr(feature = "flame_it", flame)]
     pub fn get_valueid_to_parent(&self, path: &str) -> Result<&Box<IndexIdToParent<Output = u32>>, search::SearchError> {
-        self.cache
-            .index_id_to_parento
-            .get(path)
-            .ok_or_else(|| {
-                let error = format!("Did not found path in cache {:?}", path);
-                println!("{:?}", error);
-                From::from(error)
-            })
+        self.cache.index_id_to_parento.get(path).ok_or_else(|| {
+            let error = format!("Did not found path in cache {:?}", path);
+            println!("{:?}", error);
+            From::from(error)
+        })
     }
 
     #[cfg_attr(feature = "flame_it", flame)]

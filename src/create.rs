@@ -449,32 +449,29 @@ struct PathData {
 }
 
 fn check_similarity(data: &FnvHashMap<String, FnvHashMap<String, TermInfo>>) {
-
-    let mut map:FnvHashMap<String, FnvHashMap<String,(f32, f32)>> = FnvHashMap::default();
+    let mut map: FnvHashMap<String, FnvHashMap<String, (f32, f32)>> = FnvHashMap::default();
 
     info_time!(format!("check_similarity"));
     for (path, terms) in data {
-
         let num_terms = terms.len();
-        for (path_comp, terms_comp) in data.iter().filter(|&(path_comp, _)|path_comp!=path) {
-            let num_similar = terms.keys().filter(|term|terms_comp.contains_key(term.as_str())).count();
+        for (path_comp, terms_comp) in data.iter().filter(|&(path_comp, _)| path_comp != path) {
+            let num_similar = terms.keys().filter(|term| terms_comp.contains_key(term.as_str())).count();
             let similiarity = num_similar as f32 / num_terms as f32;
             //println!("Similiarity {:?} {:?} {:?}", path, path_comp, num_similar as f32 / num_terms as f32);
             if map.contains_key(path_comp) {
                 let aha = map.get_mut(path_comp).unwrap().get_mut(path).unwrap();
                 aha.1 = similiarity;
-                // map.get_mut(path_comp).1 = num_similar as f32 / num_terms as f32
-            }else{
+            // map.get_mut(path_comp).1 = num_similar as f32 / num_terms as f32
+            } else {
                 let entry = map.entry(path.to_string()).or_insert(FnvHashMap::default());
                 entry.insert(path_comp.to_string(), (similiarity, 0.));
-
             }
         }
     }
 
     for (path, sub) in map {
         for (path2, data) in sub {
-            println!("{} {} {} {}", path, path2, data.0, data.1 );
+            println!("{} {} {} {}", path, path2, data.0, data.1);
         }
     }
 }
@@ -619,11 +616,11 @@ where
                     data.tokens_to_anchor_id.push(el);
                 }
 
-                if data.value_id_to_token_ids.get_values(text_info.id as u64).is_none() { // store relation value_id -> text_ids only once
+                if data.value_id_to_token_ids.get_values(text_info.id as u64).is_none() {
+                    // store relation value_id -> text_ids only once
                     trace!("Adding for {:?} {:?} token_ids {:?}", value, text_info.id, tokens_ids);
                     data.value_id_to_token_ids.add(text_info.id, tokens_ids);
                 }
-
             }
         };
 

@@ -404,12 +404,10 @@ impl<T: IndexIdToParentData> HeapSizeOf for ParallelArrays<T> {
     }
 }
 
-
-
 #[derive(Debug)]
 pub struct SingleArrayMMAP<T: IndexIdToParentData> {
-    pub data_file: Mmap,    //TODO CHECK MUTEX NEEEDED
-    pub data_metadata: Mutex<fs::Metadata>,     //TODO PLS FIXME max_value_id??, avg_join_size??
+    pub data_file: Mmap,                    //TODO CHECK MUTEX NEEEDED
+    pub data_metadata: Mutex<fs::Metadata>, //TODO PLS FIXME max_value_id??, avg_join_size??
     pub max_value_id: u32,
     pub ok: PhantomData<T>,
 }
@@ -441,7 +439,8 @@ impl<T: IndexIdToParentData> HeapSizeOf for SingleArrayMMAP<T> {
 
 impl<T: IndexIdToParentData> IndexIdToParent for SingleArrayMMAP<T> {
     type Output = T;
-    default fn get_value(&self, _find: u64) -> Option<T> { // implemented for u32, u64
+    default fn get_value(&self, _find: u64) -> Option<T> {
+        // implemented for u32, u64
         unimplemented!()
     }
     default fn get_values(&self, find: u64) -> Option<Vec<T>> {
@@ -462,7 +461,7 @@ impl IndexIdToParent for SingleArrayMMAP<u32> {
         let id = (&self.data_file[pos..pos + 4]).read_u32::<LittleEndian>().unwrap();
         if id == u32::MAX {
             None
-        }else{
+        } else {
             Some(NumCast::from(id).unwrap())
         }
     }
@@ -477,14 +476,11 @@ impl IndexIdToParent for SingleArrayMMAP<u64> {
         let id = (&self.data_file[pos..pos + 8]).read_u64::<LittleEndian>().unwrap();
         if id == u32::MAX as u64 {
             None
-        }else{
+        } else {
             Some(NumCast::from(id).unwrap())
         }
     }
 }
-
-
-
 
 #[derive(Debug)]
 pub struct SingleArrayFileReader<T: IndexIdToParentData> {
