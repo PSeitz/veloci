@@ -7,7 +7,7 @@ use std::fs::File;
 use std::fs;
 use std::io::SeekFrom;
 use parking_lot::Mutex;
-use serde_json::{Deserializer, StreamDeserializer, Value};
+use serde_json::{StreamDeserializer, Value};
 use serde_json;
 // use std;
 #[allow(unused_imports)]
@@ -34,6 +34,25 @@ pub fn normalize_text(text: &str) -> String {
 }
 
 use search::Hit;
+
+
+pub fn get_bit_at(input: u32, n: u8) -> bool {
+    if n < 32 {
+        input & (1 << n) != 0
+    } else {
+        false
+    }
+}
+
+#[inline]
+pub fn set_bit_at(input: &mut u32, n: u8) {
+    *input = *input | (1 << n)
+}
+
+const NUM2_31:u32 = (1 << 31);
+pub fn is_hight_bit_set(input: u32) -> bool {
+    input & NUM2_31 != 0
+}
 
 #[inline]
 pub fn unsafe_increase_len<T>(vec: &mut Vec<T>, add: usize) -> usize {
@@ -239,6 +258,7 @@ pub fn get_steps_to_anchor(path: &str) -> Vec<String> {
     paths
 }
 
+#[allow(unused_macros)]
 macro_rules! print_json {
     ($e: expr) => {
         println!("{}", serde_json::to_string(&$e).unwrap());
@@ -266,13 +286,6 @@ pub fn get_all_steps_to_anchor(path: &str) -> Vec<String> {
 use std::collections::HashMap;
 use itertools::Itertools;
 
-// #[derive(Debug, Default, Clone, Serialize)]
-// pub struct NodeTree {
-//     #[serde(skip_serializing_if = "HashMap::is_empty")]
-//     pub next: HashMap<String, NodeTree>,
-//     pub is_leaf: bool,
-// }
-
 #[derive(Debug, Clone, Serialize, PartialEq)]
 pub enum NodeTree {
     Map(HashMap<String, NodeTree>),
@@ -281,18 +294,8 @@ pub enum NodeTree {
 
 impl NodeTree {
     pub fn new(map: HashMap<String, NodeTree>) -> NodeTree {
-        // NodeTree {
-        //     next: HashMap::default(),
-        //     is_leaf: false,
-        // }
         NodeTree::Map(map)
     }
-    // pub fn new_leaf() -> NodeTree {
-    //     NodeTree {
-    //         next: HashMap::default(),
-    //         is_leaf: true,
-    //     }
-    // }
 }
 
 pub fn to_node_tree(mut paths: Vec<Vec<String>>) -> NodeTree {
@@ -325,24 +328,3 @@ pub fn to_node_tree(mut paths: Vec<Vec<String>>) -> NodeTree {
     }
     NodeTree::new(next)
 }
-
-// assert_eq!(re.replace("1078910", ""), " ");
-
-//     text = text.replace(/ *\([^)]*\) */g, ' ') // remove everything in braces
-//     text = text.replace(/[{}'"]/g, '') // remove ' " {}
-//     text = text.replace(/\s\s+/g, ' ') // replace tabs, newlines, double spaces with single spaces
-//     text = text.replace(/[,.]/g, '') // remove , .
-//     text = text.replace(/[;・’-]/g, '') // remove ;・’-
-//     text = text.toLowerCase()
-//     return text.trim()
-// }
-
-//     text = text.replace(/ *\([fmn\d)]*\) */g, ' ') // remove (f)(n)(m)(1)...(9)
-//     text = text.replace(/[\(\)]/g, ' ') // remove braces
-//     text = text.replace(/[{}'"“]/g, '') // remove ' " {}
-//     text = text.replace(/\s\s+/g, ' ') // replace tabs, newlines, double spaces with single spaces
-//     text = text.replace(/[,.…]/g, '') // remove , .
-//     text = text.replace(/[;・’-]/g, '') // remove ;・’-
-//     text = text.toLowerCase()
-//     return text.trim()
-// }

@@ -115,18 +115,18 @@ impl<T: IndexIdToParentData> IndexIdToMultipleParentIndirect<T> {
         }
     }
 
-    pub fn add(&mut self, id: T, add_data: Vec<T>) {
+    pub fn set(&mut self, id: T, data: Vec<T>) {
         let pos: usize = num::cast(id).unwrap();
         let required_size = (pos + 1) * 2;
         if self.start_and_end.len() < required_size {
             self.start_and_end.resize(required_size, num::cast(0).unwrap());
         }
         let start = self.data.len();
-        self.data.extend(add_data.iter());
+        self.data.extend(data.iter());
         self.start_and_end[pos * 2] = num::cast(start).unwrap();
         self.start_and_end[pos * 2 + 1] = num::cast(self.data.len()).unwrap();
         self.num_values += 1;
-        self.num_ids += add_data.len() as u32;
+        self.num_ids += data.len() as u32;
     }
     // #[allow(dead_code)]
     // pub fn from_data(start_and_end: Vec<T>, data: Vec<T>) -> IndexIdToMultipleParentIndirect<T> {
@@ -143,8 +143,8 @@ impl<T: IndexIdToParentData> IndexIdToMultipleParentIndirect<T> {
 #[test]
 fn test_pointing_array_add() {
     let mut def = IndexIdToMultipleParentIndirect::default();
-    def.add(0 as u32, vec![1, 2, 3]);
-    def.add(2 as u32, vec![3, 4, 3]);
+    def.set(0 as u32, vec![1, 2, 3]);
+    def.set(2 as u32, vec![3, 4, 3]);
     assert_eq!(def.get_values(0), Some(vec![1, 2, 3]));
     assert_eq!(def.get_values(2), Some(vec![3, 4, 3]));
     assert_eq!(def.get_values(1), None);
@@ -152,8 +152,8 @@ fn test_pointing_array_add() {
 #[test]
 fn test_pointing_array_add_out_of_order() {
     let mut def = IndexIdToMultipleParentIndirect::default();
-    def.add(5 as u32, vec![2, 0, 1]);
-    def.add(3 as u32, vec![4, 0, 6]);
+    def.set(5 as u32, vec![2, 0, 1]);
+    def.set(3 as u32, vec![4, 0, 6]);
     assert_eq!(def.get_values(5), Some(vec![2, 0, 1]));
     assert_eq!(def.get_values(3), Some(vec![4, 0, 6]));
     assert_eq!(def.get_values(1), None);
@@ -190,7 +190,6 @@ impl<T: IndexIdToParentData> IndexIdToParent for IndexIdToMultipleParentIndirect
 
     #[inline]
     fn count_values_for_ids(&self, ids: &[u32], top: Option<u32>) -> FnvHashMap<T, usize> {
-        // let mut hits = FnvHashMap::default();
         let mut coll: Box<AggregationCollector<T>> = get_collector(ids.len() as u32, self.avg_join_size, self.max_value_id);
         let size = self.get_size();
 
@@ -713,39 +712,15 @@ impl IndexIdToParent for PointingArrayFileReader<u32> {
         let mut coll: Box<AggregationCollector<u32>> = get_collector(ids.len() as u32, self.avg_join_size, self.max_value_id);
 
         let size = self.get_size();
-        let mut data_bytes: Vec<u8> = Vec::with_capacity(100);
-        let mut offsets: Vec<u8> = Vec::with_capacity(8);
-        offsets.resize(8, 0);
         for id in ids {
-            if *id >= size as u32 {
-                continue;
+
+            //TODO don't copy, just stream ids
+            if let Some(vals) = get_u32_values_from_pointing_file(*id as u64, size, &self.start_and_end_file, &self.data_file) {
+                for id in vals{
+                    coll.add(id);
+                }
             }
 
-            load_bytes_into(&mut offsets, &*self.start_and_end_file.lock(), *id as u64 * 8);
-
-            let mut rdr = Cursor::new(&offsets);
-
-            let start = rdr.read_u32::<LittleEndian>().unwrap();
-            let end = rdr.read_u32::<LittleEndian>().unwrap();
-
-            if start == u32::MAX {
-                //data encoded in indirect array
-                coll.add(end);
-                continue;
-            }
-
-            if start == end {
-                continue;
-            }
-
-            // let mut data_bytes: Vec<u8> = Vec::with_capacity(end as usize - start as usize);
-            data_bytes.resize(end as usize * 4 - start as usize * 4, 0);
-            load_bytes_into(&mut data_bytes, &*self.data_file.lock(), start as u64 * 4);
-
-            let mut rdr = Cursor::new(&data_bytes);
-            while let Ok(id) = rdr.read_u32::<LittleEndian>() {
-                coll.add(id);
-            }
         }
         coll.to_map(top)
     }
@@ -1113,21 +1088,6 @@ mod tests {
             }
         }
 
-        // fn prepare_indirect_pointing_file_array(folder: &str, store: &IndexIdToParent<Output = u32>) -> PointingArrayFileReader<u32> {
-        //     let (max_value_id, avg_join_size, keys, values) = to_indirect_arrays(store, 0);
-
-        //     fs::create_dir_all(folder).unwrap();
-        //     let data_path = get_file_path(folder, "data");
-        //     let indirect_path = get_file_path(folder, "indirect");
-        //     File::create(&data_path).unwrap().write_all(&vec_to_bytes_u32(&keys)).unwrap();
-        //     File::create(&indirect_path).unwrap().write_all(&vec_to_bytes_u32(&values)).unwrap();
-
-        //     let start_and_end_file = File::open(&data_path).unwrap();
-        //     let data_file = File::open(&data_path).unwrap();
-        //     let data_metadata = fs::metadata(&data_path).unwrap();
-        //     let store = PointingArrayFileReader::new(start_and_end_file, data_file, data_metadata, max_value_id, avg_join_size);
-        //     store
-        // }
 
         // #[bench]
         // fn indirect_pointing_file_array(b: &mut test::Bencher) {
@@ -1149,25 +1109,6 @@ mod tests {
 
             b.iter(|| mayda.get_values(between.ind_sample(&mut rng)))
         }
-
-        // #[bench]
-        // fn indirect_pointing_mayda_large_array_700k_sorted_reads(b: &mut test::Bencher) {
-        //     let mut rng = rand::thread_rng();
-        //     // let between = Range::new(0, 40_000_000);
-        //     let store_tmp = get_test_data_large(40_000_000, 15);
-
-        //     let store = prepare_indirect_pointing_file_array("test_pointing_file_array_perf", &store_tmp);// PointingArrayFileReader::new(start_and_end_file, data_file, data_metadata);
-
-        //     // let store = IndexIdToMultipleParentCompressedMaydaINDIRECTOne::<u32>::new(&store_tmp);
-        //     let ids:Vec<u32> = (0 .. 7).collect();
-
-        //     b.iter(|| {
-        //         let mut hits = FnvHashMap::default();
-        //         {
-        //             store.count_values_for_ids(&ids, &mut hits);
-        //         }
-        //     })
-        // }
 
         // #[bench]
         // fn indirect_pointing_uncompressed_im(b: &mut test::Bencher) {

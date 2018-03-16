@@ -877,7 +877,7 @@ mod tests {
             }
             hits
         }
-        pub fn bench_vec_group_by_direct_u16(num_entries: u32, max_val: u32, hits: &mut Vec<u8>) -> &mut Vec<u8> {
+        pub fn bench_vec_group_by_direct_u8(num_entries: u32, max_val: u32, hits: &mut Vec<u8>) -> &mut Vec<u8> {
             // let mut hits:Vec<u32> = vec![];
             hits.resize(max_val as usize + 1, 0);
             let mut rng = rand::thread_rng();
@@ -931,7 +931,7 @@ mod tests {
         #[bench]
         fn bench_group_by_vec_direct_u16_0(b: &mut test::Bencher) {
             b.iter(|| {
-                bench_vec_group_by_direct_u16(700_000, 5_000_000, &mut vec![]);
+                bench_vec_group_by_direct_u8(700_000, 5_000_000, &mut vec![]);
             })
         }
 

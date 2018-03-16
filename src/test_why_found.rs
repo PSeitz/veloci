@@ -66,10 +66,9 @@ mod tests {
                     let indices = r#"[{ "fulltext":"richtig", "options":{"tokenize":true} } ] "#;
                     println!("{:?}", create::create_indices(TEST_FOLDER, &get_test_data(), indices));
 
-                    {
-                        let mut pers = persistence::Persistence::load(TEST_FOLDER.to_string()).expect("Could not load persistence");
-                    }
-                    PERSISTENCES.insert("default".to_string(), persistence::Persistence::load(TEST_FOLDER.to_string()).expect("could not load persistence"));
+                    let pers = persistence::Persistence::load(TEST_FOLDER.to_string()).expect("Could not load persistence");
+
+                    PERSISTENCES.insert("default".to_string(), pers);
 
                     *INDEX_CREATEDO = true;
                 }

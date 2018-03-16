@@ -223,15 +223,14 @@ mod tests {
 
     #[test]
     fn test_paths() {
-        let paths = util::get_steps_to_anchor("meanings.ger[]");
+        let _paths = util::get_steps_to_anchor("meanings.ger[]");
     }
 
     #[test]
     #[ignore]
     fn test_binary_search() {
         let x = vec![1, 2, 3, 6, 7, 8];
-        let u = x.binary_search(&4).unwrap_err();
-        let value = match x.binary_search(&4) {
+        let _value = match x.binary_search(&4) {
             Ok(value) => value,
             Err(value) => value,
         };
@@ -280,6 +279,7 @@ mod tests {
                     let indices = r#"
                     [
                         { "facet":"tags[]"},
+                        { "facet":"commonness"},
                         { "boost":"commonness" , "options":{"boost_type":"int"}},
                         { "fulltext":"ent_seq" },
                         { "boost":"field1[].rank" , "options":{"boost_type":"int"}},
@@ -642,6 +642,38 @@ mod tests {
 
             let hits = search_testo_to_doc(req).data;
             assert_eq!(hits[0].doc["commonness"], 500);
+        }
+
+        it "should or connect search and boost anchor"{
+            let req = json!({
+                "or":[
+                    {
+                        "search": {
+                            "terms":["awesome"],
+                            "path": "field1[].text"
+                        },
+                        "boost" : [{
+                            "path":"field1[].rank",
+                            "boost_fun": "Log10",
+                            "param": 1
+                        }]
+                    },
+                    {
+                        "search": {
+                            "terms":["urge"],
+                            "path": "meanings.eng[]"
+                        },
+                        "boost" : [{
+                            "path":"commonness",
+                            "boost_fun": "Log10",
+                            "param": 1
+                        }]
+                    }
+                ]
+            });
+
+            let hits = search_testo_to_doc(req).data;
+            assert_eq!(hits[0].doc["commonness"], 20);
         }
 
         // it('should suggest', function() {

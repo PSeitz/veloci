@@ -72,20 +72,6 @@ pub struct SearchQueryGeneratorParameters {
 
 #[cfg_attr(feature = "flame_it", flame)]
 pub fn search_query(
-    // request: &str,
-    // persistence: &Persistence,
-    // top: Option<usize>,
-    // skip: Option<usize>,
-    // mut operator: Option<String>,
-    // levenshtein: Option<usize>,
-    // levenshtein_auto_limit: Option<usize>,
-    // mut facetlimit: Option<usize>,
-    // why_found: Option<bool>,
-    // facets: Option<Vec<String>>,
-    // fields: Option<Vec<String>>,
-    // boost_fields: HashMap<String, f32>,
-    // boost_terms: HashMap<String, f32>,
-    // boost_fields_opt: Option<Vec<String>>,
     persistence: &Persistence,
     mut opt: SearchQueryGeneratorParameters,
 ) -> Request {

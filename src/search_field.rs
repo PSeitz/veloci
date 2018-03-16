@@ -1,9 +1,6 @@
 use str;
 use persistence::Persistence;
 use persistence;
-use search::RequestSearchPart;
-use search::Request;
-use search::SearchError;
 use search;
 use search::*;
 use util::concat;
@@ -13,7 +10,6 @@ use fnv::FnvHashMap;
 use fnv::FnvHashSet;
 use util;
 use ordered_float::OrderedFloat;
-// use hit_collector::HitCollector;
 use itertools::Itertools;
 #[allow(unused_imports)]
 use fst::{IntoStreamer, Map, MapBuilder, Set};
@@ -24,7 +20,7 @@ use fst::raw::Fst;
 use lev_automat::*;
 use highlight_field::*;
 use levenshtein_automaton::{Distance, LevenshteinAutomatonBuilder, DFA};
-// use search::Hit;
+#[allow(unused_imports)]
 use bit_vec::BitVec;
 
 #[allow(unused_imports)]
@@ -33,6 +29,7 @@ use util::*;
 
 #[allow(unused_imports)]
 use trie::map;
+#[allow(unused_imports)]
 use fixedbitset::FixedBitSet;
 
 #[derive(Debug, Default)]
@@ -42,11 +39,12 @@ pub struct SearchFieldResult {
     pub terms: FnvHashMap<TermId, String>,
     pub highlight: FnvHashMap<TermId, String>,
     pub request: RequestSearchPart,
-    /// store the term id hits field->Term->Hits, used for whyfound
+    /// store the term id hits field->Term->Hits, used for whyfound and term_locality_boost
     pub term_id_hits_in_field: FnvHashMap<String, FnvHashMap<String, Vec<TermId>>>,
 }
 
 impl SearchFieldResult {
+    // TODO AVOID COPY
     //Creates a new result, while keeping metadata for original hits
     pub fn new_from(other: &SearchFieldResult) -> Self {
         let mut res = SearchFieldResult::default();

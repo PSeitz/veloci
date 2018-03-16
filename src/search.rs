@@ -46,6 +46,7 @@ use crossbeam_channel;
 #[allow(unused_imports)]
 use std::sync::Mutex;
 use half::f16;
+#[allow(unused_imports)]
 use fixedbitset::FixedBitSet;
 
 #[derive(Serialize, Deserialize, Default, Clone, Debug)]
@@ -808,8 +809,6 @@ fn merge_term_id_hits(results: &mut Vec<SearchFieldResult>) -> FnvHashMap<String
     term_id_hits_in_field
 }
 
-use kmerge_by;
-
 #[cfg_attr(feature = "flame_it", flame)]
 pub fn union_hits_vec(mut or_results: Vec<SearchFieldResult>) -> SearchFieldResult {
     let term_id_hits_in_field = { merge_term_id_hits(&mut or_results) };
@@ -961,19 +960,6 @@ struct MiniHit {
     score: f16,
     term_id: u8,
     field_id: u8,
-}
-
-// fn get_bit_at(input: u32, n: u8) -> bool {
-//     if n < 32 {
-//         input & (1 << n) != 0
-//     } else {
-//         false
-//     }
-// }
-
-#[inline]
-fn set_bit_at(input: &mut u32, n: u8) {
-    *input = *input | (1 << n)
 }
 
 #[test]
@@ -1588,6 +1574,8 @@ pub fn join_to_parent_with_score(
 ) -> Result<SearchFieldResult, SearchError> {
     let mut total_values = 0;
     let mut hits: FnvHashMap<u32, f32> = FnvHashMap::default();
+
+    let mut res = SearchFieldResult::new_from(&input);
     let hits_iter = input.hits_vec.into_iter();
     let num_hits = hits_iter.size_hint().1.unwrap_or(0);
     hits.reserve(num_hits);
@@ -1628,14 +1616,11 @@ pub fn join_to_parent_with_score(
     );
 
     // debug!("{:?} hits in next_level_hits {:?}", next_level_hits.len(), &concat(path_name, ".valueIdToParent"));
-
     // trace!("next_level_hits from {:?}: {:?}", &concat(path_name, ".valueIdToParent"), hits);
     // debug!("{:?} hits in next_level_hits {:?}", hits.len(), &concat(path_name, ".valueIdToParent"));
 
-    Ok(SearchFieldResult {
-        hits_vec: hits.into_iter().map(|(k, v)| Hit::new(k, v)).collect(),
-        ..Default::default()
-    })
+    res.hits_vec = hits.into_iter().map(|(k, v)| Hit::new(k, v)).collect(); //TODO OMG COPY? SRSLY?! GG
+    Ok(res)
 }
 
 #[cfg_attr(feature = "flame_it", flame)]

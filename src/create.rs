@@ -16,7 +16,6 @@ use serde_json::{Deserializer, StreamDeserializer};
 use util::*;
 
 use log;
-use num::ToPrimitive;
 #[allow(unused_imports)]
 use sled;
 #[allow(unused_imports)]
@@ -448,6 +447,7 @@ struct PathData {
     boost: Option<Vec<ValIdToValue>>,
 }
 
+#[allow(dead_code)]
 fn check_similarity(data: &FnvHashMap<String, FnvHashMap<String, TermInfo>>) {
     let mut map: FnvHashMap<String, FnvHashMap<String, (f32, f32)>> = FnvHashMap::default();
 
@@ -514,6 +514,8 @@ where
         })
         .collect();
 
+    let is_1_to_n = |path: &str| path.contains("[]");
+
     let all_terms_in_path = get_allterms(stream1, &fulltext_info_for_path);
     // check_similarity(&all_terms_in_path);
     info_time!("create_fulltext_index");
@@ -535,7 +537,7 @@ where
             let data = get_or_insert(&mut path_data, path, &|| {
                 let boost_info_data = if boost_info_for_path.contains_key(path) { Some(vec![]) } else { None };
 
-                let anchor_to_text_id = if facet_index.contains(path) && path.contains("[]") {
+                let anchor_to_text_id = if facet_index.contains(path) && is_1_to_n(path) {
                     Some(vec![])
                 } else {
                     None
@@ -619,7 +621,7 @@ where
                 if data.value_id_to_token_ids.get_values(text_info.id as u64).is_none() {
                     // store relation value_id -> text_ids only once
                     trace!("Adding for {:?} {:?} token_ids {:?}", value, text_info.id, tokens_ids);
-                    data.value_id_to_token_ids.add(text_info.id, tokens_ids);
+                    data.value_id_to_token_ids.set(text_info.id, tokens_ids);
                 }
             }
         };
@@ -633,14 +635,13 @@ where
         json_converter::for_each_element(stream2, &mut id_holder, &mut opt, &mut cb_text, &mut callback_ids);
     }
 
-    let is_sublevel = |path: &str| path.contains("[]");
     let is_text_id_to_parent = |path: &str| path.ends_with(".textindex");
 
     {
         let write_tuples = |persistence: &mut Persistence, path: &str, tuples: &mut Vec<ValIdPair>| -> Result<(), io::Error> {
             let is_alway_1_to_1 = !is_text_id_to_parent(path); // valueIdToParent relation is always 1 to 1, expect for text_ids, which can have multiple parents
 
-            persistence.write_tuple_pair(tuples, &concat(&path, ".valueIdToParent"), is_alway_1_to_1)?;
+            persistence.write_tuple_pair(tuples, &concat(&path, ".valueIdToParent"), is_alway_1_to_1, LoadingType::Disk)?;
             if log_enabled!(log::Level::Trace) {
                 trace!("{}\n{}", &concat(&path, ".valueIdToParent"), print_vec(&tuples, &path, "parentid"));
             }
@@ -649,7 +650,10 @@ where
             for el in tuples.iter_mut() {
                 std::mem::swap(&mut el.parent_val_id, &mut el.valid);
             }
-            persistence.write_tuple_pair(tuples, &concat(&path, ".parentToValueId"), !is_sublevel(path))?;
+
+            let loading_type = if facet_index.contains(path) && !is_1_to_n(path) {LoadingType::InMemoryUnCompressed} else {LoadingType::Disk};
+
+            persistence.write_tuple_pair(tuples, &concat(&path, ".parentToValueId"), !is_1_to_n(path), loading_type)?;
             if log_enabled!(log::Level::Trace) {
                 trace!("{}\n{}", &concat(&path, ".parentToValueId"), print_vec(&tuples, &path, "value_id"));
             }
@@ -657,7 +661,7 @@ where
         };
 
         for (path, mut data) in path_data {
-            persistence.write_tuple_pair_dedup(&mut data.tokens_to_parent, &concat(&path, ".tokens_to_parent"), true, false)?;
+            persistence.write_tuple_pair_dedup(&mut data.tokens_to_parent, &concat(&path, ".tokens_to_parent"), true, false, LoadingType::Disk)?;
             trace!("{}\n{}", &concat(&path, ".tokens"), print_vec(&data.tokens_to_parent, "token_id", "parent_id"));
 
             let token_to_anchor_id_score = calculate_token_score_in_doc(&mut data.tokens_to_anchor_id);
@@ -671,14 +675,14 @@ where
                 })
                 .collect();
 
-            persistence.write_tuple_pair(&mut token_to_anchor_id_score_pairs, &concat(&path, ".tokens.to_anchor_id_score"), false)?;
+            persistence.write_tuple_pair(&mut token_to_anchor_id_score_pairs, &concat(&path, ".tokens.to_anchor_id_score"), false, LoadingType::Disk)?;
             trace!(
                 "{}\n{}",
                 &concat(&path, ".tokens.to_anchor"),
                 print_vec(&token_to_anchor_id_score_pairs, "token_id", "anchor_id")
             );
 
-            persistence.write_indirect_index(&mut data.value_id_to_token_ids, &concat(&path, ".value_id_to_token_ids"))?;
+            persistence.write_indirect_index(&mut data.value_id_to_token_ids, &concat(&path, ".value_id_to_token_ids"), LoadingType::Disk)?;
             trace!(
                 "{}\n{}",
                 &concat(&path, ".value_id_to_token_ids"),
@@ -687,7 +691,7 @@ where
 
             write_tuples(&mut persistence, &path, &mut data.text_id_to_parent)?;
 
-            persistence.write_tuple_pair(&mut data.text_id_to_anchor, &concat(&path, ".text_id_to_anchor"), false)?;
+            persistence.write_tuple_pair(&mut data.text_id_to_anchor, &concat(&path, ".text_id_to_anchor"), false, LoadingType::Disk)?;
             trace!(
                 "{}\n{}",
                 &concat(&path, ".text_id_to_anchor"),
@@ -695,11 +699,10 @@ where
             );
 
             if let Some(ref mut anchor_to_text_id) = data.anchor_to_text_id {
-                persistence.write_tuple_pair(anchor_to_text_id, &concat(&path, ".anchor_to_text_id"), false)?;
+                persistence.write_tuple_pair(anchor_to_text_id, &concat(&path, ".anchor_to_text_id"), false, LoadingType::InMemoryUnCompressed)?;
             }
             if let Some(ref mut tuples) = data.boost {
                 persistence.write_boost_tuple_pair(tuples, &extract_field_name(&path))?; // TODO use .textindex in boost?
-                                                                                         // persistence.write_tuple_pair(anchor_to_text_id, &concat(&path, ".anchor_to_text_id"))?;
             }
         }
 

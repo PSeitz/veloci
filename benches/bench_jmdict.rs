@@ -234,15 +234,14 @@ fn get_request(term: &str, levenshtein_distance: u32) -> search::Request {
 fn search(term: &str, pers: &persistence::Persistence, levenshtein_distance: u32) -> Vec<search::DocWithHit> {
     let requesto = get_request(term, levenshtein_distance);
     let hits = search::search(requesto, pers).unwrap();
-    search::to_documents(pers, &hits.data)
+    search::to_documents(pers, &hits.data, None, &hits)
 }
-fn search_with_facets(term: &str, pers: &persistence::Persistence, levenshtein_distance: u32, facets: Vec<FacetRequest>) -> Vec<search::DocWithHit> {
-    let mut requesto = get_request(term, levenshtein_distance);
-    requesto.facets = Some(facets);
+fn search_freestyle(term: &str, pers: &persistence::Persistence) -> Vec<search::DocWithHit> {
+    let yop = query_generator::SearchQueryGeneratorParameters{search_term:term.to_string(), ..Default::default()};
+    let requesto = query_generator::search_query(pers, yop);
     let hits = search::search(requesto, pers).unwrap();
-    search::to_documents(pers, &hits.data)
+    search::to_documents(pers, &hits.data, None, &hits)
 }
-
 fn suggest(term: &str, path: &str, pers: &persistence::Persistence) -> search_field::SuggestFieldResult {
     let req = json!({
             "terms":[term],
@@ -326,6 +325,10 @@ fn searches(c: &mut Criterion) {
 
     c.bench_function("jmdict_search_haus", |b| b.iter(|| search("haus", &pers, 1)));
 
+    c.bench_function("jmdict_search_freestyle_haus", |b| b.iter(|| search_freestyle("haus", &pers)));
+
+    c.bench_function("jmdict_search_in_a_hurry", |b| b.iter(|| search_freestyle("in a hurry", &pers)));
+
     c.bench_function("jmdict_search_japanese", |b| b.iter(|| search("家", &pers, 0)));
 
     // let facets: Vec<FacetRequest> = vec![FacetRequest{field:"commonness".to_string(), .. Default::default()}];
@@ -344,14 +347,12 @@ fn searches(c: &mut Criterion) {
     let requesto: search::Request = serde_json::from_str(&req.to_string()).expect("Can't parse json");
     c.bench_function("jmdict_search_facets", |b| {
         b.iter(|| {
-            // search_with_facets("the", &pers, 0, facets.clone())
             search::search(requesto.clone(), &pers)
         })
     });
 
     c.bench_function("jmdict_search_facets_im", |b| {
         b.iter(|| {
-            // search_with_facets("the", &pers, 0, facets.clone())
             search::search(requesto.clone(), &pers_im)
         })
     });

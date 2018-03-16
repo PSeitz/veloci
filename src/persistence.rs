@@ -23,7 +23,7 @@ use num::{self, Integer, NumCast};
 use num::cast::ToPrimitive;
 
 use serde_json;
-use serde_json::{Deserializer, StreamDeserializer};
+use serde_json::{StreamDeserializer};
 use serde_json::Value;
 
 #[allow(unused_imports)]
@@ -399,13 +399,13 @@ impl Persistence {
         })
     }
 
-    pub fn create_write_indirect_index(&mut self, data: &IndexIdToParent<Output = u32>, path: &str, sort_and_dedup: bool) -> Result<(), io::Error> {
+    pub fn create_write_indirect_index(&mut self, data: &IndexIdToParent<Output = u32>, path: &str, sort_and_dedup: bool, loading_type: LoadingType) -> Result<(), io::Error> {
         let store = IndexIdToMultipleParentIndirect::new_sort_and_dedup(data, sort_and_dedup);
-        self.write_indirect_index(&store, path)?;
+        self.write_indirect_index(&store, path, loading_type)?;
         Ok(())
     }
 
-    pub fn write_indirect_index(&mut self, store: &IndexIdToMultipleParentIndirect<u32>, path: &str) -> Result<(), io::Error> {
+    pub fn write_indirect_index(&mut self, store: &IndexIdToMultipleParentIndirect<u32>, path: &str, loading_type: LoadingType) -> Result<(), io::Error> {
         let max_value_id = *store.data.iter().max_by_key(|el| *el).unwrap_or(&0);
         let avg_join_size = calc_avg_join_size(store.num_values, store.num_ids);
 
@@ -415,7 +415,7 @@ impl Persistence {
         File::create(indirect_file_path)?.write_all(&vec_to_bytes_u32(&store.start_and_end))?;
         File::create(data_file_path)?.write_all(&vec_to_bytes_u32(&store.data))?;
         self.meta_data.key_value_stores.push(KVStoreMetaData {
-            loading_type: LoadingType::Disk,
+            loading_type: loading_type,
             persistence_type: KVStoreType::IndexIdToMultipleParentIndirect,
             is_1_to_n: store.is_1_to_n(),
             path: path.to_string(),
@@ -426,14 +426,14 @@ impl Persistence {
         Ok(())
     }
 
-    pub fn write_direct_index(&mut self, data: &IndexIdToParent<Output = u32>, path: &str, max_value_id: u32) -> Result<(), io::Error> {
+    pub fn write_direct_index(&mut self, data: &IndexIdToParent<Output = u32>, path: &str, max_value_id: u32, loading_type: LoadingType) -> Result<(), io::Error> {
         let data_file_path = util::get_file_path(&self.db, &(path.to_string() + ".data_direct"));
 
         let store = IndexIdToOneParent::new(data);
 
         File::create(data_file_path)?.write_all(&vec_to_bytes_u32(&store.data))?;
         self.meta_data.key_value_stores.push(KVStoreMetaData {
-            loading_type: LoadingType::Disk,
+            loading_type: loading_type,
             persistence_type: KVStoreType::IndexIdToOneParent,
             is_1_to_n: false,
             path: path.to_string(),
@@ -445,8 +445,8 @@ impl Persistence {
     }
 
     #[cfg_attr(feature = "flame_it", flame)]
-    pub fn write_tuple_pair(&mut self, tuples: &mut Vec<create::ValIdPair>, path: &str, is_always_1_to_1: bool) -> Result<(), io::Error> {
-        self.write_tuple_pair_dedup(tuples, path, false, is_always_1_to_1)?;
+    pub fn write_tuple_pair(&mut self, tuples: &mut Vec<create::ValIdPair>, path: &str, is_always_1_to_1: bool, loading_type: LoadingType) -> Result<(), io::Error> {
+        self.write_tuple_pair_dedup(tuples, path, false, is_always_1_to_1, loading_type)?;
         Ok(())
     }
 
@@ -456,14 +456,15 @@ impl Persistence {
         path: &str,
         sort_and_dedup: bool,
         is_always_1_to_1: bool,
+        loading_type: LoadingType,
     ) -> Result<(), io::Error> {
         let data = valid_pair_to_parallel_arrays::<u32>(tuples);
 
         if is_always_1_to_1 {
             let max_value_id = tuples.iter().max_by_key(|el| el.parent_val_id).map(|el| el.parent_val_id).unwrap_or(0);
-            self.write_direct_index(&data, path, max_value_id)?;
+            self.write_direct_index(&data, path, max_value_id, loading_type)?;
         } else {
-            self.create_write_indirect_index(&data, path, sort_and_dedup)?;
+            self.create_write_indirect_index(&data, path, sort_and_dedup, loading_type)?;
         }
         //Parallel
         // let encoded: Vec<u8> = serialize(&data, Infinite).unwrap();
@@ -652,6 +653,7 @@ impl Persistence {
         unsafe {
             Ok(Map::from_path(&get_file_path(&self.db, &(path.to_string() + ".fst")))?) //(path.to_string() + ".fst"))?)
         }
+        //In memory version
         // let mut f = self.get_file_handle(&(path.to_string() + ".fst"))?;
         // let mut buffer: Vec<u8> = Vec::new();
         // f.read_to_end(&mut buffer)?;
@@ -664,11 +666,6 @@ impl Persistence {
         self.cache.fst.get(path).ok_or_else(|| From::from(format!("{} does not exist", path)))
     }
 
-    // pub fn get_create_char_offset_info(&self, path: &str,character: &str) -> Result<Option<OffsetInfo>, search::SearchError> { // @Temporary - replace SearchError
-    //     let char_offset = CharOffset::new(path)?;
-    //     return Ok(char_offset.get_char_offset_info(character, &self.cache.index_64).ok());
-    // }
-
     #[cfg_attr(feature = "flame_it", flame)]
     pub fn load_all_to_cache(&mut self) -> Result<(), search::SearchError> {
         info_time!(format!("loaded persistence {:?}", &self.db));
@@ -678,20 +675,6 @@ impl Persistence {
                 &IDDataType::U64 => self.load_index_64(&idlist.path)?,
             }
         }
-
-        // let r: Result<Vec<_>, SearchError> = steps
-        //         .into_par_iter()
-        //         .map(|step| {
-        //             step.execute_step(persistence)
-        //             // execute_step(step.clone(), persistence)
-        //         })
-        //         .collect();
-
-        //     if r.is_err() {
-        //         Err(r.unwrap_err())
-        //     } else {
-        //         Ok(())
-        //     }
 
         for el in &self.meta_data.key_value_stores {
             self.lru_cache.insert(el.path.clone(), LruCache::with_capacity(0));
