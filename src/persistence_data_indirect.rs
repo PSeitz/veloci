@@ -77,11 +77,13 @@ macro_rules! impl_type_info_single_templ {
     }
 }
 
+impl_type_info_single_templ!(IndexIdToMultipleParentIndirect);
 impl_type_info_single_templ!(IndexIdToMultipleParentCompressedMaydaINDIRECTOne);
 impl_type_info_single_templ!(IndexIdToMultipleParentCompressedMaydaINDIRECTOneReuse);
-impl_type_info_single_templ!(IndexIdToMultipleParentIndirect);
 impl_type_info_single_templ!(PointingArrayFileReader);
 impl_type_info_single_templ!(PointingMMAPFileReader);
+
+const U31_MAX:u32 = (1 << 31) - 1;
 
 pub fn calc_avg_join_size(num_values: u32, num_ids: u32) -> f32 {
     num_values as f32 / std::cmp::max(1, num_ids).to_f32().unwrap()
@@ -89,7 +91,7 @@ pub fn calc_avg_join_size(num_values: u32, num_ids: u32) -> f32 {
 
 #[derive(Serialize, Deserialize, Debug, Clone, HeapSizeOf, Default)]
 pub struct IndexIdToMultipleParentIndirect<T: IndexIdToParentData> {
-    pub start_and_end: Vec<T>,
+    pub start_pos: Vec<T>,
     pub data: Vec<T>,
     pub max_value_id: u32,
     pub avg_join_size: f32,
@@ -103,10 +105,10 @@ impl<T: IndexIdToParentData> IndexIdToMultipleParentIndirect<T> {
     }
     #[allow(dead_code)]
     pub fn new_sort_and_dedup(data: &IndexIdToParent<Output = T>, sort_and_dedup: bool) -> IndexIdToMultipleParentIndirect<T> {
-        let (max_value_id, num_values, num_ids, start_and_end_pos, data) = to_indirect_arrays_dedup(data, 0, sort_and_dedup);
+        let (max_value_id, num_values, num_ids, start_pos, data) = to_indirect_arrays_dedup(data, 0, sort_and_dedup);
 
         IndexIdToMultipleParentIndirect {
-            start_and_end: start_and_end_pos,
+            start_pos: start_pos,
             data,
             max_value_id: max_value_id.to_u32().unwrap(),
             avg_join_size: calc_avg_join_size(num_values, num_ids),
@@ -115,34 +117,38 @@ impl<T: IndexIdToParentData> IndexIdToMultipleParentIndirect<T> {
         }
     }
 
-    pub fn set(&mut self, id: T, data: Vec<T>) {
-        let pos: usize = num::cast(id).unwrap();
-        let required_size = (pos + 1) * 2;
-        if self.start_and_end.len() < required_size {
-            self.start_and_end.resize(required_size, num::cast(0).unwrap());
+    pub fn set(&mut self, id: u32, add_data: Vec<T>) { //TODO INVALIDATE OLD DATA IF SET TWICE?
+        let pos: usize = id as usize;
+        let required_size = pos + 1;
+        if self.start_pos.len() < required_size {
+            self.start_pos.resize(required_size, num::cast(U31_MAX).unwrap());
         }
         let start = self.data.len();
-        self.data.extend(data.iter());
-        self.start_and_end[pos * 2] = num::cast(start).unwrap();
-        self.start_and_end[pos * 2 + 1] = num::cast(self.data.len()).unwrap();
+        if  add_data.len() == 1{
+            let mut val:u32 = add_data[0].to_u32().unwrap();
+            self.max_value_id = std::cmp::max(val, self.max_value_id);
+            set_high_bit(&mut val); // encode directly, much wow, much compression
+            self.start_pos[pos] = num::cast(val).unwrap();
+        }else{
+            self.start_pos[pos] = num::cast(start).unwrap();
+            self.data.push(num::cast(add_data.len()).unwrap());
+            for val in add_data.iter() {
+                self.max_value_id = std::cmp::max(val.to_u32().unwrap(), self.max_value_id);
+                self.data.push(*val);
+            }
+            // self.data.extend(add_data.iter());
+        }
         self.num_values += 1;
-        self.num_ids += data.len() as u32;
+        self.num_ids += add_data.len() as u32;
     }
-    // #[allow(dead_code)]
-    // pub fn from_data(start_and_end: Vec<T>, data: Vec<T>) -> IndexIdToMultipleParentIndirect<T> {
-    //     IndexIdToMultipleParentIndirect {
-    //         start_and_end,
-    //         data,
-    //     }
-    // }
     fn get_size(&self) -> usize {
-        self.start_and_end.len() / 2
+        self.start_pos.len()
     }
 }
 
 #[test]
 fn test_pointing_array_add() {
-    let mut def = IndexIdToMultipleParentIndirect::default();
+    let mut def = IndexIdToMultipleParentIndirect::<u32>::default();
     def.set(0 as u32, vec![1, 2, 3]);
     def.set(2 as u32, vec![3, 4, 3]);
     assert_eq!(def.get_values(0), Some(vec![1, 2, 3]));
@@ -151,13 +157,15 @@ fn test_pointing_array_add() {
 }
 #[test]
 fn test_pointing_array_add_out_of_order() {
-    let mut def = IndexIdToMultipleParentIndirect::default();
+    let mut def = IndexIdToMultipleParentIndirect::<u32>::default();
     def.set(5 as u32, vec![2, 0, 1]);
     def.set(3 as u32, vec![4, 0, 6]);
+    def.set(8 as u32, vec![10]); //encoded
+
     assert_eq!(def.get_values(5), Some(vec![2, 0, 1]));
     assert_eq!(def.get_values(3), Some(vec![4, 0, 6]));
     assert_eq!(def.get_values(1), None);
-    assert_eq!(def.get_keys(), vec![0, 1, 2, 3, 4, 5]);
+    assert_eq!(def.get_keys(), vec![0, 1, 2, 3, 4, 5, 6, 7, 8]);
 }
 
 impl<T: IndexIdToParentData> IndexIdToParent for IndexIdToMultipleParentIndirect<T> {
@@ -168,19 +176,23 @@ impl<T: IndexIdToParentData> IndexIdToParent for IndexIdToMultipleParentIndirect
         if id >= self.get_size() as u64 {
             None
         } else {
-            let positions = &self.start_and_end[(id * 2) as usize..=((id * 2) as usize + 1)];
-            if positions[0].to_u32().unwrap() == u32::MAX {
-                //data encoded in indirect array
-                return Some(vec![positions[1]]);
+            // let positions = &self.start_pos[(id * 2) as usize..=((id * 2) as usize + 1)];
+            let data_start_pos = self.start_pos[id as usize];
+            let data_start_pos_length = data_start_pos.to_u32().unwrap();
+            if let Some(val) = get_encoded(data_start_pos_length) {
+                return Some(vec![NumCast::from(val).unwrap()]);
             }
-            if positions[0] == positions[1] {
+            if data_start_pos_length == U31_MAX {
                 return None;
             }
+            // if positions[0] == positions[1] {
+            //     return None;
+            // }
+            let data_length:u32 = NumCast::from(self.data[data_start_pos_length as usize]).unwrap();
+            let data_start_pos = data_start_pos_length + 1;
+            let end:u32 = data_start_pos + data_length;
             Some(
-                self.data[NumCast::from(positions[0]).unwrap()..NumCast::from(positions[1]).unwrap()]
-                    .iter()
-                    .map(|el| NumCast::from(*el).unwrap())
-                    .collect(),
+                self.data[NumCast::from(data_start_pos).unwrap()..NumCast::from(end).unwrap()].to_vec()
             )
         }
     }
@@ -199,21 +211,29 @@ impl<T: IndexIdToParentData> IndexIdToParent for IndexIdToMultipleParentIndirect
                 if *id >= size as u32 {
                     continue;
                 }
-                let pos = (*id * 2) as usize;
-                let positions = &self.start_and_end[pos..=pos + 1];
-                if positions[0].to_u32().unwrap() == u32::MAX {
-                    //data encoded in indirect array
-                    coll.add(positions[1]);
+                let pos = *id as usize;
+                // let positions = &self.start_pos[pos..=pos + 1];
+                let data_start_pos = self.start_pos[pos];
+                let data_start_pos_length = data_start_pos.to_u32().unwrap();
+                if let Some(val) = get_encoded(data_start_pos_length) {
+                    coll.add(num::cast(val).unwrap());
                     continue;
                 }
+                // if positions[0].to_u32().unwrap() == u32::MAX {
+                //     //data encoded in indirect array
+                //     coll.add(positions[1]);
+                //     continue;
+                // }
 
-                if positions[0] != positions[1] {
-                    positions_vec.push(positions);
+                if data_start_pos_length != U31_MAX {
+                    positions_vec.push(data_start_pos_length);
                 }
             }
 
             for position in &positions_vec {
-                for id in &self.data[NumCast::from(position[0]).unwrap()..NumCast::from(position[1]).unwrap()] {
+                let length:u32 = NumCast::from(self.data[*position as usize]).unwrap();
+                for id in &self.data[NumCast::from(*position+1).unwrap()..NumCast::from(*position+1+length).unwrap()] {
+                // for id in &self.data[NumCast::from(position[0]).unwrap()..NumCast::from(position[1]).unwrap()] {
                     coll.add(*id);
                 }
             }
@@ -226,7 +246,7 @@ impl<T: IndexIdToParentData> IndexIdToParent for IndexIdToMultipleParentIndirect
 #[derive(Debug, HeapSizeOf)]
 #[allow(dead_code)]
 pub struct IndexIdToMultipleParentCompressedMaydaINDIRECTOne<T: IndexIdToParentData> {
-    pub start_and_end: mayda::Monotone<T>,
+    pub start_pos: mayda::Monotone<T>,
     pub data: mayda::Uniform<T>,
     pub size: usize,
     pub max_value_id: u32,
@@ -236,12 +256,12 @@ pub struct IndexIdToMultipleParentCompressedMaydaINDIRECTOne<T: IndexIdToParentD
 impl<T: IndexIdToParentData> IndexIdToMultipleParentCompressedMaydaINDIRECTOne<T> {
     #[allow(dead_code)]
     pub fn new(store: &IndexIdToParent<Output = T>) -> IndexIdToMultipleParentCompressedMaydaINDIRECTOne<T> {
-        let (max_value_id, num_values, num_ids, size, start_and_end, data) = id_to_parent_to_array_of_array_mayda_indirect_one(store);
+        let (max_value_id, num_values, num_ids, size, start_pos, data) = id_to_parent_to_array_of_array_mayda_indirect_one(store);
 
-        info!("start_and_end {}", get_readable_size(start_and_end.heap_size_of_children()));
+        info!("start_pos {}", get_readable_size(start_pos.heap_size_of_children()));
         info!("data {}", get_readable_size(data.heap_size_of_children()));
         IndexIdToMultipleParentCompressedMaydaINDIRECTOne {
-            start_and_end,
+            start_pos,
             data,
             size,
             max_value_id: NumCast::from(max_value_id).unwrap(),
@@ -254,45 +274,43 @@ impl<T: IndexIdToParentData> IndexIdToParent for IndexIdToMultipleParentCompress
     type Output = T;
     #[inline]
     fn get_values(&self, id: u64) -> Option<Vec<T>> {
-        let mut positions: Vec<T> = vec![];
-        positions.resize(2, T::zero());
-        get_values_indirect_generic(id, self.size as u64, &self.start_and_end, &self.data, &mut positions)
+        get_values_indirect_generic(id, self.size as u64, &self.start_pos, &self.data)
     }
 
     fn get_keys(&self) -> Vec<T> {
-        (NumCast::from(0).unwrap()..NumCast::from(self.start_and_end.len() / 2).unwrap()).collect()
+        (NumCast::from(0).unwrap()..NumCast::from(self.start_pos.len()).unwrap()).collect()
     }
 
-    #[inline]
-    fn append_values_for_ids(&self, ids: &[u32], vec: &mut Vec<T>) {
-        let mut positions: Vec<T> = vec![];
-        positions.resize(2, T::zero());
-        for id in ids {
-            if *id >= self.size as u32 {
-                continue;
-            }
-            self.start_and_end
-                .access_into((*id * 2) as usize..=((*id * 2) as usize + 1), &mut positions[0..=1]);
+    // #[inline]
+    // fn append_values_for_ids(&self, ids: &[u32], vec: &mut Vec<T>) {
+    //     let mut positions: Vec<T> = vec![];
+    //     positions.resize(2, T::zero());
+    //     for id in ids {
+    //         if *id >= self.size as u32 {
+    //             continue;
+    //         }
+    //         self.start_pos
+    //             .access_into((*id * 2) as usize..=((*id * 2) as usize + 1), &mut positions[0..=1]);
 
-            if positions[0].to_u32().unwrap() == u32::MAX {
-                //data encoded in indirect array
-                vec.push(positions[1]);
-                continue;
-            }
+    //         if positions[0].to_u32().unwrap() == u32::MAX {
+    //             //data encoded in indirect array
+    //             vec.push(positions[1]);
+    //             continue;
+    //         }
 
-            if positions[0] == positions[1] {
-                continue;
-            }
-            let current_len = vec.len();
-            vec.resize(current_len + positions[1].to_usize().unwrap() - positions[0].to_usize().unwrap(), T::zero());
-            let new_len = vec.len();
+    //         if positions[0] == positions[1] {
+    //             continue;
+    //         }
+    //         let current_len = vec.len();
+    //         vec.resize(current_len + positions[1].to_usize().unwrap() - positions[0].to_usize().unwrap(), T::zero());
+    //         let new_len = vec.len();
 
-            self.data.access_into(
-                NumCast::from(positions[0]).unwrap()..NumCast::from(positions[1]).unwrap(),
-                &mut vec[current_len..new_len],
-            );
-        }
-    }
+    //         self.data.access_into(
+    //             NumCast::from(positions[0]).unwrap()..NumCast::from(positions[1]).unwrap(),
+    //             &mut vec[current_len..new_len],
+    //         );
+    //     }
+    // }
 
     #[inline]
     fn count_values_for_ids(&self, ids: &[u32], top: Option<u32>) -> FnvHashMap<T, usize> {
@@ -328,10 +346,10 @@ impl<T: IndexIdToParentData> IndexIdToParent for IndexIdToMultipleParentCompress
         //             }
 
         //             if start + 1 == end {
-        //                 self.start_and_end.access_into(start ..= end, &mut positions_vec[current_pos ..= current_pos+1]);
+        //                 self.start_pos.access_into(start ..= end, &mut positions_vec[current_pos ..= current_pos+1]);
         //             }else{
-        //                 let start_pos_in_data = self.start_and_end.access(start);
-        //                 let end_pos_in_data = self.start_and_end.access(end);
+        //                 let start_pos_in_data = self.start_pos.access(start);
+        //                 let end_pos_in_data = self.start_pos.access(end);
         //                 positions_vec[current_pos] = start_pos_in_data;
         //                 positions_vec[current_pos+1] = end_pos_in_data;
         //                 print!("start_pos_in_data {:?}", start_pos_in_data);
@@ -394,10 +412,10 @@ impl<T: IndexIdToParentData> IndexIdToParent for IndexIdToMultipleParentCompress
         //         }
 
         //         if *id == end_id {
-        //             self.start_and_end.access_into((*id * 2) as usize..=((*id * 2) as usize + 1), &mut positions[0..=1]);
+        //             self.start_pos.access_into((*id * 2) as usize..=((*id * 2) as usize + 1), &mut positions[0..=1]);
         //         }else{
-        //             let start_pos_in_data = self.start_and_end.access((*id * 2) as usize);
-        //             let end_pos_in_data = self.start_and_end.access((end_id * 2) as usize + 1);
+        //             let start_pos_in_data = self.start_pos.access((*id * 2) as usize);
+        //             let end_pos_in_data = self.start_pos.access((end_id * 2) as usize + 1);
         //             positions[0] = start_pos_in_data;
         //             positions[1] = end_pos_in_data;
         //         }
@@ -419,42 +437,53 @@ impl<T: IndexIdToParentData> IndexIdToParent for IndexIdToMultipleParentCompress
 
         // }
 
-        let mut positions: Vec<T> = vec![];
-        positions.resize(2, T::zero());
-        let mut data_cache: Vec<T> = vec![];
+
+
         for id in ids {
-            if *id >= self.size as u32 {
-                continue;
-            }
-            self.start_and_end
-                .access_into((*id * 2) as usize..=((*id * 2) as usize + 1), &mut positions[0..=1]);
-
-            if positions[0].to_u32().unwrap() == u32::MAX {
-                //data encoded in indirect array
-                coll.add(positions[1]);
-                continue;
-            }
-
-            if positions[0] == positions[1] {
-                continue;
-            }
-
-            // let current_len = data_cache.len();
-            data_cache.resize(positions[1].to_usize().unwrap() - positions[0].to_usize().unwrap(), T::zero());
-            let new_len = data_cache.len();
-
-            self.data.access_into(
-                NumCast::from(positions[0]).unwrap()..NumCast::from(positions[1]).unwrap(),
-                &mut data_cache[0..new_len],
-            );
-            for id in &data_cache {
-                coll.add(*id);
+            if let Some(vals) = self.get_values(*id as u64) {
+                for id in vals{
+                    coll.add(id);
+                }
             }
         }
+        coll.to_map(top)
 
-        let hits: FnvHashMap<T, usize> = coll.to_map(top);
+        // let mut positions: Vec<T> = vec![];
+        // positions.resize(2, T::zero());
+        // let mut data_cache: Vec<T> = vec![];
+        // for id in ids {
+        //     if *id >= self.size as u32 {
+        //         continue;
+        //     }
+        //     let pos = self.start_pos.access(*id as usize);
+        //     // self.start_pos.access_into((*id * 2) as usize..=((*id * 2) as usize + 1), &mut positions[0..=1]);
 
-        hits
+        //     if positions[0].to_u32().unwrap() == u32::MAX {
+        //         //data encoded in indirect array
+        //         coll.add(positions[1]);
+        //         continue;
+        //     }
+
+        //     if positions[0] == positions[1] {
+        //         continue;
+        //     }
+
+        //     // let current_len = data_cache.len();
+        //     data_cache.resize(positions[1].to_usize().unwrap() - positions[0].to_usize().unwrap(), T::zero());
+        //     let new_len = data_cache.len();
+
+        //     self.data.access_into(
+        //         NumCast::from(positions[0]).unwrap()..NumCast::from(positions[1]).unwrap(),
+        //         &mut data_cache[0..new_len],
+        //     );
+        //     for id in &data_cache {
+        //         coll.add(*id);
+        //     }
+        // }
+
+        // let hits: FnvHashMap<T, usize> = coll.to_map(top);
+
+        // hits
     }
 
     #[inline]
@@ -466,32 +495,32 @@ impl<T: IndexIdToParentData> IndexIdToParent for IndexIdToMultipleParentCompress
         }
     }
 
-    #[inline]
-    fn get_count_for_id(&self, id: u64) -> Option<usize> {
-        if id >= self.size as u64 {
-            None
-        } else {
-            let positions = self.start_and_end.access((id * 2) as usize..=((id * 2) as usize + 1));
-            (positions[1] - positions[0]).to_usize()
-        }
-    }
+    // #[inline]
+    // fn get_count_for_id(&self, id: u64) -> Option<usize> {
+    //     if id >= self.size as u64 {
+    //         None
+    //     } else {
+    //         let positions = self.start_pos.access((id * 2) as usize..=((id * 2) as usize + 1));
+    //         (positions[1] - positions[0]).to_usize()
+    //     }
+    // }
 }
 
 // impl IndexIdToParent for IndexIdToMultipleParentCompressedMaydaINDIRECTOne<u32> {
 //     type Output = u32;
 //     fn get_values(&self, id: u64) -> Option<Vec<u32>> {
-//         get_values_indirect(id, self.size as u64, &self.start_and_end, &self.data)
+//         get_values_indirect(id, self.size as u64, &self.start_pos, &self.data)
 //     }
 // }
 
 // #[inline(always)]
-// fn get_values_indirect<T, K>(id: u64, size:u64, start_and_end: &T, data: &K) -> Option<Vec<u32>> where
+// fn get_values_indirect<T, K>(id: u64, size:u64, start_pos: &T, data: &K) -> Option<Vec<u32>> where
 //     T: mayda::utility::Access<std::ops::RangeInclusive<usize>, Output=Vec<u32>> + mayda::utility::Access<std::ops::Range<usize>, Output=Vec<u32>>,
 //     K: mayda::utility::Access<std::ops::RangeInclusive<usize>, Output=Vec<u32>> + mayda::utility::Access<std::ops::Range<usize>, Output=Vec<u32>>
 //     {
 //     if id >= size { None }
 //     else {
-//         let positions = start_and_end.access((id * 2) as usize..=((id * 2) as usize + 1));
+//         let positions = start_pos.access((id * 2) as usize..=((id * 2) as usize + 1));
 //         if positions[0] == positions[1] {return None}
 
 //         Some(data.access(positions[0] as usize .. positions[1] as usize))
@@ -499,14 +528,16 @@ impl<T: IndexIdToParentData> IndexIdToParent for IndexIdToMultipleParentCompress
 // }
 
 #[inline]
-fn get_values_indirect_generic<T, K, M>(id: u64, size: u64, start_and_end: &T, data: &K, positions: &mut Vec<M>) -> Option<Vec<M>>
+fn get_values_indirect_generic<T, K, M>(id: u64, size: u64, start_pos: &T, data: &K) -> Option<Vec<M>>
 where
     T: mayda::utility::Access<std::ops::RangeInclusive<usize>, Output = Vec<M>>
         + mayda::utility::Access<std::ops::Range<usize>, Output = Vec<M>>
+        + mayda::utility::Access<usize, Output = M>
         + mayda::utility::AccessInto<std::ops::RangeInclusive<usize>, M>
         + mayda::utility::AccessInto<std::ops::Range<usize>, M>,
     K: mayda::utility::Access<std::ops::RangeInclusive<usize>, Output = Vec<M>>
         + mayda::utility::Access<std::ops::Range<usize>, Output = Vec<M>>
+        + mayda::utility::Access<usize, Output = M>
         + mayda::utility::AccessInto<std::ops::RangeInclusive<usize>, M>
         + mayda::utility::AccessInto<std::ops::Range<usize>, M>,
     M: IndexIdToParentData,
@@ -514,38 +545,54 @@ where
     if id >= size as u64 {
         None
     } else {
-        start_and_end.access_into((id * 2) as usize..=((id * 2) as usize + 1), &mut positions[0..=1]);
+        // start_pos.access_into((id * 2) as usize..=((id * 2) as usize + 1), &mut positions[0..=1]);
 
-        if positions[0].to_u32().unwrap() == u32::MAX {
-            //data encoded in indirect array
-            return Some(vec![NumCast::from(positions[1]).unwrap()]);
+        let data_start_pos = start_pos.access(id as usize);
+        let data_start_pos_length = data_start_pos.to_u32().unwrap();
+        if let Some(val) = get_encoded(data_start_pos_length) {
+            return Some(vec![NumCast::from(val).unwrap()]);
         }
-
-        if positions[0] == positions[1] {
+        if data_start_pos_length == U31_MAX {
             return None;
         }
 
-        let dat = data.access(NumCast::from(positions[0]).unwrap()..NumCast::from(positions[1]).unwrap());
-        Some(dat)
+        let data_length:u32 = NumCast::from(data.access(data_start_pos_length as usize)).unwrap();
+        let data_start_pos = data_start_pos_length + 1;
+        let end:u32 = data_start_pos + data_length;
+        Some(
+            data.access(NumCast::from(data_start_pos).unwrap()..NumCast::from(end).unwrap())
+        )
+
+        // if positions[0].to_u32().unwrap() == u32::MAX {
+        //     //data encoded in indirect array
+        //     return Some(vec![NumCast::from(positions[1]).unwrap()]);
+        // }
+
+        // if positions[0] == positions[1] {
+        //     return None;
+        // }
+
+        // let dat = data.access(NumCast::from(positions[0]).unwrap()..NumCast::from(positions[1]).unwrap());
+        // Some(dat)
     }
 }
 
 #[derive(Debug, HeapSizeOf)]
 #[allow(dead_code)]
 pub struct IndexIdToMultipleParentCompressedMaydaINDIRECTOneReuse<T: IndexIdToParentData> {
-    start_and_end: mayda::Uniform<T>,
+    start_pos: mayda::Uniform<T>,
     data: mayda::Uniform<T>,
     size: usize,
 }
 impl<T: IndexIdToParentData> IndexIdToMultipleParentCompressedMaydaINDIRECTOneReuse<T> {
     #[allow(dead_code)]
     pub fn new(store: &IndexIdToParent<Output = T>) -> IndexIdToMultipleParentCompressedMaydaINDIRECTOneReuse<T> {
-        let (_max_value_id, _num_values, _num_ids, size, start_and_end, data) = id_to_parent_to_array_of_array_mayda_indirect_one_reuse_existing(store);
+        let (_max_value_id, _num_values, _num_ids, size, start_pos, data) = id_to_parent_to_array_of_array_mayda_indirect_one_reuse_existing(store);
 
-        info!("start_and_end {}", get_readable_size(start_and_end.heap_size_of_children()));
+        info!("start_pos {}", get_readable_size(start_pos.heap_size_of_children()));
         info!("data {}", get_readable_size(data.heap_size_of_children()));
 
-        IndexIdToMultipleParentCompressedMaydaINDIRECTOneReuse { start_and_end, data, size }
+        IndexIdToMultipleParentCompressedMaydaINDIRECTOneReuse { start_pos, data, size }
     }
 }
 
@@ -553,13 +600,11 @@ impl<T: IndexIdToParentData> IndexIdToParent for IndexIdToMultipleParentCompress
     type Output = T;
     #[inline]
     fn get_values(&self, id: u64) -> Option<Vec<T>> {
-        let mut positions = vec![];
-        positions.resize(2, T::zero());
-        get_values_indirect_generic(id, self.size as u64, &self.start_and_end, &self.data, &mut positions)
+        get_values_indirect_generic(id, self.size as u64, &self.start_pos, &self.data)
     }
 
     fn get_keys(&self) -> Vec<T> {
-        (NumCast::from(0).unwrap()..NumCast::from(self.start_and_end.len() / 2).unwrap()).collect()
+        (NumCast::from(0).unwrap()..NumCast::from(self.start_pos.len()).unwrap()).collect()
     }
 }
 
@@ -604,7 +649,7 @@ impl<T: IndexIdToParentData> PointingMMAPFileReader<T> {
         }
     }
     fn get_size(&self) -> usize {
-        self.indirect_metadata.lock().len() as usize / 8
+        self.indirect_metadata.lock().len() as usize / 4
     }
 }
 
@@ -631,27 +676,44 @@ impl<T: IndexIdToParentData> IndexIdToParent for PointingMMAPFileReader<T> {
 }
 
 #[inline(always)]
-fn get_u32_values_from_pointing_mmap_file(find: u64, size: usize, start_and_end_file: &Mmap, data_file: &Mmap) -> Option<Vec<u32>> {
-    trace_time!("get_u32_values_from_mmap_file");
+fn get_u32_values_from_pointing_mmap_file(find: u64, size: usize, start_pos: &Mmap, data_file: &Mmap) -> Option<Vec<u32>> {
+    // trace_time!("get_u32_values_from_mmap_file");
     if find >= size as u64 {
-        return None;
+        None
+    } else {
+        let start_index = find as usize * 4;
+        let data_start_pos = (&start_pos[start_index as usize..start_index + 4]).read_u32::<LittleEndian>().unwrap();
+        let data_start_pos_length = data_start_pos.to_u32().unwrap();
+        if let Some(val) = get_encoded(data_start_pos_length) {
+            return Some(vec![NumCast::from(val).unwrap()]);
+        }
+        if data_start_pos_length == U31_MAX {
+            return None;
+        }
+        let data_length_index = data_start_pos as usize * 4;
+        let data_length:u32 = (&data_file[data_length_index..data_length_index + 4]).read_u32::<LittleEndian>().unwrap();
+        // let data_start_pos = data_start_pos_length + 1;
+        let data_start_index = data_length_index + 4;
+        let end:usize = (data_start_index + data_length as usize * 4) as usize;
+
+        Some(bytes_to_vec_u32(&data_file[data_start_index..end]))
     }
 
-    let start_pos = find as usize * 8;
-    let start = (&start_and_end_file[start_pos..start_pos + 4]).read_u32::<LittleEndian>().unwrap();
-    let end = (&start_and_end_file[start_pos + 4..start_pos + 8]).read_u32::<LittleEndian>().unwrap();
+    // let start_pos = find as usize * 8;
+    // let start = (&start_pos[start_pos..start_pos + 4]).read_u32::<LittleEndian>().unwrap();
+    // let end = (&start_pos[start_pos + 4..start_pos + 8]).read_u32::<LittleEndian>().unwrap();
 
-    if start == u32::MAX {
-        //data encoded in indirect array
-        return Some(vec![end]);
-    }
+    // if start == u32::MAX {
+    //     //data encoded in indirect array
+    //     return Some(vec![end]);
+    // }
 
-    if start == end {
-        return None;
-    }
+    // if start == end {
+    //     return None;
+    // }
 
-    trace_time!("mmap bytes_to_vec_u32");
-    Some(bytes_to_vec_u32(&data_file[start as usize * 4..end as usize * 4]))
+    // trace_time!("mmap bytes_to_vec_u32");
+    // Some(bytes_to_vec_u32(&data_file[start as usize * 4..end as usize * 4]))
 }
 
 #[derive(Debug)]
@@ -676,7 +738,7 @@ impl<T: IndexIdToParentData> PointingArrayFileReader<T> {
         }
     }
     fn get_size(&self) -> usize {
-        self.start_and_end_.lock().len() as usize / 8
+        self.start_and_end_.lock().len() as usize / 4
     }
 }
 
@@ -726,30 +788,65 @@ impl IndexIdToParent for PointingArrayFileReader<u32> {
     }
 }
 
+// fn get_encoded<T: IndexIdToParentData>(val: T) -> Option<T> {
+//     let mut val: u32 = num::cast(val).unwrap();
+//     if is_hight_bit_set(val) {
+//         //data encoded in indirect array
+//         unset_high_bit(&mut val);
+//         Some(num::cast(val).unwrap())
+//     }else{
+//         None
+//     }
+// }
+
+fn get_encoded(mut val: u32) -> Option<u32> {
+    if is_hight_bit_set(val) {//data encoded in indirect array
+        unset_high_bit(&mut val);
+        Some(val)
+    }else{
+        None
+    }
+}
+
 #[inline(always)]
 fn get_u32_values_from_pointing_file(find: u64, size: usize, start_and_end_file: &Mutex<fs::File>, data_file: &Mutex<fs::File>) -> Option<Vec<u32>> {
     trace_time!("get_u32_values_from_pointing_file");
     if find >= size as u64 {
         return None;
     }
-    let mut offsets: Vec<u8> = vec_with_size_uninitialized(8);
-    load_bytes_into(&mut offsets, &*start_and_end_file.lock(), find as u64 * 8);
+    let mut offsets: Vec<u8> = vec_with_size_uninitialized(4);
+    load_bytes_into(&mut offsets, &*start_and_end_file.lock(), find as u64 * 4);
 
-    let mut rdr = Cursor::new(offsets);
+    let mut start = {
+        let mut rdr = Cursor::new(&offsets);
+        rdr.read_u32::<LittleEndian>().unwrap() //TODO AVOID CONVERT
+    };
 
-    let start = rdr.read_u32::<LittleEndian>().unwrap(); //TODO AVOID CONVERT
-    let end = rdr.read_u32::<LittleEndian>().unwrap();
+    //println!("start {:?}", start);
+    // let end = rdr.read_u32::<LittleEndian>().unwrap();
 
-    if start == u32::MAX {
-        //data encoded in indirect array
-        return Some(vec![end]);
+    if let Some(val) = get_encoded(start) {
+        return Some(vec![val]);
     }
 
-    if start == end {
+    // if is_hight_bit_set(start) { // == u32::MAX {
+    //     //data encoded in indirect array
+    //     unset_high_bit(&mut start);
+    //     return Some(vec![start]);
+    // }
+
+    if start == U31_MAX {
         return None;
     }
 
-    trace_time!("load_bytes_into & bytes_to_vec_u32");
+    load_bytes_into(&mut offsets, &*data_file.lock(), start as u64 * 4);
+    let mut rdr = Cursor::new(offsets);
+    start += 1;
+    let end = start + rdr.read_u32::<LittleEndian>().unwrap(); //TODO AVOID CONVERT JUST CAST LIEKE A DAREDEVIL
+
+    //println!("start {:?} end {:?}", start, end);
+
+    //trace_time!("load_bytes_into & bytes_to_vec_u32"); //TODO ENABLE IF COPYLESS TRACETIME
     // let mut data_bytes: Vec<u8> = vec_with_size_uninitialized(end as usize * 4 - start as usize * 4);
     // let mut data: Vec<u32> = vec_with_size_uninitialized(end as usize - start as usize);
     // {
@@ -854,108 +951,141 @@ pub fn to_monotone<T: mayda::utility::Bits>(data: &[T]) -> mayda::Monotone<T> {
 //     (start_pos.len(), to_uniform(&start_pos), to_uniform(&end_pos), to_uniform(&data))
 // }
 
-fn to_indirect_arrays<T: Integer + Clone + NumCast + mayda::utility::Bits + Copy, K: IndexIdToParentData>(
+fn to_indirect_arrays<T: Integer + Clone + NumCast + mayda::utility::Bits + Copy + IndexIdToParentData, K: IndexIdToParentData>(
     store: &IndexIdToParent<Output = K>,
     cache_size: usize,
 ) -> (T, u32, u32, Vec<T>, Vec<T>) {
     to_indirect_arrays_dedup(store, cache_size, false)
 }
 
-fn to_indirect_arrays_dedup<T: Integer + Clone + NumCast + mayda::utility::Bits + Copy, K: IndexIdToParentData>(
+fn to_indirect_arrays_dedup<T: Integer + Clone + NumCast + mayda::utility::Bits + Copy + IndexIdToParentData, K: IndexIdToParentData>(
     store: &IndexIdToParent<Output = K>,
     cache_size: usize,
     sort_and_dedup: bool,
 ) -> (T, u32, u32, Vec<T>, Vec<T>) {
-    let mut data = vec![];
+    // let mut data = vec![];
     let mut valids = store.get_keys();
     valids.dedup();
     if valids.is_empty() {
         return (T::zero(), 0, 0, vec![], vec![]);
     }
-    let mut start_and_end_pos = vec![];
+    // let mut start_pos_in_data = vec![];
     let last_id = *valids.last().unwrap();
-    // start_and_end_pos.resize((valids.last().unwrap().to_usize().unwrap() + 1) * 2, num::cast(u32::MAX).unwrap()); // don't use u32::MAX u32::MAX means the data is directly encoded
-    start_and_end_pos.resize((valids.last().unwrap().to_usize().unwrap() + 1) * 2, num::cast(0).unwrap());
+    // start_pos_in_data.resize((valids.last().unwrap().to_usize().unwrap() + 1) * 2, num::cast(u32::MAX).unwrap()); // don't use u32::MAX u32::MAX means the data is directly encoded
+    // start_pos_in_data.resize(valids.last().unwrap().to_usize().unwrap() + 1 , num::cast(U31_MAX).unwrap());
 
-    let mut offset = 0;
+    // let mut offset = 0;
 
-    let num_ids = last_id;
-    let mut num_values = 0;
+    // let num_ids = last_id;
+    // let mut num_values = 0;
 
-    let mut cache = LruCache::new(cache_size);
+    // let mut cache = LruCache::new(cache_size);
+
+    // let mut max_value_id = T::zero();
+
+    let mut yepp = IndexIdToMultipleParentIndirect::<T>{ start_pos:vec![], data:vec![], max_value_id: 0, avg_join_size: 0., num_values: 0, num_ids: 0,};
 
     for valid in 0..=num::cast(last_id).unwrap() {
-        let start = offset;
+        //let start = offset;
         if let Some(mut vals) = store.get_values(valid as u64) {
-            num_values += vals.len();
-            if vals.len() == 1 {
-                // Special Case Decode value direct into start and end, start is u32::MAX and end is da value
-                start_and_end_pos[valid as usize * 2] = num::cast(u32::MAX).unwrap();
-                start_and_end_pos[(valid as usize * 2) + 1] = num::cast(vals[0]).unwrap();
-                continue;
-            }
             if sort_and_dedup {
                 vals.sort();
                 vals.dedup();
             }
-
-            if let Some(&mut (start, offset)) = cache.get_mut(&vals) {
-                //reuse and reference existing data
-                start_and_end_pos[valid as usize * 2] = start;
-                start_and_end_pos[(valid as usize * 2) + 1] = offset;
-            } else {
-                let start = offset;
-
-                for val in &vals {
-                    data.push(num::cast(*val).unwrap());
-                }
-                offset += vals.len() as u64;
-
-                if cache_size > 0 {
-                    cache.insert(vals, (num::cast(start).unwrap(), num::cast(offset).unwrap()));
-                }
-                start_and_end_pos[valid as usize * 2] = num::cast(start).unwrap();
-                start_and_end_pos[(valid as usize * 2) + 1] = num::cast(offset).unwrap();
-            }
-        } else {
-            // add latest offsets, so the data is monotonically increasing -> better compression
-            start_and_end_pos[valid as usize * 2] = num::cast(start).unwrap();
-            start_and_end_pos[(valid as usize * 2) + 1] = num::cast(offset).unwrap();
+            yepp.set(valid, vals.iter().map(|el| num::cast(*el).unwrap()).collect::<Vec<_>>());
         }
+
     }
-    data.shrink_to_fit();
-    let max_value_id = *data.iter().max_by_key(|el| *el).unwrap_or(&T::zero());
+
+    // for valid in 0..=num::cast(last_id).unwrap() {
+    //     //let start = offset;
+    //     if let Some(mut vals) = store.get_values(valid as u64) {
+    //         num_values += vals.len();
+    //         if vals.len() == 1 {
+
+    //             max_value_id = std::cmp::max(max_value_id, num::cast(vals[0]).unwrap());
+
+    //             // Special Case Decode value direct into start and end, start is u32::MAX and end is da value
+    //             let mut val: u32 = num::cast(vals[0]).unwrap();
+    //             set_high_bit(&mut val);
+    //             start_pos_in_data[valid as usize] = num::cast(val).unwrap();
+
+    //             // start_pos_in_data[valid as usize * 2] = num::cast(u32::MAX).unwrap();
+    //             // start_pos_in_data[(valid as usize * 2) + 1] = num::cast(vals[0]).unwrap();
+    //             continue;
+    //         }
+    //         if sort_and_dedup {
+    //             vals.sort();
+    //             vals.dedup();
+    //         }
+
+    //         if let Some(&mut start) = cache.get_mut(&vals) {
+    //             //reuse and reference existing data
+    //             start_pos_in_data[valid as usize] = start;
+    //             // start_pos_in_data[valid as usize * 2] = start;
+    //             // start_pos_in_data[(valid as usize * 2) + 1] = offset;
+    //         } else {
+    //             let start = offset;
+
+    //             data.push(num::cast(vals.len()).unwrap()); // data knows its length
+    //             offset += 1;
+    //             for val in &vals {
+    //                 max_value_id = std::cmp::max(max_value_id, num::cast(*val).unwrap());
+    //                 data.push(num::cast(*val).unwrap());
+    //             }
+    //             offset += vals.len() as u64;
+
+    //             if cache_size > 0 {
+    //                 cache.insert(vals, num::cast(start).unwrap());
+    //             }
+    //             start_pos_in_data[valid as usize] = num::cast(start).unwrap();
+    //             // start_pos_in_data[valid as usize * 2] = num::cast(start).unwrap();
+    //             // start_pos_in_data[(valid as usize * 2) + 1] = num::cast(offset).unwrap();
+    //         }
+    //     } else {
+    //         // add latest offsets, so the data is monotonically increasing -> better compression
+    //         // start_pos_in_data[valid as usize] = num::cast(start).unwrap();
+    //         // start_pos_in_data[valid as usize * 2] = num::cast(start).unwrap();
+    //         // start_pos_in_data[(valid as usize * 2) + 1] = num::cast(offset).unwrap();
+    //     }
+    // }
+    // data.shrink_to_fit();
+    // let max_value_id = *data.iter().max_by_key(|el| *el).unwrap_or(&T::zero()); //TODO Check also
+
+    // println!("start_pos_in_data {:?}", yepp.start_pos.iter().map(|el:&T|el.to_u32().unwrap()).collect::<Vec<_>>());
+    // println!("data {:?}",              yepp.data.iter().map(|el:&T|el.to_u32().unwrap()).collect::<Vec<_>>());
 
     // let avg_join_size = num_values as f32 / std::cmp::max(K::one(), num_ids).to_f32().unwrap();
-    (max_value_id, num_values as u32, num::cast(num_ids).unwrap(), start_and_end_pos, data)
+    // (max_value_id, num_values as u32, num::cast(num_ids).unwrap(), start_pos_in_data, data)
+    (num::cast(yepp.max_value_id).unwrap(), yepp.num_values as u32, num::cast(yepp.num_ids).unwrap(), yepp.start_pos, yepp.data)
 }
 
-pub fn id_to_parent_to_array_of_array_mayda_indirect_one<T: Integer + Clone + NumCast + mayda::utility::Bits + Copy, K: IndexIdToParentData>(
+pub fn id_to_parent_to_array_of_array_mayda_indirect_one<T: Integer + Clone + NumCast + mayda::utility::Bits + Copy + IndexIdToParentData, K: IndexIdToParentData>(
     store: &IndexIdToParent<Output = K>,
 ) -> (T, u32, u32, usize, mayda::Monotone<T>, mayda::Uniform<T>) {
     //start, end, data
-    let (max_value_id, num_values, num_ids, start_and_end_pos, data) = to_indirect_arrays(store, 0);
+    let (max_value_id, num_values, num_ids, start_pos, data) = to_indirect_arrays(store, 0);
     (
         max_value_id,
         num_values,
         num_ids,
-        start_and_end_pos.len() / 2,
-        to_monotone(&start_and_end_pos),
+        start_pos.len(),
+        to_monotone(&start_pos),
         to_uniform(&data),
     )
 }
 
-pub fn id_to_parent_to_array_of_array_mayda_indirect_one_reuse_existing<T: Integer + Clone + NumCast + mayda::utility::Bits + Copy, K: IndexIdToParentData>(
+pub fn id_to_parent_to_array_of_array_mayda_indirect_one_reuse_existing<T: Integer + Clone + NumCast + mayda::utility::Bits + Copy + IndexIdToParentData, K: IndexIdToParentData>(
     store: &IndexIdToParent<Output = K>,
 ) -> (T, u32, u32, usize, mayda::Uniform<T>, mayda::Uniform<T>) {
     //start, end, data
-    let (max_value_id, num_values, num_ids, start_and_end_pos, data) = to_indirect_arrays(store, 250);
+    let (max_value_id, num_values, num_ids, start_pos, data) = to_indirect_arrays(store, 250);
     (
         max_value_id,
         num_values,
         num_ids,
-        start_and_end_pos.len() / 2,
-        to_uniform(&start_and_end_pos),
+        start_pos.len(),
+        to_uniform(&start_pos),
         to_uniform(&data),
     )
 }
@@ -971,7 +1101,7 @@ mod tests {
     use persistence_data::*;
 
     fn get_test_data_1_to_n() -> ParallelArrays<u32> {
-        let keys = vec![0, 0, 1, 2, 3, 3, 5];
+        let keys = vec!  [0, 0, 1, 2, 3, 3,     5];
         let values = vec![5, 6, 9, 9, 9, 50000, 80];
 
         let store = ParallelArrays {
@@ -991,9 +1121,9 @@ mod tests {
         assert_eq!(store.get_values(5), Some(vec![80]));
         assert_eq!(store.get_values(6), None);
 
-        let mut vec = vec![];
-        store.append_values_for_ids(&[0, 1, 2, 3, 4, 5, 6], &mut vec);
-        assert_eq!(vec, vec![5, 6, 9, 9, 9, 50000, 80]);
+        // let mut vec = vec![];
+        // store.append_values_for_ids(&[0, 1, 2, 3, 4, 5, 6], &mut vec);
+        // assert_eq!(vec, vec![5, 6, 9, 9, 9, 50000, 80]);
 
         let map = store.count_values_for_ids(&[0, 1, 2, 3, 4, 5], None);
         assert_eq!(map.get(&5).unwrap(), &1);
@@ -1018,7 +1148,7 @@ mod tests {
         use std::io::prelude::*;
         use rand::distributions::{IndependentSample, Range};
         #[test]
-        fn test_pointing_file_array() {
+        fn test_pointing_file_andmmap_array() {
             let store = get_test_data_1_to_n();
             let (max_value_id, num_values, num_ids, keys, values) = to_indirect_arrays(&store, 0);
 
@@ -1034,16 +1164,30 @@ mod tests {
 
             let start_and_end_file = File::open(&get_file_path("test_pointing_file_array", "indirect")).unwrap();
             let data_file = File::open(&get_file_path("test_pointing_file_array", "data")).unwrap();
-            let data_metadata = fs::metadata(&get_file_path("test_pointing_file_array", "indirect")).unwrap();
+            let indirect_metadata = fs::metadata(&get_file_path("test_pointing_file_array", "indirect")).unwrap();
+            let data_metadata = fs::metadata(&get_file_path("test_pointing_file_array", "data")).unwrap();
 
-            let store = PointingArrayFileReader::new(
-                start_and_end_file,
-                data_file,
-                data_metadata,
+
+            let store = PointingMMAPFileReader::new(
+                &start_and_end_file,
+                &data_file,
+                indirect_metadata,
+                &data_metadata,
                 max_value_id,
                 calc_avg_join_size(num_values, num_ids),
             );
             check_test_data_1_to_n(&store);
+            let indirect_metadata = fs::metadata(&get_file_path("test_pointing_file_array", "indirect")).unwrap();
+            let store = PointingArrayFileReader::new(
+                start_and_end_file,
+                data_file,
+                indirect_metadata,
+                max_value_id,
+                calc_avg_join_size(num_values, num_ids),
+            );
+            check_test_data_1_to_n(&store);
+
+
         }
 
         #[test]
@@ -1094,9 +1238,7 @@ mod tests {
         //     let store = get_test_data_large(40_000, 15);
         //     let mut rng = rand::thread_rng();
         //     let between = Range::new(0, 40_000);
-
         //     let store = prepare_indirect_pointing_file_array("test_pointing_file_array_perf", &store);// PointingArrayFileReader::new(start_and_end_file, data_file, data_metadata);
-
         //     b.iter(|| store.get_values(between.ind_sample(&mut rng)))
         // }
 

@@ -49,9 +49,21 @@ pub fn set_bit_at(input: &mut u32, n: u8) {
     *input = *input | (1 << n)
 }
 
-const NUM2_31:u32 = (1 << 31);
+const ONLY_HIGH_BIT_SET:u32 = (1 << 31);
+const ALL_BITS_BUT_HIGHEST_SET:u32 = (1 << 31) - 1;
+
+#[inline]
+pub fn set_high_bit(input: &mut u32) {
+    *input = *input | ONLY_HIGH_BIT_SET
+}
+#[inline]
+pub fn unset_high_bit(input: &mut u32) {
+    *input = *input & ALL_BITS_BUT_HIGHEST_SET
+}
+
+#[inline]
 pub fn is_hight_bit_set(input: u32) -> bool {
-    input & NUM2_31 != 0
+    input & ONLY_HIGH_BIT_SET != 0
 }
 
 #[inline]

@@ -412,7 +412,7 @@ impl Persistence {
         let indirect_file_path = util::get_file_path(&self.db, &(path.to_string() + ".indirect"));
         let data_file_path = util::get_file_path(&self.db, &(path.to_string() + ".data"));
 
-        File::create(indirect_file_path)?.write_all(&vec_to_bytes_u32(&store.start_and_end))?;
+        File::create(indirect_file_path)?.write_all(&vec_to_bytes_u32(&store.start_pos))?;
         File::create(data_file_path)?.write_all(&vec_to_bytes_u32(&store.data))?;
         self.meta_data.key_value_stores.push(KVStoreMetaData {
             loading_type: loading_type,
@@ -705,7 +705,7 @@ impl Persistence {
                             let data_u32 = bytes_to_vec_u32(&file_to_bytes(&indirect_data_path)?);
 
                             let store = IndexIdToMultipleParentIndirect {
-                                start_and_end: indirect_u32,
+                                start_pos: indirect_u32,
                                 data: data_u32,
                                 max_value_id: el.max_value_id,
                                 avg_join_size: el.avg_join_size,
@@ -733,7 +733,7 @@ impl Persistence {
 
                                 let store = IndexIdToMultipleParentCompressedMaydaINDIRECTOne {
                                     size: indirect_u32.len() / 2,
-                                    start_and_end: to_monotone(&indirect_u32),
+                                    start_pos: to_monotone(&indirect_u32),
                                     data: to_uniform(&data_u32),
                                     max_value_id: el.max_value_id,
                                     avg_join_size: el.avg_join_size,
@@ -756,10 +756,10 @@ impl Persistence {
                             }
                         }
 
-                        // return Ok((el.path.to_string(), Box::new(IndexIdToMultipleParentIndirect{start_and_end: indirect_u32, data:data_u32}) as Box<IndexIdToParent<Output = u32>> ));
+                        // return Ok((el.path.to_string(), Box::new(IndexIdToMultipleParentIndirect{start_pos: indirect_u32, data:data_u32}) as Box<IndexIdToParent<Output = u32>> ));
                         // self.cache
                         //         .index_id_to_parento
-                        //         .insert(el.path.to_string(), Box::new(IndexIdToMultipleParentIndirect{start_and_end: indirect_u32, data:data_u32}));
+                        //         .insert(el.path.to_string(), Box::new(IndexIdToMultipleParentIndirect{start_pos: indirect_u32, data:data_u32}));
 
                         // {
                         //     let start_and_end_file = self.get_file_handle(&(el.path.to_string() + ".indirect"))?;
@@ -776,7 +776,7 @@ impl Persistence {
                         // {
                         //     let store = IndexIdToMultipleParentCompressedMaydaINDIRECTOne {
                         //         size: indirect_u32.len() / 2,
-                        //         start_and_end: to_monotone(&indirect_u32),
+                        //         start_pos: to_monotone(&indirect_u32),
                         //         data: to_uniform(&data_u32),
                         //         max_value_id: el.max_value_id,
                         //         avg_join_size: el.avg_join_size,
