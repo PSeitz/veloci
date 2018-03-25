@@ -2,7 +2,7 @@ use std;
 #[allow(unused_imports)]
 use heapsize::{heap_size_of, HeapSizeOf};
 #[allow(unused_imports)]
-use bincode::{deserialize, serialize, Infinite};
+use bincode::{deserialize, serialize};
 
 #[allow(unused_imports)]
 use util::*;
@@ -22,12 +22,14 @@ use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 #[allow(unused_imports)]
 use mayda::{Access, AccessInto, Encode, Uniform};
 use parking_lot::Mutex;
+#[allow(unused_imports)]
 use lru_cache::LruCache;
 
 use std::io::Cursor;
 use std::fs;
 #[allow(unused_imports)]
 use std::fmt::Debug;
+
 #[allow(unused_imports)]
 use num::cast::ToPrimitive;
 use num::{Integer, NumCast};
@@ -69,9 +71,6 @@ macro_rules! impl_type_info_single_templ {
                     res.push('>');
                 )*
                 res
-            }
-            fn type_of(&self) -> String {
-                $name$(::<$($T),*>)*::type_name(&self)
             }
         }
     }
@@ -141,10 +140,60 @@ impl<T: IndexIdToParentData> IndexIdToMultipleParentIndirect<T> {
         self.num_values += 1;
         self.num_ids += add_data.len() as u32;
     }
+
+    // pub fn set_scores(&mut self, id: u32, add_data: Vec<T>) { //TODO INVALIDATE OLD DATA IF SET TWICE?
+    //     let pos: usize = id as usize;
+    //     let required_size = pos + 1;
+    //     if self.start_pos.len() < required_size {
+    //         self.start_pos.resize(required_size, num::cast(U31_MAX).unwrap());
+    //     }
+    //     let start = self.data.len();
+    //     // if  add_data.len() == 1{
+    //     //     let mut val:u32 = add_data[0].to_u32().unwrap();
+    //     //     self.max_value_id = std::cmp::max(val, self.max_value_id);
+    //     //     set_high_bit(&mut val); // encode directly, much wow, much compression
+    //     //     self.start_pos[pos] = num::cast(val).unwrap();
+    //     // }else{
+    //         self.start_pos[pos] = num::cast(start).unwrap();
+    //         self.data.push(num::cast(add_data.len()).unwrap());
+    //         for val in add_data.iter() {
+    //             // self.max_value_id = std::cmp::max(val.to_u32().unwrap(), self.max_value_id);
+    //             self.data.push(*val);
+    //         }
+    //     // }
+    //     self.num_values += 1;
+    //     self.num_ids += add_data.len() as u32;
+    // }
+    #[inline]
     fn get_size(&self) -> usize {
         self.start_pos.len()
     }
 }
+
+
+
+// #[derive(Serialize, Deserialize, Debug, Clone, HeapSizeOf, Default)]
+// pub struct TokenToAnchorScore {
+//     pub data: Vec<Vec<(u32, f16)>>,
+//     pub num_values: u32,
+//     pub num_anchor_data: u32,
+// }
+// impl TokenToAnchorScore {
+//     pub fn set_scores(&mut self, id: u32, add_data: Vec<(u32, f16)>) { //TODO INVALIDATE OLD DATA IF SET TWICE?
+//         let pos: usize = id as usize;
+//         let required_size = pos + 1;
+//         if self.data.len() < required_size {
+//             self.data.resize(required_size, vec![]);
+//         }
+//         let start = self.data.len();
+//         self.data[pos] = add_data;
+//         self.num_values += 1;
+//         self.num_anchor_data += add_data.len() as u32;
+//     }
+//     fn get_size(&self) -> usize {
+//         self.start_pos.len()
+//     }
+// }
 
 #[test]
 fn test_pointing_array_add() {
@@ -648,6 +697,8 @@ impl<T: IndexIdToParentData> PointingMMAPFileReader<T> {
             avg_join_size: avg_join_size,
         }
     }
+
+    #[inline]
     fn get_size(&self) -> usize {
         self.indirect_metadata.lock().len() as usize / 4
     }
@@ -737,6 +788,8 @@ impl<T: IndexIdToParentData> PointingArrayFileReader<T> {
             avg_join_size: avg_join_size,
         }
     }
+
+    #[inline]
     fn get_size(&self) -> usize {
         self.start_and_end_.lock().len() as usize / 4
     }
@@ -764,6 +817,7 @@ impl<T: IndexIdToParentData> HeapSizeOf for PointingArrayFileReader<T> {
 }
 
 impl IndexIdToParent for PointingArrayFileReader<u32> {
+    #[inline]
     fn get_values(&self, find: u64) -> Option<Vec<u32>> {
         get_u32_values_from_pointing_file(find, self.get_size(), &self.start_and_end_file, &self.data_file)
     }
@@ -786,6 +840,36 @@ impl IndexIdToParent for PointingArrayFileReader<u32> {
         }
         coll.to_map(top)
     }
+
+    // #[inline]
+    // fn get_value_id_with_scores(&self, id: u64) -> Option<Vec<(u32, f16)>>{
+    //     if id >= self.get_size() as u64 {
+    //         return None;
+    //     }
+
+    //     let mut offsets: Vec<u8> = vec_with_size_uninitialized(4);
+    //     load_bytes_into(&mut offsets, &self.start_and_end_file.lock(), id as u64 * 4);
+
+    //     let mut pos_in_data = {
+    //         let mut rdr = Cursor::new(&offsets);
+    //         rdr.read_u32::<LittleEndian>().unwrap() //TODO AVOID CONVERT
+    //     };
+
+    //     // if let Some(val) = get_encoded(start) {
+    //     //     return Some(vec![val]);
+    //     // }
+
+    //     if pos_in_data == U31_MAX {
+    //         return None;
+    //     }
+
+    //     load_bytes_into(&mut offsets, &self.data_file.lock(), pos_in_data as u64 * 6);
+    //     let mut rdr = Cursor::new(offsets);
+    //     pos_in_data += 1;
+    //     let end = pos_in_data + rdr.read_u32::<LittleEndian>().unwrap(); //TODO AVOID CONVERT JUST CAST LIEKE A DAREDEVIL
+
+    //     Some(get_my_data_danger_zooone_score(pos_in_data, end, &self.data_file))
+    // }
 }
 
 // fn get_encoded<T: IndexIdToParentData>(val: T) -> Option<T> {
@@ -810,45 +894,45 @@ fn get_encoded(mut val: u32) -> Option<u32> {
 
 #[inline(always)]
 fn get_u32_values_from_pointing_file(find: u64, size: usize, start_and_end_file: &Mutex<fs::File>, data_file: &Mutex<fs::File>) -> Option<Vec<u32>> {
-    trace_time!("get_u32_values_from_pointing_file");
+    // trace_time!("get_u32_values_from_pointing_file");
     if find >= size as u64 {
         return None;
     }
     let mut offsets: Vec<u8> = vec_with_size_uninitialized(4);
     load_bytes_into(&mut offsets, &*start_and_end_file.lock(), find as u64 * 4);
 
-    let mut start = {
+    let pos_in_data_or_encoded_id = {
         let mut rdr = Cursor::new(&offsets);
         rdr.read_u32::<LittleEndian>().unwrap() //TODO AVOID CONVERT
     };
 
-    //println!("start {:?}", start);
+    //println!("pos_in_data_or_encoded_id {:?}", pos_in_data_or_encoded_id);
     // let end = rdr.read_u32::<LittleEndian>().unwrap();
 
-    if let Some(val) = get_encoded(start) {
+    if let Some(val) = get_encoded(pos_in_data_or_encoded_id) {
         return Some(vec![val]);
     }
 
-    // if is_hight_bit_set(start) { // == u32::MAX {
+    // if is_hight_bit_set(pos_in_data_or_encoded_id) { // == u32::MAX {
     //     //data encoded in indirect array
-    //     unset_high_bit(&mut start);
-    //     return Some(vec![start]);
+    //     unset_high_bit(&mut pos_in_data_or_encoded_id);
+    //     return Some(vec![pos_in_data_or_encoded_id]);
     // }
 
-    if start == U31_MAX {
+    if pos_in_data_or_encoded_id == U31_MAX {
         return None;
     }
 
-    load_bytes_into(&mut offsets, &*data_file.lock(), start as u64 * 4);
+    load_bytes_into(&mut offsets, &*data_file.lock(), pos_in_data_or_encoded_id as u64 * 4); // first el is length of data
     let mut rdr = Cursor::new(offsets);
-    start += 1;
-    let end = start + rdr.read_u32::<LittleEndian>().unwrap(); //TODO AVOID CONVERT JUST CAST LIEKE A DAREDEVIL
+    let data_start = pos_in_data_or_encoded_id + 1; // actual data starts after len
+    let data_end = data_start + rdr.read_u32::<LittleEndian>().unwrap(); //TODO AVOID CONVERT JUST CAST LIEKE A DAREDEVIL
 
-    //println!("start {:?} end {:?}", start, end);
+    //println!("start {:?} data_end {:?}", start, data_end);
 
     //trace_time!("load_bytes_into & bytes_to_vec_u32"); //TODO ENABLE IF COPYLESS TRACETIME
-    // let mut data_bytes: Vec<u8> = vec_with_size_uninitialized(end as usize * 4 - start as usize * 4);
-    // let mut data: Vec<u32> = vec_with_size_uninitialized(end as usize - start as usize);
+    // let mut data_bytes: Vec<u8> = vec_with_size_uninitialized(data_end as usize * 4 - start as usize * 4);
+    // let mut data: Vec<u32> = vec_with_size_uninitialized(data_end as usize - start as usize);
     // {
 
     //     let p = data.as_mut_ptr();
@@ -868,7 +952,7 @@ fn get_u32_values_from_pointing_file(find: u64, size: usize, start_and_end_file:
     // }
     // Some(data)
 
-    Some(get_my_data_danger_zooone(start, end, data_file))
+    Some(get_my_data_danger_zooone(data_start, data_end, data_file))
     // debug_time!("bytes_to_vec_u32");
     // Some(bytes_to_vec_u32(data_bytes))
 }

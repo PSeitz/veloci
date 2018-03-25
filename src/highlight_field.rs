@@ -6,6 +6,7 @@ use persistence::*;
 use persistence;
 use search;
 use search::*;
+use tokenizer::*;
 use util::concat;
 use std::cmp;
 // use hit_collector::HitCollector;
@@ -21,6 +22,62 @@ use heapsize::HeapSizeOf;
 use itertools::Itertools;
 
 use fnv::FnvHashSet;
+
+// fn get_all_positions(text: &str,token: &str,) -> Vec<usize> {
+//     let mut pos = 0;
+//     let mut positions = vec![];
+//     while let Some(hit_pos) = text[pos..].find(token) {
+//         positions.push(hit_pos);
+//         pos = hit_pos;
+//     }
+//     positions
+// }
+
+
+/// Highlights text
+/// tokens has to be sorted by best match first (probably longest)
+pub fn highlight_text(
+    text: &str,
+    // tokens: &[&str],
+    set: &FnvHashSet<String>,
+    opt: &SnippetInfo,
+) -> Option<String> {
+    // let mut tokens_sorted:Vec<String> = tokens.iter().map(|el|el.to_string()).collect();
+    // tokens_sorted.sort_unstable();
+    // let set = Set::from_iter(tokens_sorted).unwrap(); //TODO MOVE IT
+
+    let mut contains_any_token = false;
+    let mut highlighted = String::with_capacity(text.len() + 10);
+
+    let tokenizer = SimpleTokenizerCharsIterateGroupTokens {};
+    tokenizer.get_tokens(text, &mut |token: &str, _is_seperator: bool| {
+        if set.contains(token) {
+            contains_any_token = true;
+            highlighted.push_str(&opt.snippet_start_tag);
+            highlighted.push_str(token);
+            highlighted.push_str(&opt.snippet_end_tag);
+        }else {
+            highlighted.push_str(token);
+        }
+    });
+
+    if contains_any_token {
+        Some(highlighted)
+    }else{
+        None
+    }
+}
+
+
+// #[test]
+// fn test_highlight_text() {
+//     assert_eq!(highlight_text("mein treffer", &vec!["treffer"], &DEFAULT_SNIPPETINFO).unwrap(), "mein <b>treffer</b>");
+//     assert_eq!(highlight_text("mein treffer treffers", &vec!["treffers", "treffer"], &DEFAULT_SNIPPETINFO).unwrap(), "mein <b>treffer</b> <b>treffers</b>");
+//     assert_eq!(highlight_text("Schön-Hans", &vec!["Hans"], &DEFAULT_SNIPPETINFO).unwrap(), "Schön-<b>Hans</b>");
+//     assert_eq!(highlight_text("Schön-Hans", &vec!["Haus"], &DEFAULT_SNIPPETINFO), None);
+// }
+
+
 
 #[cfg_attr(feature = "flame_it", flame)]
 pub fn highlight_document(

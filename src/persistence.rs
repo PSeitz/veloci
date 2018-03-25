@@ -15,6 +15,7 @@ use util;
 use util::*;
 use util::get_file_path;
 use create;
+// use snap;
 #[allow(unused_imports)]
 use search::{self, SearchError};
 use search::*;
@@ -28,7 +29,7 @@ use serde_json::Value;
 
 #[allow(unused_imports)]
 use fnv::{FnvHashMap, FnvHashSet};
-use bincode::{deserialize, serialize, Infinite};
+use bincode::{deserialize, serialize};
 
 #[allow(unused_imports)]
 use mayda;
@@ -45,7 +46,8 @@ use prettytable::Table;
 use prettytable::format;
 
 use persistence_data::*;
-
+use persistence_score::*;
+use half::f16;
 use std::path::PathBuf;
 
 #[allow(unused_imports)]
@@ -53,10 +55,18 @@ use heapsize::{heap_size_of, HeapSizeOf};
 #[allow(unused_imports)]
 use itertools::Itertools;
 
+use search_field;
+use std::u32;
+use std::time::Duration;
+use colored::*;
+use parking_lot::RwLock;
+use lru_time_cache::LruCache;
+
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
 pub struct MetaData {
     pub id_lists: FnvHashMap<String, IDList>,
     pub key_value_stores: Vec<KVStoreMetaData>,
+    pub anchor_score_stores: Vec<KVStoreMetaData>,
     pub boost_stores: Vec<KVStoreMetaData>,
     pub fulltext_indices: FnvHashMap<String, create::FulltextIndexOptions>,
 }
@@ -79,6 +89,27 @@ pub struct KVStoreMetaData {
     #[serde(default = "default_avg_join")]
     pub avg_join_size: f32, // some join statistics
 }
+
+pub static NOT_FOUND: u32 = u32::MAX;
+
+#[derive(Debug, Default)]
+pub struct PersistenceCache {
+    // pub index_id_to_parent: HashMap<(String,String), Vec<Vec<u32>>>,
+    pub index_id_to_parento: HashMap<String, Box<IndexIdToParent<Output = u32>>>,
+    pub token_to_anchor_to_score: HashMap<String, Box<TokenToAnchorScore>>,
+    pub boost_valueid_to_value: HashMap<String, Box<IndexIdToParent<Output = u32>>>,
+    index_64: HashMap<String, Box<IndexIdToParent<Output = u64>>>,
+    pub fst: HashMap<String, Map>,
+}
+
+pub struct Persistence {
+    pub db: String, // folder
+    pub meta_data: MetaData,
+    pub cache: PersistenceCache,
+    pub lru_cache: HashMap<String, LruCache<RequestSearchPart, SearchResult>>,
+    pub term_boost_cache: RwLock<LruCache<Vec<RequestSearchPart>, Vec<search_field::SearchFieldResult>>>,
+}
+
 
 //TODO Only tmp
 fn default_max_value_id() -> u32 {
@@ -152,44 +183,26 @@ where
 {
 }
 
+pub trait TokenToAnchorScore: Debug + HeapSizeOf + Sync + Send + persistence_data::TypeInfo {
+    fn get_scores(&self, id: u32) -> Option<Vec<AnchorScore>>;
+}
+
 pub trait IndexIdToParent: Debug + HeapSizeOf + Sync + Send + persistence_data::TypeInfo {
     type Output: IndexIdToParentData;
 
     fn get_values(&self, id: u64) -> Option<Vec<Self::Output>>;
 
-    // #[inline]
-    // fn add_fast_field_hits(&self, hit: search::Hit, fast_field_res: &mut Vec<search::Hit>, filter: Option<&FnvHashSet<u32>>) {
-    //     if let Some(anchor_score) = self.get_values(hit.id as u64) {
-    //         debug_time!("add_fast_field_hits");
-    //         // debug_time!(format!("{} adding stuff", &options.path));
-    //         fast_field_res.reserve(1 + anchor_score.len() / 2);
-    //         let mut curr_pos = fast_field_res.len();
-    //         unsafe {
-    //             fast_field_res.set_len(curr_pos + anchor_score.len() / 2);
-    //         }
-    //         for (anchor_id, token_in_anchor_score) in anchor_score.iter().tuples() {
-    //             if let Some(filter) = filter {
-    //                 if filter.contains(&anchor_id.to_u32().unwrap()) {
-    //                     continue;
-    //                 }
-    //             }
 
-    //             let final_score = hit.score * token_in_anchor_score.to_f32().unwrap();
-    //             trace!(
-    //                 "anchor_id {:?} term_id {:?}, token_in_anchor_score {:?} score {:?} to final_score {:?}",
-    //                 anchor_id,
-    //                 hit.id,
-    //                 token_in_anchor_score,
-    //                 hit.score,
-    //                 final_score
-    //             );
-
-    //             // fast_field_res.push(search::Hit::new(anchor_id.to_u32().unwrap(), final_score));
-    //             fast_field_res[curr_pos] = search::Hit::new(anchor_id.to_u32().unwrap(), final_score);
-    //             curr_pos += 1;
-    //         }
-    //     }
-    // }
+    fn get_value_id_with_scores(&self, id: u64) -> Option<Vec<(u32, f16)>>{
+        self.get_values(id).map(|vals|{
+            let mut dat = vec![];
+            for (anchor_id, token_in_text_id_score) in vals.iter().tuples() {
+                let score = num::cast::<Self::Output, u32>(*token_in_text_id_score).unwrap() as f32 / 100.0;
+                dat.push((num::cast(*anchor_id).unwrap(), f16::from_f32(score)));
+            }
+            dat
+        })
+    }
 
     #[inline]
     fn append_values(&self, id: u64, vec: &mut Vec<Self::Output>) {
@@ -278,32 +291,6 @@ pub fn trace_index_id_to_parent<T: IndexIdToParentData>(val: &Box<IndexIdToParen
     }
 }
 
-use search_field;
-use std::u32;
-use std::time::Duration;
-
-use parking_lot::RwLock;
-// use std::sync::RwLock;
-use lru_time_cache::LruCache;
-pub static NOT_FOUND: u32 = u32::MAX;
-
-#[derive(Debug, Default)]
-pub struct PersistenceCache {
-    // pub index_id_to_parent: HashMap<(String,String), Vec<Vec<u32>>>,
-    pub index_id_to_parento: HashMap<String, Box<IndexIdToParent<Output = u32>>>,
-    pub boost_valueid_to_value: HashMap<String, Box<IndexIdToParent<Output = u32>>>,
-    index_64: HashMap<String, Box<IndexIdToParent<Output = u64>>>,
-    pub fst: HashMap<String, Map>,
-}
-
-pub struct Persistence {
-    pub db: String, // folder
-    pub meta_data: MetaData,
-    pub cache: PersistenceCache,
-    pub lru_cache: HashMap<String, LruCache<RequestSearchPart, SearchResult>>,
-    pub term_boost_cache: RwLock<LruCache<Vec<RequestSearchPart>, Vec<search_field::SearchFieldResult>>>,
-}
-use colored::*;
 
 pub fn get_readable_size(value: usize) -> ColoredString {
     match value {
@@ -340,15 +327,22 @@ impl Persistence {
             "cache.boost_valueid_to_value {}",
             get_readable_size_for_childs(&self.cache.boost_valueid_to_value)
         );
+        info!(
+            "cache.token_to_anchor_to_score {}",
+            get_readable_size_for_childs(&self.cache.token_to_anchor_to_score)
+        );
         info!("cache.fst {}", get_readable_size(self.get_fst_sizes()));
         info!("------");
         let total_size = self.get_fst_sizes() + self.cache.index_id_to_parento.heap_size_of_children() + self.cache.index_64.heap_size_of_children()
-            + self.cache.boost_valueid_to_value.heap_size_of_children();
+            + self.cache.boost_valueid_to_value.heap_size_of_children() + self.cache.token_to_anchor_to_score.heap_size_of_children();
 
         info!("totale size {}", get_readable_size(total_size));
 
         let mut print_and_size = vec![];
         for (k, v) in &self.cache.index_id_to_parento {
+            print_and_size.push((v.heap_size_of_children(), v.type_name(), k));
+        }
+        for (k, v) in &self.cache.token_to_anchor_to_score {
             print_and_size.push((v.heap_size_of_children(), v.type_name(), k));
         }
         for (k, v) in &self.cache.index_64 {
@@ -405,6 +399,24 @@ impl Persistence {
         Ok(())
     }
 
+    pub fn write_score_index(&mut self, store: &TokenToAnchorScoreBinary, path: &str, loading_type: LoadingType) -> Result<(), io::Error> {
+        let indirect_file_path = util::get_file_path(&self.db, &(path.to_string() + ".indirect"));
+        let data_file_path = util::get_file_path(&self.db, &(path.to_string() + ".data"));
+
+        store.write(&indirect_file_path, &data_file_path)?;
+
+        self.meta_data.anchor_score_stores.push(KVStoreMetaData {
+            loading_type: loading_type,
+            persistence_type: KVStoreType::IndexIdToMultipleParentIndirect,
+            is_1_to_n: false,
+            path: path.to_string(),
+            max_value_id: 0, //TODO ?
+            avg_join_size: 0.0,
+        });
+
+        Ok(())
+    }
+
     pub fn write_indirect_index(&mut self, store: &IndexIdToMultipleParentIndirect<u32>, path: &str, loading_type: LoadingType) -> Result<(), io::Error> {
         let max_value_id = *store.data.iter().max_by_key(|el| *el).unwrap_or(&0);
         let avg_join_size = calc_avg_join_size(store.num_values, store.num_ids);
@@ -450,6 +462,12 @@ impl Persistence {
         Ok(())
     }
 
+    // #[cfg_attr(feature = "flame_it", flame)]
+    // pub fn write_id_score(&mut self, tuples: &mut Vec<create::ValIdPair>, path: &str, is_always_1_to_1: bool, loading_type: LoadingType) -> Result<(), io::Error> {
+    //     self.write_tuple_pair_dedup(tuples, path, false, is_always_1_to_1, loading_type)?;
+    //     Ok(())
+    // }
+
     pub fn write_tuple_pair_dedup(
         &mut self,
         tuples: &mut Vec<create::ValIdPair>,
@@ -478,7 +496,7 @@ impl Persistence {
         // let has_duplicates = has_valid_duplicates(&tuples.iter().map(|el| el as &create::GetValueId).collect());
         let data = boost_pair_to_parallel_arrays::<u32>(tuples);
         // let data = parrallel_arrays_to_pointing_array(data.values1, data.values2);
-        let encoded: Vec<u8> = serialize(&data, Infinite).unwrap();
+        let encoded: Vec<u8> = serialize(&data).unwrap();
         let boost_path = path.to_string() + ".boost_valid_to_value";
         File::create(util::get_file_path(&self.db, &boost_path))?.write_all(&encoded)?;
 
@@ -568,15 +586,24 @@ impl Persistence {
         T: serde_json::de::Read<'a>,
     {
         let mut offsets = vec![];
-        let mut buffer = File::create(&get_file_path(&self.db, path))?;
+        let mut file_out = File::create(&get_file_path(&self.db, path))?;
         let mut current_offset = 0;
         // let arro = data.as_array().unwrap();
 
+        // let mut encoder = snap::Encoder::new();
+        // let mut dat = vec_to_bytes_u32(&vals);
+
         util::iter_json_stream(data, &mut |el: &serde_json::Value| {
             let el_str = el.to_string().into_bytes();
-            buffer.write_all(&el_str).unwrap();
+
+            // let mut compressed_doc = encoder.compress_vec(&el_str).unwrap();
+            // compressed_doc.shrink_to_fit();
+
+            // file_out.write_all(&compressed_doc).unwrap();
+            file_out.write_all(&el_str).unwrap();
             offsets.push(current_offset as u64);
             current_offset += el_str.len();
+            // current_offset += compressed_doc.len();
         });
 
         // for el in arro {
@@ -604,6 +631,16 @@ impl Persistence {
     pub fn get_valueid_to_parent(&self, path: &str) -> Result<&Box<IndexIdToParent<Output = u32>>, search::SearchError> {
         self.cache.index_id_to_parento.get(path).ok_or_else(|| {
             let error = format!("Did not found path in cache {:?}", path);
+            println!("{:?}", error);
+            From::from(error)
+        })
+    }
+
+    #[cfg_attr(feature = "flame_it", flame)]
+    pub fn get_token_to_anchor(&self, path: &str) -> Result<&Box<TokenToAnchorScore>, search::SearchError> {
+        let path = path.to_string() + ".to_anchor_id_score";
+        self.cache.token_to_anchor_to_score.get(&path).ok_or_else(|| {
+            let error = format!("Did not found path in cache {}", path);
             println!("{:?}", error);
             From::from(error)
         })
@@ -680,6 +717,31 @@ impl Persistence {
             self.lru_cache.insert(el.path.clone(), LruCache::with_capacity(0));
         }
 
+        //ANCHOR TO SCORE
+        for el in &self.meta_data.anchor_score_stores {
+            let loading_type = get_loading_type(el.loading_type.clone())?;
+
+            let indirect_path = get_file_path(&self.db, &el.path) + ".indirect";
+            let indirect_data_path = get_file_path(&self.db, &el.path) + ".data";
+            let start_and_end_file = File::open(&indirect_path).unwrap();
+            let data_file = File::open(&indirect_data_path).unwrap();
+            match loading_type {
+                LoadingType::Disk => {
+                    let store = TokenToAnchorScoreMmap::new(&start_and_end_file, &data_file);
+                    self.cache.token_to_anchor_to_score.insert(el.path.to_string(), Box::new(store));
+                }
+                LoadingType::InMemoryUnCompressed | LoadingType::InMemory => {
+                    let mut store = TokenToAnchorScoreBinary::default();
+                    store.read(&indirect_path, &indirect_data_path).unwrap();
+                    self.cache.token_to_anchor_to_score.insert(el.path.to_string(), Box::new(store));
+                }
+
+            }
+
+            // token_to_anchor_to_score
+
+        }
+
         let loaded_data: Result<Vec<(String, Box<IndexIdToParent<Output = u32>>)>, SearchError> = self.meta_data
             .key_value_stores
             .clone()
@@ -688,11 +750,7 @@ impl Persistence {
                 // info!("loading key_value_store {:?}", &el.path);
                 info_time!(format!("loaded key_value_store {:?}", &el.path));
 
-                let mut loading_type = el.loading_type.clone();
-                if let Some(val) = load_type_from_env()? {
-                    //Overload Loadingtype from env
-                    loading_type = val;
-                }
+                let loading_type = get_loading_type(el.loading_type.clone())?;
 
                 let indirect_path = get_file_path(&self.db, &el.path) + ".indirect";
                 let indirect_data_path = get_file_path(&self.db, &el.path) + ".data";
@@ -715,7 +773,7 @@ impl Persistence {
 
                             return Ok((el.path.to_string(), Box::new(store) as Box<IndexIdToParent<Output = u32>>));
                         }
-                        KVStoreType::ParallelArrays => panic!("WAAAAAAA"),
+                        KVStoreType::ParallelArrays => panic!("WAAAAAAA PAAAANIIC"),
                         KVStoreType::IndexIdToOneParent => {
                             let store = IndexIdToOneParent {
                                 data: bytes_to_vec_u32(&file_to_bytes(&data_direct_path)?),
@@ -740,11 +798,6 @@ impl Persistence {
                                 };
 
                                 return Ok((el.path.to_string(), Box::new(store) as Box<IndexIdToParent<Output = u32>>));
-                                //if el.is_1_to_n {
-                                //     return Ok((el.path.to_string(), Box::new(store) as Box<IndexIdToParent<Output = u32>> ));
-                                // } else {
-                                //     return Ok((el.path.to_string(), Box::new(IndexIdToOneParentMayda::<u32>::new(&store)) as Box<IndexIdToParent<Output = u32>> ));
-                                // }
                             }
                             KVStoreType::ParallelArrays => panic!("WAAAAAAA"),
                             KVStoreType::IndexIdToOneParent => {
@@ -756,87 +809,6 @@ impl Persistence {
                             }
                         }
 
-                        // return Ok((el.path.to_string(), Box::new(IndexIdToMultipleParentIndirect{start_pos: indirect_u32, data:data_u32}) as Box<IndexIdToParent<Output = u32>> ));
-                        // self.cache
-                        //         .index_id_to_parento
-                        //         .insert(el.path.to_string(), Box::new(IndexIdToMultipleParentIndirect{start_pos: indirect_u32, data:data_u32}));
-
-                        // {
-                        //     let start_and_end_file = self.get_file_handle(&(el.path.to_string() + ".indirect"))?;
-                        //     let data_file = self.get_file_handle(&(el.path.to_string() + ".data"))?;
-                        //     let data_metadata = self.get_file_metadata_handle(&(el.path.to_string() + ".indirect"))?;
-                        //     let store = PointingArrayFileReader::new(start_and_end_file, data_file, data_metadata);
-                        //     // self.cache
-                        //     //         .index_id_to_parento
-                        //     //         .insert(el.path.to_string(), Box::new(IndexIdToMultipleParent::new(&store)));
-
-                        //     return Ok((el.path.to_string(), Box::new(IndexIdToMultipleParent::new(&store)) as Box<IndexIdToParent<Output = u32>> ));
-                        // }
-
-                        // {
-                        //     let store = IndexIdToMultipleParentCompressedMaydaINDIRECTOne {
-                        //         size: indirect_u32.len() / 2,
-                        //         start_pos: to_monotone(&indirect_u32),
-                        //         data: to_uniform(&data_u32),
-                        //         max_value_id: el.max_value_id,
-                        //         avg_join_size: el.avg_join_size,
-                        //     };
-
-                        //     return Ok((
-                        //         el.path.to_string(),
-                        //         Box::new(store) as Box<IndexIdToParent<Output = u32>>,
-                        //     ));
-                        //     // if el.is_1_to_n {
-                        //     //     return Ok((el.path.to_string(), Box::new(store) as Box<IndexIdToParent<Output = u32>> ));
-                        //     // } else {
-                        //     //     return Ok((el.path.to_string(), Box::new(IndexIdToOneParentMayda::<u32>::new(&store)) as Box<IndexIdToParent<Output = u32>> ));
-                        //     // }
-                        // }
-                        // self.cache
-                        //         .index_id_to_parento
-                        //         .insert(el.path.to_string(), Box::new(store));
-
-                        // if el.is_1_to_n {
-                        //     self.cache
-                        //         .index_id_to_parento
-                        //         .insert(el.path.to_string(), Box::new(store));
-                        // } else {
-                        //     self.cache.index_id_to_parento.insert(
-                        //         el.path.to_string(),
-                        //         Box::new(IndexIdToOneParentMayda::<u32>::new(&store)),
-                        //     );
-                        // }
-
-                        // let store: Box<IndexIdToParent<Output = u32>> = {
-                        //     match el.persistence_type {
-                        //         // KVStoreType::ParallelArrays => {
-                        //         //     let encoded = file_to_bytes(&get_file_path(&self.db, &el.path))?;
-                        //         //     Box::new(deserialize::<ParallelArrays<u32>>(&encoded[..]).unwrap())
-                        //         // }
-                        //         KVStoreType::IndexIdToMultipleParentIndirect => {
-                        //             let indirect = file_to_bytes(&(get_file_path(&self.db, &el.path) + ".indirect"))?;
-                        //             let data = file_to_bytes(&(get_file_path(&self.db, &el.path) + ".data"))?;
-                        //             Box::new(IndexIdToMultipleParentIndirect::from_data(
-                        //                 bytes_to_vec_u32(&indirect),
-                        //                 bytes_to_vec_u32(&data),
-                        //             ))
-                        //         }
-                        //         _ => panic!("unecpected type ParallelArrays")
-                        //     }
-                        // };
-
-                        // if el.is_1_to_n {
-                        //     // self.cache.index_id_to_parento.insert(el.path.to_string(), Box::new(IndexIdToMultipleParentCompressedSnappy::new(&store)));
-                        //     self.cache.index_id_to_parento.insert(
-                        //         el.path.to_string(),
-                        //         Box::new(IndexIdToMultipleParentCompressedMaydaINDIRECTOne::<u32>::new(&*store)),
-                        //     );
-                        // } else {
-                        //     self.cache.index_id_to_parento.insert(
-                        //         el.path.to_string(),
-                        //         Box::new(IndexIdToOneParentMayda::<u32>::new(&*store)),
-                        //     );
-                        // }
                     }
                     LoadingType::Disk => {
                         match el.persistence_type {
@@ -1043,6 +1015,15 @@ fn load_type_from_env() -> Result<Option<LoadingType>, search::SearchError> {
     }
 }
 
+fn get_loading_type(loading_type: LoadingType) -> Result<LoadingType, search::SearchError> {
+    let mut loading_type = loading_type.clone();
+    if let Some(val) = load_type_from_env()? {
+        //Overrule Loadingtype from env
+        loading_type = val;
+    }
+    Ok(loading_type)
+}
+
 pub fn vec_to_bytes_u32(data: &[u32]) -> Vec<u8> {
     let mut wtr: Vec<u8> = vec_with_size_uninitialized(data.len() * std::mem::size_of::<u32>());
     LittleEndian::write_u32_into(data, &mut wtr);
@@ -1074,7 +1055,7 @@ pub fn bytes_to_vec_u64(data: &[u8]) -> Vec<u64> {
     out_dat
 }
 
-fn file_to_bytes(s1: &str) -> Result<Vec<u8>, io::Error> {
+pub fn file_to_bytes(s1: &str) -> Result<Vec<u8>, io::Error> {
     let file_size = { fs::metadata(s1)?.len() as usize };
     let f = File::open(s1)?;
     let mut reader = std::io::BufReader::new(f);

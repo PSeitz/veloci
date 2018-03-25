@@ -29,7 +29,7 @@ heapsize = "0.4.1"
 heapsize_derive = "0.1.4"
 snap = "0.2"
 byteorder = "1.2.1"
-bincode = "0.8.0"
+bincode = "1.0.0"
 measure_time = "0.1"
 chrono = "0.4"
 sled = "0.14.1"
@@ -44,7 +44,7 @@ lru-cache = "0.1.1"
 lru_time_cache = "0.8.0"
 memmap = "0.6.2"
 faster = "0.4.3"
-half = {version = "1.0.2", features = ["use-intrinsics", "serialize"], git = "https://github.com/PSeitz/half-rs"}
+half = {version = "1.1.0", features = ["use-intrinsics", "serialize", "std"]}
 
 flame = { version = "0.2.0", optional = true }
 flamer = { version = "0.2.0", optional = true }
@@ -55,6 +55,7 @@ prettytable-rs = "^0.6"
 utf8-ranges = "1.0.0"
 colored = "1.4"
 
+lz4 = "1.22.0"
 flate2 = "1.0"
 
 rocket = "0.3.6"
@@ -91,6 +92,9 @@ harness = false
 [[bench]]
 name = "bench_collection"
 path = "benches/bench_collection.rs"
+[[bench]]
+name = "bench_persistence"
+path = "benches/bench_persistence.rs"
 
 [profile.release]
 opt-level = 3

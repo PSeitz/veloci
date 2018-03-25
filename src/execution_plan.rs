@@ -219,6 +219,8 @@ pub fn plan_creator_search_part(mut request_part: RequestSearchPart, mut request
 
     request_part.store_term_id_hits = request.why_found || request.text_locality;
 
+    request_part.store_term_texts = request.why_found;
+
     if request_part.fast_field {
         PlanStepType::FieldSearch {
             plans_output: field_rx.clone(),

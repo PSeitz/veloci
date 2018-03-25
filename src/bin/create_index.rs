@@ -55,6 +55,7 @@ static TAHLIA_INDICES: &str = r#"
     { "fulltext":"ISMSUBTITLE2", "options":{"tokenize":true}  },
     { "fulltext":"ISMSUBTITLE3", "options":{"tokenize":true}  },
     { "fulltext":"ISMARTIST",    "options":{"tokenize":true}  },
+    { "fulltext":"ISMMEDIATYPE", "options":{"tokenize":false} },
     { "fulltext":"MEINS",        "options":{"tokenize":false} },
     { "fulltext":"MTART",        "options":{"tokenize":false} },
     { "fulltext":"MATNR",        "options":{"tokenize":false} },

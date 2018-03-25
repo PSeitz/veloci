@@ -10,6 +10,7 @@ use std::{self, str};
 use std::io;
 
 use persistence_data_indirect::*;
+use persistence_score::*;
 
 use persistence::{LoadingType, Persistence};
 use serde_json::{Deserializer, StreamDeserializer};
@@ -20,6 +21,8 @@ use log;
 use sled;
 #[allow(unused_imports)]
 use byteorder::{LittleEndian, WriteBytesExt};
+
+use half::f16;
 
 use tokenizer::*;
 
@@ -137,7 +140,7 @@ impl ValIdPair {
 #[derive(Debug, Default, Clone)]
 pub struct ValIdPairToken {
     pub valid: u32,
-    pub parent_val_id: u32,
+    pub anchor_id: u32,
     pub token_pos: u32,
     pub num_occurences: u32,
     pub entry_num_tokens: u32,
@@ -146,7 +149,7 @@ pub struct ValIdPairToken {
 #[derive(Debug, Default, Clone)]
 pub struct TokenToAnchorScore {
     pub valid: u32,
-    pub text_id: u32,
+    pub anchor_id: u32,
     pub score: u32,
 }
 
@@ -333,12 +336,9 @@ fn calculate_token_score_in_doc(tokens_to_anchor_id: &mut Vec<ValIdPairToken>) -
     //     pub score: u32
     // }
 
-    // valid: u32,
-    // parent_val_id: u32,
-    // token_pos: u32,
-    // num_occurences: u32,
+    // Sort by anchor, tokenid
     tokens_to_anchor_id.sort_unstable_by(|a, b| {
-        let sort_anch = a.parent_val_id.cmp(&b.parent_val_id);
+        let sort_anch = a.anchor_id.cmp(&b.anchor_id);
         if sort_anch == std::cmp::Ordering::Equal {
             let sort_valid = a.valid.cmp(&b.valid);
             if sort_valid == std::cmp::Ordering::Equal {
@@ -352,7 +352,7 @@ fn calculate_token_score_in_doc(tokens_to_anchor_id: &mut Vec<ValIdPairToken>) -
     }); // sort by parent id
 
     let mut dat = vec![];
-    for (_, mut group) in &tokens_to_anchor_id.into_iter().group_by(|el| (el.parent_val_id, el.valid)) {
+    for (_, mut group) in &tokens_to_anchor_id.into_iter().group_by(|el| (el.anchor_id, el.valid)) {
         let first = group.next().unwrap();
         let best_pos = first.token_pos;
 
@@ -384,7 +384,7 @@ fn calculate_token_score_in_doc(tokens_to_anchor_id: &mut Vec<ValIdPairToken>) -
 
         dat.push(TokenToAnchorScore {
             valid: first.valid,
-            text_id: first.parent_val_id,
+            anchor_id: first.anchor_id,
             score: score,
         });
     }
@@ -581,7 +581,7 @@ where
             data.tokens_to_anchor_id.push(ValIdPairToken {
                 valid: text_info.id as u32,
                 num_occurences: text_info.num_occurences as u32,
-                parent_val_id: anchor_id as u32,
+                anchor_id: anchor_id,
                 token_pos: 0,
                 entry_num_tokens: 1,
             });
@@ -593,7 +593,7 @@ where
 
                 tokenizer.get_tokens(value, &mut |token: &str, _is_seperator: bool| {
                     if options.stopwords.as_ref().map(|el| el.contains(token)).unwrap_or(false) {
-                        return; //TODO return here also prevents proper recreation of text with tokens
+                        return; //TODO FIXEME return here also prevents proper recreation of text with tokens
                     }
 
                     let token_info = all_terms.get(token).expect("did not found token");
@@ -605,7 +605,7 @@ where
                     tokens_to_anchor_id.push(ValIdPairToken {
                         valid: token_info.id as u32,
                         num_occurences: token_info.num_occurences as u32,
-                        parent_val_id: anchor_id as u32,
+                        anchor_id: anchor_id,
                         token_pos: current_token_pos as u32,
                         entry_num_tokens: 0,
                     });
@@ -664,23 +664,33 @@ where
             persistence.write_tuple_pair_dedup(&mut data.tokens_to_parent, &concat(&path, ".tokens_to_parent"), true, false, LoadingType::Disk)?;
             trace!("{}\n{}", &concat(&path, ".tokens"), print_vec(&data.tokens_to_parent, "token_id", "parent_id"));
 
-            let token_to_anchor_id_score = calculate_token_score_in_doc(&mut data.tokens_to_anchor_id);
-            let mut token_to_anchor_id_score_pairs: Vec<ValIdPair> = token_to_anchor_id_score
-                .iter()
-                .flat_map(|el| {
-                    vec![
-                        ValIdPair::new(el.valid as u32, el.text_id as u32),
-                        ValIdPair::new(el.valid as u32, el.score as u32),
-                    ]
-                })
-                .collect();
+            let mut token_to_anchor_id_score = calculate_token_score_in_doc(&mut data.tokens_to_anchor_id);
 
-            persistence.write_tuple_pair(&mut token_to_anchor_id_score_pairs, &concat(&path, ".tokens.to_anchor_id_score"), false, LoadingType::Disk)?;
-            trace!(
-                "{}\n{}",
-                &concat(&path, ".tokens.to_anchor"),
-                print_vec(&token_to_anchor_id_score_pairs, "token_id", "anchor_id")
-            );
+            // let mut token_to_anchor_id_score_pairs: Vec<ValIdPair> = token_to_anchor_id_score
+            //     .iter()
+            //     .flat_map(|el| {
+            //         vec![
+            //             ValIdPair::new(el.valid as u32, el.anchor_id as u32),
+            //             ValIdPair::new(el.valid as u32, el.score as u32),
+            //         ]
+            //     })
+            //     .collect();
+
+            // persistence.write_tuple_pair(&mut token_to_anchor_id_score_pairs, &concat(&path, ".tokens.to_anchor_id_score"), false, LoadingType::Disk)?;
+            // trace!(
+            //     "{}\n{}",
+            //     &concat(&path, ".tokens.to_anchor"),
+            //     print_vec(&token_to_anchor_id_score_pairs, "token_id", "anchor_id")
+            // );
+
+            let mut token_to_anchor_id_score_index = TokenToAnchorScoreBinary::default();
+            token_to_anchor_id_score.sort_unstable_by_key(|a| a.valid);
+            for (token_id, mut group) in &token_to_anchor_id_score.into_iter().group_by(|el| (el.valid)) {
+                let mut group: Vec<AnchorScore> = group.map(|el|AnchorScore::new(el.anchor_id, f16::from_f32(el.score as f32))).collect();
+                group.sort_unstable_by_key(|a| a.id);
+                token_to_anchor_id_score_index.set_scores(token_id, group);
+            }
+            persistence.write_score_index(&token_to_anchor_id_score_index, &concat(&path, ".to_anchor_id_score"), LoadingType::Disk)?;
 
             persistence.write_indirect_index(&mut data.value_id_to_token_ids, &concat(&path, ".value_id_to_token_ids"), LoadingType::Disk)?;
             trace!(
@@ -695,7 +705,7 @@ where
             trace!(
                 "{}\n{}",
                 &concat(&path, ".text_id_to_anchor"),
-                print_vec(&data.text_id_to_anchor, "text_id", "anchor_id")
+                print_vec(&data.text_id_to_anchor, "anchor_id", "anchor_id")
             );
 
             if let Some(ref mut anchor_to_text_id) = data.anchor_to_text_id {

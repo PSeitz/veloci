@@ -1,5 +1,8 @@
 #![feature(option_filter)]
+#![feature(align_offset)]
+#![feature(offset_to)]
 #![feature(pointer_methods)]
+#![feature(core_intrinsics)]
 #![feature(splice)]
 #![feature(entry_and_modify)]
 #![recursion_limit = "128"]
@@ -28,6 +31,7 @@ extern crate flame;
 extern crate memmap;
 
 extern crate faster;
+extern crate lz4;
 
 #[macro_use]
 extern crate serde_derive;
@@ -107,6 +111,7 @@ pub mod create_from_json;
 pub mod create_from_csv;
 pub mod doc_loader;
 pub mod persistence;
+pub mod persistence_score;
 pub mod persistence_data_indirect;
 pub mod persistence_data;
 pub mod search_field;

@@ -5,7 +5,7 @@ use std::cmp::Ordering;
 #[allow(unused_imports)]
 use heapsize::{heap_size_of, HeapSizeOf};
 #[allow(unused_imports)]
-use bincode::{deserialize, serialize, Infinite};
+use bincode::{deserialize, serialize};
 
 #[allow(unused_imports)]
 use util::*;
@@ -49,7 +49,6 @@ use memmap::MmapOptions;
 
 pub trait TypeInfo: Sync + Send {
     fn type_name(&self) -> String;
-    fn type_of(&self) -> String;
 }
 macro_rules! mut_if {
     ($name: ident = $value: expr, $($any: expr) +) => {
@@ -75,9 +74,6 @@ macro_rules! impl_type_info_single_templ {
                     res.push('>');
                 )*
                 res
-            }
-            fn type_of(&self) -> String {
-                $name$(::<$($T),*>)*::type_name(&self)
             }
         }
     }

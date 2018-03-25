@@ -41,7 +41,7 @@ Cargo.lock
 
 # End of https://www.gitignore.io/api/rust
 
-/jmdict/
+/jmdict*
 /mochaTest/
 /mochaTest_wf/
 /healthcare/
