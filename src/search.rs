@@ -121,6 +121,10 @@ fn default_skip() -> Option<usize> {
     None
 }
 
+pub struct RequestSearchPartCache {
+    pub automaton: Option<Box<fst::Automaton<State=Option<usize>> + Send + Sync>>,
+}
+
 #[derive(Serialize, Deserialize, Default, Clone, Debug)]
 pub struct RequestSearchPart {
     pub path: String,
@@ -591,8 +595,6 @@ pub fn search(mut request: Request, persistence: &Persistence) -> Result<SearchR
     info_time!("search");
     request.top = request.top.or(Some(10));
     request.skip = request.skip;
-    // let skip = request.skip.unwrap_or(0);
-    // let top = request.top.unwrap_or(10);
 
     let mut res = {
         info_time!("search terms");

@@ -118,6 +118,43 @@ struct QueryParams {
     text_locality: Option<String>,
 }
 
+// struct MyParam {
+//     key: String,
+//     value: usize
+// }
+
+
+// use rocket::request::FromParam;
+// use rocket::http::RawStr;
+
+// impl FromParam for MyParam {
+//     type Error = RawStr;
+
+//     fn from_param(param: RawStr) -> Result<Self, Self::Error> {
+//         let (key, val_str) = match param.find(':') {
+//             Some(i) if i > 0 => (&param[..i], &param[(i + 1)..]),
+//             _ => return Err(param)
+//         };
+
+//         if !key.chars().all(|c| (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')) {
+//             return Err(param);
+//         }
+
+//         val_str.parse().map(|value| {
+//             MyParam {
+//                 key: key,
+//                 value: value
+//             }
+//         }).map_err(|_| param)
+//     }
+// }
+
+// #[get("/test")]
+// fn test() -> String {
+//     "0.5".to_string()
+// }
+
+
 fn query_param_to_vec(name: Option<String>) -> Option<Vec<String>> {
     // TODO Replace with FromForm ? directly in QueryParams
     name.map(|el| el.split(',').map(|f| f.to_string()).collect())
@@ -129,6 +166,7 @@ fn ensure_database(database: &String) -> Result<(), search::SearchError> {
     }
     Ok(())
 }
+
 
 #[get("/version")]
 fn version() -> String {

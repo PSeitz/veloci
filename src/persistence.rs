@@ -36,6 +36,7 @@ use mayda;
 #[allow(unused_imports)]
 use byteorder::{ByteOrder, LittleEndian, ReadBytesExt, WriteBytesExt};
 use log;
+use fst;
 
 #[allow(unused_imports)]
 use rayon::prelude::*;
@@ -93,7 +94,7 @@ pub struct KVStoreMetaData {
 pub static NOT_FOUND: u32 = u32::MAX;
 
 #[derive(Debug, Default)]
-pub struct PersistenceCache {
+pub struct PersistenceIndices {
     // pub index_id_to_parent: HashMap<(String,String), Vec<Vec<u32>>>,
     pub index_id_to_parento: HashMap<String, Box<IndexIdToParent<Output = u32>>>,
     pub token_to_anchor_to_score: HashMap<String, Box<TokenToAnchorScore>>,
@@ -105,8 +106,9 @@ pub struct PersistenceCache {
 pub struct Persistence {
     pub db: String, // folder
     pub meta_data: MetaData,
-    pub cache: PersistenceCache,
+    pub indices: PersistenceIndices,
     pub lru_cache: HashMap<String, LruCache<RequestSearchPart, SearchResult>>,
+    // pub lru_fst: HashMap<String, LruCache<(String, u8), Box<fst::Automaton<State=Option<usize>>>>>,
     pub term_boost_cache: RwLock<LruCache<Vec<RequestSearchPart>, Vec<search_field::SearchFieldResult>>>,
 }
 
@@ -185,6 +187,7 @@ where
 
 pub trait TokenToAnchorScore: Debug + HeapSizeOf + Sync + Send + persistence_data::TypeInfo {
     fn get_scores(&self, id: u32) -> Option<Vec<AnchorScore>>;
+    fn get_max_id(&self) -> usize;
 }
 
 pub trait IndexIdToParent: Debug + HeapSizeOf + Sync + Send + persistence_data::TypeInfo {
@@ -306,7 +309,7 @@ pub fn get_readable_size_for_childs<T: HeapSizeOf>(value: T) -> ColoredString {
 
 impl Persistence {
     fn get_fst_sizes(&self) -> usize {
-        self.cache.fst.iter().map(|(_, v)| v.as_fst().size()).sum()
+        self.indices.fst.iter().map(|(_, v)| v.as_fst().size()).sum()
     }
 
     pub fn get_all_properties(&self) -> Vec<String> {
@@ -315,40 +318,40 @@ impl Persistence {
 
     pub fn print_heap_sizes(&self) {
         info!(
-            "cache.index_64 {}",
-            // get_readable_size_for_childs(&self.cache.index_64)
-            get_readable_size(self.cache.index_64.heap_size_of_children())
+            "indices.index_64 {}",
+            // get_readable_size_for_childs(&self.indices.index_64)
+            get_readable_size(self.indices.index_64.heap_size_of_children())
         );
         info!(
-            "cache.index_id_to_parento {}",
-            get_readable_size(self.cache.index_id_to_parento.heap_size_of_children()) // get_readable_size_for_childs(&self.cache.index_id_to_parento)
+            "indices.index_id_to_parento {}",
+            get_readable_size(self.indices.index_id_to_parento.heap_size_of_children()) // get_readable_size_for_childs(&self.indices.index_id_to_parento)
         );
         info!(
-            "cache.boost_valueid_to_value {}",
-            get_readable_size_for_childs(&self.cache.boost_valueid_to_value)
+            "indices.boost_valueid_to_value {}",
+            get_readable_size_for_childs(&self.indices.boost_valueid_to_value)
         );
         info!(
-            "cache.token_to_anchor_to_score {}",
-            get_readable_size_for_childs(&self.cache.token_to_anchor_to_score)
+            "indices.token_to_anchor_to_score {}",
+            get_readable_size_for_childs(&self.indices.token_to_anchor_to_score)
         );
-        info!("cache.fst {}", get_readable_size(self.get_fst_sizes()));
+        info!("indices.fst {}", get_readable_size(self.get_fst_sizes()));
         info!("------");
-        let total_size = self.get_fst_sizes() + self.cache.index_id_to_parento.heap_size_of_children() + self.cache.index_64.heap_size_of_children()
-            + self.cache.boost_valueid_to_value.heap_size_of_children() + self.cache.token_to_anchor_to_score.heap_size_of_children();
+        let total_size = self.get_fst_sizes() + self.indices.index_id_to_parento.heap_size_of_children() + self.indices.index_64.heap_size_of_children()
+            + self.indices.boost_valueid_to_value.heap_size_of_children() + self.indices.token_to_anchor_to_score.heap_size_of_children();
 
         info!("totale size {}", get_readable_size(total_size));
 
         let mut print_and_size = vec![];
-        for (k, v) in &self.cache.index_id_to_parento {
+        for (k, v) in &self.indices.index_id_to_parento {
             print_and_size.push((v.heap_size_of_children(), v.type_name(), k));
         }
-        for (k, v) in &self.cache.token_to_anchor_to_score {
+        for (k, v) in &self.indices.token_to_anchor_to_score {
             print_and_size.push((v.heap_size_of_children(), v.type_name(), k));
         }
-        for (k, v) in &self.cache.index_64 {
+        for (k, v) in &self.indices.index_64 {
             print_and_size.push((v.heap_size_of_children(), v.type_name(), k));
         }
-        for (k, v) in &self.cache.fst {
+        for (k, v) in &self.indices.fst {
             print_and_size.push((v.as_fst().size(), "FST".to_string(), k));
         }
         // Sort by size
@@ -372,8 +375,9 @@ impl Persistence {
             meta_data,
             db,
             lru_cache: HashMap::default(), // LruCache::new(50),
+            // lru_fst: HashMap::default(), // LruCache::new(50),
             term_boost_cache: RwLock::new(LruCache::with_expiry_duration_and_capacity(Duration::new(3600, 0), 10)),
-            cache: PersistenceCache::default(),
+            indices: PersistenceIndices::default(),
         };
         pers.load_all_to_cache()?;
         pers.print_heap_sizes();
@@ -388,8 +392,9 @@ impl Persistence {
             meta_data,
             db,
             lru_cache: HashMap::default(),
+            // lru_fst: HashMap::default(),
             term_boost_cache: RwLock::new(LruCache::with_expiry_duration_and_capacity(Duration::new(3600, 0), 10)),
-            cache: PersistenceCache::default(),
+            indices: PersistenceIndices::default(),
         })
     }
 
@@ -621,16 +626,16 @@ impl Persistence {
     #[cfg_attr(feature = "flame_it", flame)]
     pub fn get_offsets(&self, path: &str) -> Result<&Box<IndexIdToParent<Output = u64>>, search::SearchError> {
         // Option<&IndexIdToParent<Output=u64>>
-        self.cache
+        self.indices
             .index_64
             .get(&(path.to_string() + ".offsets"))
-            .ok_or_else(|| From::from(format!("Did not found path in cache {:?}", path)))
+            .ok_or_else(|| From::from(format!("Did not found path in indices {:?}", path)))
     }
 
     #[cfg_attr(feature = "flame_it", flame)]
     pub fn get_valueid_to_parent(&self, path: &str) -> Result<&Box<IndexIdToParent<Output = u32>>, search::SearchError> {
-        self.cache.index_id_to_parento.get(path).ok_or_else(|| {
-            let error = format!("Did not found path in cache {:?}", path);
+        self.indices.index_id_to_parento.get(path).ok_or_else(|| {
+            let error = format!("Did not found path in indices {:?}", path);
             println!("{:?}", error);
             From::from(error)
         })
@@ -639,8 +644,8 @@ impl Persistence {
     #[cfg_attr(feature = "flame_it", flame)]
     pub fn get_token_to_anchor(&self, path: &str) -> Result<&Box<TokenToAnchorScore>, search::SearchError> {
         let path = path.to_string() + ".to_anchor_id_score";
-        self.cache.token_to_anchor_to_score.get(&path).ok_or_else(|| {
-            let error = format!("Did not found path in cache {}", path);
+        self.indices.token_to_anchor_to_score.get(&path).ok_or_else(|| {
+            let error = format!("Did not found path in indices {}", path);
             println!("{:?}", error);
             From::from(error)
         })
@@ -648,15 +653,15 @@ impl Persistence {
 
     #[cfg_attr(feature = "flame_it", flame)]
     pub fn has_index(&self, path: &str) -> bool {
-        self.cache.index_id_to_parento.contains_key(path)
+        self.indices.index_id_to_parento.contains_key(path)
     }
 
     #[cfg_attr(feature = "flame_it", flame)]
     pub fn get_boost(&self, path: &str) -> Result<&Box<IndexIdToParent<Output = u32>>, search::SearchError> {
-        self.cache
+        self.indices
             .boost_valueid_to_value
             .get(path)
-            .ok_or_else(|| From::from(format!("Did not found path in cache {:?}", path)))
+            .ok_or_else(|| From::from(format!("Did not found path in indices {:?}", path)))
     }
 
     #[cfg_attr(feature = "flame_it", flame)]
@@ -700,7 +705,7 @@ impl Persistence {
 
     #[cfg_attr(feature = "flame_it", flame)]
     pub fn get_fst(&self, path: &str) -> Result<&Map, search::SearchError> {
-        self.cache.fst.get(path).ok_or_else(|| From::from(format!("{} does not exist", path)))
+        self.indices.fst.get(path).ok_or_else(|| From::from(format!("{} does not exist", path)))
     }
 
     #[cfg_attr(feature = "flame_it", flame)]
@@ -728,12 +733,12 @@ impl Persistence {
             match loading_type {
                 LoadingType::Disk => {
                     let store = TokenToAnchorScoreMmap::new(&start_and_end_file, &data_file);
-                    self.cache.token_to_anchor_to_score.insert(el.path.to_string(), Box::new(store));
+                    self.indices.token_to_anchor_to_score.insert(el.path.to_string(), Box::new(store));
                 }
                 LoadingType::InMemoryUnCompressed | LoadingType::InMemory => {
                     let mut store = TokenToAnchorScoreBinary::default();
                     store.read(&indirect_path, &indirect_data_path).unwrap();
-                    self.cache.token_to_anchor_to_score.insert(el.path.to_string(), Box::new(store));
+                    self.indices.token_to_anchor_to_score.insert(el.path.to_string(), Box::new(store));
                 }
 
             }
@@ -835,7 +840,7 @@ impl Persistence {
                                 // );
 
                                 // let store = PointingArrayFileReader { start_and_end_file: el.path.to_string()+ ".indirect", data_file: el.path.to_string()+ ".data", persistence: self.db.to_string()};
-                                // self.cache
+                                // self.indices
                                 //     .index_id_to_parento
                                 //     .insert(el.path.to_string(), Box::new(store));
 
@@ -858,7 +863,7 @@ impl Persistence {
         match loaded_data {
             Err(e) => return Err(e),
             Ok(dat) => for el in dat {
-                self.cache.index_id_to_parento.insert(el.0, el.1);
+                self.indices.index_id_to_parento.insert(el.0, el.1);
             },
         };
 
@@ -866,7 +871,7 @@ impl Persistence {
         for el in &self.meta_data.boost_stores {
             let encoded = file_to_bytes(&get_file_path(&self.db, &el.path))?;
             let store: ParallelArrays<u32> = deserialize(&encoded[..]).unwrap();
-            self.cache
+            self.indices
                 .boost_valueid_to_value
                 .insert(el.path.to_string(), Box::new(IndexIdToOneParentMayda::<u32>::new(&store, u32::MAX))); // TODO: enable other Diskbased Types
         }
@@ -874,7 +879,7 @@ impl Persistence {
         // Load FST
         for (ref path, _) in &self.meta_data.fulltext_indices {
             let map = self.load_fst(path)?;
-            self.cache.fst.insert(path.to_string(), map);
+            self.indices.fst.insert(path.to_string(), map);
         }
         Ok(())
     }
@@ -886,7 +891,7 @@ impl Persistence {
         match loading_type {
             LoadingType::InMemoryUnCompressed => {
                 let file_path = get_file_path(&self.db, path);
-                self.cache.index_64.insert(
+                self.indices.index_64.insert(
                     path.to_string(),
                     Box::new(IndexIdToOneParent {
                         data: load_index_u64(&file_path)?,
@@ -896,7 +901,7 @@ impl Persistence {
             }
             LoadingType::InMemory => {
                 let file_path = get_file_path(&self.db, path);
-                self.cache.index_64.insert(
+                self.indices.index_64.insert(
                     path.to_string(),
                     Box::new(IndexIdToOneParentMayda::from_vec(&load_index_u64(&file_path)?, u32::MAX)),
                 );
@@ -905,7 +910,7 @@ impl Persistence {
                 let data_file = self.get_file_handle(path)?;
                 let data_metadata = self.get_file_metadata_handle(path)?;
 
-                self.cache
+                self.indices
                     .index_64
                     .insert(path.to_string(), Box::new(SingleArrayFileReader::<u64>::new(data_file, data_metadata)));
             }
@@ -914,8 +919,8 @@ impl Persistence {
         Ok(())
     }
     // pub fn load_index_32(&mut self, s1: &str) -> Result<(), io::Error> {
-    //     if self.cache.index_32.contains_key(s1){return Ok(()); }
-    //     self.cache.index_32.insert(s1.to_string(), load_indexo(&get_file_path(&self.db, s1))?);
+    //     if self.indices.index_32.contains_key(s1){return Ok(()); }
+    //     self.indices.index_32.insert(s1.to_string(), load_indexo(&get_file_path(&self.db, s1))?);
     //     Ok(())
     // }
 }
@@ -959,7 +964,7 @@ impl FileSearch {
     // pub fn binary_search(&mut self, term: &str, persistence: &Persistence) -> Result<(String, i64), io::Error> {
     //     // let cache_lock = INDEX_64_CACHE.read().unwrap();
     //     // let offsets = cache_lock.get(&(self.path.to_string()+".offsets")).unwrap();
-    //     let offsets = persistence.cache.index_64.get(&(self.path.to_string() + ".offsets")).unwrap();
+    //     let offsets = persistence.indices.index_64.get(&(self.path.to_string() + ".offsets")).unwrap();
     //     debug_time!("term binary_search");
     //     if offsets.len() < 2 {
     //         return Ok(("".to_string(), -1));

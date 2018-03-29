@@ -19,6 +19,9 @@ use bincode::{serialize, deserialize};
 use memmap::Mmap;
 use memmap::MmapOptions;
 
+
+mod compressor;
+
 const U31_MAX:u32 = (1 << 31) - 1;
 
 
@@ -163,8 +166,6 @@ impl TokenToAnchorScoreBinary {
         }
     }
 
-
-
     fn get_size(&self) -> usize {
         self.start_pos.len()
     }
@@ -196,6 +197,10 @@ impl TokenToAnchorScore for TokenToAnchorScoreBinary {
         }
 
         Some(get_achor_score_data_from_bytes(&self.data, pos))
+    }
+
+    fn get_max_id(&self) -> usize {
+        self.get_size()
     }
 }
 
@@ -239,6 +244,9 @@ impl TokenToAnchorScore for TokenToAnchorScoreMmap {
             return None;
         }
         Some(get_achor_score_data_from_bytes(&self.data, pos))
+    }
+    fn get_max_id(&self) -> usize {
+        self.start_pos.len() / 4
     }
 }
 

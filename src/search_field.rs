@@ -59,7 +59,7 @@ impl SearchFieldResult {
         res
     }
 
-    pub fn iter<'a>(& 'a self, term_id: u8, field_id: u8,) -> SearchFieldResultIterator<'a> {
+    pub fn iter<'a>(& 'a self, term_id: u8, _field_id: u8,) -> SearchFieldResultIterator<'a> {
         let begin = self.hits_vec.as_ptr();
         let end = unsafe{begin.offset(self.hits_vec.len() as isize) as *const search::Hit};
 
@@ -170,10 +170,10 @@ where
     // let map = persistence.get_fst(&options.path)?;
 
     let map = persistence
-        .cache
+        .indices
         .fst
         .get(&options.path)
-        .ok_or_else(|| SearchError::StringError(format!("fst not found loaded in cache {} ", options.path)))?;
+        .ok_or_else(|| SearchError::StringError(format!("fst not found loaded in indices {} ", options.path)))?;
     let lev = {
         debug_time!(format!("{} LevenshteinIC create", &options.path));
         LevenshteinIC::new(&options.terms[0], options.levenshtein_distance.unwrap_or(0))?
@@ -495,7 +495,7 @@ fn resolve_token_to_anchor(
             if let Some(text_id_score) = token_to_anchor_score.get_scores(hit.id) {
                 // trace_time!(format!("{} adding anchor hits for id {:?}", &options.path, hit.id));
                 let mut curr_pos = unsafe_increase_len(&mut anchor_ids_hits, text_id_score.len());
-                for el in text_id_score {
+                for el in &text_id_score {
                     if should_filter(&filter, el.id) {
                         continue;
                     }
@@ -503,11 +503,70 @@ fn resolve_token_to_anchor(
                     anchor_ids_hits[curr_pos] = search::Hit::new(el.id, final_score);
                     curr_pos += 1;
                 }
+
+
+                // COMPRESSION DEBUG INFO
+                    let increases:Vec<_> = text_id_score.iter().tuples().map(|(el1, el2)|el2.id as i32 - el1.id as i32 - 1).collect();
+                    let sum:i32 = increases.iter().sum();
+                    // let avg:i32 = ((sum as f32)/ increases.len() as f32) as i32;
+
+                    let scores:Vec<_> = text_id_score.iter().map(|el|el.score.to_f32() as u32).collect();
+
+                    let scores_bytes = scores.len();
+
+                    info!("{:?}", &increases[0..(std::cmp::min(1000, increases.len()) as usize)]);
+
+                    let map_scores = scores.iter().fold(FnvHashMap::default(), |mut m, c| { *m.entry(c).or_insert(0) += 1; m });
+                    info!("{:?}", map_scores);
+
+                    // let mut num_one_byte = 0;
+                    // let mut num_two_byte = 0;
+                    // let mut num_three_byte = 0;
+
+                    // let mut num_one_byte_avg = 0;
+                    // let mut num_two_byte_avg = 0;
+                    // let mut num_three_byte_avg = 0;
+
+                    let num_one_byte =   increases.iter().filter(|inc| *inc < &128).count();
+                    let num_two_byte =   increases.iter().filter(|inc| *inc >= &128 && *inc < &32550).count();
+                    let num_three_byte = increases.iter().filter(|inc| *inc > &32550).count();
+
+                    let num_one_byte_enc_score   = increases.iter().filter(|inc| *inc < &64).count();
+                    let num_two_byte_enc_score   = increases.iter().filter(|inc| *inc >= &64 && *inc < &16000).count();
+                    let num_three_byte_enc_score = increases.iter().filter(|inc| *inc > &16000).count();
+                    // let num_one_byte =   increases.iter().filter(|inc| *inc < &64).count();
+                    // let num_two_byte =   increases.iter().filter(|inc| *inc >= &64 && *inc < &32550).count();
+                    // let num_three_byte = increases.iter().filter(|inc| *inc > &32550).count();
+
+                    let most_occurences = map_scores.values().max().unwrap();
+
+                    info!("          One:{:?} Two:{:?} Three:{:?}", num_one_byte, num_two_byte, num_three_byte);
+                    info!("Score Enc One:{:?} Two:{:?} Three:{:?}", num_one_byte_enc_score, num_two_byte_enc_score, num_three_byte_enc_score);
+                    // info!("avg One:{:?} Two:{:?} Three:{:?}", num_one_byte_avg, num_two_byte_avg, num_three_byte_avg);
+                    info!("total comp score_enc  {:?}", num_one_byte_enc_score + num_two_byte_enc_score * 2 + num_three_byte_enc_score * 3 + scores_bytes - most_occurences);
+                    info!("total comp            {:?}", num_one_byte + num_two_byte * 2 + num_three_byte * 3 + scores_bytes);
+                    // info!("avg total {:?}", num_one_byte_avg + num_two_byte_avg * 2 + num_three_byte_avg * 3);
+                    info!("base                  {:?}", increases.len() * 3 + scores_bytes);
+                // COMPRESSION DEBUG INFO
+
+
+
             }
         }
 
         debug!("{} found {:?} token in {:?} anchor_ids", &options.path, result.hits_vec.len(), anchor_ids_hits.len() );
     }
+
+    // let mut pre_scale = 0;
+    // for (el1, el2) in anchor_ids_hits.iter().tuples() {
+
+    //     info!("{:?}", el2.id as i32 - el1.id as i32 - 1);
+    //     info!("pre_scale {:?}", el2.id as i32 - el1.id as i32 - pre_scale);
+    //     pre_scale = el2.id as i32 - el1.id as i32;
+    // }
+
+
+
 
     // {
     //     let mut all_hits = vec![];
@@ -718,7 +777,7 @@ pub fn get_text_for_id_disk(persistence: &Persistence, path: &str, id: u32) -> S
 
 #[cfg_attr(feature = "flame_it", flame)]
 pub fn get_text_for_id(persistence: &Persistence, path: &str, id: u32) -> String {
-    let map = persistence.cache.fst.get(path).expect(&format!("fst not found loaded in cache {} ", path));
+    let map = persistence.indices.fst.get(path).expect(&format!("fst not found loaded in indices {} ", path));
 
     let mut bytes = vec![];
     ord_to_term(map.as_fst(), id as u64, &mut bytes);
@@ -727,13 +786,13 @@ pub fn get_text_for_id(persistence: &Persistence, path: &str, id: u32) -> String
 
 #[cfg_attr(feature = "flame_it", flame)]
 pub fn get_text_for_id_2(persistence: &Persistence, path: &str, id: u32, bytes: &mut Vec<u8>) {
-    let map = persistence.cache.fst.get(path).expect(&format!("fst not found loaded in cache {} ", path));
+    let map = persistence.indices.fst.get(path).expect(&format!("fst not found loaded in indices {} ", path));
     ord_to_term(map.as_fst(), id as u64, bytes);
 }
 
 #[cfg_attr(feature = "flame_it", flame)]
 pub fn get_id_text_map_for_ids(persistence: &Persistence, path: &str, ids: &[u32]) -> FnvHashMap<u32, String> {
-    let map = persistence.cache.fst.get(path).expect(&format!("fst not found loaded in cache {} ", path));
+    let map = persistence.indices.fst.get(path).expect(&format!("fst not found loaded in indices {} ", path));
     ids.iter()
         .map(|id| {
             let mut bytes = vec![];
@@ -788,7 +847,7 @@ pub fn resolve_token_hits(
     debug_time!(format!("{} resolve_token_hits", path));
     let text_offsets = persistence
         .get_offsets(path)
-        .expect(&format!("Could not find {:?} in index_64 cache", concat(path, ".offsets")));
+        .expect(&format!("Could not find {:?} in index_64 indices", concat(path, ".offsets")));
 
     let token_path = concat(path, ".tokens_to_parent");
 
