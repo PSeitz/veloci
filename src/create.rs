@@ -537,11 +537,7 @@ where
             let data = get_or_insert(&mut path_data, path, &|| {
                 let boost_info_data = if boost_info_for_path.contains_key(path) { Some(vec![]) } else { None };
 
-                let anchor_to_text_id = if facet_index.contains(path) && is_1_to_n(path) {
-                    Some(vec![])
-                } else {
-                    None
-                }; //Create facet index only for 1:N
+                let anchor_to_text_id = if facet_index.contains(path) && is_1_to_n(path) { Some(vec![]) } else { None }; //Create facet index only for 1:N
                 PathData {
                     anchor_to_text_id: anchor_to_text_id,
                     boost: boost_info_data,
@@ -651,7 +647,11 @@ where
                 std::mem::swap(&mut el.parent_val_id, &mut el.valid);
             }
 
-            let loading_type = if facet_index.contains(path) && !is_1_to_n(path) {LoadingType::InMemoryUnCompressed} else {LoadingType::Disk};
+            let loading_type = if facet_index.contains(path) && !is_1_to_n(path) {
+                LoadingType::InMemoryUnCompressed
+            } else {
+                LoadingType::Disk
+            };
 
             persistence.write_tuple_pair(tuples, &concat(&path, ".parentToValueId"), !is_1_to_n(path), loading_type)?;
             if log_enabled!(log::Level::Trace) {
@@ -686,7 +686,7 @@ where
             let mut token_to_anchor_id_score_index = TokenToAnchorScoreBinary::default();
             token_to_anchor_id_score.sort_unstable_by_key(|a| a.valid);
             for (token_id, mut group) in &token_to_anchor_id_score.into_iter().group_by(|el| (el.valid)) {
-                let mut group: Vec<AnchorScore> = group.map(|el|AnchorScore::new(el.anchor_id, f16::from_f32(el.score as f32))).collect();
+                let mut group: Vec<AnchorScore> = group.map(|el| AnchorScore::new(el.anchor_id, f16::from_f32(el.score as f32))).collect();
                 group.sort_unstable_by_key(|a| a.id);
                 token_to_anchor_id_score_index.set_scores(token_id, group);
             }
@@ -709,7 +709,12 @@ where
             );
 
             if let Some(ref mut anchor_to_text_id) = data.anchor_to_text_id {
-                persistence.write_tuple_pair(anchor_to_text_id, &concat(&path, ".anchor_to_text_id"), false, LoadingType::InMemoryUnCompressed)?;
+                persistence.write_tuple_pair(
+                    anchor_to_text_id,
+                    &concat(&path, ".anchor_to_text_id"),
+                    false,
+                    LoadingType::InMemoryUnCompressed,
+                )?;
             }
             if let Some(ref mut tuples) = data.boost {
                 persistence.write_boost_tuple_pair(tuples, &extract_field_name(&path))?; // TODO use .textindex in boost?

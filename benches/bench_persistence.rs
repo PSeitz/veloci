@@ -25,7 +25,6 @@ use search_lib::persistence_data_indirect::*;
 use search_lib::doc_loader::*;
 use std::env;
 
-
 // fn prepare_indirect_pointing_file_array(folder: &str, store: &IndexIdToParent<Output = u32>) -> PointingArrayFileReader<u32> {
 //     let (max_value_id, num_values, num_ids, start_and_end_pos, data) = to_indirect_arrays(store, 0);
 
@@ -62,7 +61,6 @@ use std::env;
 //         values2: values,
 //     }
 // }
-
 
 // fn persistence(c: &mut Criterion) {
 //     let store_tmp = get_test_data_large(10_000_000, 2);

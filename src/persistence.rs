@@ -24,7 +24,7 @@ use num::{self, Integer, NumCast};
 use num::cast::ToPrimitive;
 
 use serde_json;
-use serde_json::{StreamDeserializer};
+use serde_json::StreamDeserializer;
 use serde_json::Value;
 
 #[allow(unused_imports)]
@@ -36,7 +36,6 @@ use mayda;
 #[allow(unused_imports)]
 use byteorder::{ByteOrder, LittleEndian, ReadBytesExt, WriteBytesExt};
 use log;
-use fst;
 
 #[allow(unused_imports)]
 use rayon::prelude::*;
@@ -111,7 +110,6 @@ pub struct Persistence {
     // pub lru_fst: HashMap<String, LruCache<(String, u8), Box<fst::Automaton<State=Option<usize>>>>>,
     pub term_boost_cache: RwLock<LruCache<Vec<RequestSearchPart>, Vec<search_field::SearchFieldResult>>>,
 }
-
 
 //TODO Only tmp
 fn default_max_value_id() -> u32 {
@@ -195,9 +193,8 @@ pub trait IndexIdToParent: Debug + HeapSizeOf + Sync + Send + persistence_data::
 
     fn get_values(&self, id: u64) -> Option<Vec<Self::Output>>;
 
-
-    fn get_value_id_with_scores(&self, id: u64) -> Option<Vec<(u32, f16)>>{
-        self.get_values(id).map(|vals|{
+    fn get_value_id_with_scores(&self, id: u64) -> Option<Vec<(u32, f16)>> {
+        self.get_values(id).map(|vals| {
             let mut dat = vec![];
             for (anchor_id, token_in_text_id_score) in vals.iter().tuples() {
                 let score = num::cast::<Self::Output, u32>(*token_in_text_id_score).unwrap() as f32 / 100.0;
@@ -294,7 +291,6 @@ pub fn trace_index_id_to_parent<T: IndexIdToParentData>(val: &Box<IndexIdToParen
     }
 }
 
-
 pub fn get_readable_size(value: usize) -> ColoredString {
     match value {
         0...1_000 => format!("{:?} b", value).blue(),
@@ -337,7 +333,8 @@ impl Persistence {
         info!("indices.fst {}", get_readable_size(self.get_fst_sizes()));
         info!("------");
         let total_size = self.get_fst_sizes() + self.indices.index_id_to_parento.heap_size_of_children() + self.indices.index_64.heap_size_of_children()
-            + self.indices.boost_valueid_to_value.heap_size_of_children() + self.indices.token_to_anchor_to_score.heap_size_of_children();
+            + self.indices.boost_valueid_to_value.heap_size_of_children()
+            + self.indices.token_to_anchor_to_score.heap_size_of_children();
 
         info!("totale size {}", get_readable_size(total_size));
 
@@ -398,7 +395,13 @@ impl Persistence {
         })
     }
 
-    pub fn create_write_indirect_index(&mut self, data: &IndexIdToParent<Output = u32>, path: &str, sort_and_dedup: bool, loading_type: LoadingType) -> Result<(), io::Error> {
+    pub fn create_write_indirect_index(
+        &mut self,
+        data: &IndexIdToParent<Output = u32>,
+        path: &str,
+        sort_and_dedup: bool,
+        loading_type: LoadingType,
+    ) -> Result<(), io::Error> {
         let store = IndexIdToMultipleParentIndirect::new_sort_and_dedup(data, sort_and_dedup);
         self.write_indirect_index(&store, path, loading_type)?;
         Ok(())
@@ -443,7 +446,13 @@ impl Persistence {
         Ok(())
     }
 
-    pub fn write_direct_index(&mut self, data: &IndexIdToParent<Output = u32>, path: &str, max_value_id: u32, loading_type: LoadingType) -> Result<(), io::Error> {
+    pub fn write_direct_index(
+        &mut self,
+        data: &IndexIdToParent<Output = u32>,
+        path: &str,
+        max_value_id: u32,
+        loading_type: LoadingType,
+    ) -> Result<(), io::Error> {
         let data_file_path = util::get_file_path(&self.db, &(path.to_string() + ".data_direct"));
 
         let store = IndexIdToOneParent::new(data);
@@ -462,7 +471,13 @@ impl Persistence {
     }
 
     #[cfg_attr(feature = "flame_it", flame)]
-    pub fn write_tuple_pair(&mut self, tuples: &mut Vec<create::ValIdPair>, path: &str, is_always_1_to_1: bool, loading_type: LoadingType) -> Result<(), io::Error> {
+    pub fn write_tuple_pair(
+        &mut self,
+        tuples: &mut Vec<create::ValIdPair>,
+        path: &str,
+        is_always_1_to_1: bool,
+        loading_type: LoadingType,
+    ) -> Result<(), io::Error> {
         self.write_tuple_pair_dedup(tuples, path, false, is_always_1_to_1, loading_type)?;
         Ok(())
     }
@@ -740,11 +755,9 @@ impl Persistence {
                     store.read(&indirect_path, &indirect_data_path).unwrap();
                     self.indices.token_to_anchor_to_score.insert(el.path.to_string(), Box::new(store));
                 }
-
             }
 
             // token_to_anchor_to_score
-
         }
 
         let loaded_data: Result<Vec<(String, Box<IndexIdToParent<Output = u32>>)>, SearchError> = self.meta_data
@@ -788,33 +801,30 @@ impl Persistence {
                             return Ok((el.path.to_string(), Box::new(store) as Box<IndexIdToParent<Output = u32>>));
                         }
                     },
-                    LoadingType::InMemory => {
-                        match el.persistence_type {
-                            KVStoreType::IndexIdToMultipleParentIndirect => {
-                                let indirect_u32 = bytes_to_vec_u32(&file_to_bytes(&indirect_path)?);
-                                let data_u32 = bytes_to_vec_u32(&file_to_bytes(&indirect_data_path)?);
+                    LoadingType::InMemory => match el.persistence_type {
+                        KVStoreType::IndexIdToMultipleParentIndirect => {
+                            let indirect_u32 = bytes_to_vec_u32(&file_to_bytes(&indirect_path)?);
+                            let data_u32 = bytes_to_vec_u32(&file_to_bytes(&indirect_data_path)?);
 
-                                let store = IndexIdToMultipleParentCompressedMaydaINDIRECTOne {
-                                    size: indirect_u32.len() / 2,
-                                    start_pos: to_monotone(&indirect_u32),
-                                    data: to_uniform(&data_u32),
-                                    max_value_id: el.max_value_id,
-                                    avg_join_size: el.avg_join_size,
-                                };
+                            let store = IndexIdToMultipleParentCompressedMaydaINDIRECTOne {
+                                size: indirect_u32.len() / 2,
+                                start_pos: to_monotone(&indirect_u32),
+                                data: to_uniform(&data_u32),
+                                max_value_id: el.max_value_id,
+                                avg_join_size: el.avg_join_size,
+                            };
 
-                                return Ok((el.path.to_string(), Box::new(store) as Box<IndexIdToParent<Output = u32>>));
-                            }
-                            KVStoreType::ParallelArrays => panic!("WAAAAAAA"),
-                            KVStoreType::IndexIdToOneParent => {
-                                let data_u32 = bytes_to_vec_u32(&file_to_bytes(&data_direct_path)?);
-
-                                let store = IndexIdToOneParentMayda::from_vec(&data_u32, el.max_value_id);
-
-                                return Ok((el.path.to_string(), Box::new(store) as Box<IndexIdToParent<Output = u32>>));
-                            }
+                            return Ok((el.path.to_string(), Box::new(store) as Box<IndexIdToParent<Output = u32>>));
                         }
+                        KVStoreType::ParallelArrays => panic!("WAAAAAAA"),
+                        KVStoreType::IndexIdToOneParent => {
+                            let data_u32 = bytes_to_vec_u32(&file_to_bytes(&data_direct_path)?);
 
-                    }
+                            let store = IndexIdToOneParentMayda::from_vec(&data_u32, el.max_value_id);
+
+                            return Ok((el.path.to_string(), Box::new(store) as Box<IndexIdToParent<Output = u32>>));
+                        }
+                    },
                     LoadingType::Disk => {
                         match el.persistence_type {
                             KVStoreType::IndexIdToMultipleParentIndirect => {

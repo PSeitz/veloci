@@ -56,7 +56,6 @@ use search_field;
 use highlight_field;
 use highlight_field::*;
 
-
 #[derive(Serialize, Deserialize, Default, Clone, Debug)]
 pub struct Request {
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -122,7 +121,7 @@ fn default_skip() -> Option<usize> {
 }
 
 pub struct RequestSearchPartCache {
-    pub automaton: Option<Box<fst::Automaton<State=Option<usize>> + Send + Sync>>,
+    pub automaton: Option<Box<fst::Automaton<State = Option<usize>> + Send + Sync>>,
 }
 
 #[derive(Serialize, Deserialize, Default, Clone, Debug)]
@@ -350,7 +349,7 @@ impl std::fmt::Display for DocWithHit {
     }
 }
 
-fn highlight_on_original_document(doc: &str, why_found_terms: &FnvHashMap<String, FnvHashSet<String>>,) -> FnvHashMap<String, Vec<String>> {
+fn highlight_on_original_document(doc: &str, why_found_terms: &FnvHashMap<String, FnvHashSet<String>>) -> FnvHashMap<String, Vec<String>> {
     let mut highlighted_texts = FnvHashMap::default();
     let stream = serde_json::Deserializer::from_str(&doc).into_iter::<serde_json::Value>();
 
@@ -378,12 +377,15 @@ fn highlight_on_original_document(doc: &str, why_found_terms: &FnvHashMap<String
 // @FixMe Tests should use to_search_result
 #[cfg_attr(feature = "flame_it", flame)]
 pub fn to_documents(persistence: &Persistence, hits: &[Hit], select: Option<Vec<String>>, result: &SearchResult) -> Vec<DocWithHit> {
-
     let tokens_set = {
-        result.why_found_terms.iter().map(|(path, terms)|{
-            let tokens_set:FnvHashSet<String> = terms.iter().map(|el|el.to_string()).collect();
-            (path.to_string(), tokens_set)
-        }).collect()
+        result
+            .why_found_terms
+            .iter()
+            .map(|(path, terms)| {
+                let tokens_set: FnvHashSet<String> = terms.iter().map(|el| el.to_string()).collect();
+                (path.to_string(), tokens_set)
+            })
+            .collect()
     };
 
     hits.iter()
@@ -395,7 +397,6 @@ pub fn to_documents(persistence: &Persistence, hits: &[Hit], select: Option<Vec<
                     why_found: result.why_found_info.get(&hit.id).cloned().unwrap_or(FnvHashMap::default()),
                 };
             } else {
-
                 let doc_str = DocLoader::get_doc(persistence, hit.id as usize).unwrap(); // TODO No unwrapo
                 let ayse = highlight_on_original_document(&doc_str, &tokens_set);
 
@@ -405,11 +406,9 @@ pub fn to_documents(persistence: &Persistence, hits: &[Hit], select: Option<Vec<
                     why_found: ayse,
                 };
             };
-
         })
         .collect::<Vec<_>>()
 }
-
 
 #[cfg_attr(feature = "flame_it", flame)]
 pub fn to_search_result(persistence: &Persistence, hits: SearchResult, select: Option<Vec<String>>) -> SearchResultWithDoc {
@@ -658,7 +657,8 @@ pub fn search(mut request: Request, persistence: &Persistence) -> Result<SearchR
     let topn_results = apply_top_skip(&search_result.data, request.skip, request.top);
     search_result.data = topn_results;
 
-    if request.why_found && request.select.is_some() { // TODO WHY_FOUND, WHY_FOUND is done on the object, when all fields are returned
+    if request.why_found && request.select.is_some() {
+        // TODO WHY_FOUND, WHY_FOUND is done on the object, when all fields are returned
         let anchor_ids: Vec<u32> = search_result.data.iter().map(|el| el.id).collect();
         let why_found_info = get_why_found(&persistence, &anchor_ids, &term_id_hits_in_field)?;
 
@@ -837,24 +837,6 @@ pub fn get_longest_result<T: std::iter::ExactSizeIterator>(results: &Vec<T>) -> 
     longest.0
 }
 
-// #[cfg_attr(feature = "flame_it", flame)]
-// pub fn union_hits(mut or_results: Vec<SearchFieldResult>) -> SearchFieldResult {
-//     let index_longest = get_longest_result(&or_results.iter().map(|el| el.hits.iter()).collect());
-//     let longest_result = or_results.swap_remove(index_longest).hits;
-
-//     let mut result = SearchFieldResult::default();
-//     result.hits = longest_result;
-
-//     let estimate_additional_elements: usize = or_results.iter().map(|el| el.hits.len()).sum();
-//     result.hits.reserve(estimate_additional_elements / 2);
-
-//     for res in or_results {
-//         result.hits.extend(&res.hits);
-//     }
-
-//     result
-// }
-
 fn merge_term_id_hits(results: &mut Vec<SearchFieldResult>) -> FnvHashMap<String, FnvHashMap<String, Vec<TermId>>> {
     //attr -> term -> hits
     let mut term_id_hits_in_field = FnvHashMap::default();
@@ -997,7 +979,6 @@ pub fn union_hits_vec(mut or_results: Vec<SearchFieldResult>) -> SearchFieldResu
     //     union_hits.push(Hit::new(id, sum_score));
     // }
 
-
     // let mut field_id_hits = 0;
     for (mut id, mut group) in &mergo.into_iter().group_by(|el| el.id) {
         let mut term_id_hits = 0;
@@ -1006,7 +987,7 @@ pub fn union_hits_vec(mut or_results: Vec<SearchFieldResult>) -> SearchFieldResu
         for el in group {
             // num_hits +=1;
             // set_bit_at(&mut field_id_hits, el.field_id);
-            set_bit_at(&mut term_id_hits, el.term_id );
+            set_bit_at(&mut term_id_hits, el.term_id);
             sum_score += el.score.to_f32();
         }
 
@@ -1132,36 +1113,6 @@ pub fn intersect_hits_vec(mut and_results: Vec<SearchFieldResult>) -> SearchFiel
         .filter(|el| el.1.is_some())
         .map(|el| (el.0, el.1.unwrap()))
         .collect::<Vec<_>>();
-
-    // shortest_result.retain(|&current_el| {
-    //     let current_id = current_el.0;
-    //     let current_score = current_el.1;
-    //     if iterators_and_current
-    //         .iter_mut()
-    //         .all(|ref mut iter_n_current| {
-    //             if iter_n_current.1 == current_id {
-    //                 return true;
-    //             }
-    //             let iter = &mut iter_n_current.0;
-    //             while let Some(el) = iter.next() {
-    //                 let id = el.0;
-    //                 iter_n_current.1 = id;
-    //                 if id > current_id {
-    //                     return false;
-    //                 }
-    //                 if id == current_id {
-    //                     return true;
-    //                 }
-    //             }
-    //             return false;
-    //         })
-    //     {
-    //         return true;
-    //     }
-    //     {
-    //         return false;
-    //     }
-    // });
 
     let mut intersected_hits = Vec::with_capacity(shortest_result.len());
     for current_el in shortest_result.iter_mut() {

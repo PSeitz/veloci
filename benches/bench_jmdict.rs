@@ -237,7 +237,10 @@ fn search(term: &str, pers: &persistence::Persistence, levenshtein_distance: u32
     search::to_documents(pers, &hits.data, None, &hits)
 }
 fn search_freestyle(term: &str, pers: &persistence::Persistence) -> Vec<search::DocWithHit> {
-    let yop = query_generator::SearchQueryGeneratorParameters{search_term:term.to_string(), ..Default::default()};
+    let yop = query_generator::SearchQueryGeneratorParameters {
+        search_term: term.to_string(),
+        ..Default::default()
+    };
     let requesto = query_generator::search_query(pers, yop);
     let hits = search::search(requesto, pers).unwrap();
     search::to_documents(pers, &hits.data, None, &hits)
@@ -345,17 +348,9 @@ fn searches(c: &mut Criterion) {
     });
 
     let requesto: search::Request = serde_json::from_str(&req.to_string()).expect("Can't parse json");
-    c.bench_function("jmdict_search_facets", |b| {
-        b.iter(|| {
-            search::search(requesto.clone(), &pers)
-        })
-    });
+    c.bench_function("jmdict_search_facets", |b| b.iter(|| search::search(requesto.clone(), &pers)));
 
-    c.bench_function("jmdict_search_facets_im", |b| {
-        b.iter(|| {
-            search::search(requesto.clone(), &pers_im)
-        })
-    });
+    c.bench_function("jmdict_search_facets_im", |b| b.iter(|| search::search(requesto.clone(), &pers_im)));
 
     c.bench_function("jmdict_suggest_an", |b| b.iter(|| suggest("an", "meanings.ger[].text", &pers)));
 

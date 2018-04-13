@@ -1,33 +1,26 @@
 use std::mem::transmute;
 use std::ptr;
-use std::fs::{File};
+use std::fs::File;
 use std::io::prelude::*;
 use std::io;
 use std::fs;
 
 use persistence::*;
 use persistence_data::TypeInfo;
-
 use half::f16;
 use std;
 
-
-use heapsize::{HeapSizeOf};
-
-use bincode::{serialize, deserialize};
+use heapsize::HeapSizeOf;
 
 use memmap::Mmap;
 use memmap::MmapOptions;
 
-
 mod compressor;
 
-const U31_MAX:u32 = (1 << 31) - 1;
+const U31_MAX: u32 = (1 << 31) - 1;
 
-
-const SIZE_OF_ANCHOR_SCORE :usize = std::mem::size_of::<AnchorScore>();
-const SIZE_OF_NUM_ELEM :usize = std::mem::size_of::<(u32)>();
-
+const SIZE_OF_ANCHOR_SCORE: usize = std::mem::size_of::<AnchorScore>();
+const SIZE_OF_NUM_ELEM: usize = std::mem::size_of::<(u32)>();
 
 macro_rules! impl_type_info {
     ($($name:ident$(<$($T:ident),+>)*),*) => {
@@ -36,8 +29,12 @@ macro_rules! impl_type_info {
 }
 
 macro_rules! mut_if {
-    ($name:ident = $value:expr, $($any:expr)+) => (let mut $name = $value;);
-    ($name:ident = $value:expr,) => (let $name = $value;);
+    ($name: ident = $value: expr, $($any: expr) +) => {
+        let mut $name = $value;
+    };
+    ($name: ident = $value: expr,) => {
+        let $name = $value;
+    };
 }
 
 macro_rules! impl_type_info_single {
@@ -62,20 +59,18 @@ macro_rules! impl_type_info_single {
 
 impl_type_info!(TokenToAnchorScoreBinary, TokenToAnchorScoreMmap);
 
-
-
-struct CompactHit{
+struct CompactHit {
     id: [u8; 3],
-    score: u8
+    score: u8,
 }
-impl CompactHit{
-    fn new(id:u32, score: u8) -> Self{
+impl CompactHit {
+    fn new(id: u32, score: u8) -> Self {
         let bytes: [u8; 4] = unsafe { transmute(id) };
         let id: [u8; 3] = [bytes[0], bytes[1], bytes[2]];
-        CompactHit{id, score}
+        CompactHit { id, score }
     }
     fn get_id(&self) -> u32 {
-        let bytes: [u8; 4] =  [self.id[0], self.id[1], self.id[2], 0];
+        let bytes: [u8; 4] = [self.id[0], self.id[1], self.id[2], 0];
         unsafe { transmute(bytes) }
     }
 }
@@ -85,8 +80,6 @@ fn test_compact_hit() {
     assert_eq!(hit.get_id(), 100);
     assert_eq!(hit.score, 1);
 }
-
-
 
 #[repr(packed)]
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -109,16 +102,15 @@ pub struct AnchorScoreSerialize {
 }
 
 impl AnchorScoreSerialize {
-    pub fn new(id: u32, score: u16,) -> AnchorScoreSerialize {
-        AnchorScoreSerialize{id:id, score:score}
+    pub fn new(id: u32, score: u16) -> AnchorScoreSerialize {
+        AnchorScoreSerialize { id: id, score: score }
     }
 }
 impl AnchorScore {
-    pub fn new(id: u32, score: f16,) -> AnchorScore {
-        AnchorScore{id:id, score:score}
+    pub fn new(id: u32, score: f16) -> AnchorScore {
+        AnchorScore { id: id, score: score }
     }
 }
-
 
 #[derive(Serialize, Deserialize, PartialEq, Debug)]
 struct ScoreDataVec(Vec<(u32, u16)>);
@@ -132,7 +124,8 @@ pub struct TokenToAnchorScoreBinary {
 }
 
 impl TokenToAnchorScoreBinary {
-    pub fn set_scores(&mut self, id: u32, add_data: Vec<AnchorScore>) { //TODO INVALIDATE OLD DATA IF SET TWICE?
+    pub fn set_scores(&mut self, id: u32, add_data: Vec<AnchorScore>) {
+        //TODO INVALIDATE OLD DATA IF SET TWICE?
 
         let pos: usize = id as usize;
         let required_size = pos + 1;
@@ -141,7 +134,7 @@ impl TokenToAnchorScoreBinary {
         }
 
         // let add_data:ScoreDataVec = ScoreDataVec(add_data.iter().map(|el|(el.id, el.score.as_bits())).collect()); //TODO CHECK WHY as_bits is needed, else deserialization fails
-        let add_data:Vec<AnchorScoreSerialize> = add_data.iter().map(|el|AnchorScoreSerialize::new(el.id, el.score.as_bits())).collect(); //TODO CHECK WHY as_bits is needed, else deserialization fails
+        let add_data: Vec<AnchorScoreSerialize> = add_data.iter().map(|el| AnchorScoreSerialize::new(el.id, el.score.as_bits())).collect(); //TODO CHECK WHY as_bits is needed, else deserialization fails
 
         let byte_offset = self.data.len() as u32;
         self.start_pos[pos] = byte_offset;
@@ -154,10 +147,10 @@ impl TokenToAnchorScoreBinary {
 
         let p = add_data.as_ptr();
         // let ptr = unsafe{std::mem::transmute::<*const (u32, u16), *const u8>(p)};
-        let ptr = unsafe{std::mem::transmute::<*const AnchorScoreSerialize, *const u8>(p)};
+        let ptr = unsafe { std::mem::transmute::<*const AnchorScoreSerialize, *const u8>(p) };
 
         let add_bytes = add_data.len() * SIZE_OF_ANCHOR_SCORE;
-        unsafe{
+        unsafe {
             self.data.reserve(add_bytes);
             let end_of_vec = self.data.as_mut_ptr().offset(self.data.len() as isize);
             let new_len = self.data.len() + add_bytes;
@@ -170,23 +163,20 @@ impl TokenToAnchorScoreBinary {
         self.start_pos.len()
     }
 
-    pub fn write(&self, path_indirect: &str, path_data: &str) -> Result<(),io::Error> {
+    pub fn write(&self, path_indirect: &str, path_data: &str) -> Result<(), io::Error> {
         File::create(path_indirect)?.write_all(&vec_to_bytes_u32(&self.start_pos))?;
         File::create(path_data)?.write_all(&self.data)?;
         Ok(())
-
     }
-    pub fn read(&mut self, path_indirect: &str, path_data: &str) -> Result<(),io::Error> {
+    pub fn read(&mut self, path_indirect: &str, path_data: &str) -> Result<(), io::Error> {
         self.start_pos = load_index_u32(&path_indirect)?;
         self.data = file_to_bytes(&path_data)?;
         Ok(())
-
     }
 }
 
 impl TokenToAnchorScore for TokenToAnchorScoreBinary {
     fn get_scores(&self, id: u32) -> Option<Vec<AnchorScore>> {
-
         if id as usize >= self.get_size() {
             return None;
         }
@@ -204,7 +194,6 @@ impl TokenToAnchorScore for TokenToAnchorScoreBinary {
     }
 }
 
-
 #[derive(Debug)]
 pub struct TokenToAnchorScoreMmap {
     pub start_pos: Mmap,
@@ -213,11 +202,7 @@ pub struct TokenToAnchorScoreMmap {
 }
 
 impl TokenToAnchorScoreMmap {
-
-    pub fn new(
-        start_and_end_file: &fs::File,
-        data_file: &fs::File,
-    ) -> Self {
+    pub fn new(start_and_end_file: &fs::File, data_file: &fs::File) -> Self {
         let start_and_end_file = unsafe { MmapOptions::new().map(&start_and_end_file).unwrap() };
         let data_file = unsafe { MmapOptions::new().map(&data_file).unwrap() };
         TokenToAnchorScoreMmap {
@@ -226,16 +211,16 @@ impl TokenToAnchorScoreMmap {
             max_value_id: 0,
         }
     }
-
 }
 
 impl HeapSizeOf for TokenToAnchorScoreMmap {
-    fn heap_size_of_children(&self) -> usize { 0 }
+    fn heap_size_of_children(&self) -> usize {
+        0
+    }
 }
 
 impl TokenToAnchorScore for TokenToAnchorScoreMmap {
     fn get_scores(&self, id: u32) -> Option<Vec<AnchorScore>> {
-
         if id as usize >= self.start_pos.len() / 4 {
             return None;
         }
@@ -250,23 +235,20 @@ impl TokenToAnchorScore for TokenToAnchorScoreMmap {
     }
 }
 
-
 fn get_u32_from_bytes(data: &[u8], pos: usize) -> u32 {
     let mut bytes: [u8; 4] = [0, 0, 0, 0];
-    bytes.copy_from_slice(&data[pos..pos+4]);
-    unsafe {
-        transmute(bytes)
-    }
+    bytes.copy_from_slice(&data[pos..pos + 4]);
+    unsafe { transmute(bytes) }
 }
 
-fn get_achor_score_data_from_bytes(data: &[u8], pos:u32) -> Vec<AnchorScore> {
+fn get_achor_score_data_from_bytes(data: &[u8], pos: u32) -> Vec<AnchorScore> {
     let mut ret_data = vec![];
     unsafe {
         let num_elements: u32 = get_u32_from_bytes(&data, pos as usize);
         let num_bytes = num_elements as usize * SIZE_OF_ANCHOR_SCORE;
         ret_data.reserve(num_elements as usize);
         ret_data.set_len(num_elements as usize);
-        let data_ptr_start =  data.as_ptr().offset(pos as isize + SIZE_OF_NUM_ELEM as isize);
+        let data_ptr_start = data.as_ptr().offset(pos as isize + SIZE_OF_NUM_ELEM as isize);
 
         let p = ret_data.as_mut_ptr();
         let return_data_ptr = std::mem::transmute::<*mut AnchorScore, *mut u8>(p);
@@ -274,7 +256,6 @@ fn get_achor_score_data_from_bytes(data: &[u8], pos:u32) -> Vec<AnchorScore> {
     }
     ret_data
 }
-
 
 #[test]
 fn test_token_to_anchor_score_binary() {
@@ -286,12 +267,15 @@ fn test_token_to_anchor_score_binary() {
     assert_eq!(yeps.get_scores(1), Some(vec![AnchorScore::new(1, f16::from_f32(1.0))]));
     assert_eq!(yeps.get_scores(2), None);
 
-    yeps.set_scores(5, vec![AnchorScore::new(1, f16::from_f32(1.0)),AnchorScore::new(2, f16::from_f32(3.0))]);
+    yeps.set_scores(5, vec![AnchorScore::new(1, f16::from_f32(1.0)), AnchorScore::new(2, f16::from_f32(3.0))]);
     assert_eq!(yeps.get_scores(4), None);
-    assert_eq!(yeps.get_scores(5), Some(vec![AnchorScore::new(1, f16::from_f32(1.0)),AnchorScore::new(2, f16::from_f32(3.0))]));
+    assert_eq!(
+        yeps.get_scores(5),
+        Some(vec![AnchorScore::new(1, f16::from_f32(1.0)), AnchorScore::new(2, f16::from_f32(3.0))])
+    );
     assert_eq!(yeps.get_scores(6), None);
 
-    let data     = "TokenToAnchorScoreBinaryTestData";
+    let data = "TokenToAnchorScoreBinaryTestData";
     let indirect = "TokenToAnchorScoreBinaryTestIndirect";
     yeps.write(indirect, data).unwrap();
 
@@ -303,7 +287,10 @@ fn test_token_to_anchor_score_binary() {
     assert_eq!(yeps.get_scores(2), None);
 
     assert_eq!(yeps.get_scores(4), None);
-    assert_eq!(yeps.get_scores(5), Some(vec![AnchorScore::new(1, f16::from_f32(1.0)),AnchorScore::new(2, f16::from_f32(3.0))]));
+    assert_eq!(
+        yeps.get_scores(5),
+        Some(vec![AnchorScore::new(1, f16::from_f32(1.0)), AnchorScore::new(2, f16::from_f32(3.0))])
+    );
     assert_eq!(yeps.get_scores(6), None);
 
     // Mmap from File
@@ -315,8 +302,9 @@ fn test_token_to_anchor_score_binary() {
     assert_eq!(yeps.get_scores(2), None);
 
     assert_eq!(yeps.get_scores(4), None);
-    assert_eq!(yeps.get_scores(5), Some(vec![AnchorScore::new(1, f16::from_f32(1.0)),AnchorScore::new(2, f16::from_f32(3.0))]));
+    assert_eq!(
+        yeps.get_scores(5),
+        Some(vec![AnchorScore::new(1, f16::from_f32(1.0)), AnchorScore::new(2, f16::from_f32(3.0))])
+    );
     assert_eq!(yeps.get_scores(6), None);
-
 }
-

@@ -43,7 +43,6 @@ parking_lot = {version = "0.5", features = ["nightly"]}
 lru-cache = "0.1.1"
 lru_time_cache = "0.8.0"
 memmap = "0.6.2"
-faster = "0.4.3"
 half = {version = "1.1.0", features = ["use-intrinsics", "serialize", "std"]}
 
 flame = { version = "0.2.0", optional = true }
@@ -58,9 +57,9 @@ colored = "1.4"
 lz4 = "1.22.0"
 flate2 = "1.0"
 
-rocket = "0.3.6"
-rocket_contrib = "0.3.6"
-rocket_codegen = "0.3.6"
+rocket = "0.3.8"
+rocket_contrib = "0.3.8"
+rocket_codegen = "0.3.8"
 
 fixedbitset = "0.1.8"
 

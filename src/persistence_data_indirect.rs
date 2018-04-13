@@ -82,7 +82,7 @@ impl_type_info_single_templ!(IndexIdToMultipleParentCompressedMaydaINDIRECTOneRe
 impl_type_info_single_templ!(PointingArrayFileReader);
 impl_type_info_single_templ!(PointingMMAPFileReader);
 
-const U31_MAX:u32 = (1 << 31) - 1;
+const U31_MAX: u32 = (1 << 31) - 1;
 
 pub fn calc_avg_join_size(num_values: u32, num_ids: u32) -> f32 {
     num_values as f32 / std::cmp::max(1, num_ids).to_f32().unwrap()
@@ -116,19 +116,20 @@ impl<T: IndexIdToParentData> IndexIdToMultipleParentIndirect<T> {
         }
     }
 
-    pub fn set(&mut self, id: u32, add_data: Vec<T>) { //TODO INVALIDATE OLD DATA IF SET TWICE?
+    pub fn set(&mut self, id: u32, add_data: Vec<T>) {
+        //TODO INVALIDATE OLD DATA IF SET TWICE?
         let pos: usize = id as usize;
         let required_size = pos + 1;
         if self.start_pos.len() < required_size {
             self.start_pos.resize(required_size, num::cast(U31_MAX).unwrap());
         }
         let start = self.data.len();
-        if  add_data.len() == 1{
-            let mut val:u32 = add_data[0].to_u32().unwrap();
+        if add_data.len() == 1 {
+            let mut val: u32 = add_data[0].to_u32().unwrap();
             self.max_value_id = std::cmp::max(val, self.max_value_id);
             set_high_bit(&mut val); // encode directly, much wow, much compression
             self.start_pos[pos] = num::cast(val).unwrap();
-        }else{
+        } else {
             self.start_pos[pos] = num::cast(start).unwrap();
             self.data.push(num::cast(add_data.len()).unwrap());
             for val in add_data.iter() {
@@ -169,8 +170,6 @@ impl<T: IndexIdToParentData> IndexIdToMultipleParentIndirect<T> {
         self.start_pos.len()
     }
 }
-
-
 
 // #[derive(Serialize, Deserialize, Debug, Clone, HeapSizeOf, Default)]
 // pub struct TokenToAnchorScore {
@@ -237,12 +236,10 @@ impl<T: IndexIdToParentData> IndexIdToParent for IndexIdToMultipleParentIndirect
             // if positions[0] == positions[1] {
             //     return None;
             // }
-            let data_length:u32 = NumCast::from(self.data[data_start_pos_length as usize]).unwrap();
+            let data_length: u32 = NumCast::from(self.data[data_start_pos_length as usize]).unwrap();
             let data_start_pos = data_start_pos_length + 1;
-            let end:u32 = data_start_pos + data_length;
-            Some(
-                self.data[NumCast::from(data_start_pos).unwrap()..NumCast::from(end).unwrap()].to_vec()
-            )
+            let end: u32 = data_start_pos + data_length;
+            Some(self.data[NumCast::from(data_start_pos).unwrap()..NumCast::from(end).unwrap()].to_vec())
         }
     }
     fn get_keys(&self) -> Vec<T> {
@@ -280,9 +277,9 @@ impl<T: IndexIdToParentData> IndexIdToParent for IndexIdToMultipleParentIndirect
             }
 
             for position in &positions_vec {
-                let length:u32 = NumCast::from(self.data[*position as usize]).unwrap();
-                for id in &self.data[NumCast::from(*position+1).unwrap()..NumCast::from(*position+1+length).unwrap()] {
-                // for id in &self.data[NumCast::from(position[0]).unwrap()..NumCast::from(position[1]).unwrap()] {
+                let length: u32 = NumCast::from(self.data[*position as usize]).unwrap();
+                for id in &self.data[NumCast::from(*position + 1).unwrap()..NumCast::from(*position + 1 + length).unwrap()] {
+                    // for id in &self.data[NumCast::from(position[0]).unwrap()..NumCast::from(position[1]).unwrap()] {
                     coll.add(*id);
                 }
             }
@@ -486,11 +483,9 @@ impl<T: IndexIdToParentData> IndexIdToParent for IndexIdToMultipleParentCompress
 
         // }
 
-
-
         for id in ids {
             if let Some(vals) = self.get_values(*id as u64) {
-                for id in vals{
+                for id in vals {
                     coll.add(id);
                 }
             }
@@ -605,12 +600,10 @@ where
             return None;
         }
 
-        let data_length:u32 = NumCast::from(data.access(data_start_pos_length as usize)).unwrap();
+        let data_length: u32 = NumCast::from(data.access(data_start_pos_length as usize)).unwrap();
         let data_start_pos = data_start_pos_length + 1;
-        let end:u32 = data_start_pos + data_length;
-        Some(
-            data.access(NumCast::from(data_start_pos).unwrap()..NumCast::from(end).unwrap())
-        )
+        let end: u32 = data_start_pos + data_length;
+        Some(data.access(NumCast::from(data_start_pos).unwrap()..NumCast::from(end).unwrap()))
 
         // if positions[0].to_u32().unwrap() == u32::MAX {
         //     //data encoded in indirect array
@@ -742,10 +735,10 @@ fn get_u32_values_from_pointing_mmap_file(find: u64, size: usize, start_pos: &Mm
             return None;
         }
         let data_length_index = data_start_pos as usize * 4;
-        let data_length:u32 = (&data_file[data_length_index..data_length_index + 4]).read_u32::<LittleEndian>().unwrap();
+        let data_length: u32 = (&data_file[data_length_index..data_length_index + 4]).read_u32::<LittleEndian>().unwrap();
         // let data_start_pos = data_start_pos_length + 1;
         let data_start_index = data_length_index + 4;
-        let end:usize = (data_start_index + data_length as usize * 4) as usize;
+        let end: usize = (data_start_index + data_length as usize * 4) as usize;
 
         Some(bytes_to_vec_u32(&data_file[data_start_index..end]))
     }
@@ -829,14 +822,12 @@ impl IndexIdToParent for PointingArrayFileReader<u32> {
 
         let size = self.get_size();
         for id in ids {
-
             //TODO don't copy, just stream ids
             if let Some(vals) = get_u32_values_from_pointing_file(*id as u64, size, &self.start_and_end_file, &self.data_file) {
-                for id in vals{
+                for id in vals {
                     coll.add(id);
                 }
             }
-
         }
         coll.to_map(top)
     }
@@ -884,10 +875,11 @@ impl IndexIdToParent for PointingArrayFileReader<u32> {
 // }
 
 fn get_encoded(mut val: u32) -> Option<u32> {
-    if is_hight_bit_set(val) {//data encoded in indirect array
+    if is_hight_bit_set(val) {
+        //data encoded in indirect array
         unset_high_bit(&mut val);
         Some(val)
-    }else{
+    } else {
         None
     }
 }
@@ -1044,7 +1036,7 @@ fn to_indirect_arrays<T: Integer + Clone + NumCast + mayda::utility::Bits + Copy
 
 fn to_indirect_arrays_dedup<T: Integer + Clone + NumCast + mayda::utility::Bits + Copy + IndexIdToParentData, K: IndexIdToParentData>(
     store: &IndexIdToParent<Output = K>,
-    cache_size: usize,
+    _cache_size: usize,
     sort_and_dedup: bool,
 ) -> (T, u32, u32, Vec<T>, Vec<T>) {
     // let mut data = vec![];
@@ -1067,7 +1059,14 @@ fn to_indirect_arrays_dedup<T: Integer + Clone + NumCast + mayda::utility::Bits 
 
     // let mut max_value_id = T::zero();
 
-    let mut yepp = IndexIdToMultipleParentIndirect::<T>{ start_pos:vec![], data:vec![], max_value_id: 0, avg_join_size: 0., num_values: 0, num_ids: 0,};
+    let mut yepp = IndexIdToMultipleParentIndirect::<T> {
+        start_pos: vec![],
+        data: vec![],
+        max_value_id: 0,
+        avg_join_size: 0.,
+        num_values: 0,
+        num_ids: 0,
+    };
 
     for valid in 0..=num::cast(last_id).unwrap() {
         //let start = offset;
@@ -1078,7 +1077,6 @@ fn to_indirect_arrays_dedup<T: Integer + Clone + NumCast + mayda::utility::Bits 
             }
             yepp.set(valid, vals.iter().map(|el| num::cast(*el).unwrap()).collect::<Vec<_>>());
         }
-
     }
 
     // for valid in 0..=num::cast(last_id).unwrap() {
@@ -1141,37 +1139,35 @@ fn to_indirect_arrays_dedup<T: Integer + Clone + NumCast + mayda::utility::Bits 
 
     // let avg_join_size = num_values as f32 / std::cmp::max(K::one(), num_ids).to_f32().unwrap();
     // (max_value_id, num_values as u32, num::cast(num_ids).unwrap(), start_pos_in_data, data)
-    (num::cast(yepp.max_value_id).unwrap(), yepp.num_values as u32, num::cast(yepp.num_ids).unwrap(), yepp.start_pos, yepp.data)
+    (
+        num::cast(yepp.max_value_id).unwrap(),
+        yepp.num_values as u32,
+        num::cast(yepp.num_ids).unwrap(),
+        yepp.start_pos,
+        yepp.data,
+    )
 }
 
-pub fn id_to_parent_to_array_of_array_mayda_indirect_one<T: Integer + Clone + NumCast + mayda::utility::Bits + Copy + IndexIdToParentData, K: IndexIdToParentData>(
+pub fn id_to_parent_to_array_of_array_mayda_indirect_one<
+    T: Integer + Clone + NumCast + mayda::utility::Bits + Copy + IndexIdToParentData,
+    K: IndexIdToParentData,
+>(
     store: &IndexIdToParent<Output = K>,
 ) -> (T, u32, u32, usize, mayda::Monotone<T>, mayda::Uniform<T>) {
     //start, end, data
     let (max_value_id, num_values, num_ids, start_pos, data) = to_indirect_arrays(store, 0);
-    (
-        max_value_id,
-        num_values,
-        num_ids,
-        start_pos.len(),
-        to_monotone(&start_pos),
-        to_uniform(&data),
-    )
+    (max_value_id, num_values, num_ids, start_pos.len(), to_monotone(&start_pos), to_uniform(&data))
 }
 
-pub fn id_to_parent_to_array_of_array_mayda_indirect_one_reuse_existing<T: Integer + Clone + NumCast + mayda::utility::Bits + Copy + IndexIdToParentData, K: IndexIdToParentData>(
+pub fn id_to_parent_to_array_of_array_mayda_indirect_one_reuse_existing<
+    T: Integer + Clone + NumCast + mayda::utility::Bits + Copy + IndexIdToParentData,
+    K: IndexIdToParentData,
+>(
     store: &IndexIdToParent<Output = K>,
 ) -> (T, u32, u32, usize, mayda::Uniform<T>, mayda::Uniform<T>) {
     //start, end, data
     let (max_value_id, num_values, num_ids, start_pos, data) = to_indirect_arrays(store, 250);
-    (
-        max_value_id,
-        num_values,
-        num_ids,
-        start_pos.len(),
-        to_uniform(&start_pos),
-        to_uniform(&data),
-    )
+    (max_value_id, num_values, num_ids, start_pos.len(), to_uniform(&start_pos), to_uniform(&data))
 }
 
 use std::u32;
@@ -1185,7 +1181,7 @@ mod tests {
     use persistence_data::*;
 
     fn get_test_data_1_to_n() -> ParallelArrays<u32> {
-        let keys = vec!  [0, 0, 1, 2, 3, 3,     5];
+        let keys = vec![0, 0, 1, 2, 3, 3, 5];
         let values = vec![5, 6, 9, 9, 9, 50000, 80];
 
         let store = ParallelArrays {
@@ -1251,7 +1247,6 @@ mod tests {
             let indirect_metadata = fs::metadata(&get_file_path("test_pointing_file_array", "indirect")).unwrap();
             let data_metadata = fs::metadata(&get_file_path("test_pointing_file_array", "data")).unwrap();
 
-
             let store = PointingMMAPFileReader::new(
                 &start_and_end_file,
                 &data_file,
@@ -1270,8 +1265,6 @@ mod tests {
                 calc_avg_join_size(num_values, num_ids),
             );
             check_test_data_1_to_n(&store);
-
-
         }
 
         #[test]
@@ -1315,7 +1308,6 @@ mod tests {
                 values2: values,
             }
         }
-
 
         // #[bench]
         // fn indirect_pointing_file_array(b: &mut test::Bencher) {

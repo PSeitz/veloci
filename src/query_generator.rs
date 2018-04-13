@@ -49,7 +49,7 @@ pub fn normalize_to_single_space(text: &str) -> String {
 
 fn replace_all_with_space(s: &mut String, remove: &str) {
     while let Some(pos) = s.find(remove) {
-        s.splice(pos..=pos + remove.len() - 1, " ");
+        s.replace_range(pos..=pos + remove.len() - 1, " ");
     }
 }
 
@@ -71,10 +71,7 @@ pub struct SearchQueryGeneratorParameters {
 }
 
 #[cfg_attr(feature = "flame_it", flame)]
-pub fn search_query(
-    persistence: &Persistence,
-    mut opt: SearchQueryGeneratorParameters,
-) -> Request {
+pub fn search_query(persistence: &Persistence, mut opt: SearchQueryGeneratorParameters) -> Request {
     // let req = persistence.meta_data.fulltext_indices.key
     opt.facetlimit = opt.facetlimit.or(Some(5));
     info_time!("generating search query");

@@ -123,7 +123,6 @@ struct QueryParams {
 //     value: usize
 // }
 
-
 // use rocket::request::FromParam;
 // use rocket::http::RawStr;
 
@@ -154,7 +153,6 @@ struct QueryParams {
 //     "0.5".to_string()
 // }
 
-
 fn query_param_to_vec(name: Option<String>) -> Option<Vec<String>> {
     // TODO Replace with FromForm ? directly in QueryParams
     name.map(|el| el.split(',').map(|f| f.to_string()).collect())
@@ -166,7 +164,6 @@ fn ensure_database(database: &String) -> Result<(), search::SearchError> {
     }
     Ok(())
 }
-
 
 #[get("/version")]
 fn version() -> String {

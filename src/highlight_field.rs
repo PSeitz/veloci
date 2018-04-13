@@ -33,7 +33,6 @@ use fnv::FnvHashSet;
 //     positions
 // }
 
-
 /// Highlights text
 /// tokens has to be sorted by best match first (probably longest)
 pub fn highlight_text(
@@ -56,18 +55,17 @@ pub fn highlight_text(
             highlighted.push_str(&opt.snippet_start_tag);
             highlighted.push_str(token);
             highlighted.push_str(&opt.snippet_end_tag);
-        }else {
+        } else {
             highlighted.push_str(token);
         }
     });
 
     if contains_any_token {
         Some(highlighted)
-    }else{
+    } else {
         None
     }
 }
-
 
 // #[test]
 // fn test_highlight_text() {
@@ -76,8 +74,6 @@ pub fn highlight_text(
 //     assert_eq!(highlight_text("Schön-Hans", &vec!["Hans"], &DEFAULT_SNIPPETINFO).unwrap(), "Schön-<b>Hans</b>");
 //     assert_eq!(highlight_text("Schön-Hans", &vec!["Haus"], &DEFAULT_SNIPPETINFO), None);
 // }
-
-
 
 #[cfg_attr(feature = "flame_it", flame)]
 pub fn highlight_document(

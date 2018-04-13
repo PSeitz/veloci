@@ -37,7 +37,6 @@ pub fn normalize_text(text: &str) -> String {
 
 use search::Hit;
 
-
 pub fn get_bit_at(input: u32, n: u8) -> bool {
     if n < 32 {
         input & (1 << n) != 0
@@ -51,8 +50,8 @@ pub fn set_bit_at(input: &mut u32, n: u8) {
     *input = *input | (1 << n)
 }
 
-const ONLY_HIGH_BIT_SET:u32 = (1 << 31);
-const ALL_BITS_BUT_HIGHEST_SET:u32 = (1 << 31) - 1;
+const ONLY_HIGH_BIT_SET: u32 = (1 << 31);
+const ALL_BITS_BUT_HIGHEST_SET: u32 = (1 << 31) - 1;
 
 #[inline]
 pub fn set_high_bit(input: &mut u32) {
@@ -227,8 +226,8 @@ pub fn get_my_data_danger_zooone(start: u32, end: u32, data_file: &Mutex<fs::Fil
 }
 
 #[inline]
-pub fn get_my_data_danger_zooone_score(start: u32, end: u32, data_file: &Mutex<fs::File>) -> Vec<(u32,f16)> {
-    let mut data: Vec<(u32,f16)> = vec_with_size_uninitialized(end as usize - start as usize);
+pub fn get_my_data_danger_zooone_score(start: u32, end: u32, data_file: &Mutex<fs::File>) -> Vec<(u32, f16)> {
+    let mut data: Vec<(u32, f16)> = vec_with_size_uninitialized(end as usize - start as usize);
     {
         let p = data.as_mut_ptr();
         let len = data.len();
@@ -236,7 +235,7 @@ pub fn get_my_data_danger_zooone_score(start: u32, end: u32, data_file: &Mutex<f
 
         unsafe {
             // complete control of the allocation to which `p` points.
-            let ptr = std::mem::transmute::<*mut (u32,f16), *mut u8>(p);
+            let ptr = std::mem::transmute::<*mut (u32, f16), *mut u8>(p);
             let mut data_bytes = Vec::from_raw_parts(ptr, len * 4, cap);
 
             load_bytes_into(&mut data_bytes, &*data_file.lock(), start as u64 * 4); //READ directly into (u32,f16) data

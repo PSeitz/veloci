@@ -59,9 +59,9 @@ impl SearchFieldResult {
         res
     }
 
-    pub fn iter<'a>(& 'a self, term_id: u8, _field_id: u8,) -> SearchFieldResultIterator<'a> {
+    pub fn iter<'a>(&'a self, term_id: u8, _field_id: u8) -> SearchFieldResultIterator<'a> {
         let begin = self.hits_vec.as_ptr();
-        let end = unsafe{begin.offset(self.hits_vec.len() as isize) as *const search::Hit};
+        let end = unsafe { begin.offset(self.hits_vec.len() as isize) as *const search::Hit };
 
         SearchFieldResultIterator {
             list: &self.hits_vec,
@@ -74,8 +74,8 @@ impl SearchFieldResult {
 }
 
 #[derive(Debug, Clone)]
-pub struct SearchFieldResultIterator<'a>  {
-    list: & 'a Vec<search::Hit>,
+pub struct SearchFieldResultIterator<'a> {
+    list: &'a Vec<search::Hit>,
     ptr: *const search::Hit,
     end: *const search::Hit,
     term_id: u8,
@@ -89,10 +89,10 @@ impl<'a> Iterator for SearchFieldResultIterator<'a> {
     fn next(&mut self) -> Option<MiniHit> {
         if self.ptr as *const _ == self.end {
             None
-        }else {
+        } else {
             let old = self.ptr;
-            self.ptr = unsafe{self.ptr.offset(1)};
-            let hit = unsafe{ptr::read(old)};
+            self.ptr = unsafe { self.ptr.offset(1) };
+            let hit = unsafe { ptr::read(old) };
             Some(MiniHit {
                 id: hit.id,
                 term_id: self.term_id,
@@ -115,9 +115,7 @@ impl<'a> Iterator for SearchFieldResultIterator<'a> {
     fn count(self) -> usize {
         self.list.len()
     }
-
 }
-
 
 // pub type TermScore = (TermId, Score);
 pub type TermId = u32;
@@ -464,9 +462,11 @@ fn get_term_ids_in_field(persistence: &Persistence, options: &mut RequestSearchP
     }
 
     // Store token_id terms for why_found
-    if options.store_term_texts && !result.terms.is_empty(){
+    if options.store_term_texts && !result.terms.is_empty() {
         debug!("term_text_in_field {:?}", result.terms.values().cloned().collect::<Vec<_>>());
-        result.term_text_in_field.insert(options.path.to_string(), result.terms.values().cloned().collect());
+        result
+            .term_text_in_field
+            .insert(options.path.to_string(), result.terms.values().cloned().collect());
     }
 
     if options.token_value.is_some() {
@@ -503,58 +503,15 @@ fn resolve_token_to_anchor(
                     anchor_ids_hits[curr_pos] = search::Hit::new(el.id, final_score);
                     curr_pos += 1;
                 }
-
-
-                // COMPRESSION DEBUG INFO
-                    let increases:Vec<_> = text_id_score.iter().tuples().map(|(el1, el2)|el2.id as i32 - el1.id as i32 - 1).collect();
-                    let sum:i32 = increases.iter().sum();
-                    // let avg:i32 = ((sum as f32)/ increases.len() as f32) as i32;
-
-                    let scores:Vec<_> = text_id_score.iter().map(|el|el.score.to_f32() as u32).collect();
-
-                    let scores_bytes = scores.len();
-
-                    info!("{:?}", &increases[0..(std::cmp::min(1000, increases.len()) as usize)]);
-
-                    let map_scores = scores.iter().fold(FnvHashMap::default(), |mut m, c| { *m.entry(c).or_insert(0) += 1; m });
-                    info!("{:?}", map_scores);
-
-                    // let mut num_one_byte = 0;
-                    // let mut num_two_byte = 0;
-                    // let mut num_three_byte = 0;
-
-                    // let mut num_one_byte_avg = 0;
-                    // let mut num_two_byte_avg = 0;
-                    // let mut num_three_byte_avg = 0;
-
-                    let num_one_byte =   increases.iter().filter(|inc| *inc < &128).count();
-                    let num_two_byte =   increases.iter().filter(|inc| *inc >= &128 && *inc < &32550).count();
-                    let num_three_byte = increases.iter().filter(|inc| *inc > &32550).count();
-
-                    let num_one_byte_enc_score   = increases.iter().filter(|inc| *inc < &64).count();
-                    let num_two_byte_enc_score   = increases.iter().filter(|inc| *inc >= &64 && *inc < &16000).count();
-                    let num_three_byte_enc_score = increases.iter().filter(|inc| *inc > &16000).count();
-                    // let num_one_byte =   increases.iter().filter(|inc| *inc < &64).count();
-                    // let num_two_byte =   increases.iter().filter(|inc| *inc >= &64 && *inc < &32550).count();
-                    // let num_three_byte = increases.iter().filter(|inc| *inc > &32550).count();
-
-                    let most_occurences = map_scores.values().max().unwrap();
-
-                    info!("          One:{:?} Two:{:?} Three:{:?}", num_one_byte, num_two_byte, num_three_byte);
-                    info!("Score Enc One:{:?} Two:{:?} Three:{:?}", num_one_byte_enc_score, num_two_byte_enc_score, num_three_byte_enc_score);
-                    // info!("avg One:{:?} Two:{:?} Three:{:?}", num_one_byte_avg, num_two_byte_avg, num_three_byte_avg);
-                    info!("total comp score_enc  {:?}", num_one_byte_enc_score + num_two_byte_enc_score * 2 + num_three_byte_enc_score * 3 + scores_bytes - most_occurences);
-                    info!("total comp            {:?}", num_one_byte + num_two_byte * 2 + num_three_byte * 3 + scores_bytes);
-                    // info!("avg total {:?}", num_one_byte_avg + num_two_byte_avg * 2 + num_three_byte_avg * 3);
-                    info!("base                  {:?}", increases.len() * 3 + scores_bytes);
-                // COMPRESSION DEBUG INFO
-
-
-
             }
         }
 
-        debug!("{} found {:?} token in {:?} anchor_ids", &options.path, result.hits_vec.len(), anchor_ids_hits.len() );
+        debug!(
+            "{} found {:?} token in {:?} anchor_ids",
+            &options.path,
+            result.hits_vec.len(),
+            anchor_ids_hits.len()
+        );
     }
 
     // let mut pre_scale = 0;
@@ -564,9 +521,6 @@ fn resolve_token_to_anchor(
     //     info!("pre_scale {:?}", el2.id as i32 - el1.id as i32 - pre_scale);
     //     pre_scale = el2.id as i32 - el1.id as i32;
     // }
-
-
-
 
     // {
     //     let mut all_hits = vec![];

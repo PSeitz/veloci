@@ -12,6 +12,7 @@
 #![feature(dotdoteq_in_patterns)]
 #![feature(inclusive_range)]
 #![feature(inclusive_range_syntax)]
+#![feature(inclusive_range_fields)]
 #![feature(conservative_impl_trait)]
 #![feature(plugin)]
 #![cfg_attr(test, plugin(stainless))]
@@ -30,7 +31,7 @@ extern crate flame;
 
 extern crate memmap;
 
-extern crate faster;
+// extern crate faster;
 extern crate lz4;
 
 #[macro_use]
