@@ -6,7 +6,7 @@ use std::io;
 use std::fs;
 
 use persistence::*;
-use persistence_data::TypeInfo;
+use type_info::TypeInfo;
 use half::f16;
 use std;
 
@@ -14,48 +14,17 @@ use heapsize::HeapSizeOf;
 
 use memmap::Mmap;
 use memmap::MmapOptions;
+use util::*;
 
 mod compressor;
+pub mod token_to_anchor_score_vint;
 
 const U31_MAX: u32 = (1 << 31) - 1;
 
 const SIZE_OF_ANCHOR_SCORE: usize = std::mem::size_of::<AnchorScore>();
 const SIZE_OF_NUM_ELEM: usize = std::mem::size_of::<(u32)>();
 
-macro_rules! impl_type_info {
-    ($($name:ident$(<$($T:ident),+>)*),*) => {
-        $(impl_type_info_single!($name$(<$($T),*>)*);)*
-    };
-}
 
-macro_rules! mut_if {
-    ($name: ident = $value: expr, $($any: expr) +) => {
-        let mut $name = $value;
-    };
-    ($name: ident = $value: expr,) => {
-        let $name = $value;
-    };
-}
-
-macro_rules! impl_type_info_single {
-    ($name:ident$(<$($T:ident),+>)*) => {
-        impl$(<$($T: TypeInfo),*>)* TypeInfo for $name$(<$($T),*>)* {
-            fn type_name(&self) -> String {
-                mut_if!(res = String::from(stringify!($name)), $($($T)*)*);
-                $(
-                    res.push('<');
-                    $(
-                        res.push_str(&$T::type_name());
-                        res.push(',');
-                    )*
-                    res.pop();
-                    res.push('>');
-                )*
-                res
-            }
-        }
-    }
-}
 
 impl_type_info!(TokenToAnchorScoreBinary, TokenToAnchorScoreMmap);
 
@@ -112,8 +81,7 @@ impl AnchorScore {
     }
 }
 
-#[derive(Serialize, Deserialize, PartialEq, Debug)]
-struct ScoreDataVec(Vec<(u32, u16)>);
+
 
 #[derive(Serialize, Deserialize, Debug, Clone, Default, HeapSizeOf)]
 pub struct TokenToAnchorScoreBinary {
@@ -133,7 +101,6 @@ impl TokenToAnchorScoreBinary {
             self.start_pos.resize(required_size, U31_MAX);
         }
 
-        // let add_data:ScoreDataVec = ScoreDataVec(add_data.iter().map(|el|(el.id, el.score.as_bits())).collect()); //TODO CHECK WHY as_bits is needed, else deserialization fails
         let add_data: Vec<AnchorScoreSerialize> = add_data.iter().map(|el| AnchorScoreSerialize::new(el.id, el.score.as_bits())).collect(); //TODO CHECK WHY as_bits is needed, else deserialization fails
 
         let byte_offset = self.data.len() as u32;
@@ -235,11 +202,7 @@ impl TokenToAnchorScore for TokenToAnchorScoreMmap {
     }
 }
 
-fn get_u32_from_bytes(data: &[u8], pos: usize) -> u32 {
-    let mut bytes: [u8; 4] = [0, 0, 0, 0];
-    bytes.copy_from_slice(&data[pos..pos + 4]);
-    unsafe { transmute(bytes) }
-}
+
 
 fn get_achor_score_data_from_bytes(data: &[u8], pos: u32) -> Vec<AnchorScore> {
     let mut ret_data = vec![];

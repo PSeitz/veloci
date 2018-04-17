@@ -10,6 +10,7 @@ use std::{self, str};
 use std::io;
 
 use persistence_data_indirect::*;
+use persistence_score::token_to_anchor_score_vint::*;
 use persistence_score::*;
 
 use persistence::{LoadingType, Persistence};
@@ -684,13 +685,19 @@ where
             // );
 
             let mut token_to_anchor_id_score_index = TokenToAnchorScoreBinary::default();
+            let mut token_to_anchor_id_score_vint_index = TokenToAnchorScoreVint::default();
             token_to_anchor_id_score.sort_unstable_by_key(|a| a.valid);
             for (token_id, mut group) in &token_to_anchor_id_score.into_iter().group_by(|el| (el.valid)) {
-                let mut group: Vec<AnchorScore> = group.map(|el| AnchorScore::new(el.anchor_id, f16::from_f32(el.score as f32))).collect();
-                group.sort_unstable_by_key(|a| a.id);
-                token_to_anchor_id_score_index.set_scores(token_id, group);
+                let mut group: Vec<(u32, u32)> = group.map(|el| (el.anchor_id, (el.score))).collect();
+                group.sort_unstable_by_key(|a| a.0);
+                token_to_anchor_id_score_vint_index.set_scores(token_id, group);
+
+                // let mut group: Vec<AnchorScore> = group.map(|el| AnchorScore::new(el.anchor_id, f16::from_f32(el.score as f32))).collect();
+                // group.sort_unstable_by_key(|a| a.id);
+                // token_to_anchor_id_score_index.set_scores(token_id, group);
             }
-            persistence.write_score_index(&token_to_anchor_id_score_index, &concat(&path, ".to_anchor_id_score"), LoadingType::Disk)?;
+            // persistence.write_score_index(&token_to_anchor_id_score_index, &concat(&path, ".to_anchor_id_score"), LoadingType::Disk)?;
+            persistence.write_score_index_vint(&token_to_anchor_id_score_vint_index, &concat(&path, ".to_anchor_id_score"), LoadingType::Disk)?;
 
             persistence.write_indirect_index(&mut data.value_id_to_token_ids, &concat(&path, ".value_id_to_token_ids"), LoadingType::Disk)?;
             trace!(

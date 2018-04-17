@@ -23,6 +23,7 @@ env_logger = "0.3"
 csv = "0.15.0"
 time = "0.1"
 trie = { git = "https://github.com/contain-rs/trie"}
+vint = { git = "https://github.com/PSeitz/rust_vint"}
 hyper = "0.10.9"
 num = "0.1"
 heapsize = "0.4.1"

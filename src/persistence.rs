@@ -45,8 +45,10 @@ use fst::{IntoStreamer, Map, MapBuilder, Set};
 use prettytable::Table;
 use prettytable::format;
 
+use type_info;
 use persistence_data::*;
 use persistence_score::*;
+use persistence_score::token_to_anchor_score_vint::*;
 use half::f16;
 use std::path::PathBuf;
 
@@ -172,7 +174,7 @@ pub enum IDDataType {
     U32,
     U64,
 }
-use persistence_data;
+// use persistence_data;
 
 pub trait IndexIdToParentData
     : Integer + Clone + NumCast + mayda::utility::Bits + HeapSizeOf + Debug + Sync + Send + Copy + ToPrimitive + std::iter::Step + std::hash::Hash + 'static {
@@ -183,12 +185,12 @@ where
 {
 }
 
-pub trait TokenToAnchorScore: Debug + HeapSizeOf + Sync + Send + persistence_data::TypeInfo {
+pub trait TokenToAnchorScore: Debug + HeapSizeOf + Sync + Send + type_info::TypeInfo {
     fn get_scores(&self, id: u32) -> Option<Vec<AnchorScore>>;
     fn get_max_id(&self) -> usize;
 }
 
-pub trait IndexIdToParent: Debug + HeapSizeOf + Sync + Send + persistence_data::TypeInfo {
+pub trait IndexIdToParent: Debug + HeapSizeOf + Sync + Send + type_info::TypeInfo {
     type Output: IndexIdToParentData;
 
     fn get_values(&self, id: u64) -> Option<Vec<Self::Output>>;
@@ -408,6 +410,23 @@ impl Persistence {
     }
 
     pub fn write_score_index(&mut self, store: &TokenToAnchorScoreBinary, path: &str, loading_type: LoadingType) -> Result<(), io::Error> {
+        let indirect_file_path = util::get_file_path(&self.db, &(path.to_string() + ".indirect"));
+        let data_file_path = util::get_file_path(&self.db, &(path.to_string() + ".data"));
+
+        store.write(&indirect_file_path, &data_file_path)?;
+
+        self.meta_data.anchor_score_stores.push(KVStoreMetaData {
+            loading_type: loading_type,
+            persistence_type: KVStoreType::IndexIdToMultipleParentIndirect,
+            is_1_to_n: false,
+            path: path.to_string(),
+            max_value_id: 0, //TODO ?
+            avg_join_size: 0.0,
+        });
+
+        Ok(())
+    }
+    pub fn write_score_index_vint(&mut self, store: &TokenToAnchorScoreVint, path: &str, loading_type: LoadingType) -> Result<(), io::Error> {
         let indirect_file_path = util::get_file_path(&self.db, &(path.to_string() + ".indirect"));
         let data_file_path = util::get_file_path(&self.db, &(path.to_string() + ".data"));
 
@@ -746,12 +765,21 @@ impl Persistence {
             let start_and_end_file = File::open(&indirect_path).unwrap();
             let data_file = File::open(&indirect_data_path).unwrap();
             match loading_type {
+                // LoadingType::Disk => {
+                //     let store = TokenToAnchorScoreMmap::new(&start_and_end_file, &data_file);
+                //     self.indices.token_to_anchor_to_score.insert(el.path.to_string(), Box::new(store));
+                // }
+                // LoadingType::InMemoryUnCompressed | LoadingType::InMemory => {
+                //     let mut store = TokenToAnchorScoreBinary::default();
+                //     store.read(&indirect_path, &indirect_data_path).unwrap();
+                //     self.indices.token_to_anchor_to_score.insert(el.path.to_string(), Box::new(store));
+                // }
                 LoadingType::Disk => {
-                    let store = TokenToAnchorScoreMmap::new(&start_and_end_file, &data_file);
-                    self.indices.token_to_anchor_to_score.insert(el.path.to_string(), Box::new(store));
+                    let store = Box::new(TokenToAnchorScoreVintMmap::new(&start_and_end_file, &data_file));
+                    self.indices.token_to_anchor_to_score.insert(el.path.to_string(), store);
                 }
                 LoadingType::InMemoryUnCompressed | LoadingType::InMemory => {
-                    let mut store = TokenToAnchorScoreBinary::default();
+                    let mut store = TokenToAnchorScoreVint::default();
                     store.read(&indirect_path, &indirect_data_path).unwrap();
                     self.indices.token_to_anchor_to_score.insert(el.path.to_string(), Box::new(store));
                 }

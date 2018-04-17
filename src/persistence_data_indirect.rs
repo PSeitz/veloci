@@ -12,7 +12,8 @@ use persistence::*;
 use search::*;
 #[allow(unused_imports)]
 use search;
-use persistence_data::TypeInfo;
+#[macro_use]
+use type_info::TypeInfo;
 #[allow(unused_imports)]
 use persistence;
 use mayda;
@@ -47,34 +48,6 @@ use itertools::Itertools;
 use memmap::Mmap;
 use memmap::MmapOptions;
 
-macro_rules! mut_if {
-    ($name: ident = $value: expr, $($any: expr) +) => {
-        let mut $name = $value;
-    };
-    ($name: ident = $value: expr,) => {
-        let $name = $value;
-    };
-}
-
-macro_rules! impl_type_info_single_templ {
-    ($name:ident$(<$($T:ident),+>)*) => {
-        impl<D: IndexIdToParentData>$(<$($T: TypeInfo),*>)* TypeInfo for $name<D>$(<$($T),*>)* {
-            fn type_name(&self) -> String {
-                mut_if!(res = String::from(stringify!($name)), $($($T)*)*);
-                $(
-                    res.push('<');
-                    $(
-                        res.push_str(&$T::type_name(&self));
-                        res.push(',');
-                    )*
-                    res.pop();
-                    res.push('>');
-                )*
-                res
-            }
-        }
-    }
-}
 
 impl_type_info_single_templ!(IndexIdToMultipleParentIndirect);
 impl_type_info_single_templ!(IndexIdToMultipleParentCompressedMaydaINDIRECTOne);

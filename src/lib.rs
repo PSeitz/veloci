@@ -15,6 +15,7 @@
 #![cfg_attr(test, plugin(stainless))]
 #![feature(test)]
 #![feature(placement_in_syntax)]
+#![feature(use_extern_macros)]
 #![feature(box_syntax, box_patterns)]
 #![cfg_attr(feature = "unstable", feature(alloc, heap_api, repr_simd))]
 #![cfg_attr(feature = "flame_it", feature(plugin, custom_attribute))]
@@ -36,6 +37,8 @@ extern crate serde_derive;
 
 #[macro_use]
 extern crate serde_json;
+
+extern crate vint;
 
 extern crate rand;
 extern crate serde;
@@ -101,6 +104,8 @@ extern crate half;
 
 #[macro_use]
 pub mod util;
+#[macro_use]
+pub mod type_info;
 pub mod kmerge_by;
 pub mod search;
 pub mod create;
@@ -121,6 +126,7 @@ pub mod execution_plan;
 pub mod lev_automat;
 pub mod highlight_field;
 pub mod facet;
+
 
 #[cfg(test)]
 mod tests;

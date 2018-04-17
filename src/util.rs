@@ -1,4 +1,5 @@
 use regex::Regex;
+use std::mem::transmute;
 use std::io::prelude::*;
 use std::io;
 use fnv::FnvHashMap;
@@ -14,6 +15,8 @@ use half::f16;
 // use std;
 #[allow(unused_imports)]
 use std;
+
+
 
 pub fn normalize_text(text: &str) -> String {
     lazy_static! {
@@ -65,6 +68,12 @@ pub fn unset_high_bit(input: &mut u32) {
 #[inline]
 pub fn is_hight_bit_set(input: u32) -> bool {
     input & ONLY_HIGH_BIT_SET != 0
+}
+
+pub fn get_u32_from_bytes(data: &[u8], pos: usize) -> u32 {
+    let mut bytes: [u8; 4] = [0, 0, 0, 0];
+    bytes.copy_from_slice(&data[pos..pos + 4]);
+    unsafe { transmute(bytes) }
 }
 
 #[inline]
