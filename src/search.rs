@@ -54,7 +54,6 @@ use fixedbitset::FixedBitSet;
 
 use search_field;
 use highlight_field;
-use highlight_field::*;
 
 #[derive(Serialize, Deserialize, Default, Clone, Debug)]
 pub struct Request {

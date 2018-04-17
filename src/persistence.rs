@@ -806,12 +806,13 @@ impl Persistence {
                             let indirect_u32 = bytes_to_vec_u32(&file_to_bytes(&indirect_path)?);
                             let data_u32 = bytes_to_vec_u32(&file_to_bytes(&indirect_data_path)?);
 
-                            let store = IndexIdToMultipleParentCompressedMaydaINDIRECTOne {
-                                size: indirect_u32.len() / 2,
-                                start_pos: to_monotone(&indirect_u32),
-                                data: to_uniform(&data_u32),
+                            let store = IndexIdToMultipleParentIndirect {
+                                start_pos: indirect_u32,
+                                data: data_u32,
                                 max_value_id: el.max_value_id,
                                 avg_join_size: el.avg_join_size,
+                                num_values: 0,
+                                num_ids: 0,
                             };
 
                             return Ok((el.path.to_string(), Box::new(store) as Box<IndexIdToParent<Output = u32>>));

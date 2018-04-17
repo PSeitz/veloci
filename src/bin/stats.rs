@@ -5,7 +5,6 @@ extern crate fst_levenshtein;
 extern crate half;
 extern crate itertools;
 extern crate search_lib;
-#[macro_use]
 extern crate serde_json;
 
 extern crate fnv;
@@ -13,24 +12,14 @@ extern crate serde;
 
 #[macro_use]
 extern crate log;
-#[macro_use]
 extern crate measure_time;
 
-// use search_lib::doc_loader::*;
-// use search_lib::search;
-// use search_lib::query_generator;
-// use search_lib::search_field;
-// use search_lib::persistence::Persistence;
 use search_lib::persistence;
 
 use fnv::FnvHashMap;
-use itertools::Itertools;
 
 #[allow(unused_imports)]
 use fst::{IntoStreamer, MapBuilder, Set};
-// use fst_levenshtein::Levenshtein;
-use std::io::prelude::*;
-use half::f16;
 
 fn main() {
     // env_logger::init().unwrap();
