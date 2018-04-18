@@ -22,7 +22,7 @@ pub struct TokenToAnchorScoreVint {
 }
 
 impl TokenToAnchorScoreVint {
-    pub fn set_scores(&mut self, id: u32, add_data: Vec<(u32, u32)>) {
+    pub fn set_scores(&mut self, id: u32, mut add_data: Vec<(u32, u32)>) {
         //TODO INVALIDATE OLD DATA IF SET TWICE?
 
         let pos: usize = id as usize;
@@ -32,6 +32,14 @@ impl TokenToAnchorScoreVint {
         }
 
         let mut vint = VIntArray::default();
+        
+        let mut last = 0;
+        for el in add_data.iter_mut() {
+            let actual_val = el.0;
+            el.0 -= last;
+            last = actual_val;
+        }
+
         let values:Vec<u32> = add_data.iter().flat_map(|(el1, el2)| vec![*el1, *el2]).collect();
         vint.encode_vals(&values);
         
@@ -44,6 +52,7 @@ impl TokenToAnchorScoreVint {
         self.data.extend(vint.data.iter());
     }
 
+    #[inline]
     fn get_size(&self) -> usize {
         self.start_pos.len()
     }
@@ -61,6 +70,7 @@ impl TokenToAnchorScoreVint {
 }
 
 impl TokenToAnchorScore for TokenToAnchorScoreVint {
+    #[inline]
     fn get_scores(&self, id: u32) -> Option<Vec<AnchorScore>> {
         if id as usize >= self.get_size() {
             return None;
@@ -71,13 +81,11 @@ impl TokenToAnchorScore for TokenToAnchorScoreVint {
             return None;
         }
 
-        let num_elements: u32 = get_u32_from_bytes(&self.data, pos as usize);
-        let vint = VintArrayIterator::new(&self.data[pos as usize + SIZE_OF_NUM_ELEM..pos as usize + SIZE_OF_NUM_ELEM + num_elements as usize]);
-
-        Some(vint.tuples().map(|(id, score)| AnchorScore::new(id, f16::from_f32(score as f32))).collect())
+        Some(recreate_vec(&self.data, pos as usize))
     }
 
-    fn get_max_id(&self) -> usize {
+    #[inline]
+    fn get_max_id(&self) -> usize { //TODO REMOVE METHOD
         self.get_size()
     }
 }
@@ -102,6 +110,20 @@ impl TokenToAnchorScoreVintMmap {
     }
 }
 
+#[inline]
+fn recreate_vec(data:&[u8], pos: usize) -> Vec<AnchorScore> {
+    let num_elements: u32 = get_u32_from_bytes(&data, pos);
+    let vint = VintArrayIterator::new(&data[pos + SIZE_OF_NUM_ELEM..pos + SIZE_OF_NUM_ELEM + num_elements as usize]);
+
+    let mut current = 0;
+    let data:Vec<AnchorScore> = vint.tuples().map(|(mut id, score)|{
+        id += current;
+        current = id;
+        AnchorScore::new(id, f16::from_f32(score as f32))
+    }).collect();
+    data
+}
+
 impl HeapSizeOf for TokenToAnchorScoreVintMmap {
     fn heap_size_of_children(&self) -> usize {
         0
@@ -109,6 +131,7 @@ impl HeapSizeOf for TokenToAnchorScoreVintMmap {
 }
 
 impl TokenToAnchorScore for TokenToAnchorScoreVintMmap {
+    #[inline]
     fn get_scores(&self, id: u32) -> Option<Vec<AnchorScore>> {
         if id as usize >= self.start_pos.len() / 4 {
             return None;
@@ -117,12 +140,9 @@ impl TokenToAnchorScore for TokenToAnchorScoreVintMmap {
         if pos == U31_MAX {
             return None;
         }
-        // Some(get_achor_score_data_from_bytes(&self.data, pos))
-        let num_elements: u32 = get_u32_from_bytes(&self.data, pos as usize);
-        let vint = VintArrayIterator::new(&self.data[pos as usize + SIZE_OF_NUM_ELEM..pos as usize + SIZE_OF_NUM_ELEM + num_elements as usize]);
-
-        Some(vint.tuples().map(|(id, score)| AnchorScore::new(id, f16::from_f32(score as f32))).collect())
+        Some(recreate_vec(&self.data, pos as usize))
     }
+    #[inline]
     fn get_max_id(&self) -> usize {
         self.start_pos.len() / 4
     }
