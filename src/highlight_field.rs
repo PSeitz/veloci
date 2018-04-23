@@ -2,36 +2,21 @@ use str;
 use std;
 use persistence::Persistence;
 use persistence::*;
-#[allow(unused_imports)]
 use persistence;
 use search;
 use search::*;
 use tokenizer::*;
 use util::concat;
 use std::cmp;
-// use hit_collector::HitCollector;
 
 #[allow(unused_imports)]
 use fst::{IntoStreamer, Map, MapBuilder, Set};
-#[allow(unused_imports)]
-use fst_levenshtein::Levenshtein;
 use search_field::*;
-// use search::Hit;
 
 use heapsize::HeapSizeOf;
 use itertools::Itertools;
 
 use fnv::FnvHashSet;
-
-// fn get_all_positions(text: &str,token: &str,) -> Vec<usize> {
-//     let mut pos = 0;
-//     let mut positions = vec![];
-//     while let Some(hit_pos) = text[pos..].find(token) {
-//         positions.push(hit_pos);
-//         pos = hit_pos;
-//     }
-//     positions
-// }
 
 /// Highlights text
 /// tokens has to be sorted by best match first (probably longest)
@@ -83,14 +68,14 @@ pub fn highlight_document(
     token_ids: &[u32],
     opt: &SnippetInfo,
 ) -> Result<Option<String>, search::SearchError> {
-    let value_id_to_token_ids = persistence.get_valueid_to_parent(&concat(path, ".value_id_to_token_ids"))?;
+    let text_id_to_token_ids = persistence.get_valueid_to_parent(&concat(path, ".text_id_to_token_ids"))?;
     trace_time!(format!("highlight_document id {}", value_id));
 
     let documents_token_ids: Vec<u32> = {
         trace_time!("get documents_token_ids");
-        persistence::trace_index_id_to_parent(value_id_to_token_ids);
+        persistence::trace_index_id_to_parent(text_id_to_token_ids);
 
-        let vals = value_id_to_token_ids.get_values(value_id);
+        let vals = text_id_to_token_ids.get_values(value_id);
         if let Some(vals) = vals {
             vals
         } else {
@@ -126,12 +111,6 @@ pub fn highlight_document(
                 last_pos += 1;
             }
         }
-
-        // for (i, id) in documents_token_ids.iter().enumerate() {
-        //     if token_ids.contains(id){
-        //         token_positions_in_document.push(i);
-        //     }
-        // }
     }
     if token_positions_in_document.is_empty() {
         return Ok(None); //No hits

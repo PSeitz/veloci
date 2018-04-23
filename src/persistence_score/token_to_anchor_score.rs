@@ -1,4 +1,3 @@
-
 use super::*;
 use std;
 use std::mem::transmute;
@@ -16,8 +15,6 @@ use heapsize::HeapSizeOf;
 
 use memmap::Mmap;
 use memmap::MmapOptions;
-use util::*;
-
 
 impl_type_info!(TokenToAnchorScoreBinary, TokenToAnchorScoreMmap);
 
@@ -140,8 +137,6 @@ impl TokenToAnchorScore for TokenToAnchorScoreMmap {
     }
 }
 
-
-
 fn get_achor_score_data_from_bytes(data: &[u8], pos: u32) -> Vec<AnchorScore> {
     let mut ret_data = vec![];
     unsafe {
@@ -157,7 +152,6 @@ fn get_achor_score_data_from_bytes(data: &[u8], pos: u32) -> Vec<AnchorScore> {
     }
     ret_data
 }
-
 
 #[test]
 fn test_token_to_anchor_score_binary() {

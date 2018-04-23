@@ -1,4 +1,3 @@
-
 pub trait TypeInfo: Sync + Send {
     fn type_name(&self) -> String;
 }
@@ -61,4 +60,3 @@ macro_rules! impl_type_info_single_templ {
         }
     }
 }
-

@@ -3,22 +3,21 @@ use std::io::prelude::*;
 
 #[allow(unused_imports)]
 use std::io::{self, Cursor, SeekFrom};
-use std::str;
 use std::collections::HashMap;
+use std::{self, env, mem, str, u32};
 use std::fmt::Debug;
-use std::mem;
 use std::marker::Sync;
-use std::env;
-use std;
+use std::path::{Path, PathBuf};
+use std::time::Duration;
 
 use util;
 use util::*;
 use util::get_file_path;
 use create;
-// use snap;
-#[allow(unused_imports)]
+
 use search::{self, SearchError};
 use search::*;
+use search_field;
 
 use num::{self, Integer, NumCast};
 use num::cast::ToPrimitive;
@@ -27,20 +26,15 @@ use serde_json;
 use serde_json::StreamDeserializer;
 use serde_json::Value;
 
-#[allow(unused_imports)]
-use fnv::{FnvHashMap, FnvHashSet};
+use fnv::FnvHashMap;
 use bincode::{deserialize, serialize};
 
-#[allow(unused_imports)]
 use mayda;
-#[allow(unused_imports)]
-use byteorder::{ByteOrder, LittleEndian, ReadBytesExt, WriteBytesExt};
+use byteorder::{ByteOrder, LittleEndian};
 use log;
 
-#[allow(unused_imports)]
 use rayon::prelude::*;
-#[allow(unused_imports)]
-use fst::{IntoStreamer, Map, MapBuilder, Set};
+use fst::Map;
 
 use prettytable::Table;
 use prettytable::format;
@@ -48,21 +42,9 @@ use prettytable::format;
 use type_info;
 use persistence_data::*;
 use persistence_score::*;
-// use persistence_score::token_to_anchor_score_vint::*;
-// use persistence_score::token_to_anchor_score::*;
-use persistence_score::TokenToAnchorScoreBinary;
-use persistence_score::TokenToAnchorScoreVint;
-use half::f16;
-use std::path::PathBuf;
 
-#[allow(unused_imports)]
-use heapsize::{heap_size_of, HeapSizeOf};
-#[allow(unused_imports)]
-use itertools::Itertools;
+use heapsize::HeapSizeOf;
 
-use search_field;
-use std::u32;
-use std::time::Duration;
 use colored::*;
 use parking_lot::RwLock;
 use lru_time_cache::LruCache;
@@ -198,17 +180,6 @@ pub trait IndexIdToParent: Debug + HeapSizeOf + Sync + Send + type_info::TypeInf
 
     fn get_values(&self, id: u64) -> Option<Vec<Self::Output>>;
 
-    fn get_value_id_with_scores(&self, id: u64) -> Option<Vec<(u32, f16)>> {
-        self.get_values(id).map(|vals| {
-            let mut dat = vec![];
-            for (anchor_id, token_in_text_id_score) in vals.iter().tuples() {
-                let score = num::cast::<Self::Output, u32>(*token_in_text_id_score).unwrap() as f32 / 100.0;
-                dat.push((num::cast(*anchor_id).unwrap(), f16::from_f32(score)));
-            }
-            dat
-        })
-    }
-
     #[inline]
     fn append_values(&self, id: u64, vec: &mut Vec<Self::Output>) {
         if let Some(vals) = self.get_values(id) {
@@ -245,14 +216,6 @@ pub trait IndexIdToParent: Debug + HeapSizeOf + Sync + Send + type_info::TypeInf
         }
         hits
     }
-    // fn get_mutliple_values(&self, range: std::ops::RangeInclusive<usize>) -> Vec<Option<Vec<Self::Output>>> {
-    //     let mut dat = Vec::with_capacity(range.size_hint().0);
-    //     for i in range {
-    //         // dat.extend(self.get_values(i as u64).unwrap());
-    //         dat.push(self.get_values(i as u64))
-    //     }
-    //     dat
-    // }
 
     #[inline]
     fn get_count_for_id(&self, id: u64) -> Option<usize> {
@@ -534,10 +497,7 @@ impl Persistence {
     }
     #[cfg_attr(feature = "flame_it", flame)]
     pub fn write_boost_tuple_pair(&mut self, tuples: &mut Vec<create::ValIdToValue>, path: &str) -> Result<(), io::Error> {
-        // let boost_paths = util::boost_path(path);
-        // let has_duplicates = has_valid_duplicates(&tuples.iter().map(|el| el as &create::GetValueId).collect());
         let data = boost_pair_to_parallel_arrays::<u32>(tuples);
-        // let data = parrallel_arrays_to_pointing_array(data.values1, data.values2);
         let encoded: Vec<u8> = serialize(&data).unwrap();
         let boost_path = path.to_string() + ".boost_valid_to_value";
         File::create(util::get_file_path(&self.db, &boost_path))?.write_all(&encoded)?;
@@ -605,23 +565,6 @@ impl Persistence {
         Ok(io::BufWriter::new(File::create(&get_file_path(&self.db, path))?))
     }
 
-    // #[cfg_attr(feature = "flame_it", flame)]
-    // pub fn write_json_to_disk(&mut self, arro: &[Value], path: &str) -> Result<(), io::Error> {
-    //     let mut offsets = vec![];
-    //     let mut buffer = File::create(&get_file_path(&self.db, path))?;
-    //     let mut current_offset = 0;
-    //     // let arro = data.as_array().unwrap();
-    //     for el in arro {
-    //         let el_str = el.to_string().into_bytes();
-    //         buffer.write_all(&el_str)?;
-    //         offsets.push(current_offset as u64);
-    //         current_offset += el_str.len();
-    //     }
-    //     offsets.push(current_offset as u64);
-    //     self.write_index(&vec_to_bytes_u64(&offsets), &offsets, &(path.to_string() + ".offsets"))?;
-    //     Ok(())
-    // }
-
     #[cfg_attr(feature = "flame_it", flame)]
     pub fn write_json_to_disk<'a, T>(&mut self, data: StreamDeserializer<'a, T, Value>, path: &str) -> Result<(), io::Error>
     where
@@ -640,8 +583,8 @@ impl Persistence {
 
             // let mut compressed_doc = encoder.compress_vec(&el_str).unwrap();
             // compressed_doc.shrink_to_fit();
-
             // file_out.write_all(&compressed_doc).unwrap();
+
             file_out.write_all(&el_str).unwrap();
             offsets.push(current_offset as u64);
             current_offset += el_str.len();
@@ -960,11 +903,6 @@ impl Persistence {
 
         Ok(())
     }
-    // pub fn load_index_32(&mut self, s1: &str) -> Result<(), io::Error> {
-    //     if self.indices.index_32.contains_key(s1){return Ok(()); }
-    //     self.indices.index_32.insert(s1.to_string(), load_indexo(&get_file_path(&self.db, s1))?);
-    //     Ok(())
-    // }
 }
 
 #[derive(Debug)]
@@ -1033,21 +971,6 @@ impl FileSearch {
     // }
 }
 
-// fn bytes_to_vec<T: Clone>(mut data: &mut Vec<u8>) -> Vec<T> {
-//     if let Some((result, remaining)) = unsafe { decode::<Vec<T>>(&mut data) } {
-//         assert!(remaining.len() == 0);
-//         result.clone()
-//     }else{
-//         panic!("Could no load Vector");
-//     }
-// }
-
-// fn vec_to_bytes<T: Clone + Integer + NumCast + Copy + Debug>(data:&Vec<T>) -> Vec<u8> {
-//     let mut bytes:Vec<u8> = Vec::new();
-//     unsafe { encode(data, &mut bytes); };
-//     bytes
-// }
-
 fn load_type_from_env() -> Result<Option<LoadingType>, search::SearchError> {
     if let Some(val) = env::var_os("LoadingType") {
         let conv_env = val.clone()
@@ -1065,7 +988,7 @@ fn load_type_from_env() -> Result<Option<LoadingType>, search::SearchError> {
 fn get_loading_type(loading_type: LoadingType) -> Result<LoadingType, search::SearchError> {
     let mut loading_type = loading_type.clone();
     if let Some(val) = load_type_from_env()? {
-        //Overrule Loadingtype from env
+        // Overrule Loadingtype from env
         loading_type = val;
     }
     Ok(loading_type)
@@ -1083,25 +1006,21 @@ pub fn vec_to_bytes_u64(data: &[u64]) -> Vec<u8> {
 }
 
 pub fn bytes_to_vec_u32(data: &[u8]) -> Vec<u32> {
-    let mut out_dat: Vec<u32> = vec_with_size_uninitialized(data.len() / std::mem::size_of::<u32>());
-    // LittleEndian::read_u32_into(&data, &mut out_dat);
-    unsafe {
-        //DANGER ZIOONNE
-        let ptr = std::mem::transmute::<*const u8, *const u32>(data.as_ptr());
-        ptr.copy_to_nonoverlapping(out_dat.as_mut_ptr(), data.len() / std::mem::size_of::<u32>());
-    }
-    out_dat
+    bytes_to_vec::<u32>(&data)
 }
 pub fn bytes_to_vec_u64(data: &[u8]) -> Vec<u64> {
-    let mut out_dat = vec_with_size_uninitialized(data.len() / std::mem::size_of::<u64>());
+    bytes_to_vec::<u64>(&data)
+}
+pub fn bytes_to_vec<T>(data: &[u8]) -> Vec<T> {
+    let mut out_dat = vec_with_size_uninitialized(data.len() / std::mem::size_of::<T>());
     // LittleEndian::read_u64_into(&data, &mut out_dat);
     unsafe {
-        let ptr = std::mem::transmute::<*const u8, *const u64>(data.as_ptr());
-        ptr.copy_to_nonoverlapping(out_dat.as_mut_ptr(), data.len() / std::mem::size_of::<u64>());
+        let ptr = std::mem::transmute::<*const u8, *const T>(data.as_ptr());
+        ptr.copy_to_nonoverlapping(out_dat.as_mut_ptr(), data.len() / std::mem::size_of::<T>());
     }
     out_dat
 }
-use std::path::Path;
+
 pub fn file_to_bytes<P: AsRef<Path>>(s1: P) -> Result<Vec<u8>, io::Error> {
     let f = File::open(s1)?;
     file_handle_to_bytes(&f)
@@ -1125,12 +1044,6 @@ pub fn load_index_u64<P: AsRef<Path> + std::fmt::Debug>(s1: P) -> Result<Vec<u64
     info!("Loading Index64 {:?} ", s1);
     Ok(bytes_to_vec_u64(&file_to_bytes(s1)?))
 }
-
-// fn load_indexo<T: Clone>(s1: &str) -> Result<Vec<T>, io::Error> {
-//     info!("Loading Index32 {} ", s1);
-//     let mut buffer = file_to_bytes(s1)?;
-//     Ok(bytes_to_vec::<T>(&mut buffer))
-// }
 
 fn check_is_docid_type<T: Integer + NumCast + Copy>(data: &[T]) -> bool {
     for (index, value_id) in data.iter().enumerate() {

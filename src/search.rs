@@ -1605,43 +1605,35 @@ pub fn join_to_parent_with_score(
     persistence: &Persistence,
     input: SearchFieldResult,
     path: &str,
-    trace_time_info: &str,
+    _trace_time_info: &str,
 ) -> Result<SearchFieldResult, SearchError> {
     let mut total_values = 0;
-    let mut hits: FnvHashMap<u32, f32> = FnvHashMap::default();
+    let num_hits = input.hits_vec.len();
 
-    let mut res = SearchFieldResult::new_from(&input);
-    let hits_iter = input.hits_vec.into_iter();
-    let num_hits = hits_iter.size_hint().1.unwrap_or(0);
-    hits.reserve(num_hits);
+    let mut hits = Vec::with_capacity(num_hits);
     let kv_store = persistence.get_valueid_to_parent(path)?;
-    // debug_time!("term hits hit to column");
-    debug_time!(format!("{:?} {:?}", path, trace_time_info));
-    for hit in hits_iter {
-        let term_id = hit.id;
+
+    for hit in input.hits_vec.iter() {
         let mut score = hit.score;
-        let ref values = kv_store.get_values(term_id as u64);
-        values.as_ref().map(|values| {
+        kv_store.get_values(hit.id as u64).as_ref().map(|values| {
             total_values += values.len();
             hits.reserve(values.len());
             // trace!("value_id: {:?} values: {:?} ", value_id, values);
             for parent_val_id in values {
-                // @Temporary
-                match hits.entry(*parent_val_id as u32) {
-                    Vacant(entry) => {
-                        trace!("value_id: {:?} to parent: {:?} score {:?}", term_id, parent_val_id, score);
-                        entry.insert(score);
-                    }
-                    Occupied(entry) => {
-                        if *entry.get() < score {
-                            trace!("value_id: {:?} to parent: {:?} score: {:?}", term_id, parent_val_id, score.max(*entry.get()));
-                            *entry.into_mut() = score.max(*entry.get());
-                        }
-                    }
-                }
+                hits.push(Hit::new(*parent_val_id, score));
             }
         });
     }
+    hits.sort_unstable_by_key(|a| a.id);
+    hits.dedup_by(|a, b| {
+        if a.id == b.id {
+            b.score = b.score.max(a.score);
+            true
+        } else {
+            false
+        }
+    });
+
     debug!(
         "{:?} hits hit {:?} distinct ({:?} total ) in column {:?}",
         num_hits,
@@ -1649,12 +1641,8 @@ pub fn join_to_parent_with_score(
         total_values,
         path
     );
-
-    // debug!("{:?} hits in next_level_hits {:?}", next_level_hits.len(), &concat(path_name, ".valueIdToParent"));
-    // trace!("next_level_hits from {:?}: {:?}", &concat(path_name, ".valueIdToParent"), hits);
-    // debug!("{:?} hits in next_level_hits {:?}", hits.len(), &concat(path_name, ".valueIdToParent"));
-
-    res.hits_vec = hits.into_iter().map(|(k, v)| Hit::new(k, v)).collect(); //TODO OMG COPY? SRSLY?! GG
+    let mut res = SearchFieldResult::new_from(&input);
+    res.hits_vec = hits;
     Ok(res)
 }
 

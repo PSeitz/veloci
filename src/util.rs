@@ -16,8 +16,6 @@ use half::f16;
 #[allow(unused_imports)]
 use std;
 
-
-
 pub fn normalize_text(text: &str) -> String {
     lazy_static! {
         static ref REGEXES:Vec<(Regex, & 'static str)> = vec![
@@ -230,38 +228,12 @@ pub fn get_my_data_danger_zooone(start: u32, end: u32, data_file: &Mutex<fs::Fil
             mem::forget(data_bytes);
         }
     }
-    data.retain(|el| *el != std::u32::MAX); //TODO ATTENTION u32::MAX could be also a score
-    data
-}
-
-#[inline]
-pub fn get_my_data_danger_zooone_score(start: u32, end: u32, data_file: &Mutex<fs::File>) -> Vec<(u32, f16)> {
-    let mut data: Vec<(u32, f16)> = vec_with_size_uninitialized(end as usize - start as usize);
-    {
-        let p = data.as_mut_ptr();
-        let len = data.len();
-        let cap = data.capacity();
-
-        unsafe {
-            // complete control of the allocation to which `p` points.
-            let ptr = std::mem::transmute::<*mut (u32, f16), *mut u8>(p);
-            let mut data_bytes = Vec::from_raw_parts(ptr, len * 4, cap);
-
-            load_bytes_into(&mut data_bytes, &*data_file.lock(), start as u64 * 4); //READ directly into (u32,f16) data
-
-            // forget about temp data_bytes: no destructor run, so we can use data again
-            mem::forget(data_bytes);
-        }
-    }
+    data.retain(|el| *el != std::u32::MAX);
     data
 }
 
 #[inline]
 pub fn load_bytes_into(buffer: &mut [u8], mut file: &File, offset: u64) {
-    // let mut reader = std::io::BufReader::new(file);
-    // reader.seek(SeekFrom::Start(offset)).unwrap();
-    // reader.read_exact(buffer).unwrap();
-
     // @Temporary Use Result
     file.seek(SeekFrom::Start(offset)).unwrap();
     file.read_exact(buffer).unwrap();

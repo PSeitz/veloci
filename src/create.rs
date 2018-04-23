@@ -23,8 +23,6 @@ use sled;
 #[allow(unused_imports)]
 use byteorder::{LittleEndian, WriteBytesExt};
 
-use half::f16;
-
 use tokenizer::*;
 
 #[allow(unused_imports)]
@@ -441,7 +439,7 @@ where
 struct PathData {
     tokens_to_text_id: Vec<ValIdPair>,
     tokens_to_anchor_id: Vec<ValIdPairToken>,
-    value_id_to_token_ids: IndexIdToMultipleParentIndirect<u32>,
+    text_id_to_token_ids: IndexIdToMultipleParentIndirect<u32>,
     text_id_to_parent: Vec<ValIdPair>,
     text_id_to_anchor: Vec<ValIdPair>,
     anchor_to_text_id: Option<Vec<ValIdPair>>,
@@ -598,7 +596,7 @@ where
                     let token_info = all_terms.get(token).expect("did not found token");
                     trace!("Adding to tokens_ids {:?} : {:?}", token, token_info);
 
-                    // data.value_id_to_token_ids.push(ValIdPair::new(text_info.id as u32, token_info.id as u32));
+                    // data.text_id_to_token_ids.push(ValIdPair::new(text_info.id as u32, token_info.id as u32));
                     tokens_ids.push(token_info.id as u32);
                     data.tokens_to_text_id.push(ValIdPair::new(token_info.id as u32, text_info.id as u32));
                     tokens_to_anchor_id.push(ValIdPairToken {
@@ -617,10 +615,10 @@ where
                     data.tokens_to_anchor_id.push(el);
                 }
 
-                if data.value_id_to_token_ids.get_values(text_info.id as u64).is_none() {
+                if data.text_id_to_token_ids.get_values(text_info.id as u64).is_none() {
                     // store relation value_id -> text_ids only once
                     trace!("Adding for {:?} {:?} token_ids {:?}", value, text_info.id, tokens_ids);
-                    data.value_id_to_token_ids.set(text_info.id, tokens_ids);
+                    data.text_id_to_token_ids.set(text_info.id, tokens_ids);
                 }
             }
         };
@@ -664,7 +662,13 @@ where
         };
 
         for (path, mut data) in path_data {
-            persistence.write_tuple_pair_dedup(&mut data.tokens_to_text_id, &concat(&path, ".tokens_to_text_id"), true, false, LoadingType::Disk)?;
+            persistence.write_tuple_pair_dedup(
+                &mut data.tokens_to_text_id,
+                &concat(&path, ".tokens_to_text_id"),
+                true,
+                false,
+                LoadingType::Disk,
+            )?;
             trace!("{}\n{}", &concat(&path, ".tokens"), print_vec(&data.tokens_to_text_id, "token_id", "parent_id"));
 
             let mut token_to_anchor_id_score = calculate_token_score_in_doc(&mut data.tokens_to_anchor_id);
@@ -686,7 +690,7 @@ where
             //     print_vec(&token_to_anchor_id_score_pairs, "token_id", "anchor_id")
             // );
 
-            let mut token_to_anchor_id_score_index = TokenToAnchorScoreBinary::default();
+            // let mut token_to_anchor_id_score_index = TokenToAnchorScoreBinary::default();
             let mut token_to_anchor_id_score_vint_index = TokenToAnchorScoreVint::default();
             token_to_anchor_id_score.sort_unstable_by_key(|a| a.valid);
             for (token_id, mut group) in &token_to_anchor_id_score.into_iter().group_by(|el| (el.valid)) {
@@ -701,11 +705,11 @@ where
             // persistence.write_score_index(&token_to_anchor_id_score_index, &concat(&path, ".to_anchor_id_score"), LoadingType::Disk)?;
             persistence.write_score_index_vint(&token_to_anchor_id_score_vint_index, &concat(&path, ".to_anchor_id_score"), LoadingType::Disk)?;
 
-            persistence.write_indirect_index(&mut data.value_id_to_token_ids, &concat(&path, ".value_id_to_token_ids"), LoadingType::Disk)?;
+            persistence.write_indirect_index(&mut data.text_id_to_token_ids, &concat(&path, ".text_id_to_token_ids"), LoadingType::Disk)?;
             trace!(
                 "{}\n{}",
-                &concat(&path, ".value_id_to_token_ids"),
-                print_index_id_to_parent(&data.value_id_to_token_ids, "value_id", "token_id")
+                &concat(&path, ".text_id_to_token_ids"),
+                print_index_id_to_parent(&data.text_id_to_token_ids, "value_id", "token_id")
             );
 
             write_tuples(&mut persistence, &path, &mut data.text_id_to_parent)?;

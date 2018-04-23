@@ -38,11 +38,22 @@ impl TokenToAnchorScoreVint {
             last = actual_val;
         }
 
-        let values:Vec<u32> = add_data.iter().flat_map(|(el1, el2)| vec![*el1, *el2]).collect();
+        let values: Vec<u32> = add_data.iter().flat_map(|(el1, el2)| vec![*el1, *el2]).collect();
         vint.encode_vals(&values);
 
         let byte_offset = self.data.len() as u32;
         self.start_pos[pos] = byte_offset;
+
+        // use mayda::{Encode, Monotone, Uniform};
+        // let mut bits = Monotone::new();
+        // bits.encode(&add_data.iter().map(|(el1, _)| *el1).collect::<Vec<u32>>()).unwrap();
+        // let bytes = vec_to_bytes_u32(bits.storage());
+        // self.data.extend(bytes);
+
+        // let mut bits = Uniform::new();
+        // bits.encode(&add_data.iter().map(|(_, el2)| *el2).collect::<Vec<u32>>()).unwrap();
+        // let bytes = vec_to_bytes_u32(bits.storage());
+        // self.data.extend(bytes);
 
         // let num_elements: [u8; 4] = unsafe { transmute(vint.data.len() as u32) };
         // self.data.extend(num_elements.iter());
@@ -68,17 +79,18 @@ impl TokenToAnchorScoreVint {
     }
 }
 
-
 #[inline]
-fn recreate_vec(data:&[u8], pos: usize) -> Vec<AnchorScore> {
+fn recreate_vec(data: &[u8], pos: usize) -> Vec<AnchorScore> {
     let vint = VintArrayMostCommonIterator::from_slice(&data[pos..]);
 
     let mut current = 0;
-    let data:Vec<AnchorScore> = vint.tuples().map(|(mut id, score)|{
-        id += current;
-        current = id;
-        AnchorScore::new(id, f16::from_f32(score as f32))
-    }).collect();
+    let data: Vec<AnchorScore> = vint.tuples()
+        .map(|(mut id, score)| {
+            id += current;
+            current = id;
+            AnchorScore::new(id, f16::from_f32(score as f32))
+        })
+        .collect();
     data
 }
 
@@ -98,11 +110,11 @@ impl TokenToAnchorScore for TokenToAnchorScoreVint {
     }
 
     #[inline]
-    fn get_max_id(&self) -> usize { //TODO REMOVE METHOD
+    fn get_max_id(&self) -> usize {
+        //TODO REMOVE METHOD
         self.get_size()
     }
 }
-
 
 #[derive(Debug)]
 pub struct TokenToAnchorScoreVintMmap {
@@ -122,7 +134,6 @@ impl TokenToAnchorScoreVintMmap {
         }
     }
 }
-
 
 impl HeapSizeOf for TokenToAnchorScoreVintMmap {
     fn heap_size_of_children(&self) -> usize {
@@ -147,7 +158,6 @@ impl TokenToAnchorScore for TokenToAnchorScoreVintMmap {
         self.start_pos.len() / 4
     }
 }
-
 
 #[test]
 fn test_token_to_anchor_score_vint() {

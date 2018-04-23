@@ -12,7 +12,6 @@ use persistence::*;
 use search::*;
 #[allow(unused_imports)]
 use search;
-#[macro_use]
 use type_info::TypeInfo;
 #[allow(unused_imports)]
 use persistence;
@@ -47,7 +46,6 @@ use itertools::Itertools;
 
 use memmap::Mmap;
 use memmap::MmapOptions;
-
 
 impl_type_info_single_templ!(IndexIdToMultipleParentIndirect);
 impl_type_info_single_templ!(IndexIdToMultipleParentCompressedMaydaINDIRECTOne);
@@ -804,36 +802,6 @@ impl IndexIdToParent for PointingArrayFileReader<u32> {
         }
         coll.to_map(top)
     }
-
-    // #[inline]
-    // fn get_value_id_with_scores(&self, id: u64) -> Option<Vec<(u32, f16)>>{
-    //     if id >= self.get_size() as u64 {
-    //         return None;
-    //     }
-
-    //     let mut offsets: Vec<u8> = vec_with_size_uninitialized(4);
-    //     load_bytes_into(&mut offsets, &self.start_and_end_file.lock(), id as u64 * 4);
-
-    //     let mut pos_in_data = {
-    //         let mut rdr = Cursor::new(&offsets);
-    //         rdr.read_u32::<LittleEndian>().unwrap() //TODO AVOID CONVERT
-    //     };
-
-    //     // if let Some(val) = get_encoded(start) {
-    //     //     return Some(vec![val]);
-    //     // }
-
-    //     if pos_in_data == U31_MAX {
-    //         return None;
-    //     }
-
-    //     load_bytes_into(&mut offsets, &self.data_file.lock(), pos_in_data as u64 * 6);
-    //     let mut rdr = Cursor::new(offsets);
-    //     pos_in_data += 1;
-    //     let end = pos_in_data + rdr.read_u32::<LittleEndian>().unwrap(); //TODO AVOID CONVERT JUST CAST LIEKE A DAREDEVIL
-
-    //     Some(get_my_data_danger_zooone_score(pos_in_data, end, &self.data_file))
-    // }
 }
 
 // fn get_encoded<T: IndexIdToParentData>(val: T) -> Option<T> {
@@ -1105,7 +1073,7 @@ fn to_indirect_arrays_dedup<T: Integer + Clone + NumCast + mayda::utility::Bits 
     //     }
     // }
     // data.shrink_to_fit();
-    // let max_value_id = *data.iter().max_by_key(|el| *el).unwrap_or(&T::zero()); //TODO Check also
+    // let max_value_id = *data.iter().max_by_key(|el| *el).unwrap_or(&T::zero());
 
     // println!("start_pos_in_data {:?}", yepp.start_pos.iter().map(|el:&T|el.to_u32().unwrap()).collect::<Vec<_>>());
     // println!("data {:?}",              yepp.data.iter().map(|el:&T|el.to_u32().unwrap()).collect::<Vec<_>>());
@@ -1209,14 +1177,8 @@ mod tests {
             let dir = tempdir().unwrap();
             let indirect_path = dir.path().join("indirect");
             let data_path = dir.path().join("data");
-            File::create(&indirect_path)
-                .unwrap()
-                .write_all(&vec_to_bytes_u32(&keys))
-                .unwrap();
-            File::create(&data_path)
-                .unwrap()
-                .write_all(&vec_to_bytes_u32(&values))
-                .unwrap();
+            File::create(&indirect_path).unwrap().write_all(&vec_to_bytes_u32(&keys)).unwrap();
+            File::create(&data_path).unwrap().write_all(&vec_to_bytes_u32(&values)).unwrap();
 
             let start_and_end_file = File::open(&indirect_path).unwrap();
             let data_file = File::open(&data_path).unwrap();

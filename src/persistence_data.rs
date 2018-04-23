@@ -38,18 +38,13 @@ use num::{Integer, NumCast};
 use num;
 use std::marker::PhantomData;
 
-#[macro_use]
 use type_info::TypeInfo;
 
-#[allow(unused_imports)]
 use fnv::FnvHashMap;
-#[allow(unused_imports)]
-use fnv::FnvHashSet;
 use std::u32;
 
 use memmap::Mmap;
 use memmap::MmapOptions;
-
 
 impl_type_info_single_templ!(IndexIdToMultipleParentCompressedMaydaDIRECT);
 impl_type_info_single_templ!(IndexIdToMultipleParent);
@@ -760,8 +755,7 @@ mod tests {
             let store = get_test_data_1_to_1();
 
             let mut file = tempfile().unwrap();
-            file.write_all(&vec_to_bytes_u64(&store.data))
-                .unwrap();
+            file.write_all(&vec_to_bytes_u64(&store.data)).unwrap();
 
             let meta_data = file.metadata().unwrap();
             let store = SingleArrayFileReader::<u64>::new(file, meta_data);
@@ -774,8 +768,7 @@ mod tests {
 
             let mut file = tempfile().unwrap();
 
-            file.write_all(&vec_to_bytes_u32(&store.data))
-                .unwrap();
+            file.write_all(&vec_to_bytes_u32(&store.data)).unwrap();
 
             let meta_data = file.metadata().unwrap();
             let store = SingleArrayFileReader::<u32>::new(file, meta_data);
