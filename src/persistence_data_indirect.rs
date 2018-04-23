@@ -1200,25 +1200,28 @@ mod tests {
         use super::*;
         use std::io::prelude::*;
         use rand::distributions::{IndependentSample, Range};
+        use tempfile::tempdir;
         #[test]
         fn test_pointing_file_andmmap_array() {
             let store = get_test_data_1_to_n();
             let (max_value_id, num_values, num_ids, keys, values) = to_indirect_arrays(&store, 0);
 
-            fs::create_dir_all("test_pointing_file_array").unwrap();
-            File::create("test_pointing_file_array/indirect")
+            let dir = tempdir().unwrap();
+            let indirect_path = dir.path().join("indirect");
+            let data_path = dir.path().join("data");
+            File::create(&indirect_path)
                 .unwrap()
                 .write_all(&vec_to_bytes_u32(&keys))
                 .unwrap();
-            File::create("test_pointing_file_array/data")
+            File::create(&data_path)
                 .unwrap()
                 .write_all(&vec_to_bytes_u32(&values))
                 .unwrap();
 
-            let start_and_end_file = File::open(&get_file_path("test_pointing_file_array", "indirect")).unwrap();
-            let data_file = File::open(&get_file_path("test_pointing_file_array", "data")).unwrap();
-            let indirect_metadata = fs::metadata(&get_file_path("test_pointing_file_array", "indirect")).unwrap();
-            let data_metadata = fs::metadata(&get_file_path("test_pointing_file_array", "data")).unwrap();
+            let start_and_end_file = File::open(&indirect_path).unwrap();
+            let data_file = File::open(&data_path).unwrap();
+            let indirect_metadata = fs::metadata(&indirect_path).unwrap();
+            let data_metadata = fs::metadata(&data_path).unwrap();
 
             let store = PointingMMAPFileReader::new(
                 &start_and_end_file,
@@ -1229,7 +1232,7 @@ mod tests {
                 calc_avg_join_size(num_values, num_ids),
             );
             check_test_data_1_to_n(&store);
-            let indirect_metadata = fs::metadata(&get_file_path("test_pointing_file_array", "indirect")).unwrap();
+            let indirect_metadata = fs::metadata(&indirect_path).unwrap();
             let store = PointingArrayFileReader::new(
                 start_and_end_file,
                 data_file,

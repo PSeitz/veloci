@@ -103,7 +103,7 @@ mod tests {
 
     #[allow(dead_code)]
     fn get_test_book() -> String {
-        let mut f = File::open("1342-0.txt").unwrap();
+        let mut f = File::open("test_files/1342-0.txt").unwrap();
         let mut s = String::new();
         f.read_to_string(&mut s).unwrap();
         s

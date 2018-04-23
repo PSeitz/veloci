@@ -226,34 +226,34 @@ fn create_book_index() -> Result<(), io::Error> {
 //     File::create("de_full_2.txt")?.write_all(firsts.join("\n").as_bytes());
 // }
 
-#[allow(dead_code)]
-fn test_build_fst() -> Result<(), fst::Error> {
-    let now = Instant::now();
+// #[allow(dead_code)]
+// fn test_build_fst() -> Result<(), fst::Error> {
+//     let now = Instant::now();
 
-    let mut f = File::open("de_full_2.txt")?;
-    let mut s = String::new();
-    f.read_to_string(&mut s)?;
-    let lines = s.lines().collect::<Vec<&str>>();
+//     let mut f = File::open("de_full_2.txt")?;
+//     let mut s = String::new();
+//     f.read_to_string(&mut s)?;
+//     let lines = s.lines().collect::<Vec<&str>>();
 
-    let wtr = io::BufWriter::new(File::create("map.fst")?);
-    // Create a builder that can be used to insert new key-value pairs.
-    let mut build = MapBuilder::new(wtr)?;
+//     let wtr = io::BufWriter::new(File::create("map.fst")?);
+//     // Create a builder that can be used to insert new key-value pairs.
+//     let mut build = MapBuilder::new(wtr)?;
 
-    let mut i = 0;
-    for line in lines {
-        build.insert(line, i).unwrap();
-        i += 1;
-    }
-    // Finish construction of the map and flush its contents to disk.
-    build.finish()?;
+//     let mut i = 0;
+//     for line in lines {
+//         build.insert(line, i).unwrap();
+//         i += 1;
+//     }
+//     // Finish construction of the map and flush its contents to disk.
+//     build.finish()?;
 
-    println!(
-        "test_build_fst ms: {}",
-        (now.elapsed().as_secs() as f64 * 1_000.0) + (f64::from(now.elapsed().subsec_nanos()) / 1000_000.0)
-    );
+//     println!(
+//         "test_build_fst ms: {}",
+//         (now.elapsed().as_secs() as f64 * 1_000.0) + (f64::from(now.elapsed().subsec_nanos()) / 1000_000.0)
+//     );
 
-    Ok(())
-}
+//     Ok(())
+// }
 
 // use std::collections::BTreeMap;
 // use fst::raw::{Builder, Fst, Output};

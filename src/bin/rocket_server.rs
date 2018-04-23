@@ -1,7 +1,6 @@
 #![feature(plugin, decl_macro, custom_derive)]
 #![plugin(rocket_codegen)]
 #![feature(plugin, custom_attribute)]
-#![feature(underscore_lifetimes)]
 #![feature(type_ascription)]
 
 extern crate rocket;

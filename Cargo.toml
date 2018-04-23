@@ -79,6 +79,7 @@ env_logger = "0.3"
 pretty_assertions = "0.1.2"
 stainless = {git = "https://github.com/PSeitz/stainless"}
 criterion = "0.1.2"
+tempfile = "3"
 
 [lib]
 name = "search_lib"

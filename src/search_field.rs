@@ -803,7 +803,7 @@ pub fn resolve_token_hits(
         .get_offsets(path)
         .expect(&format!("Could not find {:?} in index_64 indices", concat(path, ".offsets")));
 
-    let token_path = concat(path, ".tokens_to_parent");
+    let token_path = concat(path, ".tokens_to_text_id");
 
     let token_kvdata = persistence.get_valueid_to_parent(&token_path)?;
     debug!("Checking Tokens in {:?}", &token_path);

@@ -48,7 +48,10 @@ use prettytable::format;
 use type_info;
 use persistence_data::*;
 use persistence_score::*;
-use persistence_score::token_to_anchor_score_vint::*;
+// use persistence_score::token_to_anchor_score_vint::*;
+// use persistence_score::token_to_anchor_score::*;
+use persistence_score::TokenToAnchorScoreBinary;
+use persistence_score::TokenToAnchorScoreVint;
 use half::f16;
 use std::path::PathBuf;
 
@@ -1098,10 +1101,14 @@ pub fn bytes_to_vec_u64(data: &[u8]) -> Vec<u64> {
     }
     out_dat
 }
-
-pub fn file_to_bytes(s1: &str) -> Result<Vec<u8>, io::Error> {
-    let file_size = { fs::metadata(s1)?.len() as usize };
+use std::path::Path;
+pub fn file_to_bytes<P: AsRef<Path>>(s1: P) -> Result<Vec<u8>, io::Error> {
     let f = File::open(s1)?;
+    file_handle_to_bytes(&f)
+}
+
+pub fn file_handle_to_bytes(f: &File) -> Result<Vec<u8>, io::Error> {
+    let file_size = { f.metadata()?.len() as usize };
     let mut reader = std::io::BufReader::new(f);
     let mut buffer: Vec<u8> = Vec::with_capacity(file_size);
     reader.read_to_end(&mut buffer)?;
@@ -1109,13 +1116,13 @@ pub fn file_to_bytes(s1: &str) -> Result<Vec<u8>, io::Error> {
     Ok(buffer)
 }
 
-pub fn load_index_u32(s1: &str) -> Result<Vec<u32>, io::Error> {
-    info!("Loading Index32 {} ", s1);
+pub fn load_index_u32<P: AsRef<Path> + std::fmt::Debug>(s1: P) -> Result<Vec<u32>, io::Error> {
+    info!("Loading Index32 {:?} ", s1);
     Ok(bytes_to_vec_u32(&file_to_bytes(s1)?))
 }
 
-pub fn load_index_u64(s1: &str) -> Result<Vec<u64>, io::Error> {
-    info!("Loading Index64 {} ", s1);
+pub fn load_index_u64<P: AsRef<Path> + std::fmt::Debug>(s1: P) -> Result<Vec<u64>, io::Error> {
+    info!("Loading Index64 {:?} ", s1);
     Ok(bytes_to_vec_u64(&file_to_bytes(s1)?))
 }
 

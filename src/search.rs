@@ -523,7 +523,7 @@ pub fn boost_text_locality(persistence: &Persistence, path: &str, term_with_ids:
         // No boost for single term hits
         return Ok(vec![]);
     }
-    let token_to_text_id = persistence.get_valueid_to_parent(&concat(&path, ".tokens_to_parent"))?;
+    let token_to_text_id = persistence.get_valueid_to_parent(&concat(&path, ".tokens_to_text_id"))?;
     let mut terms_text_ids: Vec<_> = vec![];
     let mut boost_text_ids = vec![];
     {

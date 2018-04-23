@@ -748,6 +748,7 @@ mod tests {
     mod test_direct_1_to_1 {
         use super::*;
         use std::io::prelude::*;
+        use tempfile::tempfile;
         #[test]
         fn test_index_id_to_parent_im() {
             let store = get_test_data_1_to_1::<u32>();
@@ -758,30 +759,26 @@ mod tests {
         fn test_single_file_array_u64() {
             let store = get_test_data_1_to_1();
 
-            fs::create_dir_all("test_single_file_array_u64").unwrap();
-            File::create("test_single_file_array_u64/data")
-                .unwrap()
-                .write_all(&vec_to_bytes_u64(&store.data))
+            let mut file = tempfile().unwrap();
+            file.write_all(&vec_to_bytes_u64(&store.data))
                 .unwrap();
 
-            let data_file = File::open(&get_file_path("test_single_file_array_u64", "data")).unwrap();
-            let data_metadata = fs::metadata(&get_file_path("test_single_file_array_u64", "data")).unwrap();
-            let store = SingleArrayFileReader::<u64>::new(data_file, data_metadata);
+            let meta_data = file.metadata().unwrap();
+            let store = SingleArrayFileReader::<u64>::new(file, meta_data);
             check_test_data_1_to_1(&store);
         }
+
         #[test]
         fn test_single_file_array_u32() {
             let store = get_test_data_1_to_1();
 
-            fs::create_dir_all("test_single_file_array_u32").unwrap();
-            File::create("test_single_file_array_u32/data")
-                .unwrap()
-                .write_all(&vec_to_bytes_u32(&store.data))
+            let mut file = tempfile().unwrap();
+
+            file.write_all(&vec_to_bytes_u32(&store.data))
                 .unwrap();
 
-            let data_file = File::open(&get_file_path("test_single_file_array_u32", "data")).unwrap();
-            let data_metadata = fs::metadata(&get_file_path("test_single_file_array_u32", "data")).unwrap();
-            let store = SingleArrayFileReader::<u32>::new(data_file, data_metadata);
+            let meta_data = file.metadata().unwrap();
+            let store = SingleArrayFileReader::<u32>::new(file, meta_data);
             check_test_data_1_to_1(&store);
         }
 

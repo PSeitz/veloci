@@ -439,7 +439,7 @@ where
 
 #[derive(Debug, Default, Clone)]
 struct PathData {
-    tokens_to_parent: Vec<ValIdPair>,
+    tokens_to_text_id: Vec<ValIdPair>,
     tokens_to_anchor_id: Vec<ValIdPairToken>,
     value_id_to_token_ids: IndexIdToMultipleParentIndirect<u32>,
     text_id_to_parent: Vec<ValIdPair>,
@@ -472,7 +472,9 @@ fn check_similarity(data: &FnvHashMap<String, FnvHashMap<String, TermInfo>>) {
 
     for (path, sub) in map {
         for (path2, data) in sub {
-            println!("{} {} {} {}", path, path2, data.0, data.1);
+            if data.0 > 0.1 {
+                println!("{} {} {} {}", path, path2, data.0, data.1);
+            }
         }
     }
 }
@@ -518,7 +520,7 @@ where
     let is_1_to_n = |path: &str| path.contains("[]");
 
     let all_terms_in_path = get_allterms(stream1, &fulltext_info_for_path);
-    // check_similarity(&all_terms_in_path);
+    check_similarity(&all_terms_in_path);
     info_time!("create_fulltext_index");
     trace!("all_terms {:?}", all_terms_in_path);
 
@@ -598,7 +600,7 @@ where
 
                     // data.value_id_to_token_ids.push(ValIdPair::new(text_info.id as u32, token_info.id as u32));
                     tokens_ids.push(token_info.id as u32);
-                    data.tokens_to_parent.push(ValIdPair::new(token_info.id as u32, text_info.id as u32));
+                    data.tokens_to_text_id.push(ValIdPair::new(token_info.id as u32, text_info.id as u32));
                     tokens_to_anchor_id.push(ValIdPairToken {
                         valid: token_info.id as u32,
                         num_occurences: token_info.num_occurences as u32,
@@ -662,8 +664,8 @@ where
         };
 
         for (path, mut data) in path_data {
-            persistence.write_tuple_pair_dedup(&mut data.tokens_to_parent, &concat(&path, ".tokens_to_parent"), true, false, LoadingType::Disk)?;
-            trace!("{}\n{}", &concat(&path, ".tokens"), print_vec(&data.tokens_to_parent, "token_id", "parent_id"));
+            persistence.write_tuple_pair_dedup(&mut data.tokens_to_text_id, &concat(&path, ".tokens_to_text_id"), true, false, LoadingType::Disk)?;
+            trace!("{}\n{}", &concat(&path, ".tokens"), print_vec(&data.tokens_to_text_id, "token_id", "parent_id"));
 
             let mut token_to_anchor_id_score = calculate_token_score_in_doc(&mut data.tokens_to_anchor_id);
 

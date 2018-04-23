@@ -102,6 +102,7 @@ extern crate utf8_ranges;
 extern crate lazy_static;
 extern crate half;
 
+
 #[macro_use]
 pub mod util;
 #[macro_use]
@@ -127,6 +128,9 @@ pub mod lev_automat;
 pub mod highlight_field;
 pub mod facet;
 
+
+#[cfg(test)]
+extern crate tempfile;
 
 #[cfg(test)]
 mod tests;
