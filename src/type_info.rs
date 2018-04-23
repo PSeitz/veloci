@@ -11,10 +11,10 @@ macro_rules! impl_type_info {
 
 #[macro_export]
 macro_rules! mut_if {
-    ($name: ident = $value: expr, $($any: expr) +) => {
+    ($name:ident = $value:expr, $($any:expr)+) => {
         let mut $name = $value;
     };
-    ($name: ident = $value: expr,) => {
+    ($name:ident = $value:expr,) => {
         let $name = $value;
     };
 }

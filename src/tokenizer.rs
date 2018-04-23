@@ -94,9 +94,9 @@ impl Tokenizer for SimpleTokenizerCharsIterateGroupTokens {
 
 mod tests {
     #[allow(unused_imports)]
-    use test;
-    #[allow(unused_imports)]
     use super::*;
+    #[allow(unused_imports)]
+    use test;
 
     use std::fs::File;
     use std::io::prelude::*;

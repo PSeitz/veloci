@@ -1,41 +1,28 @@
 use std;
-use std::fs::File;
 use std::cmp::Ordering;
+use std::fs::File;
 
-#[allow(unused_imports)]
-use heapsize::{heap_size_of, HeapSizeOf};
-#[allow(unused_imports)]
-use bincode::{deserialize, serialize};
+use heapsize::{HeapSizeOf};
 
-#[allow(unused_imports)]
 use util::*;
 
-use persistence::*;
-pub use persistence_data_indirect::*;
-#[allow(unused_imports)]
-use persistence;
+use byteorder::{LittleEndian, ReadBytesExt};
 use create;
 use mayda;
+use persistence::*;
+pub use persistence_data_indirect::*;
 use snap;
-#[allow(unused_imports)]
-use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 
 use facet::*;
 
-#[allow(unused_imports)]
-use mayda::{Access, AccessInto, Encode, Uniform};
+use mayda::{Access, Encode};
 use parking_lot::Mutex;
-#[allow(unused_imports)]
-use lru_cache::LruCache;
 
-use std::io::Cursor;
-use std::fs;
-#[allow(unused_imports)]
-use std::fmt::Debug;
-use num::cast::ToPrimitive;
-#[allow(unused_imports)]
-use num::{Integer, NumCast};
 use num;
+use num::cast::ToPrimitive;
+use num::{NumCast};
+use std::fs;
+use std::io::Cursor;
 use std::marker::PhantomData;
 
 use type_info::TypeInfo;
@@ -70,6 +57,7 @@ impl<T: IndexIdToParentData> IndexIdToMultipleParent<T> {
 }
 impl<T: IndexIdToParentData> IndexIdToParent for IndexIdToMultipleParent<T> {
     type Output = T;
+
     fn get_values(&self, id: u64) -> Option<Vec<T>> {
         let vec: Option<Vec<T>> = self.data.get(id as usize).map(|el| el.iter().map(|el| NumCast::from(*el).unwrap()).collect());
         if vec.is_some() && vec.as_ref().unwrap().is_empty() {
@@ -77,6 +65,7 @@ impl<T: IndexIdToParentData> IndexIdToParent for IndexIdToMultipleParent<T> {
         }
         vec
     }
+
     fn get_keys(&self) -> Vec<T> {
         (NumCast::from(0).unwrap()..NumCast::from(self.data.len()).unwrap()).collect()
     }
@@ -113,11 +102,13 @@ impl<T: IndexIdToParentData> IndexIdToMultipleParentCompressedMaydaDIRECT<T> {
 
 impl<T: IndexIdToParentData> IndexIdToParent for IndexIdToMultipleParentCompressedMaydaDIRECT<T> {
     type Output = T;
+
     default fn get_values(&self, id: u64) -> Option<Vec<T>> {
         self.data
             .get(id as usize)
             .map(|el| el.decode().iter().map(|el| NumCast::from(*el).unwrap()).collect())
     }
+
     fn get_keys(&self) -> Vec<T> {
         (NumCast::from(0).unwrap()..NumCast::from(self.data.len()).unwrap()).collect()
     }
@@ -185,10 +176,12 @@ impl<T: IndexIdToParentData> IndexIdToOneParent<T> {
 }
 impl<T: IndexIdToParentData> IndexIdToParent for IndexIdToOneParent<T> {
     type Output = T;
+
     #[inline]
     fn get_values(&self, id: u64) -> Option<Vec<T>> {
         self.get_value(id).map(|el| vec![el])
     }
+
     fn get_value(&self, id: u64) -> Option<T> {
         let val = self.data.get(id as usize);
         match val {
@@ -202,6 +195,7 @@ impl<T: IndexIdToParentData> IndexIdToParent for IndexIdToOneParent<T> {
             None => None,
         }
     }
+
     fn get_keys(&self) -> Vec<T> {
         (NumCast::from(0).unwrap()..NumCast::from(self.data.len()).unwrap()).collect()
     }
@@ -242,6 +236,7 @@ impl<T: IndexIdToParentData> IndexIdToOneParentMayda<T> {
             max_value_id,
         }
     }
+
     #[allow(dead_code)]
     pub fn from_vec(data: &[T], max_value_id: u32) -> IndexIdToOneParentMayda<T> {
         IndexIdToOneParentMayda {
@@ -254,10 +249,12 @@ impl<T: IndexIdToParentData> IndexIdToOneParentMayda<T> {
 
 impl<T: IndexIdToParentData> IndexIdToParent for IndexIdToOneParentMayda<T> {
     type Output = T;
+
     #[inline]
     fn get_values(&self, id: u64) -> Option<Vec<T>> {
         self.get_value(id).map(|el| vec![el])
     }
+
     #[inline]
     fn get_value(&self, id: u64) -> Option<T> {
         if id >= self.size as u64 {
@@ -270,13 +267,16 @@ impl<T: IndexIdToParentData> IndexIdToParent for IndexIdToOneParentMayda<T> {
             Some(val)
         }
     }
+
     #[inline]
     fn get_mutliple_value(&self, range: std::ops::RangeInclusive<usize>) -> Option<Vec<T>> {
         Some(self.data.access(range))
     }
+
     fn get_keys(&self) -> Vec<T> {
         (NumCast::from(0).unwrap()..NumCast::from(self.data.len()).unwrap()).collect()
     }
+
     #[inline]
     fn count_values_for_ids(&self, ids: &[u32], top: Option<u32>) -> FnvHashMap<T, usize> {
         count_values_for_ids(ids, top, self.max_value_id, |id: u64| self.get_value(id))
@@ -333,6 +333,7 @@ pub struct ParallelArrays<T: IndexIdToParentData> {
 
 impl<T: IndexIdToParentData> IndexIdToParent for ParallelArrays<T> {
     type Output = T;
+
     #[inline]
     fn get_values(&self, id: u64) -> Option<Vec<T>> {
         let mut result = Vec::new();
@@ -354,6 +355,7 @@ impl<T: IndexIdToParentData> IndexIdToParent for ParallelArrays<T> {
             Some(result)
         }
     }
+
     fn get_keys(&self) -> Vec<T> {
         let mut keys: Vec<T> = self.values1.iter().map(|el| NumCast::from(*el).unwrap()).collect();
         keys.sort();
@@ -390,6 +392,7 @@ impl<T: IndexIdToParentData> SingleArrayMMAP<T> {
             ok: PhantomData,
         }
     }
+
     fn get_size(&self) -> usize {
         self.data_metadata.lock().len() as usize / 4
     }
@@ -402,13 +405,16 @@ impl<T: IndexIdToParentData> HeapSizeOf for SingleArrayMMAP<T> {
 
 impl<T: IndexIdToParentData> IndexIdToParent for SingleArrayMMAP<T> {
     type Output = T;
+
     default fn get_value(&self, _find: u64) -> Option<T> {
         // implemented for u32, u64
         unimplemented!()
     }
+
     default fn get_values(&self, find: u64) -> Option<Vec<T>> {
         self.get_value(find).map(|el| vec![el])
     }
+
     fn get_keys(&self) -> Vec<T> {
         (NumCast::from(0).unwrap()..NumCast::from(self.get_size()).unwrap()).collect()
     }
@@ -484,12 +490,15 @@ impl GetSize for SingleArrayFileReader<u64> {
 
 impl<T: IndexIdToParentData> IndexIdToParent for SingleArrayFileReader<T> {
     type Output = T;
+
     default fn get_value(&self, _find: u64) -> Option<T> {
         unimplemented!()
     }
+
     default fn get_values(&self, _find: u64) -> Option<Vec<T>> {
         unimplemented!()
     }
+
     fn get_keys(&self) -> Vec<T> {
         (NumCast::from(0).unwrap()..NumCast::from(self.get_size()).unwrap()).collect()
     }
@@ -688,6 +697,7 @@ fn test_index_parrallel_arrays() {
 
 #[test]
 fn test_snap() {
+    use byteorder::WriteBytesExt;
     let mut encoder = snap::Encoder::new();
     let mut data: Vec<Vec<u32>> = vec![];
     data.push(vec![11, 12, 13, 14, 15, 16, 17, 18, 19, 110, 111, 112, 113, 114, 115, 116, 117, 118]);
@@ -714,9 +724,9 @@ fn test_snap() {
 
 #[cfg(test)]
 mod tests {
-    use test;
     use super::*;
     use rand;
+    use test;
 
     fn get_test_data_1_to_1<T: IndexIdToParentData>() -> IndexIdToOneParent<T> {
         let values = vec![5, 6, 9, 9, 9, 50000];

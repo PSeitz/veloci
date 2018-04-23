@@ -1,59 +1,32 @@
-#[allow(unused_imports)]
-use std::io::{self, BufRead};
-#[allow(unused_imports)]
-use std::path::Path;
-use std::cmp;
-
-use std;
-#[allow(unused_imports)]
-use std::{str, thread, f32};
-#[allow(unused_imports)]
-use std::sync::mpsc::sync_channel;
-
-#[allow(unused_imports)]
-use std::collections::hash_map::Entry::{Occupied, Vacant};
+use std::io::{self};
+use std::{self, f32, str, cmp};
 use std::cmp::Ordering;
 
-#[allow(unused_imports)]
 use fnv::FnvHashMap;
 use fnv::FnvHashSet;
-use serde_json;
-#[allow(unused_imports)]
-use std::time::Duration;
-#[allow(unused_imports)]
 use itertools::Itertools;
+use serde_json;
 
-// use search_field;
-use persistence::Persistence;
 use doc_loader::DocLoader;
-use util;
-use util::*;
-use util::concat;
 use fst;
 use fst_levenshtein;
+use persistence::Persistence;
+use util;
+use util::concat;
+use util::*;
 
-use search_field::*;
-#[allow(unused_imports)]
-use test;
-#[allow(unused_imports)]
-use execution_plan;
 use execution_plan::*;
-// use execution_plan::execute_plan;
+use search_field::*;
+use test;
 
 use json_converter;
 
-#[allow(unused_imports)]
-use rayon::prelude::*;
-#[allow(unused_imports)]
 use crossbeam_channel;
-#[allow(unused_imports)]
-use std::sync::Mutex;
 use half::f16;
-#[allow(unused_imports)]
-use fixedbitset::FixedBitSet;
+use rayon::prelude::*;
 
-use search_field;
 use highlight_field;
+use search_field;
 
 #[derive(Serialize, Deserialize, Default, Clone, Debug)]
 pub struct Request {
@@ -234,8 +207,8 @@ fn default_max_snippets() -> u32 {
 }
 
 lazy_static! {
-    pub static ref DEFAULT_SNIPPETINFO: SnippetInfo = SnippetInfo{
-        num_words_around_snippet :  default_num_words_around_snippet(),
+    pub static ref DEFAULT_SNIPPETINFO: SnippetInfo = SnippetInfo {
+        num_words_around_snippet: default_num_words_around_snippet(),
         snippet_start_tag: default_snippet_start(),
         snippet_end_tag: default_snippet_end(),
         snippet_connector: default_snippet_connector(),
@@ -1311,12 +1284,10 @@ fn bench_boost_intersect_hits_vec_multi(b: &mut test::Bencher) {
                 hits_vec: hits1.clone(),
                 ..Default::default()
             },
-            &mut vec![
-                SearchFieldResult {
-                    hits_vec: hits2.clone(),
-                    ..Default::default()
-                },
-            ],
+            &mut vec![SearchFieldResult {
+                hits_vec: hits2.clone(),
+                ..Default::default()
+            }],
         )
     })
 }
@@ -1484,8 +1455,8 @@ impl<'a> From<&'a str> for SearchError {
     }
 }
 
-use std::fmt;
 pub use std::error::Error;
+use std::fmt;
 
 impl fmt::Display for SearchError {
     fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {

@@ -1,13 +1,13 @@
-use str;
-use std;
+use persistence;
 use persistence::Persistence;
 use persistence::*;
-use persistence;
 use search;
 use search::*;
+use std;
+use std::cmp;
+use str;
 use tokenizer::*;
 use util::concat;
-use std::cmp;
 
 #[allow(unused_imports)]
 use fst::{IntoStreamer, Map, MapBuilder, Set};

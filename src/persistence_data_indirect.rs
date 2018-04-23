@@ -1,47 +1,27 @@
+use heapsize::{HeapSizeOf};
 use std;
-#[allow(unused_imports)]
-use heapsize::{heap_size_of, HeapSizeOf};
-#[allow(unused_imports)]
-use bincode::{deserialize, serialize};
 
-#[allow(unused_imports)]
 use util::*;
 
-use persistence::*;
-#[allow(unused_imports)]
-use search::*;
-#[allow(unused_imports)]
-use search;
-use type_info::TypeInfo;
-#[allow(unused_imports)]
-use persistence;
+use byteorder::{LittleEndian, ReadBytesExt};
 use mayda;
-#[allow(unused_imports)]
-use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
+use persistence::*;
+use type_info::TypeInfo;
 
-#[allow(unused_imports)]
-use mayda::{Access, AccessInto, Encode, Uniform};
+use mayda::{Encode};
 use parking_lot::Mutex;
-#[allow(unused_imports)]
-use lru_cache::LruCache;
 
-use std::io::Cursor;
 use std::fs;
-#[allow(unused_imports)]
-use std::fmt::Debug;
+use std::io::Cursor;
 
-#[allow(unused_imports)]
+use num;
 use num::cast::ToPrimitive;
 use num::{Integer, NumCast};
-use num;
 use std::marker::PhantomData;
 
 use facet::*;
 
-#[allow(unused_imports)]
 use fnv::FnvHashMap;
-#[allow(unused_imports)]
-use fnv::FnvHashSet;
 use itertools::Itertools;
 
 use memmap::Mmap;
@@ -73,6 +53,7 @@ impl<T: IndexIdToParentData> IndexIdToMultipleParentIndirect<T> {
     pub fn new(data: &IndexIdToParent<Output = T>) -> IndexIdToMultipleParentIndirect<T> {
         IndexIdToMultipleParentIndirect::new_sort_and_dedup(data, false)
     }
+
     #[allow(dead_code)]
     pub fn new_sort_and_dedup(data: &IndexIdToParent<Output = T>, sort_and_dedup: bool) -> IndexIdToMultipleParentIndirect<T> {
         let (max_value_id, num_values, num_ids, start_pos, data) = to_indirect_arrays_dedup(data, 0, sort_and_dedup);
@@ -213,6 +194,7 @@ impl<T: IndexIdToParentData> IndexIdToParent for IndexIdToMultipleParentIndirect
             Some(self.data[NumCast::from(data_start_pos).unwrap()..NumCast::from(end).unwrap()].to_vec())
         }
     }
+
     fn get_keys(&self) -> Vec<T> {
         (NumCast::from(0).unwrap()..NumCast::from(self.get_size()).unwrap()).collect()
     }
@@ -289,6 +271,7 @@ impl<T: IndexIdToParentData> IndexIdToMultipleParentCompressedMaydaINDIRECTOne<T
 
 impl<T: IndexIdToParentData> IndexIdToParent for IndexIdToMultipleParentCompressedMaydaINDIRECTOne<T> {
     type Output = T;
+
     #[inline]
     fn get_values(&self, id: u64) -> Option<Vec<T>> {
         get_values_indirect_generic(id, self.size as u64, &self.start_pos, &self.data)
@@ -611,6 +594,7 @@ impl<T: IndexIdToParentData> IndexIdToMultipleParentCompressedMaydaINDIRECTOneRe
 
 impl<T: IndexIdToParentData> IndexIdToParent for IndexIdToMultipleParentCompressedMaydaINDIRECTOneReuse<T> {
     type Output = T;
+
     #[inline]
     fn get_values(&self, id: u64) -> Option<Vec<T>> {
         get_values_indirect_generic(id, self.size as u64, &self.start_pos, &self.data)
@@ -676,6 +660,7 @@ impl<T: IndexIdToParentData> HeapSizeOf for PointingMMAPFileReader<T> {
 
 impl<T: IndexIdToParentData> IndexIdToParent for PointingMMAPFileReader<T> {
     type Output = T;
+
     default fn get_values(&self, find: u64) -> Option<Vec<T>> {
         get_u32_values_from_pointing_mmap_file(
             //FIXME BUG BUG if file is not u32
@@ -685,6 +670,7 @@ impl<T: IndexIdToParentData> IndexIdToParent for PointingMMAPFileReader<T> {
             &self.data_file,
         ).map(|el| el.iter().map(|el| NumCast::from(*el).unwrap()).collect())
     }
+
     fn get_keys(&self) -> Vec<T> {
         (NumCast::from(0).unwrap()..NumCast::from(self.get_size()).unwrap()).collect()
     }
@@ -761,6 +747,7 @@ impl<T: IndexIdToParentData> PointingArrayFileReader<T> {
 
 impl<T: IndexIdToParentData> IndexIdToParent for PointingArrayFileReader<T> {
     type Output = T;
+
     default fn get_values(&self, find: u64) -> Option<Vec<T>> {
         get_u32_values_from_pointing_file(
             //FIXME BUG BUG if file is not u32
@@ -770,6 +757,7 @@ impl<T: IndexIdToParentData> IndexIdToParent for PointingArrayFileReader<T> {
             &self.data_file,
         ).map(|el| el.iter().map(|el| NumCast::from(*el).unwrap()).collect())
     }
+
     fn get_keys(&self) -> Vec<T> {
         (NumCast::from(0).unwrap()..NumCast::from(self.get_size()).unwrap()).collect()
     }
@@ -1115,11 +1103,11 @@ use std::u32;
 
 #[cfg(test)]
 mod tests {
-    use test;
     use super::*;
+    use persistence_data::*;
     use rand;
     use std::fs::File;
-    use persistence_data::*;
+    use test;
 
     fn get_test_data_1_to_n() -> ParallelArrays<u32> {
         let keys = vec![0, 0, 1, 2, 3, 3, 5];
@@ -1166,8 +1154,8 @@ mod tests {
 
     mod test_indirect {
         use super::*;
-        use std::io::prelude::*;
         use rand::distributions::{IndependentSample, Range};
+        use std::io::prelude::*;
         use tempfile::tempdir;
         #[test]
         fn test_pointing_file_andmmap_array() {

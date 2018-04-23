@@ -1,6 +1,6 @@
-use log::Record;
-use flexi_logger;
 use chrono::Local;
+use flexi_logger;
+use log::Record;
 use parking_lot::RwLock;
 
 /// A logline-formatter that produces log lines like

@@ -1,37 +1,26 @@
-use str;
-use persistence::Persistence;
-use persistence;
-use search;
-use search::*;
-use util::concat;
-use std::cmp;
-use std::cmp::Ordering;
-use fnv::FnvHashMap;
-use fnv::FnvHashSet;
-use util;
-use ordered_float::OrderedFloat;
-use itertools::Itertools;
-#[allow(unused_imports)]
-use fst::{IntoStreamer, Map, MapBuilder, Set};
-#[allow(unused_imports)]
-use fst_levenshtein::Levenshtein;
+use fnv::{FnvHashMap, FnvHashSet};
 use fst::automaton::*;
 use fst::raw::Fst;
-use lev_automat::*;
+use fst::{IntoStreamer};
 use highlight_field::*;
+use itertools::Itertools;
+use lev_automat::*;
 use levenshtein_automaton::{Distance, LevenshteinAutomatonBuilder, DFA};
-#[allow(unused_imports)]
-use bit_vec::BitVec;
+use ordered_float::OrderedFloat;
+use persistence;
+use persistence::Persistence;
+use search;
+use search::*;
+use std::cmp;
+use std::cmp::Ordering;
+use str;
+use util;
+use util::concat;
 
-#[allow(unused_imports)]
-use rayon::prelude::*;
-use util::*;
-use std::ptr;
 use half::f16;
-#[allow(unused_imports)]
-use trie::map;
-#[allow(unused_imports)]
-use fixedbitset::FixedBitSet;
+use rayon::prelude::*;
+use std::ptr;
+use util::*;
 
 #[derive(Debug, Default)]
 pub struct SearchFieldResult {

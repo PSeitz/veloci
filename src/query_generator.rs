@@ -1,12 +1,12 @@
-use std::{str, f32};
 use std::collections::HashMap;
+use std::{f32, str};
 
 use regex::Regex;
 
 use persistence::Persistence;
-use util::*;
 use search::*;
 use std;
+use util::*;
 
 fn get_default_levenshtein(term: &str, levenshtein_auto_limit: usize) -> usize {
     match term.chars().count() {

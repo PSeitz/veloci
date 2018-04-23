@@ -26,15 +26,11 @@ extern crate log;
 extern crate measure_time;
 extern crate flate2;
 extern crate search_lib;
-#[allow(unused_imports)]
-use rocket::{Data, Request, State};
-#[allow(unused_imports)]
-use rocket::response::{self, Responder, Response, ResponseBuilder};
+use rocket::{Request};
+use rocket::response::{self, Responder, Response};
 use rocket::fairing;
-// use rocket::fairing::{AdHoc, Fairing, Info, Kind};
-#[allow(unused_imports)]
-use rocket::http::{ContentType, Method, Status};
-#[allow(unused_imports)]
+
+use rocket::http::{ContentType};
 use rocket_contrib::{Json, Value};
 
 use search_lib::doc_loader::*;
@@ -44,19 +40,12 @@ use search_lib::search_field;
 use search_lib::persistence::Persistence;
 use search_lib::persistence;
 
-#[allow(unused_imports)]
-use fnv::FnvHashMap;
 use chashmap::CHashMap;
 
-#[allow(unused_imports)]
 use std::collections::HashMap;
-// use std::fs::File;
-// use std::io::prelude::*;
 
-// use flate2::Compression;
 use flate2::read::GzEncoder;
-#[allow(unused_imports)]
-use std::io::{BufReader, Cursor};
+use std::io::{Cursor};
 
 lazy_static! {
     static ref PERSISTENCES: CHashMap<String, Persistence> = {

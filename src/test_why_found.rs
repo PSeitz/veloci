@@ -2,18 +2,14 @@
 mod tests {
     extern crate env_logger;
 
-    use persistence;
+    use chashmap::CHashMap;
     use create;
-    #[allow(unused_imports)]
-    use search_field;
+    use parking_lot::RwLock;
+    use persistence;
     use search;
-    #[allow(unused_imports)]
     use serde_json;
-    #[allow(unused_imports)]
     use serde_json::Value;
     use trace;
-    use parking_lot::RwLock;
-    use chashmap::CHashMap;
 
     pub fn get_test_data() -> String {
         json!([
@@ -38,9 +34,7 @@ mod tests {
     static TEST_FOLDER: &str = "mochaTest_wf";
     static INDEX_CREATED: RwLock<bool> = RwLock::new(false);
     lazy_static! {
-        static ref PERSISTENCES: CHashMap<String, persistence::Persistence> = {
-            CHashMap::default()
-        };
+        static ref PERSISTENCES: CHashMap<String, persistence::Persistence> = { CHashMap::default() };
     }
 
     fn search_testo_to_doc(req: Value) -> search::SearchResultWithDoc {

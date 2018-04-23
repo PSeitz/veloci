@@ -18,9 +18,6 @@ use search_lib::persistence;
 
 use fnv::FnvHashMap;
 
-#[allow(unused_imports)]
-use fst::{IntoStreamer, MapBuilder, Set};
-
 fn main() {
     // env_logger::init().unwrap();
     search_lib::trace::enable_log();

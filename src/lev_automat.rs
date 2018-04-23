@@ -2,8 +2,8 @@
 // extern crate utf8_ranges;
 
 use std::cmp;
-use std::collections::{HashMap, HashSet};
 use std::collections::hash_map::Entry;
+use std::collections::{HashMap, HashSet};
 use std::fmt;
 
 use utf8_ranges::{Utf8Range, Utf8Sequences};

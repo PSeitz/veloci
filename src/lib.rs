@@ -106,33 +106,33 @@ extern crate half;
 pub mod util;
 #[macro_use]
 pub mod type_info;
-pub mod kmerge_by;
-pub mod search;
-pub mod create;
-pub mod query_generator;
-pub mod create_from_json;
-pub mod create_from_csv;
-pub mod doc_loader;
-pub mod persistence;
-pub mod persistence_score;
-pub mod persistence_data_indirect;
-pub mod persistence_data;
-pub mod search_field;
-pub mod expression;
 pub mod bucket_list;
-pub mod trace;
-pub mod tokenizer;
+pub mod create;
+pub mod create_from_csv;
+pub mod create_from_json;
+pub mod doc_loader;
 pub mod execution_plan;
-pub mod lev_automat;
-pub mod highlight_field;
+pub mod expression;
 pub mod facet;
+pub mod highlight_field;
+pub mod kmerge_by;
+pub mod lev_automat;
+pub mod persistence;
+pub mod persistence_data;
+pub mod persistence_data_indirect;
+pub mod persistence_score;
+pub mod query_generator;
+pub mod search;
+pub mod search_field;
+pub mod tokenizer;
+pub mod trace;
 
 #[cfg(test)]
 extern crate tempfile;
 
 #[cfg(test)]
-mod tests;
-#[cfg(test)]
 mod test_why_found;
+#[cfg(test)]
+mod tests;
 
 use std::str;

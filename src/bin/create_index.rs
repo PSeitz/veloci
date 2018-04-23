@@ -13,7 +13,6 @@ use std::fs::File;
 use std::io::prelude::*;
 use std::io;
 
-use std::time::Instant;
 use std::str;
 
 fn main() {

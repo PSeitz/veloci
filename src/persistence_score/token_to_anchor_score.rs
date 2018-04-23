@@ -1,12 +1,11 @@
 use super::*;
 use std;
-use std::mem::transmute;
-use std::ptr;
-use std::fs::File;
 use std::fs;
+use std::fs::File;
+use std::mem::transmute;
 use std::path::Path;
+use std::ptr;
 use type_info::TypeInfo;
-use half::f16;
 
 use std::io;
 use std::io::prelude::*;
@@ -27,6 +26,22 @@ pub struct TokenToAnchorScoreBinary {
 }
 
 impl TokenToAnchorScoreBinary {
+    pub fn read<P: AsRef<Path> + std::fmt::Debug>(&mut self, path_indirect: P, path_data: P) -> Result<(), io::Error> {
+        self.start_pos = load_index_u32(path_indirect)?;
+        self.data = file_to_bytes(path_data)?;
+        Ok(())
+    }
+
+    pub fn write<P: AsRef<Path> + std::fmt::Debug>(&self, path_indirect: P, path_data: P) -> Result<(), io::Error> {
+        File::create(path_indirect)?.write_all(&vec_to_bytes_u32(&self.start_pos))?;
+        File::create(path_data)?.write_all(&self.data)?;
+        Ok(())
+    }
+
+    fn get_size(&self) -> usize {
+        self.start_pos.len()
+    }
+
     pub fn set_scores(&mut self, id: u32, add_data: Vec<AnchorScore>) {
         //TODO INVALIDATE OLD DATA IF SET TWICE?
 
@@ -60,24 +75,13 @@ impl TokenToAnchorScoreBinary {
             ptr::copy(ptr, end_of_vec, add_bytes);
         }
     }
-
-    fn get_size(&self) -> usize {
-        self.start_pos.len()
-    }
-
-    pub fn write<P: AsRef<Path> + std::fmt::Debug>(&self, path_indirect: P, path_data: P) -> Result<(), io::Error> {
-        File::create(path_indirect)?.write_all(&vec_to_bytes_u32(&self.start_pos))?;
-        File::create(path_data)?.write_all(&self.data)?;
-        Ok(())
-    }
-    pub fn read<P: AsRef<Path> + std::fmt::Debug>(&mut self, path_indirect: P, path_data: P) -> Result<(), io::Error> {
-        self.start_pos = load_index_u32(path_indirect)?;
-        self.data = file_to_bytes(path_data)?;
-        Ok(())
-    }
 }
 
 impl TokenToAnchorScore for TokenToAnchorScoreBinary {
+    fn get_max_id(&self) -> usize {
+        self.get_size()
+    }
+
     fn get_scores(&self, id: u32) -> Option<Vec<AnchorScore>> {
         if id as usize >= self.get_size() {
             return None;
@@ -89,10 +93,6 @@ impl TokenToAnchorScore for TokenToAnchorScoreBinary {
         }
 
         Some(get_achor_score_data_from_bytes(&self.data, pos))
-    }
-
-    fn get_max_id(&self) -> usize {
-        self.get_size()
     }
 }
 
@@ -122,6 +122,10 @@ impl HeapSizeOf for TokenToAnchorScoreMmap {
 }
 
 impl TokenToAnchorScore for TokenToAnchorScoreMmap {
+    fn get_max_id(&self) -> usize {
+        self.start_pos.len() / 4
+    }
+
     fn get_scores(&self, id: u32) -> Option<Vec<AnchorScore>> {
         if id as usize >= self.start_pos.len() / 4 {
             return None;
@@ -131,9 +135,6 @@ impl TokenToAnchorScore for TokenToAnchorScoreMmap {
             return None;
         }
         Some(get_achor_score_data_from_bytes(&self.data, pos))
-    }
-    fn get_max_id(&self) -> usize {
-        self.start_pos.len() / 4
     }
 }
 
@@ -155,6 +156,7 @@ fn get_achor_score_data_from_bytes(data: &[u8], pos: u32) -> Vec<AnchorScore> {
 
 #[test]
 fn test_token_to_anchor_score_binary() {
+    use half::f16;
     use tempfile::tempdir;
     let mut yeps = TokenToAnchorScoreBinary::default();
 

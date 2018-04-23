@@ -1,53 +1,53 @@
 use std::fs::{self, File};
 use std::io::prelude::*;
 
+use std::collections::HashMap;
+use std::fmt::Debug;
 #[allow(unused_imports)]
 use std::io::{self, Cursor, SeekFrom};
-use std::collections::HashMap;
-use std::{self, env, mem, str, u32};
-use std::fmt::Debug;
 use std::marker::Sync;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
+use std::{self, env, mem, str, u32};
 
-use util;
-use util::*;
-use util::get_file_path;
 use create;
+use util;
+use util::get_file_path;
+use util::*;
 
-use search::{self, SearchError};
 use search::*;
+use search::{self, SearchError};
 use search_field;
 
-use num::{self, Integer, NumCast};
 use num::cast::ToPrimitive;
+use num::{self, Integer, NumCast};
 
 use serde_json;
 use serde_json::StreamDeserializer;
 use serde_json::Value;
 
-use fnv::FnvHashMap;
 use bincode::{deserialize, serialize};
+use fnv::FnvHashMap;
 
-use mayda;
 use byteorder::{ByteOrder, LittleEndian};
 use log;
+use mayda;
 
-use rayon::prelude::*;
 use fst::Map;
+use rayon::prelude::*;
 
-use prettytable::Table;
 use prettytable::format;
+use prettytable::Table;
 
-use type_info;
 use persistence_data::*;
 use persistence_score::*;
+use type_info;
 
 use heapsize::HeapSizeOf;
 
 use colored::*;
-use parking_lot::RwLock;
 use lru_time_cache::LruCache;
+use parking_lot::RwLock;
 
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
 pub struct MetaData {
@@ -123,6 +123,7 @@ use std::str::FromStr;
 
 impl FromStr for LoadingType {
     type Err = ();
+
     fn from_str(s: &str) -> Result<LoadingType, ()> {
         match s {
             "InMemoryUnCompressed" => Ok(LoadingType::InMemoryUnCompressed),
@@ -161,8 +162,9 @@ pub enum IDDataType {
 }
 // use persistence_data;
 
-pub trait IndexIdToParentData
-    : Integer + Clone + NumCast + mayda::utility::Bits + HeapSizeOf + Debug + Sync + Send + Copy + ToPrimitive + std::iter::Step + std::hash::Hash + 'static {
+pub trait IndexIdToParentData:
+    Integer + Clone + NumCast + mayda::utility::Bits + HeapSizeOf + Debug + Sync + Send + Copy + ToPrimitive + std::iter::Step + std::hash::Hash + 'static
+{
 }
 impl<T> IndexIdToParentData for T
 where
@@ -392,6 +394,7 @@ impl Persistence {
 
         Ok(())
     }
+
     pub fn write_score_index_vint(&mut self, store: &TokenToAnchorScoreVint, path: &str, loading_type: LoadingType) -> Result<(), io::Error> {
         let indirect_file_path = util::get_file_path(&self.db, &(path.to_string() + ".indirect"));
         let data_file_path = util::get_file_path(&self.db, &(path.to_string() + ".data"));
@@ -495,6 +498,7 @@ impl Persistence {
 
         Ok(())
     }
+
     #[cfg_attr(feature = "flame_it", flame)]
     pub fn write_boost_tuple_pair(&mut self, tuples: &mut Vec<create::ValIdToValue>, path: &str) -> Result<(), io::Error> {
         let data = boost_pair_to_parallel_arrays::<u32>(tuples);

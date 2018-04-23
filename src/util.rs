@@ -1,19 +1,16 @@
-use regex::Regex;
-use std::mem::transmute;
-use std::io::prelude::*;
-use std::io;
 use fnv::FnvHashMap;
-use std::mem;
-use std::fs::File;
-use std::fs;
-use std::io::SeekFrom;
 use parking_lot::Mutex;
-use serde_json::{StreamDeserializer, Value};
+use regex::Regex;
 use serde_json;
+use serde_json::{StreamDeserializer, Value};
+use std::fs;
+use std::fs::File;
+use std::io;
+use std::io::prelude::*;
+use std::io::SeekFrom;
+use std::mem;
+use std::mem::transmute;
 
-use half::f16;
-// use std;
-#[allow(unused_imports)]
 use std;
 
 pub fn normalize_text(text: &str) -> String {
@@ -276,7 +273,7 @@ pub fn get_steps_to_anchor(path: &str) -> Vec<String> {
 
 #[allow(unused_macros)]
 macro_rules! print_json {
-    ($e: expr) => {
+    ($e:expr) => {
         println!("{}", serde_json::to_string(&$e).unwrap());
     };
 }
@@ -299,8 +296,8 @@ pub fn get_all_steps_to_anchor(path: &str) -> Vec<String> {
     paths
 }
 
-use std::collections::HashMap;
 use itertools::Itertools;
+use std::collections::HashMap;
 
 #[derive(Debug, Clone, Serialize, PartialEq)]
 pub enum NodeTree {

@@ -1,21 +1,13 @@
+use persistence::Persistence;
+use search::add_boost;
+use search::{Request, RequestBoostPart, RequestSearchPart, SearchError};
+use search::*;
+use search_field;
 use util;
 use util::concat;
-use persistence::Persistence;
-use search::*;
-use search::RequestSearchPart;
-use search::RequestBoostPart;
-#[allow(unused_imports)]
-use search::Request;
-use search::SearchError;
-use search_field;
-use search::add_boost;
-#[allow(unused_imports)]
-use fnv::FnvHashMap;
-#[allow(unused_imports)]
-use trie::map;
 
-use crossbeam_channel::unbounded;
 use crossbeam_channel;
+use crossbeam_channel::unbounded;
 use search_field::*;
 
 type PlanDataSender = crossbeam_channel::Sender<SearchFieldResult>;

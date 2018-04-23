@@ -1,32 +1,26 @@
-use util::{self, concat};
 use fnv::FnvHashMap;
 use fnv::FnvHashSet;
+use util::{self, concat};
 
 use serde_json::{self, Value};
 
 use json_converter;
 
-use std::{self, str};
 use std::io;
+use std::{self, str};
 
 use persistence_data_indirect::*;
 use persistence_score::token_to_anchor_score_vint::*;
-use persistence_score::*;
 
 use persistence::{LoadingType, Persistence};
 use serde_json::{Deserializer, StreamDeserializer};
 use util::*;
 
 use log;
-#[allow(unused_imports)]
-use sled;
-#[allow(unused_imports)]
-use byteorder::{LittleEndian, WriteBytesExt};
 
 use tokenizer::*;
 
-#[allow(unused_imports)]
-use fst::{self, IntoStreamer, MapBuilder, Set};
+use fst::{self, MapBuilder};
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(untagged)]
@@ -74,6 +68,7 @@ impl FulltextIndexOptions {
             add_normal_values: Some(true),
         }
     }
+
     #[allow(dead_code)]
     fn new_without_tokenize() -> FulltextIndexOptions {
         FulltextIndexOptions {

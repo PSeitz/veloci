@@ -2,30 +2,30 @@
 mod tests {
     extern crate env_logger;
 
-    #[allow(unused_imports)]
-    use doc_loader;
-    #[allow(unused_imports)]
-    use util;
-    #[allow(unused_imports)]
-    use persistence;
-    #[allow(unused_imports)]
-    use util::normalize_text;
+    use chashmap::CHashMap;
     #[allow(unused_imports)]
     use create;
     #[allow(unused_imports)]
-    use search_field;
+    use doc_loader;
+    use parking_lot::RwLock;
+    #[allow(unused_imports)]
+    use persistence;
     use query_generator;
     use search;
+    #[allow(unused_imports)]
+    use search_field;
     #[allow(unused_imports)]
     use serde_json;
     #[allow(unused_imports)]
     use serde_json::Value;
-    use std::fs::File;
     use std::fs;
+    use std::fs::File;
     use std::io::prelude::*;
     use trace;
-    use parking_lot::RwLock;
-    use chashmap::CHashMap;
+    #[allow(unused_imports)]
+    use util;
+    #[allow(unused_imports)]
+    use util::normalize_text;
     // use fnv::FnvHashMap;
 
     use facet;
@@ -216,9 +216,7 @@ mod tests {
     static TEST_FOLDER: &str = "mochaTest";
     static INDEX_CREATED: RwLock<bool> = RwLock::new(false);
     lazy_static! {
-        static ref PERSISTENCES: CHashMap<String, persistence::Persistence> = {
-            CHashMap::default()
-        };
+        static ref PERSISTENCES: CHashMap<String, persistence::Persistence> = { CHashMap::default() };
     }
 
     #[test]
