@@ -1532,11 +1532,8 @@ pub fn read_tree(persistence: &Persistence, id: u32, tree: &NodeTree) -> Result<
                                 }
                                 json[extract_prop_name(prop)] = json!(sub_data);
                             }
-                        } else {
-                            // println!("id {:?}", id);
-                            if let Some(texto) = join_and_get_text_for_ids(persistence, id, prop)? {
+                        } else if let Some(texto) = join_and_get_text_for_ids(persistence, id, prop)? {
                                 json[extract_prop_name(prop)] = json!(texto);
-                            }
                         }
                     }
                     &NodeTree::Map(ref _next) => {

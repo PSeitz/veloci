@@ -379,7 +379,7 @@ fn calculate_token_score_in_doc(tokens_to_anchor_id: &mut Vec<ValIdPairToken>) -
         dat.push(TokenToAnchorScore {
             valid: first.valid,
             anchor_id: first.anchor_id,
-            score: score,
+            score,
         });
     }
 
@@ -445,7 +445,7 @@ struct PathData {
 fn check_similarity(data: &FnvHashMap<String, FnvHashMap<String, TermInfo>>) {
     let mut map: FnvHashMap<String, FnvHashMap<String, (f32, f32)>> = FnvHashMap::default();
 
-    info_time!(format!("check_similarity"));
+    info_time!("check_similarity");
     for (path, terms) in data {
         let num_terms = terms.len();
         for (path_comp, terms_comp) in data.iter().filter(|&(path_comp, _)| path_comp != path) {

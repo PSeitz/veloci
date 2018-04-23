@@ -3,28 +3,20 @@ mod tests {
     extern crate env_logger;
 
     use chashmap::CHashMap;
-    #[allow(unused_imports)]
     use create;
-    #[allow(unused_imports)]
     use doc_loader;
     use parking_lot::RwLock;
-    #[allow(unused_imports)]
     use persistence;
     use query_generator;
     use search;
-    #[allow(unused_imports)]
     use search_field;
-    #[allow(unused_imports)]
     use serde_json;
-    #[allow(unused_imports)]
     use serde_json::Value;
     use std::fs;
     use std::fs::File;
     use std::io::prelude::*;
     use trace;
-    #[allow(unused_imports)]
     use util;
-    #[allow(unused_imports)]
     use util::normalize_text;
     // use fnv::FnvHashMap;
 
