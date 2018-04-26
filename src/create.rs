@@ -537,6 +537,9 @@ where
     {
         info_time!(format!("extract text and ids"));
         let mut cb_text = |anchor_id: u32, value: &str, path: &str, parent_val_id: u32| {
+            if anchor_id % 500 == 0 {
+                println!("{:?}", anchor_id);
+            }
             let data = get_or_insert(&mut path_data, path, &|| {
                 let boost_info_data = if boost_info_for_path.contains_key(path) { Some(vec![]) } else { None };
 
@@ -626,9 +629,9 @@ where
             }
 
             let token_to_anchor_id_scores = calculate_token_score_in_doc(&mut tokens_to_anchor_id);
-            // for el in token_to_anchor_id_scores.iter(){
-            //     data.tokens_to_anchor_id_delta.add_values(el.valid, vec![el.anchor_id, el.score]);
-            // }
+            for el in token_to_anchor_id_scores.iter(){
+                data.tokens_to_anchor_id_delta.add_values(el.valid, vec![el.anchor_id, el.score]);
+            }
             data.token_to_anchor_id_score.extend(token_to_anchor_id_scores);
 
         };
