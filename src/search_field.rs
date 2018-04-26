@@ -5,7 +5,7 @@ use fst::{IntoStreamer};
 use highlight_field::*;
 use itertools::Itertools;
 use lev_automat::*;
-use levenshtein_automaton::{Distance, LevenshteinAutomatonBuilder, DFA};
+use levenshtein_automata::{Distance, LevenshteinAutomatonBuilder, DFA};
 use ordered_float::OrderedFloat;
 use persistence;
 use persistence::Persistence;

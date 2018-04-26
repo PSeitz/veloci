@@ -19,6 +19,21 @@ pub struct TokenToAnchorScoreVint {
     pub data: Vec<u8>,
 }
 
+pub fn get_serialized_most_common_encoded(data: &mut Vec<(u32, u32)>) -> Vec<u8> {
+    let mut vint = VIntArrayEncodeMostCommon::default();
+
+    let mut last = 0;
+    for el in data.iter_mut() {
+        let actual_val = el.0;
+        el.0 -= last;
+        last = actual_val;
+    }
+
+    let values: Vec<u32> = data.iter().flat_map(|(el1, el2)| vec![*el1, *el2]).collect();
+    vint.encode_vals(&values);
+    vint.serialize()
+}
+
 impl TokenToAnchorScoreVint {
     pub fn read<P: AsRef<Path> + std::fmt::Debug>(&mut self, path_indirect: P, path_data: P) -> Result<(), io::Error> {
         self.start_pos = load_index_u32(&path_indirect)?;
@@ -46,18 +61,6 @@ impl TokenToAnchorScoreVint {
             self.start_pos.resize(required_size, U31_MAX);
         }
 
-        let mut vint = VIntArrayEncodeMostCommon::default();
-
-        let mut last = 0;
-        for el in add_data.iter_mut() {
-            let actual_val = el.0;
-            el.0 -= last;
-            last = actual_val;
-        }
-
-        let values: Vec<u32> = add_data.iter().flat_map(|(el1, el2)| vec![*el1, *el2]).collect();
-        vint.encode_vals(&values);
-
         let byte_offset = self.data.len() as u32;
         self.start_pos[pos] = byte_offset;
 
@@ -76,7 +79,7 @@ impl TokenToAnchorScoreVint {
         // self.data.extend(num_elements.iter());
         // self.data.extend(vint.data.iter());
 
-        self.data.extend(vint.serialize());
+        self.data.extend(get_serialized_most_common_encoded(&mut add_data));
     }
 }
 

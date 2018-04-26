@@ -69,12 +69,12 @@ extern crate lru_cache;
 extern crate lru_time_cache;
 extern crate num;
 extern crate parking_lot;
-extern crate trie;
+// extern crate trie;
 
 #[macro_use]
 extern crate prettytable;
 
-extern crate levenshtein_automaton;
+extern crate levenshtein_automata;
 extern crate snap;
 extern crate time;
 

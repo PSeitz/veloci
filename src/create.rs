@@ -11,6 +11,7 @@ use std::{self, str};
 
 use persistence_data_indirect::*;
 use persistence_score::token_to_anchor_score_vint::*;
+use persistence_score::token_to_anchor_score_deltaable::*;
 
 use persistence::{LoadingType, Persistence};
 use serde_json::{Deserializer, StreamDeserializer};
@@ -386,6 +387,10 @@ fn calculate_token_score_in_doc(tokens_to_anchor_id: &mut Vec<ValIdPairToken>) -
     dat
 }
 
+// fn calculate_token_score_in_doc(best_token_pos: u32) -> f32 {
+
+// }
+
 pub fn get_allterms<'a, T>(
     stream: StreamDeserializer<'a, T, Value>,
     fulltext_info_for_path: &FnvHashMap<String, Fulltext>,
@@ -434,6 +439,8 @@ where
 struct PathData {
     tokens_to_text_id: Vec<ValIdPair>,
     tokens_to_anchor_id: Vec<ValIdPairToken>,
+    tokens_to_anchor_id_delta: TokenToAnchorScoreVintDelta,
+    token_to_anchor_id_score: Vec<TokenToAnchorScore>,
     text_id_to_token_ids: IndexIdToMultipleParentIndirect<u32>,
     text_id_to_parent: Vec<ValIdPair>,
     text_id_to_anchor: Vec<ValIdPair>,
@@ -513,7 +520,7 @@ where
     let is_1_to_n = |path: &str| path.contains("[]");
 
     let all_terms_in_path = get_allterms(stream1, &fulltext_info_for_path);
-    check_similarity(&all_terms_in_path);
+    // check_similarity(&all_terms_in_path);
     info_time!("create_fulltext_index");
     trace!("all_terms {:?}", all_terms_in_path);
 
@@ -569,8 +576,9 @@ where
                 // } // TODO More cases
             });
             trace!("Found id {:?} for {:?}", text_info, value);
+            let mut tokens_to_anchor_id = vec![];
 
-            data.tokens_to_anchor_id.push(ValIdPairToken {
+            tokens_to_anchor_id.push(ValIdPairToken {
                 valid: text_info.id as u32,
                 num_occurences: text_info.num_occurences as u32,
                 anchor_id: anchor_id,
@@ -579,7 +587,7 @@ where
             });
 
             if options.tokenize && tokenizer.has_tokens(value) {
-                let mut tokens_to_anchor_id = vec![];
+
                 let mut current_token_pos = 0;
                 let mut tokens_ids = vec![];
 
@@ -605,9 +613,9 @@ where
                 });
 
                 //add num tokens info
-                for mut el in tokens_to_anchor_id {
+                for mut el in tokens_to_anchor_id.iter_mut() {
                     el.entry_num_tokens = current_token_pos;
-                    data.tokens_to_anchor_id.push(el);
+                    // data.tokens_to_anchor_id.push(el);
                 }
 
                 if data.text_id_to_token_ids.get_values(text_info.id as u64).is_none() {
@@ -616,6 +624,13 @@ where
                     data.text_id_to_token_ids.set(text_info.id, tokens_ids);
                 }
             }
+
+            let token_to_anchor_id_scores = calculate_token_score_in_doc(&mut tokens_to_anchor_id);
+            // for el in token_to_anchor_id_scores.iter(){
+            //     data.tokens_to_anchor_id_delta.add_values(el.valid, vec![el.anchor_id, el.score]);
+            // }
+            data.token_to_anchor_id_score.extend(token_to_anchor_id_scores);
+
         };
 
         let mut callback_ids = |_anchor_id: u32, path: &str, value_id: u32, parent_val_id: u32| {
@@ -666,7 +681,9 @@ where
             )?;
             trace!("{}\n{}", &concat(&path, ".tokens"), print_vec(&data.tokens_to_text_id, "token_id", "parent_id"));
 
-            let mut token_to_anchor_id_score = calculate_token_score_in_doc(&mut data.tokens_to_anchor_id);
+            // let mut token_to_anchor_id_score = calculate_token_score_in_doc(&mut data.tokens_to_anchor_id);
+
+
 
             // let mut token_to_anchor_id_score_pairs: Vec<ValIdPair> = token_to_anchor_id_score
             //     .iter()
@@ -685,14 +702,26 @@ where
             //     print_vec(&token_to_anchor_id_score_pairs, "token_id", "anchor_id")
             // );
 
+            // use sled::{ConfigBuilder, Tree};
+            // use std::mem::transmute;
+
+            // let config = ConfigBuilder::new()
+            //   .path(concat(&(persistence.db.to_string()+"/" ),&concat(&path, ".sled_to_anchor_id_score")))
+            //   .build();
+
+            // let tree = Tree::start(config).unwrap();
+            // path_indirect: P, path_data: P, path_free_blocks: P
+            let yops = concat(&(persistence.db.to_string()+"/" ),&concat(&path, ".to_anchor_id_score_delta"));
+            data.tokens_to_anchor_id_delta.write(yops.to_string()+".indirect", yops.to_string()+".data", yops.to_string()+".free");
             // let mut token_to_anchor_id_score_index = TokenToAnchorScoreBinary::default();
             let mut token_to_anchor_id_score_vint_index = TokenToAnchorScoreVint::default();
-            token_to_anchor_id_score.sort_unstable_by_key(|a| a.valid);
-            for (token_id, mut group) in &token_to_anchor_id_score.into_iter().group_by(|el| (el.valid)) {
+            data.token_to_anchor_id_score.sort_unstable_by_key(|a| a.valid);
+            for (token_id, mut group) in &data.token_to_anchor_id_score.into_iter().group_by(|el| (el.valid)) {
                 let mut group: Vec<(u32, u32)> = group.map(|el| (el.anchor_id, (el.score))).collect();
                 group.sort_unstable_by_key(|a| a.0);
+                // let bytes: [u8; 4] = unsafe { transmute(token_id) };
+                // tree.set(bytes.to_vec(), get_serialized_most_common_encoded(&mut group.to_vec()));
                 token_to_anchor_id_score_vint_index.set_scores(token_id, group);
-
                 // let mut group: Vec<AnchorScore> = group.map(|el| AnchorScore::new(el.anchor_id, f16::from_f32(el.score as f32))).collect();
                 // group.sort_unstable_by_key(|a| a.id);
                 // token_to_anchor_id_score_index.set_scores(token_id, group);

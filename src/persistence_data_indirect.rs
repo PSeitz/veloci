@@ -94,57 +94,11 @@ impl<T: IndexIdToParentData> IndexIdToMultipleParentIndirect<T> {
         self.num_ids += add_data.len() as u32;
     }
 
-    // pub fn set_scores(&mut self, id: u32, add_data: Vec<T>) { //TODO INVALIDATE OLD DATA IF SET TWICE?
-    //     let pos: usize = id as usize;
-    //     let required_size = pos + 1;
-    //     if self.start_pos.len() < required_size {
-    //         self.start_pos.resize(required_size, num::cast(U31_MAX).unwrap());
-    //     }
-    //     let start = self.data.len();
-    //     // if  add_data.len() == 1{
-    //     //     let mut val:u32 = add_data[0].to_u32().unwrap();
-    //     //     self.max_value_id = std::cmp::max(val, self.max_value_id);
-    //     //     set_high_bit(&mut val); // encode directly, much wow, much compression
-    //     //     self.start_pos[pos] = num::cast(val).unwrap();
-    //     // }else{
-    //         self.start_pos[pos] = num::cast(start).unwrap();
-    //         self.data.push(num::cast(add_data.len()).unwrap());
-    //         for val in add_data.iter() {
-    //             // self.max_value_id = std::cmp::max(val.to_u32().unwrap(), self.max_value_id);
-    //             self.data.push(*val);
-    //         }
-    //     // }
-    //     self.num_values += 1;
-    //     self.num_ids += add_data.len() as u32;
-    // }
     #[inline]
     fn get_size(&self) -> usize {
         self.start_pos.len()
     }
 }
-
-// #[derive(Serialize, Deserialize, Debug, Clone, HeapSizeOf, Default)]
-// pub struct TokenToAnchorScore {
-//     pub data: Vec<Vec<(u32, f16)>>,
-//     pub num_values: u32,
-//     pub num_anchor_data: u32,
-// }
-// impl TokenToAnchorScore {
-//     pub fn set_scores(&mut self, id: u32, add_data: Vec<(u32, f16)>) { //TODO INVALIDATE OLD DATA IF SET TWICE?
-//         let pos: usize = id as usize;
-//         let required_size = pos + 1;
-//         if self.data.len() < required_size {
-//             self.data.resize(required_size, vec![]);
-//         }
-//         let start = self.data.len();
-//         self.data[pos] = add_data;
-//         self.num_values += 1;
-//         self.num_anchor_data += add_data.len() as u32;
-//     }
-//     fn get_size(&self) -> usize {
-//         self.start_pos.len()
-//     }
-// }
 
 #[test]
 fn test_pointing_array_add() {
