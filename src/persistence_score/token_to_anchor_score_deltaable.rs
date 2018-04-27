@@ -3,6 +3,11 @@ use util::*;
 use super::*;
 use vint::vint_encode_most_common::*;
 
+use memmap::Mmap;
+use std::fs::OpenOptions;
+use memmap::MmapMut;
+use memmap::MmapOptions;
+
 use std;
 use std::fs::File;
 use std::io::SeekFrom;
@@ -16,18 +21,20 @@ use byteorder::{LittleEndian, ReadBytesExt};
 
 use std::mem::transmute;
 
+const NO_DATA: u32 = 0;
+
 impl_type_info!(TokenToAnchorScoreVintDelta);
 // impl_type_info!(TokenToAnchorScoreVintDelta, TokenToAnchorScoreVintDeltaMmap);
 
-#[derive(Debug)]
+#[derive(Clone, Default, Debug)]
 pub struct TokenToAnchorScoreVintDelta {
-    pub start_pos: Vec<u32>,
+    // pub start_pos: Vec<u32>,
     pub free_blocks: Vec<FreeBlock>,
     // pub data: Vec<u8>,
-    pub data: Vec<Vec<u32>>,
+    pub data: Vec<Option<Vec<u32>>>,
     pub num_values_added: u32,
-    pub start_pos_file: File, 
-    pub data_file: File
+    pub start_pos_file_path: String,
+    pub data_file_path: String,
 }
 
 // pub fn get_serialized_most_common_encoded(data: &mut Vec<(u32, u32)>) -> Vec<u8> {
@@ -102,12 +109,16 @@ impl FreeBlock {
 
 use num::ToPrimitive;
 
-fn get_u32_from_mmap(data: Mmap, index: usize) -> u32 {
-    let data_start_pos = (&data[index..index + 4]).read_u32::<LittleEndian>().unwrap();
+fn get_u32_from_mmap(data: &[u8], index: usize) -> u32 {
+    let mmap_index = index as usize * 4;
+    if data.len() < mmap_index + 4{
+        return NO_DATA;
+    }
+    let data_start_pos = (&data[mmap_index..mmap_index + 4]).read_u32::<LittleEndian>().unwrap();
     data_start_pos.to_u32().unwrap()
 }
 
-fn write_u32_to_mmap(data: &Mmap, index: usize, value: u32) {
+fn write_u32_to_mmap(data: &mut MmapMut, index: usize, value: u32) {
     // let data_start_pos = (&data[index..index + 4]).read_u32::<LittleEndian>().unwrap();
     // data_start_pos.to_u32().unwrap()
     let mmap_index = index as usize * 4;
@@ -125,14 +136,27 @@ impl HeapSizeOf for TokenToAnchorScoreVintDelta {
 }
 
 impl TokenToAnchorScoreVintDelta {
+    pub fn new(start_pos_file_path: String, data_file_path: String) -> Self {
+        let start_pos_file = File::create(start_pos_file_path.to_string()).unwrap();
+        let data_file = File::create(data_file_path.to_string()).unwrap();
+        start_pos_file.set_len(1).unwrap();
+        data_file.set_len(1).unwrap();
+        TokenToAnchorScoreVintDelta{
+            free_blocks:vec![],
+            data:vec![],
+            num_values_added:0,
+            start_pos_file_path,
+            data_file_path,
+        }
+    }
     pub fn read<P: AsRef<Path> + std::fmt::Debug>(&mut self, path_indirect: P, path_data: P) -> Result<(), io::Error> {
-        self.start_pos = load_index_u32(&path_indirect)?;
+        // self.start_pos = load_index_u32(&path_indirect)?;
         // self.data = file_to_bytes(&path_data)?;
         Ok(())
     }
 
     pub fn write<P: AsRef<Path> + std::fmt::Debug>(&self, path_indirect: P, path_data: P, path_free_blocks: P) -> Result<(), io::Error> {
-        File::create(path_indirect)?.write_all(&vec_to_bytes_u32(&self.start_pos))?;
+        // File::create(path_indirect)?.write_all(&vec_to_bytes_u32(&self.start_pos))?;
 
         let free_blocks_vec:Vec<u32> = self.free_blocks.iter().flat_map(|block| vec![block.start, block.length]).collect();
         File::create(path_free_blocks)?.write_all(&vec_to_bytes_u32(&free_blocks_vec))?;
@@ -143,14 +167,15 @@ impl TokenToAnchorScoreVintDelta {
 
     #[inline]
     fn get_size(&self) -> usize {
-        self.start_pos.len()
+        0
+        // self.start_pos.len()
     }
 
-    fn get_free_block(&mut self, size: u32) -> Option<u32> {
-        for block in self.free_blocks.iter_mut() {
+    fn get_free_block(free_blocks: &mut Vec<FreeBlock>, size: u32) -> Option<u32> {
+        for block in free_blocks.iter_mut() {
             if block.length >= size{
-                block.length -= size;
                 let pos = block.start;
+                block.length -= size;
                 block.start += size;
                 return Some(pos);
             }
@@ -177,98 +202,166 @@ impl TokenToAnchorScoreVintDelta {
         let pos: usize = id as usize;
         let required_size = pos + 1;
         if self.data.len() < required_size {
-            self.data.resize(required_size, vec![]);
+            self.data.resize(required_size, None);
         }
         self.num_values_added += add_data.len() as u32;
-        self.data[pos].extend(add_data);
-        if self.num_values_added == 25_000_000 {
-            self.flush_to_disk();
+        if self.data[pos].is_none() {
+            self.data[pos] = Some(add_data);
+        }else{
+            self.data[pos].as_mut().unwrap().extend(add_data);
+        }
+
+        if self.num_values_added > 20 {
+            self.flush_to_disk().unwrap();
             self.num_values_added = 0;
         }
 
     }
 
-    pub fn flush_to_disk(&mut self) {
-        let append_data = vec![];
+    pub fn flush_to_disk(&mut self) -> Result<(), io::Error> {
+
+        let start_pos_file = OpenOptions::new().read(true).write(true).create(true).open(self.start_pos_file_path.to_string()).unwrap();
+        let data_file = OpenOptions::new().read(true).write(true).create(true).open(self.data_file_path.to_string()).unwrap();
+
+        let mut start_pos_mmap = unsafe{MmapOptions::new().map_mut(&start_pos_file).unwrap()};
+        let mut data_mmap = unsafe{MmapOptions::new().map_mut(&data_file).unwrap()};
+
+        let mut append_data = vec![];
         let mut id = 0;
         for el in self.data.iter_mut() {
-            if !el.is_empty() {
-                self.add_values_to_disk(id, el, self.start_pos_file, self.data_file, &mut append_data);
-                *el = vec![];
+            if let Some(el) = el {
+                Self::add_values_to_disk(&mut self.free_blocks, id, el, &mut start_pos_mmap, &mut data_mmap, &mut append_data);
             }
             id += 1;
         }
 
+        for el in self.data.iter_mut() {
+            *el = None;
+        }
 
-        let mut curr_size = self.start_pos_file.metadata().unwrap().len();
-        let el = append_data.iter().max_by_key(|el|el.0).unwrap();
+        if append_data.is_empty() {
+            return Ok(());
+        }
 
-        self.start_pos_file.set_len(el.0 as u64 * 4);
+        let mut curr_size = data_file.metadata()?.len();
+        let el_with_max_id = append_data.iter().max_by_key(|el|el.0).unwrap();
 
-        let summo = append_data.iter().map(|el|el.1.len()).sum();
-        self.start_pos_file.set_len(self.data_file.metadata().unwrap().len() + summo);
-        // self.data_file.seek(SeekFrom::Start(self.data_file.metadata().unwrap().len()));
+        //resize indirect file to fit max id
+        let required_size = (el_with_max_id.0 + 1) as u64 * 4;
+        if start_pos_file.metadata()?.len() < required_size {
+            start_pos_file.set_len(required_size)?;
+        }
+        let total_byte_size:u64 = append_data.iter().map(|el|el.1.len() as u64).sum();
 
-        let start_pos_file = MmapOptions::new().map(&self.start_pos_file).unwrap();
-        let data = MmapOptions::new().map(&self.data_file).unwrap();
-        for el in append_data {
+        data_file.set_len(curr_size + total_byte_size + 4)?;
+
+        let mut start_pos_mmap = unsafe{MmapOptions::new().map_mut(&start_pos_file).unwrap()};
+        let mut data_mmap = unsafe{MmapOptions::new().map_mut(&data_file).unwrap()};
+        for el in append_data.iter() {
             let pos = el.0;
-            let add_data = el.1;
-            write_u32_to_mmap(&start_pos_file, pos, curr_size as u32);
-            data[curr_size as usize..curr_size as usize  + add_data.len()].copy_from_slice(&add_data);
+            let add_data = &el.1;
+
+            let (mut data_adding_now, size) = VIntArrayEncodeMostCommon::decode_from_slice(&add_data);
+            println!("data_adding_now {:?}", data_adding_now);
+            write_u32_to_mmap(&mut start_pos_mmap, pos, curr_size as u32);
+            data_mmap[curr_size as usize..curr_size as usize  + add_data.len()].copy_from_slice(&add_data);
             curr_size += add_data.len() as u64;
         }
 
+        start_pos_mmap.flush()?;
+        data_mmap.flush()?;
+
+        Ok(())
 
     }
 
-
-
-    pub fn add_values_to_disk(&mut self, id: u32, add_data: &Vec<u32>, start_pos_file: File, data_file: File, append_data: &mut Vec<(usize, Vec<u8>)>) {
-
-        let start_pos = MmapOptions::new()
-                .map(&start_pos_file)
-                .unwrap();
-
-        let data = MmapOptions::new()
-                .map(&data_file)
-                .unwrap();
+    pub fn add_values_to_disk(free_blocks: &mut Vec<FreeBlock>, id: u32, mut add_data: &mut Vec<u32>, start_pos_mmap: &mut MmapMut, data_mmap: &mut MmapMut, append_data: &mut Vec<(usize, Vec<u8>)>) {
 
         let pos: usize = id as usize;
-        let required_size = pos + 1;
-        if start_pos.len() < required_size {
-            // start_pos.resize(required_size, U31_MAX);
-        }
+        let required_size = (pos + 1) * 4;
+        // if start_pos_mmap.len() < required_size {
+        //     // start_pos_mmap.resize(required_size, NO_DATA);
+        // }
 
-        if get_u32_from_mmap(start_pos, pos) != U31_MAX { //Merge Move existing data
-            let (mut data_old, size) = VIntArrayEncodeMostCommon::decode_from_slice(&data[start_pos[pos] as usize ..]);
+        if start_pos_mmap.len() < required_size || get_u32_from_mmap(&start_pos_mmap, pos) == NO_DATA  {
+            let new_data = get_serialized_most_common_encoded(&mut add_data);
+            append_data.push((pos, new_data));
+        }else{
+
+            let pos_in_data = get_u32_from_mmap(&start_pos_mmap, pos);
+
+            let (mut data_old, size) = VIntArrayEncodeMostCommon::decode_from_slice(&data_mmap[pos_in_data as usize ..]);
             let mut current = 0;
             for (mut id, _) in data_old.iter_mut().tuples() {
                 *id += current;
                 current = *id;
             }
             let old_size = get_next_to_power_of_two(size);
-            data_old.extend(add_data);
+            println!("data_old {:?}", data_old);
+            data_old.extend(add_data.iter());
+            println!("data_old + new {:?}", data_old);
             let new_data = get_serialized_most_common_encoded(&mut data_old);
             let new_size = new_data.len() as u32;
             if old_size != new_size {
-                self.free_blocks.push(FreeBlock::new(get_u32_from_mmap(start_pos, pos), old_size));
-                if self.free_blocks.len() % 100 == 0 {
-                    self.free_blocks.retain(|ref block| block.length != 0);
+                free_blocks.push(FreeBlock::new(pos_in_data, old_size));
+                if free_blocks.len() % 100 == 0 {
+                    free_blocks.retain(|ref block| block.length != 0);
                 }
-                if let Some(free_block_pos) = self.get_free_block(add_data.len() as u32) {
-                    data[free_block_pos as usize..free_block_pos as usize +add_data.len()].copy_from_slice(&get_serialized_most_common_encoded(&mut add_data));
-                    write_u32_to_mmap(&start_pos, pos, free_block_pos);
-                }else{ // append data to end of file
+                let new_data = get_serialized_most_common_encoded(&mut add_data);
+                if let Some(free_block_pos) = Self::get_free_block(free_blocks, new_data.len() as u32) {
+                    data_mmap[free_block_pos as usize..free_block_pos as usize + new_data.len()].copy_from_slice(&new_data);
+                    write_u32_to_mmap(start_pos_mmap, pos, free_block_pos);
+                }else{ // append data_mmap to end of file
                     append_data.push((pos, new_data));
                 }
             }else{
-                data[start_pos[pos] as usize..start_pos[pos] as usize +new_size as usize].copy_from_slice(&new_data);
+                data_mmap[start_pos_mmap[pos] as usize..start_pos_mmap[pos] as usize + new_size as usize].copy_from_slice(&new_data);
             }
-        }else{
-            let new_data = get_serialized_most_common_encoded(&mut add_data);
-            append_data.push((pos, new_data));
         }
+    }
+
+    fn get_scores_disk(&self, id: u32) -> Option<Vec<AnchorScore>> {
+        let start_pos_file = OpenOptions::new().read(true).open(self.start_pos_file_path.to_string()).unwrap();
+        let data_file = OpenOptions::new().read(true).open(self.data_file_path.to_string()).unwrap();
+
+        let start_pos_mmap = unsafe{MmapOptions::new()
+                .map(&start_pos_file)
+                .unwrap()};
+
+        let data_mmap = unsafe{MmapOptions::new()
+                .map(&data_file)
+                .unwrap()};
+
+        let pos_in_data = get_u32_from_mmap(&start_pos_mmap, id as usize);
+        if pos_in_data == NO_DATA {
+            return None;
+        }
+        Some(recreate_vec(&data_mmap, pos_in_data as usize))
+
+    }
+    fn get_scores_im(&self, id: u32) -> Option<Vec<AnchorScore>> {
+        // println!("Waaa {:?}", self.data);
+        if self.data.len() <= id as usize{
+            return None;
+        }
+        if self.data[id as usize].is_none(){
+            None
+        }else{
+            Some(self.data[id as usize].as_ref().unwrap().iter().tuples()
+            .map(|(id, score)| AnchorScore::new(*id, f16::from_f32(*score as f32)))
+            .collect())
+        }
+        // self.data[id as usize].map(|vec|
+        //     vec.iter().tuples()
+        //     .map(|(id, score)| AnchorScore::new(*id, f16::from_f32(*score as f32)))
+        //     .collect()
+        // )
+
+        // if self.data.len() < id){
+        //     None
+        // }else{
+        // }
+
     }
 
     // pub fn add_values(&mut self, id: u32, mut add_data: Vec<u32>) {
@@ -345,18 +438,25 @@ impl TokenToAnchorScore for TokenToAnchorScoreVintDelta {
 
     #[inline]
     fn get_scores(&self, id: u32) -> Option<Vec<AnchorScore>> {
-        if id as usize >= self.get_size() {
-            return None;
-        }
+        // if id as usize >= self.get_size() {
+        //     return None;
+        // }
 
-        let pos = self.start_pos[id as usize];
-        if pos == U31_MAX {
-            return None;
-        }
+        // let pos = self.start_pos[id as usize];
+        // if pos == NO_DATA {
+        //     return None;
+        // }
 
         // Some(recreate_vec(&self.data, pos as usize))
 
-        None
+        if let Some(mut data_disk) = self.get_scores_disk(id) {
+            if let Some(mut data_im) = self.get_scores_im(id) {
+                data_disk.extend(data_im);
+            }
+            Some(data_disk)
+        }else{
+            self.get_scores_im(id)
+        }
     }
 }
 
@@ -405,17 +505,19 @@ impl TokenToAnchorScore for TokenToAnchorScoreVintDelta {
 // }
 
 #[test]
-fn test_token_to_anchor_score_vinto() {
-    use tempfile::tempfile;
-    let mut file1 = tempfile().unwrap();
-    let mut file2 = tempfile().unwrap();
+fn test_token_to_anchor_score_delta() {
+    let start_pos_file_path = "token_to_anchor_score_delta_indirect";
+    let data_file_path = "token_to_anchor_score_delta_indirect_data";
+    let start_pos_file = File::create(start_pos_file_path).unwrap();
+    let data_file = File::create(data_file_path).unwrap();
+    start_pos_file.set_len(1).unwrap();
+    data_file.set_len(1).unwrap();
     let mut yeps = TokenToAnchorScoreVintDelta{
-        start_pos: vec![],
         free_blocks: vec![],
         data: vec![],
         num_values_added: 0,
-        start_pos_file: file1, 
-        data_file: file2, 
+        start_pos_file_path: start_pos_file_path.to_string(),
+        data_file_path: data_file_path.to_string(),
     };
 
     yeps.add_values(1, vec![1, 1]);
@@ -434,4 +536,66 @@ fn test_token_to_anchor_score_vinto() {
 
     assert_eq!(yeps.get_scores(3), Some(vec![AnchorScore::new(2, f16::from_f32(1.0)), AnchorScore::new(5, f16::from_f32(1.0))]));;
 
+}
+
+#[test]
+fn test_token_to_anchor_score_delta_flush() {
+    let start_pos_file_path = "token_to_anchor_score_delta_indirect";
+    let data_file_path = "token_to_anchor_score_delta_indirect_data";
+    let start_pos_file = File::create(start_pos_file_path).unwrap();
+    let data_file = File::create(data_file_path).unwrap();
+    start_pos_file.set_len(1).unwrap();
+    data_file.set_len(1).unwrap();
+    let mut yeps = TokenToAnchorScoreVintDelta{
+        free_blocks: vec![],
+        data: vec![],
+        num_values_added: 0,
+        start_pos_file_path: start_pos_file_path.to_string(),
+        data_file_path: data_file_path.to_string(),
+    };
+
+    yeps.add_values(1, vec![1, 1]);
+
+    assert_eq!(yeps.get_scores(0), None);
+    assert_eq!(yeps.get_scores(1), Some(vec![AnchorScore::new(1, f16::from_f32(1.0))]));
+    assert_eq!(yeps.get_scores(2), None);
+
+    yeps.flush_to_disk().unwrap();
+
+    yeps.add_values(1, vec![2, 1]);
+
+    yeps.flush_to_disk().unwrap();
+
+    assert_eq!(yeps.get_scores(0), None);
+    assert_eq!(yeps.get_scores(1), Some(vec![AnchorScore::new(1, f16::from_f32(1.0)), AnchorScore::new(2, f16::from_f32(1.0))]));
+    assert_eq!(yeps.get_scores(2), None);
+
+    yeps.add_values(3, vec![2, 1, 5, 1]);
+    yeps.flush_to_disk().unwrap();
+
+    assert_eq!(yeps.get_scores(3), Some(vec![AnchorScore::new(2, f16::from_f32(1.0)), AnchorScore::new(5, f16::from_f32(1.0))]));;
+
+}
+
+#[test]
+fn test_token_to_anchor_score_delta_write() {
+    let start_pos_file_path = "token_to_anchor_score_delta_indirect";
+    let data_file_path = "token_to_anchor_score_delta_indirect_data";
+    let start_pos_file = File::create(start_pos_file_path).unwrap();
+    let data_file = File::create(data_file_path).unwrap();
+    start_pos_file.set_len(1).unwrap();
+    data_file.set_len(1).unwrap();
+    let mut yeps = TokenToAnchorScoreVintDelta{
+        free_blocks: vec![],
+        data: vec![],
+        num_values_added: 0,
+        start_pos_file_path: start_pos_file_path.to_string(),
+        data_file_path: data_file_path.to_string(),
+    };
+
+    yeps.add_values(1, vec![1, 1]);
+    yeps.add_values(1, vec![2, 1]);
+    yeps.add_values(3, vec![2, 1, 5, 1]);
+
+    yeps.flush_to_disk().unwrap();
 }

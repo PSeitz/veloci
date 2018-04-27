@@ -27,6 +27,7 @@ fn main() {
             "gutenberg" => println!("{:?}", create_book_index()),
             // "thalia" => println!("{:?}", create_thalia_index()),
             "thalia_big" => println!("{:?}", create_thalia_index_big()),
+            "thalia_shards" => println!("{:?}", create_thalia_index_shards()),
             _ => {}
         };
     }
@@ -128,6 +129,23 @@ fn create_thalia_index_big() -> Result<(), io::Error> {
 
     println!("{:?}", search_lib::create::create_indices("thalia_new", &json, TAHLIA_INDICES));
     // File::create("MATNR").unwrap().write_all(all_terms.join("\n").as_bytes()).unwrap();
+
+    Ok(())
+}
+
+#[allow(dead_code)]
+fn create_thalia_index_shards() -> Result<(), io::Error> {
+
+    for i in 0..167 {
+        let shard_num = i.to_string();
+        let path = "data_split_old/data_".to_owned()+&shard_num;
+        // println!("{:?}", &path);
+        let mut f = File::open(&path)?;
+        let mut json = String::new();
+        f.read_to_string(&mut json)?;
+        println!("{:?}", search_lib::create::create_indices(&("thalia_".to_owned()+&shard_num), &json, TAHLIA_INDICES));
+        println!("created shard num {:?}", &shard_num);
+    }
 
     Ok(())
 }

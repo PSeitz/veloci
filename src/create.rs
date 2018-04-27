@@ -537,16 +537,21 @@ where
     {
         info_time!(format!("extract text and ids"));
         let mut cb_text = |anchor_id: u32, value: &str, path: &str, parent_val_id: u32| {
-            if anchor_id % 500 == 0 {
-                println!("{:?}", anchor_id);
-            }
+            // if anchor_id % 500 == 0 {
+            //     println!("{:?}", anchor_id);
+            // }
             let data = get_or_insert(&mut path_data, path, &|| {
                 let boost_info_data = if boost_info_for_path.contains_key(path) { Some(vec![]) } else { None };
 
                 let anchor_to_text_id = if facet_index.contains(path) && is_1_to_n(path) { Some(vec![]) } else { None }; //Create facet index only for 1:N
+
+                let prop_delta_path = concat(&(persistence.db.to_string()+"/" ),&concat(&path, ".to_anchor_id_score_delta"));
+                // data.tokens_to_anchor_id_delta.write(prop_delta_path.to_string()+".indirect", prop_delta_path.to_string()+".data", prop_delta_path.to_string()+".free");
+
                 PathData {
                     anchor_to_text_id: anchor_to_text_id,
                     boost: boost_info_data,
+                    tokens_to_anchor_id_delta: TokenToAnchorScoreVintDelta::new(prop_delta_path.to_string()+".indirect", prop_delta_path.to_string()+".data"),
                     ..Default::default()
                 }
             });
@@ -629,9 +634,9 @@ where
             }
 
             let token_to_anchor_id_scores = calculate_token_score_in_doc(&mut tokens_to_anchor_id);
-            for el in token_to_anchor_id_scores.iter(){
-                data.tokens_to_anchor_id_delta.add_values(el.valid, vec![el.anchor_id, el.score]);
-            }
+            // for el in token_to_anchor_id_scores.iter(){
+            //     data.tokens_to_anchor_id_delta.add_values(el.valid, vec![el.anchor_id, el.score]);
+            // }
             data.token_to_anchor_id_score.extend(token_to_anchor_id_scores);
 
         };
@@ -714,8 +719,11 @@ where
 
             // let tree = Tree::start(config).unwrap();
             // path_indirect: P, path_data: P, path_free_blocks: P
-            let yops = concat(&(persistence.db.to_string()+"/" ),&concat(&path, ".to_anchor_id_score_delta"));
-            data.tokens_to_anchor_id_delta.write(yops.to_string()+".indirect", yops.to_string()+".data", yops.to_string()+".free");
+            // let yops = concat(&(persistence.db.to_string()+"/" ),&concat(&path, ".to_anchor_id_score_delta"));
+            // data.tokens_to_anchor_id_delta.write(yops.to_string()+".indirect", yops.to_string()+".data", yops.to_string()+".free");
+
+            // data.tokens_to_anchor_id_delta.flush_to_disk();
+
             // let mut token_to_anchor_id_score_index = TokenToAnchorScoreBinary::default();
             let mut token_to_anchor_id_score_vint_index = TokenToAnchorScoreVint::default();
             data.token_to_anchor_id_score.sort_unstable_by_key(|a| a.valid);
