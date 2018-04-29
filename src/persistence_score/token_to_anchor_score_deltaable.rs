@@ -538,44 +538,44 @@ fn test_token_to_anchor_score_delta() {
 
 }
 
-#[test]
-fn test_token_to_anchor_score_delta_flush() {
-    let start_pos_file_path = "token_to_anchor_score_delta_indirect";
-    let data_file_path = "token_to_anchor_score_delta_indirect_data";
-    let start_pos_file = File::create(start_pos_file_path).unwrap();
-    let data_file = File::create(data_file_path).unwrap();
-    start_pos_file.set_len(1).unwrap();
-    data_file.set_len(1).unwrap();
-    let mut yeps = TokenToAnchorScoreVintDelta{
-        free_blocks: vec![],
-        data: vec![],
-        num_values_added: 0,
-        start_pos_file_path: start_pos_file_path.to_string(),
-        data_file_path: data_file_path.to_string(),
-    };
+// #[test]
+// fn test_token_to_anchor_score_delta_flush() {
+//     let start_pos_file_path = "token_to_anchor_score_delta_indirect";
+//     let data_file_path = "token_to_anchor_score_delta_indirect_data";
+//     let start_pos_file = File::create(start_pos_file_path).unwrap();
+//     let data_file = File::create(data_file_path).unwrap();
+//     start_pos_file.set_len(1).unwrap();
+//     data_file.set_len(1).unwrap();
+//     let mut yeps = TokenToAnchorScoreVintDelta{
+//         free_blocks: vec![],
+//         data: vec![],
+//         num_values_added: 0,
+//         start_pos_file_path: start_pos_file_path.to_string(),
+//         data_file_path: data_file_path.to_string(),
+//     };
 
-    yeps.add_values(1, vec![1, 1]);
+//     yeps.add_values(1, vec![1, 1]);
 
-    assert_eq!(yeps.get_scores(0), None);
-    assert_eq!(yeps.get_scores(1), Some(vec![AnchorScore::new(1, f16::from_f32(1.0))]));
-    assert_eq!(yeps.get_scores(2), None);
+//     assert_eq!(yeps.get_scores(0), None);
+//     assert_eq!(yeps.get_scores(1), Some(vec![AnchorScore::new(1, f16::from_f32(1.0))]));
+//     assert_eq!(yeps.get_scores(2), None);
 
-    yeps.flush_to_disk().unwrap();
+//     yeps.flush_to_disk().unwrap();
 
-    yeps.add_values(1, vec![2, 1]);
+//     yeps.add_values(1, vec![2, 1]);
 
-    yeps.flush_to_disk().unwrap();
+//     yeps.flush_to_disk().unwrap();
 
-    assert_eq!(yeps.get_scores(0), None);
-    assert_eq!(yeps.get_scores(1), Some(vec![AnchorScore::new(1, f16::from_f32(1.0)), AnchorScore::new(2, f16::from_f32(1.0))]));
-    assert_eq!(yeps.get_scores(2), None);
+//     assert_eq!(yeps.get_scores(0), None);
+//     assert_eq!(yeps.get_scores(1), Some(vec![AnchorScore::new(1, f16::from_f32(1.0)), AnchorScore::new(2, f16::from_f32(1.0))]));
+//     assert_eq!(yeps.get_scores(2), None);
 
-    yeps.add_values(3, vec![2, 1, 5, 1]);
-    yeps.flush_to_disk().unwrap();
+//     yeps.add_values(3, vec![2, 1, 5, 1]);
+//     yeps.flush_to_disk().unwrap();
 
-    assert_eq!(yeps.get_scores(3), Some(vec![AnchorScore::new(2, f16::from_f32(1.0)), AnchorScore::new(5, f16::from_f32(1.0))]));;
+//     assert_eq!(yeps.get_scores(3), Some(vec![AnchorScore::new(2, f16::from_f32(1.0)), AnchorScore::new(5, f16::from_f32(1.0))]));;
 
-}
+// }
 
 #[test]
 fn test_token_to_anchor_score_delta_write() {

@@ -92,11 +92,13 @@ pub struct TermInfo {
 }
 
 impl TermInfo {
+    #[inline]
     pub fn new(id: u32) -> TermInfo {
         TermInfo { id: id, num_occurences: 0 }
     }
 }
 
+#[inline]
 pub fn set_ids(terms: &mut FnvHashMap<String, TermInfo>) {
     let mut v: Vec<String> = terms
         .keys()
@@ -124,6 +126,7 @@ pub struct ValIdPair {
 }
 
 impl ValIdPair {
+    #[inline]
     pub fn new(valid: u32, parent_val_id: u32) -> ValIdPair {
         ValIdPair {
             valid: valid,
@@ -149,11 +152,13 @@ pub struct TokenToAnchorScore {
 }
 
 impl GetValueId for ValIdPair {
+    #[inline]
     fn get_value_id(&self) -> u32 {
         self.valid
     }
 }
 impl GetValueId for ValIdPairToken {
+    #[inline]
     fn get_value_id(&self) -> u32 {
         self.valid
     }
@@ -169,6 +174,7 @@ pub struct ValIdToValue {
 }
 
 impl GetValueId for ValIdToValue {
+    #[inline]
     fn get_value_id(&self) -> u32 {
         self.valid
     }
@@ -219,9 +225,12 @@ fn store_full_text_info(
     path: &str,
     options: &FulltextIndexOptions,
 ) -> Result<(), io::Error> {
-    info_time!(format!("store_fst strings and string offsets {:?}", path));
+    debug_time!(format!("store_fst strings and string offsets {:?}", path));
     let mut sorted_terms: Vec<&String> = all_terms.keys().collect::<Vec<&String>>();
-    sorted_terms.sort();
+    // let mut sorted_terms: Vec<_> = all_terms.iter().collect::<Vec<_>>();
+    // sorted_terms.sort();
+    // sorted_terms.sort_unstable_by_key(|el| el.0);
+    sorted_terms.sort_unstable();
 
     // Store original strings and offsets
     // persistence.write_data(
@@ -231,8 +240,10 @@ fn store_full_text_info(
     //         .fold(String::with_capacity(sorted_terms.len() * 10), |acc, line| acc + line + "\n")
     //         .as_bytes(),
     // )?;
+
     let offsets = get_string_offsets(&sorted_terms); // TODO REPLACE OFFSET STUFF IN search field with something else
-    persistence.write_index(&persistence::vec_to_bytes_u64(&offsets), &offsets, &concat(path, ".offsets"))?;
+    let (id_list_path, id_list) = persistence.write_offset(&persistence::vec_to_bytes_u64(&offsets), &offsets, &concat(path, ".offsets"))?;
+    persistence.meta_data.id_lists.insert(id_list_path, id_list);
     // Store original strings and offsets
 
     //TEST FST AS ID MAPPER
@@ -247,32 +258,36 @@ fn store_full_text_info(
     // store_fst(persistence, &offsets_fst, &concat(&path, ".offsets")).expect("Could not store fst");
     //TEST FST AS ID MAPPER
 
-    store_fst(persistence, &all_terms, sorted_terms, path).expect("Could not store fst");
+    store_fst(persistence, sorted_terms, &path).expect("Could not store fst");
     persistence.meta_data.fulltext_indices.insert(path.to_string(), options.clone());
     Ok(())
 }
 
-fn store_fst(persistence: &mut Persistence, all_terms: &FnvHashMap<String, TermInfo>, sorted_terms: Vec<&String>, path: &str) -> Result<(), fst::Error> {
+
+// fn store_fst(persistence: &mut Persistence, all_terms: &FnvHashMap<String, TermInfo>, sorted_terms: Vec<&String>, path: &str) -> Result<(), fst::Error> {
+fn store_fst(persistence: &Persistence, sorted_terms: Vec<(&String)>, path: &str) -> Result<(), fst::Error> {
     debug_time!(format!("store_fst {:?}", path));
     let wtr = persistence.get_buffered_writer(&concat(path, ".fst"))?;
     // Create a builder that can be used to insert new key-value pairs.
     let mut build = MapBuilder::new(wtr)?;
+    // let mut build = MapBuilder::memory();
 
-    // let mut v: Vec<&String> = all_terms.keys().collect::<Vec<&String>>();
-    // v.sort();
-    for term in sorted_terms {
-        let term_info = all_terms.get(term).expect("wtf");
-        build.insert(term, term_info.id as u64).expect("could not insert into fst");
+    // for term in sorted_terms {
+    for (term_id, term) in sorted_terms.iter().enumerate() {
+        // let term_info = all_terms.get(term.0).expect("wtf");
+        build.insert(term, term_id as u64).expect("could not insert into fst");
     }
-    // for (term, term_info) in all_terms.iter() {
-    //     build.insert(term, term_info.id as u64).unwrap();
-    // }
-    // Finish construction of the map and flush its contents to disk.
+
     build.finish()?;
+
+    // let bytes = build.into_inner().unwrap();
+    // let mut file = File::create(&get_file_path(&persistence.db, &concat(path, ".fst")))?;
+    // file.write_all(&bytes)?;
 
     Ok(())
 }
 
+#[inline]
 fn add_count_text(terms: &mut FnvHashMap<String, TermInfo>, text: &str) {
     if !terms.contains_key(text) {
         terms.insert(text.to_string(), TermInfo::default());
@@ -310,6 +325,7 @@ fn add_text<T: Tokenizer>(text: &str, terms: &mut FnvHashMap<String, TermInfo>, 
     }
 }
 
+#[inline]
 fn get_or_insert<'a, T, F>(map: &'a mut FnvHashMap<String, T>, key: &str, constructor: &F) -> &'a mut T
 where
     F: Fn() -> T,
@@ -521,7 +537,7 @@ where
 
     let all_terms_in_path = get_allterms(stream1, &fulltext_info_for_path);
     // check_similarity(&all_terms_in_path);
-    info_time!("create_fulltext_index");
+    info_time!("create and write fulltext_index");
     trace!("all_terms {:?}", all_terms_in_path);
 
     let mut opt = json_converter::ForEachOpt {};
@@ -653,10 +669,12 @@ where
     let is_text_id_to_parent = |path: &str| path.ends_with(".textindex");
 
     {
-        let write_tuples = |persistence: &mut Persistence, path: &str, tuples: &mut Vec<ValIdPair>| -> Result<(), io::Error> {
+        info_time!(format!("write indices {:?}", persistence.db.to_string()));
+        
+        let write_tuples = |persistence: &Persistence, path: &str, tuples: &mut Vec<ValIdPair>, key_value_stores: &mut Vec<persistence::KVStoreMetaData>| -> Result<(), io::Error> {
             let is_alway_1_to_1 = !is_text_id_to_parent(path); // valueIdToParent relation is always 1 to 1, expect for text_ids, which can have multiple parents
 
-            persistence.write_tuple_pair(tuples, &concat(&path, ".valueIdToParent"), is_alway_1_to_1, LoadingType::Disk)?;
+            key_value_stores.push(persistence.write_tuple_pair(tuples, &concat(&path, ".valueIdToParent"), is_alway_1_to_1, LoadingType::Disk)?);
             if log_enabled!(log::Level::Trace) {
                 trace!("{}\n{}", &concat(&path, ".valueIdToParent"), print_vec(&tuples, &path, "parentid"));
             }
@@ -672,21 +690,24 @@ where
                 LoadingType::Disk
             };
 
-            persistence.write_tuple_pair(tuples, &concat(&path, ".parentToValueId"), !is_1_to_n(path), loading_type)?;
+            key_value_stores.push(persistence.write_tuple_pair(tuples, &concat(&path, ".parentToValueId"), !is_1_to_n(path), loading_type)?);
             if log_enabled!(log::Level::Trace) {
                 trace!("{}\n{}", &concat(&path, ".parentToValueId"), print_vec(&tuples, &path, "value_id"));
             }
             Ok(())
         };
 
+        let mut key_value_stores = vec![];
+        let mut anchor_score_stores = vec![];
+        let mut boost_stores = vec![];
         for (path, mut data) in path_data {
-            persistence.write_tuple_pair_dedup(
+            key_value_stores.push(persistence.write_tuple_pair_dedup(
                 &mut data.tokens_to_text_id,
                 &concat(&path, ".tokens_to_text_id"),
                 true,
                 false,
                 LoadingType::Disk,
-            )?;
+            )?);
             trace!("{}\n{}", &concat(&path, ".tokens"), print_vec(&data.tokens_to_text_id, "token_id", "parent_id"));
 
             // let mut token_to_anchor_id_score = calculate_token_score_in_doc(&mut data.tokens_to_anchor_id);
@@ -702,13 +723,6 @@ where
             //         ]
             //     })
             //     .collect();
-
-            // persistence.write_tuple_pair(&mut token_to_anchor_id_score_pairs, &concat(&path, ".tokens.to_anchor_id_score"), false, LoadingType::Disk)?;
-            // trace!(
-            //     "{}\n{}",
-            //     &concat(&path, ".tokens.to_anchor"),
-            //     print_vec(&token_to_anchor_id_score_pairs, "token_id", "anchor_id")
-            // );
 
             // use sled::{ConfigBuilder, Tree};
             // use std::mem::transmute;
@@ -738,18 +752,19 @@ where
                 // token_to_anchor_id_score_index.set_scores(token_id, group);
             }
             // persistence.write_score_index(&token_to_anchor_id_score_index, &concat(&path, ".to_anchor_id_score"), LoadingType::Disk)?;
-            persistence.write_score_index_vint(&token_to_anchor_id_score_vint_index, &concat(&path, ".to_anchor_id_score"), LoadingType::Disk)?;
+            anchor_score_stores.push(persistence.write_score_index_vint(&token_to_anchor_id_score_vint_index, &concat(&path, ".to_anchor_id_score"), LoadingType::Disk)?);
 
-            persistence.write_indirect_index(&mut data.text_id_to_token_ids, &concat(&path, ".text_id_to_token_ids"), LoadingType::Disk)?;
+            key_value_stores.push(persistence.write_indirect_index(&mut data.text_id_to_token_ids, &concat(&path, ".text_id_to_token_ids"), LoadingType::Disk)?);
             trace!(
                 "{}\n{}",
                 &concat(&path, ".text_id_to_token_ids"),
                 print_index_id_to_parent(&data.text_id_to_token_ids, "value_id", "token_id")
             );
 
-            write_tuples(&mut persistence, &path, &mut data.text_id_to_parent)?;
+            write_tuples(&mut persistence, &path, &mut data.text_id_to_parent, &mut key_value_stores)?;
 
-            persistence.write_tuple_pair(&mut data.text_id_to_anchor, &concat(&path, ".text_id_to_anchor"), false, LoadingType::Disk)?;
+            key_value_stores.push(persistence.write_tuple_pair(&mut data.text_id_to_anchor, &concat(&path, ".text_id_to_anchor"), false, LoadingType::Disk)?);
+            
             trace!(
                 "{}\n{}",
                 &concat(&path, ".text_id_to_anchor"),
@@ -757,16 +772,19 @@ where
             );
 
             if let Some(ref mut anchor_to_text_id) = data.anchor_to_text_id {
-                persistence.write_tuple_pair(
-                    anchor_to_text_id,
-                    &concat(&path, ".anchor_to_text_id"),
-                    false,
-                    LoadingType::InMemoryUnCompressed,
-                )?;
+                key_value_stores.push(
+                    persistence.write_tuple_pair(
+                        anchor_to_text_id,
+                        &concat(&path, ".anchor_to_text_id"),
+                        false,
+                        LoadingType::InMemoryUnCompressed,
+                    )?
+                );
             }
             if let Some(ref mut tuples) = data.boost {
-                persistence.write_boost_tuple_pair(tuples, &extract_field_name(&path))?; // TODO use .textindex in boost?
+                boost_stores.push(persistence.write_boost_tuple_pair(tuples, &extract_field_name(&path))?); // TODO use .textindex in boost?
             }
+
         }
 
         for (path, all_terms) in all_terms_in_path {
@@ -778,12 +796,13 @@ where
         }
 
         for (path, mut tuples) in tuples_to_parent_in_path.iter_mut() {
-            write_tuples(&mut persistence, path, &mut tuples)?;
+            write_tuples(&mut persistence, path, &mut tuples, &mut key_value_stores)?;
         }
-    }
 
-    // let path_name = util::get_file_path_name(&paths[i], is_text_index);
-    // persistence.write_tuple_pair(&mut tuples, &concat(&path_name, ".valueIdToParent"))?;
+        persistence.meta_data.key_value_stores.extend(key_value_stores);
+        persistence.meta_data.boost_stores.extend(boost_stores);
+        persistence.meta_data.anchor_score_stores.extend(anchor_score_stores);
+    }
 
     //TEST FST AS ID MAPPER
     // let mut all_ids_as_str: FnvHashMap<String, TermInfo> = FnvHashMap::default();
@@ -793,13 +812,6 @@ where
     // }
     // store_fst(persistence, &all_ids_as_str, &concat(&path_name, ".valueIdToParent.fst")).expect("Could not store fst");
     //TEST FST AS ID MAPPER
-
-    // if is_text_index && options.tokenize {
-    //     persistence.write_tuple_pair(&mut tokens, &concat(&path_name, ".tokens"))?;
-    //     trace!("{}\n{}",&concat(&path_name, ".tokens"), print_vec(&tokens, &concat(&path_name, ".tokenid"), &concat(&path_name, ".valueid")));
-    // }
-
-    // store_full_text_info(&mut persistence, all_terms, path, &options)?;
 
     Ok(())
 }
@@ -814,6 +826,16 @@ fn get_string_offsets(data: &Vec<&String>) -> Vec<u64> {
     offsets.push(offset as u64);
     offsets
 }
+// fn get_string_offsets(data: &Vec<(&String,&TermInfo)>) -> Vec<u64> {
+//     let mut offsets = vec![];
+//     let mut offset = 0;
+//     for el in data {
+//         offsets.push(offset as u64);
+//         offset += el.0.len() + 1; // 1 for linevreak
+//     }
+//     offsets.push(offset as u64);
+//     offsets
+// }
 
 #[derive(Debug, Clone)]
 struct CharData {
@@ -867,7 +889,8 @@ pub fn add_token_values_to_tokens(persistence: &mut Persistence, data_str: &str,
             });
         }
     }
-    persistence.write_boost_tuple_pair(&mut tuples, &concat(&path_name, ".tokenValues"))?;
+    let meta_data = persistence.write_boost_tuple_pair(&mut tuples, &concat(&path_name, ".tokenValues"))?;
+    persistence.meta_data.boost_stores.push(meta_data);
     persistence.write_meta_data()?;
     Ok(())
 }
@@ -881,6 +904,7 @@ pub fn create_indices_json(folder: &str, data: &Value, indices: &str) -> Result<
 }
 
 pub fn create_indices(folder: &str, data_str: &str, indices: &str) -> Result<(), CreateError> {
+    info_time!(format!("total time create_indices for {:?}", folder));
     let stream1 = Deserializer::from_str(&data_str).into_iter::<Value>();
     let stream2 = Deserializer::from_str(&data_str).into_iter::<Value>();
     let stream3 = Deserializer::from_str(&data_str).into_iter::<Value>();

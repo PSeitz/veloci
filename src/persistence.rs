@@ -365,55 +365,23 @@ impl Persistence {
         })
     }
 
-    pub fn create_write_indirect_index(
-        &mut self,
-        data: &IndexIdToParent<Output = u32>,
-        path: &str,
-        sort_and_dedup: bool,
-        loading_type: LoadingType,
-    ) -> Result<(), io::Error> {
-        let store = IndexIdToMultipleParentIndirect::new_sort_and_dedup(data, sort_and_dedup);
-        self.write_indirect_index(&store, path, loading_type)?;
-        Ok(())
-    }
-
-    pub fn write_score_index(&mut self, store: &TokenToAnchorScoreBinary, path: &str, loading_type: LoadingType) -> Result<(), io::Error> {
+    pub fn write_score_index_vint(&self, store: &TokenToAnchorScoreVint, path: &str, loading_type: LoadingType) -> Result<(KVStoreMetaData), io::Error> {
         let indirect_file_path = util::get_file_path(&self.db, &(path.to_string() + ".indirect"));
         let data_file_path = util::get_file_path(&self.db, &(path.to_string() + ".data"));
 
         store.write(&indirect_file_path, &data_file_path)?;
 
-        self.meta_data.anchor_score_stores.push(KVStoreMetaData {
+        Ok(KVStoreMetaData {
             loading_type: loading_type,
             persistence_type: KVStoreType::IndexIdToMultipleParentIndirect,
             is_1_to_n: false,
             path: path.to_string(),
             max_value_id: 0, //TODO ?
             avg_join_size: 0.0,
-        });
-
-        Ok(())
+        })
     }
 
-    pub fn write_score_index_vint(&mut self, store: &TokenToAnchorScoreVint, path: &str, loading_type: LoadingType) -> Result<(), io::Error> {
-        let indirect_file_path = util::get_file_path(&self.db, &(path.to_string() + ".indirect"));
-        let data_file_path = util::get_file_path(&self.db, &(path.to_string() + ".data"));
-
-        store.write(&indirect_file_path, &data_file_path)?;
-
-        self.meta_data.anchor_score_stores.push(KVStoreMetaData {
-            loading_type: loading_type,
-            persistence_type: KVStoreType::IndexIdToMultipleParentIndirect,
-            is_1_to_n: false,
-            path: path.to_string(),
-            max_value_id: 0, //TODO ?
-            avg_join_size: 0.0,
-        });
-
-        Ok(())
-    }
-
-    pub fn write_indirect_index(&mut self, store: &IndexIdToMultipleParentIndirect<u32>, path: &str, loading_type: LoadingType) -> Result<(), io::Error> {
+    pub fn write_indirect_index(&self, store: &IndexIdToMultipleParentIndirect<u32>, path: &str, loading_type: LoadingType) -> Result<(KVStoreMetaData), io::Error> {
         let max_value_id = *store.data.iter().max_by_key(|el| *el).unwrap_or(&0);
         let avg_join_size = calc_avg_join_size(store.num_values, store.num_ids);
 
@@ -422,104 +390,97 @@ impl Persistence {
 
         File::create(indirect_file_path)?.write_all(&vec_to_bytes_u32(&store.start_pos))?;
         File::create(data_file_path)?.write_all(&vec_to_bytes_u32(&store.data))?;
-        self.meta_data.key_value_stores.push(KVStoreMetaData {
+
+        Ok(KVStoreMetaData {
             loading_type: loading_type,
             persistence_type: KVStoreType::IndexIdToMultipleParentIndirect,
             is_1_to_n: store.is_1_to_n(),
             path: path.to_string(),
             max_value_id: max_value_id,
             avg_join_size: avg_join_size,
-        });
-
-        Ok(())
+        })
     }
 
     pub fn write_direct_index(
-        &mut self,
+        &self,
         data: &IndexIdToParent<Output = u32>,
         path: &str,
         max_value_id: u32,
         loading_type: LoadingType,
-    ) -> Result<(), io::Error> {
+    ) -> Result<(KVStoreMetaData), io::Error> {
         let data_file_path = util::get_file_path(&self.db, &(path.to_string() + ".data_direct"));
 
         let store = IndexIdToOneParent::new(data);
 
         File::create(data_file_path)?.write_all(&vec_to_bytes_u32(&store.data))?;
-        self.meta_data.key_value_stores.push(KVStoreMetaData {
+
+        Ok(KVStoreMetaData {
             loading_type: loading_type,
             persistence_type: KVStoreType::IndexIdToOneParent,
             is_1_to_n: false,
             path: path.to_string(),
             max_value_id: max_value_id,
             avg_join_size: 1 as f32, //TODO FIXME CHECKO NULLOS, 1 is not exact enough
-        });
-
-        Ok(())
+        })
     }
 
     #[cfg_attr(feature = "flame_it", flame)]
     pub fn write_tuple_pair(
-        &mut self,
+        &self,
         tuples: &mut Vec<create::ValIdPair>,
         path: &str,
         is_always_1_to_1: bool,
         loading_type: LoadingType,
-    ) -> Result<(), io::Error> {
-        self.write_tuple_pair_dedup(tuples, path, false, is_always_1_to_1, loading_type)?;
-        Ok(())
+    ) -> Result<(KVStoreMetaData), io::Error> {
+        let meta_data = self.write_tuple_pair_dedup(tuples, path, false, is_always_1_to_1, loading_type)?;
+        Ok(meta_data)
     }
 
-    // #[cfg_attr(feature = "flame_it", flame)]
-    // pub fn write_id_score(&mut self, tuples: &mut Vec<create::ValIdPair>, path: &str, is_always_1_to_1: bool, loading_type: LoadingType) -> Result<(), io::Error> {
-    //     self.write_tuple_pair_dedup(tuples, path, false, is_always_1_to_1, loading_type)?;
-    //     Ok(())
-    // }
-
     pub fn write_tuple_pair_dedup(
-        &mut self,
+        &self,
         tuples: &mut Vec<create::ValIdPair>,
         path: &str,
         sort_and_dedup: bool,
         is_always_1_to_1: bool,
         loading_type: LoadingType,
-    ) -> Result<(), io::Error> {
+    ) -> Result<(KVStoreMetaData), io::Error> {
+        info_time!("write_tuple_pair_dedup");
         let data = valid_pair_to_parallel_arrays::<u32>(tuples);
 
         if is_always_1_to_1 {
             let max_value_id = tuples.iter().max_by_key(|el| el.parent_val_id).map(|el| el.parent_val_id).unwrap_or(0);
-            self.write_direct_index(&data, path, max_value_id, loading_type)?;
+            Ok(self.write_direct_index(&data, path, max_value_id, loading_type)?)
         } else {
-            self.create_write_indirect_index(&data, path, sort_and_dedup, loading_type)?;
+            // self.create_write_indirect_index(&data, path, sort_and_dedup, loading_type)?;
+            let store = IndexIdToMultipleParentIndirect::new_sort_and_dedup(&data, sort_and_dedup);
+            Ok(self.write_indirect_index(&store, path, loading_type)?)
         }
         //Parallel
         // let encoded: Vec<u8> = serialize(&data, Infinite).unwrap();
         // File::create(util::get_file_path(&self.db, &path.to_string()))?.write_all(&encoded)?;
-
-        Ok(())
+        
     }
 
     #[cfg_attr(feature = "flame_it", flame)]
-    pub fn write_boost_tuple_pair(&mut self, tuples: &mut Vec<create::ValIdToValue>, path: &str) -> Result<(), io::Error> {
+    pub fn write_boost_tuple_pair(&self, tuples: &mut Vec<create::ValIdToValue>, path: &str) -> Result<(KVStoreMetaData), io::Error> {
         let data = boost_pair_to_parallel_arrays::<u32>(tuples);
         let encoded: Vec<u8> = serialize(&data).unwrap();
         let boost_path = path.to_string() + ".boost_valid_to_value";
         File::create(util::get_file_path(&self.db, &boost_path))?.write_all(&encoded)?;
 
-        self.meta_data.boost_stores.push(KVStoreMetaData {
+        Ok(KVStoreMetaData {
             loading_type: LoadingType::Disk,
             persistence_type: KVStoreType::ParallelArrays,
             is_1_to_n: data.is_1_to_n(),
             path: boost_path.to_string(),
             max_value_id: tuples.iter().max_by_key(|el| el.value).unwrap().value,
             avg_join_size: 1.0, //FixMe? multiple boosts?
-        });
-        Ok(())
+        })
     }
 
     #[cfg_attr(feature = "flame_it", flame)]
-    pub fn write_index<T: Clone + Integer + NumCast + Copy + Debug>(&mut self, bytes: &[u8], data: &[T], path: &str) -> Result<(), io::Error> {
-        info_time!(format!("Wrote Index {} With size {:?}", path, data.len()));
+    pub fn write_offset<T: Clone + Integer + NumCast + Copy + Debug>(&self, bytes: &[u8], data: &[T], path: &str) -> Result<((String, IDList)), io::Error> {
+        debug_time!(format!("Wrote Index {} With size {:?}", path, data.len()));
         File::create(util::get_file_path(&self.db, path))?.write_all(bytes)?;
         info!("Wrote Index {} With size {:?}", path, data.len());
         trace!("{:?}", data);
@@ -528,16 +489,22 @@ impl Persistence {
             8 => IDDataType::U64,
             _ => panic!("wrong sizeee"),
         };
-        self.meta_data.id_lists.insert(
-            path.to_string(),
+        // self.meta_data.id_lists.insert(
+        //     path.to_string(),
+        //     IDList {
+        //         path: path.to_string(),
+        //         size: data.len() as u64,
+        //         id_type: sizo,
+        //         doc_id_type: check_is_docid_type(data),
+        //     },
+        // );
+        Ok((path.to_string(),
             IDList {
                 path: path.to_string(),
                 size: data.len() as u64,
                 id_type: sizo,
                 doc_id_type: check_is_docid_type(data),
-            },
-        );
-        Ok(())
+            }))
     }
 
     // fn store_fst(all_terms: &Vec<String>, path:&str) -> Result<(), fst::Error> {
@@ -575,7 +542,7 @@ impl Persistence {
         T: serde_json::de::Read<'a>,
     {
         let mut offsets = vec![];
-        let mut file_out = File::create(&get_file_path(&self.db, path))?;
+        let mut file_out = io::BufWriter::new(File::create(&get_file_path(&self.db, path))?);
         let mut current_offset = 0;
         // let arro = data.as_array().unwrap();
 
@@ -603,7 +570,8 @@ impl Persistence {
         // }
         offsets.push(current_offset as u64);
         // println!("json offsets: {:?}", offsets);
-        self.write_index(&vec_to_bytes_u64(&offsets), &offsets, &(path.to_string() + ".offsets"))?;
+        let (id_list_path, id_list) = self.write_offset(&vec_to_bytes_u64(&offsets), &offsets, &(path.to_string() + ".offsets"))?;
+        self.meta_data.id_lists.insert(id_list_path, id_list);
         Ok(())
     }
 
