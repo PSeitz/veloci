@@ -4,7 +4,6 @@ mod tests {
 
     use chashmap::CHashMap;
     use create;
-    use doc_loader;
     use parking_lot::RwLock;
     use persistence;
     use query_generator;
@@ -17,7 +16,6 @@ mod tests {
     use std::io::prelude::*;
     use trace;
     use util;
-    use util::normalize_text;
     // use fnv::FnvHashMap;
 
     use facet;

@@ -41,6 +41,8 @@ Cargo.lock
 
 # End of https://www.gitignore.io/api/rust
 
+/data_split_old
+/thalia*
 /jmdict*
 /mochaTest/
 /mochaTest_wf/

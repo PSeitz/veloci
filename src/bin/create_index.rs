@@ -5,6 +5,7 @@ extern crate fst_levenshtein;
 extern crate search_lib;
 #[macro_use]
 extern crate serde_json;
+extern crate rayon;
 
 #[allow(unused_imports)]
 use fst::{IntoStreamer, MapBuilder, Set};
@@ -12,8 +13,10 @@ use fst::{IntoStreamer, MapBuilder, Set};
 use std::fs::File;
 use std::io::prelude::*;
 use std::io;
-
 use std::str;
+
+#[allow(unused_imports)]
+use rayon::prelude::*;
 
 fn main() {
     // env_logger::init().unwrap();
@@ -136,16 +139,28 @@ fn create_thalia_index_big() -> Result<(), io::Error> {
 #[allow(dead_code)]
 fn create_thalia_index_shards() -> Result<(), io::Error> {
 
-    for i in 0..167 {
+    // for i in 0..167 {
+    //     let shard_num = i.to_string();
+    //     let path = "data_split_old/data_".to_owned()+&shard_num;
+    //     // println!("{:?}", &path);
+    //     let mut f = File::open(&path)?;
+    //     let mut json = String::new();
+    //     f.read_to_string(&mut json)?;
+    //     println!("{:?}", search_lib::create::create_indices(&("thalia_".to_owned()+&shard_num), &json, TAHLIA_INDICES));
+    //     println!("created shard num {:?}", &shard_num);
+    // }
+
+    (0..167).into_par_iter().for_each(|i:i32|{
         let shard_num = i.to_string();
         let path = "data_split_old/data_".to_owned()+&shard_num;
         // println!("{:?}", &path);
-        let mut f = File::open(&path)?;
+        let mut f = File::open(&path).unwrap();
         let mut json = String::new();
-        f.read_to_string(&mut json)?;
+        f.read_to_string(&mut json).unwrap();
         println!("{:?}", search_lib::create::create_indices(&("thalia_".to_owned()+&shard_num), &json, TAHLIA_INDICES));
         println!("created shard num {:?}", &shard_num);
-    }
+    });
+
 
     Ok(())
 }

@@ -33,8 +33,10 @@ pub fn get_facet(persistence: &Persistence, req: &FacetRequest, ids: &[u32]) -> 
         let kv_store = persistence.get_valueid_to_parent(&path)?;
         let hits = {
             debug_time!(format!("facet count_values_for_ids {:?}", req.field));
+            println!("count_values_for_ids {:?}", path);
             kv_store.count_values_for_ids(ids, req.top.map(|el| el as u32))
         };
+        println!("counted_values_for_ids {:?}", path);
 
         debug_time!(format!("facet collect and get texts {:?}", req.field));
 

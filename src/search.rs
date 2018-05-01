@@ -278,6 +278,16 @@ pub struct SearchResultWithDoc {
     pub facets: Option<FnvHashMap<String, Vec<(String, usize)>>>,
 }
 
+impl SearchResultWithDoc {
+    pub fn merge(&mut self, other: &SearchResultWithDoc) {
+        self.num_hits += other.num_hits;
+        self.data.extend(other.data.iter().cloned());
+        // if let Some(mut facets) = self.facets {  //TODO FACETS MERGE
+        //     // facets.extend()
+        // }
+    }
+}
+
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct DocWithHit {
     pub doc: serde_json::Value,
@@ -608,12 +618,11 @@ pub fn search(mut request: Request, persistence: &Persistence) -> Result<SearchR
 
         search_result.facets = Some(
             facets_req
-                .par_iter()
+                .iter()
                 .map(|facet_req| (facet_req.field.to_string(), facet::get_facet(persistence, facet_req, &hit_ids).unwrap()))
                 .collect(),
         );
     }
-
     search_result.num_hits = res.hits_vec.len() as u64;
     {
         debug_time!("sort search by score");
@@ -633,7 +642,6 @@ pub fn search(mut request: Request, persistence: &Persistence) -> Result<SearchR
         // TODO WHY_FOUND, WHY_FOUND is done on the object, when all fields are returned
         let anchor_ids: Vec<u32> = search_result.data.iter().map(|el| el.id).collect();
         let why_found_info = get_why_found(&persistence, &anchor_ids, &term_id_hits_in_field)?;
-
         search_result.why_found_info = why_found_info;
     }
     Ok(search_result)

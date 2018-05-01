@@ -1,20 +1,16 @@
-use util::*;
 
 use super::*;
 use vint::vint_encode_most_common::*;
 
-use memmap::Mmap;
 use std::fs::OpenOptions;
 use memmap::MmapMut;
 use memmap::MmapOptions;
 
 use std;
 use std::fs::File;
-use std::io::SeekFrom;
 use std::io;
 use std::io::prelude::*;
 
-use super::U31_MAX;
 use itertools::Itertools;
 
 use byteorder::{LittleEndian, ReadBytesExt};
@@ -149,13 +145,13 @@ impl TokenToAnchorScoreVintDelta {
             data_file_path,
         }
     }
-    pub fn read<P: AsRef<Path> + std::fmt::Debug>(&mut self, path_indirect: P, path_data: P) -> Result<(), io::Error> {
-        // self.start_pos = load_index_u32(&path_indirect)?;
-        // self.data = file_to_bytes(&path_data)?;
+    pub fn read<P: AsRef<Path> + std::fmt::Debug>(&mut self, _path_indirect: P, _path_data: P) -> Result<(), io::Error> {
+        // self.start_pos = load_index_u32(&_path_indirect)?;
+        // self.data = file_to_bytes(&_path_data)?;
         Ok(())
     }
 
-    pub fn write<P: AsRef<Path> + std::fmt::Debug>(&self, path_indirect: P, path_data: P, path_free_blocks: P) -> Result<(), io::Error> {
+    pub fn write<P: AsRef<Path> + std::fmt::Debug>(&self, _path_indirect: P, _path_data: P, path_free_blocks: P) -> Result<(), io::Error> {
         // File::create(path_indirect)?.write_all(&vec_to_bytes_u32(&self.start_pos))?;
 
         let free_blocks_vec:Vec<u32> = self.free_blocks.iter().flat_map(|block| vec![block.start, block.length]).collect();
@@ -261,7 +257,7 @@ impl TokenToAnchorScoreVintDelta {
             let pos = el.0;
             let add_data = &el.1;
 
-            let (mut data_adding_now, size) = VIntArrayEncodeMostCommon::decode_from_slice(&add_data);
+            let (mut data_adding_now, _) = VIntArrayEncodeMostCommon::decode_from_slice(&add_data);
             println!("data_adding_now {:?}", data_adding_now);
             write_u32_to_mmap(&mut start_pos_mmap, pos, curr_size as u32);
             data_mmap[curr_size as usize..curr_size as usize  + add_data.len()].copy_from_slice(&add_data);

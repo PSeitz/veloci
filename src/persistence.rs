@@ -444,21 +444,18 @@ impl Persistence {
         is_always_1_to_1: bool,
         loading_type: LoadingType,
     ) -> Result<(KVStoreMetaData), io::Error> {
-        info_time!("write_tuple_pair_dedup");
         let data = valid_pair_to_parallel_arrays::<u32>(tuples);
 
         if is_always_1_to_1 {
             let max_value_id = tuples.iter().max_by_key(|el| el.parent_val_id).map(|el| el.parent_val_id).unwrap_or(0);
             Ok(self.write_direct_index(&data, path, max_value_id, loading_type)?)
         } else {
-            // self.create_write_indirect_index(&data, path, sort_and_dedup, loading_type)?;
             let store = IndexIdToMultipleParentIndirect::new_sort_and_dedup(&data, sort_and_dedup);
             Ok(self.write_indirect_index(&store, path, loading_type)?)
         }
         //Parallel
         // let encoded: Vec<u8> = serialize(&data, Infinite).unwrap();
         // File::create(util::get_file_path(&self.db, &path.to_string()))?.write_all(&encoded)?;
-        
     }
 
     #[cfg_attr(feature = "flame_it", flame)]
@@ -542,32 +539,17 @@ impl Persistence {
         T: serde_json::de::Read<'a>,
     {
         let mut offsets = vec![];
-        let mut file_out = io::BufWriter::new(File::create(&get_file_path(&self.db, path))?);
+        let mut file_out = self.get_buffered_writer(path)?;
         let mut current_offset = 0;
-        // let arro = data.as_array().unwrap();
-
-        // let mut encoder = snap::Encoder::new();
-        // let mut dat = vec_to_bytes_u32(&vals);
 
         util::iter_json_stream(data, &mut |el: &serde_json::Value| {
             let el_str = el.to_string().into_bytes();
 
-            // let mut compressed_doc = encoder.compress_vec(&el_str).unwrap();
-            // compressed_doc.shrink_to_fit();
-            // file_out.write_all(&compressed_doc).unwrap();
-
             file_out.write_all(&el_str).unwrap();
             offsets.push(current_offset as u64);
             current_offset += el_str.len();
-            // current_offset += compressed_doc.len();
         });
 
-        // for el in arro {
-        //     let el_str = el.to_string().into_bytes();
-        //     buffer.write_all(&el_str)?;
-        //     offsets.push(current_offset as u64);
-        //     current_offset += el_str.len();
-        // }
         offsets.push(current_offset as u64);
         // println!("json offsets: {:?}", offsets);
         let (id_list_path, id_list) = self.write_offset(&vec_to_bytes_u64(&offsets), &offsets, &(path.to_string() + ".offsets"))?;
@@ -779,22 +761,22 @@ impl Persistence {
                                 let data_file = self.get_file_handle_complete_path(&indirect_data_path)?;
                                 let indirect_metadata = self.get_file_metadata_handle_complete_path(&indirect_path)?;
                                 let data_metadata = self.get_file_metadata_handle(&(el.path.to_string() + ".data"))?;
-                                let store = PointingMMAPFileReader::new(
-                                    &start_and_end_file,
-                                    &data_file,
-                                    indirect_metadata,
-                                    &data_metadata,
-                                    el.max_value_id,
-                                    el.avg_join_size,
-                                );
-                                // let store = PointingArrayFileReader::new(
-                                //     start_and_end_file,
-                                //     data_file,
+                                // let store = PointingMMAPFileReader::new(
+                                //     &start_and_end_file,
+                                //     &data_file,
                                 //     indirect_metadata,
-                                //     // data_metadata,
+                                //     &data_metadata,
                                 //     el.max_value_id,
                                 //     el.avg_join_size,
                                 // );
+                                let store = PointingArrayFileReader::new(
+                                    start_and_end_file,
+                                    data_file,
+                                    indirect_metadata,
+                                    // data_metadata,
+                                    el.max_value_id,
+                                    el.avg_join_size,
+                                );
 
                                 // let store = PointingArrayFileReader { start_and_end_file: el.path.to_string()+ ".indirect", data_file: el.path.to_string()+ ".data", persistence: self.db.to_string()};
                                 // self.indices
