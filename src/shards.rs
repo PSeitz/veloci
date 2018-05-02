@@ -36,24 +36,24 @@ impl Shards {
         let mut all_search_results = SearchResultWithDoc::default();
         // let mut all_results:Vec<(u32, SearchResult)> = vec![];
 
-        // let r: Result<Vec<_>, search::SearchError> = self.persistences.par_iter().map(|(_num, persistence)| {
-        //     let request = query_generator::search_query(&persistence, q_params.clone());
-        //     let hits = search::search(request, persistence)?;
-        //     Ok(search::to_search_result(&persistence, hits, select.clone()))
-        // }).collect();
-
-        // for result in r?{
-        //     all_search_results.merge(&result);
-        // }
-
-        for (num, persistence) in self.persistences.iter() {
-            let mut request = query_generator::search_query(&persistence, q_params.clone());
-            // let select = request.select.clone();
+        let r: Result<Vec<_>, search::SearchError> = self.persistences.par_iter().map(|(_num, persistence)| {
+            let request = query_generator::search_query(&persistence, q_params.clone());
             let hits = search::search(request, persistence)?;
-            // all_results.push((*num, hits));
-            let result = search::to_search_result(&persistence, hits, select.clone());
+            Ok(search::to_search_result(&persistence, hits, select.clone()))
+        }).collect();
+
+        for result in r?{
             all_search_results.merge(&result);
         }
+
+        // for (num, persistence) in self.persistences.iter() {
+        //     let mut request = query_generator::search_query(&persistence, q_params.clone());
+        //     // let select = request.select.clone();
+        //     let hits = search::search(request, persistence)?;
+        //     // all_results.push((*num, hits));
+        //     let result = search::to_search_result(&persistence, hits, select.clone());
+        //     all_search_results.merge(&result);
+        // }
 
         all_search_results.data = apply_top_skip(&all_search_results.data, Some(0), Some(10));
 
