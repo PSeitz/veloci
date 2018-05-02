@@ -473,7 +473,7 @@ impl Persistence {
             persistence_type: KVStoreType::ParallelArrays,
             is_1_to_n: data.is_1_to_n(),
             path: boost_path.to_string(),
-            max_value_id: tuples.iter().max_by_key(|el| el.value).unwrap().value,
+            max_value_id: tuples.iter().max_by_key(|el| el.value).unwrap_or_else(||&create::ValIdToValue {valid: 0, value: 0}).value,
             avg_join_size: 1.0, //FixMe? multiple boosts?
         })
     }

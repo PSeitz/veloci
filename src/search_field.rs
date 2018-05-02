@@ -163,7 +163,10 @@ where
         .ok_or_else(|| SearchError::StringError(format!("fst not found loaded in indices {} ", options.path)))?;
     let lev = {
         debug_time!(format!("{} LevenshteinIC create", &options.path));
-        LevenshteinIC::new(&options.terms[0], options.levenshtein_distance.unwrap_or(0))?
+        let lev_automaton_builder = LevenshteinAutomatonBuilder::new(options.levenshtein_distance.unwrap_or(0) as u8, true);
+        lev_automaton_builder.build_dfa(&options.terms[0], true)
+        // let dfa = ;
+        // LevenshteinIC::new(&options.terms[0], options.levenshtein_distance.unwrap_or(0))?
     };
 
     // let stream = map.search(lev).into_stream();
@@ -369,7 +372,7 @@ fn get_term_ids_in_field(persistence: &Persistence, options: &mut RequestSearchP
         debug_time!(format!("{} find token ids", &options.path));
         let lev_automaton_builder = LevenshteinAutomatonBuilder::new(options.levenshtein_distance.unwrap_or(0) as u8, true);
 
-        let dfa = lev_automaton_builder.build_dfa(&lower_term);
+        let dfa = lev_automaton_builder.build_dfa(&lower_term, false);
         // let search_term_length = &lower_term.chars.count();
         let should_check_prefix_match = options.starts_with.unwrap_or(false) || options.levenshtein_distance.unwrap_or(0) != 0;
 
