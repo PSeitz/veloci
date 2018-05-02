@@ -1,11 +1,11 @@
-use fnv::FnvHashMap;
-use itertools::Itertools;
-use num::NumCast;
 use persistence::*;
 use search::*;
 use search_field::*;
-use std::cmp::Ordering;
 use util;
+use itertools::Itertools;
+use num::NumCast;
+use fnv::FnvHashMap;
+use std::cmp::Ordering;
 
 pub fn get_top_facet_group<T: IndexIdToParentData>(hits: &FnvHashMap<T, usize>, top: Option<usize>) -> Vec<(T, u32)> {
     let mut groups: Vec<(T, u32)> = hits.iter().map(|ref tupl| (*tupl.0, *tupl.1 as u32)).collect();
@@ -176,12 +176,15 @@ fn get_top_n_sort_from_iter<'a, T: IndexIdToParentData, K: IndexIdToParentData, 
 
 impl<T: IndexIdToParentData> AggregationCollector<T> for Vec<T> {
     fn add(&mut self, id: T) {
+        let id_usize = id.to_usize().unwrap();
+        if self.len() < id_usize + 1 { // FIXME MAX ID WRONG SOMETIMES -> VEC SIZE WRONG
+            self.resize(id_usize, T::zero());
+        }
         unsafe {
-            let elem = self.get_unchecked_mut(id.to_usize().unwrap());
+            let elem = self.get_unchecked_mut(id_usize);
             *elem = *elem + T::one();
         }
     }
-
     fn to_map(self: Box<Self>, top: Option<u32>) -> FnvHashMap<T, usize> {
         debug_time!("aggregation vec to_map");
 

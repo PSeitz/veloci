@@ -16,7 +16,7 @@ impl DocLoader {
     #[cfg_attr(feature = "flame_it", flame)]
     pub fn get_doc(persistence: &Persistence, pos: usize) -> Result<String, search::SearchError> {
         let (start, end) = {
-            info!("now loading document offsets for id {:?}", pos);
+            debug!("now loading document offsets for id {:?}", pos);
             let offsets = persistence.get_offsets("data").unwrap();
             (
                 offsets.get_value(pos as u64).unwrap() as usize,

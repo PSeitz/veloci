@@ -29,6 +29,8 @@ extern crate flame;
 
 extern crate memmap;
 
+extern crate fxhash;
+
 // extern crate faster;
 extern crate lz4;
 
@@ -118,6 +120,7 @@ pub mod highlight_field;
 pub mod kmerge_by;
 pub mod lev_automat;
 pub mod persistence;
+pub mod shards;
 pub mod persistence_data;
 pub mod persistence_data_indirect;
 pub mod persistence_score;

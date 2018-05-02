@@ -72,7 +72,37 @@ where
 
     }
 
+}
 
+pub fn for_each_element_and_doc<'a, F, F2, F3, T>(data: StreamDeserializer<'a, T, Value>, id_provider: &mut IDProvider, opt: &mut ForEachOpt, cb_text: &mut F, cb_ids: &mut F2, cb_docs: &mut F3)
+where
+    F: FnMut(u32, &str, &str, u32),
+    F2: FnMut(u32, &str, u32, u32),
+    F3: FnMut(&Value),
+    T: serde_json::de::Read<'a>
+{
+    let mut path = String::with_capacity(25);
+
+    for el in data {
+        // let root_id = id_provider.get_id("");
+        // for_each_elemento(&el.unwrap(), root_id, id_provider, root_id, &mut path, "", opt, cb_text, cb_ids);
+        // path.clear();
+
+        if let Some(arr) = el.as_ref().unwrap().as_array() {
+            for el in arr.iter() {
+                let root_id = id_provider.get_id("");
+                for_each_elemento(el, root_id, id_provider, root_id, &mut path, "", opt, cb_text, cb_ids);
+                path.clear();
+                cb_docs(el);
+            }
+        } else {
+            let root_id = id_provider.get_id("");
+            for_each_elemento(el.as_ref().unwrap(), root_id, id_provider, root_id, &mut path, "", opt, cb_text, cb_ids);
+            cb_docs(el.as_ref().unwrap());
+        }
+        path.clear();
+
+    }
 
 }
 

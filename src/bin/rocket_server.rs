@@ -38,6 +38,7 @@ use search_lib::search;
 use search_lib::query_generator;
 use search_lib::search_field;
 use search_lib::persistence::Persistence;
+use search_lib::shards::Shards;
 use search_lib::persistence;
 
 use chashmap::CHashMap;
@@ -49,6 +50,9 @@ use std::io::{Cursor};
 
 lazy_static! {
     static ref PERSISTENCES: CHashMap<String, Persistence> = {
+        CHashMap::default()
+    };
+    static ref SHARDS: CHashMap<String, Shards> = {
         CHashMap::default()
     };
 }
@@ -149,6 +153,14 @@ fn query_param_to_vec(name: Option<String>) -> Option<Vec<String>> {
 fn ensure_database(database: &String) -> Result<(), search::SearchError> {
     if !PERSISTENCES.contains_key(database) {
         PERSISTENCES.insert(database.clone(), persistence::Persistence::load(database.clone())?);
+    }
+    Ok(())
+}
+
+fn ensure_shard(database: &String) -> Result<(), search::SearchError> {
+    if !SHARDS.contains_key(database) {
+        SHARDS.insert(database.clone(), Shards::load(database.clone(), 167)?);
+        // SHARDS.insert(database.clone(), Shards::load(database.clone(), 1)?);
     }
     Ok(())
 }
@@ -274,6 +286,57 @@ fn search_get(database: String, params: QueryParams) -> Result<SearchResult, sea
     search_in_persistence(&persistence, request, false)
 }
 
+#[get("/<database>/search_shard?<params>")]
+fn search_get_shard(database: String, params: QueryParams) -> Result<SearchResult, search::SearchError> {
+    ensure_shard(&database)?;
+    let shard = SHARDS.get(&database).unwrap();
+
+    let facets: Option<Vec<String>> = query_param_to_vec(params.facets);
+    let fields: Option<Vec<String>> = query_param_to_vec(params.fields);
+    let boost_fields: HashMap<String, f32> = query_param_to_vec(params.boost_fields)
+        .map(|mkay| {
+            mkay.into_iter()
+                .map(|el| {
+                    let field_n_boost = el.split("->").collect::<Vec<&str>>();
+                    (field_n_boost[0].to_string(), field_n_boost[1].parse::<f32>().unwrap())
+                })
+                .collect()
+        })
+        .unwrap_or(HashMap::default());
+
+    let boost_terms: HashMap<String, f32> = query_param_to_vec(params.boost_terms)
+        .map(|mkay| {
+            mkay.into_iter()
+                .map(|el| {
+                    let field_n_boost = el.split("->").collect::<Vec<&str>>();
+                    (
+                        field_n_boost[0].to_string(),
+                        field_n_boost.get(1).map(|el| el.parse::<f32>().unwrap()).unwrap_or(2.0),
+                    )
+                })
+                .collect()
+        })
+        .unwrap_or(HashMap::default());
+
+    let q_params = query_generator::SearchQueryGeneratorParameters {
+        search_term: params.query.to_string(),
+        top: params.top,
+        skip: params.skip,
+        operator: params.operator,
+        levenshtein: params.levenshtein,
+        levenshtein_auto_limit: params.levenshtein_auto_limit,
+        facetlimit: params.facetlimit,
+        why_found: params.why_found.map(|el| el == "true" || el == "TRUE" || el == "True"),
+        text_locality: params.text_locality.map(|el| el == "true" || el == "TRUE" || el == "True"),
+        facets: facets,
+        fields: fields,
+        boost_fields: boost_fields,
+        boost_terms: boost_terms,
+    };
+
+    Ok(SearchResult(shard.search_all_shards_from_qp(&q_params, query_param_to_vec(params.select))?))
+}
+
 #[post("/<database>/suggest", format = "application/json", data = "<request>")]
 fn suggest_post(database: String, request: Json<search::Request>) -> Result<SuggestResult, search::SearchError> {
     ensure_database(&database)?;
@@ -322,13 +385,16 @@ fn highlight_post(database: String, mut request: Json<search::RequestSearchPart>
 fn main() {
     search_lib::trace::enable_log();
 
+    // for preload_db in std::env::args().skip(1) {
+    //     ensure_database(&preload_db).unwrap();
+    // }
     for preload_db in std::env::args().skip(1) {
-        ensure_database(&preload_db).unwrap();
+        ensure_shard(&preload_db).unwrap();
     }
     println!("Starting Server...");
     rocket::ignite()
         // .mount("/", routes![version, get_doc_for_id_direct, get_doc_for_id_tree, search_get, search_post, suggest_get, suggest_post, highlight_post])
-        .mount("/", routes![version, get_doc_for_id_direct, get_doc_for_id_tree, search_get, search_post, suggest_get, suggest_post, highlight_post, inspect_data])
+        .mount("/", routes![version, get_doc_for_id_direct, get_doc_for_id_tree, search_get, search_post, suggest_get, search_get_shard, suggest_post, highlight_post, inspect_data])
         .attach(Gzip)
         .launch();
 }

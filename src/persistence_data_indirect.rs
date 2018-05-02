@@ -155,6 +155,7 @@ impl<T: IndexIdToParentData> IndexIdToParent for IndexIdToMultipleParentIndirect
 
     #[inline]
     fn count_values_for_ids(&self, ids: &[u32], top: Option<u32>) -> FnvHashMap<T, usize> {
+        // FIXME MAX ID WRONG SOMETIMES
         let mut coll: Box<AggregationCollector<T>> = get_collector(ids.len() as u32, self.avg_join_size, self.max_value_id);
         let size = self.get_size();
 
