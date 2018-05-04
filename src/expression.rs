@@ -34,11 +34,25 @@ enum OperationStep {
 // }
 
 impl ScoreExpression {
-    pub fn new(expression: String) -> Self {
-        let ops = ScoreExpression::parse(&expression);
-        ScoreExpression {
-            expression: expression,
-            ops: ops,
+    pub fn get_score(&self, rank: f32) -> f32 {
+        let left = match self.ops[0] {
+            OperatorType::_Score_ => rank,
+            OperatorType::Float(val) => val,
+            _ => panic!("Need to start with float oder $SCORE"),
+        };
+
+        let right = match self.ops[2] {
+            OperatorType::_Score_ => rank,
+            OperatorType::Float(val) => val,
+            _ => panic!("Need to end with float oder $SCORE"),
+        };
+
+        match self.ops[1] {
+            OperatorType::Division => left / right,
+            OperatorType::Mul => left * right,
+            OperatorType::Add => left + right,
+            OperatorType::Sub => left - right,
+            _ => panic!("Need to asdf"),
         }
     }
 
@@ -95,25 +109,11 @@ impl ScoreExpression {
         operations
     }
 
-    pub fn get_score(&self, rank: f32) -> f32 {
-        let left = match self.ops[0] {
-            OperatorType::_Score_ => rank,
-            OperatorType::Float(val) => val,
-            _ => panic!("Need to start with float oder $SCORE"),
-        };
-
-        let right = match self.ops[2] {
-            OperatorType::_Score_ => rank,
-            OperatorType::Float(val) => val,
-            _ => panic!("Need to end with float oder $SCORE"),
-        };
-
-        match self.ops[1] {
-            OperatorType::Division => left / right,
-            OperatorType::Mul => left * right,
-            OperatorType::Add => left + right,
-            OperatorType::Sub => left - right,
-            _ => panic!("Need to asdf"),
+    pub fn new(expression: String) -> Self {
+        let ops = ScoreExpression::parse(&expression);
+        ScoreExpression {
+            expression: expression,
+            ops: ops,
         }
     }
 }

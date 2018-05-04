@@ -6,11 +6,11 @@ use serde_json::{StreamDeserializer, Value};
 use std::fs;
 use std::fs::File;
 use std::io;
-use std::path::Path;
 use std::io::prelude::*;
 use std::io::SeekFrom;
 use std::mem;
 use std::mem::transmute;
+use std::path::Path;
 
 use std;
 

@@ -1,7 +1,7 @@
 use persistence::Persistence;
 use search::add_boost;
-use search::{Request, RequestBoostPart, RequestSearchPart, SearchError};
 use search::*;
+use search::{Request, RequestBoostPart, RequestSearchPart, SearchError};
 use search_field;
 use util;
 use util::concat;

@@ -64,9 +64,9 @@ extern crate parking_lot;
 #[macro_use]
 extern crate prettytable;
 
+extern crate bincode;
 extern crate levenshtein_automata;
 extern crate snap;
-extern crate bincode;
 
 #[macro_use]
 extern crate measure_time;
@@ -111,20 +111,20 @@ pub mod expression;
 pub mod facet;
 pub mod highlight_field;
 pub mod persistence;
-pub mod shards;
 pub mod persistence_data;
 pub mod persistence_data_indirect;
 pub mod persistence_score;
 pub mod query_generator;
 pub mod search;
 pub mod search_field;
+pub mod shards;
 pub mod tokenizer;
 pub mod trace;
 
 #[cfg(test)]
-extern crate tempfile;
-#[cfg(test)]
 extern crate rand;
+#[cfg(test)]
+extern crate tempfile;
 #[cfg(test)]
 mod test_why_found;
 #[cfg(test)]

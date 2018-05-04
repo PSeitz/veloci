@@ -1,4 +1,4 @@
-#![recursion_limit="128"]
+#![recursion_limit = "128"]
 
 extern crate env_logger;
 extern crate flexi_logger;
@@ -15,8 +15,8 @@ extern crate rayon;
 use fst::{IntoStreamer, MapBuilder, Set};
 // use fst_levenshtein::Levenshtein;
 use std::fs::File;
-use std::io::prelude::*;
 use std::io;
+use std::io::prelude::*;
 use std::str;
 
 #[allow(unused_imports)]
@@ -143,7 +143,6 @@ fn create_thalia_index_big() -> Result<(), io::Error> {
 
 #[allow(dead_code)]
 fn create_thalia_index_shards() -> Result<(), io::Error> {
-
     // for i in 0..167 {
     //     let shard_num = i.to_string();
     //     let path = "data_split_old/data_".to_owned()+&shard_num;
@@ -155,17 +154,19 @@ fn create_thalia_index_shards() -> Result<(), io::Error> {
     //     println!("created shard num {:?}", &shard_num);
     // }
 
-    (0..167).into_iter().for_each(|i:i32|{
+    (0..167).into_iter().for_each(|i: i32| {
         let shard_num = i.to_string();
-        let path = "data_split_500/data_".to_owned()+&shard_num;
+        let path = "data_split_500/data_".to_owned() + &shard_num;
         // println!("{:?}", &path);
         let mut f = File::open(&path).unwrap();
         let mut json = String::new();
         f.read_to_string(&mut json).unwrap();
-        println!("{:?}", search_lib::create::create_indices(&("thalia_split_500/thalia_".to_owned()+&shard_num), &json, TAHLIA_INDICES));
+        println!(
+            "{:?}",
+            search_lib::create::create_indices(&("thalia_split_500/thalia_".to_owned() + &shard_num), &json, TAHLIA_INDICES)
+        );
         println!("created shard num {:?}", &shard_num);
     });
-
 
     Ok(())
 }
@@ -213,7 +214,9 @@ fn create_single_data_index() -> Result<(), io::Error> {
     let indices = "[]";
 
     for i in 0..1 {
-        let books = (0..10000).map(|_el| json!({
+        let books = (0..10000)
+            .map(|_el| {
+                json!({
                 "commonness": 3103,
                 "ent_seq": "1259290",
                 "kana": [
@@ -498,7 +501,9 @@ fn create_single_data_index() -> Result<(), io::Error> {
                     "v1",
                     "vt"
                 ]
-            })).collect::<Vec<_>>();
+            })
+            })
+            .collect::<Vec<_>>();
 
         println!(
             "{:?}",

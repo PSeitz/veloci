@@ -10,8 +10,8 @@ extern crate trie;
 // use criterion::Criterion;
 
 // use bit_set::BitSet;
-use std::collections::HashMap;
 use fnv::FnvHashMap;
+use std::collections::HashMap;
 use std::hash::{BuildHasherDefault, Hasher};
 
 // use trie::map;
@@ -43,14 +43,16 @@ impl Default for NaiveHasher {
     }
 }
 impl Hasher for NaiveHasher {
-    fn finish(&self) -> u64 {
-        self.0
+    fn write_u64(&mut self, i: u64) {
+        self.0 = i ^ i >> 7;
     }
+
     fn write(&mut self, _: &[u8]) {
         unimplemented!()
     }
-    fn write_u64(&mut self, i: u64) {
-        self.0 = i ^ i >> 7;
+
+    fn finish(&self) -> u64 {
+        self.0
     }
     // fn write_u32(&mut self, i: u32) {
     //     self.0 = (i ^ i >> 3) as u64 ;
@@ -162,8 +164,8 @@ pub fn bench_vec_insert_with_group_by_in_2_vec(num_hits: u32, token_hits: u32) -
 #[cfg(test)]
 mod bench_collection {
 
-    use test::Bencher;
     use super::*;
+    use test::Bencher;
 
     // #[bench]
     // fn bench_fnvhashmap_insert_with_lookup_100k(b: &mut Bencher) {

@@ -1,6 +1,6 @@
-use std::io::{self};
-use std::{self, f32, str, cmp};
 use std::cmp::Ordering;
+use std::io;
+use std::{self, cmp, f32, str};
 
 use fnv::FnvHashMap;
 use fnv::FnvHashSet;
@@ -1263,8 +1263,8 @@ fn boost_intersect_hits_vec_test() {
 
 #[cfg(test)]
 mod bench_intersect {
-    use test;
     use super::*;
+    use test;
     #[bench]
     fn bench_boost_intersect_hits_vec(b: &mut test::Bencher) {
         let hits1: Vec<Hit> = (0..4_000_00).map(|i| Hit::new(i * 5 as u32, 2.2 as f32)).collect();
@@ -1301,10 +1301,8 @@ mod bench_intersect {
                 }],
             )
         })
+    }
 }
-}
-
-
 
 // #[bench]
 // fn bench_intersect_hits_vec(b: &mut test::Bencher) {
@@ -1480,12 +1478,12 @@ impl fmt::Display for SearchError {
 }
 
 impl Error for SearchError {
-    fn description(&self) -> &str {
-        "self.error.description()"
-    }
-
     fn cause(&self) -> Option<&Error> {
         None
+    }
+
+    fn description(&self) -> &str {
+        "self.error.description()"
     }
 }
 
@@ -1547,7 +1545,7 @@ pub fn read_tree(persistence: &Persistence, id: u32, tree: &NodeTree) -> Result<
                                 json[extract_prop_name(prop)] = json!(sub_data);
                             }
                         } else if let Some(texto) = join_and_get_text_for_ids(persistence, id, prop)? {
-                                json[extract_prop_name(prop)] = json!(texto);
+                            json[extract_prop_name(prop)] = json!(texto);
                         }
                     }
                     &NodeTree::Map(ref _next) => {

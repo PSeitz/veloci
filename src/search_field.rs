@@ -1,7 +1,7 @@
 use fnv::{FnvHashMap, FnvHashSet};
 use fst::automaton::*;
 use fst::raw::Fst;
-use fst::{IntoStreamer};
+use fst::IntoStreamer;
 use highlight_field::*;
 use itertools::Itertools;
 // use lev_automat::*;
@@ -36,18 +36,6 @@ pub struct SearchFieldResult {
 }
 
 impl SearchFieldResult {
-    // TODO AVOID COPY
-    //Creates a new result, while keeping metadata for original hits
-    pub fn new_from(other: &SearchFieldResult) -> Self {
-        let mut res = SearchFieldResult::default();
-        res.terms = other.terms.clone();
-        res.highlight = other.highlight.clone();
-        res.request = other.request.clone();
-        res.term_id_hits_in_field = other.term_id_hits_in_field.clone();
-        res.term_text_in_field = other.term_text_in_field.clone();
-        res
-    }
-
     pub fn iter<'a>(&'a self, term_id: u8, _field_id: u8) -> SearchFieldResultIterator<'a> {
         let begin = self.hits_vec.as_ptr();
         let end = unsafe { begin.offset(self.hits_vec.len() as isize) as *const search::Hit };
@@ -59,6 +47,18 @@ impl SearchFieldResult {
             term_id: term_id,
             // field_id: field_id,
         }
+    }
+
+    // TODO AVOID COPY
+    //Creates a new result, while keeping metadata for original hits
+    pub fn new_from(other: &SearchFieldResult) -> Self {
+        let mut res = SearchFieldResult::default();
+        res.terms = other.terms.clone();
+        res.highlight = other.highlight.clone();
+        res.request = other.request.clone();
+        res.term_id_hits_in_field = other.term_id_hits_in_field.clone();
+        res.term_text_in_field = other.term_text_in_field.clone();
+        res
     }
 }
 
@@ -75,6 +75,20 @@ impl<'a> Iterator for SearchFieldResultIterator<'a> {
     type Item = MiniHit;
 
     #[inline]
+    fn count(self) -> usize {
+        self.list.len()
+    }
+
+    #[inline]
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let exact = match self.ptr.offset_to(self.end) {
+            Some(x) => x as usize,
+            None => (self.end as usize).wrapping_sub(self.ptr as usize),
+        };
+        (exact, Some(exact))
+    }
+
+    #[inline]
     fn next(&mut self) -> Option<MiniHit> {
         if self.ptr as *const _ == self.end {
             None
@@ -89,20 +103,6 @@ impl<'a> Iterator for SearchFieldResultIterator<'a> {
                 // field_id: self.field_id,
             })
         }
-    }
-
-    #[inline]
-    fn size_hint(&self) -> (usize, Option<usize>) {
-        let exact = match self.ptr.offset_to(self.end) {
-            Some(x) => x as usize,
-            None => (self.end as usize).wrapping_sub(self.ptr as usize),
-        };
-        (exact, Some(exact))
-    }
-
-    #[inline]
-    fn count(self) -> usize {
-        self.list.len()
     }
 }
 

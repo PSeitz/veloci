@@ -5,25 +5,25 @@ use std::io;
 use std::io::Write;
 use std::{self, str};
 
-use serde_json::{self, Value};
-use serde_json::{Deserializer, StreamDeserializer};
-use log;
-use itertools::Itertools;
 use fst::{self, MapBuilder};
 use fxhash::FxHashMap;
+use itertools::Itertools;
+use log;
 use rayon::prelude::*;
+use serde_json::{self, Value};
+use serde_json::{Deserializer, StreamDeserializer};
 
-use util::{self, concat};
 use json_converter;
 use persistence;
-use persistence_data_indirect::*;
-use persistence_score::token_to_anchor_score_vint::*;
-use persistence_score::token_to_anchor_score_deltaable::*;
 use persistence::{IndexIdToParent, LoadingType, Persistence};
-use tokenizer::*;
-use util::*;
+use persistence_data_indirect::*;
+use persistence_score::token_to_anchor_score_deltaable::*;
+use persistence_score::token_to_anchor_score_vint::*;
 use search;
 use search_field;
+use tokenizer::*;
+use util::*;
+use util::{self, concat};
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(untagged)]
@@ -64,7 +64,8 @@ pub struct FulltextIndexOptions {
 }
 
 impl FulltextIndexOptions {
-    fn new_with_tokenize() -> FulltextIndexOptions {
+    #[allow(dead_code)]
+    fn new_without_tokenize() -> FulltextIndexOptions {
         FulltextIndexOptions {
             tokenize: true,
             stopwords: None,
@@ -72,8 +73,7 @@ impl FulltextIndexOptions {
         }
     }
 
-    #[allow(dead_code)]
-    fn new_without_tokenize() -> FulltextIndexOptions {
+    fn new_with_tokenize() -> FulltextIndexOptions {
         FulltextIndexOptions {
             tokenize: true,
             stopwords: None,
@@ -189,7 +189,6 @@ impl std::fmt::Display for ValIdPair {
     }
 }
 
-
 // impl<ValIdPair> fmt::Display for Vec<ValIdPair> {
 //     fn fmt(&self, f: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
 //         write!(f, "(a, b)",)
@@ -206,7 +205,6 @@ fn print_vec(vec: &Vec<ValIdPair>, valid_header: &str, parentid_header: &str) ->
             .join("")
 }
 
-
 #[allow(dead_code)]
 fn print_index_id_to_parent(vec: &IndexIdToMultipleParentIndirect<u32>, valid_header: &str, parentid_header: &str) -> String {
     let keys = vec.get_keys();
@@ -217,15 +215,13 @@ fn print_index_id_to_parent(vec: &IndexIdToMultipleParentIndirect<u32>, valid_he
             .join("")
 }
 
-
-
 fn store_full_text_info(
     persistence: &Persistence,
     all_terms: FxHashMap<String, TermInfo>,
     path: &str,
     options: &FulltextIndexOptions,
-    id_lists: &mut FnvHashMap<String,persistence::IDList>,
-    fulltext_indices: &mut FnvHashMap<String,FulltextIndexOptions>,
+    id_lists: &mut FnvHashMap<String, persistence::IDList>,
+    fulltext_indices: &mut FnvHashMap<String, FulltextIndexOptions>,
 ) -> Result<(), io::Error> {
     debug_time!(format!("store_fst strings and string offsets {:?}", path));
     let mut sorted_terms: Vec<&String> = all_terms.keys().collect::<Vec<&String>>();
@@ -264,7 +260,6 @@ fn store_full_text_info(
     fulltext_indices.insert(path.to_string(), options.clone());
     Ok(())
 }
-
 
 // fn store_fst(persistence: &mut Persistence, all_terms: &FnvHashMap<String, TermInfo>, sorted_terms: Vec<&String>, path: &str) -> Result<(), fst::Error> {
 fn store_fst(persistence: &Persistence, sorted_terms: Vec<(&String)>, path: &str) -> Result<(), fst::Error> {
@@ -425,7 +420,7 @@ where
 
     let mut opt = json_converter::ForEachOpt {};
 
-    let tokenizer = SimpleTokenizerCharsIterateGroupTokens{};
+    let tokenizer = SimpleTokenizerCharsIterateGroupTokens {};
     let default_fulltext_options = FulltextIndexOptions::new_with_tokenize();
 
     let mut file_out = persistence.get_buffered_writer("data")?;
@@ -433,7 +428,7 @@ where
     std::mem::swap(&mut data.id_holder, &mut id_holder);
 
     let mut offsets = vec![];
-    let mut current_offset = data.current_offset;;
+    let mut current_offset = data.current_offset;
 
     {
         let mut cb_text = |_anchor_id: u32, value: &str, path: &str, _parent_val_id: u32| {
@@ -554,7 +549,6 @@ where
 
     let is_1_to_n = |path: &str| path.contains("[]");
 
-
     let mut term_data = AllTermsAndWriteDocumentsData::default();
     get_allterms_per_path_and_write_documents(stream1, &mut persistence, &fulltext_info_for_path, &mut term_data)?;
 
@@ -585,12 +579,15 @@ where
             let data = get_or_insert(&mut path_data, path, &|| {
                 let boost_info_data = if boost_info_for_path.contains_key(path) { Some(vec![]) } else { None };
                 let anchor_to_text_id = if facet_index.contains(path) && is_1_to_n(path) { Some(vec![]) } else { None }; //Create facet index only for 1:N
-                let prop_delta_path = concat(&(persistence.db.to_string()+"/" ),&concat(&path, ".to_anchor_id_score_delta"));
+                let prop_delta_path = concat(&(persistence.db.to_string() + "/"), &concat(&path, ".to_anchor_id_score_delta"));
 
                 PathData {
                     anchor_to_text_id: anchor_to_text_id,
                     boost: boost_info_data,
-                    tokens_to_anchor_id_delta: TokenToAnchorScoreVintDelta::new(prop_delta_path.to_string()+".indirect", prop_delta_path.to_string()+".data"),
+                    tokens_to_anchor_id_delta: TokenToAnchorScoreVintDelta::new(
+                        prop_delta_path.to_string() + ".indirect",
+                        prop_delta_path.to_string() + ".data",
+                    ),
                     ..Default::default()
                 }
             });
@@ -634,7 +631,6 @@ where
             });
 
             if options.tokenize && tokenizer.has_tokens(value) {
-
                 let mut current_token_pos = 0;
                 let mut tokens_ids = vec![];
 
@@ -676,7 +672,6 @@ where
             //     data.tokens_to_anchor_id_delta.add_values(el.valid, vec![el.anchor_id, el.score]);
             // }
             data.token_to_anchor_id_score.extend(token_to_anchor_id_scores);
-
         };
 
         let mut callback_ids = |_anchor_id: u32, path: &str, value_id: u32, parent_val_id: u32| {
@@ -693,7 +688,11 @@ where
     {
         info_time!(format!("write indices {:?}", persistence.db.to_string()));
 
-        let write_tuples = |persistence: &Persistence, path: &str, tuples: &mut Vec<ValIdPair>, key_value_stores: &mut Vec<persistence::KVStoreMetaData>| -> Result<(), io::Error> {
+        let write_tuples = |persistence: &Persistence,
+                            path: &str,
+                            tuples: &mut Vec<ValIdPair>,
+                            key_value_stores: &mut Vec<persistence::KVStoreMetaData>|
+         -> Result<(), io::Error> {
             let is_alway_1_to_1 = !is_text_id_to_parent(path); // valueIdToParent relation is always 1 to 1, expect for text_ids, which can have multiple parents
 
             key_value_stores.push(persistence.write_tuple_pair(tuples, &concat(&path, ".valueIdToParent"), is_alway_1_to_1, LoadingType::Disk)?);
@@ -719,70 +718,82 @@ where
             Ok(())
         };
 
-        let r: Result<Vec<_>, io::Error> = path_data.into_par_iter().map(|(path, mut data)| {
+        let r: Result<Vec<_>, io::Error> = path_data
+            .into_par_iter()
+            .map(|(path, mut data)| {
+                let mut key_value_stores = vec![];
+                let mut anchor_score_stores = vec![];
+                let mut boost_stores = vec![];
 
-            let mut key_value_stores = vec![];
-            let mut anchor_score_stores = vec![];
-            let mut boost_stores = vec![];
+                key_value_stores.push(persistence.write_tuple_pair_dedup(
+                    &mut data.tokens_to_text_id,
+                    &concat(&path, ".tokens_to_text_id"),
+                    true,
+                    false,
+                    LoadingType::Disk,
+                )?);
+                trace!("{}\n{}", &concat(&path, ".tokens"), print_vec(&data.tokens_to_text_id, "token_id", "parent_id"));
 
-            key_value_stores.push(persistence.write_tuple_pair_dedup(
-                &mut data.tokens_to_text_id,
-                &concat(&path, ".tokens_to_text_id"),
-                true,
-                false,
-                LoadingType::Disk,
-            )?);
-            trace!("{}\n{}", &concat(&path, ".tokens"), print_vec(&data.tokens_to_text_id, "token_id", "parent_id"));
+                let mut token_to_anchor_id_score_vint_index = TokenToAnchorScoreVint::default();
+                data.token_to_anchor_id_score.sort_unstable_by_key(|a| a.valid);
+                for (token_id, mut group) in &data.token_to_anchor_id_score.into_iter().group_by(|el| (el.valid)) {
+                    let mut group: Vec<(u32, u32)> = group.map(|el| (el.anchor_id, (el.score))).collect();
+                    group.sort_unstable_by_key(|a| a.0);
+                    // let bytes: [u8; 4] = unsafe { transmute(token_id) };
+                    // tree.set(bytes.to_vec(), get_serialized_most_common_encoded(&mut group.to_vec()));
+                    token_to_anchor_id_score_vint_index.set_scores(token_id, group);
+                    // let mut group: Vec<AnchorScore> = group.map(|el| AnchorScore::new(el.anchor_id, f16::from_f32(el.score as f32))).collect();
+                    // group.sort_unstable_by_key(|a| a.id);
+                    // token_to_anchor_id_score_index.set_scores(token_id, group);
+                }
+                // persistence.write_score_index(&token_to_anchor_id_score_index, &concat(&path, ".to_anchor_id_score"), LoadingType::Disk)?;
+                anchor_score_stores.push(persistence.write_score_index_vint(
+                    &token_to_anchor_id_score_vint_index,
+                    &concat(&path, ".to_anchor_id_score"),
+                    LoadingType::Disk,
+                )?);
 
-            let mut token_to_anchor_id_score_vint_index = TokenToAnchorScoreVint::default();
-            data.token_to_anchor_id_score.sort_unstable_by_key(|a| a.valid);
-            for (token_id, mut group) in &data.token_to_anchor_id_score.into_iter().group_by(|el| (el.valid)) {
-                let mut group: Vec<(u32, u32)> = group.map(|el| (el.anchor_id, (el.score))).collect();
-                group.sort_unstable_by_key(|a| a.0);
-                // let bytes: [u8; 4] = unsafe { transmute(token_id) };
-                // tree.set(bytes.to_vec(), get_serialized_most_common_encoded(&mut group.to_vec()));
-                token_to_anchor_id_score_vint_index.set_scores(token_id, group);
-                // let mut group: Vec<AnchorScore> = group.map(|el| AnchorScore::new(el.anchor_id, f16::from_f32(el.score as f32))).collect();
-                // group.sort_unstable_by_key(|a| a.id);
-                // token_to_anchor_id_score_index.set_scores(token_id, group);
-            }
-            // persistence.write_score_index(&token_to_anchor_id_score_index, &concat(&path, ".to_anchor_id_score"), LoadingType::Disk)?;
-            anchor_score_stores.push(persistence.write_score_index_vint(&token_to_anchor_id_score_vint_index, &concat(&path, ".to_anchor_id_score"), LoadingType::Disk)?);
+                key_value_stores.push(persistence.write_indirect_index(
+                    &mut data.text_id_to_token_ids,
+                    &concat(&path, ".text_id_to_token_ids"),
+                    LoadingType::Disk,
+                )?);
+                trace!(
+                    "{}\n{}",
+                    &concat(&path, ".text_id_to_token_ids"),
+                    print_index_id_to_parent(&data.text_id_to_token_ids, "value_id", "token_id")
+                );
 
-            key_value_stores.push(persistence.write_indirect_index(&mut data.text_id_to_token_ids, &concat(&path, ".text_id_to_token_ids"), LoadingType::Disk)?);
-            trace!(
-                "{}\n{}",
-                &concat(&path, ".text_id_to_token_ids"),
-                print_index_id_to_parent(&data.text_id_to_token_ids, "value_id", "token_id")
-            );
+                write_tuples(&persistence, &path, &mut data.text_id_to_parent, &mut key_value_stores)?;
 
-            write_tuples(&persistence, &path, &mut data.text_id_to_parent, &mut key_value_stores)?;
+                key_value_stores.push(persistence.write_tuple_pair(
+                    &mut data.text_id_to_anchor,
+                    &concat(&path, ".text_id_to_anchor"),
+                    false,
+                    LoadingType::Disk,
+                )?);
 
-            key_value_stores.push(persistence.write_tuple_pair(&mut data.text_id_to_anchor, &concat(&path, ".text_id_to_anchor"), false, LoadingType::Disk)?);
+                trace!(
+                    "{}\n{}",
+                    &concat(&path, ".text_id_to_anchor"),
+                    print_vec(&data.text_id_to_anchor, "anchor_id", "anchor_id")
+                );
 
-            trace!(
-                "{}\n{}",
-                &concat(&path, ".text_id_to_anchor"),
-                print_vec(&data.text_id_to_anchor, "anchor_id", "anchor_id")
-            );
-
-            if let Some(ref mut anchor_to_text_id) = data.anchor_to_text_id {
-                key_value_stores.push(
-                    persistence.write_tuple_pair(
+                if let Some(ref mut anchor_to_text_id) = data.anchor_to_text_id {
+                    key_value_stores.push(persistence.write_tuple_pair(
                         anchor_to_text_id,
                         &concat(&path, ".anchor_to_text_id"),
                         false,
                         LoadingType::InMemoryUnCompressed,
-                    )?
-                );
-            }
-            if let Some(ref mut tuples) = data.boost {
-                boost_stores.push(persistence.write_boost_tuple_pair(tuples, &extract_field_name(&path))?); // TODO use .textindex in boost?
-            }
+                    )?);
+                }
+                if let Some(ref mut tuples) = data.boost {
+                    boost_stores.push(persistence.write_boost_tuple_pair(tuples, &extract_field_name(&path))?); // TODO use .textindex in boost?
+                }
 
-
-            Ok((key_value_stores, boost_stores, anchor_score_stores))
-        }).collect();
+                Ok((key_value_stores, boost_stores, anchor_score_stores))
+            })
+            .collect();
 
         let reso = r?;
 
@@ -792,19 +803,22 @@ where
             persistence.meta_data.anchor_score_stores.extend(anchor_score_stores);
         }
 
-
         // let mut id_lists = FnvHashMap::default();
         // let mut fulltext_indices = FnvHashMap::default();
-        let r: Result<Vec<_>, io::Error> = term_data.terms_in_path.into_par_iter().map(|(path, all_terms)| {
-            let mut id_lists = FnvHashMap::default();
-            let mut fulltext_indices = FnvHashMap::default();
-            let options: &FulltextIndexOptions = fulltext_info_for_path
-                .get(&path)
-                .and_then(|el| el.options.as_ref())
-                .unwrap_or(&default_fulltext_options);
-            store_full_text_info(&persistence, all_terms, &path, &options, &mut id_lists, &mut fulltext_indices)?;
-            Ok((id_lists, fulltext_indices))
-        }).collect();
+        let r: Result<Vec<_>, io::Error> = term_data
+            .terms_in_path
+            .into_par_iter()
+            .map(|(path, all_terms)| {
+                let mut id_lists = FnvHashMap::default();
+                let mut fulltext_indices = FnvHashMap::default();
+                let options: &FulltextIndexOptions = fulltext_info_for_path
+                    .get(&path)
+                    .and_then(|el| el.options.as_ref())
+                    .unwrap_or(&default_fulltext_options);
+                store_full_text_info(&persistence, all_terms, &path, &options, &mut id_lists, &mut fulltext_indices)?;
+                Ok((id_lists, fulltext_indices))
+            })
+            .collect();
         let reso = r?;
         for (id_lists, fulltext_indices) in reso {
             persistence.meta_data.id_lists.extend(id_lists);
@@ -823,7 +837,6 @@ where
         }
 
         persistence.meta_data.key_value_stores.extend(key_value_stores);
-
     }
 
     //TEST FST AS ID MAPPER

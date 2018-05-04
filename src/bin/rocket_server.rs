@@ -28,35 +28,31 @@ extern crate measure_time;
 extern crate flate2;
 extern crate search_lib;
 
-use rocket::{Request};
-use rocket::response::{self, Responder, Response};
 use rocket::fairing;
+use rocket::response::{self, Responder, Response};
+use rocket::Request;
 
-use rocket::http::{ContentType};
+use rocket::http::ContentType;
 use rocket_contrib::{Json, JsonValue};
 
 use search_lib::doc_loader::*;
-use search_lib::search;
-use search_lib::query_generator;
-use search_lib::search_field;
-use search_lib::persistence::Persistence;
-use search_lib::shards::Shards;
 use search_lib::persistence;
+use search_lib::persistence::Persistence;
+use search_lib::query_generator;
+use search_lib::search;
+use search_lib::search_field;
+use search_lib::shards::Shards;
 
 use chashmap::CHashMap;
 
 use std::collections::HashMap;
 
 use flate2::read::GzEncoder;
-use std::io::{Cursor};
+use std::io::Cursor;
 
 lazy_static! {
-    static ref PERSISTENCES: CHashMap<String, Persistence> = {
-        CHashMap::default()
-    };
-    static ref SHARDS: CHashMap<String, Shards> = {
-        CHashMap::default()
-    };
+    static ref PERSISTENCES: CHashMap<String, Persistence> = { CHashMap::default() };
+    static ref SHARDS: CHashMap<String, Shards> = { CHashMap::default() };
 }
 
 #[derive(Debug)]
@@ -403,13 +399,6 @@ fn main() {
 
 pub struct Gzip;
 impl fairing::Fairing for Gzip {
-    fn info(&self) -> fairing::Info {
-        fairing::Info {
-            name: "Gzip compression",
-            kind: fairing::Kind::Response,
-        }
-    }
-
     fn on_response(&self, request: &Request, response: &mut Response) {
         use flate2::Compression;
         use std::io::{Cursor, Read};
@@ -426,6 +415,13 @@ impl fairing::Fairing for Gzip {
                     .map_err(|e| eprintln!("{}", e))
                     .ok()
             });
+        }
+    }
+
+    fn info(&self) -> fairing::Info {
+        fairing::Info {
+            name: "Gzip compression",
+            kind: fairing::Kind::Response,
         }
     }
 }

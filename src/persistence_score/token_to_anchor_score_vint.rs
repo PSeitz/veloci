@@ -35,23 +35,6 @@ pub fn get_serialized_most_common_encoded(data: &mut Vec<(u32, u32)>) -> Vec<u8>
 }
 
 impl TokenToAnchorScoreVint {
-    pub fn read<P: AsRef<Path> + std::fmt::Debug>(&mut self, path_indirect: P, path_data: P) -> Result<(), io::Error> {
-        self.start_pos = load_index_u32(&path_indirect)?;
-        self.data = file_to_bytes(&path_data)?;
-        Ok(())
-    }
-
-    pub fn write<P: AsRef<Path> + std::fmt::Debug>(&self, path_indirect: P, path_data: P) -> Result<(), io::Error> {
-        File::create(path_indirect)?.write_all(&vec_to_bytes_u32(&self.start_pos))?;
-        File::create(path_data)?.write_all(&self.data)?;
-        Ok(())
-    }
-
-    #[inline]
-    fn get_size(&self) -> usize {
-        self.start_pos.len()
-    }
-
     pub fn set_scores(&mut self, id: u32, mut add_data: Vec<(u32, u32)>) {
         //TODO INVALIDATE OLD DATA IF SET TWICE?
 
@@ -81,6 +64,23 @@ impl TokenToAnchorScoreVint {
 
         self.data.extend(get_serialized_most_common_encoded(&mut add_data));
     }
+
+    #[inline]
+    fn get_size(&self) -> usize {
+        self.start_pos.len()
+    }
+
+    pub fn write<P: AsRef<Path> + std::fmt::Debug>(&self, path_indirect: P, path_data: P) -> Result<(), io::Error> {
+        File::create(path_indirect)?.write_all(&vec_to_bytes_u32(&self.start_pos))?;
+        File::create(path_data)?.write_all(&self.data)?;
+        Ok(())
+    }
+
+    pub fn read<P: AsRef<Path> + std::fmt::Debug>(&mut self, path_indirect: P, path_data: P) -> Result<(), io::Error> {
+        self.start_pos = load_index_u32(&path_indirect)?;
+        self.data = file_to_bytes(&path_data)?;
+        Ok(())
+    }
 }
 
 #[inline]
@@ -100,12 +100,6 @@ fn recreate_vec(data: &[u8], pos: usize) -> Vec<AnchorScore> {
 
 impl TokenToAnchorScore for TokenToAnchorScoreVint {
     #[inline]
-    fn get_max_id(&self) -> usize {
-        //TODO REMOVE METHOD
-        self.get_size()
-    }
-
-    #[inline]
     fn get_scores(&self, id: u32) -> Option<Vec<AnchorScore>> {
         if id as usize >= self.get_size() {
             return None;
@@ -117,6 +111,12 @@ impl TokenToAnchorScore for TokenToAnchorScoreVint {
         }
 
         Some(recreate_vec(&self.data, pos as usize))
+    }
+
+    #[inline]
+    fn get_max_id(&self) -> usize {
+        //TODO REMOVE METHOD
+        self.get_size()
     }
 }
 
@@ -147,11 +147,6 @@ impl HeapSizeOf for TokenToAnchorScoreVintMmap {
 
 impl TokenToAnchorScore for TokenToAnchorScoreVintMmap {
     #[inline]
-    fn get_max_id(&self) -> usize {
-        self.start_pos.len() / 4
-    }
-
-    #[inline]
     fn get_scores(&self, id: u32) -> Option<Vec<AnchorScore>> {
         if id as usize >= self.start_pos.len() / 4 {
             return None;
@@ -161,6 +156,11 @@ impl TokenToAnchorScore for TokenToAnchorScoreVintMmap {
             return None;
         }
         Some(recreate_vec(&self.data, pos as usize))
+    }
+
+    #[inline]
+    fn get_max_id(&self) -> usize {
+        self.start_pos.len() / 4
     }
 }
 

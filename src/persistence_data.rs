@@ -2,7 +2,7 @@ use std;
 use std::cmp::Ordering;
 use std::fs::File;
 
-use heapsize::{HeapSizeOf};
+use heapsize::HeapSizeOf;
 
 use util::*;
 
@@ -20,7 +20,7 @@ use parking_lot::Mutex;
 
 use num;
 use num::cast::ToPrimitive;
-use num::{NumCast};
+use num::NumCast;
 use std::fs;
 use std::io::Cursor;
 use std::marker::PhantomData;
@@ -58,18 +58,6 @@ impl<T: IndexIdToParentData> IndexIdToMultipleParent<T> {
 impl<T: IndexIdToParentData> IndexIdToParent for IndexIdToMultipleParent<T> {
     type Output = T;
 
-    fn get_values(&self, id: u64) -> Option<Vec<T>> {
-        let vec: Option<Vec<T>> = self.data.get(id as usize).map(|el| el.iter().map(|el| NumCast::from(*el).unwrap()).collect());
-        if vec.is_some() && vec.as_ref().unwrap().is_empty() {
-            return None;
-        }
-        vec
-    }
-
-    fn get_keys(&self) -> Vec<T> {
-        (NumCast::from(0).unwrap()..NumCast::from(self.data.len()).unwrap()).collect()
-    }
-
     #[inline]
     fn count_values_for_ids(&self, ids: &[u32], _top: Option<u32>) -> FnvHashMap<T, usize> {
         let mut hits = FnvHashMap::default();
@@ -84,6 +72,18 @@ impl<T: IndexIdToParentData> IndexIdToParent for IndexIdToMultipleParent<T> {
             }
         }
         hits
+    }
+
+    fn get_keys(&self) -> Vec<T> {
+        (NumCast::from(0).unwrap()..NumCast::from(self.data.len()).unwrap()).collect()
+    }
+
+    fn get_values(&self, id: u64) -> Option<Vec<T>> {
+        let vec: Option<Vec<T>> = self.data.get(id as usize).map(|el| el.iter().map(|el| NumCast::from(*el).unwrap()).collect());
+        if vec.is_some() && vec.as_ref().unwrap().is_empty() {
+            return None;
+        }
+        vec
     }
 }
 
@@ -103,14 +103,14 @@ impl<T: IndexIdToParentData> IndexIdToMultipleParentCompressedMaydaDIRECT<T> {
 impl<T: IndexIdToParentData> IndexIdToParent for IndexIdToMultipleParentCompressedMaydaDIRECT<T> {
     type Output = T;
 
+    fn get_keys(&self) -> Vec<T> {
+        (NumCast::from(0).unwrap()..NumCast::from(self.data.len()).unwrap()).collect()
+    }
+
     default fn get_values(&self, id: u64) -> Option<Vec<T>> {
         self.data
             .get(id as usize)
             .map(|el| el.decode().iter().map(|el| NumCast::from(*el).unwrap()).collect())
-    }
-
-    fn get_keys(&self) -> Vec<T> {
-        (NumCast::from(0).unwrap()..NumCast::from(self.data.len()).unwrap()).collect()
     }
 }
 
@@ -178,8 +178,12 @@ impl<T: IndexIdToParentData> IndexIdToParent for IndexIdToOneParent<T> {
     type Output = T;
 
     #[inline]
-    fn get_values(&self, id: u64) -> Option<Vec<T>> {
-        self.get_value(id).map(|el| vec![el])
+    fn count_values_for_ids(&self, ids: &[u32], top: Option<u32>) -> FnvHashMap<T, usize> {
+        count_values_for_ids(ids, top, self.max_value_id, |id: u64| self.get_value(id))
+    }
+
+    fn get_keys(&self) -> Vec<T> {
+        (NumCast::from(0).unwrap()..NumCast::from(self.data.len()).unwrap()).collect()
     }
 
     fn get_value(&self, id: u64) -> Option<T> {
@@ -196,13 +200,9 @@ impl<T: IndexIdToParentData> IndexIdToParent for IndexIdToOneParent<T> {
         }
     }
 
-    fn get_keys(&self) -> Vec<T> {
-        (NumCast::from(0).unwrap()..NumCast::from(self.data.len()).unwrap()).collect()
-    }
-
     #[inline]
-    fn count_values_for_ids(&self, ids: &[u32], top: Option<u32>) -> FnvHashMap<T, usize> {
-        count_values_for_ids(ids, top, self.max_value_id, |id: u64| self.get_value(id))
+    fn get_values(&self, id: u64) -> Option<Vec<T>> {
+        self.get_value(id).map(|el| vec![el])
     }
 }
 
@@ -228,20 +228,20 @@ pub struct IndexIdToOneParentMayda<T: IndexIdToParentData> {
 }
 impl<T: IndexIdToParentData> IndexIdToOneParentMayda<T> {
     #[allow(dead_code)]
-    pub fn new(data: &IndexIdToParent<Output = T>, max_value_id: u32) -> IndexIdToOneParentMayda<T> {
-        let yep = IndexIdToOneParent::new(data);
+    pub fn from_vec(data: &[T], max_value_id: u32) -> IndexIdToOneParentMayda<T> {
         IndexIdToOneParentMayda {
-            size: yep.data.len(),
-            data: to_uniform(&yep.data),
+            size: data.len(),
+            data: to_uniform(data),
             max_value_id,
         }
     }
 
     #[allow(dead_code)]
-    pub fn from_vec(data: &[T], max_value_id: u32) -> IndexIdToOneParentMayda<T> {
+    pub fn new(data: &IndexIdToParent<Output = T>, max_value_id: u32) -> IndexIdToOneParentMayda<T> {
+        let yep = IndexIdToOneParent::new(data);
         IndexIdToOneParentMayda {
-            size: data.len(),
-            data: to_uniform(data),
+            size: yep.data.len(),
+            data: to_uniform(&yep.data),
             max_value_id,
         }
     }
@@ -251,8 +251,17 @@ impl<T: IndexIdToParentData> IndexIdToParent for IndexIdToOneParentMayda<T> {
     type Output = T;
 
     #[inline]
-    fn get_values(&self, id: u64) -> Option<Vec<T>> {
-        self.get_value(id).map(|el| vec![el])
+    fn count_values_for_ids(&self, ids: &[u32], top: Option<u32>) -> FnvHashMap<T, usize> {
+        count_values_for_ids(ids, top, self.max_value_id, |id: u64| self.get_value(id))
+    }
+
+    fn get_keys(&self) -> Vec<T> {
+        (NumCast::from(0).unwrap()..NumCast::from(self.data.len()).unwrap()).collect()
+    }
+
+    #[inline]
+    fn get_mutliple_value(&self, range: std::ops::RangeInclusive<usize>) -> Option<Vec<T>> {
+        Some(self.data.access(range))
     }
 
     #[inline]
@@ -269,17 +278,8 @@ impl<T: IndexIdToParentData> IndexIdToParent for IndexIdToOneParentMayda<T> {
     }
 
     #[inline]
-    fn get_mutliple_value(&self, range: std::ops::RangeInclusive<usize>) -> Option<Vec<T>> {
-        Some(self.data.access(range))
-    }
-
-    fn get_keys(&self) -> Vec<T> {
-        (NumCast::from(0).unwrap()..NumCast::from(self.data.len()).unwrap()).collect()
-    }
-
-    #[inline]
-    fn count_values_for_ids(&self, ids: &[u32], top: Option<u32>) -> FnvHashMap<T, usize> {
-        count_values_for_ids(ids, top, self.max_value_id, |id: u64| self.get_value(id))
+    fn get_values(&self, id: u64) -> Option<Vec<T>> {
+        self.get_value(id).map(|el| vec![el])
     }
 }
 
@@ -334,6 +334,13 @@ pub struct ParallelArrays<T: IndexIdToParentData> {
 impl<T: IndexIdToParentData> IndexIdToParent for ParallelArrays<T> {
     type Output = T;
 
+    fn get_keys(&self) -> Vec<T> {
+        let mut keys: Vec<T> = self.values1.iter().map(|el| NumCast::from(*el).unwrap()).collect();
+        keys.sort();
+        keys.dedup();
+        keys
+    }
+
     #[inline]
     fn get_values(&self, id: u64) -> Option<Vec<T>> {
         let mut result = Vec::new();
@@ -355,13 +362,6 @@ impl<T: IndexIdToParentData> IndexIdToParent for ParallelArrays<T> {
             Some(result)
         }
     }
-
-    fn get_keys(&self) -> Vec<T> {
-        let mut keys: Vec<T> = self.values1.iter().map(|el| NumCast::from(*el).unwrap()).collect();
-        keys.sort();
-        keys.dedup();
-        keys
-    }
 }
 impl<T: IndexIdToParentData> HeapSizeOf for ParallelArrays<T> {
     fn heap_size_of_children(&self) -> usize {
@@ -378,6 +378,10 @@ pub struct SingleArrayMMAP<T: IndexIdToParentData> {
 }
 
 impl<T: IndexIdToParentData> SingleArrayMMAP<T> {
+    fn get_size(&self) -> usize {
+        self.data_metadata.lock().len() as usize / 4
+    }
+
     pub fn new(data_file: fs::File, data_metadata: fs::Metadata, max_value_id: u32) -> Self {
         let data_file = unsafe {
             MmapOptions::new()
@@ -392,10 +396,6 @@ impl<T: IndexIdToParentData> SingleArrayMMAP<T> {
             ok: PhantomData,
         }
     }
-
-    fn get_size(&self) -> usize {
-        self.data_metadata.lock().len() as usize / 4
-    }
 }
 impl<T: IndexIdToParentData> HeapSizeOf for SingleArrayMMAP<T> {
     fn heap_size_of_children(&self) -> usize {
@@ -406,17 +406,17 @@ impl<T: IndexIdToParentData> HeapSizeOf for SingleArrayMMAP<T> {
 impl<T: IndexIdToParentData> IndexIdToParent for SingleArrayMMAP<T> {
     type Output = T;
 
-    default fn get_value(&self, _find: u64) -> Option<T> {
-        // implemented for u32, u64
-        unimplemented!()
+    fn get_keys(&self) -> Vec<T> {
+        (NumCast::from(0).unwrap()..NumCast::from(self.get_size()).unwrap()).collect()
     }
 
     default fn get_values(&self, find: u64) -> Option<Vec<T>> {
         self.get_value(find).map(|el| vec![el])
     }
 
-    fn get_keys(&self) -> Vec<T> {
-        (NumCast::from(0).unwrap()..NumCast::from(self.get_size()).unwrap()).collect()
+    default fn get_value(&self, _find: u64) -> Option<T> {
+        // implemented for u32, u64
+        unimplemented!()
     }
 }
 
@@ -491,25 +491,23 @@ impl GetSize for SingleArrayFileReader<u64> {
 impl<T: IndexIdToParentData> IndexIdToParent for SingleArrayFileReader<T> {
     type Output = T;
 
-    default fn get_value(&self, _find: u64) -> Option<T> {
-        unimplemented!()
+    fn get_keys(&self) -> Vec<T> {
+        (NumCast::from(0).unwrap()..NumCast::from(self.get_size()).unwrap()).collect()
     }
 
     default fn get_values(&self, _find: u64) -> Option<Vec<T>> {
         unimplemented!()
     }
 
-    fn get_keys(&self) -> Vec<T> {
-        (NumCast::from(0).unwrap()..NumCast::from(self.get_size()).unwrap()).collect()
+    default fn get_value(&self, _find: u64) -> Option<T> {
+        unimplemented!()
     }
 }
 
 impl IndexIdToParent for SingleArrayFileReader<u64> {
     #[inline]
-    fn get_value(&self, find: u64) -> Option<u64> {
-        get_reader(std::mem::size_of::<u64>(), find, 1, &self.data_file, &self.data_metadata)
-            .map(|mut rdr| rdr.read_u64::<LittleEndian>().unwrap())
-            .filter(|el| *el != num::cast::<u32, u64>(u32::MAX).unwrap())
+    fn get_values(&self, find: u64) -> Option<Vec<u64>> {
+        self.get_value(find).map(|el| vec![el])
     }
 
     #[inline]
@@ -526,23 +524,13 @@ impl IndexIdToParent for SingleArrayFileReader<u64> {
     }
 
     #[inline]
-    fn get_values(&self, find: u64) -> Option<Vec<u64>> {
-        self.get_value(find).map(|el| vec![el])
+    fn get_value(&self, find: u64) -> Option<u64> {
+        get_reader(std::mem::size_of::<u64>(), find, 1, &self.data_file, &self.data_metadata)
+            .map(|mut rdr| rdr.read_u64::<LittleEndian>().unwrap())
+            .filter(|el| *el != num::cast::<u32, u64>(u32::MAX).unwrap())
     }
 }
 impl IndexIdToParent for SingleArrayFileReader<u32> {
-    #[inline]
-    fn get_value(&self, find: u64) -> Option<u32> {
-        get_reader(std::mem::size_of::<u32>(), find, 1, &self.data_file, &self.data_metadata)
-            .map(|mut rdr| rdr.read_u32::<LittleEndian>().unwrap())
-            .filter(|el| *el != u32::MAX)
-    }
-
-    #[inline]
-    fn get_values(&self, find: u64) -> Option<Vec<u32>> {
-        self.get_value(find).map(|el| vec![el])
-    }
-
     #[inline]
     fn get_mutliple_value(&self, range: std::ops::RangeInclusive<usize>) -> Option<Vec<Self::Output>> {
         get_bytes(
@@ -554,6 +542,18 @@ impl IndexIdToParent for SingleArrayFileReader<u32> {
         ).map(|bytes| {
             bytes_to_vec_u32(&bytes) // TODO Performance In place bytes to u32 ?
         })
+    }
+
+    #[inline]
+    fn get_values(&self, find: u64) -> Option<Vec<u32>> {
+        self.get_value(find).map(|el| vec![el])
+    }
+
+    #[inline]
+    fn get_value(&self, find: u64) -> Option<u32> {
+        get_reader(std::mem::size_of::<u32>(), find, 1, &self.data_file, &self.data_metadata)
+            .map(|mut rdr| rdr.read_u32::<LittleEndian>().unwrap())
+            .filter(|el| *el != u32::MAX)
     }
 }
 impl<T: IndexIdToParentData> HeapSizeOf for SingleArrayFileReader<T> {

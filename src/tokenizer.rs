@@ -24,6 +24,10 @@ fn is_default_seperator(char: char) -> bool {
 #[derive(Debug)]
 pub struct SimpleTokenizer {}
 impl Tokenizer for SimpleTokenizer {
+    fn has_tokens(&self, orignal: &str) -> bool {
+        SEPERATORS.is_match(orignal)
+    }
+
     fn get_tokens<'a, F>(&self, orignal: &'a str, cb_text: &mut F)
     where
         F: FnMut(&'a str, bool),
@@ -47,14 +51,14 @@ impl Tokenizer for SimpleTokenizer {
             cb_text(&orignal[last_byte_pos..orignal.len()], false);
         }
     }
-
-    fn has_tokens(&self, orignal: &str) -> bool {
-        SEPERATORS.is_match(orignal)
-    }
 }
 #[derive(Debug)]
 pub struct SimpleTokenizerCharsIterateGroupTokens {}
 impl Tokenizer for SimpleTokenizerCharsIterateGroupTokens {
+    fn has_tokens(&self, orignal: &str) -> bool {
+        SEPERATORS.is_match(orignal)
+    }
+
     fn get_tokens<'a, F>(&self, orignal: &'a str, cb_text: &mut F)
     where
         F: FnMut(&'a str, bool),
@@ -85,10 +89,6 @@ impl Tokenizer for SimpleTokenizerCharsIterateGroupTokens {
         if last_returned_byte != orignal.len() {
             cb_text(&orignal[last_returned_byte..orignal.len()], last_was_token);
         }
-    }
-
-    fn has_tokens(&self, orignal: &str) -> bool {
-        SEPERATORS.is_match(orignal)
     }
 }
 

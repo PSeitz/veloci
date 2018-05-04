@@ -274,379 +274,39 @@ pub fn get_readable_size_for_childs<T: HeapSizeOf>(value: T) -> ColoredString {
 }
 
 impl Persistence {
-    fn get_fst_sizes(&self) -> usize {
-        self.indices.fst.iter().map(|(_, v)| v.as_fst().size()).sum()
-    }
+    #[cfg_attr(feature = "flame_it", flame)]
+    pub fn load_index_64(&mut self, path: &str) -> Result<(), search::SearchError> {
+        let loading_type = load_type_from_env()?.unwrap_or(LoadingType::Disk);
 
-    pub fn get_all_properties(&self) -> Vec<String> {
-        self.meta_data.fulltext_indices.keys().map(|el| util::extract_field_name(el)).collect()
-    }
+        match loading_type {
+            LoadingType::InMemoryUnCompressed => {
+                let file_path = get_file_path(&self.db, path);
+                self.indices.index_64.insert(
+                    path.to_string(),
+                    Box::new(IndexIdToOneParent {
+                        data: load_index_u64(&file_path)?,
+                        max_value_id: u32::MAX,
+                    }),
+                );
+            }
+            LoadingType::InMemory => {
+                let file_path = get_file_path(&self.db, path);
+                self.indices.index_64.insert(
+                    path.to_string(),
+                    Box::new(IndexIdToOneParentMayda::from_vec(&load_index_u64(&file_path)?, u32::MAX)),
+                );
+            }
+            LoadingType::Disk => {
+                let data_file = self.get_file_handle(path)?;
+                let data_metadata = self.get_file_metadata_handle(path)?;
 
-    pub fn print_heap_sizes(&self) {
-        info!(
-            "indices.index_64 {}",
-            // get_readable_size_for_childs(&self.indices.index_64)
-            get_readable_size(self.indices.index_64.heap_size_of_children())
-        );
-        info!(
-            "indices.index_id_to_parento {}",
-            get_readable_size(self.indices.index_id_to_parento.heap_size_of_children()) // get_readable_size_for_childs(&self.indices.index_id_to_parento)
-        );
-        info!(
-            "indices.boost_valueid_to_value {}",
-            get_readable_size_for_childs(&self.indices.boost_valueid_to_value)
-        );
-        info!(
-            "indices.token_to_anchor_to_score {}",
-            get_readable_size_for_childs(&self.indices.token_to_anchor_to_score)
-        );
-        info!("indices.fst {}", get_readable_size(self.get_fst_sizes()));
-        info!("------");
-        let total_size = self.get_fst_sizes() + self.indices.index_id_to_parento.heap_size_of_children() + self.indices.index_64.heap_size_of_children()
-            + self.indices.boost_valueid_to_value.heap_size_of_children()
-            + self.indices.token_to_anchor_to_score.heap_size_of_children();
-
-        info!("totale size {}", get_readable_size(total_size));
-
-        let mut print_and_size = vec![];
-        for (k, v) in &self.indices.index_id_to_parento {
-            print_and_size.push((v.heap_size_of_children(), v.type_name(), k));
-        }
-        for (k, v) in &self.indices.token_to_anchor_to_score {
-            print_and_size.push((v.heap_size_of_children(), v.type_name(), k));
-        }
-        for (k, v) in &self.indices.index_64 {
-            print_and_size.push((v.heap_size_of_children(), v.type_name(), k));
-        }
-        for (k, v) in &self.indices.fst {
-            print_and_size.push((v.as_fst().size(), "FST".to_string(), k));
-        }
-        // Sort by size
-        print_and_size.sort_by_key(|row| row.0);
-
-        // Create the table
-        let mut table = Table::new();
-        table.set_format(*format::consts::FORMAT_NO_LINESEP_WITH_TITLE);
-        table.add_row(row!["Type", "Path", "Size"]);
-        for row in print_and_size {
-            table.add_row(row![row.1, row.2, get_readable_size(row.0)]);
+                self.indices
+                    .index_64
+                    .insert(path.to_string(), Box::new(SingleArrayFileReader::<u64>::new(data_file, data_metadata)));
+            }
         }
 
-        // println!("{}", table);
-    }
-
-    #[cfg_attr(feature = "flame_it", flame)]
-    pub fn load<P: AsRef<Path>>(db: P) -> Result<Self, search::SearchError> {
-        let meta_data = MetaData::new(db.as_ref().to_str().unwrap())?;
-        let mut pers = Persistence {
-            meta_data,
-            db: db.as_ref().to_str().unwrap().to_string(),
-            lru_cache: HashMap::default(), // LruCache::new(50),
-            // lru_fst: HashMap::default(), // LruCache::new(50),
-            term_boost_cache: RwLock::new(LruCache::with_expiry_duration_and_capacity(Duration::new(3600, 0), 10)),
-            indices: PersistenceIndices::default(),
-        };
-        pers.load_all_to_cache()?;
-        pers.print_heap_sizes();
-        Ok(pers)
-    }
-
-    #[cfg_attr(feature = "flame_it", flame)]
-    pub fn create(db: String) -> Result<Self, io::Error> {
-        fs::create_dir_all(&db)?;
-        let meta_data = MetaData { ..Default::default() };
-        Ok(Persistence {
-            meta_data,
-            db,
-            lru_cache: HashMap::default(),
-            // lru_fst: HashMap::default(),
-            term_boost_cache: RwLock::new(LruCache::with_expiry_duration_and_capacity(Duration::new(3600, 0), 10)),
-            indices: PersistenceIndices::default(),
-        })
-    }
-
-    pub fn write_score_index_vint(&self, store: &TokenToAnchorScoreVint, path: &str, loading_type: LoadingType) -> Result<(KVStoreMetaData), io::Error> {
-        let indirect_file_path = util::get_file_path(&self.db, &(path.to_string() + ".indirect"));
-        let data_file_path = util::get_file_path(&self.db, &(path.to_string() + ".data"));
-
-        store.write(&indirect_file_path, &data_file_path)?;
-
-        Ok(KVStoreMetaData {
-            loading_type: loading_type,
-            persistence_type: KVStoreType::IndexIdToMultipleParentIndirect,
-            is_1_to_n: false,
-            path: path.to_string(),
-            max_value_id: 0, //TODO ?
-            avg_join_size: 0.0,
-        })
-    }
-
-    pub fn write_indirect_index(&self, store: &IndexIdToMultipleParentIndirect<u32>, path: &str, loading_type: LoadingType) -> Result<(KVStoreMetaData), io::Error> {
-        let max_value_id = *store.data.iter().max_by_key(|el| *el).unwrap_or(&0);
-        let avg_join_size = calc_avg_join_size(store.num_values, store.num_ids);
-
-        let indirect_file_path = util::get_file_path(&self.db, &(path.to_string() + ".indirect"));
-        let data_file_path = util::get_file_path(&self.db, &(path.to_string() + ".data"));
-
-        File::create(indirect_file_path)?.write_all(&vec_to_bytes_u32(&store.start_pos))?;
-        File::create(data_file_path)?.write_all(&vec_to_bytes_u32(&store.data))?;
-
-        Ok(KVStoreMetaData {
-            loading_type: loading_type,
-            persistence_type: KVStoreType::IndexIdToMultipleParentIndirect,
-            is_1_to_n: store.is_1_to_n(),
-            path: path.to_string(),
-            max_value_id: max_value_id,
-            avg_join_size: avg_join_size,
-        })
-    }
-
-    pub fn write_direct_index(
-        &self,
-        data: &IndexIdToParent<Output = u32>,
-        path: &str,
-        max_value_id: u32,
-        loading_type: LoadingType,
-    ) -> Result<(KVStoreMetaData), io::Error> {
-        let data_file_path = util::get_file_path(&self.db, &(path.to_string() + ".data_direct"));
-
-        let store = IndexIdToOneParent::new(data);
-
-        File::create(data_file_path)?.write_all(&vec_to_bytes_u32(&store.data))?;
-
-        Ok(KVStoreMetaData {
-            loading_type: loading_type,
-            persistence_type: KVStoreType::IndexIdToOneParent,
-            is_1_to_n: false,
-            path: path.to_string(),
-            max_value_id: max_value_id,
-            avg_join_size: 1 as f32, //TODO FIXME CHECKO NULLOS, 1 is not exact enough
-        })
-    }
-
-    #[cfg_attr(feature = "flame_it", flame)]
-    pub fn write_tuple_pair(
-        &self,
-        tuples: &mut Vec<create::ValIdPair>,
-        path: &str,
-        is_always_1_to_1: bool,
-        loading_type: LoadingType,
-    ) -> Result<(KVStoreMetaData), io::Error> {
-        let meta_data = self.write_tuple_pair_dedup(tuples, path, false, is_always_1_to_1, loading_type)?;
-        Ok(meta_data)
-    }
-
-    pub fn write_tuple_pair_dedup(
-        &self,
-        tuples: &mut Vec<create::ValIdPair>,
-        path: &str,
-        sort_and_dedup: bool,
-        is_always_1_to_1: bool,
-        loading_type: LoadingType,
-    ) -> Result<(KVStoreMetaData), io::Error> {
-        let data = valid_pair_to_parallel_arrays::<u32>(tuples);
-
-        if is_always_1_to_1 {
-            let max_value_id = tuples.iter().max_by_key(|el| el.parent_val_id).map(|el| el.parent_val_id).unwrap_or(0);
-            Ok(self.write_direct_index(&data, path, max_value_id, loading_type)?)
-        } else {
-            let store = IndexIdToMultipleParentIndirect::new_sort_and_dedup(&data, sort_and_dedup);
-            Ok(self.write_indirect_index(&store, path, loading_type)?)
-        }
-        //Parallel
-        // let encoded: Vec<u8> = serialize(&data, Infinite).unwrap();
-        // File::create(util::get_file_path(&self.db, &path.to_string()))?.write_all(&encoded)?;
-    }
-
-    #[cfg_attr(feature = "flame_it", flame)]
-    pub fn write_boost_tuple_pair(&self, tuples: &mut Vec<create::ValIdToValue>, path: &str) -> Result<(KVStoreMetaData), io::Error> {
-        let data = boost_pair_to_parallel_arrays::<u32>(tuples);
-        let encoded: Vec<u8> = serialize(&data).unwrap();
-        let boost_path = path.to_string() + ".boost_valid_to_value";
-        File::create(util::get_file_path(&self.db, &boost_path))?.write_all(&encoded)?;
-
-        Ok(KVStoreMetaData {
-            loading_type: LoadingType::Disk,
-            persistence_type: KVStoreType::ParallelArrays,
-            is_1_to_n: data.is_1_to_n(),
-            path: boost_path.to_string(),
-            max_value_id: tuples.iter().max_by_key(|el| el.value).unwrap_or_else(||&create::ValIdToValue {valid: 0, value: 0}).value,
-            avg_join_size: 1.0, //FixMe? multiple boosts?
-        })
-    }
-
-    #[cfg_attr(feature = "flame_it", flame)]
-    pub fn write_offset<T: Clone + Integer + NumCast + Copy + Debug>(&self, bytes: &[u8], data: &[T], path: &str) -> Result<((String, IDList)), io::Error> {
-        debug_time!(format!("Wrote Index {} With size {:?}", path, data.len()));
-        File::create(util::get_file_path(&self.db, path))?.write_all(bytes)?;
-        info!("Wrote Index {} With size {:?}", path, data.len());
-        trace!("{:?}", data);
-        let sizo = match mem::size_of::<T>() {
-            4 => IDDataType::U32,
-            8 => IDDataType::U64,
-            _ => panic!("wrong sizeee"),
-        };
-        // self.meta_data.id_lists.insert(
-        //     path.to_string(),
-        //     IDList {
-        //         path: path.to_string(),
-        //         size: data.len() as u64,
-        //         id_type: sizo,
-        //         doc_id_type: check_is_docid_type(data),
-        //     },
-        // );
-        Ok((path.to_string(),
-            IDList {
-                path: path.to_string(),
-                size: data.len() as u64,
-                id_type: sizo,
-                doc_id_type: check_is_docid_type(data),
-            }))
-    }
-
-    // fn store_fst(all_terms: &Vec<String>, path:&str) -> Result<(), fst::Error> {
-    //     info_time!("store_fst");
-    //     let now = Instant::now();
-    //     let wtr = io::BufWriter::new(File::create("map.fst")?);
-    //     // Create a builder that can be used to insert new key-value pairs.
-    //     let mut build = MapBuilder::new(wtr)?;
-    //     for (i, line) in all_terms.iter().enumerate() {
-    //         build.insert(line, i).unwrap();
-    //     }
-    //     build.finish()?;
-    //     Ok(())
-    // }
-
-    #[cfg_attr(feature = "flame_it", flame)]
-    pub fn write_meta_data(&self) -> Result<(), io::Error> {
-        self.write_data("metaData.json", serde_json::to_string_pretty(&self.meta_data)?.as_bytes())
-    }
-
-    #[cfg_attr(feature = "flame_it", flame)]
-    pub fn write_data(&self, path: &str, data: &[u8]) -> Result<(), io::Error> {
-        File::create(&get_file_path(&self.db, path))?.write_all(data)?;
         Ok(())
-    }
-
-    #[cfg_attr(feature = "flame_it", flame)]
-    pub fn get_buffered_writer(&self, path: &str) -> Result<io::BufWriter<fs::File>, io::Error> {
-        use std::fs::OpenOptions;
-        let file = OpenOptions::new()
-            .read(true)
-            .append(true)
-            .create(true)
-            .open(&get_file_path(&self.db, path))?;
-
-        // Ok(io::BufWriter::new(File::create(&get_file_path(&self.db, path))?))
-        Ok(io::BufWriter::new(file))
-    }
-
-    #[cfg_attr(feature = "flame_it", flame)]
-    pub fn write_json_to_disk<'a, T>(&mut self, data: StreamDeserializer<'a, T, Value>, path: &str) -> Result<(), io::Error>
-    where
-        T: serde_json::de::Read<'a>,
-    {
-        let mut offsets = vec![];
-        let mut file_out = self.get_buffered_writer(path)?;
-        let mut current_offset = 0;
-
-        util::iter_json_stream(data, &mut |el: &serde_json::Value| {
-            let el_str = el.to_string().into_bytes();
-
-            file_out.write_all(&el_str).unwrap();
-            offsets.push(current_offset as u64);
-            current_offset += el_str.len();
-        });
-
-        offsets.push(current_offset as u64);
-        let (id_list_path, id_list) = self.write_offset(&vec_to_bytes_u64(&offsets), &offsets, &(path.to_string() + ".offsets"))?;
-        self.meta_data.id_lists.insert(id_list_path, id_list);
-        Ok(())
-    }
-
-    #[cfg_attr(feature = "flame_it", flame)]
-    pub fn get_offsets(&self, path: &str) -> Result<&Box<IndexIdToParent<Output = u64>>, search::SearchError> {
-        // Option<&IndexIdToParent<Output=u64>>
-        self.indices
-            .index_64
-            .get(&(path.to_string() + ".offsets"))
-            .ok_or_else(|| From::from(format!("Did not found path in indices {:?}", path)))
-    }
-
-    #[cfg_attr(feature = "flame_it", flame)]
-    pub fn get_valueid_to_parent(&self, path: &str) -> Result<&Box<IndexIdToParent<Output = u32>>, search::SearchError> {
-        self.indices.index_id_to_parento.get(path).ok_or_else(|| {
-            let error = format!("Did not found path in indices {:?}", path);
-            println!("{:?}", error);
-            From::from(error)
-        })
-    }
-
-    #[cfg_attr(feature = "flame_it", flame)]
-    pub fn get_token_to_anchor(&self, path: &str) -> Result<&Box<TokenToAnchorScore>, search::SearchError> {
-        let path = path.to_string() + ".to_anchor_id_score";
-        self.indices.token_to_anchor_to_score.get(&path).ok_or_else(|| {
-            let error = format!("Did not found path in indices {}", path);
-            println!("{:?}", error);
-            From::from(error)
-        })
-    }
-
-    #[cfg_attr(feature = "flame_it", flame)]
-    pub fn has_index(&self, path: &str) -> bool {
-        self.indices.index_id_to_parento.contains_key(path)
-    }
-
-    #[cfg_attr(feature = "flame_it", flame)]
-    pub fn get_boost(&self, path: &str) -> Result<&Box<IndexIdToParent<Output = u32>>, search::SearchError> {
-        self.indices
-            .boost_valueid_to_value
-            .get(path)
-            .ok_or_else(|| From::from(format!("Did not found path in indices {:?}", path)))
-    }
-
-    #[cfg_attr(feature = "flame_it", flame)]
-    pub fn get_file_search(&self, path: &str) -> FileSearch {
-        FileSearch::new(path, self.get_file_handle(path).unwrap())
-    }
-
-    #[cfg_attr(feature = "flame_it", flame)]
-    pub fn get_file_handle_complete_path(&self, path: &str) -> Result<File, search::SearchError> {
-        Ok(File::open(path).map_err(|err| search::SearchError::StringError(format!("Could not open {} {:?}", path, err)))?)
-    }
-
-    #[cfg_attr(feature = "flame_it", flame)]
-    pub fn get_file_metadata_handle_complete_path(&self, path: &str) -> Result<fs::Metadata, io::Error> {
-        Ok(fs::metadata(path)?)
-    }
-
-    #[cfg_attr(feature = "flame_it", flame)]
-    pub fn get_file_handle(&self, path: &str) -> Result<File, search::SearchError> {
-        Ok(File::open(PathBuf::from(get_file_path(&self.db, path)))
-            .map_err(|err| search::SearchError::StringError(format!("Could not open {} {:?}", path, err)))?)
-    }
-
-    #[cfg_attr(feature = "flame_it", flame)]
-    pub fn get_file_metadata_handle(&self, path: &str) -> Result<fs::Metadata, io::Error> {
-        Ok(fs::metadata(PathBuf::from(&get_file_path(&self.db, path)))?)
-    }
-
-    #[cfg_attr(feature = "flame_it", flame)]
-    pub fn load_fst(&self, path: &str) -> Result<Map, search::SearchError> {
-        unsafe {
-            Ok(Map::from_path(&get_file_path(&self.db, &(path.to_string() + ".fst")))?) //(path.to_string() + ".fst"))?)
-        }
-        // In memory version
-        // let mut f = self.get_file_handle(&(path.to_string() + ".fst"))?;
-        // let mut buffer: Vec<u8> = Vec::new();
-        // f.read_to_end(&mut buffer)?;
-        // buffer.shrink_to_fit();
-        // Ok(Map::from_bytes(buffer)?)
-    }
-
-    #[cfg_attr(feature = "flame_it", flame)]
-    pub fn get_fst(&self, path: &str) -> Result<&Map, search::SearchError> {
-        self.indices.fst.get(path).ok_or_else(|| From::from(format!("{} does not exist", path)))
     }
 
     #[cfg_attr(feature = "flame_it", flame)]
@@ -831,38 +491,385 @@ impl Persistence {
     }
 
     #[cfg_attr(feature = "flame_it", flame)]
-    pub fn load_index_64(&mut self, path: &str) -> Result<(), search::SearchError> {
-        let loading_type = load_type_from_env()?.unwrap_or(LoadingType::Disk);
+    pub fn get_fst(&self, path: &str) -> Result<&Map, search::SearchError> {
+        self.indices.fst.get(path).ok_or_else(|| From::from(format!("{} does not exist", path)))
+    }
 
-        match loading_type {
-            LoadingType::InMemoryUnCompressed => {
-                let file_path = get_file_path(&self.db, path);
-                self.indices.index_64.insert(
-                    path.to_string(),
-                    Box::new(IndexIdToOneParent {
-                        data: load_index_u64(&file_path)?,
-                        max_value_id: u32::MAX,
-                    }),
-                );
-            }
-            LoadingType::InMemory => {
-                let file_path = get_file_path(&self.db, path);
-                self.indices.index_64.insert(
-                    path.to_string(),
-                    Box::new(IndexIdToOneParentMayda::from_vec(&load_index_u64(&file_path)?, u32::MAX)),
-                );
-            }
-            LoadingType::Disk => {
-                let data_file = self.get_file_handle(path)?;
-                let data_metadata = self.get_file_metadata_handle(path)?;
+    #[cfg_attr(feature = "flame_it", flame)]
+    pub fn load_fst(&self, path: &str) -> Result<Map, search::SearchError> {
+        unsafe {
+            Ok(Map::from_path(&get_file_path(&self.db, &(path.to_string() + ".fst")))?) //(path.to_string() + ".fst"))?)
+        }
+        // In memory version
+        // let mut f = self.get_file_handle(&(path.to_string() + ".fst"))?;
+        // let mut buffer: Vec<u8> = Vec::new();
+        // f.read_to_end(&mut buffer)?;
+        // buffer.shrink_to_fit();
+        // Ok(Map::from_bytes(buffer)?)
+    }
 
-                self.indices
-                    .index_64
-                    .insert(path.to_string(), Box::new(SingleArrayFileReader::<u64>::new(data_file, data_metadata)));
-            }
+    #[cfg_attr(feature = "flame_it", flame)]
+    pub fn get_file_metadata_handle(&self, path: &str) -> Result<fs::Metadata, io::Error> {
+        Ok(fs::metadata(PathBuf::from(&get_file_path(&self.db, path)))?)
+    }
+
+    #[cfg_attr(feature = "flame_it", flame)]
+    pub fn get_file_handle(&self, path: &str) -> Result<File, search::SearchError> {
+        Ok(File::open(PathBuf::from(get_file_path(&self.db, path)))
+            .map_err(|err| search::SearchError::StringError(format!("Could not open {} {:?}", path, err)))?)
+    }
+
+    #[cfg_attr(feature = "flame_it", flame)]
+    pub fn get_file_metadata_handle_complete_path(&self, path: &str) -> Result<fs::Metadata, io::Error> {
+        Ok(fs::metadata(path)?)
+    }
+
+    #[cfg_attr(feature = "flame_it", flame)]
+    pub fn get_file_handle_complete_path(&self, path: &str) -> Result<File, search::SearchError> {
+        Ok(File::open(path).map_err(|err| search::SearchError::StringError(format!("Could not open {} {:?}", path, err)))?)
+    }
+
+    #[cfg_attr(feature = "flame_it", flame)]
+    pub fn get_file_search(&self, path: &str) -> FileSearch {
+        FileSearch::new(path, self.get_file_handle(path).unwrap())
+    }
+
+    #[cfg_attr(feature = "flame_it", flame)]
+    pub fn get_boost(&self, path: &str) -> Result<&Box<IndexIdToParent<Output = u32>>, search::SearchError> {
+        self.indices
+            .boost_valueid_to_value
+            .get(path)
+            .ok_or_else(|| From::from(format!("Did not found path in indices {:?}", path)))
+    }
+
+    #[cfg_attr(feature = "flame_it", flame)]
+    pub fn has_index(&self, path: &str) -> bool {
+        self.indices.index_id_to_parento.contains_key(path)
+    }
+
+    #[cfg_attr(feature = "flame_it", flame)]
+    pub fn get_token_to_anchor(&self, path: &str) -> Result<&Box<TokenToAnchorScore>, search::SearchError> {
+        let path = path.to_string() + ".to_anchor_id_score";
+        self.indices.token_to_anchor_to_score.get(&path).ok_or_else(|| {
+            let error = format!("Did not found path in indices {}", path);
+            println!("{:?}", error);
+            From::from(error)
+        })
+    }
+
+    #[cfg_attr(feature = "flame_it", flame)]
+    pub fn get_valueid_to_parent(&self, path: &str) -> Result<&Box<IndexIdToParent<Output = u32>>, search::SearchError> {
+        self.indices.index_id_to_parento.get(path).ok_or_else(|| {
+            let error = format!("Did not found path in indices {:?}", path);
+            println!("{:?}", error);
+            From::from(error)
+        })
+    }
+
+    #[cfg_attr(feature = "flame_it", flame)]
+    pub fn get_offsets(&self, path: &str) -> Result<&Box<IndexIdToParent<Output = u64>>, search::SearchError> {
+        // Option<&IndexIdToParent<Output=u64>>
+        self.indices
+            .index_64
+            .get(&(path.to_string() + ".offsets"))
+            .ok_or_else(|| From::from(format!("Did not found path in indices {:?}", path)))
+    }
+
+    #[cfg_attr(feature = "flame_it", flame)]
+    pub fn write_json_to_disk<'a, T>(&mut self, data: StreamDeserializer<'a, T, Value>, path: &str) -> Result<(), io::Error>
+    where
+        T: serde_json::de::Read<'a>,
+    {
+        let mut offsets = vec![];
+        let mut file_out = self.get_buffered_writer(path)?;
+        let mut current_offset = 0;
+
+        util::iter_json_stream(data, &mut |el: &serde_json::Value| {
+            let el_str = el.to_string().into_bytes();
+
+            file_out.write_all(&el_str).unwrap();
+            offsets.push(current_offset as u64);
+            current_offset += el_str.len();
+        });
+
+        offsets.push(current_offset as u64);
+        let (id_list_path, id_list) = self.write_offset(&vec_to_bytes_u64(&offsets), &offsets, &(path.to_string() + ".offsets"))?;
+        self.meta_data.id_lists.insert(id_list_path, id_list);
+        Ok(())
+    }
+
+    #[cfg_attr(feature = "flame_it", flame)]
+    pub fn get_buffered_writer(&self, path: &str) -> Result<io::BufWriter<fs::File>, io::Error> {
+        use std::fs::OpenOptions;
+        let file = OpenOptions::new().read(true).append(true).create(true).open(&get_file_path(&self.db, path))?;
+
+        // Ok(io::BufWriter::new(File::create(&get_file_path(&self.db, path))?))
+        Ok(io::BufWriter::new(file))
+    }
+
+    #[cfg_attr(feature = "flame_it", flame)]
+    pub fn write_data(&self, path: &str, data: &[u8]) -> Result<(), io::Error> {
+        File::create(&get_file_path(&self.db, path))?.write_all(data)?;
+        Ok(())
+    }
+
+    // fn store_fst(all_terms: &Vec<String>, path:&str) -> Result<(), fst::Error> {
+    //     info_time!("store_fst");
+    //     let now = Instant::now();
+    //     let wtr = io::BufWriter::new(File::create("map.fst")?);
+    //     // Create a builder that can be used to insert new key-value pairs.
+    //     let mut build = MapBuilder::new(wtr)?;
+    //     for (i, line) in all_terms.iter().enumerate() {
+    //         build.insert(line, i).unwrap();
+    //     }
+    //     build.finish()?;
+    //     Ok(())
+    // }
+
+    #[cfg_attr(feature = "flame_it", flame)]
+    pub fn write_meta_data(&self) -> Result<(), io::Error> {
+        self.write_data("metaData.json", serde_json::to_string_pretty(&self.meta_data)?.as_bytes())
+    }
+
+    #[cfg_attr(feature = "flame_it", flame)]
+    pub fn write_offset<T: Clone + Integer + NumCast + Copy + Debug>(&self, bytes: &[u8], data: &[T], path: &str) -> Result<((String, IDList)), io::Error> {
+        debug_time!(format!("Wrote Index {} With size {:?}", path, data.len()));
+        File::create(util::get_file_path(&self.db, path))?.write_all(bytes)?;
+        info!("Wrote Index {} With size {:?}", path, data.len());
+        trace!("{:?}", data);
+        let sizo = match mem::size_of::<T>() {
+            4 => IDDataType::U32,
+            8 => IDDataType::U64,
+            _ => panic!("wrong sizeee"),
+        };
+        // self.meta_data.id_lists.insert(
+        //     path.to_string(),
+        //     IDList {
+        //         path: path.to_string(),
+        //         size: data.len() as u64,
+        //         id_type: sizo,
+        //         doc_id_type: check_is_docid_type(data),
+        //     },
+        // );
+        Ok((
+            path.to_string(),
+            IDList {
+                path: path.to_string(),
+                size: data.len() as u64,
+                id_type: sizo,
+                doc_id_type: check_is_docid_type(data),
+            },
+        ))
+    }
+
+    #[cfg_attr(feature = "flame_it", flame)]
+    pub fn write_boost_tuple_pair(&self, tuples: &mut Vec<create::ValIdToValue>, path: &str) -> Result<(KVStoreMetaData), io::Error> {
+        let data = boost_pair_to_parallel_arrays::<u32>(tuples);
+        let encoded: Vec<u8> = serialize(&data).unwrap();
+        let boost_path = path.to_string() + ".boost_valid_to_value";
+        File::create(util::get_file_path(&self.db, &boost_path))?.write_all(&encoded)?;
+
+        Ok(KVStoreMetaData {
+            loading_type: LoadingType::Disk,
+            persistence_type: KVStoreType::ParallelArrays,
+            is_1_to_n: data.is_1_to_n(),
+            path: boost_path.to_string(),
+            max_value_id: tuples
+                .iter()
+                .max_by_key(|el| el.value)
+                .unwrap_or_else(|| &create::ValIdToValue { valid: 0, value: 0 })
+                .value,
+            avg_join_size: 1.0, //FixMe? multiple boosts?
+        })
+    }
+
+    pub fn write_tuple_pair_dedup(
+        &self,
+        tuples: &mut Vec<create::ValIdPair>,
+        path: &str,
+        sort_and_dedup: bool,
+        is_always_1_to_1: bool,
+        loading_type: LoadingType,
+    ) -> Result<(KVStoreMetaData), io::Error> {
+        let data = valid_pair_to_parallel_arrays::<u32>(tuples);
+
+        if is_always_1_to_1 {
+            let max_value_id = tuples.iter().max_by_key(|el| el.parent_val_id).map(|el| el.parent_val_id).unwrap_or(0);
+            Ok(self.write_direct_index(&data, path, max_value_id, loading_type)?)
+        } else {
+            let store = IndexIdToMultipleParentIndirect::new_sort_and_dedup(&data, sort_and_dedup);
+            Ok(self.write_indirect_index(&store, path, loading_type)?)
+        }
+        //Parallel
+        // let encoded: Vec<u8> = serialize(&data, Infinite).unwrap();
+        // File::create(util::get_file_path(&self.db, &path.to_string()))?.write_all(&encoded)?;
+    }
+
+    #[cfg_attr(feature = "flame_it", flame)]
+    pub fn write_tuple_pair(
+        &self,
+        tuples: &mut Vec<create::ValIdPair>,
+        path: &str,
+        is_always_1_to_1: bool,
+        loading_type: LoadingType,
+    ) -> Result<(KVStoreMetaData), io::Error> {
+        let meta_data = self.write_tuple_pair_dedup(tuples, path, false, is_always_1_to_1, loading_type)?;
+        Ok(meta_data)
+    }
+
+    pub fn write_direct_index(
+        &self,
+        data: &IndexIdToParent<Output = u32>,
+        path: &str,
+        max_value_id: u32,
+        loading_type: LoadingType,
+    ) -> Result<(KVStoreMetaData), io::Error> {
+        let data_file_path = util::get_file_path(&self.db, &(path.to_string() + ".data_direct"));
+
+        let store = IndexIdToOneParent::new(data);
+
+        File::create(data_file_path)?.write_all(&vec_to_bytes_u32(&store.data))?;
+
+        Ok(KVStoreMetaData {
+            loading_type: loading_type,
+            persistence_type: KVStoreType::IndexIdToOneParent,
+            is_1_to_n: false,
+            path: path.to_string(),
+            max_value_id: max_value_id,
+            avg_join_size: 1 as f32, //TODO FIXME CHECKO NULLOS, 1 is not exact enough
+        })
+    }
+
+    pub fn write_indirect_index(
+        &self,
+        store: &IndexIdToMultipleParentIndirect<u32>,
+        path: &str,
+        loading_type: LoadingType,
+    ) -> Result<(KVStoreMetaData), io::Error> {
+        let max_value_id = *store.data.iter().max_by_key(|el| *el).unwrap_or(&0);
+        let avg_join_size = calc_avg_join_size(store.num_values, store.num_ids);
+
+        let indirect_file_path = util::get_file_path(&self.db, &(path.to_string() + ".indirect"));
+        let data_file_path = util::get_file_path(&self.db, &(path.to_string() + ".data"));
+
+        File::create(indirect_file_path)?.write_all(&vec_to_bytes_u32(&store.start_pos))?;
+        File::create(data_file_path)?.write_all(&vec_to_bytes_u32(&store.data))?;
+
+        Ok(KVStoreMetaData {
+            loading_type: loading_type,
+            persistence_type: KVStoreType::IndexIdToMultipleParentIndirect,
+            is_1_to_n: store.is_1_to_n(),
+            path: path.to_string(),
+            max_value_id: max_value_id,
+            avg_join_size: avg_join_size,
+        })
+    }
+
+    pub fn write_score_index_vint(&self, store: &TokenToAnchorScoreVint, path: &str, loading_type: LoadingType) -> Result<(KVStoreMetaData), io::Error> {
+        let indirect_file_path = util::get_file_path(&self.db, &(path.to_string() + ".indirect"));
+        let data_file_path = util::get_file_path(&self.db, &(path.to_string() + ".data"));
+
+        store.write(&indirect_file_path, &data_file_path)?;
+
+        Ok(KVStoreMetaData {
+            loading_type: loading_type,
+            persistence_type: KVStoreType::IndexIdToMultipleParentIndirect,
+            is_1_to_n: false,
+            path: path.to_string(),
+            max_value_id: 0, //TODO ?
+            avg_join_size: 0.0,
+        })
+    }
+
+    #[cfg_attr(feature = "flame_it", flame)]
+    pub fn create(db: String) -> Result<Self, io::Error> {
+        fs::create_dir_all(&db)?;
+        let meta_data = MetaData { ..Default::default() };
+        Ok(Persistence {
+            meta_data,
+            db,
+            lru_cache: HashMap::default(),
+            // lru_fst: HashMap::default(),
+            term_boost_cache: RwLock::new(LruCache::with_expiry_duration_and_capacity(Duration::new(3600, 0), 10)),
+            indices: PersistenceIndices::default(),
+        })
+    }
+
+    #[cfg_attr(feature = "flame_it", flame)]
+    pub fn load<P: AsRef<Path>>(db: P) -> Result<Self, search::SearchError> {
+        let meta_data = MetaData::new(db.as_ref().to_str().unwrap())?;
+        let mut pers = Persistence {
+            meta_data,
+            db: db.as_ref().to_str().unwrap().to_string(),
+            lru_cache: HashMap::default(), // LruCache::new(50),
+            // lru_fst: HashMap::default(), // LruCache::new(50),
+            term_boost_cache: RwLock::new(LruCache::with_expiry_duration_and_capacity(Duration::new(3600, 0), 10)),
+            indices: PersistenceIndices::default(),
+        };
+        pers.load_all_to_cache()?;
+        pers.print_heap_sizes();
+        Ok(pers)
+    }
+
+    pub fn print_heap_sizes(&self) {
+        info!(
+            "indices.index_64 {}",
+            // get_readable_size_for_childs(&self.indices.index_64)
+            get_readable_size(self.indices.index_64.heap_size_of_children())
+        );
+        info!(
+            "indices.index_id_to_parento {}",
+            get_readable_size(self.indices.index_id_to_parento.heap_size_of_children()) // get_readable_size_for_childs(&self.indices.index_id_to_parento)
+        );
+        info!(
+            "indices.boost_valueid_to_value {}",
+            get_readable_size_for_childs(&self.indices.boost_valueid_to_value)
+        );
+        info!(
+            "indices.token_to_anchor_to_score {}",
+            get_readable_size_for_childs(&self.indices.token_to_anchor_to_score)
+        );
+        info!("indices.fst {}", get_readable_size(self.get_fst_sizes()));
+        info!("------");
+        let total_size = self.get_fst_sizes() + self.indices.index_id_to_parento.heap_size_of_children() + self.indices.index_64.heap_size_of_children()
+            + self.indices.boost_valueid_to_value.heap_size_of_children()
+            + self.indices.token_to_anchor_to_score.heap_size_of_children();
+
+        info!("totale size {}", get_readable_size(total_size));
+
+        let mut print_and_size = vec![];
+        for (k, v) in &self.indices.index_id_to_parento {
+            print_and_size.push((v.heap_size_of_children(), v.type_name(), k));
+        }
+        for (k, v) in &self.indices.token_to_anchor_to_score {
+            print_and_size.push((v.heap_size_of_children(), v.type_name(), k));
+        }
+        for (k, v) in &self.indices.index_64 {
+            print_and_size.push((v.heap_size_of_children(), v.type_name(), k));
+        }
+        for (k, v) in &self.indices.fst {
+            print_and_size.push((v.as_fst().size(), "FST".to_string(), k));
+        }
+        // Sort by size
+        print_and_size.sort_by_key(|row| row.0);
+
+        // Create the table
+        let mut table = Table::new();
+        table.set_format(*format::consts::FORMAT_NO_LINESEP_WITH_TITLE);
+        table.add_row(row!["Type", "Path", "Size"]);
+        for row in print_and_size {
+            table.add_row(row![row.1, row.2, get_readable_size(row.0)]);
         }
 
-        Ok(())
+        // println!("{}", table);
+    }
+
+    pub fn get_all_properties(&self) -> Vec<String> {
+        self.meta_data.fulltext_indices.keys().map(|el| util::extract_field_name(el)).collect()
+    }
+
+    fn get_fst_sizes(&self) -> usize {
+        self.indices.fst.iter().map(|(_, v)| v.as_fst().size()).sum()
     }
 }
 
@@ -875,20 +882,6 @@ pub struct FileSearch {
 }
 
 impl FileSearch {
-    fn new(path: &str, file: File) -> Self {
-        // load_index_64_into_cache(&(path.to_string()+".offsets")).unwrap();
-        FileSearch {
-            path: path.to_string(),
-            file: file,
-            buffer: Vec::with_capacity(50 as usize),
-        }
-    }
-
-    pub fn get_text_for_id<'a>(&mut self, pos: usize, offsets: &IndexIdToParent<Output = u64>) -> String {
-        self.load_text(pos as u64, offsets);
-        str::from_utf8(&self.buffer).unwrap().to_string() // TODO maybe avoid clone
-    }
-
     fn load_text<'a>(&mut self, pos: u64, offsets: &IndexIdToParent<Output = u64>) {
         // @Temporary Use Result
         let string_size = offsets.get_value(pos + 1).unwrap() - offsets.get_value(pos).unwrap() - 1;
@@ -900,6 +893,20 @@ impl FileSearch {
         // unsafe {str::from_utf8_unchecked(&buffer)}
         // let s = unsafe {str::from_utf8_unchecked(&buffer)};
         // str::from_utf8(&buffer).unwrap() // @Temporary  -> use unchecked if stable
+    }
+
+    pub fn get_text_for_id<'a>(&mut self, pos: usize, offsets: &IndexIdToParent<Output = u64>) -> String {
+        self.load_text(pos as u64, offsets);
+        str::from_utf8(&self.buffer).unwrap().to_string() // TODO maybe avoid clone
+    }
+
+    fn new(path: &str, file: File) -> Self {
+        // load_index_64_into_cache(&(path.to_string()+".offsets")).unwrap();
+        FileSearch {
+            path: path.to_string(),
+            file: file,
+            buffer: Vec::with_capacity(50 as usize),
+        }
     }
 
     // pub fn binary_search(&mut self, term: &str, persistence: &Persistence) -> Result<(String, i64), io::Error> {

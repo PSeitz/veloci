@@ -1,4 +1,4 @@
-use heapsize::{HeapSizeOf};
+use heapsize::HeapSizeOf;
 use std;
 
 use util::*;
@@ -8,7 +8,7 @@ use mayda;
 use persistence::*;
 use type_info::TypeInfo;
 
-use mayda::{Encode};
+use mayda::Encode;
 use parking_lot::Mutex;
 
 use std::fs;
@@ -49,23 +49,9 @@ pub struct IndexIdToMultipleParentIndirect<T: IndexIdToParentData> {
     pub num_ids: u32,
 }
 impl<T: IndexIdToParentData> IndexIdToMultipleParentIndirect<T> {
-    #[allow(dead_code)]
-    pub fn new(data: &IndexIdToParent<Output = T>) -> IndexIdToMultipleParentIndirect<T> {
-        IndexIdToMultipleParentIndirect::new_sort_and_dedup(data, false)
-    }
-
-    #[allow(dead_code)]
-    pub fn new_sort_and_dedup(data: &IndexIdToParent<Output = T>, sort_and_dedup: bool) -> IndexIdToMultipleParentIndirect<T> {
-        let (max_value_id, num_values, num_ids, start_pos, data) = to_indirect_arrays_dedup(data, 0, sort_and_dedup);
-
-        IndexIdToMultipleParentIndirect {
-            start_pos: start_pos,
-            data,
-            max_value_id: max_value_id.to_u32().unwrap(),
-            avg_join_size: calc_avg_join_size(num_values, num_ids),
-            num_values,
-            num_ids,
-        }
+    #[inline]
+    fn get_size(&self) -> usize {
+        self.start_pos.len()
     }
 
     pub fn set(&mut self, id: u32, add_data: Vec<T>) {
@@ -94,9 +80,23 @@ impl<T: IndexIdToParentData> IndexIdToMultipleParentIndirect<T> {
         self.num_ids += add_data.len() as u32;
     }
 
-    #[inline]
-    fn get_size(&self) -> usize {
-        self.start_pos.len()
+    #[allow(dead_code)]
+    pub fn new_sort_and_dedup(data: &IndexIdToParent<Output = T>, sort_and_dedup: bool) -> IndexIdToMultipleParentIndirect<T> {
+        let (max_value_id, num_values, num_ids, start_pos, data) = to_indirect_arrays_dedup(data, 0, sort_and_dedup);
+
+        IndexIdToMultipleParentIndirect {
+            start_pos: start_pos,
+            data,
+            max_value_id: max_value_id.to_u32().unwrap(),
+            avg_join_size: calc_avg_join_size(num_values, num_ids),
+            num_values,
+            num_ids,
+        }
+    }
+
+    #[allow(dead_code)]
+    pub fn new(data: &IndexIdToParent<Output = T>) -> IndexIdToMultipleParentIndirect<T> {
+        IndexIdToMultipleParentIndirect::new_sort_and_dedup(data, false)
     }
 }
 
@@ -124,34 +124,6 @@ fn test_pointing_array_add_out_of_order() {
 
 impl<T: IndexIdToParentData> IndexIdToParent for IndexIdToMultipleParentIndirect<T> {
     type Output = T;
-
-    #[inline]
-    default fn get_values(&self, id: u64) -> Option<Vec<T>> {
-        if id >= self.get_size() as u64 {
-            None
-        } else {
-            // let positions = &self.start_pos[(id * 2) as usize..=((id * 2) as usize + 1)];
-            let data_start_pos = self.start_pos[id as usize];
-            let data_start_pos_length = data_start_pos.to_u32().unwrap();
-            if let Some(val) = get_encoded(data_start_pos_length) {
-                return Some(vec![NumCast::from(val).unwrap()]);
-            }
-            if data_start_pos_length == U31_MAX {
-                return None;
-            }
-            // if positions[0] == positions[1] {
-            //     return None;
-            // }
-            let data_length: u32 = NumCast::from(self.data[data_start_pos_length as usize]).unwrap();
-            let data_start_pos = data_start_pos_length + 1;
-            let end: u32 = data_start_pos + data_length;
-            Some(self.data[NumCast::from(data_start_pos).unwrap()..NumCast::from(end).unwrap()].to_vec())
-        }
-    }
-
-    fn get_keys(&self) -> Vec<T> {
-        (NumCast::from(0).unwrap()..NumCast::from(self.get_size()).unwrap()).collect()
-    }
 
     #[inline]
     fn count_values_for_ids(&self, ids: &[u32], top: Option<u32>) -> FnvHashMap<T, usize> {
@@ -195,6 +167,34 @@ impl<T: IndexIdToParentData> IndexIdToParent for IndexIdToMultipleParentIndirect
         }
         coll.to_map(top)
     }
+
+    fn get_keys(&self) -> Vec<T> {
+        (NumCast::from(0).unwrap()..NumCast::from(self.get_size()).unwrap()).collect()
+    }
+
+    #[inline]
+    default fn get_values(&self, id: u64) -> Option<Vec<T>> {
+        if id >= self.get_size() as u64 {
+            None
+        } else {
+            // let positions = &self.start_pos[(id * 2) as usize..=((id * 2) as usize + 1)];
+            let data_start_pos = self.start_pos[id as usize];
+            let data_start_pos_length = data_start_pos.to_u32().unwrap();
+            if let Some(val) = get_encoded(data_start_pos_length) {
+                return Some(vec![NumCast::from(val).unwrap()]);
+            }
+            if data_start_pos_length == U31_MAX {
+                return None;
+            }
+            // if positions[0] == positions[1] {
+            //     return None;
+            // }
+            let data_length: u32 = NumCast::from(self.data[data_start_pos_length as usize]).unwrap();
+            let data_start_pos = data_start_pos_length + 1;
+            let end: u32 = data_start_pos + data_length;
+            Some(self.data[NumCast::from(data_start_pos).unwrap()..NumCast::from(end).unwrap()].to_vec())
+        }
+    }
 }
 
 #[derive(Debug, HeapSizeOf)]
@@ -228,12 +228,12 @@ impl<T: IndexIdToParentData> IndexIdToParent for IndexIdToMultipleParentCompress
     type Output = T;
 
     #[inline]
-    fn get_values(&self, id: u64) -> Option<Vec<T>> {
-        get_values_indirect_generic(id, self.size as u64, &self.start_pos, &self.data)
-    }
-
-    fn get_keys(&self) -> Vec<T> {
-        (NumCast::from(0).unwrap()..NumCast::from(self.start_pos.len()).unwrap()).collect()
+    fn append_values(&self, id: u64, vec: &mut Vec<T>) {
+        if let Some(vals) = self.get_values(id) {
+            for id in vals {
+                vec.push(id);
+            }
+        }
     }
 
     // #[inline]
@@ -439,13 +439,13 @@ impl<T: IndexIdToParentData> IndexIdToParent for IndexIdToMultipleParentCompress
         // hits
     }
 
+    fn get_keys(&self) -> Vec<T> {
+        (NumCast::from(0).unwrap()..NumCast::from(self.start_pos.len()).unwrap()).collect()
+    }
+
     #[inline]
-    fn append_values(&self, id: u64, vec: &mut Vec<T>) {
-        if let Some(vals) = self.get_values(id) {
-            for id in vals {
-                vec.push(id);
-            }
-        }
+    fn get_values(&self, id: u64) -> Option<Vec<T>> {
+        get_values_indirect_generic(id, self.size as u64, &self.start_pos, &self.data)
     }
 
     // #[inline]
@@ -550,13 +550,13 @@ impl<T: IndexIdToParentData> IndexIdToMultipleParentCompressedMaydaINDIRECTOneRe
 impl<T: IndexIdToParentData> IndexIdToParent for IndexIdToMultipleParentCompressedMaydaINDIRECTOneReuse<T> {
     type Output = T;
 
+    fn get_keys(&self) -> Vec<T> {
+        (NumCast::from(0).unwrap()..NumCast::from(self.start_pos.len()).unwrap()).collect()
+    }
+
     #[inline]
     fn get_values(&self, id: u64) -> Option<Vec<T>> {
         get_values_indirect_generic(id, self.size as u64, &self.start_pos, &self.data)
-    }
-
-    fn get_keys(&self) -> Vec<T> {
-        (NumCast::from(0).unwrap()..NumCast::from(self.start_pos.len()).unwrap()).collect()
     }
 }
 
@@ -571,6 +571,11 @@ pub struct PointingMMAPFileReader<T: IndexIdToParentData> {
 }
 
 impl<T: IndexIdToParentData> PointingMMAPFileReader<T> {
+    #[inline]
+    fn get_size(&self) -> usize {
+        self.indirect_metadata.lock().len() as usize / 4
+    }
+
     pub fn new(
         start_and_end_file: &fs::File,
         data_file: &fs::File,
@@ -600,11 +605,6 @@ impl<T: IndexIdToParentData> PointingMMAPFileReader<T> {
             avg_join_size: avg_join_size,
         }
     }
-
-    #[inline]
-    fn get_size(&self) -> usize {
-        self.indirect_metadata.lock().len() as usize / 4
-    }
 }
 
 impl<T: IndexIdToParentData> HeapSizeOf for PointingMMAPFileReader<T> {
@@ -616,6 +616,10 @@ impl<T: IndexIdToParentData> HeapSizeOf for PointingMMAPFileReader<T> {
 impl<T: IndexIdToParentData> IndexIdToParent for PointingMMAPFileReader<T> {
     type Output = T;
 
+    fn get_keys(&self) -> Vec<T> {
+        (NumCast::from(0).unwrap()..NumCast::from(self.get_size()).unwrap()).collect()
+    }
+
     default fn get_values(&self, find: u64) -> Option<Vec<T>> {
         get_u32_values_from_pointing_mmap_file(
             //FIXME BUG BUG if file is not u32
@@ -624,10 +628,6 @@ impl<T: IndexIdToParentData> IndexIdToParent for PointingMMAPFileReader<T> {
             &self.start_and_end_file,
             &self.data_file,
         ).map(|el| el.iter().map(|el| NumCast::from(*el).unwrap()).collect())
-    }
-
-    fn get_keys(&self) -> Vec<T> {
-        (NumCast::from(0).unwrap()..NumCast::from(self.get_size()).unwrap()).collect()
     }
 }
 
@@ -683,6 +683,11 @@ pub struct PointingArrayFileReader<T: IndexIdToParentData> {
 }
 
 impl<T: IndexIdToParentData> PointingArrayFileReader<T> {
+    #[inline]
+    fn get_size(&self) -> usize {
+        self.start_and_end_.lock().len() as usize / 4
+    }
+
     pub fn new(start_and_end_file: fs::File, data_file: fs::File, start_and_end_: fs::Metadata, max_value_id: u32, avg_join_size: f32) -> Self {
         PointingArrayFileReader {
             start_and_end_file: Mutex::new(start_and_end_file),
@@ -693,15 +698,14 @@ impl<T: IndexIdToParentData> PointingArrayFileReader<T> {
             avg_join_size: avg_join_size,
         }
     }
-
-    #[inline]
-    fn get_size(&self) -> usize {
-        self.start_and_end_.lock().len() as usize / 4
-    }
 }
 
 impl<T: IndexIdToParentData> IndexIdToParent for PointingArrayFileReader<T> {
     type Output = T;
+
+    fn get_keys(&self) -> Vec<T> {
+        (NumCast::from(0).unwrap()..NumCast::from(self.get_size()).unwrap()).collect()
+    }
 
     default fn get_values(&self, find: u64) -> Option<Vec<T>> {
         get_u32_values_from_pointing_file(
@@ -712,10 +716,6 @@ impl<T: IndexIdToParentData> IndexIdToParent for PointingArrayFileReader<T> {
             &self.data_file,
         ).map(|el| el.iter().map(|el| NumCast::from(*el).unwrap()).collect())
     }
-
-    fn get_keys(&self) -> Vec<T> {
-        (NumCast::from(0).unwrap()..NumCast::from(self.get_size()).unwrap()).collect()
-    }
 }
 impl<T: IndexIdToParentData> HeapSizeOf for PointingArrayFileReader<T> {
     fn heap_size_of_children(&self) -> usize {
@@ -724,11 +724,6 @@ impl<T: IndexIdToParentData> HeapSizeOf for PointingArrayFileReader<T> {
 }
 
 impl IndexIdToParent for PointingArrayFileReader<u32> {
-    #[inline]
-    fn get_values(&self, find: u64) -> Option<Vec<u32>> {
-        get_u32_values_from_pointing_file(find, self.get_size(), &self.start_and_end_file, &self.data_file)
-    }
-
     #[inline]
     fn count_values_for_ids(&self, ids: &[u32], top: Option<u32>) -> FnvHashMap<u32, usize> {
         // Inserts are cheaper in a vec, bigger max_value_ids are more expensive in a vec
@@ -744,6 +739,11 @@ impl IndexIdToParent for PointingArrayFileReader<u32> {
             }
         }
         coll.to_map(top)
+    }
+
+    #[inline]
+    fn get_values(&self, find: u64) -> Option<Vec<u32>> {
+        get_u32_values_from_pointing_file(find, self.get_size(), &self.start_and_end_file, &self.data_file)
     }
 }
 
