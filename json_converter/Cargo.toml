@@ -14,16 +14,14 @@ fnv = "1.0.3"
 log = "0.4"
 heapsize = "0.3.9"
 flexi_logger = "0.6"
-flame = "0.2.0"
-flamer = { git = "https://github.com/llogiq/flamer"}
 rayon = "0.9"
 chashmap = { git = "https://github.com/nathanaeljones/tfs"}
 
 [dev-dependencies]
 colored = "1.4"
 pretty_assertions = "0.1.2"
-stainless = "*"
-criterion = "0.1.1"
+stainless = {git = "https://github.com/PSeitz/stainless"}
+criterion = "0.2.3"
 
 [[bench]]
 name = "bench"

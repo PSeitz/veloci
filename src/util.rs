@@ -6,6 +6,7 @@ use serde_json::{StreamDeserializer, Value};
 use std::fs;
 use std::fs::File;
 use std::io;
+use std::path::Path;
 use std::io::prelude::*;
 use std::io::SeekFrom;
 use std::mem;
@@ -176,8 +177,8 @@ pub fn get_file_path_name(path_to_anchor: &str, is_text_index_part: bool) -> Str
     path_to_anchor.to_owned() + suffix
 }
 
-pub fn file_as_string(path: &str) -> Result<(String), io::Error> {
-    info!("Loading File {}", path);
+pub fn file_as_string<P: AsRef<Path> + std::fmt::Debug>(path: P) -> Result<(String), io::Error> {
+    info!("Loading File {:?}", path);
     let mut file = File::open(path)?;
     let mut contents = String::new();
     file.read_to_string(&mut contents)?;

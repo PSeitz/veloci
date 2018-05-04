@@ -9,7 +9,7 @@ use serde_json;
 
 use doc_loader::DocLoader;
 use fst;
-use fst_levenshtein;
+// use fst_levenshtein;
 use persistence::Persistence;
 use util;
 use util::concat;
@@ -17,7 +17,6 @@ use util::*;
 
 use execution_plan::*;
 use search_field::*;
-use test;
 
 use json_converter;
 
@@ -1262,43 +1261,50 @@ fn boost_intersect_hits_vec_test() {
     assert_eq!(res.hits_vec, vec![Hit::new(0, 400.0), Hit::new(5, 20.0), Hit::new(10, 600.0)]);
 }
 
-#[bench]
-fn bench_boost_intersect_hits_vec(b: &mut test::Bencher) {
-    let hits1: Vec<Hit> = (0..4_000_00).map(|i| Hit::new(i * 5 as u32, 2.2 as f32)).collect();
-    let hits2: Vec<Hit> = (0..40_000).map(|i| Hit::new(i * 3 as u32, 2.2 as f32)).collect();
+#[cfg(test)]
+mod bench_intersect {
+    use test;
+    use super::*;
+    #[bench]
+    fn bench_boost_intersect_hits_vec(b: &mut test::Bencher) {
+        let hits1: Vec<Hit> = (0..4_000_00).map(|i| Hit::new(i * 5 as u32, 2.2 as f32)).collect();
+        let hits2: Vec<Hit> = (0..40_000).map(|i| Hit::new(i * 3 as u32, 2.2 as f32)).collect();
 
-    b.iter(|| {
-        boost_intersect_hits_vec(
-            SearchFieldResult {
-                hits_vec: hits1.clone(),
-                ..Default::default()
-            },
-            SearchFieldResult {
-                hits_vec: hits2.clone(),
-                ..Default::default()
-            },
-        )
-    })
+        b.iter(|| {
+            boost_intersect_hits_vec(
+                SearchFieldResult {
+                    hits_vec: hits1.clone(),
+                    ..Default::default()
+                },
+                SearchFieldResult {
+                    hits_vec: hits2.clone(),
+                    ..Default::default()
+                },
+            )
+        })
+    }
+
+    #[bench]
+    fn bench_boost_intersect_hits_vec_multi(b: &mut test::Bencher) {
+        let hits1: Vec<Hit> = (0..4_000_00).map(|i| Hit::new(i * 5 as u32, 2.2 as f32)).collect();
+        let hits2: Vec<Hit> = (0..40_000).map(|i| Hit::new(i * 3 as u32, 2.2 as f32)).collect();
+
+        b.iter(|| {
+            boost_intersect_hits_vec_multi(
+                SearchFieldResult {
+                    hits_vec: hits1.clone(),
+                    ..Default::default()
+                },
+                &mut vec![SearchFieldResult {
+                    hits_vec: hits2.clone(),
+                    ..Default::default()
+                }],
+            )
+        })
+}
 }
 
-#[bench]
-fn bench_boost_intersect_hits_vec_multi(b: &mut test::Bencher) {
-    let hits1: Vec<Hit> = (0..4_000_00).map(|i| Hit::new(i * 5 as u32, 2.2 as f32)).collect();
-    let hits2: Vec<Hit> = (0..40_000).map(|i| Hit::new(i * 3 as u32, 2.2 as f32)).collect();
 
-    b.iter(|| {
-        boost_intersect_hits_vec_multi(
-            SearchFieldResult {
-                hits_vec: hits1.clone(),
-                ..Default::default()
-            },
-            &mut vec![SearchFieldResult {
-                hits_vec: hits2.clone(),
-                ..Default::default()
-            }],
-        )
-    })
-}
 
 // #[bench]
 // fn bench_intersect_hits_vec(b: &mut test::Bencher) {
@@ -1403,7 +1409,7 @@ pub enum SearchError {
     MetaData(serde_json::Error),
     Utf8Error(std::str::Utf8Error),
     FstError(fst::Error),
-    FstLevenShtein(fst_levenshtein::Error),
+    // FstLevenShtein(fst_levenshtein::Error),
     CrossBeamError(crossbeam_channel::SendError<std::collections::HashMap<u32, f32, std::hash::BuildHasherDefault<fnv::FnvHasher>>>),
     CrossBeamError2(crossbeam_channel::SendError<SearchFieldResult>),
     CrossBeamErrorReceive(crossbeam_channel::RecvError),
@@ -1430,11 +1436,11 @@ impl From<fst::Error> for SearchError {
         SearchError::FstError(err)
     }
 }
-impl From<fst_levenshtein::Error> for SearchError {
-    fn from(err: fst_levenshtein::Error) -> SearchError {
-        SearchError::FstLevenShtein(err)
-    }
-}
+// impl From<fst_levenshtein::Error> for SearchError {
+//     fn from(err: fst_levenshtein::Error) -> SearchError {
+//         SearchError::FstLevenShtein(err)
+//     }
+// }
 impl From<crossbeam_channel::SendError<std::collections::HashMap<u32, f32, std::hash::BuildHasherDefault<fnv::FnvHasher>>>> for SearchError {
     fn from(err: crossbeam_channel::SendError<std::collections::HashMap<u32, f32, std::hash::BuildHasherDefault<fnv::FnvHasher>>>) -> SearchError {
         SearchError::CrossBeamError(err)

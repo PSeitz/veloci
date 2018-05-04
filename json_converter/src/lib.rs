@@ -1,12 +1,10 @@
 #![feature(plugin, custom_attribute)]
-#![plugin(flamer)]
 #![feature(test)]
 #![feature(entry_and_modify)]
 #[macro_use]
 extern crate serde_json;
 extern crate fnv;
 extern crate test;
-extern crate flame;
 extern crate rayon;
 extern crate chashmap;
 
@@ -14,7 +12,7 @@ use fnv::FnvHashMap;
 use serde_json::Value;
 use std::str;
 use std::borrow::Cow;
-use rayon::prelude::*;
+// use rayon::prelude::*;
 use chashmap::CHashMap;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
@@ -203,7 +201,7 @@ impl ConcurrentIDHolder {
 }
 
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Default)]
 pub struct IDHolder {
     pub ids: FnvHashMap<String, u32>
 }

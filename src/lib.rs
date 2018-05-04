@@ -10,7 +10,7 @@
 #![feature(step_trait)]
 #![feature(specialization)]
 #![feature(inclusive_range)]
-#![feature(inclusive_range_fields)]
+#![feature(inclusive_range_methods)]
 #![feature(plugin)]
 #![cfg_attr(test, plugin(stainless))]
 #![feature(test)]
@@ -31,9 +31,6 @@ extern crate memmap;
 
 extern crate fxhash;
 
-// extern crate faster;
-extern crate lz4;
-
 #[macro_use]
 extern crate serde_derive;
 
@@ -42,67 +39,63 @@ extern crate serde_json;
 
 extern crate vint;
 
-extern crate rand;
 extern crate serde;
-// extern crate tokio_timer;
-extern crate chrono;
+
 extern crate fnv;
 extern crate fst;
-extern crate fst_levenshtein;
+
 extern crate rayon;
 extern crate regex;
 
 extern crate flexi_logger;
-// extern crate env_logger;
 #[macro_use]
 extern crate log;
 
-// extern crate abomonation;
-extern crate csv;
-
+// extern crate csv;
 extern crate test;
-
-extern crate bit_set;
-extern crate bit_vec;
 
 extern crate chashmap;
 extern crate itertools;
-extern crate lru_cache;
+
 extern crate lru_time_cache;
 extern crate num;
 extern crate parking_lot;
-// extern crate trie;
 
 #[macro_use]
 extern crate prettytable;
 
 extern crate levenshtein_automata;
 extern crate snap;
-extern crate time;
-
 extern crate bincode;
 
 #[macro_use]
 extern crate measure_time;
-
 extern crate heapsize;
 #[macro_use]
 extern crate heapsize_derive;
 
 extern crate byteorder;
-extern crate fixedbitset;
 
 extern crate json_converter;
 extern crate ordered_float;
-extern crate sled;
 
 extern crate colored;
 extern crate mayda;
-extern crate utf8_ranges;
 
 #[macro_use]
 extern crate lazy_static;
 extern crate half;
+
+extern crate chrono;
+// extern crate time;
+// extern crate bit_set;
+// extern crate bit_vec;
+// extern crate sled;
+// extern crate lz4;
+// extern crate utf8_ranges;
+// extern crate lru_cache;
+// extern crate fixedbitset;
+// extern crate fst_levenshtein;
 
 #[macro_use]
 pub mod util;
@@ -110,15 +103,13 @@ pub mod util;
 pub mod type_info;
 pub mod bucket_list;
 pub mod create;
-pub mod create_from_csv;
+// pub mod create_from_csv;
 pub mod create_from_json;
 pub mod doc_loader;
 pub mod execution_plan;
 pub mod expression;
 pub mod facet;
 pub mod highlight_field;
-pub mod kmerge_by;
-pub mod lev_automat;
 pub mod persistence;
 pub mod shards;
 pub mod persistence_data;
@@ -132,7 +123,8 @@ pub mod trace;
 
 #[cfg(test)]
 extern crate tempfile;
-
+#[cfg(test)]
+extern crate rand;
 #[cfg(test)]
 mod test_why_found;
 #[cfg(test)]

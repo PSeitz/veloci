@@ -405,34 +405,35 @@ fn calculate_token_score_in_doc(tokens_to_anchor_id: &mut Vec<ValIdPairToken>) -
     dat
 }
 
-// fn calculate_token_score_in_doc(best_token_pos: u32) -> f32 {
-
-// }
-
-
-// let mut hashmap = FxHashMap::default();
-pub fn get_allterms<'a, T>(
+#[derive(Debug, Default)]
+pub struct AllTermsAndWriteDocumentsData {
+    offsets: Vec<u64>,
+    current_offset: usize,
+    id_holder: json_converter::IDHolder,
+    terms_in_path: FnvHashMap<String, FxHashMap<String, TermInfo>>,
+}
+pub fn get_allterms_per_path_and_write_documents<'a, T>(
     stream: StreamDeserializer<'a, T, Value>,
     persistence: &mut Persistence,
     fulltext_info_for_path: &FnvHashMap<String, Fulltext>,
-) -> Result<FnvHashMap<String, FxHashMap<String, TermInfo>>, io::Error>
+    data: &mut AllTermsAndWriteDocumentsData,
+) -> Result<(), io::Error>
 where
     T: serde_json::de::Read<'a>,
 {
-    info_time!("get_allterms dictionary");
-    let mut terms_in_path: FnvHashMap<String, FxHashMap<String, TermInfo>> = FnvHashMap::default();
+    info_time!("get_allterms_per_path_and_write_documents");
 
     let mut opt = json_converter::ForEachOpt {};
-    let mut id_holder = json_converter::IDHolder::new();
 
-    //let num_elements = if let Some(arr) = data.as_array() { arr.len() } else { 1 };
-
-    let tokenizer = SimpleTokenizerCharsIterateGroupTokens {};
+    let tokenizer = SimpleTokenizerCharsIterateGroupTokens{};
     let default_fulltext_options = FulltextIndexOptions::new_with_tokenize();
 
-    let mut offsets = vec![];
     let mut file_out = persistence.get_buffered_writer("data")?;
-    let mut current_offset = 0;
+    let mut id_holder = json_converter::IDHolder::new();
+    std::mem::swap(&mut data.id_holder, &mut id_holder);
+
+    let mut offsets = vec![];
+    let mut current_offset = data.current_offset;;
 
     {
         let mut cb_text = |_anchor_id: u32, value: &str, path: &str, _parent_val_id: u32| {
@@ -441,13 +442,11 @@ where
                 .and_then(|el| el.options.as_ref())
                 .unwrap_or(&default_fulltext_options);
 
-            let mut terms = get_or_insert(&mut terms_in_path, path, &|| FxHashMap::default());
+            let mut terms = get_or_insert(&mut data.terms_in_path, path, &|| FxHashMap::default());
 
             add_text(value, &mut terms, &options, &tokenizer);
         };
-
         let mut callback_ids = |_anchor_id: u32, _path: &str, _value_id: u32, _parent_val_id: u32| {};
-
 
         let mut callback_document = |el: &serde_json::Value| {
             let el_str = el.to_string().into_bytes();
@@ -456,23 +455,19 @@ where
             current_offset += el_str.len();
         };
 
-
         json_converter::for_each_element_and_doc(stream, &mut id_holder, &mut opt, &mut cb_text, &mut callback_ids, &mut callback_document);
     }
 
-    {
-        info_time!("set term ids");
-        for mut terms in terms_in_path.values_mut() {
-            set_ids(&mut terms);
-        }
-    }
-
     offsets.push(current_offset as u64);
-    let (id_list_path, id_list) = persistence.write_offset(&persistence::vec_to_bytes_u64(&offsets), &offsets, &"data.offsets")?;
-    persistence.meta_data.id_lists.insert(id_list_path, id_list);
 
+    data.offsets.extend(offsets);
+    data.current_offset = current_offset;
+    std::mem::swap(&mut data.id_holder, &mut id_holder);
 
-    Ok(terms_in_path)
+    let (id_list_path, id_list_meta_data) = persistence.write_offset(&persistence::vec_to_bytes_u64(&data.offsets), &data.offsets, &"data.offsets")?;
+    persistence.meta_data.id_lists.insert(id_list_path, id_list_meta_data);
+
+    Ok(())
 }
 
 #[derive(Debug, Default, Clone)]
@@ -559,10 +554,20 @@ where
 
     let is_1_to_n = |path: &str| path.contains("[]");
 
-    let all_terms_in_path = get_allterms(stream1, &mut persistence, &fulltext_info_for_path)?;
-    // check_similarity(&all_terms_in_path);
+
+    let mut term_data = AllTermsAndWriteDocumentsData::default();
+    get_allterms_per_path_and_write_documents(stream1, &mut persistence, &fulltext_info_for_path, &mut term_data)?;
+
+    {
+        info_time!("set term ids");
+        for mut terms in term_data.terms_in_path.values_mut() {
+            set_ids(&mut terms);
+        }
+    }
+
+    // check_similarity(&data.terms_in_path);
     info_time!("create and write fulltext_index");
-    trace!("all_terms {:?}", all_terms_in_path);
+    trace!("all_terms {:?}", term_data.terms_in_path);
 
     let mut opt = json_converter::ForEachOpt {};
     let mut id_holder = json_converter::IDHolder::new();
@@ -577,16 +582,10 @@ where
     {
         info_time!(format!("build path data"));
         let mut cb_text = |anchor_id: u32, value: &str, path: &str, parent_val_id: u32| {
-            // if anchor_id % 500 == 0 {
-            //     println!("{:?}", anchor_id);
-            // }
             let data = get_or_insert(&mut path_data, path, &|| {
                 let boost_info_data = if boost_info_for_path.contains_key(path) { Some(vec![]) } else { None };
-
                 let anchor_to_text_id = if facet_index.contains(path) && is_1_to_n(path) { Some(vec![]) } else { None }; //Create facet index only for 1:N
-
                 let prop_delta_path = concat(&(persistence.db.to_string()+"/" ),&concat(&path, ".to_anchor_id_score_delta"));
-                // data.tokens_to_anchor_id_delta.write(prop_delta_path.to_string()+".indirect", prop_delta_path.to_string()+".data", prop_delta_path.to_string()+".free");
 
                 PathData {
                     anchor_to_text_id: anchor_to_text_id,
@@ -596,7 +595,7 @@ where
                 }
             });
 
-            let all_terms = all_terms_in_path.get(path).unwrap();
+            let all_terms = term_data.terms_in_path.get(path).unwrap();
 
             let options: &FulltextIndexOptions = fulltext_info_for_path
                 .get(path)
@@ -796,7 +795,7 @@ where
 
         // let mut id_lists = FnvHashMap::default();
         // let mut fulltext_indices = FnvHashMap::default();
-        let r: Result<Vec<_>, io::Error> = all_terms_in_path.into_par_iter().map(|(path, all_terms)| {
+        let r: Result<Vec<_>, io::Error> = term_data.terms_in_path.into_par_iter().map(|(path, all_terms)| {
             let mut id_lists = FnvHashMap::default();
             let mut fulltext_indices = FnvHashMap::default();
             let options: &FulltextIndexOptions = fulltext_info_for_path
@@ -811,7 +810,7 @@ where
             persistence.meta_data.id_lists.extend(id_lists);
             persistence.meta_data.fulltext_indices.extend(fulltext_indices);
         }
-        // for (path, all_terms) in all_terms_in_path {
+        // for (path, all_terms) in terms_in_path {
         //     let options: &FulltextIndexOptions = fulltext_info_for_path
         //         .get(&path)
         //         .and_then(|el| el.options.as_ref())

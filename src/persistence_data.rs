@@ -516,7 +516,7 @@ impl IndexIdToParent for SingleArrayFileReader<u64> {
     fn get_mutliple_value(&self, range: std::ops::RangeInclusive<usize>) -> Option<Vec<Self::Output>> {
         get_bytes(
             std::mem::size_of::<u64>(),
-            range.start as u64,
+            *range.start() as u64,
             range.size_hint().0 as u64,
             &self.data_file,
             &self.data_metadata,
@@ -547,7 +547,7 @@ impl IndexIdToParent for SingleArrayFileReader<u32> {
     fn get_mutliple_value(&self, range: std::ops::RangeInclusive<usize>) -> Option<Vec<Self::Output>> {
         get_bytes(
             std::mem::size_of::<u32>(),
-            range.start as u64,
+            *range.start() as u64,
             range.size_hint().0 as u64,
             &self.data_file,
             &self.data_metadata,

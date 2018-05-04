@@ -6,7 +6,6 @@
 extern crate rocket;
 extern crate rocket_contrib;
 
-extern crate bodyparser;
 extern crate chashmap;
 extern crate env_logger;
 extern crate flexi_logger;
@@ -15,8 +14,10 @@ extern crate serde;
 #[macro_use]
 extern crate serde_json;
 extern crate snap;
-extern crate time;
-extern crate urlencoded;
+
+// extern crate time;
+// extern crate bodyparser;
+// extern crate urlencoded;
 
 #[macro_use]
 extern crate lazy_static;
@@ -26,12 +27,13 @@ extern crate log;
 extern crate measure_time;
 extern crate flate2;
 extern crate search_lib;
+
 use rocket::{Request};
 use rocket::response::{self, Responder, Response};
 use rocket::fairing;
 
 use rocket::http::{ContentType};
-use rocket_contrib::{Json, Value};
+use rocket_contrib::{Json, JsonValue};
 
 use search_lib::doc_loader::*;
 use search_lib::search;
@@ -159,7 +161,7 @@ fn ensure_database(database: &String) -> Result<(), search::SearchError> {
 
 fn ensure_shard(database: &String) -> Result<(), search::SearchError> {
     if !SHARDS.contains_key(database) {
-        SHARDS.insert(database.clone(), Shards::load(database.clone(), 167)?);
+        SHARDS.insert(database.clone(), Shards::load(database.clone())?);
         // SHARDS.insert(database.clone(), Shards::load(database.clone(), 1)?);
     }
     Ok(())
@@ -203,22 +205,22 @@ fn search_post(database: String, request: Json<search::Request>) -> Result<Searc
 }
 
 #[get("/<database>/_idtree/<id>")]
-fn get_doc_for_id_tree(database: String, id: u32) -> Json<Value> {
+fn get_doc_for_id_tree(database: String, id: u32) -> JsonValue {
     let persistence = PERSISTENCES.get(&database).unwrap();
     let fields = persistence.get_all_properties();
     let tree = search::get_read_tree_from_fields(&persistence, &fields);
 
-    Json(search::read_tree(&persistence, id, &tree).unwrap())
+    JsonValue(search::read_tree(&persistence, id, &tree).unwrap())
 }
 
 #[get("/<database>/_id/<id>")]
-fn get_doc_for_id_direct(database: String, id: u32) -> Json<Value> {
+fn get_doc_for_id_direct(database: String, id: u32) -> JsonValue {
     // let persistence = PERSISTENCES.get(&database).unwrap();
     // let fields = persistence.get_all_properties();
     // let tree = search::get_read_tree_from_fields(&persistence, &fields);
     ensure_database(&database).unwrap();
     let persistence = PERSISTENCES.get(&database).unwrap();
-    Json(serde_json::from_str(&DocLoader::get_doc(&persistence, id as usize).unwrap()).unwrap())
+    JsonValue(serde_json::from_str(&DocLoader::get_doc(&persistence, id as usize).unwrap()).unwrap())
 }
 // #[get("/<database>/<id>")]
 // fn get_doc_for_id(database: String, id: u32) -> Result<serde_json::Value, search::SearchError> {

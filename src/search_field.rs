@@ -4,7 +4,7 @@ use fst::raw::Fst;
 use fst::{IntoStreamer};
 use highlight_field::*;
 use itertools::Itertools;
-use lev_automat::*;
+// use lev_automat::*;
 use levenshtein_automata::{Distance, LevenshteinAutomatonBuilder, DFA};
 use ordered_float::OrderedFloat;
 use persistence;
@@ -165,7 +165,6 @@ where
         debug_time!(format!("{} LevenshteinIC create", &options.path));
         let lev_automaton_builder = LevenshteinAutomatonBuilder::new(options.levenshtein_distance.unwrap_or(0) as u8, true);
         lev_automaton_builder.build_dfa(&options.terms[0], true)
-        // let dfa = ;
         // LevenshteinIC::new(&options.terms[0], options.levenshtein_distance.unwrap_or(0))?
     };
 

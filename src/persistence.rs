@@ -332,15 +332,15 @@ impl Persistence {
             table.add_row(row![row.1, row.2, get_readable_size(row.0)]);
         }
 
-        println!("{}", table);
+        // println!("{}", table);
     }
 
     #[cfg_attr(feature = "flame_it", flame)]
-    pub fn load(db: String) -> Result<Self, search::SearchError> {
-        let meta_data = MetaData::new(&db)?;
+    pub fn load<P: AsRef<Path>>(db: P) -> Result<Self, search::SearchError> {
+        let meta_data = MetaData::new(db.as_ref().to_str().unwrap())?;
         let mut pers = Persistence {
             meta_data,
-            db,
+            db: db.as_ref().to_str().unwrap().to_string(),
             lru_cache: HashMap::default(), // LruCache::new(50),
             // lru_fst: HashMap::default(), // LruCache::new(50),
             term_boost_cache: RwLock::new(LruCache::with_expiry_duration_and_capacity(Duration::new(3600, 0), 10)),
@@ -530,7 +530,15 @@ impl Persistence {
 
     #[cfg_attr(feature = "flame_it", flame)]
     pub fn get_buffered_writer(&self, path: &str) -> Result<io::BufWriter<fs::File>, io::Error> {
-        Ok(io::BufWriter::new(File::create(&get_file_path(&self.db, path))?))
+        use std::fs::OpenOptions;
+        let file = OpenOptions::new()
+            .read(true)
+            .append(true)
+            .create(true)
+            .open(&get_file_path(&self.db, path))?;
+
+        // Ok(io::BufWriter::new(File::create(&get_file_path(&self.db, path))?))
+        Ok(io::BufWriter::new(file))
     }
 
     #[cfg_attr(feature = "flame_it", flame)]
@@ -551,7 +559,6 @@ impl Persistence {
         });
 
         offsets.push(current_offset as u64);
-        // println!("json offsets: {:?}", offsets);
         let (id_list_path, id_list) = self.write_offset(&vec_to_bytes_u64(&offsets), &offsets, &(path.to_string() + ".offsets"))?;
         self.meta_data.id_lists.insert(id_list_path, id_list);
         Ok(())
@@ -629,7 +636,7 @@ impl Persistence {
         unsafe {
             Ok(Map::from_path(&get_file_path(&self.db, &(path.to_string() + ".fst")))?) //(path.to_string() + ".fst"))?)
         }
-        //In memory version
+        // In memory version
         // let mut f = self.get_file_handle(&(path.to_string() + ".fst"))?;
         // let mut buffer: Vec<u8> = Vec::new();
         // f.read_to_end(&mut buffer)?;
@@ -760,7 +767,7 @@ impl Persistence {
                                 let start_and_end_file = self.get_file_handle_complete_path(&indirect_path)?;
                                 let data_file = self.get_file_handle_complete_path(&indirect_data_path)?;
                                 let indirect_metadata = self.get_file_metadata_handle_complete_path(&indirect_path)?;
-                                let data_metadata = self.get_file_metadata_handle(&(el.path.to_string() + ".data"))?;
+                                // let data_metadata = self.get_file_metadata_handle(&(el.path.to_string() + ".data"))?;
                                 // let store = PointingMMAPFileReader::new(
                                 //     &start_and_end_file,
                                 //     &data_file,

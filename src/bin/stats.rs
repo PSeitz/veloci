@@ -1,7 +1,6 @@
 extern crate env_logger;
 extern crate flexi_logger;
 extern crate fst;
-extern crate fst_levenshtein;
 extern crate half;
 extern crate itertools;
 extern crate search_lib;
