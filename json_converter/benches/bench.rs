@@ -1,4 +1,4 @@
-#![recursion_limit="128"]
+#![recursion_limit = "128"]
 #[macro_use]
 extern crate criterion;
 extern crate json_converter;
@@ -7,15 +7,15 @@ extern crate serde_json;
 
 use criterion::Criterion;
 
+use json_converter::for_each_element;
 use json_converter::ForEachOpt;
 use json_converter::IDHolder;
-use json_converter::for_each_element;
 use serde_json::{Deserializer, Value};
 
 fn criterion_benchmark(c: &mut Criterion) {
-
-    let long_string :Vec<serde_json::Value> = (0..1000).map(|_|
-        json!({
+    let long_string: Vec<serde_json::Value> = (0..1000)
+        .map(|_| {
+            json!({
                 "commonness": 3103,
                 "ent_seq": "1259290",
                 "kana": [
@@ -89,7 +89,8 @@ fn criterion_benchmark(c: &mut Criterion) {
                     "vt"
                 ]
             })
-    ).collect();
+        })
+        .collect();
 
     let mut opt = ForEachOpt {};
     let mut id_holder = IDHolder::new();
@@ -97,8 +98,8 @@ fn criterion_benchmark(c: &mut Criterion) {
     let data = json!(long_string);
     let data_str = serde_json::to_string(&data).unwrap();
 
-    c
-        .bench_function("walk json", move |b| b.iter(|| {
+    c.bench_function("walk json", move |b| {
+        b.iter(|| {
             let mut cb_text = |_anchor_id: u32, _value: &str, _path: &str, _parent_val_id: u32| {
                 // println!("TEXT: path {} value {} parent_val_id {}",path, value, parent_val_id);
             };
@@ -108,7 +109,8 @@ fn criterion_benchmark(c: &mut Criterion) {
 
             let stream = Deserializer::from_str(&data_str).into_iter::<Value>();
             for_each_element(stream, &mut id_holder, &mut opt, &mut cb_text, &mut callback_ids);
-        }));
+        })
+    });
 }
 
 criterion_group!(benches, criterion_benchmark);

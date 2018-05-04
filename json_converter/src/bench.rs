@@ -1,20 +1,18 @@
-
-
 #[cfg(test)]
 mod bencho {
+    use for_each_element;
     use serde_json;
     use serde_json::{Deserializer, Value};
     use ForEachOpt;
     use IDHolder;
-    use for_each_element;
 
     use test::Bencher;
 
     #[bench]
     fn name(b: &mut Bencher) {
-
-        let long_string :Vec<serde_json::Value> = (0..50000).map(|_|
-            json!({
+        let long_string: Vec<serde_json::Value> = (0..50000)
+            .map(|_| {
+                json!({
                 "a": 1,
                 "more": ["ok", "nice"],
                 "objects": [{
@@ -23,7 +21,8 @@ mod bencho {
                     "stuff": "yaa"
                 }]
             })
-        ).collect();
+            })
+            .collect();
 
         let mut opt = ForEachOpt {};
         let mut id_holder = IDHolder::new();
@@ -32,7 +31,6 @@ mod bencho {
         let data_str = serde_json::to_string(&data).unwrap();
 
         b.iter(|| {
-
             // let texts = vec![];
             // texts.reserve(5000);
             let mut cb_text = |anchor_id: u32, _value: &str, _path: &str, _parent_val_id: u32| {
@@ -42,12 +40,9 @@ mod bencho {
                 // println!("IDS: path {} val_id {} parent_val_id {}",path, val_id, parent_val_id);
             };
 
-
             let stream = Deserializer::from_str(&data_str).into_iter::<Value>();
             for_each_element(stream, &mut id_holder, &mut opt, &mut cb_text, &mut callback_ids);
         })
     }
-
-
 
 }
