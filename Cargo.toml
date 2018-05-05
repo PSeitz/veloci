@@ -43,9 +43,9 @@ prettytable-rs = "^0.6"
 colored = "1.4"
 flate2 = "1.0"
 
-rocket = {git = "https://github.com/maxdeviant/Rocket", branch="fix-rocket-contrib-nightly"}
-rocket_contrib = {git = "https://github.com/maxdeviant/Rocket", branch="fix-rocket-contrib-nightly"}
-rocket_codegen = {git = "https://github.com/maxdeviant/Rocket", branch="fix-rocket-contrib-nightly"}
+rocket = "0.3"
+rocket_contrib = "0.3"
+rocket_codegen = "0.3"
 
 # time = "0.1"
 # csv = "0.15.0"

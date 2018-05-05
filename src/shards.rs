@@ -82,9 +82,6 @@ impl Shards {
         select: Option<Vec<String>>,
     ) -> Result<SearchResultWithDoc, search::SearchError> {
         let mut all_search_results = SearchResultWithDoc::default();
-        // let mut all_results:Vec<(u32, SearchResult)> = vec![];
-        // let mut all_results:Vec<(u32, Hit)> = vec![];
-        // let mut all_results:Vec<(u32, Hit, &SearchResult)> = vec![];
 
         // let r: Result<Vec<_>, search::SearchError> = self.persistences.par_iter().map(|(num, persistence)| {
         //     print_time!("search shard");
