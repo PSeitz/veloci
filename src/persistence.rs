@@ -71,10 +71,8 @@ pub struct KVStoreMetaData {
     pub is_1_to_n: bool, // In the sense of 1:n   1key, n values
     pub persistence_type: KVStoreType,
     pub loading_type: LoadingType,
-    #[serde(default = "default_max_value_id")]
-    pub max_value_id: u32, // max value on the "right" side key -> value, key -> value ..
-    #[serde(default = "default_avg_join")]
-    pub avg_join_size: f32, // some join statistics
+    #[serde(default = "default_max_value_id")] pub max_value_id: u32, // max value on the "right" side key -> value, key -> value ..
+    #[serde(default = "default_avg_join")] pub avg_join_size: f32,    // some join statistics
 }
 
 pub static NOT_FOUND: u32 = u32::MAX;
@@ -162,9 +160,8 @@ pub enum IDDataType {
 }
 // use persistence_data;
 
-pub trait IndexIdToParentData:
-    Integer + Clone + NumCast + mayda::utility::Bits + HeapSizeOf + Debug + Sync + Send + Copy + ToPrimitive + std::iter::Step + std::hash::Hash + 'static
-{
+pub trait IndexIdToParentData
+    : Integer + Clone + NumCast + mayda::utility::Bits + HeapSizeOf + Debug + Sync + Send + Copy + ToPrimitive + std::iter::Step + std::hash::Hash + 'static {
 }
 impl<T> IndexIdToParentData for T
 where

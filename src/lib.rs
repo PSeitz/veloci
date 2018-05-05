@@ -68,11 +68,11 @@ extern crate bincode;
 extern crate levenshtein_automata;
 extern crate snap;
 
-#[macro_use]
-extern crate measure_time;
 extern crate heapsize;
 #[macro_use]
 extern crate heapsize_derive;
+#[macro_use]
+extern crate measure_time;
 
 extern crate byteorder;
 
@@ -82,9 +82,9 @@ extern crate ordered_float;
 extern crate colored;
 extern crate mayda;
 
+extern crate half;
 #[macro_use]
 extern crate lazy_static;
-extern crate half;
 
 extern crate chrono;
 // extern crate time;

@@ -52,14 +52,29 @@ where
 #[test]
 fn test_top_n_sort() {
     let dat = vec![
-        3, 5, 9, 10, 10, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9,
+        3, 5, 9, 10, 10, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9
     ];
     let yops = get_top_n_sort_from_iter(dat.iter(), 2, |a, b| b.cmp(&a));
     assert_eq!(yops, vec![&10, &10]);
     let yops = get_top_n_sort_from_iter(dat.iter(), 2, |a, b| a.cmp(&b));
     assert_eq!(yops, vec![&3, &5]);
 }
+
 use std::fs;
+
+#[derive(Debug)]
+struct ShardResult {
+    shard_num: u32,
+    result: SearchResult,
+}
+
+#[derive(Debug)]
+struct ShardResultHit<'a> {
+    shard_num: u32,
+    hit: Hit,
+    result: &'a SearchResult,
+}
+
 impl Shards {
     pub fn search_all_shards_from_qp(
         &self,
@@ -82,38 +97,44 @@ impl Shards {
         //     all_search_results.merge(&result);
         // }
 
-        let r: Vec<(u32, SearchResult)> = self.persistences
+        let r: Vec<ShardResult> = self.persistences
             .par_iter()
             .map(|(num, persistence)| {
                 print_time!(format!("search shard {:?}", num));
                 let request = query_generator::search_query(&persistence, q_params.clone());
-                let hits = search::search(request, persistence)?;
-                // Ok(search::to_search_result(&persistence, hits, select.clone()))
-                Ok((*num, hits))
+                let result = search::search(request, persistence)?;
+                // Ok(search::to_search_result(&persistence, result, select.clone()))
+                Ok(ShardResult {
+                    shard_num: *num,
+                    result: result,
+                })
             })
-            .collect::<Result<Vec<(u32, SearchResult)>, search::SearchError>>()?;
+            .collect::<Result<Vec<ShardResult>, search::SearchError>>()?;
 
-        let mut all_results: Vec<_> = vec![];
+        let total_num_hits: u64 = r.iter().map(|shard_result| shard_result.result.num_hits).sum();
 
-        let total_num_hits: u64 = r.iter().map(|el| el.1.num_hits).sum();
+        let mut all_results: Vec<_> = r.iter()
+            .flat_map(|shard_result| {
+                shard_result.result.data.iter().map(move |hit| ShardResultHit {
+                    shard_num: shard_result.shard_num,
+                    hit: hit.clone(),
+                    result: &shard_result.result,
+                })
+            })
+            .collect();
+        // for shard_result in r.iter() {
+        //     all_results.extend(shard_result.result.data.iter().map(|hit| ShardResultHit{shard_num:shard_result.shard_num, hit:hit.clone(), result:&shard_result.result}));
+        // }
 
-        for result in r.iter() {
-            all_results.extend(result.1.data.iter().map(|el| (result.0, el.clone(), &result.1)));
-        }
-
-        let top_hits = get_top_n_sort_from_iter(all_results.iter(), q_params.top.unwrap_or(10), |a, b| {
-            b.1.score.partial_cmp(&a.1.score).unwrap_or(Ordering::Equal)
+        let all_results_top_n = get_top_n_sort_from_iter(all_results.iter(), q_params.top.unwrap_or(10), |a, b| {
+            b.hit.score.partial_cmp(&a.hit.score).unwrap_or(Ordering::Equal)
         });
 
-        let data: Vec<DocWithHit> = top_hits
+        let data: Vec<DocWithHit> = all_results_top_n
             .iter()
             .map(|el| {
-                let shard_num = el.0;
-                let hit = &el.1;
-                let searchresult = el.2;
-
-                let hits: Vec<Hit> = vec![hit.clone()];
-                search::to_documents(&self.persistences[shard_num as usize].1, &hits, select.clone(), &searchresult)[0].clone()
+                let hits: Vec<Hit> = vec![el.hit.clone()];
+                search::to_documents(&self.persistences[el.shard_num as usize].1, &hits, select.clone(), &el.result)[0].clone()
             })
             .collect();
 

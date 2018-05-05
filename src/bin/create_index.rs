@@ -4,12 +4,12 @@ extern crate env_logger;
 extern crate flexi_logger;
 extern crate fst;
 // extern crate fst_levenshtein;
-extern crate search_lib;
-#[macro_use]
-extern crate serde_json;
 #[macro_use]
 extern crate measure_time;
 extern crate rayon;
+extern crate search_lib;
+#[macro_use]
+extern crate serde_json;
 
 #[allow(unused_imports)]
 use fst::{IntoStreamer, MapBuilder, Set};

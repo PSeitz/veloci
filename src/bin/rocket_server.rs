@@ -19,13 +19,13 @@ extern crate snap;
 // extern crate bodyparser;
 // extern crate urlencoded;
 
+extern crate flate2;
 #[macro_use]
 extern crate lazy_static;
 #[macro_use]
 extern crate log;
 #[macro_use]
 extern crate measure_time;
-extern crate flate2;
 extern crate search_lib;
 
 use rocket::fairing;
