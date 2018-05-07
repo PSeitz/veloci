@@ -232,150 +232,42 @@ fn create_single_data_index() -> Result<(), io::Error> {
                     {
                         "commonness": 3068,
                         "conjugated": [
-                            {
-                                "form": "見ないでください",
-                                "name": "negative request"
-                            },
-                            {
-                                "form": "見ませんでした",
-                                "name": "past polite negative"
-                            },
-                            {
-                                "form": "見なかった",
-                                "name": "past negative"
-                            },
-                            {
-                                "form": "見させられる",
-                                "name": "causative passive"
-                            },
-                            {
-                                "form": "見るでしょう",
-                                "name": "polite presumptive"
-                            },
-                            {
-                                "form": "見たげる",
-                                "name": "simplified te ageru"
-                            },
-                            {
-                                "form": "見ている",
-                                "name": "te iru"
-                            },
-                            {
-                                "form": "見てある",
-                                "name": "te aru"
-                            },
-                            {
-                                "form": "見ません",
-                                "name": "present polite negative"
-                            },
-                            {
-                                "form": "見ておる",
-                                "name": "te oru"
-                            },
-                            {
-                                "form": "見ておく",
-                                "name": "te oku"
-                            },
-                            {
-                                "form": "見たがる",
-                                "name": "other's desire"
-                            },
-                            {
-                                "form": "見ました",
-                                "name": "past polite"
-                            },
-                            {
-                                "form": "見るらしい",
-                                "name": "apparently the case"
-                            },
-                            {
-                                "form": "見るだろう",
-                                "name": "plain presumptive"
-                            },
-                            {
-                                "form": "見たろう",
-                                "name": "past presumptive"
-                            },
-                            {
-                                "form": "見とる",
-                                "name": "simplified te oru"
-                            },
-                            {
-                                "form": "見るそう",
-                                "name": "claimed to be the case"
-                            },
-                            {
-                                "form": "見ない",
-                                "name": "present negative"
-                            },
-                            {
-                                "form": "見たい",
-                                "name": "desire"
-                            },
-                            {
-                                "form": "見ます",
-                                "name": "present polite"
-                            },
-                            {
-                                "form": "見てる",
-                                "name": "simplified te iru"
-                            },
-                            {
-                                "form": "見たり",
-                                "name": "representative"
-                            },
-                            {
-                                "form": "見そう",
-                                "name": "looks to be the case"
-                            },
-                            {
-                                "form": "見かた",
-                                "name": "way of doing"
-                            },
-                            {
-                                "form": "見させる",
-                                "name": "causative"
-                            },
-                            {
-                                "form": "見られる",
-                                "name": "passive"
-                            },
-                            {
-                                "form": "見とく",
-                                "name": "simplified te oku"
-                            },
-                            {
-                                "form": "見",
-                                "name": "short potential"
-                            },
-                            {
-                                "form": "見れば",
-                                "name": "hypothetical"
-                            },
-                            {
-                                "form": "見よう",
-                                "name": "pseudo futurum"
-                            },
-                            {
-                                "form": "見て",
-                                "name": "te form"
-                            },
-                            {
-                                "form": "見るな",
-                                "name": "negative imperative"
-                            },
-                            {
-                                "form": "見-",
-                                "name": "conjunctive"
-                            },
-                            {
-                                "form": "見た",
-                                "name": "past"
-                            },
-                            {
-                                "form": "見ろ",
-                                "name": "commanding"
-                            }
+                            {"form": "見ないでください", "name": "negative request"},
+                            {"form": "見ませんでした", "name": "past polite negative"},
+                            {"form": "見なかった", "name": "past negative"},
+                            {"form": "見させられる", "name": "causative passive"},
+                            {"form": "見るでしょう", "name": "polite presumptive"},
+                            {"form": "見たげる", "name": "simplified te ageru"},
+                            {"form": "見ている", "name": "te iru"},
+                            {"form": "見てある", "name": "te aru"},
+                            {"form": "見ません", "name": "present polite negative"},
+                            {"form": "見ておる", "name": "te oru"},
+                            {"form": "見ておく", "name": "te oku"},
+                            {"form": "見たがる", "name": "other's desire"},
+                            {"form": "見ました", "name": "past polite"},
+                            {"form": "見るらしい", "name": "apparently the case"},
+                            {"form": "見るだろう", "name": "plain presumptive"},
+                            {"form": "見たろう", "name": "past presumptive"},
+                            {"form": "見とる", "name": "simplified te oru"},
+                            {"form": "見るそう", "name": "claimed to be the case"},
+                            {"form": "見ない", "name": "present negative"},
+                            {"form": "見たい", "name": "desire"},
+                            {"form": "見ます", "name": "present polite"},
+                            {"form": "見てる", "name": "simplified te iru"},
+                            {"form": "見たり", "name": "representative"},
+                            {"form": "見そう", "name": "looks to be the case"},
+                            {"form": "見かた", "name": "way of doing"},
+                            {"form": "見させる", "name": "causative"},
+                            {"form": "見られる", "name": "passive"},
+                            {"form": "見とく", "name": "simplified te oku"},
+                            {"form": "見", "name": "short potential"},
+                            {"form": "見れば", "name": "hypothetical"},
+                            {"form": "見よう", "name": "pseudo futurum"},
+                            {"form": "見て", "name": "te form"},
+                            {"form": "見るな", "name": "negative imperative"},
+                            {"form": "見-", "name": "conjunctive"},
+                            {"form": "見た", "name": "past"},
+                            {"form": "見ろ", "name": "commanding"}
                         ],
                         "ent_seq": "1259290",
                         "readings": [
@@ -424,9 +316,7 @@ fn create_single_data_index() -> Result<(), io::Error> {
                             {"form": "観ろ", "name": "commanding"}
                         ],
                         "ent_seq": "1259290",
-                        "readings": [
-                            "みる"
-                        ],
+                        "readings": ["みる"],
                         "text": "観る"
                     },
                     {
@@ -470,9 +360,7 @@ fn create_single_data_index() -> Result<(), io::Error> {
                             {"form": "視ろ", "name": "commanding"}
                         ],
                         "ent_seq": "1259290",
-                        "readings": [
-                            "みる"
-                        ],
+                        "readings": ["みる"],
                         "text": "視る"
                     }
                 ],
@@ -506,7 +394,7 @@ fn create_single_data_index() -> Result<(), io::Error> {
             })
             .collect::<Vec<_>>();
 
-        let mut persistence = search_lib::persistence::Persistence::create("single_data".to_string()).unwrap();
+        let mut persistence = search_lib::persistence::Persistence::create_type("single_data".to_string(), search_lib::persistence::PersistenceType::Persistent).unwrap();
         println!(
             "{:?}",
             search_lib::create::create_indices(&mut persistence, &serde_json::to_string_pretty(&books).unwrap(), indices)

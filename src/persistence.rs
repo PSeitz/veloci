@@ -84,7 +84,7 @@ pub struct PersistenceIndices {
     pub fst: HashMap<String, Map>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Eq, PartialEq)]
 pub enum PersistenceType {
     /// Transient Doesn't write indices, just holds them in memory. Good for small indices with incremental updates.
     Transient,
@@ -261,7 +261,7 @@ pub fn trace_index_id_to_parent<T: IndexIdToParentData>(val: &Box<IndexIdToParen
         let keys = val.get_keys();
         for key in keys.iter().take(100) {
             if let Some(vals) = val.get_values(NumCast::from(*key).unwrap()) {
-                let to = std::cmp::min(vals.len(), 100);
+                let mut to = std::cmp::min(vals.len(), 100);
                 trace!("key {:?} to {:?}", key, &vals[0..to]);
             }
         }
@@ -644,7 +644,9 @@ impl Persistence {
     #[cfg_attr(feature = "flame_it", flame)]
     pub fn write_offset<T: Clone + Integer + NumCast + Copy + Debug>(&self, bytes: &[u8], data: &[T], path: &str) -> Result<((String, IDList)), io::Error> {
         debug_time!(format!("Wrote Index {} With size {:?}", path, data.len()));
-        File::create(util::get_file_path(&self.db, path))?.write_all(bytes)?;
+        if self.persistence_type == PersistenceType::Persistent {
+            File::create(util::get_file_path(&self.db, path))?.write_all(bytes)?;
+        }
         info!("Wrote Index {} With size {:?}", path, data.len());
         trace!("{:?}", data);
         let sizo = match mem::size_of::<T>() {
@@ -738,7 +740,9 @@ impl Persistence {
 
         let store = IndexIdToOneParent::new(data);
 
-        File::create(data_file_path)?.write_all(&vec_to_bytes_u32(&store.data))?;
+        if self.persistence_type == PersistenceType::Persistent {
+            File::create(data_file_path)?.write_all(&vec_to_bytes_u32(&store.data))?;
+        }
 
         Ok(KVStoreMetaData {
             loading_type: loading_type,
@@ -762,9 +766,10 @@ impl Persistence {
         let indirect_file_path = util::get_file_path(&self.db, &(path.to_string() + ".indirect"));
         let data_file_path = util::get_file_path(&self.db, &(path.to_string() + ".data"));
 
-        File::create(indirect_file_path)?.write_all(&vec_to_bytes_u32(&store.start_pos))?;
-        File::create(data_file_path)?.write_all(&vec_to_bytes_u32(&store.data))?;
-
+        if self.persistence_type == PersistenceType::Persistent {
+            File::create(indirect_file_path)?.write_all(&vec_to_bytes_u32(&store.start_pos))?;
+            File::create(data_file_path)?.write_all(&vec_to_bytes_u32(&store.data))?;
+        }
         Ok(KVStoreMetaData {
             loading_type: loading_type,
             persistence_type: KVStoreType::IndexIdToMultipleParentIndirect,
@@ -779,8 +784,9 @@ impl Persistence {
         let indirect_file_path = util::get_file_path(&self.db, &(path.to_string() + ".indirect"));
         let data_file_path = util::get_file_path(&self.db, &(path.to_string() + ".data"));
 
-        store.write(&indirect_file_path, &data_file_path)?;
-
+        if self.persistence_type == PersistenceType::Persistent {
+            store.write(&indirect_file_path, &data_file_path)?;
+        }
         Ok(KVStoreMetaData {
             loading_type: loading_type,
             persistence_type: KVStoreType::IndexIdToMultipleParentIndirect,
@@ -797,6 +803,20 @@ impl Persistence {
         let meta_data = MetaData { ..Default::default() };
         Ok(Persistence {
             persistence_type: PersistenceType::Persistent,
+            meta_data,
+            db,
+            lru_cache: HashMap::default(),
+            term_boost_cache: RwLock::new(LruCache::with_expiry_duration_and_capacity(Duration::new(3600, 0), 10)),
+            indices: PersistenceIndices::default(),
+        })
+    }
+
+    #[cfg_attr(feature = "flame_it", flame)]
+    pub fn create_type(db: String, persistence_type: PersistenceType) -> Result<Self, io::Error> {
+        fs::create_dir_all(&db)?;
+        let meta_data = MetaData { ..Default::default() };
+        Ok(Persistence {
+            persistence_type: persistence_type,
             meta_data,
             db,
             lru_cache: HashMap::default(),

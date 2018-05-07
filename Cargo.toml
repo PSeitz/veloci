@@ -2,6 +2,7 @@
 name = "native_search"
 version = "0.1.0"
 authors = ["Pascal Powerman <you@gmail.com>"]
+autobenches = false
 
 [dependencies]
 json_converter = {path = "json_converter"}
@@ -99,5 +100,3 @@ debug = false
 lto = true
 codegen-units = 1
 panic = 'unwind'
-
-autobenches = false
