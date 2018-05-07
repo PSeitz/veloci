@@ -84,9 +84,17 @@ pub struct PersistenceIndices {
     pub fst: HashMap<String, Map>,
 }
 
+#[derive(Debug)]
+pub enum PersistenceType {
+    /// Transient Doesn't write indices, just holds them in memory. Good for small indices with incremental updates.
+    Transient,
+    Persistent,
+}
+
 pub struct Persistence {
     pub db: String, // folder
     pub meta_data: MetaData,
+    pub persistence_type: PersistenceType,
     pub indices: PersistenceIndices,
     pub lru_cache: HashMap<String, LruCache<RequestSearchPart, SearchResult>>,
     // pub lru_fst: HashMap<String, LruCache<(String, u8), Box<fst::Automaton<State=Option<usize>>>>>,
@@ -788,10 +796,10 @@ impl Persistence {
         fs::create_dir_all(&db)?;
         let meta_data = MetaData { ..Default::default() };
         Ok(Persistence {
+            persistence_type: PersistenceType::Persistent,
             meta_data,
             db,
             lru_cache: HashMap::default(),
-            // lru_fst: HashMap::default(),
             term_boost_cache: RwLock::new(LruCache::with_expiry_duration_and_capacity(Duration::new(3600, 0), 10)),
             indices: PersistenceIndices::default(),
         })
@@ -801,10 +809,10 @@ impl Persistence {
     pub fn load<P: AsRef<Path>>(db: P) -> Result<Self, search::SearchError> {
         let meta_data = MetaData::new(db.as_ref().to_str().unwrap())?;
         let mut pers = Persistence {
+            persistence_type: PersistenceType::Persistent,
             meta_data,
             db: db.as_ref().to_str().unwrap().to_string(),
             lru_cache: HashMap::default(), // LruCache::new(50),
-            // lru_fst: HashMap::default(), // LruCache::new(50),
             term_boost_cache: RwLock::new(LruCache::with_expiry_duration_and_capacity(Duration::new(3600, 0), 10)),
             indices: PersistenceIndices::default(),
         };

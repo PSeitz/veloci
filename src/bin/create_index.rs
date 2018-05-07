@@ -164,7 +164,6 @@ fn create_thalia_index_shards() -> Result<(), io::Error> {
         let path = "thalia_split_500/thalia_".to_owned() + &shard_num;
         println!(
             "{:?}",
-            // search_lib::create::create_indices(&("thalia_split_500/thalia_".to_owned() + &shard_num), &json, TAHLIA_INDICES)
             search_lib::create::create_indices(&mut search_lib::persistence::Persistence::create(path.to_string()).unwrap(), &json, TAHLIA_INDICES)
         );
         println!("created shard num {:?}", &shard_num);
@@ -507,9 +506,10 @@ fn create_single_data_index() -> Result<(), io::Error> {
             })
             .collect::<Vec<_>>();
 
+        let mut persistence = search_lib::persistence::Persistence::create("single_data".to_string()).unwrap();
         println!(
             "{:?}",
-            search_lib::create::create_indices(&mut search_lib::persistence::Persistence::create("single_data".to_string()).unwrap(), &serde_json::to_string_pretty(&books).unwrap(), indices)
+            search_lib::create::create_indices(&mut persistence, &serde_json::to_string_pretty(&books).unwrap(), indices)
         );
     }
 
