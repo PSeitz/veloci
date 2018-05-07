@@ -1,10 +1,9 @@
-use fnv::FnvHashMap;
-use fnv::FnvHashSet;
-
 use std::io;
 use std::io::Write;
 use std::{self, str};
 
+use fnv::FnvHashMap;
+use fnv::FnvHashSet;
 use fst::{self, MapBuilder};
 use fxhash::FxHashMap;
 use itertools::Itertools;
@@ -102,15 +101,17 @@ impl TermInfo {
 
 #[inline]
 pub fn set_ids(terms: &mut FxHashMap<String, TermInfo>) {
-    let mut v: Vec<String> = terms
+    let mut v: Vec<_> = terms
         .keys()
-        // .collect::<Vec<&String>>()
-        // .iter()
-        .map(|el| (*el).clone())
+        .map(|el| el.as_str() as *const str) //#borrow
         .collect();
-    v.sort();
+    v.sort_unstable_by_key(|term| unsafe {
+        std::mem::transmute::<*const str, &str>(*term) //#borrow
+    });
     for (i, term) in v.iter().enumerate() {
-        // terms.get_mut(term)
+        let term = unsafe {
+            std::mem::transmute::<*const str, &str>(*term) //#borrow this is only done to trick the borrow checker for performance reasons
+        };
         if let Some(term_info) = terms.get_mut(term) {
             term_info.id = i as u32;
         }
@@ -217,7 +218,7 @@ fn print_index_id_to_parent(vec: &IndexIdToMultipleParentIndirect<u32>, valid_he
 
 fn store_full_text_info(
     persistence: &Persistence,
-    all_terms: FxHashMap<String, TermInfo>,
+    all_terms: &FxHashMap<String, TermInfo>,
     path: &str,
     options: &FulltextIndexOptions,
     id_lists: &mut FnvHashMap<String, persistence::IDList>,
@@ -293,6 +294,7 @@ fn add_count_text(terms: &mut FxHashMap<String, TermInfo>, text: &str) {
     stat.num_occurences += 1;
 }
 
+#[inline]
 fn add_text<T: Tokenizer>(text: &str, terms: &mut FxHashMap<String, TermInfo>, options: &FulltextIndexOptions, tokenizer: &T) {
     trace!("text: {:?}", text);
     if options.stopwords.as_ref().map(|el| el.contains(text)).unwrap_or(false) {
@@ -331,7 +333,6 @@ where
         map.insert(
             key.to_string(),
             constructor(),
-            // FnvHashMap::with_capacity_and_hasher(num_elements, Default::default()),
         );
     }
     map.get_mut(key).unwrap()
@@ -400,8 +401,13 @@ fn calculate_token_score_in_doc(tokens_to_anchor_id: &mut Vec<ValIdPairToken>) -
     dat
 }
 
+#[derive(Debug)]
+struct CreateCache {
+    term_cache: AllTermsAndDocumentBuilder
+}
+
 #[derive(Debug, Default)]
-pub struct AllTermsAndWriteDocumentsData {
+pub struct AllTermsAndDocumentBuilder {
     offsets: Vec<u64>,
     current_offset: usize,
     id_holder: json_converter::IDHolder,
@@ -411,7 +417,7 @@ pub fn get_allterms_per_path_and_write_documents<'a, T>(
     stream: StreamDeserializer<'a, T, Value>,
     persistence: &mut Persistence,
     fulltext_info_for_path: &FnvHashMap<String, Fulltext>,
-    data: &mut AllTermsAndWriteDocumentsData,
+    data: &mut AllTermsAndDocumentBuilder,
 ) -> Result<(), io::Error>
 where
     T: serde_json::de::Read<'a>,
@@ -514,7 +520,7 @@ pub fn create_fulltext_index<'a, T>(
     stream2: StreamDeserializer<'a, T, Value>,
     mut persistence: &mut Persistence,
     indices_json: &Vec<CreateIndex>,
-) -> Result<(), io::Error>
+) -> Result<(AllTermsAndDocumentBuilder), io::Error>
 where
     T: serde_json::de::Read<'a>,
 {
@@ -549,7 +555,7 @@ where
 
     let is_1_to_n = |path: &str| path.contains("[]");
 
-    let mut term_data = AllTermsAndWriteDocumentsData::default();
+    let mut term_data = AllTermsAndDocumentBuilder::default();
     get_allterms_per_path_and_write_documents(stream1, &mut persistence, &fulltext_info_for_path, &mut term_data)?;
 
     {
@@ -803,16 +809,14 @@ where
             persistence.meta_data.anchor_score_stores.extend(anchor_score_stores);
         }
 
-        // let mut id_lists = FnvHashMap::default();
-        // let mut fulltext_indices = FnvHashMap::default();
         let r: Result<Vec<_>, io::Error> = term_data
             .terms_in_path
-            .into_par_iter()
+            .par_iter()
             .map(|(path, all_terms)| {
                 let mut id_lists = FnvHashMap::default();
                 let mut fulltext_indices = FnvHashMap::default();
                 let options: &FulltextIndexOptions = fulltext_info_for_path
-                    .get(&path)
+                    .get(path)
                     .and_then(|el| el.options.as_ref())
                     .unwrap_or(&default_fulltext_options);
                 store_full_text_info(&persistence, all_terms, &path, &options, &mut id_lists, &mut fulltext_indices)?;
@@ -824,13 +828,7 @@ where
             persistence.meta_data.id_lists.extend(id_lists);
             persistence.meta_data.fulltext_indices.extend(fulltext_indices);
         }
-        // for (path, all_terms) in terms_in_path {
-        //     let options: &FulltextIndexOptions = fulltext_info_for_path
-        //         .get(&path)
-        //         .and_then(|el| el.options.as_ref())
-        //         .unwrap_or(&default_fulltext_options);
-        //     store_full_text_info(&mut persistence, all_terms, &path, &options, &mut id_lists, &mut fulltext_indices)?;
-        // }
+
         let mut key_value_stores = vec![];
         for (path, mut tuples) in tuples_to_parent_in_path.iter_mut() {
             write_tuples(&mut persistence, path, &mut tuples, &mut key_value_stores)?;
@@ -848,7 +846,7 @@ where
     // store_fst(persistence, &all_ids_as_str, &concat(&path_name, ".valueIdToParent.fst")).expect("Could not store fst");
     //TEST FST AS ID MAPPER
 
-    Ok(())
+    Ok(term_data)
 }
 
 fn get_string_offsets(data: &Vec<&String>) -> Vec<u64> {
@@ -928,29 +926,28 @@ pub fn add_token_values_to_tokens(persistence: &mut Persistence, data_str: &str,
     Ok(())
 }
 
-pub fn create_indices_json(folder: &str, data: &Value, indices: &str) -> Result<(), CreateError> {
-    info_time!(format!("total time create_indices for {:?}", folder));
+pub fn create_indices_json(persistence: &mut Persistence, data: &Value, indices: &str) -> Result<(), CreateError> {
+    info_time!(format!("total time create_indices for {:?}", persistence.db));
     let data_str = serde_json::to_string(&data).unwrap(); //TODO: FIXME move to interface
-    create_indices(folder, &data_str, indices)
+    create_indices(persistence, &data_str, indices)
 }
 
-pub fn create_indices(folder: &str, data_str: &str, indices: &str) -> Result<(), CreateError> {
-    info_time!(format!("total time create_indices for {:?}", folder));
+pub fn create_indices(mut persistence: &mut Persistence, data_str: &str, indices: &str) -> Result<(), CreateError> {
+    info_time!(format!("total time create_indices for {:?}", persistence.db));
     let stream1 = Deserializer::from_str(&data_str).into_iter::<Value>(); //TODO Performance: Use custom line break deserializer to get string and json at the same time
     let stream2 = Deserializer::from_str(&data_str).into_iter::<Value>();
     // let stream3 = Deserializer::from_str(&data_str).into_iter::<Value>();
 
     let indices_json: Vec<CreateIndex> = serde_json::from_str(indices).unwrap();
-    let mut persistence = Persistence::create(folder.to_string())?;
+    // let mut persistence = Persistence::create(persistence.db.to_string())?;
     create_fulltext_index(stream1, stream2, &mut persistence, &indices_json)?;
 
-    info_time!(format!("write json and metadata {:?}", folder));
+    info_time!(format!("write json and metadata {:?}", persistence.db));
     // if let &Some(arr) = &data.as_array() {
     //     persistence.write_json_to_disk(arr, "data")?;
     // } else {
     //     persistence.write_json_to_disk(&vec![data.clone()], "data")?;
     // }
-
     // persistence.write_json_to_disk(stream3, "data")?;
 
     persistence.write_meta_data()?;

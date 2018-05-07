@@ -58,7 +58,8 @@ mod tests {
                 if !*INDEX_CREATEDO {
                     trace::enable_log();
                     let indices = r#"[{ "fulltext":"richtig", "options":{"tokenize":true} } ] "#;
-                    println!("{:?}", create::create_indices(TEST_FOLDER, &get_test_data(), indices));
+                    let mut persistence = persistence::Persistence::create(TEST_FOLDER.to_string()).unwrap();
+                    println!("{:?}", create::create_indices(&mut persistence, &get_test_data(), indices));
 
                     let pers = persistence::Persistence::load(TEST_FOLDER.to_string()).expect("Could not load persistence");
 

@@ -104,8 +104,9 @@ impl Shards {
 
     fn add_new_shard_from_docs(&mut self, docs: String, indices: &str) -> Result<(), search::SearchError> {
         let shard_id = self.shards.len();
-        let path = (self.path.to_owned() + "/" + &shard_id.to_string());
-        create::create_indices(&path, &docs, indices);
+        let path = self.path.to_owned() + "/" + &shard_id.to_string();
+        let mut persistence = Persistence::create(path.to_string())?;
+        create::create_indices(&mut persistence, &docs, indices);
         self.shards.push(Shard{shard_id: shard_id, doc_range:Range{start:0, end:0}, persistence:persistence::Persistence::load(path)?});
         Ok(())
     }

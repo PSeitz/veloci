@@ -324,136 +324,136 @@ fn searches(c: &mut Criterion) {
     let pers = load_persistence_disk();
     let pers_im = load_persistence_im();
 
-    c.bench_function("jmdict_search_anschauen", |b| b.iter(|| search("anschauen", &pers, 1)));
+    // c.bench_function("jmdict_search_anschauen", |b| b.iter(|| search("anschauen", &pers, 1)));
 
-    c.bench_function("jmdict_search_haus", |b| b.iter(|| search("haus", &pers, 1)));
+    // c.bench_function("jmdict_search_haus", |b| b.iter(|| search("haus", &pers, 1)));
 
-    c.bench_function("jmdict_search_freestyle_haus", |b| b.iter(|| search_freestyle("haus", &pers)));
+    // c.bench_function("jmdict_search_freestyle_haus", |b| b.iter(|| search_freestyle("haus", &pers)));
 
-    c.bench_function("jmdict_search_in_a_hurry", |b| b.iter(|| search_freestyle("in a hurry", &pers)));
+    // c.bench_function("jmdict_search_in_a_hurry", |b| b.iter(|| search_freestyle("in a hurry", &pers)));
 
-    c.bench_function("jmdict_search_japanese", |b| b.iter(|| search("家", &pers, 0)));
+    // c.bench_function("jmdict_search_japanese", |b| b.iter(|| search("家", &pers, 0)));
 
-    // let facets: Vec<FacetRequest> = vec![FacetRequest{field:"commonness".to_string(), .. Default::default()}];
+    // // let facets: Vec<FacetRequest> = vec![FacetRequest{field:"commonness".to_string(), .. Default::default()}];
 
-    let req = json!({
-        "search": {
-            "terms": ["the"],
-            "path": "meanings.eng[]",
-            "levenshtein_distance":0
-        },
-        "top": 10,
-        "skip": 0,
-        "facets": [ {"field":"commonness"}]
-    });
+    // let req = json!({
+    //     "search": {
+    //         "terms": ["the"],
+    //         "path": "meanings.eng[]",
+    //         "levenshtein_distance":0
+    //     },
+    //     "top": 10,
+    //     "skip": 0,
+    //     "facets": [ {"field":"commonness"}]
+    // });
 
-    let requesto: search::Request = serde_json::from_str(&req.to_string()).expect("Can't parse json");
-    c.bench_function("jmdict_search_facets", |b| b.iter(|| search::search(requesto.clone(), &pers)));
+    // let requesto: search::Request = serde_json::from_str(&req.to_string()).expect("Can't parse json");
+    // c.bench_function("jmdict_search_facets", |b| b.iter(|| search::search(requesto.clone(), &pers)));
 
-    c.bench_function("jmdict_search_facets_im", |b| b.iter(|| search::search(requesto.clone(), &pers_im)));
+    // c.bench_function("jmdict_search_facets_im", |b| b.iter(|| search::search(requesto.clone(), &pers_im)));
 
-    c.bench_function("jmdict_suggest_an", |b| b.iter(|| suggest("an", "meanings.ger[].text", &pers)));
+    // c.bench_function("jmdict_suggest_an", |b| b.iter(|| suggest("an", "meanings.ger[].text", &pers)));
 
-    let mut rng = rand::thread_rng();
-    let between = Range::new(0, 166600);
-    let fields = pers.get_all_properties();
-    let tree = get_read_tree_from_fields(&pers, &fields);
-    let single_tree = get_read_tree_from_fields(&pers, &vec!["ent_seq".to_string()]);
+    // let mut rng = rand::thread_rng();
+    // let between = Range::new(0, 166600);
+    // let fields = pers.get_all_fields();
+    // let tree = get_read_tree_from_fields(&pers, &fields);
+    // let single_tree = get_read_tree_from_fields(&pers, &vec!["ent_seq".to_string()]);
 
-    c.bench_function("load_documents_direct_large", |b| b.iter(|| DocLoader::get_doc(&pers, 166600 as usize)));
+    // c.bench_function("load_documents_direct_large", |b| b.iter(|| DocLoader::get_doc(&pers, 166600 as usize)));
 
-    c.bench_function("load_documents_tree_large", |b| b.iter(|| search::read_tree(&pers, 166600, &tree)));
+    // c.bench_function("load_documents_tree_large", |b| b.iter(|| search::read_tree(&pers, 166600, &tree)));
 
-    c.bench_function("load_documents_direct_random", |b| {
-        b.iter(|| DocLoader::get_doc(&pers, between.ind_sample(&mut rng) as u32 as usize))
-    });
+    // c.bench_function("load_documents_direct_random", |b| {
+    //     b.iter(|| DocLoader::get_doc(&pers, between.ind_sample(&mut rng) as u32 as usize))
+    // });
 
-    c.bench_function("load_documents_cache:tree_random", |b| {
-        b.iter(|| search::read_tree(&pers, between.ind_sample(&mut rng) as u32, &tree))
-    });
+    // c.bench_function("load_documents_cache:tree_random", |b| {
+    //     b.iter(|| search::read_tree(&pers, between.ind_sample(&mut rng) as u32, &tree))
+    // });
 
-    c.bench_function("load_documents_new_tree_random", |b| {
-        b.iter(|| {
-            let fields = pers.get_all_properties();
-            let tree = get_read_tree_from_fields(&pers, &fields);
-            search::read_tree(&pers, between.ind_sample(&mut rng) as u32, &tree)
-        })
-    });
+    // c.bench_function("load_documents_new_tree_random", |b| {
+    //     b.iter(|| {
+    //         let fields = pers.get_all_fields();
+    //         let tree = get_read_tree_from_fields(&pers, &fields);
+    //         search::read_tree(&pers, between.ind_sample(&mut rng) as u32, &tree)
+    //     })
+    // });
 
-    c.bench_function("load_documents_tree_random_single_field", |b| {
-        b.iter(|| search::read_tree(&pers, between.ind_sample(&mut rng) as u32, &single_tree))
-    });
+    // c.bench_function("load_documents_tree_random_single_field", |b| {
+    //     b.iter(|| search::read_tree(&pers, between.ind_sample(&mut rng) as u32, &single_tree))
+    // });
 
-    c.bench_function("jmdict_suggest_a", |b| b.iter(|| suggest("a", "meanings.ger[].text", &pers)));
+    // c.bench_function("jmdict_suggest_a", |b| b.iter(|| suggest("a", "meanings.ger[].text", &pers)));
 
-    c.bench_function("jmdict_suggest_kana_a", |b| b.iter(|| suggest("あ", "kana[].text", &pers)));
+    // c.bench_function("jmdict_suggest_kana_a", |b| b.iter(|| suggest("あ", "kana[].text", &pers)));
 
-    c.bench_function("jmdict_suggest_kana_a", |b| b.iter(|| suggest("あ", "kana[].text", &pers)));
+    // c.bench_function("jmdict_suggest_kana_a", |b| b.iter(|| suggest("あ", "kana[].text", &pers)));
 
-    c.bench_function("vecco push", |b| {
-        b.iter(|| {
-            let mut vec = Vec::with_capacity(1_000_000);
-            for i in 0..1_000_000 {
-                vec.push(Hit::new(i, 0.5));
-            }
-            vec
-        })
-    });
+    // c.bench_function("vecco push", |b| {
+    //     b.iter(|| {
+    //         let mut vec = Vec::with_capacity(1_000_000);
+    //         for i in 0..1_000_000 {
+    //             vec.push(Hit::new(i, 0.5));
+    //         }
+    //         vec
+    //     })
+    // });
 
-    c.bench_function("vecco placement", |b| {
-        b.iter(|| {
-            let mut vec = Vec::with_capacity(1_000_000);
-            for i in 0..1_000_000 {
-                vec.place_back() <- Hit::new(i, 0.5);
-            }
-            vec
-        })
-    });
+    // // c.bench_function("vecco placement", |b| {
+    // //     b.iter(|| {
+    // //         let mut vec = Vec::with_capacity(1_000_000);
+    // //         for i in 0..1_000_000 {
+    // //             vec.place_back() <- Hit::new(i, 0.5);
+    // //         }
+    // //         vec
+    // //     })
+    // // });
 
-    c.bench_function("vecco resize", |b| {
-        b.iter(|| {
-            let mut vec = Vec::with_capacity(1_000_000);
-            unsafe {
-                vec.set_len(1_000_000);
-            }
-            for i in 0..1_000_000 {
-                vec[i as usize] = Hit::new(i, 0.5);
-            }
-            vec
-        })
-    });
+    // c.bench_function("vecco resize", |b| {
+    //     b.iter(|| {
+    //         let mut vec = Vec::with_capacity(1_000_000);
+    //         unsafe {
+    //             vec.set_len(1_000_000);
+    //         }
+    //         for i in 0..1_000_000 {
+    //             vec[i as usize] = Hit::new(i, 0.5);
+    //         }
+    //         vec
+    //     })
+    // });
 
-    c.bench_function("vecco get_unchecked_mut", |b| {
-        b.iter(|| {
-            let mut vec = Vec::with_capacity(1_000_000);
-            unsafe {
-                vec.set_len(1_000_000);
-            }
-            for i in 0..1_000_000 {
-                unsafe {
-                    let elem = vec.get_unchecked_mut(i as usize);
-                    *elem = Hit::new(i, 0.5);
-                }
-            }
-            vec
-        })
-    });
+    // c.bench_function("vecco get_unchecked_mut", |b| {
+    //     b.iter(|| {
+    //         let mut vec = Vec::with_capacity(1_000_000);
+    //         unsafe {
+    //             vec.set_len(1_000_000);
+    //         }
+    //         for i in 0..1_000_000 {
+    //             unsafe {
+    //                 let elem = vec.get_unchecked_mut(i as usize);
+    //                 *elem = Hit::new(i, 0.5);
+    //             }
+    //         }
+    //         vec
+    //     })
+    // });
 
-    c.bench_function("vecco pointer fun", |b| {
-        b.iter(|| {
-            let mut vec = Vec::with_capacity(1_000_000);
-            unsafe {
-                vec.set_len(1_000_000);
-            }
-            let x_ptr = vec.as_mut_ptr();
-            for i in 0..1_000_000 {
-                unsafe {
-                    *x_ptr.offset(i as isize) = Hit::new(i, 0.5);
-                }
-            }
-            vec
-        })
-    });
+    // c.bench_function("vecco pointer fun", |b| {
+    //     b.iter(|| {
+    //         let mut vec = Vec::with_capacity(1_000_000);
+    //         unsafe {
+    //             vec.set_len(1_000_000);
+    //         }
+    //         let x_ptr = vec.as_mut_ptr();
+    //         for i in 0..1_000_000 {
+    //             unsafe {
+    //                 *x_ptr.offset(i as isize) = Hit::new(i, 0.5);
+    //             }
+    //         }
+    //         vec
+    //     })
+    // });
 }
 
 criterion_group!(benches, searches);

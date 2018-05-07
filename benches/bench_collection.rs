@@ -5,7 +5,7 @@ extern crate criterion;
 extern crate fnv;
 extern crate itertools;
 extern crate test;
-extern crate trie;
+// extern crate trie;
 
 // use criterion::Criterion;
 
@@ -79,21 +79,21 @@ pub fn bench_naivehashmap_insert(num_entries: u32) -> NaiveHashMap<u64, f32> {
     hits
 }
 
-pub fn bench_triemap_insert(num_entries: u32) -> trie::Map<f32> {
-    let mut hits: trie::Map<f32> = trie::Map::default();
-    // hits.reserve(num_entries as usize);
-    for x in 0..num_entries {
-        hits.insert(pseudo_rand(x) as usize, 0.22);
-    }
-    hits
-}
-pub fn bench_triemap_insert_with_lookup(num_hits: u32, token_hits: u32) {
-    let mut hits: trie::Map<f32> = bench_triemap_insert(num_hits);
-    for x in 0..token_hits {
-        let stat = hits.entry(pseudo_rand(x) as usize).or_insert(0.0);
-        *stat += 2.0;
-    }
-}
+// pub fn bench_triemap_insert(num_entries: u32) -> trie::Map<f32> {
+//     let mut hits: trie::Map<f32> = trie::Map::default();
+//     // hits.reserve(num_entries as usize);
+//     for x in 0..num_entries {
+//         hits.insert(pseudo_rand(x) as usize, 0.22);
+//     }
+//     hits
+// }
+// pub fn bench_triemap_insert_with_lookup(num_hits: u32, token_hits: u32) {
+//     let mut hits: trie::Map<f32> = bench_triemap_insert(num_hits);
+//     for x in 0..token_hits {
+//         let stat = hits.entry(pseudo_rand(x) as usize).or_insert(0.0);
+//         *stat += 2.0;
+//     }
+// }
 
 pub fn bench_fnvhashmap_insert_with_lookup(num_hits: u32, token_hits: u32) {
     let mut hits: FnvHashMap<u32, f32> = bench_fnvhashmap_insert(num_hits);
@@ -226,15 +226,15 @@ mod bench_collection {
         b.iter(|| bench_naivehashmap_insert(K300K));
     }
 
-    #[bench]
-    fn bench_triemap_insert_with_lookup_300k(b: &mut Bencher) {
-        b.iter(|| bench_triemap_insert_with_lookup(K300K, K300K));
-    }
+    // #[bench]
+    // fn bench_triemap_insert_with_lookup_300k(b: &mut Bencher) {
+    //     b.iter(|| bench_triemap_insert_with_lookup(K300K, K300K));
+    // }
 
-    #[bench]
-    fn bench_triemap_insert_300k(b: &mut Bencher) {
-        b.iter(|| bench_triemap_insert_with_lookup(K300K, 0));
-    }
+    // #[bench]
+    // fn bench_triemap_insert_300k(b: &mut Bencher) {
+    //     b.iter(|| bench_triemap_insert_with_lookup(K300K, 0));
+    // }
 
     // #[bench]
     // fn bench_vec_insert_300k(b: &mut Bencher) {
