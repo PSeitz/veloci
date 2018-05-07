@@ -203,8 +203,8 @@ fn search_post(database: String, request: Json<search::Request>) -> Result<Searc
 #[get("/<database>/_idtree/<id>")]
 fn get_doc_for_id_tree(database: String, id: u32) -> Json<Value> {
     let persistence = PERSISTENCES.get(&database).unwrap();
-    let fields = persistence.get_all_properties();
-    let tree = search::get_read_tree_from_fields(&persistence, &fields);
+    let all_fields = persistence.get_all_fields();
+    let tree = search::get_read_tree_from_fields(&persistence, &all_fields);
 
     Json(search::read_tree(&persistence, id, &tree).unwrap())
 }
@@ -212,20 +212,19 @@ fn get_doc_for_id_tree(database: String, id: u32) -> Json<Value> {
 #[get("/<database>/_id/<id>")]
 fn get_doc_for_id_direct(database: String, id: u32) -> Json<Value> {
     // let persistence = PERSISTENCES.get(&database).unwrap();
-    // let fields = persistence.get_all_properties();
+    // let fields = persistence.get_all_fields();
     // let tree = search::get_read_tree_from_fields(&persistence, &fields);
     ensure_database(&database).unwrap();
     let persistence = PERSISTENCES.get(&database).unwrap();
     Json(serde_json::from_str(&DocLoader::get_doc(&persistence, id as usize).unwrap()).unwrap())
 }
+
 // #[get("/<database>/<id>")]
 // fn get_doc_for_id(database: String, id: u32) -> Result<serde_json::Value, search::SearchError> {
 //     let persistence = PERSISTENCES.get(&database).unwrap();
-//     let fields = persistence.get_all_properties();
+//     let fields = persistence.get_all_fields();
 //     let tree = search::get_read_tree_from_fields(&persistence, &fields);
-
 //     search::read_tree(&persistence, 25000, &tree)
-
 // }
 
 #[get("/<database>/search?<params>")]

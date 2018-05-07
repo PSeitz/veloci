@@ -99,3 +99,5 @@ debug = false
 lto = true
 codegen-units = 1
 panic = 'unwind'
+
+autobenches = false

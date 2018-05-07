@@ -930,9 +930,7 @@ pub fn add_token_values_to_tokens(persistence: &mut Persistence, data_str: &str,
 
 pub fn create_indices_json(folder: &str, data: &Value, indices: &str) -> Result<(), CreateError> {
     info_time!(format!("total time create_indices for {:?}", folder));
-
     let data_str = serde_json::to_string(&data).unwrap(); //TODO: FIXME move to interface
-                                                          // let data: Value = serde_json::from_str(data_str).unwrap();
     create_indices(folder, &data_str, indices)
 }
 

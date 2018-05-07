@@ -204,6 +204,11 @@ impl<T: IndexIdToParentData> IndexIdToParent for IndexIdToOneParent<T> {
     fn get_values(&self, id: u64) -> Option<Vec<T>> {
         self.get_value(id).map(|el| vec![el])
     }
+
+    // #[inline]
+    // fn get_num_keys(&self) -> usize {
+    //     self.data.len()
+    // }
 }
 
 #[inline]
@@ -281,49 +286,12 @@ impl<T: IndexIdToParentData> IndexIdToParent for IndexIdToOneParentMayda<T> {
     fn get_values(&self, id: u64) -> Option<Vec<T>> {
         self.get_value(id).map(|el| vec![el])
     }
-}
 
-// #[derive(Debug, HeapSizeOf)]
-// pub struct FSTToOneParent<T: IndexIdToParentData> {
-//     pub data: Vec<T>,
-// }
-// impl<T: IndexIdToParentData> FSTToOneParent<T> {
-//     pub fn new(data: &IndexIdToParent<Output = T>) -> FSTToOneParent<T> {
-//         let data: Vec<Vec<T>> = id_to_parent_to_array_of_array(data);
-//         let data = data.iter()
-//             .map(|el| {
-//                 if el.len() > 0 {
-//                     NumCast::from(el[0]).unwrap()
-//                 } else {
-//                     NumCast::from(NOT_FOUND).unwrap()
-//                 }
-//             })
-//             .collect();
-//         FSTToOneParent { data }
-//     }
-// }
-// impl<T: IndexIdToParentData> IndexIdToParent for FSTToOneParent<T> {
-//     type Output = T;
-//     fn get_values(&self, id: u64) -> Option<Vec<T>> {
-//         self.get_value(id).map(|el| vec![el])
-//     }
-//     fn get_value(&self, id: u64) -> Option<T> {
-//         let val = self.data.get(id as usize);
-//         match val {
-//             Some(val) => {
-//                 if val.to_u32().unwrap() == NOT_FOUND {
-//                     None
-//                 } else {
-//                     Some(*val)
-//                 }
-//             }
-//             None => None,
-//         }
-//     }
-//     fn get_keys(&self) -> Vec<T> {
-//         (NumCast::from(0).unwrap()..NumCast::from(self.data.len()).unwrap()).collect()
-//     }
-// }
+    // #[inline]
+    // fn get_num_keys(&self) -> usize {
+    //     self.data.len()
+    // }
+}
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct ParallelArrays<T: IndexIdToParentData> {
@@ -409,6 +377,11 @@ impl<T: IndexIdToParentData> IndexIdToParent for SingleArrayMMAP<T> {
     fn get_keys(&self) -> Vec<T> {
         (NumCast::from(0).unwrap()..NumCast::from(self.get_size()).unwrap()).collect()
     }
+
+    // #[inline]
+    // default fn get_num_keys(&self) -> usize {
+    //     self.get_size()
+    // }
 
     default fn get_values(&self, find: u64) -> Option<Vec<T>> {
         self.get_value(find).map(|el| vec![el])
@@ -498,6 +471,11 @@ impl<T: IndexIdToParentData> IndexIdToParent for SingleArrayFileReader<T> {
     default fn get_values(&self, _find: u64) -> Option<Vec<T>> {
         unimplemented!()
     }
+
+    // #[inline]
+    // default fn get_num_keys(&self) -> usize {
+    //     self.get_size()
+    // }
 
     default fn get_value(&self, _find: u64) -> Option<T> {
         unimplemented!()

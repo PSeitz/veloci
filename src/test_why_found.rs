@@ -70,6 +70,11 @@ mod tests {
         }
 
 
+        it "get_number_of_docs"{
+            let pers = PERSISTENCES.get(&"default".to_string()).expect("Can't find loaded persistence");
+            assert_eq!(pers.get_number_of_documents().unwrap(), 4);
+        }
+
         it "should add why found terms highlight tokens and also text_ids"{
             let req = json!({
                 "search": {

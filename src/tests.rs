@@ -16,7 +16,6 @@ mod tests {
     use std::io::prelude::*;
     use trace;
     use util;
-    // use fnv::FnvHashMap;
 
     use facet;
     pub fn get_test_data() -> String {
@@ -954,7 +953,7 @@ mod tests {
 
         it "read recreate complete object with read"{
             let pers = PERSISTENCES.get(&"default".to_string()).unwrap();
-            let all_props = pers.get_all_properties();
+            let all_props = pers.get_all_fields();
             let yay2 = search::read_data(&pers, 3, &all_props).unwrap();
 
             assert_eq!(yay2, json!({ //TODO FIX INTEGER TO STRING

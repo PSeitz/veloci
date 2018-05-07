@@ -1,6 +1,5 @@
 use std::fs::{self, File};
 use std::io::prelude::*;
-
 use std::collections::HashMap;
 use std::fmt::Debug;
 #[allow(unused_imports)]
@@ -10,15 +9,7 @@ use std::path::{Path, PathBuf};
 use std::time::Duration;
 use std::{self, env, mem, str, u32};
 
-use create;
-use util;
-use util::get_file_path;
-use util::*;
-
-use search::*;
-use search::{self, SearchError};
-use search_field;
-
+use byteorder::{ByteOrder, LittleEndian};
 use num::cast::ToPrimitive;
 use num::{self, Integer, NumCast};
 
@@ -29,7 +20,6 @@ use serde_json::Value;
 use bincode::{deserialize, serialize};
 use fnv::FnvHashMap;
 
-use byteorder::{ByteOrder, LittleEndian};
 use log;
 use mayda;
 
@@ -42,6 +32,13 @@ use prettytable::Table;
 use persistence_data::*;
 use persistence_score::*;
 use type_info;
+use create;
+use util;
+use util::get_file_path;
+use util::*;
+use search::*;
+use search::{self, SearchError};
+use search_field;
 
 use heapsize::HeapSizeOf;
 
@@ -239,6 +236,11 @@ pub trait IndexIdToParent: Debug + HeapSizeOf + Sync + Send + type_info::TypeInf
     fn get_keys(&self) -> Vec<Self::Output>;
 
     #[inline]
+    fn get_num_keys(&self) -> usize {
+        self.get_keys().len()
+    }
+
+    #[inline]
     fn is_1_to_n(&self) -> bool {
         let keys = self.get_keys();
         keys.iter()
@@ -266,7 +268,7 @@ pub fn get_readable_size(value: usize) -> ColoredString {
     }
 }
 
-pub fn get_readable_size_for_childs<T: HeapSizeOf>(value: T) -> ColoredString {
+pub fn get_readable_size_for_children<T: HeapSizeOf>(value: T) -> ColoredString {
     get_readable_size(value.heap_size_of_children())
 }
 
@@ -565,11 +567,14 @@ impl Persistence {
 
     #[cfg_attr(feature = "flame_it", flame)]
     pub fn get_offsets(&self, path: &str) -> Result<&Box<IndexIdToParent<Output = u64>>, search::SearchError> {
-        // Option<&IndexIdToParent<Output=u64>>
         self.indices
             .index_64
             .get(&(path.to_string() + ".offsets"))
             .ok_or_else(|| From::from(format!("Did not found path in indices {:?}", path)))
+    }
+
+    pub fn get_number_of_documents(&self) -> Result<usize, search::SearchError>  {
+        Ok(self.get_offsets("data")?.get_num_keys() - 1 ) //the last offset marks the end and not a document
     }
 
     #[cfg_attr(feature = "flame_it", flame)]
@@ -811,20 +816,20 @@ impl Persistence {
     pub fn print_heap_sizes(&self) {
         info!(
             "indices.index_64 {}",
-            // get_readable_size_for_childs(&self.indices.index_64)
+            // get_readable_size_for_children(&self.indices.index_64)
             get_readable_size(self.indices.index_64.heap_size_of_children())
         );
         info!(
             "indices.index_id_to_parento {}",
-            get_readable_size(self.indices.index_id_to_parento.heap_size_of_children()) // get_readable_size_for_childs(&self.indices.index_id_to_parento)
+            get_readable_size(self.indices.index_id_to_parento.heap_size_of_children()) // get_readable_size_for_children(&self.indices.index_id_to_parento)
         );
         info!(
             "indices.boost_valueid_to_value {}",
-            get_readable_size_for_childs(&self.indices.boost_valueid_to_value)
+            get_readable_size_for_children(&self.indices.boost_valueid_to_value)
         );
         info!(
             "indices.token_to_anchor_to_score {}",
-            get_readable_size_for_childs(&self.indices.token_to_anchor_to_score)
+            get_readable_size_for_children(&self.indices.token_to_anchor_to_score)
         );
         info!("indices.fst {}", get_readable_size(self.get_fst_sizes()));
         info!("------");
@@ -861,7 +866,7 @@ impl Persistence {
         // println!("{}", table);
     }
 
-    pub fn get_all_properties(&self) -> Vec<String> {
+    pub fn get_all_fields(&self) -> Vec<String> {
         self.meta_data.fulltext_indices.keys().map(|el| util::extract_field_name(el)).collect()
     }
 
