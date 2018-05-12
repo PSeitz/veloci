@@ -16,7 +16,6 @@ use json_converter;
 use persistence;
 use persistence::{IndexIdToParent, LoadingType, Persistence};
 use persistence_data_indirect::*;
-use persistence_score::token_to_anchor_score_deltaable::*;
 use persistence_score::token_to_anchor_score_vint::*;
 use search;
 use search_field;
@@ -118,11 +117,7 @@ pub fn set_ids(terms: &mut FxHashMap<String, TermInfo>) {
     }
 }
 
-pub trait GetValueId {
-    fn get_value_id(&self) -> u32;
-}
-
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct ValIdPair {
     pub valid: u32,
     pub parent_val_id: u32,
@@ -140,7 +135,7 @@ impl ValIdPair {
 
 #[derive(Debug, Default, Clone)]
 pub struct ValIdPairToken {
-    pub valid: u32,
+    pub token_or_text_id: u32,
     pub anchor_id: u32,
     pub token_pos: u32,
     pub num_occurences: u32,
@@ -154,16 +149,40 @@ pub struct TokenToAnchorScore {
     pub score: u32,
 }
 
-impl GetValueId for ValIdPair {
+
+pub trait AccessValueId {
+    fn get_value_id(&self) -> u32;
+    fn set_value_id(&mut self, id: u32);
+}
+
+impl AccessValueId for ValIdPair {
     #[inline]
     fn get_value_id(&self) -> u32 {
         self.valid
     }
+    #[inline]
+    fn set_value_id(&mut self, id: u32) {
+        self.valid = id;
+    }
 }
-impl GetValueId for ValIdPairToken {
+impl AccessValueId for ValIdPairToken {
+    #[inline]
+    fn get_value_id(&self) -> u32 {
+        self.token_or_text_id
+    }
+    #[inline]
+    fn set_value_id(&mut self, id: u32) {
+        self.token_or_text_id = id;
+    }
+}
+impl AccessValueId for ValIdToValue {
     #[inline]
     fn get_value_id(&self) -> u32 {
         self.valid
+    }
+    #[inline]
+    fn set_value_id(&mut self, id: u32) {
+        self.valid = id;
     }
 }
 
@@ -176,12 +195,6 @@ pub struct ValIdToValue {
     pub value: u32,
 }
 
-impl GetValueId for ValIdToValue {
-    #[inline]
-    fn get_value_id(&self) -> u32 {
-        self.valid
-    }
-}
 
 impl std::fmt::Display for ValIdPair {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
@@ -226,19 +239,7 @@ fn store_full_text_info(
 ) -> Result<(), io::Error> {
     debug_time!(format!("store_fst strings and string offsets {:?}", path));
     let mut sorted_terms: Vec<&String> = all_terms.keys().collect::<Vec<&String>>();
-    // let mut sorted_terms: Vec<_> = all_terms.iter().collect::<Vec<_>>();
-    // sorted_terms.sort();
-    // sorted_terms.sort_unstable_by_key(|el| el.0);
     sorted_terms.sort_unstable();
-
-    // Store original strings and offsets
-    // persistence.write_data(
-    //     path,
-    //     sorted_terms
-    //         .iter()
-    //         .fold(String::with_capacity(sorted_terms.len() * 10), |acc, line| acc + line + "\n")
-    //         .as_bytes(),
-    // )?;
 
     let offsets = get_string_offsets(&sorted_terms); // TODO REPLACE OFFSET STUFF IN search field with something else
     let (id_list_path, id_list) = persistence.write_offset(&persistence::vec_to_bytes_u64(&offsets), &offsets, &concat(path, ".offsets"))?;
@@ -331,7 +332,7 @@ where
 {
     if !map.contains_key(key) {
         map.insert(
-            key.to_string(),
+            key.to_owned(),
             constructor(),
         );
     }
@@ -349,7 +350,7 @@ fn calculate_token_score_in_doc(tokens_to_anchor_id: &mut Vec<ValIdPairToken>) -
     tokens_to_anchor_id.sort_unstable_by(|a, b| {
         let sort_anch = a.anchor_id.cmp(&b.anchor_id);
         if sort_anch == std::cmp::Ordering::Equal {
-            let sort_valid = a.valid.cmp(&b.valid);
+            let sort_valid = a.token_or_text_id.cmp(&b.token_or_text_id);
             if sort_valid == std::cmp::Ordering::Equal {
                 a.token_pos.cmp(&b.token_pos)
             } else {
@@ -361,7 +362,7 @@ fn calculate_token_score_in_doc(tokens_to_anchor_id: &mut Vec<ValIdPairToken>) -
     }); // sort by parent id
 
     let mut dat = vec![];
-    for (_, mut group) in &tokens_to_anchor_id.into_iter().group_by(|el| (el.anchor_id, el.valid)) {
+    for (_, mut group) in &tokens_to_anchor_id.into_iter().group_by(|el| (el.anchor_id, el.token_or_text_id)) {
         let first = group.next().unwrap();
         let best_pos = first.token_pos;
 
@@ -392,7 +393,7 @@ fn calculate_token_score_in_doc(tokens_to_anchor_id: &mut Vec<ValIdPairToken>) -
         // trace!("scorescore {:?}",score);
 
         dat.push(TokenToAnchorScore {
-            valid: first.valid,
+            valid: first.token_or_text_id,
             anchor_id: first.anchor_id,
             score,
         });
@@ -401,9 +402,9 @@ fn calculate_token_score_in_doc(tokens_to_anchor_id: &mut Vec<ValIdPairToken>) -
     dat
 }
 
-#[derive(Debug)]
-struct CreateCache {
-    term_cache: AllTermsAndDocumentBuilder
+#[derive(Debug, Default)]
+pub struct CreateCache {
+    term_data: AllTermsAndDocumentBuilder
 }
 
 #[derive(Debug, Default)]
@@ -413,9 +414,10 @@ pub struct AllTermsAndDocumentBuilder {
     id_holder: json_converter::IDHolder,
     terms_in_path: FnvHashMap<String, FxHashMap<String, TermInfo>>,
 }
+
 pub fn get_allterms_per_path_and_write_documents<'a, T>(
     stream: StreamDeserializer<'a, T, Value>,
-    persistence: &mut Persistence,
+    // persistence: &mut Persistence,
     fulltext_info_for_path: &FnvHashMap<String, Fulltext>,
     data: &mut AllTermsAndDocumentBuilder,
 ) -> Result<(), io::Error>
@@ -429,12 +431,12 @@ where
     let tokenizer = SimpleTokenizerCharsIterateGroupTokens {};
     let default_fulltext_options = FulltextIndexOptions::new_with_tokenize();
 
-    let mut file_out = persistence.get_buffered_writer("data")?;
+    // let mut file_out = persistence.get_buffered_writer("data")?;
     let mut id_holder = json_converter::IDHolder::new();
-    std::mem::swap(&mut data.id_holder, &mut id_holder);
+    // std::mem::swap(&mut data.id_holder, &mut id_holder);
 
-    let mut offsets = vec![];
-    let mut current_offset = data.current_offset;
+    // let mut offsets = vec![];
+    // let mut current_offset = data.current_offset;
 
     {
         let mut cb_text = |_anchor_id: u32, value: &str, path: &str, _parent_val_id: u32| {
@@ -449,24 +451,17 @@ where
         };
         let mut callback_ids = |_anchor_id: u32, _path: &str, _value_id: u32, _parent_val_id: u32| {};
 
-        let mut callback_document = |el: &serde_json::Value| {
-            let el_str = el.to_string().into_bytes();
-            file_out.write_all(&el_str).unwrap();
-            offsets.push(current_offset as u64);
-            current_offset += el_str.len();
-        };
-
-        json_converter::for_each_element_and_doc(stream, &mut id_holder, &mut opt, &mut cb_text, &mut callback_ids, &mut callback_document);
+        json_converter::for_each_element(stream, &mut id_holder, &mut opt, &mut cb_text, &mut callback_ids);
     }
 
-    offsets.push(current_offset as u64);
+    // offsets.push(current_offset as u64);
 
-    data.offsets.extend(offsets);
-    data.current_offset = current_offset;
-    std::mem::swap(&mut data.id_holder, &mut id_holder);
+    // data.offsets.extend(offsets);
+    // data.current_offset = current_offset;
+    // std::mem::swap(&mut data.id_holder, &mut id_holder);
 
-    let (id_list_path, id_list_meta_data) = persistence.write_offset(&persistence::vec_to_bytes_u64(&data.offsets), &data.offsets, &"data.offsets")?;
-    persistence.meta_data.id_lists.insert(id_list_path, id_list_meta_data);
+    // let (id_list_path, id_list_meta_data) = persistence.write_offset(&persistence::vec_to_bytes_u64(&data.offsets), &data.offsets, &"data.offsets")?;
+    // persistence.meta_data.id_lists.insert(id_list_path, id_list_meta_data);
 
     Ok(())
 }
@@ -474,8 +469,9 @@ where
 #[derive(Debug, Default, Clone)]
 struct PathData {
     tokens_to_text_id: Vec<ValIdPair>,
+    the_terms: Vec<(String, usize)>,
     tokens_to_anchor_id: Vec<ValIdPairToken>,
-    tokens_to_anchor_id_delta: TokenToAnchorScoreVintDelta,
+    // tokens_to_anchor_id_delta: TokenToAnchorScoreVintDelta,
     token_to_anchor_id_score: Vec<TokenToAnchorScore>,
     text_id_to_token_ids: IndexIdToMultipleParentIndirect<u32>,
     text_id_to_parent: Vec<ValIdPair>,
@@ -515,12 +511,28 @@ fn check_similarity(data: &FnvHashMap<String, FnvHashMap<String, TermInfo>>) {
     }
 }
 
+fn replace_term_ids<T:AccessValueId>(yep:&mut Vec<T>, index: &Vec<u32>) {
+    for el in yep.iter_mut() {
+        let val_id = el.get_value_id() as usize;
+        el.set_value_id(index[val_id]);
+    }
+}
+
+#[test]
+fn replace_term_ids_test() {
+    let mut yep = vec![];
+    yep.push(ValIdPair::new(1 as u32, 2 as u32));
+    replace_term_ids(&mut yep, &vec![10, 10]);
+    assert_eq!(yep, vec![ValIdPair::new(10 as u32, 2 as u32)]);
+}
+
 pub fn create_fulltext_index<'a, T>(
     stream1: StreamDeserializer<'a, T, Value>,
     stream2: StreamDeserializer<'a, T, Value>,
     mut persistence: &mut Persistence,
     indices_json: &Vec<CreateIndex>,
-) -> Result<(AllTermsAndDocumentBuilder), io::Error>
+    create_cache: &mut CreateCache,
+) -> Result<(), io::Error>
 where
     T: serde_json::de::Read<'a>,
 {
@@ -555,19 +567,53 @@ where
 
     let is_1_to_n = |path: &str| path.contains("[]");
 
-    let mut term_data = AllTermsAndDocumentBuilder::default();
-    get_allterms_per_path_and_write_documents(stream1, &mut persistence, &fulltext_info_for_path, &mut term_data)?;
+    get_allterms_per_path_and_write_documents(stream1, &fulltext_info_for_path, &mut create_cache.term_data)?;
 
     {
         info_time!("set term ids");
-        for mut terms in term_data.terms_in_path.values_mut() {
+        for mut terms in create_cache.term_data.terms_in_path.values_mut() {
             set_ids(&mut terms);
         }
     }
 
+    let mut file_out = persistence.get_buffered_writer("data")?;
+
+    let mut id_holder = json_converter::IDHolder::new();
+    std::mem::swap(&mut create_cache.term_data.id_holder, &mut id_holder);
+
+    let mut offsets = vec![];
+    let mut current_offset = create_cache.term_data.current_offset;
+
+    // {
+    //     let mut cb_text = |_anchor_id: u32, value: &str, path: &str, _parent_val_id: u32| {
+    //         let options: &FulltextIndexOptions = fulltext_info_for_path
+    //             .get(path)
+    //             .and_then(|el| el.options.as_ref())
+    //             .unwrap_or(&default_fulltext_options);
+
+    //         let mut terms = get_or_insert(&mut create_cache.terms_in_path, path, &|| FxHashMap::default());
+
+    //         add_text(value, &mut terms, &options, &tokenizer);
+    //     };
+    //     let mut callback_ids = |_anchor_id: u32, _path: &str, _value_id: u32, _parent_val_id: u32| {};
+
+    //     let mut callback_document = |el: &serde_json::Value| {
+    //         let el_str = el.to_string().into_bytes();
+    //         file_out.write_all(&el_str).unwrap();
+    //         offsets.push(current_offset as u64);
+    //         current_offset += el_str.len();
+    //     };
+
+    //     json_converter::for_each_element_and_doc(stream, &mut id_holder, &mut opt, &mut cb_text, &mut callback_ids, &mut callback_document);
+    // }
+
+
+
+
+
     // check_similarity(&data.terms_in_path);
     info_time!("create and write fulltext_index");
-    trace!("all_terms {:?}", term_data.terms_in_path);
+    trace!("all_terms {:?}", create_cache.term_data.terms_in_path);
 
     let mut opt = json_converter::ForEachOpt {};
     let mut id_holder = json_converter::IDHolder::new();
@@ -585,21 +631,16 @@ where
             let data = get_or_insert(&mut path_data, path, &|| {
                 let boost_info_data = if boost_info_for_path.contains_key(path) { Some(vec![]) } else { None };
                 let anchor_to_text_id = if facet_index.contains(path) && is_1_to_n(path) { Some(vec![]) } else { None }; //Create facet index only for 1:N
-                let prop_delta_path = concat(&(persistence.db.to_string() + "/"), &concat(&path, ".to_anchor_id_score_delta"));
+                // let prop_delta_path = concat(&(persistence.db.to_string() + "/"), &concat(&path, ".to_anchor_id_score_delta"));
 
                 PathData {
                     anchor_to_text_id: anchor_to_text_id,
                     boost: boost_info_data,
-                    tokens_to_anchor_id_delta: TokenToAnchorScoreVintDelta::new(
-                        prop_delta_path.to_string() + ".indirect",
-                        prop_delta_path.to_string() + ".data",
-                    ),
                     ..Default::default()
                 }
             });
 
-            let all_terms = term_data.terms_in_path.get(path).unwrap();
-
+            let all_terms = create_cache.term_data.terms_in_path.get(path).unwrap();
             let options: &FulltextIndexOptions = fulltext_info_for_path
                 .get(path)
                 .and_then(|el| el.options.as_ref())
@@ -629,13 +670,15 @@ where
             let mut tokens_to_anchor_id = vec![];
 
             tokens_to_anchor_id.push(ValIdPairToken {
-                valid: text_info.id as u32,
+                token_or_text_id: text_info.id as u32,
                 num_occurences: text_info.num_occurences as u32,
                 anchor_id: anchor_id,
                 token_pos: 0,
                 entry_num_tokens: 1,
             });
 
+            let temp_id = data.the_terms.len();
+            data.the_terms.push((value.to_string(), temp_id));
             if options.tokenize && tokenizer.has_tokens(value) {
                 let mut current_token_pos = 0;
                 let mut tokens_ids = vec![];
@@ -645,6 +688,9 @@ where
                         return; //TODO FIXEME return here also prevents proper recreation of text with tokens
                     }
 
+                    let temp_id = data.the_terms.len();
+                    data.the_terms.push((token.to_string(), temp_id));
+
                     let token_info = all_terms.get(token).expect("did not found token");
                     trace!("Adding to tokens_ids {:?} : {:?}", token, token_info);
 
@@ -652,7 +698,7 @@ where
                     tokens_ids.push(token_info.id as u32);
                     data.tokens_to_text_id.push(ValIdPair::new(token_info.id as u32, text_info.id as u32));
                     tokens_to_anchor_id.push(ValIdPairToken {
-                        valid: token_info.id as u32,
+                        token_or_text_id: token_info.id as u32,
                         num_occurences: token_info.num_occurences as u32,
                         anchor_id: anchor_id,
                         token_pos: current_token_pos as u32,
@@ -673,11 +719,10 @@ where
                 }
             }
 
-            let token_to_anchor_id_scores = calculate_token_score_in_doc(&mut tokens_to_anchor_id);
-            // for el in token_to_anchor_id_scores.iter(){
-            //     data.tokens_to_anchor_id_delta.add_values(el.valid, vec![el.anchor_id, el.score]);
-            // }
-            data.token_to_anchor_id_score.extend(token_to_anchor_id_scores);
+            data.tokens_to_anchor_id.extend(tokens_to_anchor_id);
+
+            // let token_to_anchor_id_scores = calculate_token_score_in_doc(&mut tokens_to_anchor_id);
+            // data.token_to_anchor_id_score.extend(token_to_anchor_id_scores);
         };
 
         let mut callback_ids = |_anchor_id: u32, path: &str, value_id: u32, parent_val_id: u32| {
@@ -686,8 +731,28 @@ where
             tuples.push(ValIdPair::new(value_id, parent_val_id));
         };
 
-        json_converter::for_each_element(stream2, &mut id_holder, &mut opt, &mut cb_text, &mut callback_ids);
+        let mut callback_document = |el: &serde_json::Value| {
+            let el_str = el.to_string().into_bytes();
+            file_out.write_all(&el_str).unwrap();
+            offsets.push(current_offset as u64);
+            current_offset += el_str.len();
+        };
+
+        json_converter::for_each_element_and_doc(stream2, &mut id_holder, &mut opt, &mut cb_text, &mut callback_ids, &mut callback_document);
+
+        // json_converter::for_each_element(stream2, &mut id_holder, &mut opt, &mut cb_text, &mut callback_ids);
     }
+
+
+    offsets.push(current_offset as u64);
+
+    create_cache.term_data.offsets.extend(offsets);
+    create_cache.term_data.current_offset = current_offset;
+    std::mem::swap(&mut create_cache.term_data.id_holder, &mut id_holder);
+
+    let (id_list_path, id_list_meta_data) = persistence.write_offset(&persistence::vec_to_bytes_u64(&create_cache.term_data.offsets), &create_cache.term_data.offsets, &"data.offsets")?;
+    persistence.meta_data.id_lists.insert(id_list_path, id_list_meta_data);
+
 
     let is_text_id_to_parent = |path: &str| path.ends_with(".textindex");
 
@@ -741,6 +806,9 @@ where
                 trace!("{}\n{}", &concat(&path, ".tokens"), print_vec(&data.tokens_to_text_id, "token_id", "parent_id"));
 
                 let mut token_to_anchor_id_score_vint_index = TokenToAnchorScoreVint::default();
+
+                let token_to_anchor_id_scores = calculate_token_score_in_doc(&mut data.tokens_to_anchor_id);
+                data.token_to_anchor_id_score.extend(token_to_anchor_id_scores);
                 data.token_to_anchor_id_score.sort_unstable_by_key(|a| a.valid);
                 for (token_id, mut group) in &data.token_to_anchor_id_score.into_iter().group_by(|el| (el.valid)) {
                     let mut group: Vec<(u32, u32)> = group.map(|el| (el.anchor_id, (el.score))).collect();
@@ -809,7 +877,7 @@ where
             persistence.meta_data.anchor_score_stores.extend(anchor_score_stores);
         }
 
-        let r: Result<Vec<_>, io::Error> = term_data
+        let r: Result<Vec<_>, io::Error> = create_cache.term_data
             .terms_in_path
             .par_iter()
             .map(|(path, all_terms)| {
@@ -846,7 +914,7 @@ where
     // store_fst(persistence, &all_ids_as_str, &concat(&path_name, ".valueIdToParent.fst")).expect("Could not store fst");
     //TEST FST AS ID MAPPER
 
-    Ok(term_data)
+    Ok(())
 }
 
 fn get_string_offsets(data: &Vec<&String>) -> Vec<u64> {
@@ -926,33 +994,26 @@ pub fn add_token_values_to_tokens(persistence: &mut Persistence, data_str: &str,
     Ok(())
 }
 
-pub fn create_indices_json(persistence: &mut Persistence, data: &Value, indices: &str) -> Result<(), CreateError> {
+pub fn create_indices_json(persistence: &mut Persistence, data: &Value, indices: &str, create_cache: Option<CreateCache>) -> Result<(CreateCache), CreateError> {
     info_time!(format!("total time create_indices for {:?}", persistence.db));
     let data_str = serde_json::to_string(&data).unwrap(); //TODO: FIXME move to interface
-    create_indices(persistence, &data_str, indices)
+    create_indices(persistence, &data_str, indices, create_cache)
 }
 
-pub fn create_indices(mut persistence: &mut Persistence, data_str: &str, indices: &str) -> Result<(), CreateError> {
+pub fn create_indices(mut persistence: &mut Persistence, data_str: &str, indices: &str, create_cache: Option<CreateCache>) -> Result<(CreateCache), CreateError> {
     info_time!(format!("total time create_indices for {:?}", persistence.db));
     let stream1 = Deserializer::from_str(&data_str).into_iter::<Value>(); //TODO Performance: Use custom line break deserializer to get string and json at the same time
     let stream2 = Deserializer::from_str(&data_str).into_iter::<Value>();
-    // let stream3 = Deserializer::from_str(&data_str).into_iter::<Value>();
 
     let indices_json: Vec<CreateIndex> = serde_json::from_str(indices).unwrap();
-    // let mut persistence = Persistence::create(persistence.db.to_string())?;
-    create_fulltext_index(stream1, stream2, &mut persistence, &indices_json)?;
+    let mut create_cache = create_cache.unwrap_or_else(||CreateCache::default());
+    create_fulltext_index(stream1, stream2, &mut persistence, &indices_json, &mut create_cache)?;
 
     info_time!(format!("write json and metadata {:?}", persistence.db));
-    // if let &Some(arr) = &data.as_array() {
-    //     persistence.write_json_to_disk(arr, "data")?;
-    // } else {
-    //     persistence.write_json_to_disk(&vec![data.clone()], "data")?;
-    // }
-    // persistence.write_json_to_disk(stream3, "data")?;
 
     persistence.write_meta_data()?;
 
-    Ok(())
+    Ok(create_cache)
 }
 
 #[derive(Debug)]

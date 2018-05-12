@@ -106,7 +106,7 @@ impl Shards {
         let shard_id = self.shards.len();
         let path = self.path.to_owned() + "/" + &shard_id.to_string();
         let mut persistence = Persistence::create(path.to_string())?;
-        create::create_indices(&mut persistence, &docs, indices);
+        create::create_indices(&mut persistence, &docs, indices, None);
         self.shards.push(Shard{shard_id: shard_id, doc_range:Range{start:0, end:0}, persistence:persistence::Persistence::load(path)?});
         Ok(())
     }
@@ -192,7 +192,6 @@ impl Shards {
         for entry in fs::read_dir(path.to_string())? {
             let entry = entry?;
             let path = entry.path();
-            println!("{:?}", path);
             shards.push(Shard{shard_id: shard_id, doc_range:Range{start:0, end:0}, persistence:persistence::Persistence::load(path.to_str().unwrap())?});
             shard_id += 1;
         }
