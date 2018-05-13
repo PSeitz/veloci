@@ -415,14 +415,12 @@ pub struct AllTermsAndDocumentBuilder {
     terms_in_path: FnvHashMap<String, FxHashMap<String, TermInfo>>,
 }
 
-pub fn get_allterms_per_path_and_write_documents<'a, T>(
-    stream: StreamDeserializer<'a, T, Value>,
+pub fn get_allterms_per_path_and_write_documents<I: Iterator<Item = Result<serde_json::Value, serde_json::Error>>>(
+    stream: I,
     // persistence: &mut Persistence,
     fulltext_info_for_path: &FnvHashMap<String, Fulltext>,
     data: &mut AllTermsAndDocumentBuilder,
 ) -> Result<(), io::Error>
-where
-    T: serde_json::de::Read<'a>,
 {
     info_time!("get_allterms_per_path_and_write_documents");
 
@@ -526,15 +524,13 @@ fn replace_term_ids_test() {
     assert_eq!(yep, vec![ValIdPair::new(10 as u32, 2 as u32)]);
 }
 
-pub fn create_fulltext_index<'a, T>(
-    stream1: StreamDeserializer<'a, T, Value>,
-    stream2: StreamDeserializer<'a, T, Value>,
+pub fn create_fulltext_index<I: Iterator<Item = Result<serde_json::Value, serde_json::Error>>>(
+    stream1: I,
+    stream2: I,
     mut persistence: &mut Persistence,
     indices_json: &Vec<CreateIndex>,
     create_cache: &mut CreateCache,
 ) -> Result<(), io::Error>
-where
-    T: serde_json::de::Read<'a>,
 {
     let fulltext_info_for_path: FnvHashMap<String, Fulltext> = indices_json
         .iter()
@@ -994,16 +990,28 @@ pub fn add_token_values_to_tokens(persistence: &mut Persistence, data_str: &str,
     Ok(())
 }
 
-pub fn create_indices_json(persistence: &mut Persistence, data: &Value, indices: &str, create_cache: Option<CreateCache>) -> Result<(CreateCache), CreateError> {
+pub fn create_indices_from_json(persistence: &mut Persistence, data: &Value, indices: &str, create_cache: Option<CreateCache>) -> Result<(CreateCache), CreateError> {
     info_time!(format!("total time create_indices for {:?}", persistence.db));
     let data_str = serde_json::to_string(&data).unwrap(); //TODO: FIXME move to interface
-    create_indices(persistence, &data_str, indices, create_cache)
+    create_indices_from_str(persistence, &data_str, indices, create_cache)
 }
 
-pub fn create_indices(mut persistence: &mut Persistence, data_str: &str, indices: &str, create_cache: Option<CreateCache>) -> Result<(CreateCache), CreateError> {
+pub fn create_indices_from_str(mut persistence: &mut Persistence, data_str: &str, indices: &str, create_cache: Option<CreateCache>) -> Result<(CreateCache), CreateError> {
     info_time!(format!("total time create_indices for {:?}", persistence.db));
     let stream1 = Deserializer::from_str(&data_str).into_iter::<Value>(); //TODO Performance: Use custom line break deserializer to get string and json at the same time
     let stream2 = Deserializer::from_str(&data_str).into_iter::<Value>();
+    create_indices_from_streams(persistence, stream1, stream2, indices, create_cache)
+}
+
+pub fn create_indices_from_streams<I: Iterator<Item = Result<serde_json::Value, serde_json::Error>>>(
+    mut persistence: &mut Persistence,    
+    stream1: I,
+    stream2: I, 
+    indices: &str, 
+    create_cache: Option<CreateCache>
+) -> Result<(CreateCache), CreateError>
+{
+    info_time!(format!("total time create_indices for {:?}", persistence.db));
 
     let indices_json: Vec<CreateIndex> = serde_json::from_str(indices).unwrap();
     let mut create_cache = create_cache.unwrap_or_else(||CreateCache::default());

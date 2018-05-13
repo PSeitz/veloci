@@ -205,10 +205,10 @@ impl<T: IndexIdToParentData> IndexIdToParent for IndexIdToOneParent<T> {
         self.get_value(id).map(|el| vec![el])
     }
 
-    // #[inline]
-    // fn get_num_keys(&self) -> usize {
-    //     self.data.len()
-    // }
+    #[inline]
+    fn get_num_keys(&self) -> usize {
+        self.data.len()
+    }
 }
 
 #[inline]
@@ -287,10 +287,10 @@ impl<T: IndexIdToParentData> IndexIdToParent for IndexIdToOneParentMayda<T> {
         self.get_value(id).map(|el| vec![el])
     }
 
-    // #[inline]
-    // fn get_num_keys(&self) -> usize {
-    //     self.data.len()
-    // }
+    #[inline]
+    fn get_num_keys(&self) -> usize {
+        self.data.len()
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
@@ -378,10 +378,10 @@ impl<T: IndexIdToParentData> IndexIdToParent for SingleArrayMMAP<T> {
         (NumCast::from(0).unwrap()..NumCast::from(self.get_size()).unwrap()).collect()
     }
 
-    // #[inline]
-    // default fn get_num_keys(&self) -> usize {
-    //     self.get_size()
-    // }
+    #[inline]
+    default fn get_num_keys(&self) -> usize {
+        self.get_size()
+    }
 
     default fn get_values(&self, find: u64) -> Option<Vec<T>> {
         self.get_value(find).map(|el| vec![el])
@@ -472,10 +472,10 @@ impl<T: IndexIdToParentData> IndexIdToParent for SingleArrayFileReader<T> {
         unimplemented!()
     }
 
-    // #[inline]
-    // default fn get_num_keys(&self) -> usize {
-    //     self.get_size()
-    // }
+    #[inline]
+    default fn get_num_keys(&self) -> usize {
+        self.get_size()
+    }
 
     default fn get_value(&self, _find: u64) -> Option<T> {
         unimplemented!()

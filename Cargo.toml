@@ -43,6 +43,7 @@ mayda = { git = "https://github.com/PSeitz/mayda" }
 prettytable-rs = "^0.6"
 colored = "1.4"
 flate2 = "1.0"
+uuid = { version = "0.6", features = ["v4"] }
 
 rocket = "0.3"
 rocket_contrib = "0.3"

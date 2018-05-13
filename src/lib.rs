@@ -45,6 +45,7 @@ extern crate fnv;
 extern crate fst;
 
 extern crate rayon;
+extern crate uuid;
 extern crate regex;
 
 extern crate flexi_logger;

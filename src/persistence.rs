@@ -585,28 +585,28 @@ impl Persistence {
         Ok(self.get_offsets("data")?.get_num_keys() - 1 ) //the last offset marks the end and not a document
     }
 
-    #[cfg_attr(feature = "flame_it", flame)]
-    pub fn write_json_to_disk<'a, T>(&mut self, data: StreamDeserializer<'a, T, Value>, path: &str) -> Result<(), io::Error>
-    where
-        T: serde_json::de::Read<'a>,
-    {
-        let mut offsets = vec![];
-        let mut file_out = self.get_buffered_writer(path)?;
-        let mut current_offset = 0;
+    // #[cfg_attr(feature = "flame_it", flame)]
+    // pub fn write_json_to_disk<'a, T>(&mut self, data: StreamDeserializer<'a, T, Value>, path: &str) -> Result<(), io::Error>
+    // where
+    //     T: serde_json::de::Read<'a>,
+    // {
+    //     let mut offsets = vec![];
+    //     let mut file_out = self.get_buffered_writer(path)?;
+    //     let mut current_offset = 0;
 
-        util::iter_json_stream(data, &mut |el: &serde_json::Value| {
-            let el_str = el.to_string().into_bytes();
+    //     util::iter_json_stream(data, &mut |el: &serde_json::Value| {
+    //         let el_str = el.to_string().into_bytes();
 
-            file_out.write_all(&el_str).unwrap();
-            offsets.push(current_offset as u64);
-            current_offset += el_str.len();
-        });
+    //         file_out.write_all(&el_str).unwrap();
+    //         offsets.push(current_offset as u64);
+    //         current_offset += el_str.len();
+    //     });
 
-        offsets.push(current_offset as u64);
-        let (id_list_path, id_list) = self.write_offset(&vec_to_bytes_u64(&offsets), &offsets, &(path.to_string() + ".offsets"))?;
-        self.meta_data.id_lists.insert(id_list_path, id_list);
-        Ok(())
-    }
+    //     offsets.push(current_offset as u64);
+    //     let (id_list_path, id_list) = self.write_offset(&vec_to_bytes_u64(&offsets), &offsets, &(path.to_string() + ".offsets"))?;
+    //     self.meta_data.id_lists.insert(id_list_path, id_list);
+    //     Ok(())
+    // }
 
     #[cfg_attr(feature = "flame_it", flame)]
     pub fn get_buffered_writer(&self, path: &str) -> Result<io::BufWriter<fs::File>, io::Error> {
@@ -619,6 +619,12 @@ impl Persistence {
 
     #[cfg_attr(feature = "flame_it", flame)]
     pub fn write_data(&self, path: &str, data: &[u8]) -> Result<(), io::Error> {
+        File::create(&get_file_path(&self.db, path))?.write_all(data)?;
+        Ok(())
+    }
+
+    #[cfg_attr(feature = "flame_it", flame)]
+    pub fn read_data(&self, path: &str, data: &[u8]) -> Result<(), io::Error> {
         File::create(&get_file_path(&self.db, path))?.write_all(data)?;
         Ok(())
     }

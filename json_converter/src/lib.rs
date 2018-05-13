@@ -42,8 +42,8 @@ pub fn convert_to_string(value: &Value) -> Cow<str> {
     }
 }
 
-pub fn for_each_element<'a, F, F2, T>(
-    data: StreamDeserializer<'a, T, Value>,
+pub fn for_each_element<F, F2, I: Iterator<Item = Result<serde_json::Value, serde_json::Error>>>(
+    data: I,
     id_provider: &mut IDProvider,
     opt: &mut ForEachOpt,
     cb_text: &mut F,
@@ -51,7 +51,6 @@ pub fn for_each_element<'a, F, F2, T>(
 ) where
     F: FnMut(u32, &str, &str, u32),
     F2: FnMut(u32, &str, u32, u32),
-    T: serde_json::de::Read<'a>,
 {
     let mut path = String::with_capacity(25);
 
@@ -74,8 +73,8 @@ pub fn for_each_element<'a, F, F2, T>(
     }
 }
 
-pub fn for_each_element_and_doc<'a, F, F2, F3, T>(
-    data: StreamDeserializer<'a, T, Value>,
+pub fn for_each_element_and_doc<F, F2, F3, I: Iterator<Item = Result<serde_json::Value, serde_json::Error>>>(
+    data: I,
     id_provider: &mut IDProvider,
     opt: &mut ForEachOpt,
     cb_text: &mut F,
@@ -85,7 +84,6 @@ pub fn for_each_element_and_doc<'a, F, F2, F3, T>(
     F: FnMut(u32, &str, &str, u32),
     F2: FnMut(u32, &str, u32, u32),
     F3: FnMut(&Value),
-    T: serde_json::de::Read<'a>,
 {
     let mut path = String::with_capacity(25);
 

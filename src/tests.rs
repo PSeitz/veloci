@@ -285,7 +285,7 @@ mod tests {
                     //     { "fulltext":"address[].line[]", "options":{"tokenize":true} }
                     // ]
                     // "#;
-                    println!("{:?}", create::create_indices(&mut persistence::Persistence::create(TEST_FOLDER.to_string()).unwrap(), &get_test_data(), indices, None));
+                    println!("{:?}", create::create_indices_from_str(&mut persistence::Persistence::create(TEST_FOLDER.to_string()).unwrap(), &get_test_data(), indices, None));
 
                     {
                         let mut pers = persistence::Persistence::load(TEST_FOLDER.to_string()).expect("Could not load persistence");

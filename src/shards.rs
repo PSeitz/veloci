@@ -8,6 +8,8 @@ use search::*;
 use std::cmp::Ordering;
 use std::ops::Range;
 use std::fs;
+// use uuid::Uuid;
+use serde_json::{Value, Deserializer};
 
 struct Shard {
     shard_id: usize,
@@ -82,6 +84,21 @@ struct ShardResultHit<'a> {
     result: &'a SearchResult,
 }
 
+
+fn merge_persistences(p1: &Persistence, p2: &Persistence, mut target_persistence: &mut Persistence) -> Result<(), create::CreateError> {
+
+    let stream1_1 = Deserializer::from_reader(p1.get_file_handle("data").unwrap()).into_iter::<Value>();
+    let stream1_2 = Deserializer::from_reader(p1.get_file_handle("data").unwrap()).into_iter::<Value>();
+    let streams1 = stream1_1.chain(stream1_2);
+
+    let stream2_1 = Deserializer::from_reader(p1.get_file_handle("data").unwrap()).into_iter::<Value>();
+    let stream2_2 = Deserializer::from_reader(p1.get_file_handle("data").unwrap()).into_iter::<Value>();
+    let streams2 = stream2_1.chain(stream2_2);
+    create::create_indices_from_streams(&mut target_persistence, streams1, streams2, "indices", None)?;
+    Ok(())
+}
+
+
 impl Shards {
 
     fn insert(&mut self, docs: String, indices: &str) -> Result<(), create::CreateError> {
@@ -97,6 +114,7 @@ impl Shards {
             }
         }
 
+        // let my_uuid = Uuid::new_v4();
         // self.add_new_shard_from_docs(docs, indices);
 
         Ok(())
@@ -106,7 +124,7 @@ impl Shards {
         let shard_id = self.shards.len();
         let path = self.path.to_owned() + "/" + &shard_id.to_string();
         let mut persistence = Persistence::create(path.to_string())?;
-        create::create_indices(&mut persistence, &docs, indices, None);
+        create::create_indices_from_str(&mut persistence, &docs, indices, None);
         self.shards.push(Shard{shard_id: shard_id, doc_range:Range{start:0, end:0}, persistence:persistence::Persistence::load(path)?});
         Ok(())
     }
