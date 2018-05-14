@@ -16,11 +16,11 @@ extern crate test;
 #[macro_use]
 extern crate criterion;
 
-use rand::distributions::{IndependentSample, Range};
 use criterion::Criterion;
-use search_lib::*;
-use search_lib::search::*;
+use rand::distributions::{IndependentSample, Range};
 use search_lib::doc_loader::*;
+use search_lib::search::*;
+use search_lib::*;
 static TEST_FOLDER: &str = "jmdict";
 
 use std::env;

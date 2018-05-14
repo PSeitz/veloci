@@ -1,23 +1,23 @@
+use create;
 use persistence;
 use persistence::*;
 use query_generator;
 use rayon::prelude::*;
 use search;
-use create;
 use search::*;
 use std::cmp::Ordering;
-use std::ops::Range;
 use std::fs;
+use std::ops::Range;
 // use uuid::Uuid;
-use serde_json::{Value, Deserializer};
+use itertools::Itertools;
+use serde_json::{Deserializer, Value};
 use std::sync::atomic;
 use std::sync::atomic::AtomicUsize;
-use itertools::Itertools;
 
 struct Shard {
     shard_id: u64,
     // doc_range: Range<usize>,
-    persistence: Persistence
+    persistence: Persistence,
 }
 
 pub struct Shards {
@@ -68,14 +68,13 @@ where
 #[test]
 fn test_top_n_sort() {
     let dat = vec![
-        3, 5, 9, 10, 10, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9
+        3, 5, 9, 10, 10, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9,
     ];
     let yops = get_top_n_sort_from_iter(dat.iter(), 2, |a, b| b.cmp(&a));
     assert_eq!(yops, vec![&10, &10]);
     let yops = get_top_n_sort_from_iter(dat.iter(), 2, |a, b| a.cmp(&b));
     assert_eq!(yops, vec![&3, &5]);
 }
-
 
 struct ShardResult<'a> {
     result: SearchResult,
@@ -89,16 +88,23 @@ struct ShardResultHit<'a> {
 }
 
 fn merge_persistences(persistences: &[&Persistence], mut target_persistence: &mut Persistence, indices: &str) -> Result<(), create::CreateError> {
-    let streams1 = persistences.iter().flat_map(|pers| Deserializer::from_reader(pers.get_file_handle("data").unwrap()).into_iter::<Value>());
-    let streams2 = persistences.iter().flat_map(|pers| Deserializer::from_reader(pers.get_file_handle("data").unwrap()).into_iter::<Value>());
+    let streams1 = persistences
+        .iter()
+        .flat_map(|pers| Deserializer::from_reader(pers.get_file_handle("data").unwrap()).into_iter::<Value>());
+    let streams2 = persistences
+        .iter()
+        .flat_map(|pers| Deserializer::from_reader(pers.get_file_handle("data").unwrap()).into_iter::<Value>());
     create::create_indices_from_streams(&mut target_persistence, streams1, streams2, indices, None)?;
     Ok(())
 }
 
 impl Shards {
-
     pub fn new(path: String) -> Self {
-        Shards{ shards: vec![], path, current_id: AtomicUsize::new(0) }
+        Shards {
+            shards: vec![],
+            path,
+            current_id: AtomicUsize::new(0),
+        }
     }
 
     pub fn insert(&mut self, docs: String, indices: &str) -> Result<(), create::CreateError> {
@@ -106,7 +112,7 @@ impl Shards {
         // println!("self.shards.len() {:?}", self.shards.len());
         if self.shards.is_empty() {
             self.add_new_shard_from_docs(docs, indices);
-        }else{
+        } else {
             let use_existing_shard_for_docs = false;
             // {
             //     let min_shard = self.shards.iter().min_by_key(|shard| shard.persistence.get_number_of_documents().unwrap()).unwrap();
@@ -128,21 +134,20 @@ impl Shards {
         }
 
         if self.shards.len() > 30 {
-
             let mut invalid_shards = vec![];
             let mut new_shards = vec![];
             {
-                self.shards.sort_unstable_by_key(|shard|shard.persistence.get_number_of_documents().unwrap());
+                self.shards.sort_unstable_by_key(|shard| shard.persistence.get_number_of_documents().unwrap());
                 for (el, group) in &self.shards.iter().group_by(|shard| shard.persistence.get_number_of_documents().unwrap() / 10) {
-                    let mut shard_group:Vec<&Shard> = group.collect();
-                    if shard_group.len() == 1{
+                    let mut shard_group: Vec<&Shard> = group.collect();
+                    if shard_group.len() == 1 {
                         continue;
                     }
 
-                    invalid_shards.extend(shard_group.iter().map(|shard|shard.shard_id));
+                    invalid_shards.extend(shard_group.iter().map(|shard| shard.shard_id));
 
                     let mut new_shard = self.get_new_shard().unwrap();
-                    let mut persistences:Vec<&Persistence> = shard_group.iter().map(|shard|&shard.persistence).collect();
+                    let mut persistences: Vec<&Persistence> = shard_group.iter().map(|shard| &shard.persistence).collect();
                     merge_persistences(&persistences, &mut new_shard.persistence, indices)?;
                     new_shards.push(new_shard);
                 }
@@ -157,9 +162,10 @@ impl Shards {
                 keep_it
             });
 
-            self.shards.extend(new_shards.iter().map(|shard|
-                Shard{shard_id: shard.shard_id, persistence:persistence::Persistence::load(&shard.persistence.db).unwrap()}
-            ));
+            self.shards.extend(new_shards.iter().map(|shard| Shard {
+                shard_id: shard.shard_id,
+                persistence: persistence::Persistence::load(&shard.persistence.db).unwrap(),
+            }));
             println!("shards.len {:?}", self.shards.len());
         }
 
@@ -170,7 +176,10 @@ impl Shards {
         let mut new_shard = self.get_new_shard()?;
         println!("new shard {:?}", new_shard.persistence.db);
         create::create_indices_from_str(&mut new_shard.persistence, &docs, indices, None);
-        self.shards.push(Shard{shard_id: self.current_id.load(atomic::Ordering::Relaxed) as u64, /*doc_range:Range{start:0, end:0},*/ persistence:persistence::Persistence::load(new_shard.persistence.db)?});
+        self.shards.push(Shard {
+            shard_id: self.current_id.load(atomic::Ordering::Relaxed) as u64,
+            /*doc_range:Range{start:0, end:0},*/ persistence: persistence::Persistence::load(new_shard.persistence.db)?,
+        });
         // self.shards.push(new_shard);
         Ok(())
     }
@@ -179,7 +188,10 @@ impl Shards {
         let shard_id = self.current_id.fetch_add(1, atomic::Ordering::SeqCst);
         let path = self.path.to_owned() + "/" + &shard_id.to_string();
         let mut persistence = Persistence::create_type(path.to_string(), persistence::PersistenceType::Persistent)?;
-        Ok(Shard{shard_id: shard_id as u64, persistence})
+        Ok(Shard {
+            shard_id: shard_id as u64,
+            persistence,
+        })
     }
 
     pub fn search_all_shards_from_qp(
@@ -195,10 +207,7 @@ impl Shards {
                 print_time!(format!("search shard {:?}", shard.shard_id));
                 let request = query_generator::search_query(&shard.persistence, q_params.clone());
                 let result = search::search(request, &shard.persistence)?;
-                Ok(ShardResult {
-                    shard: &shard,
-                    result: result,
-                })
+                Ok(ShardResult { shard: &shard, result: result })
             })
             .collect::<Result<Vec<ShardResult>, search::SearchError>>()?;
 
@@ -238,20 +247,27 @@ impl Shards {
         for shard in self.shards.iter() {
             let hits = search::search(request.clone(), &shard.persistence)?;
             let result = search::to_search_result(&shard.persistence, hits, select.clone());
-            all_results.merge(&result);//TODO merge with above
+            all_results.merge(&result); //TODO merge with above
         }
         Ok(all_results)
     }
 
     pub fn load(path: String) -> Result<(Shards), search::SearchError> {
         let mut shards = vec![];
-        let mut shard_id:u64 = 0;
+        let mut shard_id: u64 = 0;
         for entry in fs::read_dir(path.to_string())? {
             let entry = entry?;
             let path = entry.path();
-            shards.push(Shard{shard_id: shard_id, persistence:persistence::Persistence::load(path.to_str().unwrap())?});
+            shards.push(Shard {
+                shard_id: shard_id,
+                persistence: persistence::Persistence::load(path.to_str().unwrap())?,
+            });
             shard_id += 1;
         }
-        Ok(Shards { shards, path, current_id:AtomicUsize::new(shard_id as usize) })
+        Ok(Shards {
+            shards,
+            path,
+            current_id: AtomicUsize::new(shard_id as usize),
+        })
     }
 }

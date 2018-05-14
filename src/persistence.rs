@@ -1,7 +1,7 @@
-use std::fs::{self, File};
-use std::io::prelude::*;
 use std::collections::HashMap;
 use std::fmt::Debug;
+use std::fs::{self, File};
+use std::io::prelude::*;
 #[allow(unused_imports)]
 use std::io::{self, Cursor, SeekFrom};
 use std::marker::Sync;
@@ -29,16 +29,16 @@ use rayon::prelude::*;
 use prettytable::format;
 use prettytable::Table;
 
+use create;
 use persistence_data::*;
 use persistence_score::*;
-use type_info;
-use create;
-use util;
-use util::get_file_path;
-use util::*;
 use search::*;
 use search::{self, SearchError};
 use search_field;
+use type_info;
+use util;
+use util::get_file_path;
+use util::*;
 
 use heapsize::HeapSizeOf;
 
@@ -68,8 +68,10 @@ pub struct KVStoreMetaData {
     pub is_1_to_n: bool, // In the sense of 1:n   1key, n values
     pub persistence_type: KVStoreType,
     pub loading_type: LoadingType,
-    #[serde(default = "default_max_value_id")] pub max_value_id: u32, // max value on the "right" side key -> value, key -> value ..
-    #[serde(default = "default_avg_join")] pub avg_join_size: f32,    // some join statistics
+    #[serde(default = "default_max_value_id")]
+    pub max_value_id: u32, // max value on the "right" side key -> value, key -> value ..
+    #[serde(default = "default_avg_join")]
+    pub avg_join_size: f32, // some join statistics
 }
 
 pub static NOT_FOUND: u32 = u32::MAX;
@@ -165,8 +167,9 @@ pub enum IDDataType {
 }
 // use persistence_data;
 
-pub trait IndexIdToParentData
-    : Integer + Clone + NumCast + mayda::utility::Bits + HeapSizeOf + Debug + Sync + Send + Copy + ToPrimitive + std::iter::Step + std::hash::Hash + 'static {
+pub trait IndexIdToParentData:
+    Integer + Clone + NumCast + mayda::utility::Bits + HeapSizeOf + Debug + Sync + Send + Copy + ToPrimitive + std::iter::Step + std::hash::Hash + 'static
+{
 }
 impl<T> IndexIdToParentData for T
 where
@@ -581,8 +584,8 @@ impl Persistence {
             .ok_or_else(|| From::from(format!("Did not found path in indices {:?}", path)))
     }
 
-    pub fn get_number_of_documents(&self) -> Result<usize, search::SearchError>  {
-        Ok(self.get_offsets("data")?.get_num_keys() - 1 ) //the last offset marks the end and not a document
+    pub fn get_number_of_documents(&self) -> Result<usize, search::SearchError> {
+        Ok(self.get_offsets("data")?.get_num_keys() - 1) //the last offset marks the end and not a document
     }
 
     // #[cfg_attr(feature = "flame_it", flame)]

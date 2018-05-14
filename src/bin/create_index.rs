@@ -17,11 +17,11 @@ extern crate serde_json;
 #[allow(unused_imports)]
 use fst::{IntoStreamer, MapBuilder, Set};
 // use fst_levenshtein::Levenshtein;
+use serde_json::{Deserializer, Value};
 use std::fs::File;
 use std::io;
 use std::io::prelude::*;
 use std::str;
-use serde_json::{Value, Deserializer};
 
 #[allow(unused_imports)]
 use rayon::prelude::*;
@@ -140,7 +140,12 @@ fn create_thalia_index_big() -> Result<(), io::Error> {
     let mut json = String::new();
     f.read_to_string(&mut json)?;
 
-    search_lib::create::create_indices_from_str(&mut search_lib::persistence::Persistence::create("thalia_new".to_string()).unwrap(), &json, TAHLIA_INDICES, None).unwrap();
+    search_lib::create::create_indices_from_str(
+        &mut search_lib::persistence::Persistence::create("thalia_new".to_string()).unwrap(),
+        &json,
+        TAHLIA_INDICES,
+        None,
+    ).unwrap();
     // File::create("MATNR").unwrap().write_all(all_terms.join("\n").as_bytes()).unwrap();
 
     Ok(())
@@ -148,7 +153,6 @@ fn create_thalia_index_big() -> Result<(), io::Error> {
 
 #[allow(dead_code)]
 fn create_thalia_index_shards() -> Result<(), io::Error> {
-
     (0..167).into_iter().for_each(|i: i32| {
         let shard_num = i.to_string();
         let path = "data_split_500/data_".to_owned() + &shard_num;
@@ -157,7 +161,12 @@ fn create_thalia_index_shards() -> Result<(), io::Error> {
         let mut json = String::new();
         f.read_to_string(&mut json).unwrap();
         let path = "thalia_split_500/thalia_".to_owned() + &shard_num;
-        search_lib::create::create_indices_from_str(&mut search_lib::persistence::Persistence::create(path.to_string()).unwrap(), &json, TAHLIA_INDICES, None).unwrap();
+        search_lib::create::create_indices_from_str(
+            &mut search_lib::persistence::Persistence::create(path.to_string()).unwrap(),
+            &json,
+            TAHLIA_INDICES,
+            None,
+        ).unwrap();
         println!("created shard num {:?}", &shard_num);
     });
 
@@ -207,7 +216,6 @@ fn create_jmdict_index_shards() -> Result<(), io::Error> {
             jmdict_shards.insert(el.to_string(), indices);
         }
     }
-
 
     // let docs = Deserializer::from_reader(f).into_iter::<Value>();
     // for doc in docs {
@@ -291,7 +299,12 @@ fn create_jmdict_index() -> Result<(), io::Error> {
     let mut f = File::open("jmdict.json")?;
     let mut s = String::new();
     f.read_to_string(&mut s)?;
-    search_lib::create::create_indices_from_str(&mut search_lib::persistence::Persistence::create("jmdict".to_string()).unwrap(), &s, indices, None).unwrap();
+    search_lib::create::create_indices_from_str(
+        &mut search_lib::persistence::Persistence::create("jmdict".to_string()).unwrap(),
+        &s,
+        indices,
+        None,
+    ).unwrap();
     Ok(())
 }
 
@@ -480,7 +493,8 @@ fn create_single_data_index() -> Result<(), io::Error> {
             })
             .collect::<Vec<_>>();
 
-        let mut persistence = search_lib::persistence::Persistence::create_type("single_data".to_string(), search_lib::persistence::PersistenceType::Persistent).unwrap();
+        let mut persistence =
+            search_lib::persistence::Persistence::create_type("single_data".to_string(), search_lib::persistence::PersistenceType::Persistent).unwrap();
         search_lib::create::create_indices_from_str(&mut persistence, &serde_json::to_string_pretty(&books).unwrap(), indices, None).unwrap();
     }
 
@@ -496,7 +510,12 @@ fn create_book_index() -> Result<(), io::Error> {
 
     let books = (0..100).map(|_el| json!({"title":"PRIDE AND PREJUDICE", "content":s})).collect::<Vec<_>>();
 
-    search_lib::create::create_indices_from_str(&mut search_lib::persistence::Persistence::create("gutenberg".to_string()).unwrap(), &serde_json::to_string_pretty(&books).unwrap(), indices, None).unwrap();
+    search_lib::create::create_indices_from_str(
+        &mut search_lib::persistence::Persistence::create("gutenberg".to_string()).unwrap(),
+        &serde_json::to_string_pretty(&books).unwrap(),
+        indices,
+        None,
+    ).unwrap();
     Ok(())
 }
 
@@ -956,6 +975,11 @@ fn create_healtcare() -> Result<(), io::Error> {
     let mut f = File::open("healthcare.json")?;
     let mut s = String::new();
     f.read_to_string(&mut s)?;
-    search_lib::create::create_indices_from_str(&mut search_lib::persistence::Persistence::create("healthcare".to_string()).unwrap(), &s, indices, None).unwrap();
+    search_lib::create::create_indices_from_str(
+        &mut search_lib::persistence::Persistence::create("healthcare".to_string()).unwrap(),
+        &s,
+        indices,
+        None,
+    ).unwrap();
     Ok(())
 }

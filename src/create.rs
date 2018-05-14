@@ -149,7 +149,6 @@ pub struct TokenToAnchorScore {
     pub score: u32,
 }
 
-
 pub trait AccessValueId {
     fn get_value_id(&self) -> u32;
     fn set_value_id(&mut self, id: u32);
@@ -160,6 +159,7 @@ impl AccessValueId for ValIdPair {
     fn get_value_id(&self) -> u32 {
         self.valid
     }
+
     #[inline]
     fn set_value_id(&mut self, id: u32) {
         self.valid = id;
@@ -170,6 +170,7 @@ impl AccessValueId for ValIdPairToken {
     fn get_value_id(&self) -> u32 {
         self.token_or_text_id
     }
+
     #[inline]
     fn set_value_id(&mut self, id: u32) {
         self.token_or_text_id = id;
@@ -180,6 +181,7 @@ impl AccessValueId for ValIdToValue {
     fn get_value_id(&self) -> u32 {
         self.valid
     }
+
     #[inline]
     fn set_value_id(&mut self, id: u32) {
         self.valid = id;
@@ -194,7 +196,6 @@ pub struct ValIdToValue {
     pub valid: u32,
     pub value: u32,
 }
-
 
 impl std::fmt::Display for ValIdPair {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
@@ -331,10 +332,7 @@ where
     F: Fn() -> T,
 {
     if !map.contains_key(key) {
-        map.insert(
-            key.to_owned(),
-            constructor(),
-        );
+        map.insert(key.to_owned(), constructor());
     }
     map.get_mut(key).unwrap()
 }
@@ -404,7 +402,7 @@ fn calculate_token_score_in_doc(tokens_to_anchor_id: &mut Vec<ValIdPairToken>) -
 
 #[derive(Debug, Default)]
 pub struct CreateCache {
-    term_data: AllTermsAndDocumentBuilder
+    term_data: AllTermsAndDocumentBuilder,
 }
 
 #[derive(Debug, Default)]
@@ -420,8 +418,7 @@ pub fn get_allterms_per_path_and_write_documents<I: Iterator<Item = Result<serde
     // persistence: &mut Persistence,
     fulltext_info_for_path: &FnvHashMap<String, Fulltext>,
     data: &mut AllTermsAndDocumentBuilder,
-) -> Result<(), io::Error>
-{
+) -> Result<(), io::Error> {
     info_time!("get_allterms_per_path_and_write_documents");
 
     let mut opt = json_converter::ForEachOpt {};
@@ -509,7 +506,7 @@ fn check_similarity(data: &FnvHashMap<String, FnvHashMap<String, TermInfo>>) {
     }
 }
 
-fn replace_term_ids<T:AccessValueId>(yep:&mut Vec<T>, index: &Vec<u32>) {
+fn replace_term_ids<T: AccessValueId>(yep: &mut Vec<T>, index: &Vec<u32>) {
     for el in yep.iter_mut() {
         let val_id = el.get_value_id() as usize;
         el.set_value_id(index[val_id]);
@@ -531,8 +528,9 @@ pub fn create_fulltext_index<I, J>(
     indices_json: &Vec<CreateIndex>,
     create_cache: &mut CreateCache,
 ) -> Result<(), io::Error>
-where I: Iterator<Item = Result<serde_json::Value, serde_json::Error>>,
-    J: Iterator<Item = Result<serde_json::Value, serde_json::Error>>
+where
+    I: Iterator<Item = Result<serde_json::Value, serde_json::Error>>,
+    J: Iterator<Item = Result<serde_json::Value, serde_json::Error>>,
 {
     let fulltext_info_for_path: FnvHashMap<String, Fulltext> = indices_json
         .iter()
@@ -605,10 +603,6 @@ where I: Iterator<Item = Result<serde_json::Value, serde_json::Error>>,
     //     json_converter::for_each_element_and_doc(stream, &mut id_holder, &mut opt, &mut cb_text, &mut callback_ids, &mut callback_document);
     // }
 
-
-
-
-
     // check_similarity(&data.terms_in_path);
     info_time!("create and write fulltext_index");
     trace!("all_terms {:?}", create_cache.term_data.terms_in_path);
@@ -629,7 +623,7 @@ where I: Iterator<Item = Result<serde_json::Value, serde_json::Error>>,
             let data = get_or_insert(&mut path_data, path, &|| {
                 let boost_info_data = if boost_info_for_path.contains_key(path) { Some(vec![]) } else { None };
                 let anchor_to_text_id = if facet_index.contains(path) && is_1_to_n(path) { Some(vec![]) } else { None }; //Create facet index only for 1:N
-                // let prop_delta_path = concat(&(persistence.db.to_string() + "/"), &concat(&path, ".to_anchor_id_score_delta"));
+                                                                                                                         // let prop_delta_path = concat(&(persistence.db.to_string() + "/"), &concat(&path, ".to_anchor_id_score_delta"));
 
                 PathData {
                     anchor_to_text_id: anchor_to_text_id,
@@ -741,16 +735,18 @@ where I: Iterator<Item = Result<serde_json::Value, serde_json::Error>>,
         // json_converter::for_each_element(stream2, &mut id_holder, &mut opt, &mut cb_text, &mut callback_ids);
     }
 
-
     offsets.push(current_offset as u64);
 
     create_cache.term_data.offsets.extend(offsets);
     create_cache.term_data.current_offset = current_offset;
     std::mem::swap(&mut create_cache.term_data.id_holder, &mut id_holder);
 
-    let (id_list_path, id_list_meta_data) = persistence.write_offset(&persistence::vec_to_bytes_u64(&create_cache.term_data.offsets), &create_cache.term_data.offsets, &"data.offsets")?;
+    let (id_list_path, id_list_meta_data) = persistence.write_offset(
+        &persistence::vec_to_bytes_u64(&create_cache.term_data.offsets),
+        &create_cache.term_data.offsets,
+        &"data.offsets",
+    )?;
     persistence.meta_data.id_lists.insert(id_list_path, id_list_meta_data);
-
 
     let is_text_id_to_parent = |path: &str| path.ends_with(".textindex");
 
@@ -869,7 +865,8 @@ where I: Iterator<Item = Result<serde_json::Value, serde_json::Error>>,
             persistence.meta_data.anchor_score_stores.extend(anchor_score_stores);
         }
 
-        let r: Result<Vec<_>, io::Error> = create_cache.term_data
+        let r: Result<Vec<_>, io::Error> = create_cache
+            .term_data
             .terms_in_path
             .par_iter()
             .map(|(path, all_terms)| {
@@ -986,13 +983,23 @@ pub fn add_token_values_to_tokens(persistence: &mut Persistence, data_str: &str,
     Ok(())
 }
 
-pub fn create_indices_from_json(persistence: &mut Persistence, data: &Value, indices: &str, create_cache: Option<CreateCache>) -> Result<(CreateCache), CreateError> {
+pub fn create_indices_from_json(
+    persistence: &mut Persistence,
+    data: &Value,
+    indices: &str,
+    create_cache: Option<CreateCache>,
+) -> Result<(CreateCache), CreateError> {
     info_time!(format!("total time create_indices for {:?}", persistence.db));
     let data_str = serde_json::to_string(&data).unwrap(); //TODO: FIXME move to interface
     create_indices_from_str(persistence, &data_str, indices, create_cache)
 }
 
-pub fn create_indices_from_str(mut persistence: &mut Persistence, data_str: &str, indices: &str, create_cache: Option<CreateCache>) -> Result<(CreateCache), CreateError> {
+pub fn create_indices_from_str(
+    mut persistence: &mut Persistence,
+    data_str: &str,
+    indices: &str,
+    create_cache: Option<CreateCache>,
+) -> Result<(CreateCache), CreateError> {
     info_time!(format!("total time create_indices for {:?}", persistence.db));
     let stream1 = Deserializer::from_str(&data_str).into_iter::<Value>(); //TODO Performance: Use custom line break deserializer to get string and json at the same time
     let stream2 = Deserializer::from_str(&data_str).into_iter::<Value>();
@@ -1004,15 +1011,16 @@ pub fn create_indices_from_streams<I, J>(
     stream1: I,
     stream2: J,
     indices: &str,
-    create_cache: Option<CreateCache>
+    create_cache: Option<CreateCache>,
 ) -> Result<(CreateCache), CreateError>
-where I: Iterator<Item = Result<serde_json::Value, serde_json::Error>>,
-    J: Iterator<Item = Result<serde_json::Value, serde_json::Error>>
+where
+    I: Iterator<Item = Result<serde_json::Value, serde_json::Error>>,
+    J: Iterator<Item = Result<serde_json::Value, serde_json::Error>>,
 {
     info_time!(format!("total time create_indices for {:?}", persistence.db));
 
     let indices_json: Vec<CreateIndex> = serde_json::from_str(indices).unwrap();
-    let mut create_cache = create_cache.unwrap_or_else(||CreateCache::default());
+    let mut create_cache = create_cache.unwrap_or_else(|| CreateCache::default());
     create_fulltext_index(stream1, stream2, &mut persistence, &indices_json, &mut create_cache)?;
 
     info_time!(format!("write json and metadata {:?}", persistence.db));

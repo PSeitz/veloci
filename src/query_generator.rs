@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use std::{str, f32};
+use std::{f32, str};
 
 use regex::Regex;
 
