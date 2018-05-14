@@ -21,6 +21,7 @@ use std::fs::File;
 use std::io;
 use std::io::prelude::*;
 use std::str;
+use serde_json::{Value, Deserializer};
 
 #[allow(unused_imports)]
 use rayon::prelude::*;
@@ -34,6 +35,7 @@ fn main() {
         match jeppo.as_ref() {
             "healthcare" => println!("{:?}", create_healtcare()),
             "jmdict" => println!("{:?}", create_jmdict_index()),
+            "jmdict_shards" => println!("{:?}", create_jmdict_index_shards()),
             "gutenberg" => println!("{:?}", create_book_index()),
             "single_data" => println!("{:?}", create_single_data_index()),
             // "thalia" => println!("{:?}", create_thalia_index()),
@@ -159,6 +161,100 @@ fn create_thalia_index_shards() -> Result<(), io::Error> {
         println!("created shard num {:?}", &shard_num);
     });
 
+    Ok(())
+}
+
+#[allow(dead_code)]
+fn create_jmdict_index_shards() -> Result<(), io::Error> {
+    let indices = r#"
+    [
+    {
+        "boost": "commonness",
+        "options": { "boost_type": "int" }
+    },
+    { "fulltext": "kanji[].text", "options":{"tokenize":false} },
+    { "fulltext": "kanji[].conjugated[].form", "options":{"tokenize":false} },
+    { "fulltext": "kana[].text" , "options":{"tokenize":false} },
+    { "fulltext": "kana[].conjugated[].form" , "options":{"tokenize":false} },
+    { "fulltext": "kana[].romaji" , "options":{"tokenize":true} },
+    { "fulltext": "meanings.ger[].text", "options": { "tokenize": true } },
+    { "fulltext": "meanings.eng[]", "options": { "tokenize": true } },
+    { "fulltext": "pos", "options": { "tokenize": false } },
+    {
+        "boost": "meanings.ger[].rank",
+        "options": { "boost_type": "int" }
+    },
+    {
+        "boost": "kanji[].commonness",
+        "options": { "boost_type": "int" }
+    },
+    {
+        "boost": "kana[].commonness",
+        "options": { "boost_type": "int" }
+    }
+    ]
+    "#;
+
+    let mut s = String::new();
+    let mut f = File::open("jmdict.json")?;
+    f.read_to_string(&mut s)?;
+    let v: Value = serde_json::from_str(&s)?;
+
+    print_time!("jmdict_index_shards");
+    let mut jmdict_shards = search_lib::shards::Shards::new("jmdict_shards".to_string());
+    if let Some(arr) = v.as_array() {
+        for el in arr.iter() {
+            jmdict_shards.insert(el.to_string(), indices);
+        }
+    }
+
+
+    // let docs = Deserializer::from_reader(f).into_iter::<Value>();
+    // for doc in docs {
+    //     jmdict_shards.insert(doc?.to_string(), indices);
+    // }
+
+    // let doc = r#"
+    //     {
+    //         "pos": [
+    //           "v5t"
+    //         ],
+    //         "misc": [],
+    //         "kanji": [{"text": "持つ", "ent_seq": "1315720", "commonness": 1620, "readings": ["もつ"] } ],
+    //         "kana": [{"text": "もつ", "ent_seq": "1315720", "romaji": "Motsu", "commonness": 40 } ],
+    //         "meanings": {
+    //           "eng": ["hold (in one's hand)", "take", "carry", "possess", "have", "own", "maintain", "keep", "last", "be durable", "survive", "take charge of", "be in charge of"],
+    //           "ger": [
+    //             {"text": "haben", "rank": 1 },
+    //             {"text": "besitzen"},
+    //             {"text": "innehaben"},
+    //             {"text": "verfügen"},
+    //             {"text": "in der Hand halten", "rank": 2 },
+    //             {"text": "festhalten"},
+    //             {"text": "halten"},
+    //             {"text": "hegen", "rank": 3 },
+    //             {"text": "pflegen"},
+    //             {"text": "unterstützen"},
+    //             {"text": "tragen", "rank": 4 },
+    //             {"text": "bei sich haben"},
+    //             {"text": "auf sich nehmen", "rank": 5 },
+    //             {"text": "übernehmen"},
+    //             {"text": "verantwortlich sein"},
+    //             {"text": "bekleiden"},
+    //             {"text": "halten", "rank": 6 },
+    //             {"text": "dauern"},
+    //             {"text": "währen"},
+    //             {"text": "überstehen"},
+    //             {"text": "überleben"}
+    //           ]
+    //         },
+    //         "ent_seq": "1315720",
+    //         "commonness": 1660
+    //     }
+    // "#;
+    // jmdict_shards.insert(doc.to_string(), indices);
+    // jmdict_shards.insert(doc.to_string(), indices);
+    // jmdict_shards.insert(doc.to_string(), indices);
     Ok(())
 }
 

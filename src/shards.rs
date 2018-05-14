@@ -10,16 +10,20 @@ use std::ops::Range;
 use std::fs;
 // use uuid::Uuid;
 use serde_json::{Value, Deserializer};
+use std::sync::atomic;
+use std::sync::atomic::AtomicUsize;
+use itertools::Itertools;
 
 struct Shard {
-    shard_id: usize,
-    doc_range: Range<usize>,
+    shard_id: u64,
+    // doc_range: Range<usize>,
     persistence: Persistence
 }
 
 pub struct Shards {
     path: String,
     shards: Vec<Shard>,
+    current_id: atomic::AtomicUsize,
 }
 
 fn get_top_n_sort_from_iter<'a, F: Clone, T, I: Iterator<Item = &'a T>>(mut iter: I, top: usize, mut compare: F) -> Vec<(&'a T)>
@@ -84,49 +88,98 @@ struct ShardResultHit<'a> {
     result: &'a SearchResult,
 }
 
-
-fn merge_persistences(p1: &Persistence, p2: &Persistence, mut target_persistence: &mut Persistence) -> Result<(), create::CreateError> {
-
-    let stream1_1 = Deserializer::from_reader(p1.get_file_handle("data").unwrap()).into_iter::<Value>();
-    let stream1_2 = Deserializer::from_reader(p1.get_file_handle("data").unwrap()).into_iter::<Value>();
-    let streams1 = stream1_1.chain(stream1_2);
-
-    let stream2_1 = Deserializer::from_reader(p1.get_file_handle("data").unwrap()).into_iter::<Value>();
-    let stream2_2 = Deserializer::from_reader(p1.get_file_handle("data").unwrap()).into_iter::<Value>();
-    let streams2 = stream2_1.chain(stream2_2);
-    create::create_indices_from_streams(&mut target_persistence, streams1, streams2, "indices", None)?;
+fn merge_persistences(persistences: &[&Persistence], mut target_persistence: &mut Persistence, indices: &str) -> Result<(), create::CreateError> {
+    let streams1 = persistences.iter().flat_map(|pers| Deserializer::from_reader(pers.get_file_handle("data").unwrap()).into_iter::<Value>());
+    let streams2 = persistences.iter().flat_map(|pers| Deserializer::from_reader(pers.get_file_handle("data").unwrap()).into_iter::<Value>());
+    create::create_indices_from_streams(&mut target_persistence, streams1, streams2, indices, None)?;
     Ok(())
 }
 
-
 impl Shards {
 
-    fn insert(&mut self, docs: String, indices: &str) -> Result<(), create::CreateError> {
+    pub fn new(path: String) -> Self {
+        Shards{ shards: vec![], path, current_id: AtomicUsize::new(0) }
+    }
+
+    pub fn insert(&mut self, docs: String, indices: &str) -> Result<(), create::CreateError> {
         // extend existing persistence or create new persistence and add to list
+        // println!("self.shards.len() {:?}", self.shards.len());
         if self.shards.is_empty() {
             self.add_new_shard_from_docs(docs, indices);
         }else{
-            let min_pers = self.shards.iter().min_by_key(|shard| shard.persistence.get_number_of_documents().unwrap()).unwrap();
-            if min_pers.persistence.get_number_of_documents().unwrap() < 10_000{
+            let use_existing_shard_for_docs = false;
+            // {
+            //     let min_shard = self.shards.iter().min_by_key(|shard| shard.persistence.get_number_of_documents().unwrap()).unwrap();
+            //     use_existing_shard_for_docs = min_shard.persistence.get_number_of_documents().unwrap() < 100;
+            //     println!("{:?}", use_existing_shard_for_docs);
+            //     if use_existing_shard_for_docs {
+            //         let stream1_1 = Deserializer::from_reader(min_shard.persistence.get_file_handle("data").unwrap()).into_iter::<Value>();
+            //         let streams1 = stream1_1.chain(Deserializer::from_str(&docs).into_iter::<Value>());
+            //         let stream2_1 = Deserializer::from_reader(min_shard.persistence.get_file_handle("data").unwrap()).into_iter::<Value>();
+            //         let streams2 = stream2_1.chain(Deserializer::from_str(&docs).into_iter::<Value>());
+            //         let mut new_shard = self.get_new_shard().unwrap();
+            //         create::create_indices_from_streams(&mut new_shard.persistence, streams1, streams2, indices, None)?;
+            //     }
+            // }
 
-            }else{
-
+            if !use_existing_shard_for_docs {
+                self.add_new_shard_from_docs(docs, indices);
             }
         }
 
-        // let my_uuid = Uuid::new_v4();
-        // self.add_new_shard_from_docs(docs, indices);
+        if self.shards.len() > 30 {
+
+            let mut invalid_shards = vec![];
+            let mut new_shards = vec![];
+            {
+                self.shards.sort_unstable_by_key(|shard|shard.persistence.get_number_of_documents().unwrap());
+                for (el, group) in &self.shards.iter().group_by(|shard| shard.persistence.get_number_of_documents().unwrap() / 10) {
+                    let mut shard_group:Vec<&Shard> = group.collect();
+                    if shard_group.len() == 1{
+                        continue;
+                    }
+
+                    invalid_shards.extend(shard_group.iter().map(|shard|shard.shard_id));
+
+                    let mut new_shard = self.get_new_shard().unwrap();
+                    let mut persistences:Vec<&Persistence> = shard_group.iter().map(|shard|&shard.persistence).collect();
+                    merge_persistences(&persistences, &mut new_shard.persistence, indices)?;
+                    new_shards.push(new_shard);
+                }
+            }
+
+            self.shards.retain(|shard| {
+                let keep_it = invalid_shards.contains(&shard.shard_id);
+                if !keep_it {
+                    println!("deleting {:?}", &shard.persistence.db);
+                    fs::remove_dir_all(&shard.persistence.db);
+                }
+                keep_it
+            });
+
+            self.shards.extend(new_shards.iter().map(|shard|
+                Shard{shard_id: shard.shard_id, persistence:persistence::Persistence::load(&shard.persistence.db).unwrap()}
+            ));
+            println!("shards.len {:?}", self.shards.len());
+        }
 
         Ok(())
     }
 
     fn add_new_shard_from_docs(&mut self, docs: String, indices: &str) -> Result<(), search::SearchError> {
-        let shard_id = self.shards.len();
-        let path = self.path.to_owned() + "/" + &shard_id.to_string();
-        let mut persistence = Persistence::create(path.to_string())?;
-        create::create_indices_from_str(&mut persistence, &docs, indices, None);
-        self.shards.push(Shard{shard_id: shard_id, doc_range:Range{start:0, end:0}, persistence:persistence::Persistence::load(path)?});
+        let mut new_shard = self.get_new_shard()?;
+        println!("new shard {:?}", new_shard.persistence.db);
+        create::create_indices_from_str(&mut new_shard.persistence, &docs, indices, None);
+        self.shards.push(Shard{shard_id: self.current_id.load(atomic::Ordering::Relaxed) as u64, /*doc_range:Range{start:0, end:0},*/ persistence:persistence::Persistence::load(new_shard.persistence.db)?});
+        // self.shards.push(new_shard);
         Ok(())
+    }
+
+    fn get_new_shard(&self) -> Result<(Shard), search::SearchError> {
+        let shard_id = self.current_id.fetch_add(1, atomic::Ordering::SeqCst);
+        let path = self.path.to_owned() + "/" + &shard_id.to_string();
+        let mut persistence = Persistence::create_type(path.to_string(), persistence::PersistenceType::Persistent)?;
+        Ok(Shard{shard_id: shard_id as u64, persistence})
     }
 
     pub fn search_all_shards_from_qp(
@@ -135,17 +188,6 @@ impl Shards {
         select: Option<Vec<String>>,
     ) -> Result<SearchResultWithDoc, search::SearchError> {
         let mut all_search_results = SearchResultWithDoc::default();
-
-        // let r: Result<Vec<_>, search::SearchError> = self.shards.par_iter().map(|(num, persistence)| {
-        //     print_time!("search shard");
-        //     let request = query_generator::search_query(&persistence, q_params.clone());
-        //     let hits = search::search(request, persistence)?;
-        //     Ok(search::to_search_result(&persistence, hits, select.clone()))
-        // }).collect();
-
-        // for result in r?{
-        //     all_search_results.merge(&result);
-        // }
 
         let r: Vec<ShardResult> = self.shards
             .par_iter()
@@ -171,9 +213,6 @@ impl Shards {
                 })
             })
             .collect();
-        // for shard_result in r.iter() {
-        //     all_shard_results.extend(shard_result.result.data.iter().map(|hit| ShardResultHit{shard_id:shard_result.shard_id, hit:hit.clone(), result:&shard_result.result}));
-        // }
 
         let top_n_shard_results = get_top_n_sort_from_iter(all_shard_results.iter(), q_params.top.unwrap_or(10), |a, b| {
             b.hit.score.partial_cmp(&a.hit.score).unwrap_or(Ordering::Equal)
@@ -206,19 +245,13 @@ impl Shards {
 
     pub fn load(path: String) -> Result<(Shards), search::SearchError> {
         let mut shards = vec![];
-        let mut shard_id = 0;
+        let mut shard_id:u64 = 0;
         for entry in fs::read_dir(path.to_string())? {
             let entry = entry?;
             let path = entry.path();
-            shards.push(Shard{shard_id: shard_id, doc_range:Range{start:0, end:0}, persistence:persistence::Persistence::load(path.to_str().unwrap())?});
+            shards.push(Shard{shard_id: shard_id, persistence:persistence::Persistence::load(path.to_str().unwrap())?});
             shard_id += 1;
         }
-
-        // let mut shards = vec![];
-        // for shard_id in 0..range{
-        //     let database = path.to_string()+"_"+&shard_id.to_string();
-        //     shards.push((shard_id, persistence::Persistence::load(database)?));
-        // }
-        Ok(Shards { shards, path })
+        Ok(Shards { shards, path, current_id:AtomicUsize::new(shard_id as usize) })
     }
 }

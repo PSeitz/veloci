@@ -524,13 +524,15 @@ fn replace_term_ids_test() {
     assert_eq!(yep, vec![ValIdPair::new(10 as u32, 2 as u32)]);
 }
 
-pub fn create_fulltext_index<I: Iterator<Item = Result<serde_json::Value, serde_json::Error>>>(
+pub fn create_fulltext_index<I, J>(
     stream1: I,
-    stream2: I,
+    stream2: J,
     mut persistence: &mut Persistence,
     indices_json: &Vec<CreateIndex>,
     create_cache: &mut CreateCache,
 ) -> Result<(), io::Error>
+where I: Iterator<Item = Result<serde_json::Value, serde_json::Error>>,
+    J: Iterator<Item = Result<serde_json::Value, serde_json::Error>>
 {
     let fulltext_info_for_path: FnvHashMap<String, Fulltext> = indices_json
         .iter()
@@ -791,15 +793,15 @@ pub fn create_fulltext_index<I: Iterator<Item = Result<serde_json::Value, serde_
                 let mut key_value_stores = vec![];
                 let mut anchor_score_stores = vec![];
                 let mut boost_stores = vec![];
-
+                let path = &path;
                 key_value_stores.push(persistence.write_tuple_pair_dedup(
                     &mut data.tokens_to_text_id,
-                    &concat(&path, ".tokens_to_text_id"),
+                    &concat(path, ".tokens_to_text_id"),
                     true,
                     false,
                     LoadingType::Disk,
                 )?);
-                trace!("{}\n{}", &concat(&path, ".tokens"), print_vec(&data.tokens_to_text_id, "token_id", "parent_id"));
+                trace!("{}\n{}", &concat(path, ".tokens"), print_vec(&data.tokens_to_text_id, "token_id", "parent_id"));
 
                 let mut token_to_anchor_id_score_vint_index = TokenToAnchorScoreVint::default();
 
@@ -809,43 +811,37 @@ pub fn create_fulltext_index<I: Iterator<Item = Result<serde_json::Value, serde_
                 for (token_id, mut group) in &data.token_to_anchor_id_score.into_iter().group_by(|el| (el.valid)) {
                     let mut group: Vec<(u32, u32)> = group.map(|el| (el.anchor_id, (el.score))).collect();
                     group.sort_unstable_by_key(|a| a.0);
-                    // let bytes: [u8; 4] = unsafe { transmute(token_id) };
-                    // tree.set(bytes.to_vec(), get_serialized_most_common_encoded(&mut group.to_vec()));
                     token_to_anchor_id_score_vint_index.set_scores(token_id, group);
-                    // let mut group: Vec<AnchorScore> = group.map(|el| AnchorScore::new(el.anchor_id, f16::from_f32(el.score as f32))).collect();
-                    // group.sort_unstable_by_key(|a| a.id);
-                    // token_to_anchor_id_score_index.set_scores(token_id, group);
                 }
-                // persistence.write_score_index(&token_to_anchor_id_score_index, &concat(&path, ".to_anchor_id_score"), LoadingType::Disk)?;
                 anchor_score_stores.push(persistence.write_score_index_vint(
                     &token_to_anchor_id_score_vint_index,
-                    &concat(&path, ".to_anchor_id_score"),
+                    &concat(path, ".to_anchor_id_score"),
                     LoadingType::Disk,
                 )?);
 
                 key_value_stores.push(persistence.write_indirect_index(
                     &mut data.text_id_to_token_ids,
-                    &concat(&path, ".text_id_to_token_ids"),
+                    &concat(path, ".text_id_to_token_ids"),
                     LoadingType::Disk,
                 )?);
                 trace!(
                     "{}\n{}",
-                    &concat(&path, ".text_id_to_token_ids"),
+                    &concat(path, ".text_id_to_token_ids"),
                     print_index_id_to_parent(&data.text_id_to_token_ids, "value_id", "token_id")
                 );
 
-                write_tuples(&persistence, &path, &mut data.text_id_to_parent, &mut key_value_stores)?;
+                write_tuples(&persistence, path, &mut data.text_id_to_parent, &mut key_value_stores)?;
 
                 key_value_stores.push(persistence.write_tuple_pair(
                     &mut data.text_id_to_anchor,
-                    &concat(&path, ".text_id_to_anchor"),
+                    &concat(path, ".text_id_to_anchor"),
                     false,
                     LoadingType::Disk,
                 )?);
 
                 trace!(
                     "{}\n{}",
-                    &concat(&path, ".text_id_to_anchor"),
+                    &concat(path, ".text_id_to_anchor"),
                     print_vec(&data.text_id_to_anchor, "anchor_id", "anchor_id")
                 );
 
@@ -858,7 +854,7 @@ pub fn create_fulltext_index<I: Iterator<Item = Result<serde_json::Value, serde_
                     )?);
                 }
                 if let Some(ref mut tuples) = data.boost {
-                    boost_stores.push(persistence.write_boost_tuple_pair(tuples, &extract_field_name(&path))?); // TODO use .textindex in boost?
+                    boost_stores.push(persistence.write_boost_tuple_pair(tuples, &extract_field_name(path))?); // TODO use .textindex in boost?
                 }
 
                 Ok((key_value_stores, boost_stores, anchor_score_stores))
@@ -1003,13 +999,15 @@ pub fn create_indices_from_str(mut persistence: &mut Persistence, data_str: &str
     create_indices_from_streams(persistence, stream1, stream2, indices, create_cache)
 }
 
-pub fn create_indices_from_streams<I: Iterator<Item = Result<serde_json::Value, serde_json::Error>>>(
-    mut persistence: &mut Persistence,    
+pub fn create_indices_from_streams<I, J>(
+    mut persistence: &mut Persistence,
     stream1: I,
-    stream2: I, 
-    indices: &str, 
+    stream2: J,
+    indices: &str,
     create_cache: Option<CreateCache>
 ) -> Result<(CreateCache), CreateError>
+where I: Iterator<Item = Result<serde_json::Value, serde_json::Error>>,
+    J: Iterator<Item = Result<serde_json::Value, serde_json::Error>>
 {
     info_time!(format!("total time create_indices for {:?}", persistence.db));
 
