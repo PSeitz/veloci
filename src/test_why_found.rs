@@ -11,7 +11,7 @@ mod tests {
     use serde_json::Value;
     use trace;
 
-    pub fn get_test_data() -> String {
+    pub fn get_test_data() -> Value {
         json!([
             {
                 "richtig": "schön super",
@@ -28,7 +28,7 @@ mod tests {
                 "buch": "Taschenbuch (kartoniert)",
                 "viele": ["super treffers"] //same text "super treffers" multiple times
             }
-        ]).to_string()
+        ])
     }
 
     static TEST_FOLDER: &str = "mochaTest_wf";
@@ -59,7 +59,13 @@ mod tests {
                     trace::enable_log();
                     let indices = r#"[{ "fulltext":"richtig", "options":{"tokenize":true} } ] "#;
                     let mut persistence = persistence::Persistence::create(TEST_FOLDER.to_string()).unwrap();
-                    println!("{:?}", create::create_indices_from_str(&mut persistence, &get_test_data(), indices, None));
+
+                    let data = get_test_data();
+                    if let Some(arr) = data.as_array() {
+                        // arr.map(|el| el.to_string()+"\n").collect();
+                        let docs_line_separated = arr.iter().fold(String::with_capacity(100), |acc, el| acc + &el.to_string()+"\n");
+                        println!("{:?}", create::create_indices_from_str(&mut persistence, &docs_line_separated, indices, None, false));
+                    }
 
                     let pers = persistence::Persistence::load(TEST_FOLDER.to_string()).expect("Could not load persistence");
 

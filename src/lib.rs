@@ -1,4 +1,5 @@
 #![feature(option_filter)]
+#![feature(extern_prelude)]
 #![feature(align_offset)]
 #![feature(offset_to)]
 #![feature(pointer_methods)]

@@ -18,7 +18,7 @@ mod tests {
     use util;
 
     use facet;
-    pub fn get_test_data() -> String {
+    pub fn get_test_data() -> Value {
         json!([
             {
                 "commonness": 123456,
@@ -192,7 +192,7 @@ mod tests {
                 "ent_seq": "28",
                 "tags": ["nice", "cool"]
             }
-        ]).to_string()
+        ])
     }
 
     static TOKEN_VALUE: &str = r#"[
@@ -285,7 +285,14 @@ mod tests {
                     //     { "fulltext":"address[].line[]", "options":{"tokenize":true} }
                     // ]
                     // "#;
-                    println!("{:?}", create::create_indices_from_str(&mut persistence::Persistence::create(TEST_FOLDER.to_string()).unwrap(), &get_test_data(), indices, None));
+
+                    let data = get_test_data();
+                    if let Some(arr) = data.as_array() {
+                        // arr.map(|el| el.to_string()+"\n").collect();
+                        let docs_line_separated = arr.iter().fold(String::with_capacity(100), |acc, el| acc + &el.to_string()+"\n");
+                        println!("{:?}", create::create_indices_from_str(&mut persistence::Persistence::create(TEST_FOLDER.to_string()).unwrap(), &docs_line_separated, indices, None, true));
+                    }
+
 
                     {
                         let mut pers = persistence::Persistence::load(TEST_FOLDER.to_string()).expect("Could not load persistence");

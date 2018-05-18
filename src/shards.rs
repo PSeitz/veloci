@@ -7,16 +7,13 @@ use search;
 use search::*;
 use std::cmp::Ordering;
 use std::fs;
-use std::ops::Range;
-// use uuid::Uuid;
+use std;
 use itertools::Itertools;
-use serde_json::{Deserializer, Value};
 use std::sync::atomic;
 use std::sync::atomic::AtomicUsize;
 
 struct Shard {
     shard_id: u64,
-    // doc_range: Range<usize>,
     persistence: Persistence,
 }
 
@@ -87,14 +84,19 @@ struct ShardResultHit<'a> {
     result: &'a SearchResult,
 }
 
+use std::io::BufRead;
 fn merge_persistences(persistences: &[&Persistence], mut target_persistence: &mut Persistence, indices: &str) -> Result<(), create::CreateError> {
-    let streams1 = persistences
+    let get_doc_json_stream = ||{
+        persistences
         .iter()
-        .flat_map(|pers| Deserializer::from_reader(pers.get_file_handle("data").unwrap()).into_iter::<Value>());
-    let streams2 = persistences
+        .flat_map(|pers| std::io::BufReader::new(pers.get_file_handle("data").unwrap()).lines().map(|line|serde_json::from_str(&line.unwrap())) )
+    };
+    let get_doc_stream = ||{
+        persistences
         .iter()
-        .flat_map(|pers| Deserializer::from_reader(pers.get_file_handle("data").unwrap()).into_iter::<Value>());
-    create::create_indices_from_streams(&mut target_persistence, streams1, streams2, indices, None)?;
+        .flat_map(|pers| std::io::BufReader::new(pers.get_file_handle("data").unwrap()).lines().map(|el|el.unwrap()))
+    };
+    create::create_indices_from_streams(&mut target_persistence, get_doc_json_stream(), get_doc_json_stream(), get_doc_stream(), indices, None, true)?;
     Ok(())
 }
 
@@ -134,11 +136,12 @@ impl Shards {
         }
 
         if self.shards.len() > 30 {
+            println!("pre shards.len {:?}", self.shards.len());
             let mut invalid_shards = vec![];
             let mut new_shards = vec![];
             {
                 self.shards.sort_unstable_by_key(|shard| shard.persistence.get_number_of_documents().unwrap());
-                for (el, group) in &self.shards.iter().group_by(|shard| shard.persistence.get_number_of_documents().unwrap() / 10) {
+                for (_, group) in &self.shards.iter().group_by(|shard| shard.persistence.get_number_of_documents().unwrap() / 10) {
                     let mut shard_group: Vec<&Shard> = group.collect();
                     if shard_group.len() == 1 {
                         continue;
@@ -153,19 +156,18 @@ impl Shards {
                 }
             }
 
+            //TODO LOCK DURING SWITCH
             self.shards.retain(|shard| {
-                let keep_it = invalid_shards.contains(&shard.shard_id);
-                if !keep_it {
+                if invalid_shards.contains(&shard.shard_id) {
                     println!("deleting {:?}", &shard.persistence.db);
                     fs::remove_dir_all(&shard.persistence.db);
+                    false
+                }else{
+                    true
                 }
-                keep_it
             });
 
-            self.shards.extend(new_shards.iter().map(|shard| Shard {
-                shard_id: shard.shard_id,
-                persistence: persistence::Persistence::load(&shard.persistence.db).unwrap(),
-            }));
+            self.shards.extend(new_shards);
             println!("shards.len {:?}", self.shards.len());
         }
 
@@ -175,12 +177,8 @@ impl Shards {
     fn add_new_shard_from_docs(&mut self, docs: String, indices: &str) -> Result<(), search::SearchError> {
         let mut new_shard = self.get_new_shard()?;
         println!("new shard {:?}", new_shard.persistence.db);
-        create::create_indices_from_str(&mut new_shard.persistence, &docs, indices, None);
-        self.shards.push(Shard {
-            shard_id: self.current_id.load(atomic::Ordering::Relaxed) as u64,
-            /*doc_range:Range{start:0, end:0},*/ persistence: persistence::Persistence::load(new_shard.persistence.db)?,
-        });
-        // self.shards.push(new_shard);
+        create::create_indices_from_str(&mut new_shard.persistence, &docs, indices, None, true);
+        self.shards.push(new_shard);
         Ok(())
     }
 

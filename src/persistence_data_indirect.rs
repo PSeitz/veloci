@@ -78,10 +78,25 @@ impl<T: IndexIdToParentData> IndexIdToMultipleParentIndirect<T> {
         }
         self.num_values += 1;
         self.num_ids += add_data.len() as u32;
+        self.avg_join_size = calc_avg_join_size(self.num_values, self.num_ids);
     }
 
     #[allow(dead_code)]
     pub fn new_sort_and_dedup(data: &IndexIdToParent<Output = T>, sort_and_dedup: bool) -> IndexIdToMultipleParentIndirect<T> {
+        let (max_value_id, num_values, num_ids, start_pos, data) = to_indirect_arrays_dedup(data, 0, sort_and_dedup);
+
+        IndexIdToMultipleParentIndirect {
+            start_pos: start_pos,
+            data,
+            max_value_id: max_value_id.to_u32().unwrap(),
+            avg_join_size: calc_avg_join_size(num_values, num_ids),
+            num_values,
+            num_ids,
+        }
+    }
+
+    #[allow(dead_code)]
+    pub fn new_from_pairs(data: &IndexIdToParent<Output = T>, sort_and_dedup: bool) -> IndexIdToMultipleParentIndirect<T> {
         let (max_value_id, num_values, num_ids, start_pos, data) = to_indirect_arrays_dedup(data, 0, sort_and_dedup);
 
         IndexIdToMultipleParentIndirect {

@@ -1,17 +1,17 @@
 use std::io;
 use std::io::Write;
+use std::fs::File;
 use std::{self, str};
 
 use fnv::FnvHashMap;
 use fnv::FnvHashSet;
 use fst::{self, MapBuilder};
-use fxhash::FxHashMap;
 use itertools::Itertools;
 use log;
 use rayon::prelude::*;
 use serde_json::{self, Value};
 use serde_json::{Deserializer, StreamDeserializer};
-
+use std::io::BufRead;
 use json_converter;
 use persistence;
 use persistence::{IndexIdToParent, LoadingType, Persistence};
@@ -98,8 +98,26 @@ impl TermInfo {
     }
 }
 
+// #[inline]
+// pub fn set_ids(terms: &mut FnvHashMap<String, TermInfo>) {
+//     let mut v: Vec<_> = terms
+//         .keys()
+//         .map(|el| el.as_str() as *const str) //#borrow
+//         .collect();
+//     v.sort_unstable_by_key(|term| unsafe {
+//         std::mem::transmute::<*const str, &str>(*term) //#borrow
+//     });
+//     for (i, term) in v.iter().enumerate() {
+//         let term = unsafe {
+//             std::mem::transmute::<*const str, &str>(*term) //#borrow this is only done to trick the borrow checker for performance reasons
+//         };
+//         if let Some(term_info) = terms.get_mut(term) {
+//             term_info.id = i as u32;
+//         }
+//     }
+// }
 #[inline]
-pub fn set_ids(terms: &mut FxHashMap<String, TermInfo>) {
+pub fn set_ids(terms: &mut FnvHashMap<String, TermInfo>) {
     let mut v: Vec<_> = terms
         .keys()
         .map(|el| el.as_str() as *const str) //#borrow
@@ -139,7 +157,7 @@ pub struct ValIdPairToken {
     pub anchor_id: u32,
     pub token_pos: u32,
     pub num_occurences: u32,
-    pub entry_num_tokens: u32,
+    pub num_tokens_in_text: u32,
 }
 
 #[derive(Debug, Default, Clone)]
@@ -230,34 +248,37 @@ fn print_index_id_to_parent(vec: &IndexIdToMultipleParentIndirect<u32>, valid_he
             .join("")
 }
 
-fn store_full_text_info(
+fn store_full_text_info_and_set_ids(
     persistence: &Persistence,
-    all_terms: &FxHashMap<String, TermInfo>,
+    all_terms: &mut FnvHashMap<String, TermInfo>,
     path: &str,
     options: &FulltextIndexOptions,
     id_lists: &mut FnvHashMap<String, persistence::IDList>,
     fulltext_indices: &mut FnvHashMap<String, FulltextIndexOptions>,
 ) -> Result<(), io::Error> {
     debug_time!(format!("store_fst strings and string offsets {:?}", path));
-    let mut sorted_terms: Vec<&String> = all_terms.keys().collect::<Vec<&String>>();
-    sorted_terms.sort_unstable();
+    // let mut sorted_terms: Vec<&String> = all_terms.keys().collect::<Vec<&String>>();
+    // sorted_terms.sort_unstable();
+
+    let mut sorted_terms: Vec<_> = all_terms
+        .keys()
+        .map(|el| el.as_str() as *const str) //#borrow
+        .collect();
+    sorted_terms.sort_unstable_by_key(|term| unsafe {
+        std::mem::transmute::<*const str, &str>(*term) //#borrow
+    });
+    for (i, term) in sorted_terms.iter().enumerate() {
+        let term = unsafe {
+            std::mem::transmute::<*const str, &str>(*term) //#borrow this is only done to trick the borrow checker for performance reasons
+        };
+        if let Some(term_info) = all_terms.get_mut(term) {
+            term_info.id = i as u32;
+        }
+    }
 
     let offsets = get_string_offsets(&sorted_terms); // TODO REPLACE OFFSET STUFF IN search field with something else
     let (id_list_path, id_list) = persistence.write_offset(&persistence::vec_to_bytes_u64(&offsets), &offsets, &concat(path, ".offsets"))?;
     id_lists.insert(id_list_path, id_list);
-    // Store original strings and offsets
-
-    //TEST FST AS ID MAPPER
-    // let mut offsets_fst: FnvHashMap<String, TermInfo> = FnvHashMap::default();
-    // for (i, offset) in offsets.iter().enumerate() {
-    //     let padding = 1;
-    //     offsets_fst.insert(
-    //         format!("{:0padding$}", i, padding = padding),
-    //         TermInfo::new(*offset as u32),
-    //     );
-    // }
-    // store_fst(persistence, &offsets_fst, &concat(&path, ".offsets")).expect("Could not store fst");
-    //TEST FST AS ID MAPPER
 
     store_fst(persistence, sorted_terms, &path).expect("Could not store fst");
     fulltext_indices.insert(path.to_string(), options.clone());
@@ -265,30 +286,24 @@ fn store_full_text_info(
 }
 
 // fn store_fst(persistence: &mut Persistence, all_terms: &FnvHashMap<String, TermInfo>, sorted_terms: Vec<&String>, path: &str) -> Result<(), fst::Error> {
-fn store_fst(persistence: &Persistence, sorted_terms: Vec<(&String)>, path: &str) -> Result<(), fst::Error> {
+fn store_fst(persistence: &Persistence, sorted_terms: Vec<*const str>, path: &str) -> Result<(), fst::Error> {
     debug_time!(format!("store_fst {:?}", path));
     let wtr = persistence.get_buffered_writer(&concat(path, ".fst"))?;
     // Create a builder that can be used to insert new key-value pairs.
     let mut build = MapBuilder::new(wtr)?;
-    // let mut build = MapBuilder::memory();
 
-    // for term in sorted_terms {
     for (term_id, term) in sorted_terms.iter().enumerate() {
-        // let term_info = all_terms.get(term.0).expect("wtf");
-        build.insert(term, term_id as u64).expect("could not insert into fst");
+        build.insert(unsafe {std::mem::transmute::<*const str, &str>(*term)}, term_id as u64).expect("could not insert into fst");
     }
 
     build.finish()?;
 
-    // let bytes = build.into_inner().unwrap();
-    // let mut file = File::create(&get_file_path(&persistence.db, &concat(path, ".fst")))?;
-    // file.write_all(&bytes)?;
-
     Ok(())
 }
 
+
 #[inline]
-fn add_count_text(terms: &mut FxHashMap<String, TermInfo>, text: &str) {
+fn add_count_text(terms: &mut FnvHashMap<String, TermInfo>, text: &str) {
     if !terms.contains_key(text) {
         terms.insert(text.to_string(), TermInfo::default());
     }
@@ -297,7 +312,7 @@ fn add_count_text(terms: &mut FxHashMap<String, TermInfo>, text: &str) {
 }
 
 #[inline]
-fn add_text<T: Tokenizer>(text: &str, terms: &mut FxHashMap<String, TermInfo>, options: &FulltextIndexOptions, tokenizer: &T) {
+fn add_text<T: Tokenizer>(text: &str, terms: &mut FnvHashMap<String, TermInfo>, options: &FulltextIndexOptions, tokenizer: &T) {
     trace!("text: {:?}", text);
     if options.stopwords.as_ref().map(|el| el.contains(text)).unwrap_or(false) {
         return;
@@ -368,7 +383,7 @@ fn calculate_token_score_in_doc(tokens_to_anchor_id: &mut Vec<ValIdPairToken>) -
         let mut num_occurences_in_doc = 1;
 
         let mut exact_match_boost = 1;
-        if first.entry_num_tokens == 1 && first.token_pos == 0 {
+        if first.num_tokens_in_text == 1 && first.token_pos == 0 {
             exact_match_boost = 2
         }
 
@@ -410,16 +425,16 @@ pub struct AllTermsAndDocumentBuilder {
     offsets: Vec<u64>,
     current_offset: usize,
     id_holder: json_converter::IDHolder,
-    terms_in_path: FnvHashMap<String, FxHashMap<String, TermInfo>>,
+    terms_in_path: FnvHashMap<String, FnvHashMap<String, TermInfo>>,
 }
 
-pub fn get_allterms_per_path_and_write_documents<I: Iterator<Item = Result<serde_json::Value, serde_json::Error>>>(
+pub fn get_allterms_per_path<I: Iterator<Item = Result<serde_json::Value, serde_json::Error>>>(
     stream: I,
     // persistence: &mut Persistence,
     fulltext_info_for_path: &FnvHashMap<String, Fulltext>,
     data: &mut AllTermsAndDocumentBuilder,
 ) -> Result<(), io::Error> {
-    info_time!("get_allterms_per_path_and_write_documents");
+    info_time!("get_allterms_per_path");
 
     let mut opt = json_converter::ForEachOpt {};
 
@@ -440,7 +455,7 @@ pub fn get_allterms_per_path_and_write_documents<I: Iterator<Item = Result<serde
                 .and_then(|el| el.options.as_ref())
                 .unwrap_or(&default_fulltext_options);
 
-            let mut terms = get_or_insert(&mut data.terms_in_path, path, &|| FxHashMap::default());
+            let mut terms = get_or_insert(&mut data.terms_in_path, path, &|| FnvHashMap::default());
 
             add_text(value, &mut terms, &options, &tokenizer);
         };
@@ -521,110 +536,38 @@ fn replace_term_ids_test() {
     assert_eq!(yep, vec![ValIdPair::new(10 as u32, 2 as u32)]);
 }
 
-pub fn create_fulltext_index<I, J>(
+fn is_1_to_n(path: &str) -> bool {
+    path.contains("[]")
+}
+
+fn parse_json_and_prepare_indices<I>(
     stream1: I,
-    stream2: J,
-    mut persistence: &mut Persistence,
-    indices_json: &Vec<CreateIndex>,
+    fulltext_info_for_path: &FnvHashMap<String, Fulltext>,
+    boost_info_for_path: &FnvHashMap<String, Boost>,
+    facet_index: &FnvHashSet<String>,
     create_cache: &mut CreateCache,
-) -> Result<(), io::Error>
+) -> Result<(FnvHashMap<String, PathData>, FnvHashMap<String, Vec<ValIdPair>>), io::Error>
 where
-    I: Iterator<Item = Result<serde_json::Value, serde_json::Error>>,
-    J: Iterator<Item = Result<serde_json::Value, serde_json::Error>>,
+    I: Iterator<Item = Result<serde_json::Value, serde_json::Error>>
 {
-    let fulltext_info_for_path: FnvHashMap<String, Fulltext> = indices_json
-        .iter()
-        .flat_map(|index| match index {
-            &CreateIndex::FulltextInfo(ref el) => Some(el),
-            &CreateIndex::BoostInfo(_) => None,
-            &CreateIndex::FacetInfo(_) => None,
-        })
-        .map(|fulltext_info| (fulltext_info.fulltext.to_string() + ".textindex", (*fulltext_info).clone()))
-        .collect();
-
-    let boost_info_for_path: FnvHashMap<String, Boost> = indices_json
-        .iter()
-        .flat_map(|index| match index {
-            &CreateIndex::FulltextInfo(_) => None,
-            &CreateIndex::BoostInfo(ref el) => Some(el),
-            &CreateIndex::FacetInfo(_) => None,
-        })
-        .map(|boost_info| (boost_info.boost.to_string() + ".textindex", (*boost_info).clone()))
-        .collect();
-
-    let facet_index: FnvHashSet<String> = indices_json
-        .iter()
-        .flat_map(|index| match index {
-            &CreateIndex::FulltextInfo(_) => None,
-            &CreateIndex::BoostInfo(_) => None,
-            &CreateIndex::FacetInfo(ref el) => Some(el.facet.to_string() + ".textindex"),
-        })
-        .collect();
-
-    let is_1_to_n = |path: &str| path.contains("[]");
-
-    get_allterms_per_path_and_write_documents(stream1, &fulltext_info_for_path, &mut create_cache.term_data)?;
-
-    {
-        info_time!("set term ids");
-        for mut terms in create_cache.term_data.terms_in_path.values_mut() {
-            set_ids(&mut terms);
-        }
-    }
-
-    let mut file_out = persistence.get_buffered_writer("data")?;
-
-    let mut id_holder = json_converter::IDHolder::new();
-    std::mem::swap(&mut create_cache.term_data.id_holder, &mut id_holder);
-
-    let mut offsets = vec![];
-    let mut current_offset = create_cache.term_data.current_offset;
-
-    // {
-    //     let mut cb_text = |_anchor_id: u32, value: &str, path: &str, _parent_val_id: u32| {
-    //         let options: &FulltextIndexOptions = fulltext_info_for_path
-    //             .get(path)
-    //             .and_then(|el| el.options.as_ref())
-    //             .unwrap_or(&default_fulltext_options);
-
-    //         let mut terms = get_or_insert(&mut create_cache.terms_in_path, path, &|| FxHashMap::default());
-
-    //         add_text(value, &mut terms, &options, &tokenizer);
-    //     };
-    //     let mut callback_ids = |_anchor_id: u32, _path: &str, _value_id: u32, _parent_val_id: u32| {};
-
-    //     let mut callback_document = |el: &serde_json::Value| {
-    //         let el_str = el.to_string().into_bytes();
-    //         file_out.write_all(&el_str).unwrap();
-    //         offsets.push(current_offset as u64);
-    //         current_offset += el_str.len();
-    //     };
-
-    //     json_converter::for_each_element_and_doc(stream, &mut id_holder, &mut opt, &mut cb_text, &mut callback_ids, &mut callback_document);
-    // }
-
-    // check_similarity(&data.terms_in_path);
-    info_time!("create and write fulltext_index");
-    trace!("all_terms {:?}", create_cache.term_data.terms_in_path);
-
-    let mut opt = json_converter::ForEachOpt {};
-    let mut id_holder = json_converter::IDHolder::new();
-
     let mut path_data: FnvHashMap<String, PathData> = FnvHashMap::default();
 
+    let mut id_holder = json_converter::IDHolder::new();
     let mut tuples_to_parent_in_path: FnvHashMap<String, Vec<ValIdPair>> = FnvHashMap::default();
 
     let default_fulltext_options = FulltextIndexOptions::new_with_tokenize();
 
     let tokenizer = SimpleTokenizerCharsIterateGroupTokens {};
+
+    // let mut offsets = vec![];
+    // let mut current_offset = create_cache.term_data.current_offset;
+
     {
-        info_time!(format!("build path data"));
+        info_time!("build path data");
         let mut cb_text = |anchor_id: u32, value: &str, path: &str, parent_val_id: u32| {
             let data = get_or_insert(&mut path_data, path, &|| {
                 let boost_info_data = if boost_info_for_path.contains_key(path) { Some(vec![]) } else { None };
                 let anchor_to_text_id = if facet_index.contains(path) && is_1_to_n(path) { Some(vec![]) } else { None }; //Create facet index only for 1:N
-                                                                                                                         // let prop_delta_path = concat(&(persistence.db.to_string() + "/"), &concat(&path, ".to_anchor_id_score_delta"));
-
                 PathData {
                     anchor_to_text_id: anchor_to_text_id,
                     boost: boost_info_data,
@@ -666,22 +609,22 @@ where
                 num_occurences: text_info.num_occurences as u32,
                 anchor_id: anchor_id,
                 token_pos: 0,
-                entry_num_tokens: 1,
+                num_tokens_in_text: 1,
             });
 
-            let temp_id = data.the_terms.len();
-            data.the_terms.push((value.to_string(), temp_id));
+            // let temp_id = data.the_terms.len();
+            // data.the_terms.push((value.to_string(), temp_id));
             if options.tokenize && tokenizer.has_tokens(value) {
                 let mut current_token_pos = 0;
-                let mut tokens_ids = vec![];
+                let mut tokens_ids = Vec::with_capacity(5);
 
                 tokenizer.get_tokens(value, &mut |token: &str, _is_seperator: bool| {
                     if options.stopwords.as_ref().map(|el| el.contains(token)).unwrap_or(false) {
                         return; //TODO FIXEME return here also prevents proper recreation of text with tokens
                     }
 
-                    let temp_id = data.the_terms.len();
-                    data.the_terms.push((token.to_string(), temp_id));
+                    // let temp_id = data.the_terms.len();
+                    // data.the_terms.push((token.to_string(), temp_id));
 
                     let token_info = all_terms.get(token).expect("did not found token");
                     trace!("Adding to tokens_ids {:?} : {:?}", token, token_info);
@@ -694,14 +637,14 @@ where
                         num_occurences: token_info.num_occurences as u32,
                         anchor_id: anchor_id,
                         token_pos: current_token_pos as u32,
-                        entry_num_tokens: 0,
+                        num_tokens_in_text: 0,
                     });
                     current_token_pos += 1;
                 });
 
                 //add num tokens info
                 for mut el in tokens_to_anchor_id.iter_mut() {
-                    el.entry_num_tokens = current_token_pos;
+                    el.num_tokens_in_text = current_token_pos;
                 }
 
                 if data.text_id_to_token_ids.get_values(text_info.id as u64).is_none() {
@@ -723,23 +666,120 @@ where
             tuples.push(ValIdPair::new(value_id, parent_val_id));
         };
 
-        let mut callback_document = |el: &serde_json::Value| {
-            let el_str = el.to_string().into_bytes();
-            file_out.write_all(&el_str).unwrap();
-            offsets.push(current_offset as u64);
-            current_offset += el_str.len();
-        };
-
-        json_converter::for_each_element_and_doc(stream2, &mut id_holder, &mut opt, &mut cb_text, &mut callback_ids, &mut callback_document);
+        json_converter::for_each_element(stream1, &mut id_holder, &mut json_converter::ForEachOpt {}, &mut cb_text, &mut callback_ids);
 
         // json_converter::for_each_element(stream2, &mut id_holder, &mut opt, &mut cb_text, &mut callback_ids);
     }
 
-    offsets.push(current_offset as u64);
+    // offsets.push(current_offset as u64);
 
+    // create_cache.term_data.offsets.extend(offsets);
+    // create_cache.term_data.current_offset = current_offset;
+    std::mem::swap(&mut create_cache.term_data.id_holder, &mut id_holder);
+
+    Ok((path_data, tuples_to_parent_in_path))
+}
+
+fn write_docs<K, S:AsRef<str>>(persistence: &mut Persistence, create_cache: &mut CreateCache,stream3: K,) -> Result<(), CreateError>
+where
+    K: Iterator<Item = S>,
+{
+    info_time!("write_docs");
+    let mut file_out = persistence.get_buffered_writer("data")?;
+    let mut offsets = vec![];
+    let mut current_offset = create_cache.term_data.current_offset;
+    for doc in stream3 {
+        file_out.write_all(&doc.as_ref().as_bytes()).unwrap();
+        file_out.write_all(b"\n").unwrap();
+        offsets.push(current_offset as u64);
+        current_offset += doc.as_ref().len();
+        current_offset += 1;
+    }
+    offsets.push(current_offset as u64);
     create_cache.term_data.offsets.extend(offsets);
     create_cache.term_data.current_offset = current_offset;
-    std::mem::swap(&mut create_cache.term_data.id_holder, &mut id_holder);
+    let (id_list_path, id_list_meta_data) = persistence.write_offset(
+        &persistence::vec_to_bytes_u64(&create_cache.term_data.offsets),
+        &create_cache.term_data.offsets,
+        &"data.offsets",
+    )?;
+    persistence.meta_data.id_lists.insert(id_list_path, id_list_meta_data);
+    Ok(())
+}
+
+pub fn create_fulltext_index<'a, I, J, K, S:AsRef<str>>(
+    stream1: I,
+    stream2: J,
+    stream3: K,
+    mut persistence: &mut Persistence,
+    indices_json: &Vec<CreateIndex>,
+    create_cache: &mut CreateCache,
+    load_persistence: bool
+) -> Result<(), io::Error>
+where
+    I: Iterator<Item = Result<serde_json::Value, serde_json::Error>>,
+    J: Iterator<Item = Result<serde_json::Value, serde_json::Error>>,
+    K: Iterator<Item = S>,
+{
+    let fulltext_info_for_path: FnvHashMap<String, Fulltext> = indices_json
+        .iter()
+        .flat_map(|index| match index {
+            &CreateIndex::FulltextInfo(ref fulltext_info) => Some((fulltext_info.fulltext.to_string() + ".textindex", (*fulltext_info).clone())),
+            _ => None,
+        })
+        .collect();
+
+    let boost_info_for_path: FnvHashMap<String, Boost> = indices_json
+        .iter()
+        .flat_map(|index| match index {
+            &CreateIndex::BoostInfo(ref boost_info) => Some((boost_info.boost.to_string() + ".textindex", (*boost_info).clone())),
+            _ => None,
+        })
+        .collect();
+
+    let facet_index: FnvHashSet<String> = indices_json
+        .iter()
+        .flat_map(|index| match index {
+            &CreateIndex::FacetInfo(ref el) => Some(el.facet.to_string() + ".textindex"),
+            _ => None,
+        })
+        .collect();
+
+
+    write_docs(&mut persistence, create_cache, stream3);
+    get_allterms_per_path(stream1, &fulltext_info_for_path, &mut create_cache.term_data)?;
+
+    let default_fulltext_options = FulltextIndexOptions::new_with_tokenize();
+    {
+        info_time!("set term ids");
+        let reso: Result<Vec<_>, io::Error> = create_cache
+            .term_data
+            .terms_in_path
+            .par_iter_mut()
+            .map(|(path, mut terms)| {
+                let mut id_lists = FnvHashMap::default();
+                let mut fulltext_indices = FnvHashMap::default();
+                let options: &FulltextIndexOptions = fulltext_info_for_path
+                    .get(path)
+                    .and_then(|el| el.options.as_ref())
+                    .unwrap_or(&default_fulltext_options);
+                store_full_text_info_and_set_ids(&persistence, &mut terms, &path, &options, &mut id_lists, &mut fulltext_indices)?;
+                Ok((id_lists, fulltext_indices))
+            })
+            .collect();
+        for (id_lists, fulltext_indices) in reso? {
+            persistence.meta_data.id_lists.extend(id_lists);
+            persistence.meta_data.fulltext_indices.extend(fulltext_indices);
+        }
+
+    }
+
+    // check_similarity(&data.terms_in_path);
+    info_time!("create and write fulltext_index");
+    trace!("all_terms {:?}", create_cache.term_data.terms_in_path);
+
+    let (path_data, mut tuples_to_parent_in_path) = parse_json_and_prepare_indices(stream2, &fulltext_info_for_path, &boost_info_for_path, &facet_index, create_cache)?;
+
 
     let (id_list_path, id_list_meta_data) = persistence.write_offset(
         &persistence::vec_to_bytes_u64(&create_cache.term_data.offsets),
@@ -783,7 +823,7 @@ where
             Ok(())
         };
 
-        let r: Result<Vec<_>, io::Error> = path_data
+        let reso: Result<Vec<_>, io::Error> = path_data
             .into_par_iter()
             .map(|(path, mut data)| {
                 let mut key_value_stores = vec![];
@@ -857,33 +897,10 @@ where
             })
             .collect();
 
-        let reso = r?;
-
-        for (key_value_stores, boost_stores, anchor_score_stores) in reso {
+        for (key_value_stores, boost_stores, anchor_score_stores) in reso? {
             persistence.meta_data.key_value_stores.extend(key_value_stores);
             persistence.meta_data.boost_stores.extend(boost_stores);
             persistence.meta_data.anchor_score_stores.extend(anchor_score_stores);
-        }
-
-        let r: Result<Vec<_>, io::Error> = create_cache
-            .term_data
-            .terms_in_path
-            .par_iter()
-            .map(|(path, all_terms)| {
-                let mut id_lists = FnvHashMap::default();
-                let mut fulltext_indices = FnvHashMap::default();
-                let options: &FulltextIndexOptions = fulltext_info_for_path
-                    .get(path)
-                    .and_then(|el| el.options.as_ref())
-                    .unwrap_or(&default_fulltext_options);
-                store_full_text_info(&persistence, all_terms, &path, &options, &mut id_lists, &mut fulltext_indices)?;
-                Ok((id_lists, fulltext_indices))
-            })
-            .collect();
-        let reso = r?;
-        for (id_lists, fulltext_indices) in reso {
-            persistence.meta_data.id_lists.extend(id_lists);
-            persistence.meta_data.fulltext_indices.extend(fulltext_indices);
         }
 
         let mut key_value_stores = vec![];
@@ -903,30 +920,33 @@ where
     // store_fst(persistence, &all_ids_as_str, &concat(&path_name, ".valueIdToParent.fst")).expect("Could not store fst");
     //TEST FST AS ID MAPPER
 
+    if load_persistence {
+        persistence.load_from_disk();
+    }
+
     Ok(())
 }
 
-fn get_string_offsets(data: &Vec<&String>) -> Vec<u64> {
-    let mut offsets = vec![];
-    let mut offset = 0;
-    for el in data {
-        offsets.push(offset as u64);
-        offset += el.len() + 1; // 1 for linevreak
-    }
-    offsets.push(offset as u64);
-    offsets
-}
-// fn get_string_offsets(data: &Vec<(&String,&TermInfo)>) -> Vec<u64> {
+// fn get_string_offsets(data: &Vec<&String>) -> Vec<u64> {
 //     let mut offsets = vec![];
 //     let mut offset = 0;
 //     for el in data {
 //         offsets.push(offset as u64);
-//         offset += el.0.len() + 1; // 1 for linevreak
+//         offset += el.len() + 1; // 1 for linevreak
 //     }
 //     offsets.push(offset as u64);
 //     offsets
 // }
-
+fn get_string_offsets(terms: &Vec<*const str>) -> Vec<u64> {
+    let mut offsets = vec![];
+    let mut offset = 0;
+    for term in terms {
+        offsets.push(offset as u64);
+        offset +=  unsafe {std::mem::transmute::<*const str, &str>(*term)}.len() + 1; // 1 for linevreak
+    }
+    offsets.push(offset as u64);
+    offsets
+}
 #[derive(Debug, Clone)]
 struct CharData {
     suffix: String,
@@ -983,45 +1003,68 @@ pub fn add_token_values_to_tokens(persistence: &mut Persistence, data_str: &str,
     Ok(())
 }
 
-pub fn create_indices_from_json(
-    persistence: &mut Persistence,
-    data: &Value,
-    indices: &str,
-    create_cache: Option<CreateCache>,
-) -> Result<(CreateCache), CreateError> {
-    info_time!(format!("total time create_indices for {:?}", persistence.db));
-    let data_str = serde_json::to_string(&data).unwrap(); //TODO: FIXME move to interface
-    create_indices_from_str(persistence, &data_str, indices, create_cache)
-}
+// pub fn create_indices_from_json(
+//     persistence: &mut Persistence,
+//     data: &Value,
+//     indices: &str,
+//     create_cache: Option<CreateCache>,
+//     load_persistence: bool,
+// ) -> Result<(CreateCache), CreateError> {
+//     info_time!(format!("total time create_indices for {:?}", persistence.db));
+//     let data_str = serde_json::to_string(&data).unwrap(); //TODO: FIXME move to interface
+//     create_indices_from_str(persistence, &data_str, indices, create_cache, load_persistence)
+// }
 
 pub fn create_indices_from_str(
     mut persistence: &mut Persistence,
     data_str: &str,
     indices: &str,
     create_cache: Option<CreateCache>,
+    load_persistence: bool,
 ) -> Result<(CreateCache), CreateError> {
     info_time!(format!("total time create_indices for {:?}", persistence.db));
     let stream1 = Deserializer::from_str(&data_str).into_iter::<Value>(); //TODO Performance: Use custom line break deserializer to get string and json at the same time
     let stream2 = Deserializer::from_str(&data_str).into_iter::<Value>();
-    create_indices_from_streams(persistence, stream1, stream2, indices, create_cache)
+    create_indices_from_streams(persistence, stream1, stream2, data_str.lines(), indices, create_cache, load_persistence)
+}
+pub fn create_indices_from_data_path(
+    mut persistence: &mut Persistence,
+    data_path: &str,
+    indices: &str,
+    create_cache: Option<CreateCache>,
+    load_persistence: bool,
+) -> Result<(CreateCache), CreateError> {
+    info_time!(format!("total time create_indices for {:?}", persistence.db));
+
+    let stream1 = std::io::BufReader::new(File::open(data_path).unwrap()).lines().map(|line|serde_json::from_str(&line.unwrap()));
+    let stream2 = std::io::BufReader::new(File::open(data_path).unwrap()).lines().map(|line|serde_json::from_str(&line.unwrap()));
+    let stream3 = std::io::BufReader::new(File::open(data_path).unwrap()).lines().map(|line|line.unwrap());
+    // let stream1 = std::io::BufReader::new(File::open(data_path).unwrap()).lines().map(|line|serde_json::from_str(&line.unwrap()));
+
+    // let stream1 = Deserializer::from_str(&data_str).into_iter::<Value>(); //TODO Performance: Use custom line break deserializer to get string and json at the same time
+    // let stream2 = Deserializer::from_str(&data_str).into_iter::<Value>();
+    create_indices_from_streams(persistence, stream1, stream2, stream3, indices, create_cache, load_persistence)
 }
 
-pub fn create_indices_from_streams<I, J>(
+pub fn create_indices_from_streams<'a, I, J, K, S:AsRef<str>>(
     mut persistence: &mut Persistence,
     stream1: I,
     stream2: J,
+    stream3: K,
     indices: &str,
     create_cache: Option<CreateCache>,
+    load_persistence: bool,
 ) -> Result<(CreateCache), CreateError>
 where
     I: Iterator<Item = Result<serde_json::Value, serde_json::Error>>,
     J: Iterator<Item = Result<serde_json::Value, serde_json::Error>>,
+    K: Iterator<Item = S>,
 {
     info_time!(format!("total time create_indices for {:?}", persistence.db));
 
     let indices_json: Vec<CreateIndex> = serde_json::from_str(indices).unwrap();
     let mut create_cache = create_cache.unwrap_or_else(|| CreateCache::default());
-    create_fulltext_index(stream1, stream2, &mut persistence, &indices_json, &mut create_cache)?;
+    create_fulltext_index(stream1, stream2, stream3, &mut persistence, &indices_json, &mut create_cache, load_persistence)?;
 
     info_time!(format!("write json and metadata {:?}", persistence.db));
 

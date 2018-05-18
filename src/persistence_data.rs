@@ -1,5 +1,5 @@
 use std;
-use std::cmp::Ordering;
+use itertools::Itertools;
 use std::fs::File;
 
 use heapsize::HeapSizeOf;
@@ -154,7 +154,7 @@ impl<T: IndexIdToParentData> IndexIdToParent for IndexIdToMultipleParentCompress
 //     }
 // }
 
-#[derive(Debug, HeapSizeOf)]
+#[derive(Debug, Default, HeapSizeOf)]
 pub struct IndexIdToOneParent<T: IndexIdToParentData> {
     pub data: Vec<T>,
     pub max_value_id: u32,
@@ -190,7 +190,7 @@ impl<T: IndexIdToParentData> IndexIdToParent for IndexIdToOneParent<T> {
         let val = self.data.get(id as usize);
         match val {
             Some(val) => {
-                if val.to_u64().unwrap() == u32::MAX as u64 {
+                if val.to_u64().unwrap() == NOT_FOUND as u64 {
                     None
                 } else {
                     Some(*val)
@@ -644,7 +644,7 @@ fn load_bytes(file: &File, offset: u64, num_bytes: usize) -> Vec<u8> {
 
 #[cfg_attr(feature = "flame_it", flame)]
 pub fn valid_pair_to_parallel_arrays<T: IndexIdToParentData>(tuples: &mut Vec<create::ValIdPair>) -> ParallelArrays<T> {
-    tuples.sort_by(|a, b| a.valid.partial_cmp(&b.valid).unwrap_or(Ordering::Equal));
+    tuples.sort_unstable_by_key(|a| a.valid);
     let valids = tuples.iter().map(|el| NumCast::from(el.valid).unwrap()).collect::<Vec<_>>();
     let parent_val_ids = tuples.iter().map(|el| NumCast::from(el.parent_val_id).unwrap()).collect::<Vec<_>>();
     ParallelArrays {
@@ -654,8 +654,39 @@ pub fn valid_pair_to_parallel_arrays<T: IndexIdToParentData>(tuples: &mut Vec<cr
 }
 
 #[cfg_attr(feature = "flame_it", flame)]
+pub fn valid_pair_to_indirect_index<T: IndexIdToParentData>(tuples: &mut Vec<create::ValIdPair>, sort_and_dedup: bool) -> IndexIdToMultipleParentIndirect<u32> { //-> Box<IndexIdToParent<Output = u32>> {
+    tuples.sort_unstable_by_key(|a| a.valid);
+    let mut index = IndexIdToMultipleParentIndirect::<u32>::default();
+    //TODO store max_value_id and resize index
+    for (valid, group) in &tuples.iter().group_by(|a|a.valid) {
+        let mut data:Vec<u32> = group.map(|el|el.parent_val_id).collect();
+        if sort_and_dedup{
+            data.sort_unstable();
+            data.dedup();
+        }
+        index.set(valid, data);
+    }
+
+    index
+}
+
+#[cfg_attr(feature = "flame_it", flame)]
+pub fn valid_pair_to_direct_index<T: IndexIdToParentData>(tuples: &mut Vec<create::ValIdPair>) -> IndexIdToOneParent<u32> { //-> Box<IndexIdToParent<Output = u32>> {
+    tuples.sort_unstable_by_key(|a| a.valid);
+    let mut index = IndexIdToOneParent::<u32>::default();
+    //TODO store max_value_id and resize index
+    for el in tuples.iter() {
+        index.data.resize(el.valid as usize + 1, NOT_FOUND);
+        index.data[el.valid as usize] = el.parent_val_id;
+        index.max_value_id = std::cmp::max(index.max_value_id, el.parent_val_id);
+    }
+
+    index
+}
+
+#[cfg_attr(feature = "flame_it", flame)]
 pub fn boost_pair_to_parallel_arrays<T: IndexIdToParentData>(tuples: &mut Vec<create::ValIdToValue>) -> ParallelArrays<T> {
-    tuples.sort_by(|a, b| a.valid.partial_cmp(&b.valid).unwrap_or(Ordering::Equal));
+    tuples.sort_unstable_by_key(|a| a.valid);
     let valids = tuples.iter().map(|el| NumCast::from(el.valid).unwrap()).collect::<Vec<_>>();
     let values = tuples.iter().map(|el| NumCast::from(el.value).unwrap()).collect::<Vec<_>>();
     ParallelArrays {

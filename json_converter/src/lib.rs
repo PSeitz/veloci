@@ -182,6 +182,7 @@ pub fn for_each_elemento<F, F2>(
 }
 
 pub trait IDProvider {
+    #[inline(always)]
     fn get_id(&mut self, path: &str) -> u32;
 }
 
@@ -191,6 +192,7 @@ pub struct ConcurrentIDHolder {
 }
 
 impl IDProvider for ConcurrentIDHolder {
+    #[inline(always)]
     fn get_id(&mut self, path: &str) -> u32 {
         {
             if let Some(e) = self.ids.get_mut(path) {
@@ -220,6 +222,7 @@ pub struct IDHolder {
 }
 
 impl IDProvider for IDHolder {
+    #[inline(always)]
     fn get_id(&mut self, path: &str) -> u32 {
         {
             if let Some(e) = self.ids.get_mut(path) {

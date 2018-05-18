@@ -320,7 +320,7 @@ impl Persistence {
     }
 
     #[cfg_attr(feature = "flame_it", flame)]
-    pub fn load_all_to_cache(&mut self) -> Result<(), search::SearchError> {
+    pub fn load_from_disk(&mut self) -> Result<(), search::SearchError> {
         info_time!(format!("loaded persistence {:?}", &self.db));
         for (_, ref idlist) in &self.meta_data.id_lists.clone() {
             match &idlist.id_type {
@@ -712,13 +712,16 @@ impl Persistence {
         is_always_1_to_1: bool,
         loading_type: LoadingType,
     ) -> Result<(KVStoreMetaData), io::Error> {
-        let data = valid_pair_to_parallel_arrays::<u32>(tuples);
+        // let data = valid_pair_to_parallel_arrays::<u32>(tuples);
 
         if is_always_1_to_1 {
-            let max_value_id = tuples.iter().max_by_key(|el| el.parent_val_id).map(|el| el.parent_val_id).unwrap_or(0);
-            Ok(self.write_direct_index(&data, path, max_value_id, loading_type)?)
+            // let max_value_id = tuples.iter().max_by_key(|el| el.parent_val_id).map(|el| el.parent_val_id).unwrap_or(0);
+            let store = valid_pair_to_direct_index::<u32>(tuples);
+            Ok(self.write_direct_index(&store, path, loading_type)?)
+
         } else {
-            let store = IndexIdToMultipleParentIndirect::new_sort_and_dedup(&data, sort_and_dedup);
+            let store = valid_pair_to_indirect_index::<u32>(tuples, sort_and_dedup);
+            // let store = IndexIdToMultipleParentIndirect::new_sort_and_dedup(&data, sort_and_dedup);
             Ok(self.write_indirect_index(&store, path, loading_type)?)
         }
         //Parallel
@@ -740,14 +743,11 @@ impl Persistence {
 
     pub fn write_direct_index(
         &self,
-        data: &IndexIdToParent<Output = u32>,
+        store: &IndexIdToOneParent<u32>,
         path: &str,
-        max_value_id: u32,
         loading_type: LoadingType,
     ) -> Result<(KVStoreMetaData), io::Error> {
         let data_file_path = util::get_file_path(&self.db, &(path.to_string() + ".data_direct"));
-
-        let store = IndexIdToOneParent::new(data);
 
         if self.persistence_type == PersistenceType::Persistent {
             File::create(data_file_path)?.write_all(&vec_to_bytes_u32(&store.data))?;
@@ -758,7 +758,7 @@ impl Persistence {
             persistence_type: KVStoreType::IndexIdToOneParent,
             is_1_to_n: false,
             path: path.to_string(),
-            max_value_id: max_value_id,
+            max_value_id: store.max_value_id,
             avg_join_size: 1 as f32, //TODO FIXME CHECKO NULLOS, 1 is not exact enough
         })
     }
@@ -845,7 +845,7 @@ impl Persistence {
             term_boost_cache: RwLock::new(LruCache::with_expiry_duration_and_capacity(Duration::new(3600, 0), 10)),
             indices: PersistenceIndices::default(),
         };
-        pers.load_all_to_cache()?;
+        pers.load_from_disk()?;
         pers.print_heap_sizes();
         Ok(pers)
     }
