@@ -68,10 +68,8 @@ pub struct KVStoreMetaData {
     pub is_1_to_n: bool, // In the sense of 1:n   1key, n values
     pub persistence_type: KVStoreType,
     pub loading_type: LoadingType,
-    #[serde(default = "default_max_value_id")]
-    pub max_value_id: u32, // max value on the "right" side key -> value, key -> value ..
-    #[serde(default = "default_avg_join")]
-    pub avg_join_size: f32, // some join statistics
+    #[serde(default = "default_max_value_id")] pub max_value_id: u32, // max value on the "right" side key -> value, key -> value ..
+    #[serde(default = "default_avg_join")] pub avg_join_size: f32,    // some join statistics
 }
 
 pub static NOT_FOUND: u32 = u32::MAX;
@@ -167,9 +165,8 @@ pub enum IDDataType {
 }
 // use persistence_data;
 
-pub trait IndexIdToParentData:
-    Integer + Clone + NumCast + mayda::utility::Bits + HeapSizeOf + Debug + Sync + Send + Copy + ToPrimitive + std::iter::Step + std::hash::Hash + 'static
-{
+pub trait IndexIdToParentData
+    : Integer + Clone + NumCast + mayda::utility::Bits + HeapSizeOf + Debug + Sync + Send + Copy + ToPrimitive + std::iter::Step + std::hash::Hash + 'static {
 }
 impl<T> IndexIdToParentData for T
 where
@@ -718,7 +715,6 @@ impl Persistence {
             // let max_value_id = tuples.iter().max_by_key(|el| el.parent_val_id).map(|el| el.parent_val_id).unwrap_or(0);
             let store = valid_pair_to_direct_index::<u32>(tuples);
             Ok(self.write_direct_index(&store, path, loading_type)?)
-
         } else {
             let store = valid_pair_to_indirect_index::<u32>(tuples, sort_and_dedup);
             // let store = IndexIdToMultipleParentIndirect::new_sort_and_dedup(&data, sort_and_dedup);
@@ -741,12 +737,7 @@ impl Persistence {
         Ok(meta_data)
     }
 
-    pub fn write_direct_index(
-        &self,
-        store: &IndexIdToOneParent<u32>,
-        path: &str,
-        loading_type: LoadingType,
-    ) -> Result<(KVStoreMetaData), io::Error> {
+    pub fn write_direct_index(&self, store: &IndexIdToOneParent<u32>, path: &str, loading_type: LoadingType) -> Result<(KVStoreMetaData), io::Error> {
         let data_file_path = util::get_file_path(&self.db, &(path.to_string() + ".data_direct"));
 
         if self.persistence_type == PersistenceType::Persistent {

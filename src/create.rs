@@ -293,14 +293,15 @@ fn store_fst(persistence: &Persistence, sorted_terms: Vec<*const str>, path: &st
     let mut build = MapBuilder::new(wtr)?;
 
     for (term_id, term) in sorted_terms.iter().enumerate() {
-        build.insert(unsafe {std::mem::transmute::<*const str, &str>(*term)}, term_id as u64).expect("could not insert into fst");
+        build
+            .insert(unsafe { std::mem::transmute::<*const str, &str>(*term) }, term_id as u64)
+            .expect("could not insert into fst");
     }
 
     build.finish()?;
 
     Ok(())
 }
-
 
 #[inline]
 fn add_count_text(terms: &mut FnvHashMap<String, TermInfo>, text: &str) {
@@ -441,13 +442,7 @@ pub fn get_allterms_per_path<I: Iterator<Item = Result<serde_json::Value, serde_
     let tokenizer = SimpleTokenizerCharsIterateGroupTokens {};
     let default_fulltext_options = FulltextIndexOptions::new_with_tokenize();
 
-    // let mut file_out = persistence.get_buffered_writer("data")?;
     let mut id_holder = json_converter::IDHolder::new();
-    // std::mem::swap(&mut data.id_holder, &mut id_holder);
-
-    // let mut offsets = vec![];
-    // let mut current_offset = data.current_offset;
-
     {
         let mut cb_text = |_anchor_id: u32, value: &str, path: &str, _parent_val_id: u32| {
             let options: &FulltextIndexOptions = fulltext_info_for_path
@@ -464,15 +459,6 @@ pub fn get_allterms_per_path<I: Iterator<Item = Result<serde_json::Value, serde_
         json_converter::for_each_element(stream, &mut id_holder, &mut opt, &mut cb_text, &mut callback_ids);
     }
 
-    // offsets.push(current_offset as u64);
-
-    // data.offsets.extend(offsets);
-    // data.current_offset = current_offset;
-    // std::mem::swap(&mut data.id_holder, &mut id_holder);
-
-    // let (id_list_path, id_list_meta_data) = persistence.write_offset(&persistence::vec_to_bytes_u64(&data.offsets), &data.offsets, &"data.offsets")?;
-    // persistence.meta_data.id_lists.insert(id_list_path, id_list_meta_data);
-
     Ok(())
 }
 
@@ -481,7 +467,6 @@ struct PathData {
     tokens_to_text_id: Vec<ValIdPair>,
     the_terms: Vec<(String, usize)>,
     tokens_to_anchor_id: Vec<ValIdPairToken>,
-    // tokens_to_anchor_id_delta: TokenToAnchorScoreVintDelta,
     token_to_anchor_id_score: Vec<TokenToAnchorScore>,
     text_id_to_token_ids: IndexIdToMultipleParentIndirect<u32>,
     text_id_to_parent: Vec<ValIdPair>,
@@ -548,7 +533,7 @@ fn parse_json_and_prepare_indices<I>(
     create_cache: &mut CreateCache,
 ) -> Result<(FnvHashMap<String, PathData>, FnvHashMap<String, Vec<ValIdPair>>), io::Error>
 where
-    I: Iterator<Item = Result<serde_json::Value, serde_json::Error>>
+    I: Iterator<Item = Result<serde_json::Value, serde_json::Error>>,
 {
     let mut path_data: FnvHashMap<String, PathData> = FnvHashMap::default();
 
@@ -680,7 +665,7 @@ where
     Ok((path_data, tuples_to_parent_in_path))
 }
 
-fn write_docs<K, S:AsRef<str>>(persistence: &mut Persistence, create_cache: &mut CreateCache,stream3: K,) -> Result<(), CreateError>
+fn write_docs<K, S: AsRef<str>>(persistence: &mut Persistence, create_cache: &mut CreateCache, stream3: K) -> Result<(), CreateError>
 where
     K: Iterator<Item = S>,
 {
@@ -707,14 +692,39 @@ where
     Ok(())
 }
 
-pub fn create_fulltext_index<'a, I, J, K, S:AsRef<str>>(
+fn trace_indices(path_data: &FnvHashMap<String, PathData>) {
+    for (path, data) in path_data {
+        let path = &path;
+        trace!("{}\n{}", &concat(path, ".tokens"), print_vec(&data.tokens_to_text_id, "token_id", "parent_id"));
+
+        trace!(
+            "{}\n{}",
+            &concat(path, ".text_id_to_token_ids"),
+            print_index_id_to_parent(&data.text_id_to_token_ids, "value_id", "token_id")
+        );
+
+        trace!(
+            "{}\n{}",
+            &concat(path, ".valueIdToParent"),
+            print_vec(&data.text_id_to_parent, &path, "parentid")
+        );
+
+        trace!(
+            "{}\n{}",
+            &concat(path, ".text_id_to_anchor"),
+            print_vec(&data.text_id_to_anchor, "anchor_id", "anchor_id")
+        );
+    }
+}
+
+pub fn create_fulltext_index<'a, I, J, K, S: AsRef<str>>(
     stream1: I,
     stream2: J,
     stream3: K,
     mut persistence: &mut Persistence,
     indices_json: &Vec<CreateIndex>,
     create_cache: &mut CreateCache,
-    load_persistence: bool
+    load_persistence: bool,
 ) -> Result<(), io::Error>
 where
     I: Iterator<Item = Result<serde_json::Value, serde_json::Error>>,
@@ -745,7 +755,6 @@ where
         })
         .collect();
 
-
     write_docs(&mut persistence, create_cache, stream3);
     get_allterms_per_path(stream1, &fulltext_info_for_path, &mut create_cache.term_data)?;
 
@@ -771,15 +780,14 @@ where
             persistence.meta_data.id_lists.extend(id_lists);
             persistence.meta_data.fulltext_indices.extend(fulltext_indices);
         }
-
     }
 
     // check_similarity(&data.terms_in_path);
     info_time!("create and write fulltext_index");
     trace!("all_terms {:?}", create_cache.term_data.terms_in_path);
 
-    let (path_data, mut tuples_to_parent_in_path) = parse_json_and_prepare_indices(stream2, &fulltext_info_for_path, &boost_info_for_path, &facet_index, create_cache)?;
-
+    let (path_data, mut tuples_to_parent_in_path) =
+        parse_json_and_prepare_indices(stream2, &fulltext_info_for_path, &boost_info_for_path, &facet_index, create_cache)?;
 
     let (id_list_path, id_list_meta_data) = persistence.write_offset(
         &persistence::vec_to_bytes_u64(&create_cache.term_data.offsets),
@@ -790,20 +798,21 @@ where
 
     let is_text_id_to_parent = |path: &str| path.ends_with(".textindex");
 
+    if log_enabled!(log::Level::Trace) {
+        trace_indices(&path_data)
+    }
+
     {
         info_time!(format!("write indices {:?}", persistence.db.to_string()));
 
-        let write_tuples = |persistence: &Persistence,
-                            path: &str,
-                            tuples: &mut Vec<ValIdPair>,
-                            key_value_stores: &mut Vec<persistence::KVStoreMetaData>|
+        let write_and_flip_tuples = |persistence: &Persistence,
+                                     path: &str,
+                                     tuples: &mut Vec<ValIdPair>,
+                                     key_value_stores: &mut Vec<persistence::KVStoreMetaData>|
          -> Result<(), io::Error> {
             let is_alway_1_to_1 = !is_text_id_to_parent(path); // valueIdToParent relation is always 1 to 1, expect for text_ids, which can have multiple parents
 
             key_value_stores.push(persistence.write_tuple_pair(tuples, &concat(&path, ".valueIdToParent"), is_alway_1_to_1, LoadingType::Disk)?);
-            if log_enabled!(log::Level::Trace) {
-                trace!("{}\n{}", &concat(&path, ".valueIdToParent"), print_vec(&tuples, &path, "parentid"));
-            }
 
             //Flip values
             for el in tuples.iter_mut() {
@@ -817,9 +826,6 @@ where
             };
 
             key_value_stores.push(persistence.write_tuple_pair(tuples, &concat(&path, ".parentToValueId"), !is_1_to_n(path), loading_type)?);
-            if log_enabled!(log::Level::Trace) {
-                trace!("{}\n{}", &concat(&path, ".parentToValueId"), print_vec(&tuples, &path, "value_id"));
-            }
             Ok(())
         };
 
@@ -837,7 +843,6 @@ where
                     false,
                     LoadingType::Disk,
                 )?);
-                trace!("{}\n{}", &concat(path, ".tokens"), print_vec(&data.tokens_to_text_id, "token_id", "parent_id"));
 
                 let mut token_to_anchor_id_score_vint_index = TokenToAnchorScoreVint::default();
 
@@ -860,13 +865,8 @@ where
                     &concat(path, ".text_id_to_token_ids"),
                     LoadingType::Disk,
                 )?);
-                trace!(
-                    "{}\n{}",
-                    &concat(path, ".text_id_to_token_ids"),
-                    print_index_id_to_parent(&data.text_id_to_token_ids, "value_id", "token_id")
-                );
 
-                write_tuples(&persistence, path, &mut data.text_id_to_parent, &mut key_value_stores)?;
+                write_and_flip_tuples(&persistence, path, &mut data.text_id_to_parent, &mut key_value_stores)?;
 
                 key_value_stores.push(persistence.write_tuple_pair(
                     &mut data.text_id_to_anchor,
@@ -874,12 +874,6 @@ where
                     false,
                     LoadingType::Disk,
                 )?);
-
-                trace!(
-                    "{}\n{}",
-                    &concat(path, ".text_id_to_anchor"),
-                    print_vec(&data.text_id_to_anchor, "anchor_id", "anchor_id")
-                );
 
                 if let Some(ref mut anchor_to_text_id) = data.anchor_to_text_id {
                     key_value_stores.push(persistence.write_tuple_pair(
@@ -905,7 +899,7 @@ where
 
         let mut key_value_stores = vec![];
         for (path, mut tuples) in tuples_to_parent_in_path.iter_mut() {
-            write_tuples(&mut persistence, path, &mut tuples, &mut key_value_stores)?;
+            write_and_flip_tuples(&mut persistence, path, &mut tuples, &mut key_value_stores)?;
         }
 
         persistence.meta_data.key_value_stores.extend(key_value_stores);
@@ -942,7 +936,7 @@ fn get_string_offsets(terms: &Vec<*const str>) -> Vec<u64> {
     let mut offset = 0;
     for term in terms {
         offsets.push(offset as u64);
-        offset +=  unsafe {std::mem::transmute::<*const str, &str>(*term)}.len() + 1; // 1 for linevreak
+        offset += unsafe { std::mem::transmute::<*const str, &str>(*term) }.len() + 1; // 1 for linevreak
     }
     offsets.push(offset as u64);
     offsets
@@ -1016,7 +1010,7 @@ pub fn add_token_values_to_tokens(persistence: &mut Persistence, data_str: &str,
 // }
 
 pub fn create_indices_from_str(
-    mut persistence: &mut Persistence,
+    persistence: &mut Persistence,
     data_str: &str,
     indices: &str,
     create_cache: Option<CreateCache>,
@@ -1028,7 +1022,7 @@ pub fn create_indices_from_str(
     create_indices_from_streams(persistence, stream1, stream2, data_str.lines(), indices, create_cache, load_persistence)
 }
 pub fn create_indices_from_data_path(
-    mut persistence: &mut Persistence,
+    persistence: &mut Persistence,
     data_path: &str,
     indices: &str,
     create_cache: Option<CreateCache>,
@@ -1036,9 +1030,13 @@ pub fn create_indices_from_data_path(
 ) -> Result<(CreateCache), CreateError> {
     info_time!(format!("total time create_indices for {:?}", persistence.db));
 
-    let stream1 = std::io::BufReader::new(File::open(data_path).unwrap()).lines().map(|line|serde_json::from_str(&line.unwrap()));
-    let stream2 = std::io::BufReader::new(File::open(data_path).unwrap()).lines().map(|line|serde_json::from_str(&line.unwrap()));
-    let stream3 = std::io::BufReader::new(File::open(data_path).unwrap()).lines().map(|line|line.unwrap());
+    let stream1 = std::io::BufReader::new(File::open(data_path).unwrap())
+        .lines()
+        .map(|line| serde_json::from_str(&line.unwrap()));
+    let stream2 = std::io::BufReader::new(File::open(data_path).unwrap())
+        .lines()
+        .map(|line| serde_json::from_str(&line.unwrap()));
+    let stream3 = std::io::BufReader::new(File::open(data_path).unwrap()).lines().map(|line| line.unwrap());
     // let stream1 = std::io::BufReader::new(File::open(data_path).unwrap()).lines().map(|line|serde_json::from_str(&line.unwrap()));
 
     // let stream1 = Deserializer::from_str(&data_str).into_iter::<Value>(); //TODO Performance: Use custom line break deserializer to get string and json at the same time
@@ -1046,7 +1044,7 @@ pub fn create_indices_from_data_path(
     create_indices_from_streams(persistence, stream1, stream2, stream3, indices, create_cache, load_persistence)
 }
 
-pub fn create_indices_from_streams<'a, I, J, K, S:AsRef<str>>(
+pub fn create_indices_from_streams<'a, I, J, K, S: AsRef<str>>(
     mut persistence: &mut Persistence,
     stream1: I,
     stream2: J,

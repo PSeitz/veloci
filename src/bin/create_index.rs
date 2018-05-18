@@ -7,13 +7,13 @@ extern crate env_logger;
 extern crate flexi_logger;
 extern crate fst;
 // extern crate fst_levenshtein;
+extern crate cpuprofiler;
 #[macro_use]
 extern crate measure_time;
 extern crate rayon;
 extern crate search_lib;
 #[macro_use]
 extern crate serde_json;
-extern crate cpuprofiler;
 
 #[allow(unused_imports)]
 use fst::{IntoStreamer, MapBuilder, Set};
@@ -143,9 +143,9 @@ fn create_thalia_index_big() -> Result<(), io::Error> {
 
     let f = File::open("data")?;
     let f2 = File::open("data")?;
-    let stream1 = std::io::BufReader::new(&f).lines().map(|line|serde_json::from_str(&line.unwrap()));
-    let stream2 = std::io::BufReader::new(&f2).lines().map(|line|serde_json::from_str(&line.unwrap()));
-    let stream3 = std::io::BufReader::new(File::open("data")?).lines().map(|line|line.unwrap());
+    let stream1 = std::io::BufReader::new(&f).lines().map(|line| serde_json::from_str(&line.unwrap()));
+    let stream2 = std::io::BufReader::new(&f2).lines().map(|line| serde_json::from_str(&line.unwrap()));
+    let stream3 = std::io::BufReader::new(File::open("data")?).lines().map(|line| line.unwrap());
 
     search_lib::create::create_indices_from_streams(
         &mut search_lib::persistence::Persistence::create("thalia_new".to_string()).unwrap(),
@@ -240,8 +240,6 @@ fn create_jmdict_index_shards() -> Result<(), io::Error> {
 }
 use cpuprofiler::PROFILER;
 
-
-
 #[allow(dead_code)]
 fn create_jmdict_index() -> Result<(), io::Error> {
     let indices = r#"
@@ -277,9 +275,13 @@ fn create_jmdict_index() -> Result<(), io::Error> {
     // let stream1 = Deserializer::from_reader(std::io::BufReader::new(&f)).into_iter::<Value>();
     // let stream2 = Deserializer::from_reader(std::io::BufReader::new(&f2)).into_iter::<Value>();
 
-    let stream1 = std::io::BufReader::new(File::open("jmdict_split.json")?).lines().map(|line|serde_json::from_str(&line.unwrap()));
-    let stream2 = std::io::BufReader::new(File::open("jmdict_split.json")?).lines().map(|line|serde_json::from_str(&line.unwrap()));
-    let stream3 = std::io::BufReader::new(File::open("jmdict_split.json")?).lines().map(|line|line.unwrap());
+    let stream1 = std::io::BufReader::new(File::open("jmdict_split.json")?)
+        .lines()
+        .map(|line| serde_json::from_str(&line.unwrap()));
+    let stream2 = std::io::BufReader::new(File::open("jmdict_split.json")?)
+        .lines()
+        .map(|line| serde_json::from_str(&line.unwrap()));
+    let stream3 = std::io::BufReader::new(File::open("jmdict_split.json")?).lines().map(|line| line.unwrap());
 
     // let stream2 = Deserializer::from_reader(File::open("jmdict_split.json")?).into_iter::<Value>();
     search_lib::create::create_indices_from_streams(
@@ -554,7 +556,6 @@ fn create_book_index() -> Result<(), io::Error> {
 
 //     Ok((hits))
 // }
-
 
 // fn create_healtcare() -> Result<(), io::Error> {
 //     let indices = r#"

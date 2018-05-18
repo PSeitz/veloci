@@ -654,13 +654,14 @@ pub fn valid_pair_to_parallel_arrays<T: IndexIdToParentData>(tuples: &mut Vec<cr
 }
 
 #[cfg_attr(feature = "flame_it", flame)]
-pub fn valid_pair_to_indirect_index<T: IndexIdToParentData>(tuples: &mut Vec<create::ValIdPair>, sort_and_dedup: bool) -> IndexIdToMultipleParentIndirect<u32> { //-> Box<IndexIdToParent<Output = u32>> {
+pub fn valid_pair_to_indirect_index<T: IndexIdToParentData>(tuples: &mut Vec<create::ValIdPair>, sort_and_dedup: bool) -> IndexIdToMultipleParentIndirect<u32> {
+    //-> Box<IndexIdToParent<Output = u32>> {
     tuples.sort_unstable_by_key(|a| a.valid);
     let mut index = IndexIdToMultipleParentIndirect::<u32>::default();
     //TODO store max_value_id and resize index
-    for (valid, group) in &tuples.iter().group_by(|a|a.valid) {
-        let mut data:Vec<u32> = group.map(|el|el.parent_val_id).collect();
-        if sort_and_dedup{
+    for (valid, group) in &tuples.iter().group_by(|a| a.valid) {
+        let mut data: Vec<u32> = group.map(|el| el.parent_val_id).collect();
+        if sort_and_dedup {
             data.sort_unstable();
             data.dedup();
         }
@@ -671,7 +672,8 @@ pub fn valid_pair_to_indirect_index<T: IndexIdToParentData>(tuples: &mut Vec<cre
 }
 
 #[cfg_attr(feature = "flame_it", flame)]
-pub fn valid_pair_to_direct_index<T: IndexIdToParentData>(tuples: &mut Vec<create::ValIdPair>) -> IndexIdToOneParent<u32> { //-> Box<IndexIdToParent<Output = u32>> {
+pub fn valid_pair_to_direct_index<T: IndexIdToParentData>(tuples: &mut Vec<create::ValIdPair>) -> IndexIdToOneParent<u32> {
+    //-> Box<IndexIdToParent<Output = u32>> {
     tuples.sort_unstable_by_key(|a| a.valid);
     let mut index = IndexIdToOneParent::<u32>::default();
     //TODO store max_value_id and resize index

@@ -65,7 +65,7 @@ where
 #[test]
 fn test_top_n_sort() {
     let dat = vec![
-        3, 5, 9, 10, 10, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9,
+        3, 5, 9, 10, 10, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9
     ];
     let yops = get_top_n_sort_from_iter(dat.iter(), 2, |a, b| b.cmp(&a));
     assert_eq!(yops, vec![&10, &10]);
@@ -86,17 +86,27 @@ struct ShardResultHit<'a> {
 
 use std::io::BufRead;
 fn merge_persistences(persistences: &[&Persistence], mut target_persistence: &mut Persistence, indices: &str) -> Result<(), create::CreateError> {
-    let get_doc_json_stream = ||{
-        persistences
-        .iter()
-        .flat_map(|pers| std::io::BufReader::new(pers.get_file_handle("data").unwrap()).lines().map(|line|serde_json::from_str(&line.unwrap())) )
+    let get_doc_json_stream = || {
+        persistences.iter().flat_map(|pers| {
+            std::io::BufReader::new(pers.get_file_handle("data").unwrap())
+                .lines()
+                .map(|line| serde_json::from_str(&line.unwrap()))
+        })
     };
-    let get_doc_stream = ||{
+    let get_doc_stream = || {
         persistences
-        .iter()
-        .flat_map(|pers| std::io::BufReader::new(pers.get_file_handle("data").unwrap()).lines().map(|el|el.unwrap()))
+            .iter()
+            .flat_map(|pers| std::io::BufReader::new(pers.get_file_handle("data").unwrap()).lines().map(|el| el.unwrap()))
     };
-    create::create_indices_from_streams(&mut target_persistence, get_doc_json_stream(), get_doc_json_stream(), get_doc_stream(), indices, None, true)?;
+    create::create_indices_from_streams(
+        &mut target_persistence,
+        get_doc_json_stream(),
+        get_doc_json_stream(),
+        get_doc_stream(),
+        indices,
+        None,
+        true,
+    )?;
     Ok(())
 }
 
@@ -162,7 +172,7 @@ impl Shards {
                     println!("deleting {:?}", &shard.persistence.db);
                     fs::remove_dir_all(&shard.persistence.db);
                     false
-                }else{
+                } else {
                     true
                 }
             });
@@ -185,7 +195,7 @@ impl Shards {
     fn get_new_shard(&self) -> Result<(Shard), search::SearchError> {
         let shard_id = self.current_id.fetch_add(1, atomic::Ordering::SeqCst);
         let path = self.path.to_owned() + "/" + &shard_id.to_string();
-        let mut persistence = Persistence::create_type(path.to_string(), persistence::PersistenceType::Persistent)?;
+        let persistence = Persistence::create_type(path.to_string(), persistence::PersistenceType::Persistent)?;
         Ok(Shard {
             shard_id: shard_id as u64,
             persistence,
@@ -205,7 +215,10 @@ impl Shards {
                 print_time!(format!("search shard {:?}", shard.shard_id));
                 let request = query_generator::search_query(&shard.persistence, q_params.clone());
                 let result = search::search(request, &shard.persistence)?;
-                Ok(ShardResult { shard: &shard, result: result })
+                Ok(ShardResult {
+                    shard: &shard,
+                    result: result,
+                })
             })
             .collect::<Result<Vec<ShardResult>, search::SearchError>>()?;
 
