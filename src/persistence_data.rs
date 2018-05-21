@@ -654,13 +654,12 @@ pub fn valid_pair_to_parallel_arrays<T: IndexIdToParentData>(tuples: &mut Vec<cr
 }
 
 #[cfg_attr(feature = "flame_it", flame)]
-pub fn valid_pair_to_indirect_index<T: IndexIdToParentData>(tuples: &mut Vec<create::ValIdPair>, sort_and_dedup: bool) -> IndexIdToMultipleParentIndirect<u32> {
-    //-> Box<IndexIdToParent<Output = u32>> {
-    tuples.sort_unstable_by_key(|a| a.valid);
+pub fn valid_pair_to_indirect_index<T: create::KeyValuePair>(tuples: &mut [T], sort_and_dedup: bool) -> IndexIdToMultipleParentIndirect<u32> {
+    tuples.sort_unstable_by_key(|a| a.get_key());
     let mut index = IndexIdToMultipleParentIndirect::<u32>::default();
     //TODO store max_value_id and resize index
-    for (valid, group) in &tuples.iter().group_by(|a| a.valid) {
-        let mut data: Vec<u32> = group.map(|el| el.parent_val_id).collect();
+    for (valid, group) in &tuples.iter().group_by(|a| a.get_key()) {
+        let mut data: Vec<u32> = group.map(|el| el.get_value()).collect();
         if sort_and_dedup {
             data.sort_unstable();
             data.dedup();
@@ -672,25 +671,25 @@ pub fn valid_pair_to_indirect_index<T: IndexIdToParentData>(tuples: &mut Vec<cre
 }
 
 #[cfg_attr(feature = "flame_it", flame)]
-pub fn valid_pair_to_direct_index<T: IndexIdToParentData>(tuples: &mut Vec<create::ValIdPair>) -> IndexIdToOneParent<u32> {
+pub fn valid_pair_to_direct_index<T: create::KeyValuePair>(tuples: &mut [T]) -> IndexIdToOneParent<u32> {
     //-> Box<IndexIdToParent<Output = u32>> {
-    tuples.sort_unstable_by_key(|a| a.valid);
+    tuples.sort_unstable_by_key(|a| a.get_key());
     let mut index = IndexIdToOneParent::<u32>::default();
     //TODO store max_value_id and resize index
     for el in tuples.iter() {
-        index.data.resize(el.valid as usize + 1, NOT_FOUND);
-        index.data[el.valid as usize] = el.parent_val_id;
-        index.max_value_id = std::cmp::max(index.max_value_id, el.parent_val_id);
+        index.data.resize(el.get_key() as usize + 1, NOT_FOUND);
+        index.data[el.get_key() as usize] = el.get_value();
+        index.max_value_id = std::cmp::max(index.max_value_id, el.get_value());
     }
 
     index
 }
 
 #[cfg_attr(feature = "flame_it", flame)]
-pub fn boost_pair_to_parallel_arrays<T: IndexIdToParentData>(tuples: &mut Vec<create::ValIdToValue>) -> ParallelArrays<T> {
-    tuples.sort_unstable_by_key(|a| a.valid);
-    let valids = tuples.iter().map(|el| NumCast::from(el.valid).unwrap()).collect::<Vec<_>>();
-    let values = tuples.iter().map(|el| NumCast::from(el.value).unwrap()).collect::<Vec<_>>();
+pub fn boost_pair_to_parallel_arrays<T: create::KeyValuePair>(tuples: &mut [T]) -> ParallelArrays<u32> {
+    tuples.sort_unstable_by_key(|a| a.get_key());
+    let valids = tuples.iter().map(|el| NumCast::from(el.get_key()).unwrap()).collect::<Vec<_>>();
+    let values = tuples.iter().map(|el| NumCast::from(el.get_value()).unwrap()).collect::<Vec<_>>();
     ParallelArrays {
         values1: valids,
         values2: values,

@@ -11,7 +11,7 @@ use std::io::SeekFrom;
 use std::mem;
 use std::mem::transmute;
 use std::path::Path;
-
+use search::Hit;
 use std;
 
 pub fn normalize_text(text: &str) -> String {
@@ -34,7 +34,7 @@ pub fn normalize_text(text: &str) -> String {
     new_str.to_lowercase().trim().to_owned()
 }
 
-use search::Hit;
+
 
 pub fn get_bit_at(input: u32, n: u8) -> bool {
     if n < 32 {

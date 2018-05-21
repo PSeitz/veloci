@@ -6,7 +6,7 @@ use std::mem::transmute;
 use std::path::Path;
 use std::ptr;
 use type_info::TypeInfo;
-
+use search;
 use std::io;
 use std::io::prelude::*;
 
@@ -70,9 +70,9 @@ impl TokenToAnchorScoreBinary {
         Ok(())
     }
 
-    pub fn read<P: AsRef<Path> + std::fmt::Debug>(&mut self, path_indirect: P, path_data: P) -> Result<(), io::Error> {
+    pub fn read<P: AsRef<Path> + std::fmt::Debug>(&mut self, path_indirect: P, path_data: P) -> Result<(), search::SearchError> {
         self.start_pos = load_index_u32(path_indirect)?;
-        self.data = file_to_bytes(path_data)?;
+        self.data = file_path_to_bytes(path_data)?;
         Ok(())
     }
 }

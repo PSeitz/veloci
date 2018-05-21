@@ -336,8 +336,8 @@ impl Persistence {
 
             let indirect_path = get_file_path(&self.db, &el.path) + ".indirect";
             let indirect_data_path = get_file_path(&self.db, &el.path) + ".data";
-            let start_and_end_file = File::open(&indirect_path).unwrap();
-            let data_file = File::open(&indirect_data_path).unwrap();
+            let start_and_end_file = get_file_handle_complete_path(&indirect_path)?;
+            let data_file = get_file_handle_complete_path(&indirect_data_path)?;
             match loading_type {
                 // LoadingType::Disk => {
                 //     let store = TokenToAnchorScoreMmap::new(&start_and_end_file, &data_file);
@@ -374,13 +374,13 @@ impl Persistence {
 
                 let indirect_path = get_file_path(&self.db, &el.path) + ".indirect";
                 let indirect_data_path = get_file_path(&self.db, &el.path) + ".data";
-                let data_direct_path = get_file_path(&self.db, &el.path) + ".data_direct";
+                let data_direct_path = get_file_path(&self.db, &el.path);
 
                 match loading_type {
                     LoadingType::InMemoryUnCompressed => match el.persistence_type {
                         KVStoreType::IndexIdToMultipleParentIndirect => {
-                            let indirect_u32 = bytes_to_vec_u32(&file_to_bytes(&indirect_path)?);
-                            let data_u32 = bytes_to_vec_u32(&file_to_bytes(&indirect_data_path)?);
+                            let indirect_u32 = bytes_to_vec_u32(&file_handle_to_bytes(&get_file_handle_complete_path(&indirect_path)?)?);
+                            let data_u32 = bytes_to_vec_u32(&file_handle_to_bytes(&get_file_handle_complete_path(&indirect_data_path)?)?);
 
                             let store = IndexIdToMultipleParentIndirect {
                                 start_pos: indirect_u32,
@@ -396,7 +396,7 @@ impl Persistence {
                         KVStoreType::ParallelArrays => panic!("WAAAAAAA PAAAANIIC"),
                         KVStoreType::IndexIdToOneParent => {
                             let store = IndexIdToOneParent {
-                                data: bytes_to_vec_u32(&file_to_bytes(&data_direct_path)?),
+                                data: bytes_to_vec_u32(&file_path_to_bytes(&data_direct_path)?),
                                 max_value_id: el.max_value_id,
                             };
 
@@ -405,8 +405,8 @@ impl Persistence {
                     },
                     LoadingType::InMemory => match el.persistence_type {
                         KVStoreType::IndexIdToMultipleParentIndirect => {
-                            let indirect_u32 = bytes_to_vec_u32(&file_to_bytes(&indirect_path)?);
-                            let data_u32 = bytes_to_vec_u32(&file_to_bytes(&indirect_data_path)?);
+                            let indirect_u32 = bytes_to_vec_u32(&file_path_to_bytes(&indirect_path)?);
+                            let data_u32 = bytes_to_vec_u32(&file_path_to_bytes(&indirect_data_path)?);
 
                             let store = IndexIdToMultipleParentIndirect {
                                 start_pos: indirect_u32,
@@ -421,7 +421,7 @@ impl Persistence {
                         }
                         KVStoreType::ParallelArrays => panic!("WAAAAAAA"),
                         KVStoreType::IndexIdToOneParent => {
-                            let data_u32 = bytes_to_vec_u32(&file_to_bytes(&data_direct_path)?);
+                            let data_u32 = bytes_to_vec_u32(&file_path_to_bytes(&data_direct_path)?);
 
                             let store = IndexIdToOneParentMayda::from_vec(&data_u32, el.max_value_id);
 
@@ -431,8 +431,8 @@ impl Persistence {
                     LoadingType::Disk => {
                         match el.persistence_type {
                             KVStoreType::IndexIdToMultipleParentIndirect => {
-                                let start_and_end_file = self.get_file_handle_complete_path(&indirect_path)?;
-                                let data_file = self.get_file_handle_complete_path(&indirect_data_path)?;
+                                let start_and_end_file = get_file_handle_complete_path(&indirect_path)?;
+                                let data_file = get_file_handle_complete_path(&indirect_data_path)?;
                                 let indirect_metadata = self.get_file_metadata_handle_complete_path(&indirect_path)?;
                                 // let data_metadata = self.get_file_metadata_handle(&(el.path.to_string() + ".data"))?;
                                 // let store = PointingMMAPFileReader::new(
@@ -461,7 +461,7 @@ impl Persistence {
                             }
                             KVStoreType::ParallelArrays => panic!("WAAAAAAA"),
                             KVStoreType::IndexIdToOneParent => {
-                                let data_file = self.get_file_handle_complete_path(&data_direct_path)?;
+                                let data_file = get_file_handle_complete_path(&data_direct_path)?;
                                 let data_metadata = self.get_file_metadata_handle_complete_path(&data_direct_path)?;
                                 let store = SingleArrayMMAP::<u32>::new(data_file, data_metadata, el.max_value_id);
 
@@ -482,11 +482,29 @@ impl Persistence {
 
         // Load Boost Indices
         for el in &self.meta_data.boost_stores {
-            let encoded = file_to_bytes(&get_file_path(&self.db, &el.path))?;
-            let store: ParallelArrays<u32> = deserialize(&encoded[..]).unwrap();
-            self.indices
-                .boost_valueid_to_value
-                .insert(el.path.to_string(), Box::new(IndexIdToOneParentMayda::<u32>::new(&store, u32::MAX))); // TODO: enable other Diskbased Types
+
+            match el.persistence_type {
+                KVStoreType::IndexIdToMultipleParentIndirect => {
+                    panic!("WAAAAA");
+                }
+                KVStoreType::IndexIdToOneParent => {
+                    let data_file = self.get_file_handle(&el.path)?;
+                    let data_metadata = self.get_file_metadata_handle(&el.path)?;
+                    let store = SingleArrayMMAP::<u32>::new(data_file, data_metadata, el.max_value_id);
+                    self.indices
+                        .boost_valueid_to_value
+                        .insert(el.path.to_string(), Box::new(IndexIdToOneParentMayda::<u32>::new(&store, u32::MAX)));
+                },
+                KVStoreType::ParallelArrays => {
+                    let encoded = file_path_to_bytes(&get_file_path(&self.db, &el.path))?;
+                    let store: ParallelArrays<u32> = deserialize(&encoded[..]).unwrap();
+                    self.indices
+                        .boost_valueid_to_value
+                        .insert(el.path.to_string(), Box::new(IndexIdToOneParentMayda::<u32>::new(&store, u32::MAX))); // TODO: enable other Diskbased Types
+        
+                }
+            }
+
         }
 
         // Load FST
@@ -529,11 +547,6 @@ impl Persistence {
     #[cfg_attr(feature = "flame_it", flame)]
     pub fn get_file_metadata_handle_complete_path(&self, path: &str) -> Result<fs::Metadata, io::Error> {
         Ok(fs::metadata(path)?)
-    }
-
-    #[cfg_attr(feature = "flame_it", flame)]
-    pub fn get_file_handle_complete_path(&self, path: &str) -> Result<File, search::SearchError> {
-        Ok(File::open(path).map_err(|err| search::SearchError::StringError(format!("Could not open {} {:?}", path, err)))?)
     }
 
     #[cfg_attr(feature = "flame_it", flame)]
@@ -680,65 +693,38 @@ impl Persistence {
         ))
     }
 
-    #[cfg_attr(feature = "flame_it", flame)]
-    pub fn write_boost_tuple_pair(&self, tuples: &mut Vec<create::ValIdToValue>, path: &str) -> Result<(KVStoreMetaData), io::Error> {
-        let data = boost_pair_to_parallel_arrays::<u32>(tuples);
-        let encoded: Vec<u8> = serialize(&data).unwrap();
-        let boost_path = path.to_string() + ".boost_valid_to_value";
-        File::create(util::get_file_path(&self.db, &boost_path))?.write_all(&encoded)?;
-
-        Ok(KVStoreMetaData {
-            loading_type: LoadingType::Disk,
-            persistence_type: KVStoreType::ParallelArrays,
-            is_1_to_n: data.is_1_to_n(),
-            path: boost_path.to_string(),
-            max_value_id: tuples
-                .iter()
-                .max_by_key(|el| el.value)
-                .unwrap_or_else(|| &create::ValIdToValue { valid: 0, value: 0 })
-                .value,
-            avg_join_size: 1.0, //FixMe? multiple boosts?
-        })
-    }
-
-    pub fn write_tuple_pair_dedup(
+    pub fn write_tuple_pair_dedup<S: AsRef<str>>(
         &self,
         tuples: &mut Vec<create::ValIdPair>,
-        path: &str,
+        path: S,
         sort_and_dedup: bool,
         is_always_1_to_1: bool,
         loading_type: LoadingType,
     ) -> Result<(KVStoreMetaData), io::Error> {
-        // let data = valid_pair_to_parallel_arrays::<u32>(tuples);
 
         if is_always_1_to_1 {
-            // let max_value_id = tuples.iter().max_by_key(|el| el.parent_val_id).map(|el| el.parent_val_id).unwrap_or(0);
-            let store = valid_pair_to_direct_index::<u32>(tuples);
-            Ok(self.write_direct_index(&store, path, loading_type)?)
+            let store = valid_pair_to_direct_index(tuples);
+            Ok(self.write_direct_index(&store, &(path.as_ref().into_string()), loading_type)?)
         } else {
-            let store = valid_pair_to_indirect_index::<u32>(tuples, sort_and_dedup);
-            // let store = IndexIdToMultipleParentIndirect::new_sort_and_dedup(&data, sort_and_dedup);
-            Ok(self.write_indirect_index(&store, path, loading_type)?)
+            let store = valid_pair_to_indirect_index(tuples, sort_and_dedup);
+            Ok(self.write_indirect_index(&store, path.as_ref(), loading_type)?)
         }
-        //Parallel
-        // let encoded: Vec<u8> = serialize(&data, Infinite).unwrap();
-        // File::create(util::get_file_path(&self.db, &path.to_string()))?.write_all(&encoded)?;
     }
 
     #[cfg_attr(feature = "flame_it", flame)]
-    pub fn write_tuple_pair(
+    pub fn write_tuple_pair<S: AsRef<str>>(
         &self,
         tuples: &mut Vec<create::ValIdPair>,
-        path: &str,
+        path: S,
         is_always_1_to_1: bool,
         loading_type: LoadingType,
     ) -> Result<(KVStoreMetaData), io::Error> {
-        let meta_data = self.write_tuple_pair_dedup(tuples, path, false, is_always_1_to_1, loading_type)?;
+        let meta_data = self.write_tuple_pair_dedup(tuples, path.as_ref(), false, is_always_1_to_1, loading_type)?;
         Ok(meta_data)
     }
 
-    pub fn write_direct_index(&self, store: &IndexIdToOneParent<u32>, path: &str, loading_type: LoadingType) -> Result<(KVStoreMetaData), io::Error> {
-        let data_file_path = util::get_file_path(&self.db, &(path.to_string() + ".data_direct"));
+    pub fn write_direct_index<S: AsRef<str>>(&self, store: &IndexIdToOneParent<u32>, path: S, loading_type: LoadingType) -> Result<(KVStoreMetaData), io::Error> {
+        let data_file_path = util::get_file_path(&self.db, &(path.as_ref().into_string() ));
 
         if self.persistence_type == PersistenceType::Persistent {
             File::create(data_file_path)?.write_all(&vec_to_bytes_u32(&store.data))?;
@@ -748,7 +734,7 @@ impl Persistence {
             loading_type: loading_type,
             persistence_type: KVStoreType::IndexIdToOneParent,
             is_1_to_n: false,
-            path: path.to_string(),
+            path: path.as_ref().into_string(),
             max_value_id: store.max_value_id,
             avg_join_size: 1 as f32, //TODO FIXME CHECKO NULLOS, 1 is not exact enough
         })
@@ -1019,12 +1005,12 @@ pub fn bytes_to_vec<T>(data: &[u8]) -> Vec<T> {
     out_dat
 }
 
-pub fn file_to_bytes<P: AsRef<Path>>(s1: P) -> Result<Vec<u8>, io::Error> {
-    let f = File::open(s1)?;
+pub fn file_path_to_bytes<P: AsRef<Path> + std::fmt::Debug>(s1: P) -> Result<Vec<u8>, search::SearchError> {
+    let f = get_file_handle_complete_path(s1)?;
     file_handle_to_bytes(&f)
 }
 
-pub fn file_handle_to_bytes(f: &File) -> Result<Vec<u8>, io::Error> {
+pub fn file_handle_to_bytes(f: &File) -> Result<Vec<u8>, search::SearchError> {
     let file_size = { f.metadata()?.len() as usize };
     let mut reader = std::io::BufReader::new(f);
     let mut buffer: Vec<u8> = Vec::with_capacity(file_size);
@@ -1033,14 +1019,14 @@ pub fn file_handle_to_bytes(f: &File) -> Result<Vec<u8>, io::Error> {
     Ok(buffer)
 }
 
-pub fn load_index_u32<P: AsRef<Path> + std::fmt::Debug>(s1: P) -> Result<Vec<u32>, io::Error> {
+pub fn load_index_u32<P: AsRef<Path> + std::fmt::Debug>(s1: P) -> Result<Vec<u32>, search::SearchError> {
     info!("Loading Index32 {:?} ", s1);
-    Ok(bytes_to_vec_u32(&file_to_bytes(s1)?))
+    Ok(bytes_to_vec_u32(&file_path_to_bytes(s1)?))
 }
 
-pub fn load_index_u64<P: AsRef<Path> + std::fmt::Debug>(s1: P) -> Result<Vec<u64>, io::Error> {
+pub fn load_index_u64<P: AsRef<Path> + std::fmt::Debug>(s1: P) -> Result<Vec<u64>, search::SearchError> {
     info!("Loading Index64 {:?} ", s1);
-    Ok(bytes_to_vec_u64(&file_to_bytes(s1)?))
+    Ok(bytes_to_vec_u64(&file_path_to_bytes(s1)?))
 }
 
 fn check_is_docid_type<T: Integer + NumCast + Copy>(data: &[T]) -> bool {
@@ -1051,4 +1037,9 @@ fn check_is_docid_type<T: Integer + NumCast + Copy>(data: &[T]) -> bool {
         }
     }
     true
+}
+
+
+pub fn get_file_handle_complete_path<P: AsRef<Path> + std::fmt::Debug>(path: P) -> Result<File, search::SearchError> {
+    Ok(File::open(&path).map_err(|err| search::SearchError::StringError(format!("Could not open {:?} {:?}", path, err)))?)
 }

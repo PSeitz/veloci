@@ -167,42 +167,65 @@ pub struct TokenToAnchorScore {
     pub score: u32,
 }
 
-pub trait AccessValueId {
-    fn get_value_id(&self) -> u32;
-    fn set_value_id(&mut self, id: u32);
+pub trait KeyValuePair {
+    fn get_key(&self) -> u32;
+    fn set_key(&mut self, id: u32);
+    fn get_value(&self) -> u32;
+    fn set_value(&mut self, id: u32);
 }
 
-impl AccessValueId for ValIdPair {
+impl KeyValuePair for ValIdPair {
     #[inline]
-    fn get_value_id(&self) -> u32 {
+    fn get_key(&self) -> u32 {
         self.valid
     }
-
     #[inline]
-    fn set_value_id(&mut self, id: u32) {
+    fn set_key(&mut self, id: u32) {
         self.valid = id;
     }
-}
-impl AccessValueId for ValIdPairToken {
     #[inline]
-    fn get_value_id(&self) -> u32 {
+    fn get_value(&self) -> u32 {
+        self.parent_val_id
+    }
+    #[inline]
+    fn set_value(&mut self, id: u32) {
+        self.parent_val_id = id;
+    }
+}
+impl KeyValuePair for ValIdPairToken {
+    #[inline]
+    fn get_key(&self) -> u32 {
         self.token_or_text_id
     }
-
     #[inline]
-    fn set_value_id(&mut self, id: u32) {
+    fn set_key(&mut self, id: u32) {
         self.token_or_text_id = id;
     }
-}
-impl AccessValueId for ValIdToValue {
     #[inline]
-    fn get_value_id(&self) -> u32 {
+    fn get_value(&self) -> u32 {
+        self.anchor_id
+    }
+    #[inline]
+    fn set_value(&mut self, id: u32) {
+        self.anchor_id = id;
+    }
+}
+impl KeyValuePair for ValIdToValue {
+    #[inline]
+    fn get_key(&self) -> u32 {
         self.valid
     }
-
     #[inline]
-    fn set_value_id(&mut self, id: u32) {
+    fn set_key(&mut self, id: u32) {
         self.valid = id;
+    }
+    #[inline]
+    fn get_value(&self) -> u32 {
+        self.value
+    }
+    #[inline]
+    fn set_value(&mut self, id: u32) {
+        self.value = id;
     }
 }
 
@@ -375,7 +398,17 @@ fn calculate_token_score_in_doc(tokens_to_anchor_id: &mut Vec<ValIdPairToken>) -
         }
     }); // sort by parent id
 
-    let mut dat = vec![];
+    // Sort by anchor, tokenid
+    // tokens_to_anchor_id.sort_by(|a, b| {
+    //     let sort_anch = a.anchor_id.cmp(&b.anchor_id);
+    //     if sort_anch == std::cmp::Ordering::Equal {
+    //         a.token_or_text_id.cmp(&b.token_or_text_id)
+    //     } else {
+    //         sort_anch
+    //     }
+    // }); // sort by parent id
+
+    let mut dat = Vec::with_capacity(tokens_to_anchor_id.len());
     for (_, mut group) in &tokens_to_anchor_id.into_iter().group_by(|el| (el.anchor_id, el.token_or_text_id)) {
         let first = group.next().unwrap();
         let best_pos = first.token_pos;
@@ -506,10 +539,10 @@ fn check_similarity(data: &FnvHashMap<String, FnvHashMap<String, TermInfo>>) {
     }
 }
 
-fn replace_term_ids<T: AccessValueId>(yep: &mut Vec<T>, index: &Vec<u32>) {
+fn replace_term_ids<T: KeyValuePair>(yep: &mut Vec<T>, index: &Vec<u32>) {
     for el in yep.iter_mut() {
-        let val_id = el.get_value_id() as usize;
-        el.set_value_id(index[val_id]);
+        let val_id = el.get_key() as usize;
+        el.set_key(index[val_id]);
     }
 }
 
@@ -717,6 +750,129 @@ fn trace_indices(path_data: &FnvHashMap<String, PathData>) {
     }
 }
 
+use persistence_data::*;
+
+fn add_index(path: String,
+    tuples: &mut Vec<ValIdPair>,
+    is_always_1_to_1: bool,
+    sort_and_dedup: bool,
+    indices: &mut IndicesFromRawData,)
+{
+    if is_always_1_to_1 {
+        let store = valid_pair_to_direct_index(tuples);
+        indices.direct_indices.push((path, store));
+    } else {
+        let store = valid_pair_to_indirect_index(tuples, sort_and_dedup);
+        indices.indirect_indices.push((path, store));
+    }
+}
+
+#[derive(Debug, Default)]
+struct IndicesFromRawData {
+    direct_indices: Vec<(String, IndexIdToOneParent<u32>)>,
+    boost_indices: Vec<(String, IndexIdToOneParent<u32>)>,
+    indirect_indices: Vec<(String, IndexIdToMultipleParentIndirect<u32>)>,
+    anchor_score_indices: Vec<(String, TokenToAnchorScoreVint)>,
+}
+
+fn convert_raw_path_data_to_indices(path_data: &mut FnvHashMap<String, PathData>) -> IndicesFromRawData {
+    info_time!("convert_raw_path_data_to_indices");
+    // let mut indices = IndicesFromRawData::default();
+    // let mut direct_indices: Vec<(String, IndexIdToOneParent<u32>)>                 = vec![];
+    // let mut indirect_indices: Vec<(String, IndexIdToMultipleParentIndirect<u32>)>  = vec![];
+    // let mut anchor_score_indices: Vec<(String, TokenToAnchorScoreVint)>            = vec![];
+
+    let is_text_id_to_parent = |path: &str| path.ends_with(".textindex");
+    // info_time!(format!("convert indices {:?}", persistence.db.to_string()));
+
+    // let write_and_flip_tuples = |persistence: &Persistence,
+    //                              path: &str,
+    //                              tuples: &mut Vec<ValIdPair>,
+    //                              key_value_stores: &mut Vec<persistence::KVStoreMetaData>|
+    //  -> Result<(), io::Error> {
+
+
+
+    //     let loading_type = if facet_index.contains(path) && !is_1_to_n(path) {
+    //         LoadingType::InMemoryUnCompressed
+    //     } else {
+    //         LoadingType::Disk
+    //     };
+
+    //     key_value_stores.push(persistence.write_tuple_pair(tuples, &concat(&path, ".parentToValueId"), !is_1_to_n(path), loading_type)?);
+    //     Ok(())
+    // };
+
+    // path_data.par_iter_mut().for_each(|(path, mut data)| {
+
+    let indices_vec: Vec<_> = path_data
+        .into_par_iter()
+        .map(|(path, data)| {
+            let mut indices = IndicesFromRawData::default();
+
+            let path = &path;
+            add_index(concat(path, ".tokens_to_text_id"), &mut data.tokens_to_text_id, false, true, &mut indices);
+
+            let mut token_to_anchor_id_score_vint_index = TokenToAnchorScoreVint::default();
+            let mut token_to_anchor_id_scores = calculate_token_score_in_doc(&mut data.tokens_to_anchor_id);
+            token_to_anchor_id_scores.sort_unstable_by_key(|a| a.valid);
+            for (token_id, mut group) in &token_to_anchor_id_scores.into_iter().group_by(|el| (el.valid)) {
+                let mut group:Vec<TokenToAnchorScore> = group.collect();
+                group.sort_unstable_by_key(|a| a.anchor_id);
+                let mut groupo: Vec<u32> = vec![];
+                for el in group {
+                    groupo.push(el.anchor_id);
+                    groupo.push(el.score);
+                }
+                token_to_anchor_id_score_vint_index.set_scores(token_id, groupo);
+            }
+            indices.anchor_score_indices.push((concat(path, ".to_anchor_id_score"), token_to_anchor_id_score_vint_index));
+
+            let sort_and_dedup = false;
+            indices.indirect_indices.push((concat(path, ".text_id_to_token_ids"), data.text_id_to_token_ids.clone()));
+
+            let is_alway_1_to_1 = !is_text_id_to_parent(path); // valueIdToParent relation is always 1 to 1, expect for text_ids, which can have multiple parents
+
+            add_index(concat(path, ".valueIdToParent"), &mut data.text_id_to_parent, is_alway_1_to_1, sort_and_dedup, &mut indices);
+            //Flip values
+            for el in data.text_id_to_parent.iter_mut() {
+                std::mem::swap(&mut el.parent_val_id, &mut el.valid);
+            }
+            add_index(concat(path, ".parentToValueId"), &mut data.text_id_to_parent, !is_1_to_n(path), sort_and_dedup, &mut indices);
+
+            add_index(concat(path, ".text_id_to_anchor"), &mut data.text_id_to_anchor, false, sort_and_dedup, &mut indices);
+           
+            if let Some(ref mut anchor_to_text_id) = data.anchor_to_text_id {
+                add_index(concat(path, ".anchor_to_text_id"), anchor_to_text_id, false, sort_and_dedup, &mut indices);
+            }
+
+            if let Some(ref mut tuples) = data.boost {
+                let store = valid_pair_to_direct_index(tuples);
+                indices.boost_indices.push((concat(&extract_field_name(path), ".boost_valid_to_value"), store));
+            }
+
+            indices
+    }).collect();
+
+    let mut indices = IndicesFromRawData::default();
+
+    for mut indice in indices_vec{
+        indices.direct_indices.append(&mut indice.direct_indices);
+        indices.indirect_indices.append(&mut indice.indirect_indices);
+        indices.boost_indices.append(&mut indice.boost_indices);
+        indices.anchor_score_indices.append(&mut indice.anchor_score_indices);
+    }
+
+    // TODO handle u64 idlists
+    // let mut key_value_stores = vec![];
+    // for (path, mut tuples) in tuples_to_parent_in_path.iter_mut() {
+    //     write_and_flip_tuples(&mut persistence, path, &mut tuples, &mut key_value_stores)?;
+    // }
+
+    indices
+
+}
+
 pub fn create_fulltext_index<'a, I, J, K, S: AsRef<str>>(
     stream1: I,
     stream2: J,
@@ -786,7 +942,7 @@ where
     info_time!("create and write fulltext_index");
     trace!("all_terms {:?}", create_cache.term_data.terms_in_path);
 
-    let (path_data, mut tuples_to_parent_in_path) =
+    let (mut path_data, mut tuples_to_parent_in_path) =
         parse_json_and_prepare_indices(stream2, &fulltext_info_for_path, &boost_info_for_path, &facet_index, create_cache)?;
 
     let (id_list_path, id_list_meta_data) = persistence.write_offset(
@@ -800,6 +956,30 @@ where
 
     if log_enabled!(log::Level::Trace) {
         trace_indices(&path_data)
+    }
+
+    {
+        let mut key_value_stores = vec![];
+        let mut anchor_score_stores = vec![];
+        let mut boost_stores = vec![];
+        let indices = convert_raw_path_data_to_indices(&mut path_data);
+
+        //TODO DEFAULT LOADING TYPE FOR FACETTES IS WRONG
+        for ind_index in indices.indirect_indices.iter() {
+            key_value_stores.push(persistence.write_indirect_index(&ind_index.1, &ind_index.0, LoadingType::Disk)?);
+        }
+        for direct_index in indices.direct_indices.iter() {
+            key_value_stores.push(persistence.write_direct_index(&direct_index.1, direct_index.0.to_string(), LoadingType::Disk)?);
+        }
+        for direct_index in indices.anchor_score_indices.iter() {
+            anchor_score_stores.push(persistence.write_score_index_vint(&direct_index.1, &direct_index.0, LoadingType::Disk)?);
+        }
+        for direct_index in indices.boost_indices.iter() {
+            boost_stores.push(persistence.write_direct_index(&direct_index.1, &direct_index.0, LoadingType::Disk)?);
+        }
+        persistence.meta_data.key_value_stores.extend(key_value_stores);
+        persistence.meta_data.anchor_score_stores.extend(anchor_score_stores);
+        persistence.meta_data.boost_stores.extend(boost_stores);
     }
 
     {
@@ -828,74 +1008,6 @@ where
             key_value_stores.push(persistence.write_tuple_pair(tuples, &concat(&path, ".parentToValueId"), !is_1_to_n(path), loading_type)?);
             Ok(())
         };
-
-        let reso: Result<Vec<_>, io::Error> = path_data
-            .into_par_iter()
-            .map(|(path, mut data)| {
-                let mut key_value_stores = vec![];
-                let mut anchor_score_stores = vec![];
-                let mut boost_stores = vec![];
-                let path = &path;
-                key_value_stores.push(persistence.write_tuple_pair_dedup(
-                    &mut data.tokens_to_text_id,
-                    &concat(path, ".tokens_to_text_id"),
-                    true,
-                    false,
-                    LoadingType::Disk,
-                )?);
-
-                let mut token_to_anchor_id_score_vint_index = TokenToAnchorScoreVint::default();
-
-                let token_to_anchor_id_scores = calculate_token_score_in_doc(&mut data.tokens_to_anchor_id);
-                data.token_to_anchor_id_score.extend(token_to_anchor_id_scores);
-                data.token_to_anchor_id_score.sort_unstable_by_key(|a| a.valid);
-                for (token_id, mut group) in &data.token_to_anchor_id_score.into_iter().group_by(|el| (el.valid)) {
-                    let mut group: Vec<(u32, u32)> = group.map(|el| (el.anchor_id, (el.score))).collect();
-                    group.sort_unstable_by_key(|a| a.0);
-                    token_to_anchor_id_score_vint_index.set_scores(token_id, group);
-                }
-                anchor_score_stores.push(persistence.write_score_index_vint(
-                    &token_to_anchor_id_score_vint_index,
-                    &concat(path, ".to_anchor_id_score"),
-                    LoadingType::Disk,
-                )?);
-
-                key_value_stores.push(persistence.write_indirect_index(
-                    &mut data.text_id_to_token_ids,
-                    &concat(path, ".text_id_to_token_ids"),
-                    LoadingType::Disk,
-                )?);
-
-                write_and_flip_tuples(&persistence, path, &mut data.text_id_to_parent, &mut key_value_stores)?;
-
-                key_value_stores.push(persistence.write_tuple_pair(
-                    &mut data.text_id_to_anchor,
-                    &concat(path, ".text_id_to_anchor"),
-                    false,
-                    LoadingType::Disk,
-                )?);
-
-                if let Some(ref mut anchor_to_text_id) = data.anchor_to_text_id {
-                    key_value_stores.push(persistence.write_tuple_pair(
-                        anchor_to_text_id,
-                        &concat(&path, ".anchor_to_text_id"),
-                        false,
-                        LoadingType::InMemoryUnCompressed,
-                    )?);
-                }
-                if let Some(ref mut tuples) = data.boost {
-                    boost_stores.push(persistence.write_boost_tuple_pair(tuples, &extract_field_name(path))?); // TODO use .textindex in boost?
-                }
-
-                Ok((key_value_stores, boost_stores, anchor_score_stores))
-            })
-            .collect();
-
-        for (key_value_stores, boost_stores, anchor_score_stores) in reso? {
-            persistence.meta_data.key_value_stores.extend(key_value_stores);
-            persistence.meta_data.boost_stores.extend(boost_stores);
-            persistence.meta_data.anchor_score_stores.extend(anchor_score_stores);
-        }
 
         let mut key_value_stores = vec![];
         for (path, mut tuples) in tuples_to_parent_in_path.iter_mut() {
@@ -991,7 +1103,10 @@ pub fn add_token_values_to_tokens(persistence: &mut Persistence, data_str: &str,
             });
         }
     }
-    let meta_data = persistence.write_boost_tuple_pair(&mut tuples, &concat(&path_name, ".tokenValues"))?;
+
+    let store = valid_pair_to_direct_index(&mut tuples);
+
+    let meta_data = persistence.write_direct_index(&store, &concat(&path_name, ".tokenValues.boost_valid_to_value"), LoadingType::Disk)?;
     persistence.meta_data.boost_stores.push(meta_data);
     persistence.write_meta_data()?;
     Ok(())

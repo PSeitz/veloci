@@ -353,7 +353,7 @@
 
 //     pub fn read<P: AsRef<Path> + std::fmt::Debug>(&mut self, _path_indirect: P, _path_data: P) -> Result<(), io::Error> {
 //         // self.start_pos = load_index_u32(&_path_indirect)?;
-//         // self.data = file_to_bytes(&_path_data)?;
+//         // self.data = file_path_to_bytes(&_path_data)?;
 //         Ok(())
 //     }
 
