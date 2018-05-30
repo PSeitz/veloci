@@ -11,10 +11,10 @@ use search;
 use super::U31_MAX;
 use itertools::Itertools;
 
-impl_type_info!(TokenToAnchorScoreVint, TokenToAnchorScoreVintMmap);
+impl_type_info!(TokenToAnchorScoreVintIM, TokenToAnchorScoreVintMmap);
 
 #[derive(Serialize, Deserialize, Debug, Clone, Default, HeapSizeOf)]
-pub struct TokenToAnchorScoreVint {
+pub struct TokenToAnchorScoreVintIM {
     pub start_pos: Vec<u32>,
     pub data: Vec<u8>,
 }
@@ -48,8 +48,8 @@ pub fn get_serialized_most_common_encoded_2(data: &mut Vec<u32>) -> Vec<u8> {
     vint.serialize()
 }
 
-impl TokenToAnchorScoreVint {
-    pub fn set_scores(&mut self, id: u32, mut add_data: Vec<u32>) {
+impl TokenToAnchorScoreVintIM {
+    pub fn set_scores(&mut self, id: u32, mut add_data: &mut Vec<u32>) {
         //TODO INVALIDATE OLD DATA IF SET TWICE?
 
         let pos: usize = id as usize;
@@ -112,7 +112,7 @@ fn recreate_vec(data: &[u8], pos: usize) -> Vec<AnchorScore> {
     data
 }
 
-impl TokenToAnchorScore for TokenToAnchorScoreVint {
+impl TokenToAnchorScore for TokenToAnchorScoreVintIM {
     #[inline]
     fn get_scores(&self, id: u32) -> Option<Vec<AnchorScore>> {
         if id as usize >= self.get_size() {
@@ -182,7 +182,7 @@ impl TokenToAnchorScore for TokenToAnchorScoreVintMmap {
 // fn test_token_to_anchor_score_vint() {
 //     use tempfile::tempdir;
 
-//     let mut yeps = TokenToAnchorScoreVint::default();
+//     let mut yeps = TokenToAnchorScoreVintIM::default();
 
 //     yeps.set_scores(1, vec![(1, 1)]);
 
@@ -204,7 +204,7 @@ impl TokenToAnchorScore for TokenToAnchorScoreVintMmap {
 //     yeps.write(indirect.to_str().unwrap(), data.to_str().unwrap()).unwrap();
 
 //     // IM loaded from File
-//     let mut yeps = TokenToAnchorScoreVint::default();
+//     let mut yeps = TokenToAnchorScoreVintIM::default();
 //     yeps.read(indirect.to_str().unwrap(), data.to_str().unwrap()).unwrap();
 //     assert_eq!(yeps.get_scores(0), None);
 //     assert_eq!(yeps.get_scores(1), Some(vec![AnchorScore::new(1, f16::from_f32(1.0))]));

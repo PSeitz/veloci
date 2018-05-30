@@ -26,7 +26,7 @@ pub struct TokenToAnchorScoreBinary {
 }
 
 impl TokenToAnchorScoreBinary {
-    pub fn set_scores(&mut self, id: u32, add_data: Vec<AnchorScore>) {
+    pub fn set_scores(&mut self, id: u32, add_data: &[AnchorScore]) {
         //TODO INVALIDATE OLD DATA IF SET TWICE?
 
         let pos: usize = id as usize;
@@ -160,13 +160,13 @@ fn test_token_to_anchor_score_binary() {
     use tempfile::tempdir;
     let mut yeps = TokenToAnchorScoreBinary::default();
 
-    yeps.set_scores(1, vec![AnchorScore::new(1, f16::from_f32(1.0))]);
+    yeps.set_scores(1, &vec![AnchorScore::new(1, f16::from_f32(1.0))]);
 
     assert_eq!(yeps.get_scores(0), None);
     assert_eq!(yeps.get_scores(1), Some(vec![AnchorScore::new(1, f16::from_f32(1.0))]));
     assert_eq!(yeps.get_scores(2), None);
 
-    yeps.set_scores(5, vec![AnchorScore::new(1, f16::from_f32(1.0)), AnchorScore::new(2, f16::from_f32(3.0))]);
+    yeps.set_scores(5, &vec![AnchorScore::new(1, f16::from_f32(1.0)), AnchorScore::new(2, f16::from_f32(3.0))]);
     assert_eq!(yeps.get_scores(4), None);
     assert_eq!(
         yeps.get_scores(5),
