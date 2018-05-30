@@ -66,11 +66,24 @@ pub fn is_hight_bit_set(input: u32) -> bool {
     input & ONLY_HIGH_BIT_SET != 0
 }
 
+// pub fn get_u32_from_bytes(data: &[u8], pos: usize) -> u32 {
+//     let mut bytes: [u8; 4] = [0, 0, 0, 0];
+//     bytes.copy_from_slice(&data[pos..pos + 4]);
+//     unsafe { transmute(bytes) }
+// }
+use std::ptr::copy_nonoverlapping;
+#[inline]
 pub fn get_u32_from_bytes(data: &[u8], pos: usize) -> u32 {
-    let mut bytes: [u8; 4] = [0, 0, 0, 0];
-    bytes.copy_from_slice(&data[pos..pos + 4]);
-    unsafe { transmute(bytes) }
+    let mut out: u32 = 0;
+    unsafe {
+        copy_nonoverlapping(
+            data[pos..].as_ptr(),
+            &mut out as *mut u32 as *mut u8,
+            4);
+    }
+    out
 }
+
 
 #[inline]
 pub fn unsafe_increase_len<T>(vec: &mut Vec<T>, add: usize) -> usize {

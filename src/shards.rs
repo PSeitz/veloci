@@ -119,7 +119,7 @@ impl Shards {
         }
     }
 
-    pub fn insert(&mut self, docs: String, indices: &str) -> Result<(), create::CreateError> {
+    pub fn insert(&mut self, docs: &str, indices: &str) -> Result<(), create::CreateError> {
         // extend existing persistence or create new persistence and add to list
         // println!("self.shards.len() {:?}", self.shards.len());
         if self.shards.is_empty() {
@@ -145,13 +145,14 @@ impl Shards {
             }
         }
 
-        if self.shards.len() > 30 {
-            println!("pre shards.len {:?}", self.shards.len());
+        if self.shards.len() > 15 {
+            // println!("pre shards.len {:?}", self.shards.len());
             let mut invalid_shards = vec![];
             let mut new_shards = vec![];
             {
-                self.shards.sort_unstable_by_key(|shard| shard.persistence.get_number_of_documents().unwrap());
-                for (_, group) in &self.shards.iter().group_by(|shard| shard.persistence.get_number_of_documents().unwrap() / 10) {
+                self.shards.sort_unstable_by_key(|shard| shard.persistence.get_bytes_indexed().unwrap());
+                // for (_, group) in &self.shards.iter().group_by(|shard| (shard.persistence.get_bytes_indexed().unwrap() / 10_000_000)) {
+                for (_, group) in &self.shards.iter().group_by(|shard| (shard.persistence.get_bytes_indexed().unwrap() as f32).log10().round() as u32) {
                     let mut shard_group: Vec<&Shard> = group.collect();
                     if shard_group.len() == 1 {
                         continue;
@@ -169,7 +170,7 @@ impl Shards {
             //TODO LOCK DURING SWITCH
             self.shards.retain(|shard| {
                 if invalid_shards.contains(&shard.shard_id) {
-                    println!("deleting {:?}", &shard.persistence.db);
+                    // println!("deleting {:?}", &shard.persistence.db);
                     fs::remove_dir_all(&shard.persistence.db);
                     false
                 } else {
@@ -178,16 +179,16 @@ impl Shards {
             });
 
             self.shards.extend(new_shards);
-            println!("shards.len {:?}", self.shards.len());
+            // println!("shards.len {:?}", self.shards.len());
         }
 
         Ok(())
     }
 
-    fn add_new_shard_from_docs(&mut self, docs: String, indices: &str) -> Result<(), search::SearchError> {
+    fn add_new_shard_from_docs(&mut self, docs: &str, indices: &str) -> Result<(), search::SearchError> {
         let mut new_shard = self.get_new_shard()?;
-        println!("new shard {:?}", new_shard.persistence.db);
-        create::create_indices_from_str(&mut new_shard.persistence, &docs, indices, None, true);
+        // println!("new shard {:?}", new_shard.persistence.db);
+        create::create_indices_from_str(&mut new_shard.persistence, docs, indices, None, true);
         self.shards.push(new_shard);
         Ok(())
     }

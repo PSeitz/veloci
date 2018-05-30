@@ -7,7 +7,7 @@ extern crate env_logger;
 extern crate flexi_logger;
 extern crate fst;
 // extern crate fst_levenshtein;
-extern crate cpuprofiler;
+// extern crate cpuprofiler;
 #[macro_use]
 extern crate measure_time;
 extern crate rayon;
@@ -141,22 +141,17 @@ fn create_thalia_index_big() -> Result<(), io::Error> {
     // let mut json = String::new();
     // f.read_to_string(&mut json)?;
 
-    let f = File::open("data")?;
-    let f2 = File::open("data")?;
-    let stream1 = std::io::BufReader::new(&f).lines().map(|line| serde_json::from_str(&line.unwrap()));
-    let stream2 = std::io::BufReader::new(&f2).lines().map(|line| serde_json::from_str(&line.unwrap()));
-    let stream3 = std::io::BufReader::new(File::open("data")?).lines().map(|line| line.unwrap());
+    // PROFILER.lock().unwrap().start("./my-prof.profile").unwrap();
 
-    search_lib::create::create_indices_from_streams(
+    search_lib::create::create_indices_from_file(
         &mut search_lib::persistence::Persistence::create("thalia_new".to_string()).unwrap(),
-        stream1,
-        stream2,
-        stream3,
+        "data",
         TAHLIA_INDICES,
         None,
         false,
     ).unwrap();
 
+    // PROFILER.lock().unwrap().stop().unwrap();
     // search_lib::create::create_indices_from_str(
     //     &mut search_lib::persistence::Persistence::create("thalia_new".to_string()).unwrap(),
     //     &json,
@@ -194,55 +189,59 @@ fn create_thalia_index_shards() -> Result<(), io::Error> {
 
 #[allow(dead_code)]
 fn create_jmdict_index_shards() -> Result<(), io::Error> {
-    let indices = r#"
-    [
-    {
-        "boost": "commonness",
-        "options": { "boost_type": "int" }
-    },
-    { "fulltext": "kanji[].text", "options":{"tokenize":false} },
-    { "fulltext": "kanji[].conjugated[].form", "options":{"tokenize":false} },
-    { "fulltext": "kana[].text" , "options":{"tokenize":false} },
-    { "fulltext": "kana[].conjugated[].form" , "options":{"tokenize":false} },
-    { "fulltext": "kana[].romaji" , "options":{"tokenize":true} },
-    { "fulltext": "meanings.ger[].text", "options": { "tokenize": true } },
-    { "fulltext": "meanings.eng[]", "options": { "tokenize": true } },
-    { "fulltext": "pos", "options": { "tokenize": false } },
-    {
-        "boost": "meanings.ger[].rank",
-        "options": { "boost_type": "int" }
-    },
-    {
-        "boost": "kanji[].commonness",
-        "options": { "boost_type": "int" }
-    },
-    {
-        "boost": "kana[].commonness",
-        "options": { "boost_type": "int" }
-    }
-    ]
-    "#;
 
-    let mut s = String::new();
-    let mut f = File::open("jmdict_split.json")?;
-    f.read_to_string(&mut s)?;
-    let v: Value = serde_json::from_str(&s)?;
+    // let mut _s = String::new();
+    // let f = File::open("jmdict_split.json")?;
 
-    print_time!("jmdict_index_shards");
+    // print_time!("jmdict_index_shards");
+
+    // let mut num = 0;
+    // for line in std::io::BufReader::new(&f).lines() {
+    //     if num % 100 == 0 {
+    //         println!("{:?}", num);
+    //     }
+    //     num+=1;
+    //     jmdict_shards.insert(&line?, JMDICT_INDICES);
+    // }
+
+    let threshold_bytes: usize = std::env::args().nth(2).expect("require command line parameter").parse().unwrap();
     let mut jmdict_shards = search_lib::shards::Shards::new("jmdict_shards".to_string());
-    if let Some(arr) = v.as_array() {
-        for el in arr.iter() {
-            jmdict_shards.insert(el.to_string(), indices);
+
+    let start = std::time::Instant::now();
+    let mut lines = String::new();
+    let mut total_bytes = 0;
+    for line in std::io::BufReader::new(File::open("jmdict_split.json")?).lines().take(threshold_bytes) {
+        let line = line?;
+        lines+= &line;
+        lines+= "\n";
+
+        total_bytes+=line.len();
+        if lines.len() > threshold_bytes {
+            jmdict_shards.insert(&lines, JMDICT_INDICES);
+            lines.clear();
         }
+
     }
+
+    // println!("num kbytes {:?}", lines.len()/1000);
+
+    // let mut persistence = search_lib::persistence::Persistence::create_type("single_data".to_string(), search_lib::persistence::PersistenceType::Persistent).unwrap();
+    //     search_lib::create::create_indices_from_str(&mut persistence, &lines, JMDICT_INDICES, None, false).unwrap();
+
+    let time_in_ms = (start.elapsed().as_secs() as f64 * 1_000.0) + (start.elapsed().subsec_nanos() as f64 / 1000_000.0);
+
+    let mbs = total_bytes as f32/1_000_000.;
+    println!("total_bytes {:?}", total_bytes);
+    println!("time_in_s {:?}", time_in_ms/1_000.);
+    println!("MB/s {:?}", mbs/(time_in_ms as f32/1000.));
+
 
     Ok(())
 }
-use cpuprofiler::PROFILER;
+// use cpuprofiler::PROFILER;
 
-#[allow(dead_code)]
-fn create_jmdict_index() -> Result<(), io::Error> {
-    let indices = r#"
+
+const JMDICT_INDICES: &str = r#"
     [
     {
         "boost": "commonness",
@@ -271,7 +270,11 @@ fn create_jmdict_index() -> Result<(), io::Error> {
     ]
     "#;
 
-    PROFILER.lock().unwrap().start("./my-prof.profile").unwrap();
+#[allow(dead_code)]
+fn create_jmdict_index() -> Result<(), io::Error> {
+
+
+    // PROFILER.lock().unwrap().start("./my-prof.profile").unwrap();
     // let stream1 = Deserializer::from_reader(std::io::BufReader::new(&f)).into_iter::<Value>();
     // let stream2 = Deserializer::from_reader(std::io::BufReader::new(&f2)).into_iter::<Value>();
 
@@ -289,7 +292,7 @@ fn create_jmdict_index() -> Result<(), io::Error> {
         stream1,
         stream2,
         stream3,
-        indices,
+        JMDICT_INDICES,
         None,
         false,
     ).unwrap();
@@ -305,17 +308,44 @@ fn create_jmdict_index() -> Result<(), io::Error> {
     //     None,
     //     false,
     // ).unwrap();
-    PROFILER.lock().unwrap().stop().unwrap();
+    // PROFILER.lock().unwrap().stop().unwrap();
     Ok(())
 }
 
 #[allow(dead_code)]
 fn create_single_data_index() -> Result<(), io::Error> {
     info_time!("create_single_data_index");
+
+    let num: usize = std::env::args().nth(2).expect("require command line parameter").parse().unwrap();
+
+    let mut lines = String::new();
+    for line in std::io::BufReader::new(File::open("jmdict_split.json")?).lines().take(num) {
+        lines+= &line?;
+        lines+= "\n";
+    }
+
+    println!("num kbytes {:?}", lines.len()/1000);
+
+    let start = std::time::Instant::now();
+
+    let mut persistence = search_lib::persistence::Persistence::create_type("single_data".to_string(), search_lib::persistence::PersistenceType::Persistent).unwrap();
+        search_lib::create::create_indices_from_str(&mut persistence, &lines, JMDICT_INDICES, None, false).unwrap();
+
+    let time_in_ms = (start.elapsed().as_secs() as f64 * 1_000.0) + (start.elapsed().subsec_nanos() as f64 / 1000_000.0);
+
+    let mbs = lines.len() as f32/1000000.;
+    println!("MB/s {:?}", mbs/(time_in_ms as f32/1000.));
+
+    Ok(())
+}
+
+#[allow(dead_code)]
+fn create_single_data_index_() -> Result<(), io::Error> {
+    info_time!("create_single_data_index");
     let indices = "[]";
 
     for _i in 0..1 {
-        let books = (0..10000)
+        let books = (0..1000)
             .map(|_el| {
                 json!({
                 "commonness": 3103,
@@ -495,7 +525,7 @@ fn create_single_data_index() -> Result<(), io::Error> {
             .collect::<Vec<_>>();
 
         let mut persistence =
-            search_lib::persistence::Persistence::create_type("single_data".to_string(), search_lib::persistence::PersistenceType::Persistent).unwrap();
+            search_lib::persistence::Persistence::create_type("single_data".to_string(), search_lib::persistence::PersistenceType::Transient).unwrap();
         search_lib::create::create_indices_from_str(&mut persistence, &serde_json::to_string_pretty(&books).unwrap(), indices, None, false).unwrap();
     }
 

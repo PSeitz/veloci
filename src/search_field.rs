@@ -21,6 +21,7 @@ use half::f16;
 use rayon::prelude::*;
 use std::ptr;
 use util::*;
+use std;
 
 #[derive(Debug, Default)]
 pub struct SearchFieldResult {
@@ -156,6 +157,7 @@ where
     // let map = try!(Map::from_bytes(buffer));
     // let map = persistence.get_fst(&options.path)?;
 
+    // let map = persistence.get_fst(&options.path)?;
     let map = persistence
         .indices
         .fst
@@ -341,8 +343,6 @@ fn get_hits_in_field_one_term(
 
     Ok(result)
 }
-
-use std;
 
 #[cfg_attr(feature = "flame_it", flame)]
 fn get_term_ids_in_field(persistence: &Persistence, options: &mut RequestSearchPart) -> Result<SearchFieldResult, SearchError> {

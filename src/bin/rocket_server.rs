@@ -373,7 +373,7 @@ fn suggest_get(database: String, params: QueryParams) -> Result<SuggestResult, s
 
 #[post("/<database>/highlight", format = "application/json", data = "<request>")]
 fn highlight_post(database: String, mut request: Json<search::RequestSearchPart>) -> String {
-    ensure_database(&database).unwrap();;
+    ensure_database(&database).unwrap();
     let persistence = PERSISTENCES.get(&database).unwrap();
     let hits = search_field::highlight(&persistence, &mut request).unwrap();
     serde_json::to_string(&hits).unwrap()
@@ -382,12 +382,12 @@ fn highlight_post(database: String, mut request: Json<search::RequestSearchPart>
 fn main() {
     search_lib::trace::enable_log();
 
-    // for preload_db in std::env::args().skip(1) {
-    //     ensure_database(&preload_db).unwrap();
-    // }
     for preload_db in std::env::args().skip(1) {
-        ensure_shard(&preload_db).unwrap();
+        ensure_database(&preload_db).unwrap();
     }
+    // for preload_db in std::env::args().skip(1) {
+    //     ensure_shard(&preload_db).unwrap();
+    // }
     println!("Starting Server...");
     rocket::ignite()
         // .mount("/", routes![version, get_doc_for_id_direct, get_doc_for_id_tree, search_get, search_post, suggest_get, suggest_post, highlight_post])

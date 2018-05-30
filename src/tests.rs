@@ -287,24 +287,26 @@ mod tests {
                     // "#;
 
                     let data = get_test_data();
+                    let mut pers = persistence::Persistence::create_type(TEST_FOLDER.to_string(), persistence::PersistenceType::Transient).unwrap();
                     if let Some(arr) = data.as_array() {
                         // arr.map(|el| el.to_string()+"\n").collect();
                         let docs_line_separated = arr.iter().fold(String::with_capacity(100), |acc, el| acc + &el.to_string()+"\n");
-                        println!("{:?}", create::create_indices_from_str(&mut persistence::Persistence::create(TEST_FOLDER.to_string()).unwrap(), &docs_line_separated, indices, None, true));
+                        println!("{:?}", create::create_indices_from_str(&mut pers, &docs_line_separated, indices, None, true));
                     }
 
 
                     {
-                        let mut pers = persistence::Persistence::load(TEST_FOLDER.to_string()).expect("Could not load persistence");
+                        // let mut pers = persistence::Persistence::load(TEST_FOLDER.to_string()).expect("Could not load persistence");
                         // let mut pers = persistence::Persistence::load(TEST_FOLDER.to_string()).expect("Could not load persistence");
                         let config = json!({
                             "path": "meanings.ger[]"
                         });
                         create::add_token_values_to_tokens(&mut pers, TOKEN_VALUE, &config.to_string()).expect("Could not add token values");
 
+                        PERSISTENCES.insert("default".to_string(), pers);
                     }
 
-                    PERSISTENCES.insert("default".to_string(), persistence::Persistence::load(TEST_FOLDER.to_string()).expect("could not load persistence"));
+                    // PERSISTENCES.insert("default".to_string(), persistence::Persistence::load(TEST_FOLDER.to_string()).expect("could not load persistence"));
 
                     *INDEX_CREATEDO = true;
                 }

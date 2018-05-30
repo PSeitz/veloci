@@ -30,7 +30,7 @@ extern crate flame;
 
 extern crate memmap;
 
-extern crate fxhash;
+// extern crate fxhash;
 
 #[macro_use]
 extern crate serde_derive;
@@ -89,6 +89,7 @@ extern crate half;
 extern crate lazy_static;
 
 extern crate chrono;
+extern crate term_hashmap;
 // extern crate time;
 // extern crate bit_set;
 // extern crate bit_vec;
