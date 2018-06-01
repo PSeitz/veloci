@@ -251,6 +251,12 @@ pub fn load_bytes_into(buffer: &mut [u8], mut file: &File, offset: u64) {
 }
 
 #[inline]
+pub fn write_bytes_at(buffer: &[u8], mut file: &File, offset: u64) -> Result<(), io::Error> {
+    file.seek(SeekFrom::Start(offset))?;
+    file.write_all(buffer)
+}
+
+#[inline]
 pub fn extract_field_name(field: &str) -> String {
     field
     .chars()

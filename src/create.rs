@@ -740,7 +740,7 @@ where
     std::mem::swap(&mut create_cache.term_data.id_holder, &mut id_holder);
 
 
-    for (key, data) in path_data.iter_mut() {
+    for (_key, data) in path_data.iter_mut() {
         data.tokens_to_text_id.shrink_to_fit();
         data.tokens_to_anchor_id.shrink_to_fit();
         data.token_to_anchor_id_score.shrink_to_fit();
@@ -757,6 +757,10 @@ where
         if let Some(ref mut tuples) = data.boost {
             tuples.shrink_to_fit();
         }
+    }
+
+    for (_key, data) in tuples_to_parent_in_path.iter_mut() {
+        data.shrink_to_fit();
     }
 
     Ok((path_data, tuples_to_parent_in_path))
@@ -951,6 +955,7 @@ fn convert_raw_path_data_to_indices(
                 std::mem::swap(&mut el.parent_val_id, &mut el.valid);
             }
             add_index(concat(path, ".parentToValueId"), &mut data, !is_1_to_n(path), false, &mut indices, LoadingType::Disk);
+            free_vec(&mut data);
 
             indices
     }).collect();

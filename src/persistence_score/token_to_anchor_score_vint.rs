@@ -19,6 +19,15 @@ pub struct TokenToAnchorScoreVintIM {
     pub data: Vec<u8>,
 }
 
+///
+/// Datastructure to cache and flush changes to file
+///
+#[derive(Serialize, Deserialize, Debug, Clone, Default, HeapSizeOf)]
+pub struct TokenToAnchorScoreVint {
+    pub cache: Vec<(u32, Vec<u32>)>,
+    pub path: String,
+}
+
 pub fn get_serialized_most_common_encoded(data: &mut Vec<(u32, u32)>) -> Vec<u8> {
     let mut vint = VIntArrayEncodeMostCommon::default();
 
@@ -48,6 +57,71 @@ pub fn get_serialized_most_common_encoded_2(data: &mut Vec<u32>) -> Vec<u8> {
     vint.serialize()
 }
 
+impl TokenToAnchorScoreVint {
+    pub fn set_scores(&mut self, id: u32, add_data: Vec<u32>) -> Result<(), io::Error> {
+        self.cache.push((id, add_data));
+
+        // let pos: usize = id as usize;
+        // let required_size = pos + 1;
+        // if self.start_pos.len() < required_size {
+        //     self.start_pos.resize(required_size, U31_MAX);
+        // }
+
+        // let byte_offset = self.data.len() as u32;
+        // self.start_pos[pos] = byte_offset;
+        // self.data.extend(get_serialized_most_common_encoded_2(&mut add_data));
+
+        self.flush()
+    }
+
+    #[inline]
+    fn flush(&mut self) -> Result<(), io::Error> {
+        // let mut indirect = File::open(self.path.to_string() + ".indirect")?;
+        // let mut data = File::open(self.path.to_string() + ".data")?;
+        // let mut data_pos = data.metadata()?.len();
+
+        // let mut positions = vec![];
+        // let mut all_bytes = vec![];
+        // positions.push(data_pos as u32);
+        // for (_, add_data) in self.cache.iter_mut() {
+        //     let add_bytes = get_serialized_most_common_encoded_2(add_data);
+        //     data_pos += add_bytes.len() as u64;
+        //     positions.push(data_pos as u32);
+        //     all_bytes.extend(add_bytes);
+        // }
+        // data.write_all(&all_bytes)?;
+        // indirect.write_all(&vec_to_bytes_u32(&positions))?;
+
+        let mut indirect = File::open(self.path.to_string() + ".indirect")?;
+        let mut data = File::open(self.path.to_string() + ".data")?;
+        let all_data = self.cache.iter_mut().map(|(id, add_data)|(*id, get_serialized_most_common_encoded_2(add_data))).collect();
+        flush_data_to_indirect_index(&mut indirect, &mut data, all_data);
+        self.cache.clear();
+        Ok(())
+    }
+
+}
+
+
+#[inline]
+fn flush_data_to_indirect_index(indirect: &mut File, data: &mut File, cache: Vec<(u32, Vec<u8>)> ) -> Result<(), io::Error> {
+
+    let mut data_pos = data.metadata()?.len();
+    let mut positions = vec![];
+    let mut all_bytes = vec![];
+    positions.push(data_pos as u32);
+    for (_, add_bytes) in cache.iter() {
+        data_pos += add_bytes.len() as u64;
+        positions.push(data_pos as u32);
+        all_bytes.extend(add_bytes);
+    }
+    data.write_all(&all_bytes)?;
+    // TODO write_bytes_at for indirect
+    Ok(())
+}
+
+
+
 impl TokenToAnchorScoreVintIM {
     pub fn set_scores(&mut self, id: u32, mut add_data: &mut Vec<u32>) {
         //TODO INVALIDATE OLD DATA IF SET TWICE?
@@ -60,22 +134,6 @@ impl TokenToAnchorScoreVintIM {
 
         let byte_offset = self.data.len() as u32;
         self.start_pos[pos] = byte_offset;
-
-        // use mayda::{Encode, Monotone, Uniform};
-        // let mut bits = Monotone::new();
-        // bits.encode(&add_data.iter().map(|(el1, _)| *el1).collect::<Vec<u32>>()).unwrap();
-        // let bytes = vec_to_bytes_u32(bits.storage());
-        // self.data.extend(bytes);
-
-        // let mut bits = Uniform::new();
-        // bits.encode(&add_data.iter().map(|(_, el2)| *el2).collect::<Vec<u32>>()).unwrap();
-        // let bytes = vec_to_bytes_u32(bits.storage());
-        // self.data.extend(bytes);
-
-        // let num_elements: [u8; 4] = unsafe { transmute(vint.data.len() as u32) };
-        // self.data.extend(num_elements.iter());
-        // self.data.extend(vint.data.iter());
-
         self.data.extend(get_serialized_most_common_encoded_2(&mut add_data));
     }
 
