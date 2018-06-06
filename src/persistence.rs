@@ -14,8 +14,9 @@ use num::cast::ToPrimitive;
 use num::{self, Integer, NumCast};
 
 use serde_json;
-use serde_json::StreamDeserializer;
-use serde_json::Value;
+use lru_cache;
+// use serde_json::StreamDeserializer;
+// use serde_json::Value;
 
 use bincode::{deserialize, serialize};
 use fnv::FnvHashMap;
@@ -380,6 +381,7 @@ impl Persistence {
                             let store = IndexIdToMultipleParentIndirect {
                                 start_pos: indirect_u32,
                                 data: data_u32,
+                                cache: lru_cache::LruCache::new(0),
                                 max_value_id: el.max_value_id,
                                 avg_join_size: el.avg_join_size,
                                 num_values: 0,
@@ -406,6 +408,7 @@ impl Persistence {
                             let store = IndexIdToMultipleParentIndirect {
                                 start_pos: indirect_u32,
                                 data: data_u32,
+                                cache: lru_cache::LruCache::new(0),
                                 max_value_id: el.max_value_id,
                                 avg_join_size: el.avg_join_size,
                                 num_values: 0,
@@ -428,7 +431,7 @@ impl Persistence {
                             KVStoreType::IndexIdToMultipleParentIndirect => {
                                 let start_and_end_file = get_file_handle_complete_path(&indirect_path)?;
                                 let data_file = get_file_handle_complete_path(&indirect_data_path)?;
-                                let indirect_metadata = self.get_file_metadata_handle_complete_path(&indirect_path)?;
+                                let indirect_metadata = get_file_metadata_handle_complete_path(&indirect_path)?;
                                 // let data_metadata = self.get_file_metadata_handle(&(el.path.to_string() + ".data"))?;
                                 // let store = PointingMMAPFileReader::new(
                                 //     &start_and_end_file,
@@ -457,7 +460,7 @@ impl Persistence {
                             KVStoreType::ParallelArrays => panic!("WAAAAAAA"),
                             KVStoreType::IndexIdToOneParent => {
                                 let data_file = get_file_handle_complete_path(&data_direct_path)?;
-                                let data_metadata = self.get_file_metadata_handle_complete_path(&data_direct_path)?;
+                                let data_metadata = get_file_metadata_handle_complete_path(&data_direct_path)?;
                                 let store = SingleArrayMMAP::<u32>::new(data_file, data_metadata, el.max_value_id);
 
                                 return Ok((el.path.to_string(), Box::new(store) as Box<IndexIdToParent<Output = u32>>));
@@ -551,11 +554,6 @@ impl Persistence {
     pub fn get_file_handle(&self, path: &str) -> Result<File, search::SearchError> {
         Ok(File::open(PathBuf::from(get_file_path(&self.db, path)))
             .map_err(|err| search::SearchError::StringError(format!("Could not open {} {:?}", path, err)))?)
-    }
-
-    #[cfg_attr(feature = "flame_it", flame)]
-    pub fn get_file_metadata_handle_complete_path(&self, path: &str) -> Result<fs::Metadata, io::Error> {
-        Ok(fs::metadata(path)?)
     }
 
     #[cfg_attr(feature = "flame_it", flame)]
@@ -721,6 +719,29 @@ impl Persistence {
         })
     }
 
+    pub fn flush_indirect_index(
+        &self,
+        store: &mut IndexIdToMultipleParentIndirectFlushingInOrder<u32>,
+        path: &str,
+        loading_type: LoadingType,
+    ) -> Result<(KVStoreMetaData), io::Error> {
+        store.flush()?;
+        let avg_join_size = calc_avg_join_size(store.num_values, store.num_ids);
+
+        // let indirect_file_path = util::get_file_path(&self.db, &(path.to_string() + ".indirect"));
+        // let data_file_path = util::get_file_path(&self.db, &(path.to_string() + ".data"));
+
+        // File::create(indirect_file_path)?.write_all(&vec_to_bytes_u32(&store.start_pos))?;
+        // File::create(data_file_path)?.write_all(&vec_to_bytes_u32(&store.data))?;
+        Ok(KVStoreMetaData {
+            loading_type: loading_type,
+            persistence_type: KVStoreType::IndexIdToMultipleParentIndirect,
+            is_1_to_n: true, //TODO FIXME ADD 1:1 Flushing index
+            path: path.to_string(),
+            max_value_id: store.max_value_id,
+            avg_join_size: store.avg_join_size,
+        })
+    }
     pub fn write_indirect_index(
         &self,
         store: &IndexIdToMultipleParentIndirect<u32>,
@@ -762,6 +783,7 @@ impl Persistence {
 
     #[cfg_attr(feature = "flame_it", flame)]
     pub fn create(db: String) -> Result<Self, io::Error> {
+        fs::remove_dir_all(&db)?;
         fs::create_dir_all(&db)?;
         let meta_data = MetaData { ..Default::default() };
         Ok(Persistence {
@@ -776,6 +798,7 @@ impl Persistence {
 
     #[cfg_attr(feature = "flame_it", flame)]
     pub fn create_type(db: String, persistence_type: PersistenceType) -> Result<Self, io::Error> {
+        fs::remove_dir_all(&db)?;
         fs::create_dir_all(&db)?;
         let meta_data = MetaData { ..Default::default() };
         Ok(Persistence {
@@ -1014,6 +1037,11 @@ fn check_is_docid_type<T: Integer + NumCast + Copy>(data: &[T]) -> bool {
         }
     }
     true
+}
+
+
+pub fn get_file_metadata_handle_complete_path(path: &str) -> Result<fs::Metadata, io::Error> {
+    Ok(fs::metadata(path)?)
 }
 
 

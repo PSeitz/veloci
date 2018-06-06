@@ -6,6 +6,7 @@ use heapsize::HeapSizeOf;
 
 use util::*;
 
+use lru_cache;
 use byteorder::{LittleEndian, ReadBytesExt};
 use create;
 use mayda;
@@ -657,6 +658,7 @@ pub fn valid_pair_to_parallel_arrays<T: IndexIdToParentData>(tuples: &mut Vec<cr
 pub fn valid_pair_to_indirect_index<T: create::KeyValuePair>(tuples: &mut [T], sort_and_dedup: bool) -> IndexIdToMultipleParentIndirect<u32> {
     tuples.sort_unstable_by_key(|a| a.get_key());
     let mut index = IndexIdToMultipleParentIndirect::<u32>::default();
+    index.cache = lru_cache::LruCache::new(22250);
     //TODO store max_value_id and resize index
     for (valid, group) in &tuples.iter().group_by(|a| a.get_key()) {
         let mut data: Vec<u32> = group.map(|el| el.get_value()).collect();

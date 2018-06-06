@@ -49,11 +49,13 @@ extern crate rayon;
 extern crate regex;
 extern crate uuid;
 
+#[macro_use]
+extern crate dump;
+
 extern crate flexi_logger;
 #[macro_use]
 extern crate log;
 
-// extern crate csv;
 extern crate test;
 
 extern crate chashmap;
@@ -79,6 +81,7 @@ extern crate measure_time;
 extern crate byteorder;
 
 extern crate json_converter;
+extern crate buffered_index_writer;
 extern crate ordered_float;
 
 extern crate colored;
@@ -96,9 +99,11 @@ extern crate term_hashmap;
 // extern crate sled;
 // extern crate lz4;
 // extern crate utf8_ranges;
-// extern crate lru_cache;
+extern crate lru_cache;
+extern crate btree;
 // extern crate fixedbitset;
 // extern crate fst_levenshtein;
+
 
 #[macro_use]
 pub mod util;
@@ -125,9 +130,10 @@ pub mod tokenizer;
 pub mod trace;
 
 #[cfg(test)]
-extern crate rand;
-#[cfg(test)]
 extern crate tempfile;
+#[cfg(test)]
+extern crate rand;
+
 #[cfg(test)]
 mod test_why_found;
 #[cfg(test)]
