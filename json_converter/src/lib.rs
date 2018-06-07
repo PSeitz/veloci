@@ -42,36 +42,6 @@ pub fn convert_to_string(value: &Value) -> Cow<str> {
     }
 }
 
-pub fn for_each_element<F, F2, I: Iterator<Item = Result<serde_json::Value, serde_json::Error>>>(
-    data: I,
-    id_provider: &mut IDProvider,
-    opt: &mut ForEachOpt,
-    cb_text: &mut F,
-    cb_ids: &mut F2,
-) where
-    F: FnMut(u32, &str, &str, u32),
-    F2: FnMut(u32, &str, u32, u32),
-{
-    let mut path = String::with_capacity(25);
-
-    for el in data {
-        // let root_id = id_provider.get_id("");
-        // for_each_elemento(&el.unwrap(), root_id, id_provider, root_id, &mut path, "", opt, cb_text, cb_ids);
-        // path.clear();
-
-        if let Some(arr) = el.as_ref().unwrap().as_array() {
-            for el in arr.iter() {
-                let root_id = id_provider.get_id("");
-                for_each_elemento(el, root_id, id_provider, root_id, &mut path, "", opt, cb_text, cb_ids);
-                path.clear();
-            }
-        } else {
-            let root_id = id_provider.get_id("");
-            for_each_elemento(el.as_ref().unwrap(), root_id, id_provider, root_id, &mut path, "", opt, cb_text, cb_ids);
-        }
-        path.clear();
-    }
-}
 
 pub fn for_each_element_and_doc<F, F2, F3, I: Iterator<Item = Result<serde_json::Value, serde_json::Error>>>(
     data: I,
@@ -81,13 +51,14 @@ pub fn for_each_element_and_doc<F, F2, F3, I: Iterator<Item = Result<serde_json:
     cb_ids: &mut F2,
     cb_docs: &mut F3,
 ) where
-    F: FnMut(u32, &str, &str, u32),
+    F: FnMut(u32, &str, &str, u32, bool),
     F2: FnMut(u32, &str, u32, u32),
     F3: FnMut(&Value),
 {
     let mut path = String::with_capacity(25);
-
+    let mut is_new_doc;
     for el in data {
+        is_new_doc = true;
         // let root_id = id_provider.get_id("");
         // for_each_elemento(&el.unwrap(), root_id, id_provider, root_id, &mut path, "", opt, cb_text, cb_ids);
         // path.clear();
@@ -95,45 +66,54 @@ pub fn for_each_element_and_doc<F, F2, F3, I: Iterator<Item = Result<serde_json:
         if let Some(arr) = el.as_ref().unwrap().as_array() {
             for el in arr.iter() {
                 let root_id = id_provider.get_id("");
-                for_each_elemento(el, root_id, id_provider, root_id, &mut path, "", opt, cb_text, cb_ids);
+                for_each_elemento(el, root_id, id_provider, root_id, &mut path, "", opt, cb_text, cb_ids, &mut is_new_doc);
                 path.clear();
                 cb_docs(el);
             }
         } else {
             let root_id = id_provider.get_id("");
-            for_each_elemento(el.as_ref().unwrap(), root_id, id_provider, root_id, &mut path, "", opt, cb_text, cb_ids);
+            for_each_elemento(el.as_ref().unwrap(), root_id, id_provider, root_id, &mut path, "", opt, cb_text, cb_ids, &mut is_new_doc);
             cb_docs(el.as_ref().unwrap());
         }
         path.clear();
     }
 }
 
-// pub fn for_each_element<F, F2>(data: &Value, id_provider: &mut IDProvider, opt: &mut ForEachOpt, cb_text: &mut F, cb_ids: &mut F2)
-// where
-//     F: FnMut(u32, &str, &str, u32),
-//     F2: FnMut(u32, &str, u32, u32)
-// {
-//     let mut path = String::with_capacity(25);
-//     if let Some(arr) = data.as_array() {
+#[inline]
+pub fn for_each_element<F, F2, I: Iterator<Item = Result<serde_json::Value, serde_json::Error>>>(
+    data: I,
+    id_provider: &mut IDProvider,
+    opt: &mut ForEachOpt,
+    cb_text: &mut F,
+    cb_ids: &mut F2,
+) where
+    F: FnMut(u32, &str, &str, u32, bool),
+    F2: FnMut(u32, &str, u32, u32),
+{
+    let mut path = String::with_capacity(25);
 
-//         // arr.par_iter().for_each(|el| {
-//         //     let mut path = String::with_capacity(25);
-//         //     let root_id = id_provider.get_id("");
-//         //     for_each_elemento(el, id_provider, root_id, &mut path, "", opt, cb_text, cb_ids);
-//         //     path.clear();
-//         // });
+    let mut is_new_doc = true;
+    for el in data {
+        is_new_doc = true;
+        // let root_id = id_provider.get_id("");
+        // for_each_elemento(&el.unwrap(), root_id, id_provider, root_id, &mut path, "", opt, cb_text, cb_ids);
+        // path.clear();
 
-//         for el in arr.iter() {
-//             let root_id = id_provider.get_id("");
-//             for_each_elemento(el, root_id, id_provider, root_id, &mut path, "", opt, cb_text, cb_ids);
-//             path.clear();
-//         }
-//     } else {
-//         let root_id = id_provider.get_id("");
-//         for_each_elemento(data, root_id, id_provider, root_id, &mut path, "", opt, cb_text, cb_ids);
-//     }
+        if let Some(arr) = el.as_ref().unwrap().as_array() {
+            //TODO code path invalid??, data format should always be line seperated
+            for el in arr.iter() {
+                let root_id = id_provider.get_id("");
+                for_each_elemento(el, root_id, id_provider, root_id, &mut path, "", opt, cb_text, cb_ids, &mut is_new_doc);
+                path.clear();
+            }
+        } else {
+            let root_id = id_provider.get_id("");
+            for_each_elemento(el.as_ref().unwrap(), root_id, id_provider, root_id, &mut path, "", opt, cb_text, cb_ids, &mut is_new_doc);
+        }
+        path.clear();
+    }
+}
 
-// }
 
 pub fn for_each_elemento<F, F2>(
     data: &Value,
@@ -145,8 +125,9 @@ pub fn for_each_elemento<F, F2>(
     opt: &mut ForEachOpt,
     cb_text: &mut F,
     cb_ids: &mut F2,
+    is_new_doc: &mut bool,
 ) where
-    F: FnMut(u32, &str, &str, u32),
+    F: FnMut(u32, &str, &str, u32, bool),
     F2: FnMut(u32, &str, u32, u32),
 {
     if let Some(arr) = data.as_array() {
@@ -158,7 +139,7 @@ pub fn for_each_elemento<F, F2>(
         for el in arr {
             let id = id_provider.get_id(&current_path);
             cb_ids(anchor_id, &current_path, id, parent_id);
-            for_each_elemento(el, anchor_id, id_provider, id, current_path, "", opt, cb_text, cb_ids);
+            for_each_elemento(el, anchor_id, id_provider, id, current_path, "", opt, cb_text, cb_ids, is_new_doc);
             unsafe {
                 current_path.as_mut_vec().truncate(prev_len);
             }
@@ -169,7 +150,7 @@ pub fn for_each_elemento<F, F2>(
         current_path.push_str(current_el_name);
         let prev_len = current_path.len();
         for (key, ref value) in obj.iter() {
-            for_each_elemento(value, anchor_id, id_provider, parent_id, &mut current_path, key, opt, cb_text, cb_ids);
+            for_each_elemento(value, anchor_id, id_provider, parent_id, &mut current_path, key, opt, cb_text, cb_ids, is_new_doc);
             unsafe {
                 current_path.as_mut_vec().truncate(prev_len);
             }
@@ -177,7 +158,8 @@ pub fn for_each_elemento<F, F2>(
     } else if !data.is_null() {
         current_path.push_str(current_el_name);
         current_path.push_str(".textindex");
-        cb_text(anchor_id, convert_to_string(&data).as_ref(), &current_path, parent_id);
+        cb_text(anchor_id, convert_to_string(&data).as_ref(), &current_path, parent_id, *is_new_doc);
+        *is_new_doc = false;
     }
 }
 
@@ -263,10 +245,10 @@ fn test_foreach() {
     let mut opt = ForEachOpt {};
     let mut id_holder = IDHolder::new();
 
-    let mut cb_text = |anchor_id: u32, value: &str, path: &str, parent_val_id: u32| {
+    let mut cb_text = |_anchor_id: u32, value: &str, path: &str, parent_val_id: u32, _is_new_doc: bool| {
         println!("TEXT: path {} value {} parent_val_id {}", path, value, parent_val_id);
     };
-    let mut callback_ids = |anchor_id: u32, path: &str, val_id: u32, parent_val_id: u32| {
+    let mut callback_ids = |_anchor_id: u32, path: &str, val_id: u32, parent_val_id: u32| {
         println!("IDS: path {} val_id {} parent_val_id {}", path, val_id, parent_val_id);
     };
 

@@ -101,7 +101,7 @@ extern crate term_hashmap;
 // extern crate utf8_ranges;
 extern crate lru_cache;
 extern crate btree;
-// extern crate fixedbitset;
+extern crate fixedbitset;
 // extern crate fst_levenshtein;
 
 

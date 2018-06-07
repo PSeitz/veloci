@@ -9,6 +9,7 @@ use memmap::MmapOptions;
 use byteorder::{ByteOrder, LittleEndian};
 use std::fs::File;
 use std::io;
+use std::mem;
 use std::io::prelude::*;
 use std::io::BufWriter;
 use std::ptr::copy_nonoverlapping;
@@ -18,10 +19,34 @@ extern crate measure_time;
 #[macro_use]
 extern crate log;
 
-#[derive(Debug)]
-pub struct KeyValue {
+pub trait GetValue {
+    fn get_value(&self) -> u32;
+}
+
+impl GetValue for u32 {
+    #[inline]
+    fn get_value(&self) -> u32 {
+        *self
+    }
+}
+
+impl GetValue for (u32,u32) {
+    #[inline]
+    fn get_value(&self) -> u32 {
+        self.0
+    }
+}
+
+#[derive(Debug, Default, PartialEq, Eq)]
+pub struct KeyValue<T:GetValue> {
     pub key: u32,
-    pub value: u32,
+    pub value: T,
+}
+
+impl<T:GetValue> KeyValue<T> {
+    fn new(key: u32, value: T) -> Self {
+        KeyValue{key, value}
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -34,8 +59,8 @@ struct Part {
 ///
 /// Order is not guaranteed to be kept the same for same ids -> insert (0, 1)..(0,2)   --> Output could be (0,2),(0,1) with BufferedIndexWriter::default()
 ///
-pub struct BufferedIndexWriter {
-    pub cache: Vec<KeyValue>,
+pub struct BufferedIndexWriter<T:GetValue = u32> {
+    pub cache: Vec<KeyValue<T>>,
     pub temp_file: Option<File>,
     pub max_value_id: u32,
     pub num_values: u32,
@@ -49,7 +74,8 @@ pub struct BufferedIndexWriter {
     parts: Vec<Part>,
 }
 
-impl BufferedIndexWriter {
+use std::ops::Deref;
+impl<T:GetValue + Default> BufferedIndexWriter<T> {
     pub fn new_with_opt(stable_sort: bool, ids_are_sorted: bool) -> Self {
         BufferedIndexWriter {
             cache: vec![],
@@ -93,11 +119,35 @@ impl BufferedIndexWriter {
     // }
 
     #[inline]
-    pub fn add(&mut self, id: u32, value: u32) -> Result<(), io::Error> {
-        self.max_value_id = std::cmp::max(value, self.max_value_id);
+    pub fn add_all(&mut self, id: u32, values: Vec<T>) -> Result<(), io::Error> {
+        self.num_values += values.len() as u32;
+
+        //To ensure ordering we flush only, when ids change
+        let id_has_changed = self.last_id != id;
+        self.last_id = id;
+
+        for value in values {
+            self.max_value_id = std::cmp::max(value.get_value(), self.max_value_id);
+            self.cache.push(KeyValue {
+                key: id,
+                value: value,
+            });
+            // self.max_value_id = std::cmp::max(*value, self.max_value_id);
+        }
+
+        if id_has_changed && self.cache.len() >= 1_000_000 { // flush after 1_000_000 * 8 byte values = 8Megadolonbytes
+            self.flush()?;
+        }
+
+        Ok(())
+    }
+
+    #[inline]
+    pub fn add(&mut self, id: u32, value: T) -> Result<(), io::Error> {
+        self.max_value_id = std::cmp::max(value.get_value(), self.max_value_id);
         self.num_values += 1;
 
-        //To ensure ordering we flush only
+        //To ensure ordering we flush only, when ids change
         let id_has_changed = self.last_id != id;
         self.last_id = id;
 
@@ -106,7 +156,7 @@ impl BufferedIndexWriter {
             value: value,
         });
 
-        if id_has_changed && self.cache.len() >= 1_000_000 { // flush after 1_000_000 * 8 byte values = 8Megadolonbytes
+        if id_has_changed && self.cache.len() >= 500_000 { // flush after 500_000 * 8 byte values = 4Megadolonbytes
             self.flush()?;
         }
 
@@ -137,7 +187,7 @@ impl BufferedIndexWriter {
         use std::slice;
         unsafe {
             let slice =
-                slice::from_raw_parts(self.cache.as_ptr() as *const u8, self.cache.len() * 8);
+                slice::from_raw_parts(self.cache.as_ptr() as *const u8, self.cache.len() * mem::size_of::<KeyValue<T>>());
             data_file.write(&slice)?;
         }
 
@@ -151,7 +201,7 @@ impl BufferedIndexWriter {
         Ok(())
     }
 
-    pub fn multi_iter(&mut self) -> Result<(Vec<MMapIter>), io::Error> {
+    pub fn multi_iter(&mut self) -> Result<(Vec<MMapIter<T>>), io::Error> {
         let mut vecco = vec![];
 
         // let file = File::open(&self.data_path)?;
@@ -159,11 +209,11 @@ impl BufferedIndexWriter {
             for part in self.parts.iter() {
                 let mmap = unsafe {
                     MmapOptions::new()
-                        .offset(part.offset as usize * 8)
-                        .len(part.len as usize * 8)
+                        .offset(part.offset as usize * mem::size_of::<KeyValue<T>>())
+                        .len(part.len as usize * mem::size_of::<KeyValue<T>>())
                         .map(&file)?
                 };
-                vecco.push(MMapIter::new(mmap));
+                vecco.push(MMapIter::<T>::new(mmap));
             }
             Ok(vecco)
 
@@ -179,7 +229,7 @@ impl BufferedIndexWriter {
 
     /// inmemory version for very small indices, where it's inefficient to write and then read from disk - data on disk will be ignored!
     #[inline]
-    pub fn iter_inmemory<'a>(&'a mut self) -> impl Iterator<Item = &'a KeyValue> {
+    pub fn iter_inmemory<'a>(&'a mut self) -> impl Iterator<Item = &'a KeyValue<T>> {
         if !self.ids_are_sorted{
             if self.stable_sort {
                 self.cache.sort_by_key(|el| el.key);
@@ -192,11 +242,11 @@ impl BufferedIndexWriter {
 
     /// flushed changes on disk and returns iterator over sorted elements
     #[inline]
-    pub fn kmerge_sorted_iter(&mut self) -> Result<(impl Iterator<Item = (u32, u32)>), io::Error> {
+    pub fn kmerge_sorted_iter(&mut self) -> Result<(impl Iterator<Item = KeyValue<T>>), io::Error> {
         self.flush()?;
 
         let iters = self.multi_iter().unwrap();
-        let mergo = iters.into_iter().kmerge_by(|a, b| (*a).0 < (*b).0);
+        let mergo = iters.into_iter().kmerge_by(|a, b| (*a).key < (*b).key);
 
         Ok(mergo)
     }
@@ -204,10 +254,10 @@ impl BufferedIndexWriter {
 
 
 use std::fmt;
-impl fmt::Display for BufferedIndexWriter {
+impl<T:GetValue> fmt::Display for BufferedIndexWriter<T> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         for el in self.cache.iter() {
-            write!(f, "{}\t{}\n", el.key, el.value)?;
+            write!(f, "{}\t{}\n", el.key, el.value.get_value())?;
         }
         Ok(())
     }
@@ -229,39 +279,42 @@ impl fmt::Display for BufferedIndexWriter {
 //     wtr
 // }
 
+use std::marker::PhantomData;
 #[derive(Debug)]
-pub struct MMapIter {
+pub struct MMapIter<T:GetValue> {
     mmap: memmap::Mmap,
     pos: u32,
+    phantom: PhantomData<T>,
 }
 
-impl MMapIter {
+impl<T:GetValue> MMapIter<T> {
     fn new(mmap: memmap::Mmap) -> Self {
-        MMapIter { mmap, pos: 0 }
+        MMapIter { mmap, pos: 0, phantom:PhantomData }
     }
 }
 
-type KVPair = (u32, u32);
+// type KVPair = (u32, u32);
 
 #[inline]
 // Maximum speed, Maximum unsafe
-fn read_pair_very_raw_p(p: *const u8) -> KVPair {
-    let mut out: (u32, u32) = (0, 0);
+fn read_pair_very_raw_p<T:GetValue + Default>(p: *const u8) -> KeyValue<T> {
+    // let mut out: (u32, u32) = (0, 0);
+    let mut out: KeyValue<T> = KeyValue::default();
     unsafe {
-        copy_nonoverlapping(p, &mut out as *mut KVPair as *mut u8, 8);
+        copy_nonoverlapping(p, &mut out as *mut KeyValue<T> as *mut u8, mem::size_of::<KeyValue<T>>());
     }
     out
 }
 
-impl Iterator for MMapIter {
-    type Item = KVPair;
+impl<T:GetValue + Default> Iterator for MMapIter<T> {
+    type Item = KeyValue<T>;
 
-    fn next(&mut self) -> Option<KVPair> {
+    fn next(&mut self) -> Option<KeyValue<T>> {
         if self.mmap.len() <= self.pos as usize {
             return None;
         }
         let pair = read_pair_very_raw_p((&self.mmap[self.pos as usize..]).as_ptr());
-        self.pos += 8;
+        self.pos += mem::size_of::<KeyValue<T>>() as u32;
         Some(pair)
     }
 
@@ -278,11 +331,11 @@ fn test_buffered_index_writer() {
     ind.flush().unwrap();
 
     let mut iters = ind.multi_iter().unwrap();
-    assert_eq!(iters[0].next(), Some((2, 2)));
+    assert_eq!(iters[0].next(), Some(KeyValue::new(2, 2)));
     assert_eq!(iters[0].next(), None);
 
     let mut iters = ind.multi_iter().unwrap();
-    assert_eq!(iters[0].next(), Some((2, 2)));
+    assert_eq!(iters[0].next(), Some(KeyValue::new(2, 2)));
     assert_eq!(iters[0].next(), None);
 
     ind.add(1, 3).unwrap();
@@ -291,11 +344,11 @@ fn test_buffered_index_writer() {
     ind.flush().unwrap();
 
     let mut iters = ind.multi_iter().unwrap();
-    assert_eq!(iters[1].next(), Some((1, 3)));
+    assert_eq!(iters[1].next(), Some(KeyValue::new(1, 3)));
     assert_eq!(iters[1].next(), None);
 
     let mut mergo = ind.kmerge_sorted_iter().unwrap();
-    assert_eq!(mergo.next(), Some((1, 3)));
-    assert_eq!(mergo.next(), Some((2, 2)));
-    assert_eq!(mergo.next(), Some((4, 4)));
+    assert_eq!(mergo.next(), Some(KeyValue::new(1, 3)));
+    assert_eq!(mergo.next(), Some(KeyValue::new(2, 2)));
+    assert_eq!(mergo.next(), Some(KeyValue::new(4, 4)));
 }

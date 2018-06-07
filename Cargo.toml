@@ -1,109 +1,121 @@
 [package]
-name = "native_search"
-version = "0.1.0"
 authors = ["Pascal Powerman <you@gmail.com>"]
 autobenches = false
+name = "native_search"
+version = "0.1.0"
+[[bench]]
+harness = false
+name = "bench_jmdict"
+path = "benches/bench_jmdict.rs"
+
+[[bench]]
+name = "bench_collection"
+path = "benches/bench_collection.rs"
+
+[[bench]]
+name = "bench_persistence"
+path = "benches/bench_persistence.rs"
 
 [dependencies]
-json_converter = {path = "json_converter"}
-buffered_index_writer = {path = "buffered_index_writer"}
-serde_derive = "1.0.1"
-serde = "1.0.1"
-serde_json = "1.0.0"
-levenshtein_automata = { git = "https://github.com/PSeitz/levenshtein-automata", features = ["fst_automaton"] }
-# fxhash = { git = "https://github.com/cbreeden/fxhash" }
-regex = "0.2"
-lazy_static = "1.0.0"
-fnv = "1.0.3"
-fst = "0.3"
-log = "0.4"
-env_logger = "0.3"
-vint = { git = "https://github.com/PSeitz/rust_vint" }
-term_hashmap = { git = "https://github.com/PSeitz/rust_string_hashmap" }
-num = "0.1"
-heapsize = "0.4.1"
-heapsize_derive = "0.1.4"
-snap = "0.2"
-byteorder = "1.2.1"
 bincode = "1.0.0"
-measure_time = "0.5"
-chrono = "0.4"
-flexi_logger = "0.6"
-rayon = "1.0.1"
-itertools = "0.7.3"
-ordered-float = "0.5.0"
+byteorder = "1.2.1"
 chashmap = "2.2.0"
-parking_lot = { version = "0.5", features = ["nightly"] }
-lru_time_cache = "0.8.0"
-memmap = "0.6.2"
-half = { version = "1.1.0", features = ["use-intrinsics", "serialize", "std"]}
-flame = { version = "0.2.0", optional = true }
-flamer = { version = "0.2.0", optional = true }
+chrono = "0.4"
+colored = "1.4"
+cpuprofiler = "0.0.3"
 crossbeam-channel = "0.1.2"
 crossbeam-utils = "0.2.1"
-mayda = { git = "https://github.com/PSeitz/mayda" }
-btree = { git = "https://github.com/wspeirs/btree" }
-prettytable-rs = "^0.6"
-colored = "1.4"
-flate2 = "1.0"
-uuid = { version = "0.6", features = ["v4"] }
-cpuprofiler = "0.0.3"
-
-rocket = "0.3"
-rocket_contrib = "0.3"
-rocket_codegen = "0.3"
-
 dump = "0.1"
-
-# time = "0.1"
-# csv = "0.15.0"
-# lz4 = "1.22.0"
-# hyper = "0.10.9"
-# bit-set = "0.4.0"
-# bit-vec = "0.4.4"
-# sled = "0.15.14"
+env_logger = "0.3"
+fixedbitset = "0.1.9"
+flate2 = "1.0"
+flexi_logger = "0.6"
+fnv = "1.0.3"
+fst = "0.3"
+heapsize = "0.4.1"
+heapsize_derive = "0.1.4"
+itertools = "0.7.3"
+lazy_static = "1.0.0"
+log = "0.4"
 lru-cache = "0.1.1"
-# utf8-ranges = "1.0.0"
-# fixedbitset = "0.1.8"
-# fst-levenshtein = "0.2.0"
+lru_time_cache = "0.8.0"
+measure_time = "0.5"
+memmap = "0.6.2"
+num = "0.1"
+ordered-float = "0.5.0"
+prettytable-rs = "^0.6"
+rayon = "1.0.1"
+regex = "0.2"
+rocket = "0.3"
+rocket_codegen = "0.3"
+rocket_contrib = "0.3"
+serde = "1.0.1"
+serde_derive = "1.0.1"
+serde_json = "1.0.0"
+snap = "0.2"
+
+[dependencies.btree]
+git = "https://github.com/wspeirs/btree"
+
+[dependencies.buffered_index_writer]
+path = "buffered_index_writer"
+
+[dependencies.flame]
+optional = true
+version = "0.2.0"
+
+[dependencies.flamer]
+optional = true
+version = "0.2.0"
+
+[dependencies.half]
+features = ["use-intrinsics", "serialize", "std"]
+version = "1.1.0"
+
+[dependencies.json_converter]
+path = "json_converter"
+
+[dependencies.levenshtein_automata]
+features = ["fst_automaton"]
+git = "https://github.com/PSeitz/levenshtein-automata"
+
+[dependencies.mayda]
+git = "https://github.com/PSeitz/mayda"
+
+[dependencies.parking_lot]
+features = ["nightly"]
+version = "0.5"
+
+[dependencies.term_hashmap]
+git = "https://github.com/PSeitz/rust_string_hashmap"
+
+[dependencies.uuid]
+features = ["v4"]
+version = "0.6"
+
+[dependencies.vint]
+git = "https://github.com/PSeitz/rust_vint"
+
+[dev-dependencies]
+criterion = "0.2.3"
+env_logger = "0.3"
+pretty_assertions = "0.1.2"
+rand = "0.4"
+tempfile = "3"
+
+[dev-dependencies.stainless]
+git = "https://github.com/PSeitz/stainless"
 
 [features]
 default = []
 flame_it = ["flame", "flamer"]
 
-# [dependencies.bodyparser]
-# version = "0.7.0"
-
-# [dependencies.urlencoded]
-# version = "0.5.0"
-
-[dev-dependencies]
-env_logger = "0.3"
-pretty_assertions = "0.1.2"
-stainless = {git = "https://github.com/PSeitz/stainless"}
-criterion = "0.2.3"
-tempfile = "3"
-rand = "0.4"
-
 [lib]
 name = "search_lib"
 path = "src/lib.rs"
-
-[[bench]]
-name = "bench_jmdict"
-path = "benches/bench_jmdict.rs"
-harness = false
-
-[[bench]]
-name = "bench_collection"
-path = "benches/bench_collection.rs"
-[[bench]]
-name = "bench_persistence"
-path = "benches/bench_persistence.rs"
-
 [profile.release]
-opt-level = 3
-debug = false
-lto = true
 codegen-units = 1
-panic = 'unwind'
+debug = true
+lto = true
+opt-level = 3
+panic = "unwind"
