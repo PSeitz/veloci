@@ -6,9 +6,10 @@ extern crate byteorder;
 use itertools::Itertools;
 use memmap::MmapOptions;
 
-use byteorder::{ByteOrder, LittleEndian};
+// use byteorder::{ByteOrder, LittleEndian};
 use std::fs::File;
 use std::io;
+use std::iter::FusedIterator;
 use std::mem;
 use std::io::prelude::*;
 use std::io::BufWriter;
@@ -65,7 +66,6 @@ pub struct BufferedIndexWriter<T:GetValue = u32> {
     pub max_value_id: u32,
     pub num_values: u32,
     /// keep order of values
-    /// TODO: @BUG need commit barriers, stable sort is not possible between parts, with a commit mechanism
     stable_sort: bool,
     /// Ids are already sorted inserted, so there is no need to sort them
     ids_are_sorted: bool,
@@ -74,7 +74,6 @@ pub struct BufferedIndexWriter<T:GetValue = u32> {
     parts: Vec<Part>,
 }
 
-use std::ops::Deref;
 impl<T:GetValue + Default> BufferedIndexWriter<T> {
     pub fn new_with_opt(stable_sort: bool, ids_are_sorted: bool) -> Self {
         BufferedIndexWriter {
@@ -97,27 +96,6 @@ impl<T:GetValue + Default> BufferedIndexWriter<T> {
         BufferedIndexWriter::new_with_opt(true, false)
     }
 
-    // #[inline]
-    // pub fn start_commit(&mut self){
-    //     self.in_transaction = true;
-    // }
-
-    // #[inline]
-    // pub fn finish_commit(&mut self) -> Result<(), io::Error>{
-    //     self.in_transaction = false;
-    //     self.check_flush();
-    //     self.in_transaction = true;
-    //     Ok(())
-    // }
-
-    // #[inline]
-    // pub fn check_flush(&mut self) -> Result<(), io::Error>{
-    //     if self.in_transaction == false && self.cache.len() >= 1_000_000 { // flush after 1_000_000 * 8 byte values = 8Megadolonbytes
-    //         self.flush()?;
-    //     }
-    //     Ok(())
-    // }
-
     #[inline]
     pub fn add_all(&mut self, id: u32, values: Vec<T>) -> Result<(), io::Error> {
         self.num_values += values.len() as u32;
@@ -132,7 +110,6 @@ impl<T:GetValue + Default> BufferedIndexWriter<T> {
                 key: id,
                 value: value,
             });
-            // self.max_value_id = std::cmp::max(*value, self.max_value_id);
         }
 
         if id_has_changed && self.cache.len() >= 1_000_000 { // flush after 1_000_000 * 8 byte values = 8Megadolonbytes
@@ -293,8 +270,6 @@ impl<T:GetValue> MMapIter<T> {
     }
 }
 
-// type KVPair = (u32, u32);
-
 #[inline]
 // Maximum speed, Maximum unsafe
 fn read_pair_very_raw_p<T:GetValue + Default>(p: *const u8) -> KeyValue<T> {
@@ -309,6 +284,7 @@ fn read_pair_very_raw_p<T:GetValue + Default>(p: *const u8) -> KeyValue<T> {
 impl<T:GetValue + Default> Iterator for MMapIter<T> {
     type Item = KeyValue<T>;
 
+    #[inline]
     fn next(&mut self) -> Option<KeyValue<T>> {
         if self.mmap.len() <= self.pos as usize {
             return None;
@@ -317,11 +293,22 @@ impl<T:GetValue + Default> Iterator for MMapIter<T> {
         self.pos += mem::size_of::<KeyValue<T>>() as u32;
         Some(pair)
     }
-
-    // fn size_hint(&self) -> (usize, Option<usize>) {
-    //     self.iter.size_hint()
-    // }
+    #[inline]
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let remaining_els = (self.mmap.len() as u32 - self.pos) / mem::size_of::<KeyValue<T>>() as u32;
+        (remaining_els as usize, Some(remaining_els as usize))
+    }
 }
+
+impl<T:GetValue + Default>  ExactSizeIterator for MMapIter<T> {
+    #[inline]
+    fn len(&self) -> usize {
+        let remaining_els = (self.mmap.len() as u32 - self.pos) / mem::size_of::<KeyValue<T>>() as u32;
+        remaining_els as usize
+    }
+}
+
+impl<T:GetValue + Default>  FusedIterator for MMapIter<T> {}
 
 #[test]
 fn test_buffered_index_writer() {

@@ -2,6 +2,7 @@ language: rust
 rust:
   - nightly
 env:
-  - LoadingType=Disk RUST_BACKTRACE=full RUST_LOG=search_lib=trace
-  - LoadingType=InMemory RUST_BACKTRACE=full RUST_LOG=search_lib=trace
-  - LoadingType=InMemoryUnCompressed RUST_BACKTRACE=full RUST_LOG=search_lib=trace
+  - PersistenceType=Persistent LoadingType=Disk RUST_BACKTRACE=full RUST_LOG=search_lib=trace
+  - PersistenceType=Persistent LoadingType=InMemory RUST_BACKTRACE=full RUST_LOG=search_lib=trace
+  - PersistenceType=Persistent LoadingType=InMemoryUnCompressed RUST_BACKTRACE=full RUST_LOG=search_lib=trace
+  - PersistenceType=Transient RUST_BACKTRACE=full RUST_LOG=search_lib=trace

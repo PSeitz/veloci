@@ -2,6 +2,7 @@
 #![feature(extern_prelude)]
 #![feature(align_offset)]
 #![feature(offset_to)]
+#![feature(ptr_offset_from)]
 #![feature(pointer_methods)]
 #![feature(core_intrinsics)]
 #![feature(splice)]

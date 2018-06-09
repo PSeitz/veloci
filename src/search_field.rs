@@ -16,6 +16,7 @@ use std::cmp::Ordering;
 use str;
 use util;
 use util::concat;
+use std::iter::FusedIterator;
 
 use half::f16;
 use rayon::prelude::*;
@@ -82,10 +83,7 @@ impl<'a> Iterator for SearchFieldResultIterator<'a> {
 
     #[inline]
     fn size_hint(&self) -> (usize, Option<usize>) {
-        let exact = match self.ptr.offset_to(self.end) {
-            Some(x) => x as usize,
-            None => (self.end as usize).wrapping_sub(self.ptr as usize),
-        };
+        let exact = unsafe { self.end.offset_from(self.ptr) as usize };
         (exact, Some(exact))
     }
 
@@ -106,6 +104,15 @@ impl<'a> Iterator for SearchFieldResultIterator<'a> {
         }
     }
 }
+
+impl<'a> ExactSizeIterator for SearchFieldResultIterator<'a> {
+    #[inline]
+    fn len(&self) -> usize {
+        unsafe { self.end.offset_from(self.ptr) as usize }
+    }
+}
+
+impl<'a> FusedIterator for SearchFieldResultIterator<'a> {}
 
 // pub type TermScore = (TermId, Score);
 pub type TermId = u32;

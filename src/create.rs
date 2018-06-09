@@ -10,7 +10,7 @@ use itertools::Itertools;
 use log;
 use rayon::prelude::*;
 use serde_json::{self, Value};
-use serde_json::{Deserializer, StreamDeserializer};
+use serde_json::{Deserializer};
 use std::io::BufRead;
 use json_converter;
 use persistence;
@@ -266,7 +266,7 @@ fn store_full_text_info_and_set_ids(
 ) -> Result<(), io::Error> {
     debug_time!(format!("store_fst strings and string offsets {:?}", path));
 
-    info!("{:?} mappo.memory_footprint() {:?}", path, all_terms.memory_footprint());
+    info!("{:?} mappo.memory_footprint() {}", path, persistence::get_readable_size(all_terms.memory_footprint()));
 
     if log_enabled!(log::Level::Trace) {
         let mut all_text:Vec<_> = all_terms.keys().collect();
@@ -331,11 +331,6 @@ fn add_count_text(terms: &mut TermMap, text: &str) {
     let stat = terms.get_or_insert(text, ||TermInfo::default());
     stat.num_occurences += 1;
 
-    // if !terms.contains_key(text) {
-    //     terms.insert(text.to_string(), TermInfo::default());
-    // }
-    // let stat = terms.get_mut(text).unwrap();
-    // stat.num_occurences += 1;
 }
 
 #[inline]
@@ -387,11 +382,6 @@ where
 }
 
 fn calculate_token_score_in_doc(tokens_to_anchor_id: &mut Vec<ValIdPairToken>) -> Vec<TokenToAnchorScore> {
-    // TokenToAnchorScore {
-    //     pub valid: u32,
-    //     pub anchor_id: u32,
-    //     pub score: u32
-    // }
 
     // Sort by anchor, tokenid
     tokens_to_anchor_id.sort_unstable_by(|a, b| {
@@ -408,42 +398,13 @@ fn calculate_token_score_in_doc(tokens_to_anchor_id: &mut Vec<ValIdPairToken>) -
         }
     }); // sort by parent id
 
-    // Sort by anchor, tokenid
-    // tokens_to_anchor_id.sort_by(|a, b| {
-    //     let sort_anch = a.anchor_id.cmp(&b.anchor_id);
-    //     if sort_anch == std::cmp::Ordering::Equal {
-    //         a.token_or_text_id.cmp(&b.token_or_text_id)
-    //     } else {
-    //         sort_anch
-    //     }
-    // }); // sort by parent id
-
     let mut dat = Vec::with_capacity(tokens_to_anchor_id.len());
     for (_, mut group) in &tokens_to_anchor_id.into_iter().group_by(|el| (el.anchor_id, el.token_or_text_id)) {
         let first = group.next().unwrap();
         let best_pos = first.token_pos;
         let num_occurences = first.num_occurences;
-        // let mut avg_pos = best_pos;
-        // let mut num_occurences_in_doc = 1;
 
         let mut is_exact = first.num_tokens_in_text == 1 && first.token_pos == 0;
-
-        // let mut exact_match_boost = 1;
-        // if first.num_tokens_in_text == 1 && first.token_pos == 0 {
-        //     exact_match_boost = 2
-        // }
-
-        // for el in group {
-        //     num_occurences = el.num_occurences;
-        //     // avg_pos = avg_pos + (el.token_pos - avg_pos) / num_occurences_in_doc;
-        //     // num_occurences_in_doc += 1;
-        // }
-
-        // let mut score = ((20 / (best_pos + 2)) + num_occurences_in_doc.log10() ) / first.num_occurences;
-        // let mut score = 2000 / (best_pos + 10);
-        // score *= exact_match_boost;
-        // score = (score as f32 / (num_occurences as f32 + 10.).log10()) as u32; //+10 so 1 is bigger than 1
-
 
         let score = calculate_token_score_for_entry(best_pos, num_occurences, is_exact);
 
@@ -500,7 +461,7 @@ pub fn get_allterms_per_path<I: Iterator<Item = Result<serde_json::Value, serde_
 
     let mut id_holder = json_converter::IDHolder::new();
     {
-        let mut cb_text = |_anchor_id: u32, value: &str, path: &str, _parent_val_id: u32, is_new_doc:bool| {
+        let mut cb_text = |_anchor_id: u32, value: &str, path: &str, _parent_val_id: u32, _is_new_doc:bool| {
             let options: &FulltextIndexOptions = fulltext_info_for_path
                 .get(path)
                 .and_then(|el| el.options.as_ref())
@@ -513,6 +474,10 @@ pub fn get_allterms_per_path<I: Iterator<Item = Result<serde_json::Value, serde_
         let mut callback_ids = |_anchor_id: u32, _path: &str, _value_id: u32, _parent_val_id: u32| {};
 
         json_converter::for_each_element(stream, &mut id_holder, &mut opt, &mut cb_text, &mut callback_ids);
+    }
+
+    for (_path, map) in data.terms_in_path.iter_mut() {
+        map.shrink_to_fit();
     }
 
     std::mem::swap(&mut data.id_holder, &mut id_holder);
@@ -568,12 +533,12 @@ fn replace_term_ids_test() {
 }
 
 #[derive(Debug, Default)]
-struct TextIdToTokenIdsData {
+struct BufferedTextIdToTokenIdsData {
     text_id_flag: FixedBitSet,
     data: BufferedIndexWriter,
 }
 
-impl TextIdToTokenIdsData {
+impl BufferedTextIdToTokenIdsData {
     #[inline]
     pub fn contains(&self, text_id: u32) -> bool {
         self.text_id_flag.contains(text_id as usize)
@@ -586,9 +551,9 @@ impl TextIdToTokenIdsData {
         self.text_id_flag.insert(text_id as usize);
     }
     #[inline]
-    pub fn add_all(&mut self, text_id: u32, token_ids: Vec<u32>) {
+    pub fn add_all(&mut self, text_id: u32, token_ids: Vec<u32>) -> Result<(), io::Error> {
         self.flag(text_id);
-        self.data.add_all(text_id, token_ids);
+        self.data.add_all(text_id, token_ids)
     }
 }
 
@@ -597,7 +562,7 @@ impl TextIdToTokenIdsData {
 struct PathData {
     tokens_to_text_id: BufferedIndexWriter,
     token_to_anchor_id_score_2: BufferedIndexWriter<(u32, u32)>,
-    text_id_to_token_ids: TextIdToTokenIdsData,
+    text_id_to_token_ids: BufferedTextIdToTokenIdsData,
     text_id_to_parent: BufferedIndexWriter,
 
     parent_to_text_id: BufferedIndexWriter,
@@ -644,7 +609,7 @@ fn stream_buffered_index_writer_to_indirect_index(index_writer: &mut BufferedInd
     Ok(())
 }
 
-fn stream_buffered_index_writer_to_anchor_score(index_writer: &mut BufferedIndexWriter<(u32, u32)>, target: &mut TokenToAnchorScoreVintIM, ) -> Result<(), io::Error> {
+fn stream_buffered_index_writer_to_anchor_score(index_writer: &mut BufferedIndexWriter<(u32, u32)>, target: &mut TokenToAnchorScoreVintFlushing, ) -> Result<(), io::Error> {
 
     let mut groupo = vec![];
     // kmerge_sorted_iter will flush elements to disk, this is unnecessary for small indices, so we check for im
@@ -658,17 +623,7 @@ fn stream_buffered_index_writer_to_anchor_score(index_writer: &mut BufferedIndex
                 groupo.push(el.value.0);
                 groupo.push(el.value.1);
             }
-            target.set_scores(id, &mut groupo);
-
-            // let mut result:Vec<u32> = vec![];
-            // for el in group {
-            //     result.push(el.value.0);
-            //     result.push(el.value.1);
-            // }
-
-            // result.sort_unstable();
-            // result.dedup();
-            // target.set_scores(id, &mut result);
+            target.set_scores(id, &mut groupo)?;
         }
     }else{
         for (id, group) in &index_writer.kmerge_sorted_iter()?.into_iter().group_by(|el| el.key) {
@@ -680,23 +635,14 @@ fn stream_buffered_index_writer_to_anchor_score(index_writer: &mut BufferedIndex
                 groupo.push(el.value.0);
                 groupo.push(el.value.1);
             }
-            target.set_scores(id, &mut groupo);
-
-            // let mut result:Vec<u32> = vec![];
-            // for el in group {
-            //     result.push(el.value.0);
-            //     result.push(el.value.1);
-            // }
-            // result.sort_unstable();
-            // result.dedup();
-            // target.set_scores(id, &mut result);
+            target.set_scores(id, &mut groupo)?;
         }
     }
 
     //when there has been written something to disk flush the rest of the data too, so we have either all data im oder on disk
-    // if !target.is_in_memory(){
-    //     target.flush()?;
-    // }
+    if !target.is_in_memory(){
+        target.flush()?;
+    }
     Ok(())
 }
 
@@ -754,14 +700,6 @@ where
 
             let text_info = all_terms.get(value).expect("did not found term");
 
-            // //TODO ONLY EVERY nth document
-            // if is_new_doc {
-            //     data.parent_to_text_id.finish_commit();
-            //     data.anchor_to_text_id
-            //     .as_mut()
-            //     .map(|el| el.finish_commit());
-            // }
-
             data.text_id_to_parent.add(text_info.id, parent_val_id);
 
             //Used to recreate objects, keep oder
@@ -782,25 +720,10 @@ where
             });
             trace!("Found id {:?} for {:?}", text_info, value);
 
-            // tokens_to_anchor_id.push(ValIdPairToken {
-            //     token_or_text_id: text_info.id as u32,
-            //     num_occurences: text_info.num_occurences as u32,
-            //     anchor_id: anchor_id,
-            //     token_pos: 0,
-            //     num_tokens_in_text: 1,
-            // });
-
             let score = calculate_token_score_for_entry(0, text_info.num_occurences, true);
-            // data.token_to_anchor_id_score.push(TokenToAnchorScore {
-            //     valid: text_info.id,
-            //     anchor_id: anchor_id,
-            //     score,
-            // });
 
             data.token_to_anchor_id_score_2.add(text_info.id, (anchor_id, score));
 
-            // let temp_id = data.the_terms.len();
-            // data.the_terms.push((value.to_string(), temp_id));
             if options.tokenize && tokenizer.has_tokens(value) {
                 let mut current_token_pos = 0;
                 let mut tokens_ids = Vec::with_capacity(5);
@@ -810,9 +733,6 @@ where
                     if options.stopwords.as_ref().map(|el| el.contains(token)).unwrap_or(false) {
                         return; //TODO FIXEME return here also prevents proper recreation of text with tokens
                     }
-
-                    // let temp_id = data.the_terms.len();
-                    // data.the_terms.push((token.to_string(), temp_id));
 
                     let token_info = all_terms.get(token).expect("did not found token");
                     trace!("Adding to tokens_ids {:?} : {:?}", token, token_info);
@@ -845,12 +765,7 @@ where
                 for el in token_to_anchor_id_scores.iter() {
                     data.token_to_anchor_id_score_2.add(el.valid, (el.anchor_id, el.score));
                 }
-                // data.token_to_anchor_id_score.extend(token_to_anchor_id_scores);
             }
-            // data.tokens_to_anchor_id.extend(tokens_to_anchor_id);
-
-            // let token_to_anchor_id_scores = calculate_token_score_in_doc(&mut tokens_to_anchor_id);
-            // data.token_to_anchor_id_score.extend(token_to_anchor_id_scores);
         };
 
         let mut callback_ids = |_anchor_id: u32, path: &str, value_id: u32, parent_val_id: u32| {
@@ -863,8 +778,6 @@ where
 
             tuples.value_to_parent.add(value_id, parent_val_id);
             tuples.parent_to_value.add(parent_val_id, value_id);
-            // tuples.push(ValIdPair::new(value_id, parent_val_id));
-            // tuples.push(ValIdPair::new(value_id, parent_val_id));
         };
 
         json_converter::for_each_element(stream1, &mut id_holder, &mut json_converter::ForEachOpt {}, &mut cb_text, &mut callback_ids);
@@ -875,8 +788,6 @@ where
 
 
     for (_key, data) in path_data.iter_mut() {
-        // data.token_to_anchor_id_score.shrink_to_fit();
-
         if let Some(ref mut tuples) = data.boost {
             tuples.shrink_to_fit();
         }
@@ -959,27 +870,11 @@ fn trace_indices(path_data: &FnvHashMap<String, PathData>) {
 
 use persistence_data::*;
 
-// fn add_index(path: String,
-//     tuples: &mut Vec<ValIdPair>,
-//     is_always_1_to_1: bool,
-//     sort_and_dedup: bool,
-//     indices: &mut IndicesFromRawData,
-//     loading_type: LoadingType,)
-// {
-//     if is_always_1_to_1 {
-//         let store = valid_pair_to_direct_index(tuples);
-//         indices.direct_indices.push((path, store, loading_type));
-//     } else {
-//         let store = valid_pair_to_indirect_index(tuples, sort_and_dedup);
-//         indices.indirect_indices.push((path, store, loading_type));
-//     }
-
-// }
 
 fn add_index_flush(db_path: &str,
     path: String,
     buffered_index_data: &mut BufferedIndexWriter,
-    is_always_1_to_1: bool,
+    _is_always_1_to_1: bool,
     sort_and_dedup: bool,
     indices: &mut IndicesFromRawData,
     loading_type: LoadingType,)
@@ -998,12 +893,28 @@ fn add_index_flush(db_path: &str,
     // }
 }
 
+fn add_anchor_score_flush(db_path: &str,
+    path: String,
+    buffered_index_data: &mut BufferedIndexWriter<(u32, u32)>,
+    indices: &mut IndicesFromRawData,)
+{
+
+    let indirect_file_path = util::get_file_path(db_path, &(path.to_string() + ".indirect"));
+    let data_file_path = util::get_file_path(db_path, &(path.to_string() + ".data"));
+
+    let mut store = TokenToAnchorScoreVintFlushing::new(indirect_file_path, data_file_path);
+    stream_buffered_index_writer_to_anchor_score(buffered_index_data, &mut store);
+
+    indices.anchor_score_indices_flush.push((path, store));
+
+}
+
 #[derive(Debug, Default)]
 struct IndicesFromRawData {
     direct_indices: Vec<(String, IndexIdToOneParent<u32>, LoadingType)>,
     indirect_indices_flush: Vec<(String, IndexIdToMultipleParentIndirectFlushingInOrder<u32>, LoadingType)>,
     boost_indices: Vec<(String, IndexIdToOneParent<u32>)>,
-    anchor_score_indices: Vec<(String, TokenToAnchorScoreVintIM)>,
+    anchor_score_indices_flush: Vec<(String, TokenToAnchorScoreVintFlushing)>,
 }
 
 fn free_vec<T>(vecco: &mut Vec<T>) {
@@ -1030,9 +941,7 @@ fn convert_raw_path_data_to_indices(
 
             add_index_flush(&db, concat(path, ".tokens_to_text_id"), &mut data.tokens_to_text_id, false, true, &mut indices, LoadingType::Disk);
 
-            let mut token_to_anchor_id_score_vint_index_2 = TokenToAnchorScoreVintIM::default();
-            stream_buffered_index_writer_to_anchor_score(&mut data.token_to_anchor_id_score_2, &mut token_to_anchor_id_score_vint_index_2);
-            indices.anchor_score_indices.push((concat(path, ".to_anchor_id_score"), token_to_anchor_id_score_vint_index_2));
+            add_anchor_score_flush(&db, concat(path, ".to_anchor_id_score"), &mut data.token_to_anchor_id_score_2, &mut indices);
 
 
             let sort_and_dedup = false;
@@ -1068,12 +977,12 @@ fn convert_raw_path_data_to_indices(
         indices.direct_indices.append(&mut indice.direct_indices);
         indices.indirect_indices_flush.append(&mut indice.indirect_indices_flush);
         indices.boost_indices.append(&mut indice.boost_indices);
-        indices.anchor_score_indices.append(&mut indice.anchor_score_indices);
+        indices.anchor_score_indices_flush.append(&mut indice.anchor_score_indices_flush);
     }
 
     let indices_vec_2: Vec<_> = tuples_to_parent_in_path
         .into_par_iter()
-        .map(|(path, mut data)| {
+        .map(|(path, data)| {
             let mut indices = IndicesFromRawData::default();
 
             let is_alway_1_to_1 = !is_text_id_to_parent(path);
@@ -1088,7 +997,7 @@ fn convert_raw_path_data_to_indices(
         indices.direct_indices.append(&mut indice.direct_indices);
         indices.indirect_indices_flush.append(&mut indice.indirect_indices_flush);
         indices.boost_indices.append(&mut indice.boost_indices);
-        indices.anchor_score_indices.append(&mut indice.anchor_score_indices);
+        indices.anchor_score_indices_flush.append(&mut indice.anchor_score_indices_flush);
     }
 
     indices
@@ -1103,7 +1012,7 @@ pub fn create_fulltext_index<'a, I, J, K, S: AsRef<str>>(
     indices_json: &Vec<CreateIndex>,
     create_cache: &mut CreateCache,
     load_persistence: bool,
-) -> Result<(), io::Error>
+) -> Result<(), CreateError>
 where
     I: Iterator<Item = Result<serde_json::Value, serde_json::Error>>,
     J: Iterator<Item = Result<serde_json::Value, serde_json::Error>>,
@@ -1133,7 +1042,7 @@ where
         })
         .collect();
 
-    write_docs(&mut persistence, create_cache, stream3);
+    write_docs(&mut persistence, create_cache, stream3)?;
     get_allterms_per_path(stream1, &fulltext_info_for_path, &mut create_cache.term_data)?;
 
     let default_fulltext_options = FulltextIndexOptions::new_with_tokenize();
@@ -1159,6 +1068,9 @@ where
             persistence.meta_data.fulltext_indices.extend(fulltext_indices);
         }
         persistence.load_all_fst();
+
+        info!("All text memory {}", persistence::get_readable_size(create_cache.term_data.terms_in_path.iter().map(|el|el.1.memory_footprint()).sum()));
+        info!("All raw text data memory {}", persistence::get_readable_size(create_cache.term_data.terms_in_path.iter().map(|el|el.1.total_size_of_text_data()).sum()));
     }
 
     // check_similarity(&data.terms_in_path);
@@ -1167,6 +1079,8 @@ where
 
     let (mut path_data, mut tuples_to_parent_in_path) =
         parse_json_and_prepare_indices(stream2, &persistence, &fulltext_info_for_path, &boost_info_for_path, &facet_index, create_cache)?;
+
+    std::mem::drop(create_cache);
 
     if log_enabled!(log::Level::Trace) {
         trace_indices(&path_data)
@@ -1180,16 +1094,19 @@ where
         let mut boost_stores = vec![];
 
         for ind_index in indices.indirect_indices_flush.iter_mut() {
-            key_value_stores.push(persistence.flush_indirect_index(&mut ind_index.1, &ind_index.0, ind_index.2.clone())?);
+            if !ind_index.1.is_empty() {
+                println!("DA IST WAS {:?}", ind_index.0);
+                key_value_stores.push(persistence.flush_indirect_index(&mut ind_index.1, &ind_index.0, ind_index.2.clone())?);
+            }
         }
         for direct_index in indices.direct_indices.iter() {
             key_value_stores.push(persistence.write_direct_index(&direct_index.1, direct_index.0.to_string(), direct_index.2.clone())?);
         }
-        for direct_index in indices.anchor_score_indices.iter() {
-            anchor_score_stores.push(persistence.write_score_index_vint(&direct_index.1, &direct_index.0, LoadingType::Disk)?);
+        for index in indices.anchor_score_indices_flush.iter_mut() {
+            anchor_score_stores.push(persistence.flush_score_index_vint(&mut index.1, &index.0, LoadingType::Disk)?);
         }
-        for direct_index in indices.boost_indices.iter() {
-            boost_stores.push(persistence.write_direct_index(&direct_index.1, &direct_index.0, LoadingType::Disk)?);
+        for index in indices.boost_indices.iter() {
+            boost_stores.push(persistence.write_direct_index(&index.1, &index.0, LoadingType::Disk)?);
         }
         persistence.meta_data.key_value_stores.extend(key_value_stores);
         persistence.meta_data.anchor_score_stores.extend(anchor_score_stores);
@@ -1207,7 +1124,7 @@ where
             let index = index.1;
 
             if index.is_in_memory(){
-                //Flip data to IndexIdToMultipleParentIndirect
+                //Move data to IndexIdToMultipleParentIndirect
                 persistence.indices.key_value_stores.insert(path, Box::new(index.to_im_store()));
             }else{
                 //load data with MMap
@@ -1230,8 +1147,13 @@ where
         for index in indices.direct_indices {
             persistence.indices.key_value_stores.insert(index.0, Box::new(index.1));
         }
-        for index in indices.anchor_score_indices {
-            persistence.indices.token_to_anchor_to_score.insert(index.0, Box::new(index.1));
+        for (path, index) in indices.anchor_score_indices_flush {
+            if index.is_in_memory(){
+                persistence.indices.token_to_anchor_to_score.insert(path, Box::new(index.to_im_store()));
+            }else{
+                persistence.indices.token_to_anchor_to_score.insert(path, Box::new(index.to_mmap()?));
+            }
+
         }
         for index in indices.boost_indices {
             persistence.indices.boost_valueid_to_value.insert(index.0, Box::new(index.1));
@@ -1337,10 +1259,7 @@ pub fn create_indices_from_file(
         .lines()
         .map(|line| serde_json::from_str(&line.unwrap()));
     let stream3 = std::io::BufReader::new(File::open(data_path).unwrap()).lines().map(|line| line.unwrap());
-    // let stream1 = std::io::BufReader::new(File::open(data_path).unwrap()).lines().map(|line|serde_json::from_str(&line.unwrap()));
 
-    // let stream1 = Deserializer::from_str(&data_str).into_iter::<Value>(); //TODO Performance: Use custom line break deserializer to get string and json at the same time
-    // let stream2 = Deserializer::from_str(&data_str).into_iter::<Value>();
     create_indices_from_streams(persistence, stream1, stream2, stream3, indices, create_cache, load_persistence)
 }
 

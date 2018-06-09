@@ -287,11 +287,27 @@ mod tests {
                     // "#;
 
                     let data = get_test_data();
-                    let mut pers = persistence::Persistence::create_type(TEST_FOLDER.to_string(), persistence::PersistenceType::Transient).unwrap();
+
+                    let mut persistence_type = persistence::PersistenceType::Transient;
+                    if let Some(val) = std::env::var_os("PersistenceType") {
+                        if val.clone().into_string().unwrap() ==  "Transient"{
+                            persistence_type = persistence::PersistenceType::Transient;
+                        }else if val.clone().into_string().unwrap() ==  "Persistent"{
+                            persistence_type = persistence::PersistenceType::Persistent;
+                        }else{
+                            panic!("env PersistenceType needs to be Transient or Persistent");
+                        }
+                    }
+
+                    let mut pers = persistence::Persistence::create_type(TEST_FOLDER.to_string(), persistence_type.clone()).unwrap();
                     if let Some(arr) = data.as_array() {
                         // arr.map(|el| el.to_string()+"\n").collect();
                         let docs_line_separated = arr.iter().fold(String::with_capacity(100), |acc, el| acc + &el.to_string()+"\n");
                         println!("{:?}", create::create_indices_from_str(&mut pers, &docs_line_separated, indices, None, true));
+                    }
+
+                    if persistence_type == persistence::PersistenceType::Persistent {
+                        pers = persistence::Persistence::load(TEST_FOLDER.to_string()).expect("Could not load persistence");
                     }
 
 
@@ -1066,14 +1082,6 @@ mod tests {
 
     // }
 
-    #[test]
-    fn create_and_delete_file_in_subfolder() {
-        fs::create_dir_all("subFolder1").unwrap();
-        let some_terms = vec!["yep, yep"];
-        File::create("subFolder1/test1").unwrap().write_all(some_terms.join("\n").as_bytes()).unwrap();
-        assert_eq!("lines", "lines");
-        info!("{:?}", fs::remove_dir_all("subFolder1"));
-    }
 
 }
 

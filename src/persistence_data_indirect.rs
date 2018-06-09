@@ -61,6 +61,17 @@ pub struct IndexIdToMultipleParentIndirectFlushingInOrder<T: IndexIdToParentData
     pub num_ids: u32,
 }
 
+pub fn flush_to_file_indirect(indirect_path: &str, data_path: &str, indirect_data:&[u8], data:&[u8]) -> Result<(), io::Error> {
+    let mut indirect =   std::fs::OpenOptions::new().read(true).write(true).append(true).create(true).open(&indirect_path).unwrap();
+    let mut data_cache = std::fs::OpenOptions::new().read(true).write(true).append(true).create(true).open(&data_path).unwrap();
+
+    indirect.write_all(indirect_data)?;
+    data_cache.write_all(data)?;
+
+    Ok(())
+
+}
+
 // TODO: Indirect Stuff @Performance @Memory
 // use vint for data
 // use vint for indirect, use not highest bit in indirect, but the highest unused bit. Max(value_id, single data_id, which would be encoded in the valueid index)
@@ -96,6 +107,7 @@ impl<T: IndexIdToParentData> IndexIdToMultipleParentIndirectFlushingInOrder<T> {
         store
     }
 
+    #[inline]
     pub fn add(&mut self, id: u32, add_data: Vec<T>) -> Result<(), io::Error>{
         //set max_value_id
         for el in add_data.iter() {
@@ -121,7 +133,7 @@ impl<T: IndexIdToParentData> IndexIdToMultipleParentIndirectFlushingInOrder<T> {
             self.data_cache.extend(add_data);
         }
 
-        //TODO ALARM ERROR SERIOUS PLS FIX; ELSE GG CRASHES. threshold set to 0 reveals bugzzzzzzzzzzzzzzzzzz
+        //TODO threshold 0 is buggy?
         if self.ids_cache.len() + self.data_cache.len() >= 1_000_000 { // TODO: Make good flushes every 4MB currently
             self.flush()?;
         }
@@ -129,24 +141,28 @@ impl<T: IndexIdToParentData> IndexIdToMultipleParentIndirectFlushingInOrder<T> {
 
     }
 
+    #[inline]
     pub fn is_in_memory(&self) -> bool {
         self.current_id_offset == 0
+    }
+
+    #[inline]
+    pub fn is_empty(&self) -> bool {
+        self.ids_cache.is_empty() && self.current_id_offset == 0
     }
 
     pub fn flush(&mut self) -> Result<(), io::Error> {
         if self.ids_cache.is_empty() {
             return Ok(());
         }
-        let mut indirect =   std::fs::OpenOptions::new().read(true).write(true).append(true).create(true).open(&self.indirect_path).unwrap();
-        let mut data_cache = std::fs::OpenOptions::new().read(true).write(true).append(true).create(true).open(&self.data_path).unwrap();
-
-        indirect.write_all(&vec_to_bytes_u32(&self.ids_cache))?;
-        self.current_id_offset += self.ids_cache.len() as u32;
 
         //TODO this conversion is not needed, it's always u32
         let conv_to_u32 = self.data_cache.iter().map(|el|num::cast(*el).unwrap()).collect::<Vec<_>>();
-        data_cache.write_all(&vec_to_bytes_u32(&conv_to_u32))?;
+
+        self.current_id_offset += self.ids_cache.len() as u32;
         self.current_data_offset += self.data_cache.len() as u32;
+
+        flush_to_file_indirect(&self.indirect_path, &self.data_path, &vec_to_bytes_u32(&self.ids_cache), &vec_to_bytes_u32(&conv_to_u32))?;
 
         self.data_cache.clear();
         self.ids_cache.clear();
@@ -265,19 +281,6 @@ pub struct IndexIdToMultipleParentIndirectFlushingInc<T: IndexIdToParentData> {
 impl<T: IndexIdToParentData> IndexIdToMultipleParentIndirectFlushingInc<T> {
 
     pub fn add_multi(&mut self, id: u32, add_data: Vec<T>) -> Result<(), io::Error>{
-
-        // for el in add_data.iter() {
-        //     self.max_value_id = std::cmp::max((*el).to_u32().unwrap(), self.max_value_id);
-        // }
-        // self.num_values += 1;
-        // self.num_ids += add_data.len() as u32;
-        // self.cache_size += add_data.len() as u32;
-        // // self.cache.push((id, add_data));
-
-        // if self.cache_size >= 100000 {
-        //     self.flush()?;
-        // }
-        // Ok(())
 
         for el in add_data {
             self.add(id, el)?;

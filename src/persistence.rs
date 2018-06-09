@@ -85,7 +85,7 @@ pub struct PersistenceIndices {
     pub fst: HashMap<String, Map>,
 }
 
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Debug, Eq, PartialEq, Clone)]
 pub enum PersistenceType {
     /// Transient Doesn't write indices, just holds them in memory. Good for small indices with incremental updates.
     Transient,
@@ -726,13 +726,6 @@ impl Persistence {
         loading_type: LoadingType,
     ) -> Result<(KVStoreMetaData), io::Error> {
         store.flush()?;
-        let avg_join_size = calc_avg_join_size(store.num_values, store.num_ids);
-
-        // let indirect_file_path = util::get_file_path(&self.db, &(path.to_string() + ".indirect"));
-        // let data_file_path = util::get_file_path(&self.db, &(path.to_string() + ".data"));
-
-        // File::create(indirect_file_path)?.write_all(&vec_to_bytes_u32(&store.start_pos))?;
-        // File::create(data_file_path)?.write_all(&vec_to_bytes_u32(&store.data))?;
         Ok(KVStoreMetaData {
             loading_type: loading_type,
             persistence_type: KVStoreType::IndexIdToMultipleParentIndirect,
@@ -771,6 +764,17 @@ impl Persistence {
         let data_file_path = util::get_file_path(&self.db, &(path.to_string() + ".data"));
 
         store.write(&indirect_file_path, &data_file_path)?;
+        Ok(KVStoreMetaData {
+            loading_type: loading_type,
+            persistence_type: KVStoreType::IndexIdToMultipleParentIndirect,
+            is_1_to_n: false,
+            path: path.to_string(),
+            max_value_id: 0, //TODO ?
+            avg_join_size: 0.0,
+        })
+    }
+    pub fn flush_score_index_vint(&self, store: &mut TokenToAnchorScoreVintFlushing, path: &str, loading_type: LoadingType) -> Result<(KVStoreMetaData), io::Error> {
+        store.flush()?;
         Ok(KVStoreMetaData {
             loading_type: loading_type,
             persistence_type: KVStoreType::IndexIdToMultipleParentIndirect,

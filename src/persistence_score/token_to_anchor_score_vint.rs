@@ -8,10 +8,13 @@ use std::fs::File;
 use std::io;
 use std::io::prelude::*;
 use search;
-use super::U31_MAX;
 use itertools::Itertools;
 
+use persistence_data_indirect;
+
 impl_type_info!(TokenToAnchorScoreVintIM, TokenToAnchorScoreVintMmap);
+
+const EMPTY_BUCKET: u32 = 0;
 
 #[derive(Serialize, Deserialize, Debug, Clone, Default, HeapSizeOf)]
 pub struct TokenToAnchorScoreVintIM {
@@ -19,14 +22,31 @@ pub struct TokenToAnchorScoreVintIM {
     pub data: Vec<u8>,
 }
 
+
+#[derive(Debug)]
+pub struct TokenToAnchorScoreVintMmap {
+    pub start_pos: Mmap,
+    pub data: Mmap,
+    pub max_value_id: u32,
+}
+
 ///
 /// Datastructure to cache and flush changes to file
 ///
 #[derive(Serialize, Deserialize, Debug, Clone, Default, HeapSizeOf)]
-pub struct TokenToAnchorScoreVint {
-    pub cache: Vec<(u32, Vec<u32>)>,
-    pub path: String,
+pub struct TokenToAnchorScoreVintFlushing {
+    pub ids_cache: Vec<u32>,
+    pub data_cache: Vec<u8>,
+    pub current_data_offset: u32,
+    /// Already written ids_cache
+    pub current_id_offset: u32,
+    pub indirect_path: String,
+    pub data_path: String,
+    pub avg_join_size: f32,
+    pub num_values: u32,
+    pub num_ids: u32,
 }
+
 
 pub fn get_serialized_most_common_encoded(data: &mut Vec<(u32, u32)>) -> Vec<u8> {
     let mut vint = VIntArrayEncodeMostCommon::default();
@@ -57,85 +77,128 @@ pub fn get_serialized_most_common_encoded_2(data: &mut Vec<u32>) -> Vec<u8> {
     vint.serialize()
 }
 
-impl TokenToAnchorScoreVint {
-    pub fn set_scores(&mut self, id: u32, add_data: Vec<u32>) -> Result<(), io::Error> {
-        self.cache.push((id, add_data));
+impl TokenToAnchorScoreVintFlushing {
+    pub fn new(indirect_path: String, data_path: String,) -> Self {
+        let mut data_cache = vec![];
+        data_cache.resize(1, 0); // resize data by one, because 0 is reserved for the empty buckets
+        TokenToAnchorScoreVintFlushing {
+            ids_cache: vec![],
+            data_cache: data_cache,
+            current_data_offset: 0,
+            current_id_offset: 0,
+            indirect_path: indirect_path,
+            data_path: data_path,
+            avg_join_size: 0.,
+            num_values: 0,
+            num_ids: 0,
+        }
+    }
 
-        // let pos: usize = id as usize;
-        // let required_size = pos + 1;
-        // if self.start_pos.len() < required_size {
-        //     self.start_pos.resize(required_size, U31_MAX);
-        // }
+    pub fn set_scores(&mut self, id: u32, mut add_data: &mut Vec<u32>) -> Result<(), io::Error> {
 
-        // let byte_offset = self.data.len() as u32;
-        // self.start_pos[pos] = byte_offset;
-        // self.data.extend(get_serialized_most_common_encoded_2(&mut add_data));
+        let id_pos = (id - self.current_id_offset) as usize;
 
-        self.flush()
+        if self.ids_cache.len() <= id_pos  {
+            //TODO this could become very big, check memory consumption upfront, and flush directly to disk, when a resize would step over a certain threshold @Memory
+            self.ids_cache.resize(id_pos + 1, EMPTY_BUCKET);
+        }
+
+        self.num_values += add_data.len() as u32 / 2;
+        self.num_ids += 1;
+        self.ids_cache[id_pos] = self.current_data_offset + self.data_cache.len() as u32;
+
+        self.ids_cache[id_pos] = self.current_data_offset + self.data_cache.len() as u32;
+        self.data_cache.extend(get_serialized_most_common_encoded_2(&mut add_data));
+
+        if self.ids_cache.len() + self.data_cache.len() >= 1_000_000 { // Flushes every 4MB currently
+            self.flush()?;
+        }
+        Ok(())
     }
 
     #[inline]
-    fn flush(&mut self) -> Result<(), io::Error> {
-        // let mut indirect = File::open(self.path.to_string() + ".indirect")?;
-        // let mut data = File::open(self.path.to_string() + ".data")?;
-        // let mut data_pos = data.metadata()?.len();
+    pub fn is_in_memory(&self) -> bool {
+        self.current_id_offset == 0
+    }
 
-        // let mut positions = vec![];
-        // let mut all_bytes = vec![];
-        // positions.push(data_pos as u32);
-        // for (_, add_data) in self.cache.iter_mut() {
-        //     let add_bytes = get_serialized_most_common_encoded_2(add_data);
-        //     data_pos += add_bytes.len() as u64;
-        //     positions.push(data_pos as u32);
-        //     all_bytes.extend(add_bytes);
-        // }
-        // data.write_all(&all_bytes)?;
-        // indirect.write_all(&vec_to_bytes_u32(&positions))?;
+    pub fn to_im_store(self) -> TokenToAnchorScoreVintIM {
+        TokenToAnchorScoreVintIM {
+            start_pos: self.ids_cache,
+            data: self.data_cache,
+        }
+    }
 
-        let mut indirect = File::open(self.path.to_string() + ".indirect")?;
-        let mut data = File::open(self.path.to_string() + ".data")?;
-        let all_data = self.cache.iter_mut().map(|(id, add_data)|(*id, get_serialized_most_common_encoded_2(add_data))).collect();
-        flush_data_to_indirect_index(&mut indirect, &mut data, all_data);
-        self.cache.clear();
+    pub fn to_mmap(self) -> Result<(TokenToAnchorScoreVintMmap), io::Error>  {
+
+        //TODO MAX VALUE ID IS NOT SET
+        Ok(TokenToAnchorScoreVintMmap::new(&File::open(&self.indirect_path)?, &File::open(&self.data_path)?))
+    }
+
+    #[inline]
+    pub fn flush(&mut self) -> Result<(), io::Error> {
+        if self.ids_cache.is_empty() {
+            return Ok(());
+        }
+
+        self.current_id_offset += self.ids_cache.len() as u32;
+        self.current_data_offset += self.data_cache.len() as u32;
+
+        persistence_data_indirect::flush_to_file_indirect(&self.indirect_path, &self.data_path, &vec_to_bytes_u32(&self.ids_cache), &self.data_cache)?;
+
+        self.data_cache.clear();
+        self.ids_cache.clear();
+
+        self.avg_join_size = persistence_data_indirect::calc_avg_join_size(self.num_values, self.num_ids);
+
         Ok(())
     }
 
 }
 
+pub fn flush_to_file_indirect(indirect_path: &str, data_path: &str, indirect_data:&[u8], data:&[u8]) -> Result<(), io::Error> {
+    let mut indirect =   std::fs::OpenOptions::new().read(true).write(true).append(true).create(true).open(&indirect_path).unwrap();
+    let mut data_cache = std::fs::OpenOptions::new().read(true).write(true).append(true).create(true).open(&data_path).unwrap();
 
-#[inline]
-fn flush_data_to_indirect_index(indirect: &mut File, data: &mut File, cache: Vec<(u32, Vec<u8>)> ) -> Result<(), io::Error> {
+    indirect.write_all(indirect_data)?;
+    data_cache.write_all(data)?;
 
-    let mut data_pos = data.metadata()?.len();
-    let mut positions = vec![];
-    let mut all_bytes = vec![];
-    positions.push(data_pos as u32);
-    for (_, add_bytes) in cache.iter() {
-        data_pos += add_bytes.len() as u64;
-        positions.push(data_pos as u32);
-        all_bytes.extend(add_bytes);
-    }
-    data.write_all(&all_bytes)?;
-    // TODO write_bytes_at for indirect
     Ok(())
+
 }
+
+// #[inline]
+// fn flush_data_to_indirect_index(indirect: &mut File, data: &mut File, cache: Vec<(u32, Vec<u8>)> ) -> Result<(), io::Error> {
+
+//     let mut data_pos = data.metadata()?.len();
+//     let mut positions = vec![];
+//     let mut all_bytes = vec![];
+//     positions.push(data_pos as u32);
+//     for (_, add_bytes) in cache.iter() {
+//         data_pos += add_bytes.len() as u64;
+//         positions.push(data_pos as u32);
+//         all_bytes.extend(add_bytes);
+//     }
+//     data.write_all(&all_bytes)?;
+//     // TODO write_bytes_at for indirect
+//     Ok(())
+// }
 
 
 
 impl TokenToAnchorScoreVintIM {
-    pub fn set_scores(&mut self, id: u32, mut add_data: &mut Vec<u32>) {
-        //TODO INVALIDATE OLD DATA IF SET TWICE?
+    // pub fn set_scores(&mut self, id: u32, mut add_data: &mut Vec<u32>) {
+    //     //TODO INVALIDATE OLD DATA IF SET TWICE?
 
-        let pos: usize = id as usize;
-        let required_size = pos + 1;
-        if self.start_pos.len() < required_size {
-            self.start_pos.resize(required_size, U31_MAX);
-        }
+    //     let pos: usize = id as usize;
+    //     let required_size = pos + 1;
+    //     if self.start_pos.len() < required_size {
+    //         self.start_pos.resize(required_size, EMPTY_BUCKET);
+    //     }
 
-        let byte_offset = self.data.len() as u32;
-        self.start_pos[pos] = byte_offset;
-        self.data.extend(get_serialized_most_common_encoded_2(&mut add_data));
-    }
+    //     let byte_offset = self.data.len() as u32;
+    //     self.start_pos[pos] = byte_offset;
+    //     self.data.extend(get_serialized_most_common_encoded_2(&mut add_data));
+    // }
 
     #[inline]
     fn get_size(&self) -> usize {
@@ -178,7 +241,7 @@ impl TokenToAnchorScore for TokenToAnchorScoreVintIM {
         }
 
         let pos = self.start_pos[id as usize];
-        if pos == U31_MAX {
+        if pos == EMPTY_BUCKET {
             return None;
         }
 
@@ -192,12 +255,6 @@ impl TokenToAnchorScore for TokenToAnchorScoreVintIM {
     }
 }
 
-#[derive(Debug)]
-pub struct TokenToAnchorScoreVintMmap {
-    pub start_pos: Mmap,
-    pub data: Mmap,
-    pub max_value_id: u32,
-}
 
 impl TokenToAnchorScoreVintMmap {
     pub fn new(start_and_end_file: &fs::File, data_file: &fs::File) -> Self {
@@ -224,7 +281,7 @@ impl TokenToAnchorScore for TokenToAnchorScoreVintMmap {
             return None;
         }
         let pos = get_u32_from_bytes(&self.start_pos, id as usize * 4);
-        if pos == U31_MAX {
+        if pos == EMPTY_BUCKET {
             return None;
         }
         Some(recreate_vec(&self.data, pos as usize))
