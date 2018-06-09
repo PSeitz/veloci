@@ -189,7 +189,6 @@ fn create_thalia_index_shards() -> Result<(), io::Error> {
 
 #[allow(dead_code)]
 fn create_jmdict_index_shards() -> Result<(), io::Error> {
-
     // let mut _s = String::new();
     // let f = File::open("jmdict_split.json")?;
 
@@ -212,15 +211,14 @@ fn create_jmdict_index_shards() -> Result<(), io::Error> {
     let mut total_bytes = 0;
     for line in std::io::BufReader::new(File::open("jmdict_split.json")?).lines().take(threshold_bytes) {
         let line = line?;
-        lines+= &line;
-        lines+= "\n";
+        lines += &line;
+        lines += "\n";
 
-        total_bytes+=line.len();
+        total_bytes += line.len();
         if lines.len() > threshold_bytes {
             jmdict_shards.insert(&lines, JMDICT_INDICES);
             lines.clear();
         }
-
     }
 
     // println!("num kbytes {:?}", lines.len()/1000);
@@ -230,16 +228,14 @@ fn create_jmdict_index_shards() -> Result<(), io::Error> {
 
     let time_in_ms = (start.elapsed().as_secs() as f64 * 1_000.0) + (start.elapsed().subsec_nanos() as f64 / 1000_000.0);
 
-    let mbs = total_bytes as f32/1_000_000.;
+    let mbs = total_bytes as f32 / 1_000_000.;
     println!("total_bytes {:?}", total_bytes);
-    println!("time_in_s {:?}", time_in_ms/1_000.);
-    println!("MB/s {:?}", mbs/(time_in_ms as f32/1000.));
-
+    println!("time_in_s {:?}", time_in_ms / 1_000.);
+    println!("MB/s {:?}", mbs / (time_in_ms as f32 / 1000.));
 
     Ok(())
 }
 // use cpuprofiler::PROFILER;
-
 
 const JMDICT_INDICES: &str = r#"
     [
@@ -272,8 +268,6 @@ const JMDICT_INDICES: &str = r#"
 
 #[allow(dead_code)]
 fn create_jmdict_index() -> Result<(), io::Error> {
-
-
     // PROFILER.lock().unwrap().start("./my-prof.profile").unwrap();
     // let stream1 = Deserializer::from_reader(std::io::BufReader::new(&f)).into_iter::<Value>();
     // let stream2 = Deserializer::from_reader(std::io::BufReader::new(&f2)).into_iter::<Value>();
@@ -320,21 +314,22 @@ fn create_single_data_index() -> Result<(), io::Error> {
 
     let mut lines = String::new();
     for line in std::io::BufReader::new(File::open("jmdict_split.json")?).lines().take(num) {
-        lines+= &line?;
-        lines+= "\n";
+        lines += &line?;
+        lines += "\n";
     }
 
-    println!("num kbytes {:?}", lines.len()/1000);
+    println!("num kbytes {:?}", lines.len() / 1000);
 
     let start = std::time::Instant::now();
 
-    let mut persistence = search_lib::persistence::Persistence::create_type("single_data".to_string(), search_lib::persistence::PersistenceType::Persistent).unwrap();
-        search_lib::create::create_indices_from_str(&mut persistence, &lines, JMDICT_INDICES, None, false).unwrap();
+    let mut persistence =
+        search_lib::persistence::Persistence::create_type("single_data".to_string(), search_lib::persistence::PersistenceType::Persistent).unwrap();
+    search_lib::create::create_indices_from_str(&mut persistence, &lines, JMDICT_INDICES, None, false).unwrap();
 
     let time_in_ms = (start.elapsed().as_secs() as f64 * 1_000.0) + (start.elapsed().subsec_nanos() as f64 / 1000_000.0);
 
-    let mbs = lines.len() as f32/1000000.;
-    println!("MB/s {:?}", mbs/(time_in_ms as f32/1000.));
+    let mbs = lines.len() as f32 / 1000000.;
+    println!("MB/s {:?}", mbs / (time_in_ms as f32 / 1000.));
 
     Ok(())
 }

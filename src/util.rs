@@ -34,8 +34,6 @@ pub fn normalize_text(text: &str) -> String {
     new_str.to_lowercase().trim().to_owned()
 }
 
-
-
 pub fn get_bit_at(input: u32, n: u8) -> bool {
     if n < 32 {
         input & (1 << n) != 0
@@ -76,14 +74,10 @@ use std::ptr::copy_nonoverlapping;
 pub fn get_u32_from_bytes(data: &[u8], pos: usize) -> u32 {
     let mut out: u32 = 0;
     unsafe {
-        copy_nonoverlapping(
-            data[pos..].as_ptr(),
-            &mut out as *mut u32 as *mut u8,
-            4);
+        copy_nonoverlapping(data[pos..].as_ptr(), &mut out as *mut u32 as *mut u8, 4);
     }
     out
 }
-
 
 #[inline]
 pub fn unsafe_increase_len<T>(vec: &mut Vec<T>, add: usize) -> usize {

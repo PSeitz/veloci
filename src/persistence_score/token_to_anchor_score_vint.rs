@@ -22,7 +22,6 @@ pub struct TokenToAnchorScoreVintIM {
     pub data: Vec<u8>,
 }
 
-
 #[derive(Debug)]
 pub struct TokenToAnchorScoreVintMmap {
     pub start_pos: Mmap,
@@ -46,7 +45,6 @@ pub struct TokenToAnchorScoreVintFlushing {
     pub num_values: u32,
     pub num_ids: u32,
 }
-
 
 pub fn get_serialized_most_common_encoded(data: &mut Vec<(u32, u32)>) -> Vec<u8> {
     let mut vint = VIntArrayEncodeMostCommon::default();
@@ -78,7 +76,7 @@ pub fn get_serialized_most_common_encoded_2(data: &mut Vec<u32>) -> Vec<u8> {
 }
 
 impl TokenToAnchorScoreVintFlushing {
-    pub fn new(indirect_path: String, data_path: String,) -> Self {
+    pub fn new(indirect_path: String, data_path: String) -> Self {
         let mut data_cache = vec![];
         data_cache.resize(1, 0); // resize data by one, because 0 is reserved for the empty buckets
         TokenToAnchorScoreVintFlushing {
@@ -95,10 +93,9 @@ impl TokenToAnchorScoreVintFlushing {
     }
 
     pub fn set_scores(&mut self, id: u32, mut add_data: &mut Vec<u32>) -> Result<(), io::Error> {
-
         let id_pos = (id - self.current_id_offset) as usize;
 
-        if self.ids_cache.len() <= id_pos  {
+        if self.ids_cache.len() <= id_pos {
             //TODO this could become very big, check memory consumption upfront, and flush directly to disk, when a resize would step over a certain threshold @Memory
             self.ids_cache.resize(id_pos + 1, EMPTY_BUCKET);
         }
@@ -110,7 +107,8 @@ impl TokenToAnchorScoreVintFlushing {
         self.ids_cache[id_pos] = self.current_data_offset + self.data_cache.len() as u32;
         self.data_cache.extend(get_serialized_most_common_encoded_2(&mut add_data));
 
-        if self.ids_cache.len() + self.data_cache.len() >= 1_000_000 { // Flushes every 4MB currently
+        if self.ids_cache.len() + self.data_cache.len() >= 1_000_000 {
+            // Flushes every 4MB currently
             self.flush()?;
         }
         Ok(())
@@ -128,10 +126,12 @@ impl TokenToAnchorScoreVintFlushing {
         }
     }
 
-    pub fn to_mmap(self) -> Result<(TokenToAnchorScoreVintMmap), io::Error>  {
-
+    pub fn to_mmap(self) -> Result<(TokenToAnchorScoreVintMmap), io::Error> {
         //TODO MAX VALUE ID IS NOT SET
-        Ok(TokenToAnchorScoreVintMmap::new(&File::open(&self.indirect_path)?, &File::open(&self.data_path)?))
+        Ok(TokenToAnchorScoreVintMmap::new(
+            &File::open(&self.indirect_path)?,
+            &File::open(&self.data_path)?,
+        ))
     }
 
     #[inline]
@@ -152,18 +152,28 @@ impl TokenToAnchorScoreVintFlushing {
 
         Ok(())
     }
-
 }
 
-pub fn flush_to_file_indirect(indirect_path: &str, data_path: &str, indirect_data:&[u8], data:&[u8]) -> Result<(), io::Error> {
-    let mut indirect =   std::fs::OpenOptions::new().read(true).write(true).append(true).create(true).open(&indirect_path).unwrap();
-    let mut data_cache = std::fs::OpenOptions::new().read(true).write(true).append(true).create(true).open(&data_path).unwrap();
+pub fn flush_to_file_indirect(indirect_path: &str, data_path: &str, indirect_data: &[u8], data: &[u8]) -> Result<(), io::Error> {
+    let mut indirect = std::fs::OpenOptions::new()
+        .read(true)
+        .write(true)
+        .append(true)
+        .create(true)
+        .open(&indirect_path)
+        .unwrap();
+    let mut data_cache = std::fs::OpenOptions::new()
+        .read(true)
+        .write(true)
+        .append(true)
+        .create(true)
+        .open(&data_path)
+        .unwrap();
 
     indirect.write_all(indirect_data)?;
     data_cache.write_all(data)?;
 
     Ok(())
-
 }
 
 // #[inline]
@@ -182,8 +192,6 @@ pub fn flush_to_file_indirect(indirect_path: &str, data_path: &str, indirect_dat
 //     // TODO write_bytes_at for indirect
 //     Ok(())
 // }
-
-
 
 impl TokenToAnchorScoreVintIM {
     // pub fn set_scores(&mut self, id: u32, mut add_data: &mut Vec<u32>) {
@@ -254,7 +262,6 @@ impl TokenToAnchorScore for TokenToAnchorScoreVintIM {
         self.get_size()
     }
 }
-
 
 impl TokenToAnchorScoreVintMmap {
     pub fn new(start_and_end_file: &fs::File, data_file: &fs::File) -> Self {

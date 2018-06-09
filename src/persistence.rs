@@ -480,7 +480,6 @@ impl Persistence {
 
         // Load Boost Indices
         for el in &self.meta_data.boost_stores {
-
             match el.persistence_type {
                 KVStoreType::IndexIdToMultipleParentIndirect => {
                     panic!("WAAAAA");
@@ -492,7 +491,7 @@ impl Persistence {
                     self.indices
                         .boost_valueid_to_value
                         .insert(el.path.to_string(), Box::new(IndexIdToOneParentMayda::<u32>::new(&store, u32::MAX)));
-                },
+                }
                 KVStoreType::ParallelArrays => {
                     let encoded = file_path_to_bytes(&get_file_path(&self.db, &el.path))?;
                     let store: ParallelArrays<u32> = deserialize(&encoded[..]).unwrap();
@@ -501,7 +500,6 @@ impl Persistence {
                         .insert(el.path.to_string(), Box::new(IndexIdToOneParentMayda::<u32>::new(&store, u32::MAX))); // TODO: enable other Diskbased Types
                 }
             }
-
         }
 
         self.load_all_fst()?;
@@ -542,7 +540,10 @@ impl Persistence {
 
     #[cfg_attr(feature = "flame_it", flame)]
     pub fn get_fst(&self, path: &str) -> Result<(&Map), search::SearchError> {
-        self.indices.fst.get(path).ok_or_else(|| From::from(format!("fst {} not found loaded in indices", path)))
+        self.indices
+            .fst
+            .get(path)
+            .ok_or_else(|| From::from(format!("fst {} not found loaded in indices", path)))
     }
 
     #[cfg_attr(feature = "flame_it", flame)]
@@ -704,8 +705,13 @@ impl Persistence {
         ))
     }
 
-    pub fn write_direct_index<S: AsRef<str>>(&self, store: &IndexIdToOneParent<u32>, path: S, loading_type: LoadingType) -> Result<(KVStoreMetaData), io::Error> {
-        let data_file_path = util::get_file_path(&self.db, &(path.as_ref().into_string() ));
+    pub fn write_direct_index<S: AsRef<str>>(
+        &self,
+        store: &IndexIdToOneParent<u32>,
+        path: S,
+        loading_type: LoadingType,
+    ) -> Result<(KVStoreMetaData), io::Error> {
+        let data_file_path = util::get_file_path(&self.db, &(path.as_ref().into_string()));
 
         File::create(data_file_path)?.write_all(&vec_to_bytes_u32(&store.data))?;
 
@@ -773,7 +779,12 @@ impl Persistence {
             avg_join_size: 0.0,
         })
     }
-    pub fn flush_score_index_vint(&self, store: &mut TokenToAnchorScoreVintFlushing, path: &str, loading_type: LoadingType) -> Result<(KVStoreMetaData), io::Error> {
+    pub fn flush_score_index_vint(
+        &self,
+        store: &mut TokenToAnchorScoreVintFlushing,
+        path: &str,
+        loading_type: LoadingType,
+    ) -> Result<(KVStoreMetaData), io::Error> {
         store.flush()?;
         Ok(KVStoreMetaData {
             loading_type: loading_type,
@@ -787,7 +798,7 @@ impl Persistence {
 
     #[cfg_attr(feature = "flame_it", flame)]
     pub fn create(db: String) -> Result<Self, io::Error> {
-        fs::remove_dir_all(&db)?;
+        fs::remove_dir_all(&db);
         fs::create_dir_all(&db)?;
         let meta_data = MetaData { ..Default::default() };
         Ok(Persistence {
@@ -802,7 +813,7 @@ impl Persistence {
 
     #[cfg_attr(feature = "flame_it", flame)]
     pub fn create_type(db: String, persistence_type: PersistenceType) -> Result<Self, io::Error> {
-        fs::remove_dir_all(&db)?;
+        fs::remove_dir_all(&db);
         fs::create_dir_all(&db)?;
         let meta_data = MetaData { ..Default::default() };
         Ok(Persistence {
@@ -1043,11 +1054,9 @@ fn check_is_docid_type<T: Integer + NumCast + Copy>(data: &[T]) -> bool {
     true
 }
 
-
 pub fn get_file_metadata_handle_complete_path(path: &str) -> Result<fs::Metadata, io::Error> {
     Ok(fs::metadata(path)?)
 }
-
 
 pub fn get_file_handle_complete_path<P: AsRef<Path> + std::fmt::Debug>(path: P) -> Result<File, search::SearchError> {
     Ok(File::open(&path).map_err(|err| search::SearchError::StringError(format!("Could not open {:?} {:?}", path, err)))?)

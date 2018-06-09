@@ -313,7 +313,7 @@ fn highlight_on_original_document(doc: &str, why_found_terms: &FnvHashMap<String
     let mut id_holder = json_converter::IDHolder::new();
 
     {
-        let mut cb_text = |_anchor_id: u32, value: &str, path: &str, _parent_val_id: u32, _is_new_doc:bool| {
+        let mut cb_text = |_anchor_id: u32, value: &str, path: &str, _parent_val_id: u32, _is_new_doc: bool| {
             if let Some(terms) = why_found_terms.get(path) {
                 if let Some(highlighted) = highlight_field::highlight_text(value, &terms, &DEFAULT_SNIPPETINFO) {
                     let field_name = extract_field_name(path); // extract_field_name removes .textindex
