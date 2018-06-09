@@ -275,8 +275,8 @@ fn store_full_text_info_and_set_ids(
     if log_enabled!(log::Level::Trace) {
         let mut all_text: Vec<_> = all_terms.keys().collect();
         all_text.sort_unstable();
-        trace!("AND NOW THE TERMS!!!!!!!");
-        trace!("{:?}", all_text);
+
+        trace!("{:?} Terms: {:?}",path, all_text);
     }
     let mut term_and_mut_val: Vec<(&str, &mut TermInfo)> = all_terms.iter_mut().collect();
     term_and_mut_val.sort_unstable_by_key(|el| el.0);
@@ -1129,10 +1129,7 @@ where
         let mut boost_stores = vec![];
 
         for ind_index in indices.indirect_indices_flush.iter_mut() {
-            if !ind_index.1.is_empty() {
-                println!("DA IST WAS {:?}", ind_index.0);
-                key_value_stores.push(persistence.flush_indirect_index(&mut ind_index.1, &ind_index.0, ind_index.2.clone())?);
-            }
+            key_value_stores.push(persistence.flush_indirect_index(&mut ind_index.1, &ind_index.0, ind_index.2.clone())?);
         }
         for direct_index in indices.direct_indices.iter() {
             key_value_stores.push(persistence.write_direct_index(&direct_index.1, direct_index.0.to_string(), direct_index.2.clone())?);

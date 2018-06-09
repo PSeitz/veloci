@@ -68,6 +68,7 @@ pub struct KVStoreMetaData {
     pub path: String,
     pub is_1_to_n: bool, // In the sense of 1:n   1key, n values
     pub persistence_type: KVStoreType,
+    #[serde(default)] pub is_empty: bool,
     pub loading_type: LoadingType,
     #[serde(default = "default_max_value_id")] pub max_value_id: u32, // max value on the "right" side key -> value, key -> value ..
     #[serde(default = "default_avg_join")] pub avg_join_size: f32,    // some join statistics
@@ -371,6 +372,15 @@ impl Persistence {
                 let indirect_path = get_file_path(&self.db, &el.path) + ".indirect";
                 let indirect_data_path = get_file_path(&self.db, &el.path) + ".data";
                 let data_direct_path = get_file_path(&self.db, &el.path);
+
+                //Insert dummy index, to seperate between emtpy indexes and nonexisting indexes
+                if el.is_empty {
+                    let store = IndexIdToOneParent {
+                        data: vec![],
+                        max_value_id: 0,
+                    };
+                    return Ok((el.path.to_string(), Box::new(store) as Box<IndexIdToParent<Output = u32>>));
+                }
 
                 match loading_type {
                     LoadingType::InMemoryUnCompressed => match el.persistence_type {
@@ -719,6 +729,7 @@ impl Persistence {
             loading_type: loading_type,
             persistence_type: KVStoreType::IndexIdToOneParent,
             is_1_to_n: false,
+            is_empty: false, // TODO
             path: path.as_ref().into_string(),
             max_value_id: store.max_value_id,
             avg_join_size: 1 as f32, //TODO FIXME CHECKO NULLOS, 1 is not exact enough
@@ -737,46 +748,9 @@ impl Persistence {
             persistence_type: KVStoreType::IndexIdToMultipleParentIndirect,
             is_1_to_n: true, //TODO FIXME ADD 1:1 Flushing index
             path: path.to_string(),
+            is_empty: store.is_empty(),
             max_value_id: store.max_value_id,
             avg_join_size: store.avg_join_size,
-        })
-    }
-    pub fn write_indirect_index(
-        &self,
-        store: &IndexIdToMultipleParentIndirect<u32>,
-        path: &str,
-        loading_type: LoadingType,
-    ) -> Result<(KVStoreMetaData), io::Error> {
-        let max_value_id = *store.data.iter().max_by_key(|el| *el).unwrap_or(&0);
-        let avg_join_size = calc_avg_join_size(store.num_values, store.num_ids);
-
-        let indirect_file_path = util::get_file_path(&self.db, &(path.to_string() + ".indirect"));
-        let data_file_path = util::get_file_path(&self.db, &(path.to_string() + ".data"));
-
-        File::create(indirect_file_path)?.write_all(&vec_to_bytes_u32(&store.start_pos))?;
-        File::create(data_file_path)?.write_all(&vec_to_bytes_u32(&store.data))?;
-        Ok(KVStoreMetaData {
-            loading_type: loading_type,
-            persistence_type: KVStoreType::IndexIdToMultipleParentIndirect,
-            is_1_to_n: store.is_1_to_n(),
-            path: path.to_string(),
-            max_value_id: max_value_id,
-            avg_join_size: avg_join_size,
-        })
-    }
-
-    pub fn write_score_index_vint(&self, store: &TokenToAnchorScoreVintIM, path: &str, loading_type: LoadingType) -> Result<(KVStoreMetaData), io::Error> {
-        let indirect_file_path = util::get_file_path(&self.db, &(path.to_string() + ".indirect"));
-        let data_file_path = util::get_file_path(&self.db, &(path.to_string() + ".data"));
-
-        store.write(&indirect_file_path, &data_file_path)?;
-        Ok(KVStoreMetaData {
-            loading_type: loading_type,
-            persistence_type: KVStoreType::IndexIdToMultipleParentIndirect,
-            is_1_to_n: false,
-            path: path.to_string(),
-            max_value_id: 0, //TODO ?
-            avg_join_size: 0.0,
         })
     }
     pub fn flush_score_index_vint(
@@ -790,6 +764,7 @@ impl Persistence {
             loading_type: loading_type,
             persistence_type: KVStoreType::IndexIdToMultipleParentIndirect,
             is_1_to_n: false,
+            is_empty: false, // TODO
             path: path.to_string(),
             max_value_id: 0, //TODO ?
             avg_join_size: 0.0,
