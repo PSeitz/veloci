@@ -487,7 +487,7 @@ pub fn get_allterms_per_path<I: Iterator<Item = Result<serde_json::Value, serde_
 //         for (path_comp, terms_comp) in data.iter().filter(|&(path_comp, _)| path_comp != path) {
 //             let num_similar = terms.keys().filter(|term| terms_comp.contains_key(term.as_str())).count();
 //             let similiarity = num_similar as f32 / num_terms as f32;
-//             //println!("Similiarity {:?} {:?} {:?}", path, path_comp, num_similar as f32 / num_terms as f32);
+//             //info!("Similiarity {:?} {:?} {:?}", path, path_comp, num_similar as f32 / num_terms as f32);
 //             if map.contains_key(path_comp) {
 //                 let aha = map.get_mut(path_comp).unwrap().get_mut(path).unwrap();
 //                 aha.1 = similiarity;
@@ -502,7 +502,7 @@ pub fn get_allterms_per_path<I: Iterator<Item = Result<serde_json::Value, serde_
 //     for (path, sub) in map {
 //         for (path2, data) in sub {
 //             if data.0 > 0.1 {
-//                 println!("{} {} {} {}", path, path2, data.0, data.1);
+//                 info!("{} {} {} {}", path, path2, data.0, data.1);
 //             }
 //         }
 //     }
@@ -697,12 +697,12 @@ where
 
             let text_info = all_terms.get(value).expect("did not found term");
 
-            data.text_id_to_parent.add(text_info.id, parent_val_id);
+            data.text_id_to_parent.add(text_info.id, parent_val_id).unwrap(); // TODO Error Handling in closure
 
             //Used to recreate objects, keep oder
-            data.parent_to_text_id.add(parent_val_id, text_info.id);
+            data.parent_to_text_id.add(parent_val_id, text_info.id).unwrap(); // TODO Error Handling in closure
 
-            data.text_id_to_anchor.add(text_info.id, anchor_id);
+            data.text_id_to_anchor.add(text_info.id, anchor_id).unwrap(); // TODO Error Handling in closure
             data.anchor_to_text_id.as_mut().map(|el| el.add(anchor_id, text_info.id));
             data.boost.as_mut().map(|el| {
                 // if options.boost_type == "int" {
@@ -717,7 +717,7 @@ where
 
             let score = calculate_token_score_for_entry(0, text_info.num_occurences, true);
 
-            data.token_to_anchor_id_score_2.add(text_info.id, (anchor_id, score));
+            data.token_to_anchor_id_score_2.add(text_info.id, (anchor_id, score)).unwrap(); // TODO Error Handling in closure
 
             if options.tokenize && tokenizer.has_tokens(value) {
                 let mut current_token_pos = 0;
@@ -735,7 +735,7 @@ where
                     // data.text_id_to_token_ids.push(ValIdPair::new(text_info.id as u32, token_info.id as u32));
                     tokens_ids.push(token_info.id as u32);
                     // data.tokens_to_text_id.push(ValIdPair::new(token_info.id as u32, text_info.id as u32));
-                    data.tokens_to_text_id.add(token_info.id, text_info.id);
+                    data.tokens_to_text_id.add(token_info.id, text_info.id).unwrap(); // TODO Error Handling in closure
                     tokens_to_anchor_id.push(ValIdPairToken {
                         token_or_text_id: token_info.id as u32,
                         num_occurences: token_info.num_occurences as u32,
@@ -758,7 +758,7 @@ where
 
                 let token_to_anchor_id_scores = calculate_token_score_in_doc(&mut tokens_to_anchor_id);
                 for el in token_to_anchor_id_scores.iter() {
-                    data.token_to_anchor_id_score_2.add(el.valid, (el.anchor_id, el.score));
+                    data.token_to_anchor_id_score_2.add(el.valid, (el.anchor_id, el.score)).unwrap(); // TODO Error Handling in closure
                 }
             }
         };
@@ -769,8 +769,8 @@ where
                 parent_to_value: BufferedIndexWriter::new_for_sorted_id_insertion(),
             });
 
-            tuples.value_to_parent.add(value_id, parent_val_id);
-            tuples.parent_to_value.add(parent_val_id, value_id);
+            tuples.value_to_parent.add(value_id, parent_val_id).unwrap(); // TODO Error Handling in closure
+            tuples.parent_to_value.add(parent_val_id, value_id).unwrap(); // TODO Error Handling in closure
         };
 
         json_converter::for_each_element(stream1, &mut id_holder, &mut json_converter::ForEachOpt {}, &mut cb_text, &mut callback_ids);

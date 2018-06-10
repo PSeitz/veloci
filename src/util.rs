@@ -9,7 +9,6 @@ use std::io;
 use std::io::prelude::*;
 use std::io::SeekFrom;
 use std::mem;
-use std::mem::transmute;
 use std::path::Path;
 use search::Hit;
 use std;

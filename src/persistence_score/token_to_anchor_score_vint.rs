@@ -7,6 +7,7 @@ use std;
 use std::fs::File;
 use std::io;
 use std::io::prelude::*;
+use std::iter::FusedIterator;
 use search;
 use itertools::Itertools;
 
@@ -108,7 +109,6 @@ impl TokenToAnchorScoreVintFlushing {
         self.data_cache.extend(get_serialized_most_common_encoded_2(&mut add_data));
 
         if self.ids_cache.len() + self.data_cache.len() >= 1_000_000 {
-            // Flushes every 4MB currently
             self.flush()?;
         }
         Ok(())
@@ -176,38 +176,7 @@ pub fn flush_to_file_indirect(indirect_path: &str, data_path: &str, indirect_dat
     Ok(())
 }
 
-// #[inline]
-// fn flush_data_to_indirect_index(indirect: &mut File, data: &mut File, cache: Vec<(u32, Vec<u8>)> ) -> Result<(), io::Error> {
-
-//     let mut data_pos = data.metadata()?.len();
-//     let mut positions = vec![];
-//     let mut all_bytes = vec![];
-//     positions.push(data_pos as u32);
-//     for (_, add_bytes) in cache.iter() {
-//         data_pos += add_bytes.len() as u64;
-//         positions.push(data_pos as u32);
-//         all_bytes.extend(add_bytes);
-//     }
-//     data.write_all(&all_bytes)?;
-//     // TODO write_bytes_at for indirect
-//     Ok(())
-// }
-
 impl TokenToAnchorScoreVintIM {
-    // pub fn set_scores(&mut self, id: u32, mut add_data: &mut Vec<u32>) {
-    //     //TODO INVALIDATE OLD DATA IF SET TWICE?
-
-    //     let pos: usize = id as usize;
-    //     let required_size = pos + 1;
-    //     if self.start_pos.len() < required_size {
-    //         self.start_pos.resize(required_size, EMPTY_BUCKET);
-    //     }
-
-    //     let byte_offset = self.data.len() as u32;
-    //     self.start_pos[pos] = byte_offset;
-    //     self.data.extend(get_serialized_most_common_encoded_2(&mut add_data));
-    // }
-
     #[inline]
     fn get_size(&self) -> usize {
         self.start_pos.len()
@@ -225,6 +194,44 @@ impl TokenToAnchorScoreVintIM {
         Ok(())
     }
 }
+
+#[derive(Debug, Clone)]
+pub struct AnchorScoreIter<'a> {
+    /// the current rolling value
+    pub current: u32,
+    pub vint_iter: VintArrayMostCommonIterator<'a>
+}
+impl<'a> AnchorScoreIter<'a> {
+    pub fn new(data: &'a [u8]) -> AnchorScoreIter<'a> {
+        AnchorScoreIter{
+            current:0,
+            vint_iter: VintArrayMostCommonIterator::from_slice(&data)
+        }
+    }
+}
+impl<'a> Iterator for AnchorScoreIter<'a> {
+    type Item = AnchorScore;
+
+    #[inline]
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        self.vint_iter.size_hint()
+    }
+
+    #[inline]
+    fn next(&mut self) -> Option<AnchorScore> {
+        if let Some(mut id) = self.vint_iter.next() {
+            let score = self.vint_iter.next().unwrap();
+            id += self.current;
+            self.current = id;
+            Some(AnchorScore::new(id, f16::from_f32(score as f32)))
+        }else{
+            None
+        }
+    }
+}
+
+impl<'a> FusedIterator for AnchorScoreIter<'a> {}
+
 
 #[inline]
 fn recreate_vec(data: &[u8], pos: usize) -> Vec<AnchorScore> {
@@ -255,6 +262,16 @@ impl TokenToAnchorScore for TokenToAnchorScoreVintIM {
 
         Some(recreate_vec(&self.data, pos as usize))
     }
+    fn get_score_iter<'a>(&'a self, id: u32) -> AnchorScoreIter<'a>{
+        if id as usize >= self.get_size() {
+            return AnchorScoreIter::new(&[]);
+        }
+        let pos = self.start_pos[id as usize];
+        if pos == EMPTY_BUCKET {
+            return AnchorScoreIter::new(&[]);
+        }
+        AnchorScoreIter::new(&self.data[pos as usize..])
+    }
 
     #[inline]
     fn get_max_id(&self) -> usize {
@@ -277,7 +294,7 @@ impl TokenToAnchorScoreVintMmap {
 
 impl HeapSizeOf for TokenToAnchorScoreVintMmap {
     fn heap_size_of_children(&self) -> usize {
-        0
+        8
     }
 }
 
@@ -293,6 +310,17 @@ impl TokenToAnchorScore for TokenToAnchorScoreVintMmap {
         }
         Some(recreate_vec(&self.data, pos as usize))
     }
+    fn get_score_iter<'a>(&'a self, id: u32) -> AnchorScoreIter<'a>{
+        if id as usize >= self.start_pos.len() / 4 {
+            return AnchorScoreIter::new(&[]);
+            // return None;
+        }
+        let pos = get_u32_from_bytes(&self.start_pos, id as usize * 4);
+        if pos == EMPTY_BUCKET {
+            return AnchorScoreIter::new(&[]);
+        }
+        AnchorScoreIter::new(&self.data[pos as usize..])
+    }
 
     #[inline]
     fn get_max_id(&self) -> usize {
@@ -300,57 +328,59 @@ impl TokenToAnchorScore for TokenToAnchorScoreVintMmap {
     }
 }
 
-// #[test]
-// fn test_token_to_anchor_score_vint() {
-//     use tempfile::tempdir;
+#[test]
+fn test_token_to_anchor_score_vint() {
+    use tempfile::tempdir;
 
-//     let mut yeps = TokenToAnchorScoreVintIM::default();
+    let mut yeps = TokenToAnchorScoreVintFlushing::default();
 
-//     yeps.set_scores(1, vec![(1, 1)]);
+    yeps.set_scores(1, &mut vec![1, 1]).unwrap();
+    let yeps = yeps.to_im_store();
+    assert_eq!(yeps.get_scores(0), None);
+    assert_eq!(yeps.get_scores(1), Some(vec![AnchorScore::new(1, f16::from_f32(1.0))]));
+    assert_eq!(yeps.get_scores(2), None);
 
-//     assert_eq!(yeps.get_scores(0), None);
-//     assert_eq!(yeps.get_scores(1), Some(vec![AnchorScore::new(1, f16::from_f32(1.0))]));
-//     assert_eq!(yeps.get_scores(2), None);
+    let mut yeps = TokenToAnchorScoreVintFlushing::default();
+    yeps.set_scores(5, &mut vec![1, 1, 2, 3]).unwrap();
+    let yeps = yeps.to_im_store();
+    assert_eq!(yeps.get_scores(4), None);
+    assert_eq!(
+        yeps.get_scores(5),
+        Some(vec![AnchorScore::new(1, f16::from_f32(1.0)), AnchorScore::new(2, f16::from_f32(3.0))])
+    );
+    assert_eq!(yeps.get_scores(6), None);
 
-//     yeps.set_scores(5, vec![(1, 1), (2, 3)]);
-//     assert_eq!(yeps.get_scores(4), None);
-//     assert_eq!(
-//         yeps.get_scores(5),
-//         Some(vec![AnchorScore::new(1, f16::from_f32(1.0)), AnchorScore::new(2, f16::from_f32(3.0))])
-//     );
-//     assert_eq!(yeps.get_scores(6), None);
+    let dir = tempdir().unwrap();
+    let data = dir.path().join("TokenToAnchorScoreVintTestData");
+    let indirect = dir.path().join("TokenToAnchorScoreVintTestIndirect");
+    yeps.write(indirect.to_str().unwrap(), data.to_str().unwrap()).unwrap();
 
-//     let dir = tempdir().unwrap();
-//     let data = dir.path().join("TokenToAnchorScoreVintTestData");
-//     let indirect = dir.path().join("TokenToAnchorScoreVintTestIndirect");
-//     yeps.write(indirect.to_str().unwrap(), data.to_str().unwrap()).unwrap();
+    // IM loaded from File
+    // let mut yeps = TokenToAnchorScoreVintFlushing::default();
+    // yeps.read(indirect.to_str().unwrap(), data.to_str().unwrap()).unwrap();
+    // assert_eq!(yeps.get_scores(0), None);
+    // assert_eq!(yeps.get_scores(1), Some(vec![AnchorScore::new(1, f16::from_f32(1.0))]));
+    // assert_eq!(yeps.get_scores(2), None);
 
-//     // IM loaded from File
-//     let mut yeps = TokenToAnchorScoreVintIM::default();
-//     yeps.read(indirect.to_str().unwrap(), data.to_str().unwrap()).unwrap();
-//     assert_eq!(yeps.get_scores(0), None);
-//     assert_eq!(yeps.get_scores(1), Some(vec![AnchorScore::new(1, f16::from_f32(1.0))]));
-//     assert_eq!(yeps.get_scores(2), None);
+    // assert_eq!(yeps.get_scores(4), None);
+    // assert_eq!(
+    //     yeps.get_scores(5),
+    //     Some(vec![AnchorScore::new(1, f16::from_f32(1.0)), AnchorScore::new(2, f16::from_f32(3.0))])
+    // );
+    // assert_eq!(yeps.get_scores(6), None);
 
-//     assert_eq!(yeps.get_scores(4), None);
-//     assert_eq!(
-//         yeps.get_scores(5),
-//         Some(vec![AnchorScore::new(1, f16::from_f32(1.0)), AnchorScore::new(2, f16::from_f32(3.0))])
-//     );
-//     assert_eq!(yeps.get_scores(6), None);
+    // // Mmap from File
+    // let start_and_end_file = File::open(indirect).unwrap();
+    // let data_file = File::open(data).unwrap();
+    // let yeps = TokenToAnchorScoreVintMmap::new(&start_and_end_file, &data_file);
+    // assert_eq!(yeps.get_scores(0), None);
+    // assert_eq!(yeps.get_scores(1), Some(vec![AnchorScore::new(1, f16::from_f32(1.0))]));
+    // assert_eq!(yeps.get_scores(2), None);
 
-//     // Mmap from File
-//     let start_and_end_file = File::open(indirect).unwrap();
-//     let data_file = File::open(data).unwrap();
-//     let yeps = TokenToAnchorScoreVintMmap::new(&start_and_end_file, &data_file);
-//     assert_eq!(yeps.get_scores(0), None);
-//     assert_eq!(yeps.get_scores(1), Some(vec![AnchorScore::new(1, f16::from_f32(1.0))]));
-//     assert_eq!(yeps.get_scores(2), None);
-
-//     assert_eq!(yeps.get_scores(4), None);
-//     assert_eq!(
-//         yeps.get_scores(5),
-//         Some(vec![AnchorScore::new(1, f16::from_f32(1.0)), AnchorScore::new(2, f16::from_f32(3.0))])
-//     );
-//     assert_eq!(yeps.get_scores(6), None);
-// }
+    // assert_eq!(yeps.get_scores(4), None);
+    // assert_eq!(
+    //     yeps.get_scores(5),
+    //     Some(vec![AnchorScore::new(1, f16::from_f32(1.0)), AnchorScore::new(2, f16::from_f32(3.0))])
+    // );
+    // assert_eq!(yeps.get_scores(6), None);
+}

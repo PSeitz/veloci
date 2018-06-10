@@ -4,7 +4,6 @@ use fst::raw::Fst;
 use fst::IntoStreamer;
 use highlight_field::*;
 use itertools::Itertools;
-// use lev_automat::*;
 use levenshtein_automata::{Distance, LevenshteinAutomatonBuilder, DFA};
 use ordered_float::OrderedFloat;
 use persistence;
@@ -171,7 +170,7 @@ where
         .get(&options.path)
         .ok_or_else(|| SearchError::StringError(format!("fst not found loaded in indices {} ", options.path)))?;
     let lev = {
-        debug_time!(format!("{} LevenshteinIC create", &options.path));
+        trace_time!(format!("{} LevenshteinIC create", &options.path));
         let lev_automaton_builder = LevenshteinAutomatonBuilder::new(options.levenshtein_distance.unwrap_or(0) as u8, true);
         lev_automaton_builder.build_dfa(&options.terms[0], true)
         // LevenshteinIC::new(&options.terms[0], options.levenshtein_distance.unwrap_or(0))?
@@ -490,18 +489,34 @@ fn resolve_token_to_anchor(
     {
         debug_time!(format!("{} tokens.to_anchor_id_score", &options.path));
         for hit in &result.hits_vec {
-            if let Some(text_id_score) = token_to_anchor_score.get_scores(hit.id) {
-                // trace_time!(format!("{} adding anchor hits for id {:?}", &options.path, hit.id));
-                let mut curr_pos = unsafe_increase_len(&mut anchor_ids_hits, text_id_score.len());
-                for el in &text_id_score {
-                    if should_filter(&filter, el.id) {
-                        continue;
-                    }
-                    let final_score = hit.score * (el.score.to_f32() / 100.0); // TODO ADD LIMIT FOR TOP X
-                    anchor_ids_hits[curr_pos] = search::Hit::new(el.id, final_score);
-                    curr_pos += 1;
+            let mut iter = token_to_anchor_score.get_score_iter(hit.id);
+            
+            // anchor_ids_hits = iter.filter(|el|!should_filter(&filter, el.id)).map(|el|{
+            //     let final_score = hit.score * (el.score.to_f32() / 100.0); // TODO ADD LIMIT FOR TOP X
+            //     search::Hit::new(el.id, final_score)
+            // }).collect();
+
+            anchor_ids_hits.reserve(iter.size_hint().1.unwrap());
+            for el in iter {
+                if should_filter(&filter, el.id) {
+                    continue;
                 }
+                let final_score = hit.score * (el.score.to_f32() / 100.0); // TODO ADD LIMIT FOR TOP X
+                anchor_ids_hits.push(search::Hit::new(el.id, final_score));
             }
+
+            // if let Some(text_id_score) = token_to_anchor_score.get_scores(hit.id) {
+            //     // trace_time!(format!("{} adding anchor hits for id {:?}", &options.path, hit.id));
+            //     let mut curr_pos = unsafe_increase_len(&mut anchor_ids_hits, text_id_score.len());
+            //     for el in &text_id_score {
+            //         if should_filter(&filter, el.id) {
+            //             continue;
+            //         }
+            //         let final_score = hit.score * (el.score.to_f32() / 100.0); // TODO ADD LIMIT FOR TOP X
+            //         anchor_ids_hits[curr_pos] = search::Hit::new(el.id, final_score);
+            //         curr_pos += 1;
+            //     }
+            // }
         }
 
         debug!(
@@ -802,7 +817,6 @@ pub fn resolve_token_hits(
         .expect(&format!("Could not find {:?} in index_64 indices", concat(path, ".offsets")));
 
     let token_path = concat(path, ".tokens_to_text_id");
-
     let token_kvdata = persistence.get_valueid_to_parent(&token_path)?;
     debug!("Checking Tokens in {:?}", &token_path);
     persistence::trace_index_id_to_parent(token_kvdata);

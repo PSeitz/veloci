@@ -18,7 +18,7 @@ use lru_cache;
 // use serde_json::StreamDeserializer;
 // use serde_json::Value;
 
-use bincode::{deserialize, serialize};
+use bincode::{deserialize};
 use fnv::FnvHashMap;
 
 use log;
@@ -178,6 +178,7 @@ where
 
 pub trait TokenToAnchorScore: Debug + HeapSizeOf + Sync + Send + type_info::TypeInfo {
     fn get_scores(&self, id: u32) -> Option<Vec<AnchorScore>>;
+    fn get_score_iter<'a>(&'a self, id: u32) -> AnchorScoreIter<'a>;
     fn get_max_id(&self) -> usize;
 }
 
@@ -321,7 +322,7 @@ impl Persistence {
     #[cfg_attr(feature = "flame_it", flame)]
     pub fn load_from_disk(&mut self) -> Result<(), search::SearchError> {
         info_time!(format!("loaded persistence {:?}", &self.db));
-        self.load_all_id_lists();
+        self.load_all_id_lists()?;
 
         for el in &self.meta_data.key_value_stores {
             self.lru_cache.insert(el.path.clone(), LruCache::with_capacity(0));
@@ -590,7 +591,7 @@ impl Persistence {
         let path = path.to_string() + ".to_anchor_id_score";
         self.indices.token_to_anchor_to_score.get(&path).ok_or_else(|| {
             let error = format!("Did not found path in indices {}", path);
-            println!("{:?}", error);
+            error!("{:?}", error);
             From::from(error)
         })
     }
@@ -599,7 +600,7 @@ impl Persistence {
     pub fn get_valueid_to_parent(&self, path: &str) -> Result<&Box<IndexIdToParent<Output = u32>>, search::SearchError> {
         self.indices.key_value_stores.get(path).ok_or_else(|| {
             let error = format!("Did not found path in indices {:?}", path);
-            println!("{:?}", error);
+            error!("{:?}", error);
             From::from(error)
         })
     }
@@ -773,22 +774,15 @@ impl Persistence {
 
     #[cfg_attr(feature = "flame_it", flame)]
     pub fn create(db: String) -> Result<Self, io::Error> {
-        fs::remove_dir_all(&db);
-        fs::create_dir_all(&db)?;
-        let meta_data = MetaData { ..Default::default() };
-        Ok(Persistence {
-            persistence_type: PersistenceType::Persistent,
-            meta_data,
-            db,
-            lru_cache: HashMap::default(),
-            term_boost_cache: RwLock::new(LruCache::with_expiry_duration_and_capacity(Duration::new(3600, 0), 10)),
-            indices: PersistenceIndices::default(),
-        })
+        Self::create_type(db, PersistenceType::Persistent)
     }
 
     #[cfg_attr(feature = "flame_it", flame)]
     pub fn create_type(db: String, persistence_type: PersistenceType) -> Result<Self, io::Error> {
-        fs::remove_dir_all(&db);
+        use std::path::Path;
+        if Path::new(&db).exists(){
+            fs::remove_dir_all(&db)?;
+        }
         fs::create_dir_all(&db)?;
         let meta_data = MetaData { ..Default::default() };
         Ok(Persistence {

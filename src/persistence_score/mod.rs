@@ -1,6 +1,5 @@
 use half::f16;
 use persistence::*;
-use std;
 use std::fs;
 use std::path::Path;
 use type_info::TypeInfo;
@@ -9,20 +8,14 @@ use heapsize::HeapSizeOf;
 
 use memmap::Mmap;
 use memmap::MmapOptions;
-use util::*;
 
 pub mod token_to_anchor_score;
-pub mod token_to_anchor_score_deltaable;
 pub mod token_to_anchor_score_vint;
 
 // pub(crate) use self::token_to_anchor_score::*;
 pub(crate) use self::token_to_anchor_score_vint::*;
 // pub(crate) use self::token_to_anchor_score_deltaable::*;
 
-const U31_MAX: u32 = (1 << 31) - 1;
-
-const SIZE_OF_ANCHOR_SCORE: usize = std::mem::size_of::<AnchorScore>();
-const SIZE_OF_NUM_ELEM: usize = std::mem::size_of::<(u32)>();
 
 // struct CompactHit {
 //     id: [u8; 3],

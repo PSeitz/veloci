@@ -11,9 +11,6 @@ mod tests {
     use search_field;
     use serde_json;
     use serde_json::Value;
-    use std::fs;
-    use std::fs::File;
-    use std::io::prelude::*;
     use trace;
     use util;
 

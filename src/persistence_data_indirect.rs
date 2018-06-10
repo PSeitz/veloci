@@ -15,7 +15,6 @@ use std::fs;
 use std::io::Cursor;
 use std::io;
 use std::io::Write;
-use std::io::prelude::*;
 use std::fs::File;
 
 use num;
@@ -1284,8 +1283,8 @@ fn to_indirect_arrays_dedup<T: Integer + Clone + NumCast + mayda::utility::Bits 
     // data.shrink_to_fit();
     // let max_value_id = *data.iter().max_by_key(|el| *el).unwrap_or(&T::zero());
 
-    // println!("start_pos_in_data {:?}", yepp.start_pos.iter().map(|el:&T|el.to_u32().unwrap()).collect::<Vec<_>>());
-    // println!("data {:?}",              yepp.data.iter().map(|el:&T|el.to_u32().unwrap()).collect::<Vec<_>>());
+    // trace!("start_pos_in_data {:?}", yepp.start_pos.iter().map(|el:&T|el.to_u32().unwrap()).collect::<Vec<_>>());
+    // trace!("data {:?}",              yepp.data.iter().map(|el:&T|el.to_u32().unwrap()).collect::<Vec<_>>());
 
     // let avg_join_size = num_values as f32 / std::cmp::max(K::one(), num_ids).to_f32().unwrap();
     // (max_value_id, num_values as u32, num::cast(num_ids).unwrap(), start_pos_in_data, data)
