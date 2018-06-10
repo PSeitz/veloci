@@ -33,7 +33,7 @@ pub struct TokenToAnchorScoreVintMmap {
 ///
 /// Datastructure to cache and flush changes to file
 ///
-#[derive(Serialize, Deserialize, Debug, Clone, Default, HeapSizeOf)]
+#[derive(Serialize, Deserialize, Debug, Clone, HeapSizeOf)]
 pub struct TokenToAnchorScoreVintFlushing {
     pub ids_cache: Vec<u32>,
     pub data_cache: Vec<u8>,
@@ -74,6 +74,12 @@ pub fn get_serialized_most_common_encoded_2(data: &mut Vec<u32>) -> Vec<u8> {
 
     vint.encode_vals(&data);
     vint.serialize()
+}
+
+impl Default for TokenToAnchorScoreVintFlushing {
+    fn default() -> TokenToAnchorScoreVintFlushing {
+        TokenToAnchorScoreVintFlushing::new("".to_string(),"".to_string(),)
+    }
 }
 
 impl TokenToAnchorScoreVintFlushing {
@@ -232,22 +238,6 @@ impl<'a> Iterator for AnchorScoreIter<'a> {
 
 impl<'a> FusedIterator for AnchorScoreIter<'a> {}
 
-
-#[inline]
-fn recreate_vec(data: &[u8], pos: usize) -> Vec<AnchorScore> {
-    let vint = VintArrayMostCommonIterator::from_slice(&data[pos..]);
-
-    let mut current = 0;
-    let data: Vec<AnchorScore> = vint.tuples()
-        .map(|(mut id, score)| {
-            id += current;
-            current = id;
-            AnchorScore::new(id, f16::from_f32(score as f32))
-        })
-        .collect();
-    data
-}
-
 impl TokenToAnchorScore for TokenToAnchorScoreVintIM {
     #[inline]
     fn get_scores(&self, id: u32) -> Option<Vec<AnchorScore>> {
@@ -260,7 +250,7 @@ impl TokenToAnchorScore for TokenToAnchorScoreVintIM {
             return None;
         }
 
-        Some(recreate_vec(&self.data, pos as usize))
+        Some(AnchorScoreIter::new(&self.data[pos as usize..]).collect())
     }
     fn get_score_iter<'a>(&'a self, id: u32) -> AnchorScoreIter<'a>{
         if id as usize >= self.get_size() {
@@ -308,7 +298,7 @@ impl TokenToAnchorScore for TokenToAnchorScoreVintMmap {
         if pos == EMPTY_BUCKET {
             return None;
         }
-        Some(recreate_vec(&self.data, pos as usize))
+        Some(AnchorScoreIter::new(&self.data[pos as usize..]).collect())
     }
     fn get_score_iter<'a>(&'a self, id: u32) -> AnchorScoreIter<'a>{
         if id as usize >= self.start_pos.len() / 4 {
@@ -336,6 +326,7 @@ fn test_token_to_anchor_score_vint() {
 
     yeps.set_scores(1, &mut vec![1, 1]).unwrap();
     let yeps = yeps.to_im_store();
+    println!("{:?}", yeps);
     assert_eq!(yeps.get_scores(0), None);
     assert_eq!(yeps.get_scores(1), Some(vec![AnchorScore::new(1, f16::from_f32(1.0))]));
     assert_eq!(yeps.get_scores(2), None);
