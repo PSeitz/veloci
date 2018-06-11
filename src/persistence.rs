@@ -861,7 +861,7 @@ impl Persistence {
             table.add_row(row![row.1, row.2, get_readable_size(row.0)]);
         }
 
-        // println!("{}", table);
+        info!("{}", table);
     }
 
     pub fn get_all_fields(&self) -> Vec<String> {

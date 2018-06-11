@@ -490,12 +490,6 @@ fn resolve_token_to_anchor(
         debug_time!(format!("{} tokens.to_anchor_id_score", &options.path));
         for hit in &result.hits_vec {
             let mut iter = token_to_anchor_score.get_score_iter(hit.id);
-            
-            // anchor_ids_hits = iter.filter(|el|!should_filter(&filter, el.id)).map(|el|{
-            //     let final_score = hit.score * (el.score.to_f32() / 100.0); // TODO ADD LIMIT FOR TOP X
-            //     search::Hit::new(el.id, final_score)
-            // }).collect();
-
             anchor_ids_hits.reserve(iter.size_hint().1.unwrap());
             for el in iter {
                 if should_filter(&filter, el.id) {
@@ -505,18 +499,6 @@ fn resolve_token_to_anchor(
                 anchor_ids_hits.push(search::Hit::new(el.id, final_score));
             }
 
-            // if let Some(text_id_score) = token_to_anchor_score.get_scores(hit.id) {
-            //     // trace_time!(format!("{} adding anchor hits for id {:?}", &options.path, hit.id));
-            //     let mut curr_pos = unsafe_increase_len(&mut anchor_ids_hits, text_id_score.len());
-            //     for el in &text_id_score {
-            //         if should_filter(&filter, el.id) {
-            //             continue;
-            //         }
-            //         let final_score = hit.score * (el.score.to_f32() / 100.0); // TODO ADD LIMIT FOR TOP X
-            //         anchor_ids_hits[curr_pos] = search::Hit::new(el.id, final_score);
-            //         curr_pos += 1;
-            //     }
-            // }
         }
 
         debug!(
@@ -527,14 +509,22 @@ fn resolve_token_to_anchor(
         );
     }
 
-    // let mut pre_scale = 0;
-    // for (el1, el2) in anchor_ids_hits.iter().tuples() {
-
-    //     info!("{:?}", el2.id as i32 - el1.id as i32 - 1);
-    //     info!("pre_scale {:?}", el2.id as i32 - el1.id as i32 - pre_scale);
-    //     pre_scale = el2.id as i32 - el1.id as i32;
+    // {
+    //     debug_time!(format!("{} tokens.to_anchor_id_score", &options.path));
+    //     let iterators:Vec<_> = result.hits_vec.iter().map(|hit|{
+    //         let iter = token_to_anchor_score.get_score_iter(hit.id);
+    //         anchor_ids_hits.reserve(iter.size_hint().1.unwrap());
+    //         iter.map(move |el|{
+    //             let final_score = hit.score * (el.score.to_f32() / 100.0);
+    //             search::Hit::new(el.id, final_score)
+    //         })
+    //     }).collect();
+    //     let mergo = iterators.into_iter().kmerge_by(|a, b| a.id < b.id);
+    //     for (mut id, mut group) in &mergo.into_iter().group_by(|el| el.id) {
+    //         let score = group.map(|el|el.score).sum();
+    //         anchor_ids_hits.push(search::Hit::new(id, score));
+    //     }
     // }
-
     // {
     //     let mut all_hits = vec![];
     //     debug_time!(format!("{} tokens.to_anchor_id_score", &options.path));
@@ -572,51 +562,6 @@ fn resolve_token_to_anchor(
 
     // }
 
-    //let token_kvdata = persistence.get_valueid_to_parent(&concat(&options.path, ".tokens.to_anchor_id_score"))?;
-    // {
-    //     debug_time!(format!("{} tokens.to_anchor_id_score", &options.path));
-    //     for hit in &result.hits_vec {
-    //         // iterate over token hits
-    //         // if let Some(text_id_score) = token_kvdata.get_values(hit.id as u64) {
-    //         //     trace_time!(format!("{} adding anchor hits for id {:?}", &options.path, hit.id));
-    //         //     let mut curr_pos = unsafe_increase_len(&mut anchor_ids_hits, text_id_score.len() / 2);
-    //         //     for (anchor_id, token_in_text_id_score) in text_id_score.iter().tuples().filter(|&(id, _)| !should_filter(&filter, id)) {
-    //         //         let final_score = hit.score * (*token_in_text_id_score as f32 / 100.0); // TODO ADD LIMIT FOR TOP X
-    //         //                                                                                 // trace!(
-    //         //                                                                                 //     "anchor_id {:?} term_id {:?}, token_in_text_id_score {:?} score {:?} to final_score {:?}",
-    //         //                                                                                 //     anchor_id,
-    //         //                                                                                 //     hit.id,
-    //         //                                                                                 //     token_in_text_id_score,
-    //         //                                                                                 //     hit.score,
-    //         //                                                                                 //     final_score
-    //         //                                                                                 // );
-
-    //         //         // anchor_ids_hits.push(Hit::new(*anchor_id,final_score));
-    //         //         anchor_ids_hits[curr_pos] = search::Hit::new(*anchor_id, final_score);
-    //         //         curr_pos += 1;
-    //         //     }
-    //         // }
-    //         if let Some(text_id_score) = token_kvdata.get_value_id_with_scores(hit.id as u64) {
-    //             trace_time!(format!("{} adding anchor hits for id {:?}", &options.path, hit.id));
-    //             let mut curr_pos = unsafe_increase_len(&mut anchor_ids_hits, text_id_score.len());
-    //             for (anchor_id, token_in_text_id_score) in text_id_score {
-    //                 if should_filter(&filter, anchor_id) {
-    //                     continue;
-    //                 }
-    //                 let final_score = hit.score * (token_in_text_id_score.to_f32() / 100.0); // TODO ADD LIMIT FOR TOP X
-    //                 anchor_ids_hits[curr_pos] = search::Hit::new(anchor_id, final_score);
-    //                 curr_pos += 1;
-    //             }
-    //         }
-    //     }
-    //     debug!(
-    //         "{} found {:?} token in {:?} anchor_ids",
-    //         &options.path,
-    //         result.hits_vec.len(),
-    //         anchor_ids_hits.len()
-    //     );
-    // }
-
     // { //TEEEEEEEEEEEEEEEEEEEEEEEEEST
     //     let mut the_bits = FixedBitSet::with_capacity(7000);
     //     info_time!(format!("{} WAAAA BITS SETZEN WAAA", &options.path));
@@ -635,24 +580,7 @@ fn resolve_token_to_anchor(
     //     }
     // }
 
-    // let text_id_to_anchor = persistence.get_valueid_to_parent(&concat(&options.path, ".text_id_to_anchor"))?;
-    // let mut anchor_hits = vec![];
-    // {
-    //     debug_time!(format!("{} .text_id_to_anchor", &options.path));
-    //     //resolve text_ids with score to anchor
-    //     for hit in anchor_ids_hits.iter() {
-    //         if let Some(anchor_ids) = text_id_to_anchor.get_values(hit.id as u64) {
-    //             let mut curr_pos = unsafe_increase_len(&mut anchor_hits, anchor_ids.len());
-    //             for anchor_id in anchor_ids.into_iter().filter(|id|!should_filter(&filter, id)) {
-    //                 anchor_hits[curr_pos] = search::Hit::new(anchor_id, hit.score);
-    //                 curr_pos += 1;
-    //             }
-    //         }
-    //     }
-    // }
-
     // debug!("found {:?} text_ids in {:?} anchors", anchor_ids_hits.len(), anchor_hits.len());
-
     // {
     //     //Collect hits from same anchor and sum boost
     //     let mut merged_fast_field_res = vec![];
@@ -679,33 +607,19 @@ fn resolve_token_to_anchor(
         // anchor_ids_hits.dedup_by_key(|b| b.id); // TODO FixMe Score
     }
 
-    // // IDS ONLY - scores müssen draußen bleiben
-    // let mut fast_field_res_ids = vec![];
-    // for id in &result.hits_ids {
-    //     // iterate over token hits
-    //     if let Some(anchor_id_score) = token_kvdata.get_values(*id as u64) {
-    //         debug_time!(format!("{} adding {:?} anchor ids for id {:?}", &options.path, anchor_id_score.len(), id));
-    //         let mut curr_pos = unsafe_increase_len(&mut fast_field_res_ids, anchor_id_score.len() / 2);
-    //         for anchor_id in anchor_id_score.iter().step_by(2) {
-    //             fast_field_res_ids[curr_pos] = *anchor_id;
-    //             curr_pos += 1;
-    //         }
-    //     }
-    // }
-
-    // IDS ONLY - scores müssen draußen bleiben
+    // IDS ONLY - scores müssen draußen bleiben - This is used for boosting
     let mut fast_field_res_ids = vec![];
-    for id in &result.hits_ids {
-        // iterate over token hits
-        if let Some(anchor_id_score) = token_to_anchor_score.get_scores(*id) {
-            debug_time!(format!("{} adding {:?} anchor ids for id {:?}", &options.path, anchor_id_score.len(), id));
-            let mut curr_pos = unsafe_increase_len(&mut fast_field_res_ids, anchor_id_score.len());
-            for el in anchor_id_score {
-                fast_field_res_ids[curr_pos] = el.id;
-                curr_pos += 1;
+    {
+        for id in &result.hits_ids {
+            debug_time!(format!("{} added anchor ids for id {:?}", &options.path, id ));
+            let mut iter = token_to_anchor_score.get_score_iter(*id);
+            fast_field_res_ids.reserve(iter.size_hint().1.unwrap() / 2);
+            for el in iter { //TODO ENABLE should_filter(&filter, el.id) ?
+                fast_field_res_ids.push(el.id);
             }
         }
     }
+
 
     // //resolve text_ids to anchor
     // let mut fast_field_res_ids = vec![];

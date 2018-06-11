@@ -938,15 +938,6 @@ fn convert_raw_path_data_to_indices(
                 &mut indices,
                 LoadingType::Disk,
             );
-            add_index_flush(
-                &db,
-                concat(path, ".parentToValueId"),
-                &mut data.parent_to_text_id,
-                is_alway_1_to_1,
-                sort_and_dedup,
-                &mut indices,
-                LoadingType::Disk,
-            );
 
             let loading_type = if facet_index.contains(&path.to_string()) && !is_1_to_n(path) {
                 LoadingType::InMemoryUnCompressed
@@ -956,12 +947,22 @@ fn convert_raw_path_data_to_indices(
 
             add_index_flush(
                 &db,
+                concat(path, ".parentToValueId"),
+                &mut data.parent_to_text_id,
+                is_alway_1_to_1,
+                sort_and_dedup,
+                &mut indices,
+                loading_type
+            );
+
+            add_index_flush(
+                &db,
                 concat(path, ".text_id_to_anchor"),
                 &mut data.text_id_to_anchor,
                 false,
                 sort_and_dedup,
                 &mut indices,
-                loading_type,
+                LoadingType::Disk,
             );
 
             if let Some(ref mut anchor_to_text_id) = data.anchor_to_text_id {

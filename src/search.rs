@@ -533,7 +533,16 @@ fn top_n_sort(data: Vec<Hit>, top_n: u32) -> Vec<Hit> {
             continue;
         }
         if !new_data.is_empty() && (new_data.len() as u32 % (top_n * 5)) == 0 {
-            new_data.sort_unstable_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(Ordering::Equal));
+
+            // Sort by score and anchor_id -- WITHOUT anchor_id AORTING SKIP MAY WORK NOT CORRECTLY FOR SAME SCORED ANCHOR_IDS
+            new_data.sort_unstable_by(|a, b| {
+                let cmp = b.score.partial_cmp(&a.score);
+                if cmp == Some(Ordering::Equal){
+                    b.id.partial_cmp(&a.id).unwrap_or(Ordering::Equal)
+                }else{
+                    cmp.unwrap()
+                }
+            });
             new_data.truncate(top_n as usize);
             worst_score = new_data.last().unwrap().score;
             trace!("new worst {:?}", worst_score);
@@ -541,7 +550,16 @@ fn top_n_sort(data: Vec<Hit>, top_n: u32) -> Vec<Hit> {
 
         new_data.push(el);
     }
-    new_data.sort_unstable_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(Ordering::Equal));
+
+    // Sort by score and anchor_id -- WITHOUT anchor_id SORTING SKIP MAY WORK NOT CORRECTLY FOR SAME SCORED ANCHOR_IDS
+    new_data.sort_unstable_by(|a, b| {
+        let cmp = b.score.partial_cmp(&a.score);
+        if cmp == Some(Ordering::Equal){
+            b.id.partial_cmp(&a.id).unwrap_or(Ordering::Equal)
+        }else{
+            cmp.unwrap()
+        }
+    });
     new_data
 }
 
@@ -564,7 +582,6 @@ pub fn search(mut request: Request, persistence: &Persistence) -> Result<SearchR
     let mut search_result = SearchResult { ..Default::default() };
 
     {
-        // let boosto = persistence.term_boost_cache.clone();
         if let Some(boost_term) = request.boost_term {
             res = apply_boost_term(persistence, res, boost_term)?;
         }
@@ -592,7 +609,7 @@ pub fn search(mut request: Request, persistence: &Persistence) -> Result<SearchR
 
         search_result.facets = Some(
             facets_req
-                .iter()
+                .par_iter()
                 .map(|facet_req| (facet_req.field.to_string(), facet::get_facet(persistence, facet_req, &hit_ids).unwrap()))
                 .collect(),
         );
