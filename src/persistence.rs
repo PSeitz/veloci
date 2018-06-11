@@ -443,23 +443,23 @@ impl Persistence {
                                 let start_and_end_file = get_file_handle_complete_path(&indirect_path)?;
                                 let data_file = get_file_handle_complete_path(&indirect_data_path)?;
                                 let indirect_metadata = get_file_metadata_handle_complete_path(&indirect_path)?;
-                                // let data_metadata = self.get_file_metadata_handle(&(el.path.to_string() + ".data"))?;
-                                // let store = PointingMMAPFileReader::new(
-                                //     &start_and_end_file,
-                                //     &data_file,
-                                //     indirect_metadata,
-                                //     &data_metadata,
-                                //     el.max_value_id,
-                                //     el.avg_join_size,
-                                // );
-                                let store = PointingArrayFileReader::new(
-                                    start_and_end_file,
-                                    data_file,
+                                let data_metadata = self.get_file_metadata_handle(&(el.path.to_string() + ".data"))?;
+                                let store = PointingMMAPFileReader::new(
+                                    &start_and_end_file,
+                                    &data_file,
                                     indirect_metadata,
-                                    // data_metadata,
+                                    &data_metadata,
                                     el.max_value_id,
                                     el.avg_join_size,
                                 );
+                                // let store = PointingArrayFileReader::new(
+                                //     start_and_end_file,
+                                //     data_file,
+                                //     indirect_metadata,
+                                //     // data_metadata,
+                                //     el.max_value_id,
+                                //     el.avg_join_size,
+                                // );
 
                                 // let store = PointingArrayFileReader { start_and_end_file: el.path.to_string()+ ".indirect", data_file: el.path.to_string()+ ".data", persistence: self.db.to_string()};
                                 // self.indices

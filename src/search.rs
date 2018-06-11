@@ -532,7 +532,7 @@ fn top_n_sort(data: Vec<Hit>, top_n: u32) -> Vec<Hit> {
         if el.score < worst_score {
             continue;
         }
-        if !new_data.is_empty() && (new_data.len() as u32 % (top_n * 5)) == 0 {
+        if !new_data.is_empty() && new_data.len() as u32 == top_n + 200 {
 
             // Sort by score and anchor_id -- WITHOUT anchor_id AORTING SKIP MAY WORK NOT CORRECTLY FOR SAME SCORED ANCHOR_IDS
             new_data.sort_unstable_by(|a, b| {
