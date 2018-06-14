@@ -1,14 +1,14 @@
 use create;
+use itertools::Itertools;
 use persistence;
 use persistence::*;
 use query_generator;
 use rayon::prelude::*;
 use search;
 use search::*;
+use std;
 use std::cmp::Ordering;
 use std::fs;
-use std;
-use itertools::Itertools;
 use std::sync::atomic;
 use std::sync::atomic::AtomicUsize;
 
@@ -65,7 +65,7 @@ where
 #[test]
 fn test_top_n_sort() {
     let dat = vec![
-        3, 5, 9, 10, 10, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9
+        3, 5, 9, 10, 10, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9,
     ];
     let yops = get_top_n_sort_from_iter(dat.iter(), 2, |a, b| b.cmp(&a));
     assert_eq!(yops, vec![&10, &10]);
@@ -152,7 +152,8 @@ impl Shards {
             {
                 self.shards.sort_unstable_by_key(|shard| shard.persistence.get_bytes_indexed().unwrap());
                 // for (_, group) in &self.shards.iter().group_by(|shard| (shard.persistence.get_bytes_indexed().unwrap() / 10_000_000)) {
-                for (_, group) in &self.shards
+                for (_, group) in &self
+                    .shards
                     .iter()
                     .group_by(|shard| (shard.persistence.get_bytes_indexed().unwrap() as f32).log10().round() as u32)
                 {
@@ -213,22 +214,21 @@ impl Shards {
     ) -> Result<SearchResultWithDoc, search::SearchError> {
         let mut all_search_results = SearchResultWithDoc::default();
 
-        let r: Vec<ShardResult> = self.shards
+        let r: Vec<ShardResult> = self
+            .shards
             .par_iter()
             .map(|shard| {
                 print_time!(format!("search shard {:?}", shard.shard_id));
                 let request = query_generator::search_query(&shard.persistence, q_params.clone());
                 let result = search::search(request, &shard.persistence)?;
-                Ok(ShardResult {
-                    shard: &shard,
-                    result: result,
-                })
+                Ok(ShardResult { shard: &shard, result: result })
             })
             .collect::<Result<Vec<ShardResult>, search::SearchError>>()?;
 
         let total_num_hits: u64 = r.iter().map(|shard_result| shard_result.result.num_hits).sum();
 
-        let all_shard_results: Vec<_> = r.iter()
+        let all_shard_results: Vec<_> = r
+            .iter()
             .flat_map(|shard_result| {
                 shard_result.result.data.iter().map(move |hit| ShardResultHit {
                     shard: shard_result.shard,

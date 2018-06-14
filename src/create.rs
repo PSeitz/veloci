@@ -1,30 +1,30 @@
+use std::fs::File;
 use std::io;
 use std::io::Write;
-use std::fs::File;
 use std::{self, str};
 
 use fnv::FnvHashMap;
 use fnv::FnvHashSet;
 use fst::{self, MapBuilder};
 use itertools::Itertools;
-use log;
-use rayon::prelude::*;
-use serde_json::{self, Value};
-use serde_json::Deserializer;
-use std::io::BufRead;
 use json_converter;
+use log;
 use persistence;
 use persistence::{IndexIdToParent, LoadingType, Persistence};
 use persistence_data_indirect::*;
 use persistence_score::token_to_anchor_score_vint::*;
+use rayon::prelude::*;
 use search;
 use search_field;
+use serde_json::Deserializer;
+use serde_json::{self, Value};
+use std::io::BufRead;
 use tokenizer::*;
 use util::*;
 use util::{self, concat};
 
-use fixedbitset::FixedBitSet;
 use buffered_index_writer::BufferedIndexWriter;
+use fixedbitset::FixedBitSet;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(untagged)]
@@ -162,14 +162,17 @@ impl KeyValuePair for ValIdPair {
     fn get_key(&self) -> u32 {
         self.valid
     }
+
     #[inline]
     fn set_key(&mut self, id: u32) {
         self.valid = id;
     }
+
     #[inline]
     fn get_value(&self) -> u32 {
         self.parent_val_id
     }
+
     #[inline]
     fn set_value(&mut self, id: u32) {
         self.parent_val_id = id;
@@ -180,14 +183,17 @@ impl KeyValuePair for ValIdToValue {
     fn get_key(&self) -> u32 {
         self.valid
     }
+
     #[inline]
     fn set_key(&mut self, id: u32) {
         self.valid = id;
     }
+
     #[inline]
     fn get_value(&self) -> u32 {
         self.value
     }
+
     #[inline]
     fn set_value(&mut self, id: u32) {
         self.value = id;
@@ -220,7 +226,8 @@ impl std::fmt::Display for ValIdPair {
 #[allow(dead_code)]
 fn print_vec(vec: &Vec<ValIdPair>, valid_header: &str, parentid_header: &str) -> String {
     format!("{}\t{}", valid_header, parentid_header)
-        + &vec.iter()
+        + &vec
+            .iter()
             .map(|el| format!("\n{}\t{}", el.valid, el.parent_val_id))
             .collect::<Vec<_>>()
             .join("")
@@ -230,7 +237,8 @@ fn print_vec(vec: &Vec<ValIdPair>, valid_header: &str, parentid_header: &str) ->
 fn print_index_id_to_parent(vec: &IndexIdToMultipleParentIndirect<u32>, valid_header: &str, parentid_header: &str) -> String {
     let keys = vec.get_keys();
     format!("{}\t{}", valid_header, parentid_header)
-        + &keys.iter()
+        + &keys
+            .iter()
             .map(|key| format!("\n{}\t{:?}", key, vec.get_values(*key as u64)))
             .collect::<Vec<_>>()
             .join("")
@@ -255,7 +263,7 @@ fn store_full_text_info_and_set_ids(
         let mut all_text: Vec<_> = all_terms.keys().collect();
         all_text.sort_unstable();
 
-        trace!("{:?} Terms: {:?}",path, all_text);
+        trace!("{:?} Terms: {:?}", path, all_text);
     }
     let mut term_and_mut_val: Vec<(&str, &mut TermInfo)> = all_terms.iter_mut().collect();
     term_and_mut_val.sort_unstable_by_key(|el| el.0);
@@ -382,8 +390,12 @@ where
 //     dat
 // }
 
-
-fn calculate_and_add_token_score_in_doc(tokens_to_anchor_id: &mut Vec<ValIdPairToken>, anchor_id: u32, _num_tokens_in_text: u32, index: &mut BufferedIndexWriter<(u32, u32)>) {
+fn calculate_and_add_token_score_in_doc(
+    tokens_to_anchor_id: &mut Vec<ValIdPairToken>,
+    anchor_id: u32,
+    _num_tokens_in_text: u32,
+    index: &mut BufferedIndexWriter<(u32, u32)>,
+) {
     // Sort by tokenid, token_pos
     tokens_to_anchor_id.sort_unstable_by(|a, b| {
         let sort_valid = a.token_or_text_id.cmp(&b.token_or_text_id);
@@ -402,9 +414,7 @@ fn calculate_and_add_token_score_in_doc(tokens_to_anchor_id: &mut Vec<ValIdPairT
         let score = calculate_token_score_for_entry(best_pos, num_occurences, false);
 
         index.add(first.token_or_text_id, (anchor_id, score));
-
     }
-
 }
 
 #[inline]
@@ -520,7 +530,7 @@ struct BufferedTextIdToTokenIdsData {
 
 impl Default for BufferedTextIdToTokenIdsData {
     fn default() -> BufferedTextIdToTokenIdsData {
-        BufferedTextIdToTokenIdsData{
+        BufferedTextIdToTokenIdsData {
             text_id_flag: FixedBitSet::default(),
             data: BufferedIndexWriter::new_stable_sorted(), // Stable sort, else the token_ids will be reorderer in the wrong order
         }
@@ -532,6 +542,7 @@ impl BufferedTextIdToTokenIdsData {
     pub fn contains(&self, text_id: u32) -> bool {
         self.text_id_flag.contains(text_id as usize)
     }
+
     #[inline]
     fn flag(&mut self, text_id: u32) {
         if self.text_id_flag.len() <= text_id as usize {
@@ -539,6 +550,7 @@ impl BufferedTextIdToTokenIdsData {
         }
         self.text_id_flag.insert(text_id as usize);
     }
+
     #[inline]
     pub fn add_all(&mut self, text_id: u32, token_ids: Vec<u32>) -> Result<(), io::Error> {
         self.flag(text_id);
@@ -565,7 +577,6 @@ fn is_1_to_n(path: &str) -> bool {
     path.contains("[]")
 }
 
-
 // use buffered_index_writer::KeyValue;
 fn stream_iter_to_indirect_index(
     iter: impl Iterator<Item = buffered_index_writer::KeyValue<u32>>,
@@ -583,7 +594,6 @@ fn stream_iter_to_indirect_index(
 
     Ok(())
 }
-
 
 fn stream_buffered_index_writer_to_indirect_index(
     mut index_writer: BufferedIndexWriter,
@@ -613,10 +623,11 @@ fn stream_iter_to_anchor_score(
     use std::mem::transmute;
     use std::slice::from_raw_parts_mut;
     for (id, group) in &iter.group_by(|el| el.key) {
-        let mut group: Vec<(u32, u32)> = group.map(|el|el.value).collect();
+        let mut group: Vec<(u32, u32)> = group.map(|el| el.value).collect();
         group.sort_unstable_by_key(|el| el.0);
         // group.dedup_by_key(|el| el.0);
-        group.dedup_by(|a, b| { //store only best hit
+        group.dedup_by(|a, b| {
+            //store only best hit
             if a.0 == b.0 {
                 b.1 += a.1; // TODO: Check if b is always kept and a discarded in case of equality
                 true
@@ -624,16 +635,14 @@ fn stream_iter_to_anchor_score(
                 false
             }
         });
-        let mut slice:&mut [u32] = unsafe {
-            transmute( from_raw_parts_mut(group.as_mut_ptr(), group.len() * 2) ) //DANGER ZONE: THIS COULD BREAK IF THE MEMORY LAYOUT OF TUPLE CHANGES
+        let mut slice: &mut [u32] = unsafe {
+            transmute(from_raw_parts_mut(group.as_mut_ptr(), group.len() * 2)) //DANGER ZONE: THIS COULD BREAK IF THE MEMORY LAYOUT OF TUPLE CHANGES
         };
         target.set_scores(id, &mut slice)?;
-
     }
 
     Ok(())
 }
-
 
 fn stream_buffered_index_writer_to_anchor_score(
     mut index_writer: BufferedIndexWriter<(u32, u32)>,
@@ -698,7 +707,6 @@ where
                     parent_to_text_id: BufferedIndexWriter::new_for_sorted_id_insertion(),
                     token_to_anchor_id_score: BufferedIndexWriter::<(u32, u32)>::new_unstable_sorted(),
                     ..Default::default()
-
                 }
             });
 
@@ -741,7 +749,6 @@ where
                 let mut tokens_ids = Vec::with_capacity(5);
                 let mut tokens_to_anchor_id = Vec::with_capacity(10);
 
-
                 tokenizer.get_tokens(value, &mut |token: &str, _is_seperator: bool| {
                     if options.stopwords.as_ref().map(|el| el.contains(token)).unwrap_or(false) {
                         return; //TODO FIXEME BUG return here also prevents proper recreation of text with tokens
@@ -766,7 +773,6 @@ where
                 }
 
                 calculate_and_add_token_score_in_doc(&mut tokens_to_anchor_id, anchor_id, current_token_pos, &mut data.token_to_anchor_id_score);
-
             }
         };
 
@@ -821,7 +827,6 @@ where
     Ok(())
 }
 
-
 /// Only trace im data
 fn trace_indices(path_data: &mut FnvHashMap<String, PathData>) {
     for (path, data) in path_data {
@@ -870,10 +875,14 @@ fn add_index_flush(
     stream_buffered_index_writer_to_indirect_index(buffered_index_data, &mut store, sort_and_dedup)?;
     indices.indirect_indices_flush.push((path, store, loading_type));
     Ok(())
-
 }
 
-fn add_anchor_score_flush(db_path: &str, path: String, buffered_index_data: BufferedIndexWriter<(u32, u32)>, indices: &mut IndicesFromRawData) -> Result<(), io::Error>  {
+fn add_anchor_score_flush(
+    db_path: &str,
+    path: String,
+    buffered_index_data: BufferedIndexWriter<(u32, u32)>,
+    indices: &mut IndicesFromRawData,
+) -> Result<(), io::Error> {
     let indirect_file_path = util::get_file_path(db_path, &(path.to_string() + ".indirect"));
     let data_file_path = util::get_file_path(db_path, &(path.to_string() + ".data"));
 
@@ -962,7 +971,7 @@ fn convert_raw_path_data_to_indices(
                 is_alway_1_to_1,
                 sort_and_dedup,
                 &mut indices,
-                loading_type
+                loading_type,
             )?;
 
             add_index_flush(
@@ -1035,7 +1044,8 @@ fn convert_raw_path_data_to_indices(
         })
         .collect();
 
-    for mut indice in indices_vec_2.unwrap() { //TODO Error handling
+    for mut indice in indices_vec_2.unwrap() {
+        //TODO Error handling
         indices.direct_indices.append(&mut indice.direct_indices);
         indices.indirect_indices_flush.append(&mut indice.indirect_indices_flush);
         indices.boost_indices.append(&mut indice.boost_indices);
@@ -1259,8 +1269,6 @@ pub fn add_token_values_to_tokens(persistence: &mut Persistence, data_str: &str,
     Ok(())
 }
 
-
-
 use std::io::BufReader;
 // A few methods below (read_to_string, read_line) will append data into a
 // `String` buffer, but we need to be pretty careful when doing this. The
@@ -1287,13 +1295,19 @@ use std::io::BufReader;
 // }
 
 pub trait FastLinesTrait<T> {
-    fn fast_lines(self) -> FastLinesJson<Self> where Self: Sized {
+    fn fast_lines(self) -> FastLinesJson<Self>
+    where
+        Self: Sized,
+    {
         FastLinesJson { reader: self, cache: vec![] }
     }
 }
 
 impl<T> FastLinesTrait<T> for BufReader<T> {
-    fn fast_lines(self) -> FastLinesJson<Self> where Self: Sized {
+    fn fast_lines(self) -> FastLinesJson<Self>
+    where
+        Self: Sized,
+    {
         FastLinesJson { reader: self, cache: vec![] }
     }
 }
@@ -1318,14 +1332,13 @@ impl<B: BufRead> Iterator for FastLinesJson<B> {
                         self.cache.pop();
                     }
                 }
-                let json = serde_json::from_str(unsafe {std::str::from_utf8_unchecked(&self.cache)});
+                let json = serde_json::from_str(unsafe { std::str::from_utf8_unchecked(&self.cache) });
                 Some(json)
             }
             Err(_e) => None,
         }
     }
 }
-
 
 pub fn create_indices_from_str(
     persistence: &mut Persistence,

@@ -12,10 +12,10 @@ use parking_lot::Mutex;
 
 use std;
 use std::fs;
-use std::io::Cursor;
-use std::io;
-use std::io::Write;
 use std::fs::File;
+use std::io;
+use std::io::Cursor;
+use std::io::Write;
 
 use num;
 use num::cast::ToPrimitive;
@@ -400,8 +400,12 @@ pub struct IndexIdToMultipleParentIndirect<T: IndexIdToParentData> {
 }
 impl<T: IndexIdToParentData> HeapSizeOf for IndexIdToMultipleParentIndirect<T> {
     fn heap_size_of_children(&self) -> usize {
-        self.start_pos.heap_size_of_children() + self.data.heap_size_of_children() + self.max_value_id.heap_size_of_children()
-            + self.avg_join_size.heap_size_of_children() + self.num_values.heap_size_of_children() + self.num_ids.heap_size_of_children()
+        self.start_pos.heap_size_of_children()
+            + self.data.heap_size_of_children()
+            + self.max_value_id.heap_size_of_children()
+            + self.avg_join_size.heap_size_of_children()
+            + self.num_values.heap_size_of_children()
+            + self.num_ids.heap_size_of_children()
     }
 }
 

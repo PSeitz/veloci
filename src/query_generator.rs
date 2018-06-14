@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use std::{str, f32};
+use std::{f32, str};
 
 use regex::Regex;
 
@@ -102,7 +102,8 @@ pub fn search_query(persistence: &Persistence, mut opt: SearchQueryGeneratorPara
             .collect()
     });
 
-    let boost_terms_req: Vec<RequestSearchPart> = opt.boost_terms
+    let boost_terms_req: Vec<RequestSearchPart> = opt
+        .boost_terms
         .iter()
         .flat_map(|(boost_term, boost_value): (&String, &f32)| {
             let mut boost_term = boost_term.to_string();
@@ -132,7 +133,8 @@ pub fn search_query(persistence: &Persistence, mut opt: SearchQueryGeneratorPara
         let requests: Vec<Request> = terms
             .iter()
             .map(|term| {
-                let mut levenshtein_distance = opt.levenshtein
+                let mut levenshtein_distance = opt
+                    .levenshtein
                     .unwrap_or_else(|| get_default_levenshtein(term, opt.levenshtein_auto_limit.unwrap_or(1)));
                 levenshtein_distance = std::cmp::min(levenshtein_distance, term.chars().count() - 1);
                 let parts = get_all_field_names(&persistence, &opt.fields)
@@ -175,7 +177,8 @@ pub fn search_query(persistence: &Persistence, mut opt: SearchQueryGeneratorPara
                 let requests: Vec<Request> = terms
                     .iter()
                     .map(|term| {
-                        let levenshtein_distance = opt.levenshtein
+                        let levenshtein_distance = opt
+                            .levenshtein
                             .unwrap_or_else(|| get_default_levenshtein(term, opt.levenshtein_auto_limit.unwrap_or(1)));
                         let part = RequestSearchPart {
                             path: field_name.to_string(),

@@ -1,7 +1,7 @@
 use fnv::FnvHashMap;
 use itertools::Itertools;
-use num::NumCast;
 use num;
+use num::NumCast;
 use persistence::*;
 use search::*;
 use search_field::*;
@@ -154,8 +154,10 @@ pub fn get_collector<T: 'static + IndexIdToParentData>(num_ids: u32, avg_join_si
     };
 }
 
-
-fn get_top_n_sort_from_iter<'a, T: num::Zero + std::cmp::PartialOrd + Copy + std::fmt::Debug, K: Copy, I: Iterator<Item = (K, T)>>(iter: I, top: usize) -> Vec<(K, T)> {
+fn get_top_n_sort_from_iter<'a, T: num::Zero + std::cmp::PartialOrd + Copy + std::fmt::Debug, K: Copy, I: Iterator<Item = (K, T)>>(
+    iter: I,
+    top: usize,
+) -> Vec<(K, T)> {
     let mut top_n: Vec<(K, T)> = vec![];
 
     let mut current_worst = T::zero();
@@ -164,7 +166,8 @@ fn get_top_n_sort_from_iter<'a, T: num::Zero + std::cmp::PartialOrd + Copy + std
             continue;
         }
 
-        if !top_n.is_empty() && top_n.len() == 200 + top { // 200 + top proved to be good
+        if !top_n.is_empty() && top_n.len() == 200 + top {
+            // 200 + top proved to be good
             top_n.sort_unstable_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(Ordering::Equal));
             top_n.truncate(top);
             current_worst = top_n.last().unwrap().1;
@@ -185,8 +188,8 @@ impl<T: IndexIdToParentData> AggregationCollector<T> for Vec<T> {
                 self.iter().enumerate().filter(|el| *el.1 != T::zero()).map(|el| (el.0, *el.1)),
                 top.unwrap() as usize,
             ).into_iter()
-             .map(|el| (NumCast::from(el.0).unwrap(), NumCast::from(el.1).unwrap()))
-             .collect()
+                .map(|el| (NumCast::from(el.0).unwrap(), NumCast::from(el.1).unwrap()))
+                .collect()
         } else {
             let mut groups: Vec<(u32, T)> = self.iter().enumerate().filter(|el| *el.1 != T::zero()).map(|el| (el.0 as u32, *el.1)).collect();
             groups.sort_by(|a, b| b.1.cmp(&a.1));
@@ -223,6 +226,3 @@ impl<T: IndexIdToParentData> AggregationCollector<T> for FnvHashMap<T, usize> {
         *stat += 1;
     }
 }
-
-
-

@@ -19,8 +19,8 @@ extern crate serde_json;
 use fst::{IntoStreamer, MapBuilder, Set};
 // use fst_levenshtein::Levenshtein;
 // use serde_json::{Deserializer, Value};
-use std::str;
 use search_lib::*;
+use std::str;
 
 #[allow(unused_imports)]
 use rayon::prelude::*;
@@ -28,9 +28,8 @@ use rayon::prelude::*;
 static TEST_FOLDER: &str = "bench_taschenbuch";
 
 fn load_persistence_disk() -> persistence::Persistence {
-
     use std::path::Path;
-    if Path::new(TEST_FOLDER).exists(){
+    if Path::new(TEST_FOLDER).exists() {
         return persistence::Persistence::load(TEST_FOLDER.to_string()).expect("Could not load persistence");
     }
     let object = r#"{"type":"taschenbuch","title":"mein buch"}"#.to_owned() + "\n";
@@ -54,7 +53,6 @@ fn main() {
     let _results = search_freestyle("taschenbuch", &pers);
     // println!("{:?}", results[0]);
 }
-
 
 fn search_freestyle(term: &str, pers: &persistence::Persistence) -> Vec<search::DocWithHit> {
     let yop = query_generator::SearchQueryGeneratorParameters {

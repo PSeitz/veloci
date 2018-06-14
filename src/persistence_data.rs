@@ -1,14 +1,14 @@
-use std;
 use itertools::Itertools;
+use std;
 use std::fs::File;
 
 use heapsize::HeapSizeOf;
 
 use util::*;
 
-use lru_cache;
 use byteorder::{LittleEndian, ReadBytesExt};
 use create;
+use lru_cache;
 use mayda;
 use persistence::*;
 pub use persistence_data_indirect::*;
@@ -163,7 +163,8 @@ pub struct IndexIdToOneParent<T: IndexIdToParentData> {
 impl<T: IndexIdToParentData> IndexIdToOneParent<T> {
     pub fn new(data: &IndexIdToParent<Output = T>) -> IndexIdToOneParent<T> {
         let data: Vec<Vec<T>> = id_to_parent_to_array_of_array(data);
-        let data = data.iter()
+        let data = data
+            .iter()
             .map(|el| {
                 if !el.is_empty() {
                     NumCast::from(el[0]).unwrap()
@@ -720,7 +721,8 @@ fn test_snap() {
     let data4: Vec<Vec<u8>> = data.iter().map(|el| vec_to_bytes_u32(el)).collect();
     info!("data byteorder {:?}", data4.heap_size_of_children());
 
-    let data5: Vec<Vec<u8>> = data.iter()
+    let data5: Vec<Vec<u8>> = data
+        .iter()
         .map(|el| {
             let mut dat = encoder.compress_vec(&vec_to_bytes_u32(el)).unwrap();
             dat.shrink_to_fit();

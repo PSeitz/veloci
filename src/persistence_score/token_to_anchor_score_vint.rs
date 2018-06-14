@@ -3,13 +3,13 @@ use util::*;
 use super::*;
 use vint::vint_encode_most_common::*;
 
+use itertools::Itertools;
+use search;
 use std;
 use std::fs::File;
 use std::io;
 use std::io::prelude::*;
 use std::iter::FusedIterator;
-use search;
-use itertools::Itertools;
 
 use persistence_data_indirect;
 
@@ -78,7 +78,7 @@ pub fn get_serialized_most_common_encoded_2(data: &mut [u32]) -> Vec<u8> {
 
 impl Default for TokenToAnchorScoreVintFlushing {
     fn default() -> TokenToAnchorScoreVintFlushing {
-        TokenToAnchorScoreVintFlushing::new("".to_string(),"".to_string(),)
+        TokenToAnchorScoreVintFlushing::new("".to_string(), "".to_string())
     }
 }
 
@@ -205,13 +205,13 @@ impl TokenToAnchorScoreVintIM {
 pub struct AnchorScoreIter<'a> {
     /// the current rolling value
     pub current: u32,
-    pub vint_iter: VintArrayMostCommonIterator<'a>
+    pub vint_iter: VintArrayMostCommonIterator<'a>,
 }
 impl<'a> AnchorScoreIter<'a> {
     pub fn new(data: &'a [u8]) -> AnchorScoreIter<'a> {
-        AnchorScoreIter{
-            current:0,
-            vint_iter: VintArrayMostCommonIterator::from_slice(&data)
+        AnchorScoreIter {
+            current: 0,
+            vint_iter: VintArrayMostCommonIterator::from_slice(&data),
         }
     }
 }
@@ -230,7 +230,7 @@ impl<'a> Iterator for AnchorScoreIter<'a> {
             id += self.current;
             self.current = id;
             Some(AnchorScore::new(id, f16::from_f32(score as f32)))
-        }else{
+        } else {
             None
         }
     }
@@ -252,7 +252,8 @@ impl TokenToAnchorScore for TokenToAnchorScoreVintIM {
 
         Some(AnchorScoreIter::new(&self.data[pos as usize..]).collect())
     }
-    fn get_score_iter<'a>(&'a self, id: u32) -> AnchorScoreIter<'a>{
+
+    fn get_score_iter<'a>(&'a self, id: u32) -> AnchorScoreIter<'a> {
         if id as usize >= self.get_size() {
             return AnchorScoreIter::new(&[]);
         }
@@ -300,7 +301,8 @@ impl TokenToAnchorScore for TokenToAnchorScoreVintMmap {
         }
         Some(AnchorScoreIter::new(&self.data[pos as usize..]).collect())
     }
-    fn get_score_iter<'a>(&'a self, id: u32) -> AnchorScoreIter<'a>{
+
+    fn get_score_iter<'a>(&'a self, id: u32) -> AnchorScoreIter<'a> {
         if id as usize >= self.start_pos.len() / 4 {
             return AnchorScoreIter::new(&[]);
             // return None;

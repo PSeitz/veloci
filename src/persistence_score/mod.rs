@@ -16,7 +16,6 @@ pub mod token_to_anchor_score_vint;
 pub(crate) use self::token_to_anchor_score_vint::*;
 // pub(crate) use self::token_to_anchor_score_deltaable::*;
 
-
 // struct CompactHit {
 //     id: [u8; 3],
 //     score: u8,

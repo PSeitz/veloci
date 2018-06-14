@@ -12,16 +12,16 @@ use search;
 use search::*;
 use std::cmp;
 use std::cmp::Ordering;
+use std::iter::FusedIterator;
 use str;
 use util;
 use util::concat;
-use std::iter::FusedIterator;
 
 use half::f16;
 use rayon::prelude::*;
+use std;
 use std::ptr;
 use util::*;
-use std;
 
 #[derive(Debug, Default)]
 pub struct SearchFieldResult {
@@ -224,7 +224,8 @@ fn get_text_score_id_from_result(suggest_text: bool, results: &[SearchFieldResul
 }
 pub fn suggest_multi(persistence: &Persistence, req: Request) -> Result<SuggestFieldResult, SearchError> {
     info_time!("suggest time");
-    let search_parts: Vec<RequestSearchPart> = req.suggest
+    let search_parts: Vec<RequestSearchPart> = req
+        .suggest
         .ok_or_else(|| SearchError::StringError("only suggest allowed in suggest function".to_string()))?;
     // let mut search_results = vec![];
     let top = req.top;
@@ -498,7 +499,6 @@ fn resolve_token_to_anchor(
                 let final_score = hit.score * (el.score.to_f32() / 100.0); // TODO ADD LIMIT FOR TOP X
                 anchor_ids_hits.push(search::Hit::new(el.id, final_score));
             }
-
         }
 
         debug!(
@@ -611,15 +611,15 @@ fn resolve_token_to_anchor(
     let mut fast_field_res_ids = vec![];
     {
         for id in &result.hits_ids {
-            debug_time!(format!("{} added anchor ids for id {:?}", &options.path, id ));
+            debug_time!(format!("{} added anchor ids for id {:?}", &options.path, id));
             let mut iter = token_to_anchor_score.get_score_iter(*id);
             fast_field_res_ids.reserve(iter.size_hint().1.unwrap() / 2);
-            for el in iter { //TODO ENABLE should_filter(&filter, el.id) ?
+            for el in iter {
+                //TODO ENABLE should_filter(&filter, el.id) ?
                 fast_field_res_ids.push(el.id);
             }
         }
     }
-
 
     // //resolve text_ids to anchor
     // let mut fast_field_res_ids = vec![];
@@ -752,7 +752,7 @@ pub fn resolve_token_hits(
                         continue;
                     }
 
-                    token_hits.push((token_parentval_id, hit.score, hit.id));    //TODO ADD ANCHOR_SCORE IN THIS SEARCH
+                    token_hits.push((token_parentval_id, hit.score, hit.id)); //TODO ADD ANCHOR_SCORE IN THIS SEARCH
 
                     // if let Some(offsets) = text_offsets.get_mutliple_value(token_parentval_id as usize..=token_parentval_id as usize + 1) {
                     //     // TODO replace with different scoring algorithm, not just length

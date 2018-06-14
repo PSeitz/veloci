@@ -13,12 +13,12 @@ use byteorder::{ByteOrder, LittleEndian};
 use num::cast::ToPrimitive;
 use num::{self, Integer, NumCast};
 
-use serde_json;
 use lru_cache;
+use serde_json;
 // use serde_json::StreamDeserializer;
 // use serde_json::Value;
 
-use bincode::{deserialize};
+use bincode::deserialize;
 use fnv::FnvHashMap;
 
 use log;
@@ -68,10 +68,13 @@ pub struct KVStoreMetaData {
     pub path: String,
     pub is_1_to_n: bool, // In the sense of 1:n   1key, n values
     pub persistence_type: KVStoreType,
-    #[serde(default)] pub is_empty: bool,
+    #[serde(default)]
+    pub is_empty: bool,
     pub loading_type: LoadingType,
-    #[serde(default = "default_max_value_id")] pub max_value_id: u32, // max value on the "right" side key -> value, key -> value ..
-    #[serde(default = "default_avg_join")] pub avg_join_size: f32,    // some join statistics
+    #[serde(default = "default_max_value_id")]
+    pub max_value_id: u32, // max value on the "right" side key -> value, key -> value ..
+    #[serde(default = "default_avg_join")]
+    pub avg_join_size: f32, // some join statistics
 }
 
 pub static NOT_FOUND: u32 = u32::MAX;
@@ -167,8 +170,9 @@ pub enum IDDataType {
 }
 // use persistence_data;
 
-pub trait IndexIdToParentData
-    : Integer + Clone + NumCast + mayda::utility::Bits + HeapSizeOf + Debug + Sync + Send + Copy + ToPrimitive + std::iter::Step + std::hash::Hash + 'static {
+pub trait IndexIdToParentData:
+    Integer + Clone + NumCast + mayda::utility::Bits + HeapSizeOf + Debug + Sync + Send + Copy + ToPrimitive + std::iter::Step + std::hash::Hash + 'static
+{
 }
 impl<T> IndexIdToParentData for T
 where
@@ -360,7 +364,8 @@ impl Persistence {
             // token_to_anchor_to_score
         }
 
-        let loaded_data: Result<Vec<(String, Box<IndexIdToParent<Output = u32>>)>, SearchError> = self.meta_data
+        let loaded_data: Result<Vec<(String, Box<IndexIdToParent<Output = u32>>)>, SearchError> = self
+            .meta_data
             .key_value_stores
             .clone()
             .into_par_iter()
@@ -376,10 +381,7 @@ impl Persistence {
 
                 //Insert dummy index, to seperate between emtpy indexes and nonexisting indexes
                 if el.is_empty {
-                    let store = IndexIdToOneParent {
-                        data: vec![],
-                        max_value_id: 0,
-                    };
+                    let store = IndexIdToOneParent { data: vec![], max_value_id: 0 };
                     return Ok((el.path.to_string(), Box::new(store) as Box<IndexIdToParent<Output = u32>>));
                 }
 
@@ -525,6 +527,7 @@ impl Persistence {
         }
         Ok(())
     }
+
     #[cfg_attr(feature = "flame_it", flame)]
     pub fn load_all_id_lists(&mut self) -> Result<(), search::SearchError> {
         for (_, ref idlist) in &self.meta_data.id_lists.clone() {
@@ -754,6 +757,7 @@ impl Persistence {
             avg_join_size: store.avg_join_size,
         })
     }
+
     pub fn flush_score_index_vint(
         &self,
         store: &mut TokenToAnchorScoreVintFlushing,
@@ -780,7 +784,7 @@ impl Persistence {
     #[cfg_attr(feature = "flame_it", flame)]
     pub fn create_type(db: String, persistence_type: PersistenceType) -> Result<Self, io::Error> {
         use std::path::Path;
-        if Path::new(&db).exists(){
+        if Path::new(&db).exists() {
             fs::remove_dir_all(&db)?;
         }
         fs::create_dir_all(&db)?;
@@ -831,7 +835,9 @@ impl Persistence {
         );
         info!("indices.fst {}", get_readable_size(self.get_fst_sizes()));
         info!("------");
-        let total_size = self.get_fst_sizes() + self.indices.key_value_stores.heap_size_of_children() + self.indices.index_64.heap_size_of_children()
+        let total_size = self.get_fst_sizes()
+            + self.indices.key_value_stores.heap_size_of_children()
+            + self.indices.index_64.heap_size_of_children()
             + self.indices.boost_valueid_to_value.heap_size_of_children()
             + self.indices.token_to_anchor_to_score.heap_size_of_children();
 
@@ -941,7 +947,8 @@ impl FileSearch {
 
 fn load_type_from_env() -> Result<Option<LoadingType>, search::SearchError> {
     if let Some(val) = env::var_os("LoadingType") {
-        let conv_env = val.clone()
+        let conv_env = val
+            .clone()
             .into_string()
             .map_err(|_err| search::SearchError::StringError(format!("Could not convert LoadingType environment variable to utf-8: {:?}", val)))?;
         let loading_type = LoadingType::from_str(&conv_env).map_err(|_err| {

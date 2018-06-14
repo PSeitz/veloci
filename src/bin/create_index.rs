@@ -18,7 +18,6 @@ extern crate serde_json;
 #[cfg(feature = "enable_cpuprofiler")]
 extern crate cpuprofiler;
 
-
 #[allow(unused_imports)]
 use fst::{IntoStreamer, MapBuilder, Set};
 // use fst_levenshtein::Levenshtein;
@@ -139,7 +138,6 @@ static TAHLIA_INDICES: &str = r#"
 //     // println!("{:?}", search_lib::create::create_indices_csv("csv_test", "./data.csv", TAHLIA_INDICES));
 // }
 
-
 #[cfg(not(enable_cpuprofiler))]
 fn start_profiler(_: &str) {}
 #[cfg(not(enable_cpuprofiler))]
@@ -258,7 +256,6 @@ fn create_jmdict_index_shards() -> Result<(), io::Error> {
 
     Ok(())
 }
-
 
 const JMDICT_INDICES: &str = r#"
     [
