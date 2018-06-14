@@ -22,7 +22,7 @@ mod tests {
             },
             {
                 "richtig": "shön",
-                "viele": ["treffers", "und so", "super treffers"] //same text "super treffers" multiple times
+                "viele": ["treffers", "und so", "super treffers", "ein längerer Text, um zu checken, dass da nicht umsortiert wird"] //same text "super treffers" multiple times
             },
             {
                 "buch": "Taschenbuch (kartoniert)",
@@ -97,7 +97,7 @@ mod tests {
             assert_eq!(hits[1].why_found["richtig"], vec!["<b>shön</b>"]);
         }
 
-        it "should add why found from 1:n terms, highlight tokens and also text_ids"{
+        it "should add why found from 1:n terms - highlight tokens and also text_ids"{
             let req = json!({
                 "search": {
                     "terms":["treffers"],
@@ -109,6 +109,22 @@ mod tests {
 
             let hits = search_testo_to_doc(req).data;
             assert_eq!(hits[0].why_found["viele[]"], vec!["<b>treffers</b>", "super <b>treffers</b>"]);
+        }
+
+        it "should add why found from 1:n terms - when select is used a different why_found strategy is used"{
+            let req = json!({
+                "search": {
+                    "terms":["umsortiert"],
+                    "path": "viele[]",
+                    "levenshtein_distance": 0
+                },
+                "why_found":true,
+                "select": ["richtig"]
+            });
+
+            let hits = search_testo_to_doc(req).data;
+            assert_eq!(hits[0].doc["richtig"], "shön");
+            assert_eq!(hits[0].why_found["viele[]"], vec!["ein längerer Text, um zu checken, dass da nicht <b>umsortiert</b> wird"]);
         }
 
         it "should add highlight taschenbuch"{

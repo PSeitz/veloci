@@ -726,9 +726,9 @@ pub fn resolve_token_hits(
     let add_snippets = options.snippet.unwrap_or(false);
 
     debug_time!(format!("{} resolve_token_hits", path));
-    let text_offsets = persistence
-        .get_offsets(path)
-        .expect(&format!("Could not find {:?} in index_64 indices", concat(path, ".offsets")));
+    // let text_offsets = persistence
+    //     .get_offsets(path)
+    //     .expect(&format!("Could not find {:?} in index_64 indices", concat(path, ".offsets")));
 
     let token_path = concat(path, ".tokens_to_text_id");
     let token_kvdata = persistence.get_valueid_to_parent(&token_path)?;
@@ -740,12 +740,11 @@ pub fn resolve_token_hits(
     let mut token_hits: Vec<(u32, f32, u32)> = vec![];
     // let mut anchor_hits = FnvHashMap::default();
     {
-        //VEC VERSION
         debug_time!(format!("{} adding parent_id from tokens", token_path));
         for hit in &result.hits_vec {
             if let Some(parent_ids_for_token) = token_kvdata.get_values(hit.id as u64) {
-                let token_text_length_offsets = text_offsets.get_mutliple_value(hit.id as usize..=hit.id as usize + 1).unwrap();
-                let token_text_length = token_text_length_offsets[1] - token_text_length_offsets[0];
+                // let token_text_length_offsets = text_offsets.get_mutliple_value(hit.id as usize..=hit.id as usize + 1).unwrap();
+                // let token_text_length = token_text_length_offsets[1] - token_text_length_offsets[0];
 
                 token_hits.reserve(parent_ids_for_token.len());
                 for token_parentval_id in parent_ids_for_token {
@@ -753,20 +752,22 @@ pub fn resolve_token_hits(
                         continue;
                     }
 
-                    if let Some(offsets) = text_offsets.get_mutliple_value(token_parentval_id as usize..=token_parentval_id as usize + 1) {
-                        // TODO replace with different scoring algorithm, not just length
-                        let parent_text_length = offsets[1] - offsets[0];
-                        let adjusted_score = hit.score * (token_text_length as f32 / parent_text_length as f32);
-                        trace!(
-                            "value_id {:?} parent_l {:?}, token_l {:?} score {:?} to adjusted_score {:?}",
-                            token_parentval_id,
-                            parent_text_length,
-                            token_text_length,
-                            hit.score,
-                            adjusted_score
-                        );
-                        token_hits.push((token_parentval_id, adjusted_score, hit.id));
-                    }
+                    token_hits.push((token_parentval_id, hit.score, hit.id));    //TODO ADD ANCHOR_SCORE IN THIS SEARCH
+
+                    // if let Some(offsets) = text_offsets.get_mutliple_value(token_parentval_id as usize..=token_parentval_id as usize + 1) {
+                    //     // TODO replace with different scoring algorithm, not just length
+                    //     let parent_text_length = offsets[1] - offsets[0];
+                    //     let adjusted_score = hit.score * (token_text_length as f32 / parent_text_length as f32);
+                    //     trace!(
+                    //         "value_id {:?} parent_l {:?}, token_l {:?} score {:?} to adjusted_score {:?}",
+                    //         token_parentval_id,
+                    //         parent_text_length,
+                    //         token_text_length,
+                    //         hit.score,
+                    //         adjusted_score
+                    //     );
+                    //     token_hits.push((token_parentval_id, adjusted_score, hit.id));
+                    // }
                 }
             }
         }

@@ -62,7 +62,7 @@ pub fn get_serialized_most_common_encoded(data: &mut Vec<(u32, u32)>) -> Vec<u8>
     vint.serialize()
 }
 
-pub fn get_serialized_most_common_encoded_2(data: &mut Vec<u32>) -> Vec<u8> {
+pub fn get_serialized_most_common_encoded_2(data: &mut [u32]) -> Vec<u8> {
     let mut vint = VIntArrayEncodeMostCommon::default();
 
     let mut last = 0;
@@ -99,7 +99,7 @@ impl TokenToAnchorScoreVintFlushing {
         }
     }
 
-    pub fn set_scores(&mut self, id: u32, mut add_data: &mut Vec<u32>) -> Result<(), io::Error> {
+    pub fn set_scores(&mut self, id: u32, mut add_data: &mut [u32]) -> Result<(), io::Error> {
         let id_pos = (id - self.current_id_offset) as usize;
 
         if self.ids_cache.len() <= id_pos {

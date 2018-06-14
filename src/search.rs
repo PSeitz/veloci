@@ -534,7 +534,7 @@ fn top_n_sort(data: Vec<Hit>, top_n: u32) -> Vec<Hit> {
         }
         if !new_data.is_empty() && new_data.len() as u32 == top_n + 200 {
 
-            // Sort by score and anchor_id -- WITHOUT anchor_id AORTING SKIP MAY WORK NOT CORRECTLY FOR SAME SCORED ANCHOR_IDS
+            // Sort by score and anchor_id -- WITHOUT anchor_id SORTING SKIP MAY WORK NOT CORRECTLY FOR SAME SCORED ANCHOR_IDS
             new_data.sort_unstable_by(|a, b| {
                 let cmp = b.score.partial_cmp(&a.score);
                 if cmp == Some(Ordering::Equal){

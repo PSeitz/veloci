@@ -38,7 +38,7 @@ impl GetValue for (u32,u32) {
     }
 }
 
-#[derive(Debug, Default, PartialEq, Eq)]
+#[derive(Debug, Default, PartialEq, Eq, Clone)]
 pub struct KeyValue<T:GetValue> {
     pub key: u32,
     pub value: T,
@@ -56,7 +56,7 @@ struct Part {
     len: u32,
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug)]
 ///
 /// Order is not guaranteed to be kept the same for same ids -> insert (0, 1)..(0,2)   --> Output could be (0,2),(0,1) with BufferedIndexWriter::default()
 ///
@@ -70,11 +70,18 @@ pub struct BufferedIndexWriter<T:GetValue = u32> {
     /// Ids are already sorted inserted, so there is no need to sort them
     ids_are_sorted: bool,
     last_id: u32,
+    flush_threshold: usize,
     /// written parts offsets in the file
     parts: Vec<Part>,
 }
 
-impl<T:GetValue + Default> BufferedIndexWriter<T> {
+impl<T:GetValue + Default + Clone> Default for BufferedIndexWriter<T> {
+    fn default() -> BufferedIndexWriter<T> {
+        BufferedIndexWriter::new_unstable_sorted()
+    }
+}
+
+impl<T:GetValue + Default + Clone> BufferedIndexWriter<T> {
     pub fn new_with_opt(stable_sort: bool, ids_are_sorted: bool) -> Self {
         BufferedIndexWriter {
             cache: vec![],
@@ -84,6 +91,7 @@ impl<T:GetValue + Default> BufferedIndexWriter<T> {
             stable_sort,
             ids_are_sorted,
             last_id: std::u32::MAX,
+            flush_threshold: 4_000_000,
             parts: vec![],
         }
     }
@@ -94,6 +102,9 @@ impl<T:GetValue + Default> BufferedIndexWriter<T> {
     }
     pub fn new_stable_sorted() -> Self {
         BufferedIndexWriter::new_with_opt(true, false)
+    }
+    pub fn new_unstable_sorted() -> Self {
+        BufferedIndexWriter::new_with_opt(false, false)
     }
 
     #[inline]
@@ -112,10 +123,16 @@ impl<T:GetValue + Default> BufferedIndexWriter<T> {
             });
         }
 
-        if id_has_changed && self.cache.len() >= 1_000_000 { // flush after 1_000_000 * 8 byte values = 8Megadolonbytes
+        self.check_flush(id_has_changed)?;
+
+        Ok(())
+    }
+
+    #[inline]
+    pub fn check_flush(&mut self, id_has_changed:bool) -> Result<(), io::Error> {
+        if id_has_changed && self.cache.len() * mem::size_of::<KeyValue<T>>() >= self.flush_threshold {
             self.flush()?;
         }
-
         Ok(())
     }
 
@@ -133,9 +150,7 @@ impl<T:GetValue + Default> BufferedIndexWriter<T> {
             value: value,
         });
 
-        if id_has_changed && self.cache.len() >= 500_000 { // flush after 500_000 * 8 byte values = 4Megadolonbytes
-            self.flush()?;
-        }
+        self.check_flush(id_has_changed)?;
 
         Ok(())
     }
@@ -145,6 +160,8 @@ impl<T:GetValue + Default> BufferedIndexWriter<T> {
             return Ok(());
         }
 
+        self.sort_cache();
+
         let mut data_file = BufWriter::new(self.temp_file.get_or_insert_with(|| tempfile::tempfile().unwrap()));
         let prev_part = self
             .parts
@@ -152,13 +169,6 @@ impl<T:GetValue + Default> BufferedIndexWriter<T> {
             .cloned()
             .unwrap_or(Part { offset: 0, len: 0 });
 
-        if !self.ids_are_sorted{
-            if self.stable_sort {
-                self.cache.sort_by_key(|el| el.key);
-            }else{
-                self.cache.sort_unstable_by_key(|el| el.key);
-            }
-        }
 
         //Maximum speed, Maximum unsafe
         use std::slice;
@@ -178,7 +188,17 @@ impl<T:GetValue + Default> BufferedIndexWriter<T> {
         Ok(())
     }
 
-    pub fn multi_iter(&mut self) -> Result<(Vec<MMapIter<T>>), io::Error> {
+    fn sort_cache(&mut self) {
+        if !self.ids_are_sorted{
+            if self.stable_sort {
+                self.cache.sort_by_key(|el| el.key);
+            }else{
+                self.cache.sort_unstable_by_key(|el| el.key);
+            }
+        }
+    }
+
+    pub fn multi_iter(&self) -> Result<(Vec<MMapIter<T>>), io::Error> {
         let mut vecco = vec![];
 
         // let file = File::open(&self.data_path)?;
@@ -207,38 +227,46 @@ impl<T:GetValue + Default> BufferedIndexWriter<T> {
     /// inmemory version for very small indices, where it's inefficient to write and then read from disk - data on disk will be ignored!
     #[inline]
     pub fn iter_inmemory<'a>(&'a mut self) -> impl Iterator<Item = &'a KeyValue<T>> {
-        if !self.ids_are_sorted{
-            if self.stable_sort {
-                self.cache.sort_by_key(|el| el.key);
-            }else{
-                self.cache.sort_unstable_by_key(|el| el.key);
-            }
-        }
+        self.sort_cache();
         self.cache.iter()
+    }
+
+    /// inmemory version for very small indices, where it's inefficient to write and then read from disk - data on disk will be ignored!
+    #[inline]
+    pub fn into_iter_inmemory(mut self) -> impl Iterator<Item = KeyValue<T>> {
+        self.sort_cache();
+        self.cache.into_iter()
     }
 
     /// flushed changes on disk and returns iterator over sorted elements
     #[inline]
-    pub fn kmerge_sorted_iter(&mut self) -> Result<(impl Iterator<Item = KeyValue<T>>), io::Error> {
+    pub fn flush_and_kmerge(&mut self) -> Result<(impl Iterator<Item = KeyValue<T>>), io::Error> {
         self.flush()?;
 
+        Ok(self.kmerge())
+    }
+
+    /// returns iterator over sorted elements
+    #[inline]
+    fn kmerge(&self) -> impl Iterator<Item = KeyValue<T>> {
         let iters = self.multi_iter().unwrap();
         let mergo = iters.into_iter().kmerge_by(|a, b| (*a).key < (*b).key);
-
-        Ok(mergo)
+        mergo
     }
+
 }
 
 
 use std::fmt;
-impl<T:GetValue> fmt::Display for BufferedIndexWriter<T> {
+impl<T:GetValue + Default> fmt::Display for BufferedIndexWriter<T> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        for el in self.cache.iter() {
+        for el in self.cache.iter(){
             write!(f, "{}\t{}\n", el.key, el.value.get_value())?;
         }
         Ok(())
     }
 }
+
 // impl fmt::Debug for BufferedIndexWriter {
 //     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
 
@@ -334,7 +362,7 @@ fn test_buffered_index_writer() {
     assert_eq!(iters[1].next(), Some(KeyValue::new(1, 3)));
     assert_eq!(iters[1].next(), None);
 
-    let mut mergo = ind.kmerge_sorted_iter().unwrap();
+    let mut mergo = ind.flush_and_kmerge().unwrap();
     assert_eq!(mergo.next(), Some(KeyValue::new(1, 3)));
     assert_eq!(mergo.next(), Some(KeyValue::new(2, 2)));
     assert_eq!(mergo.next(), Some(KeyValue::new(4, 4)));

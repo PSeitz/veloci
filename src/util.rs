@@ -12,6 +12,8 @@ use std::mem;
 use std::path::Path;
 use search::Hit;
 use std;
+use std::env;
+use search;
 
 pub fn normalize_text(text: &str) -> String {
     lazy_static! {
@@ -38,6 +40,19 @@ pub fn get_bit_at(input: u32, n: u8) -> bool {
         input & (1 << n) != 0
     } else {
         false
+    }
+}
+
+pub fn load_flush_threshold_from_env() -> Result<Option<u32>, search::SearchError> {
+    if let Some(val) = env::var_os("FlushThreshold") {
+        let conv_env = val.clone()
+            .into_string()
+            .map_err(|_err| search::SearchError::StringError(format!("Could not convert LoadingType environment variable to utf-8: {:?}", val)))?;
+
+        let flush_threshold = conv_env.parse::<u32>().map_err(|_err| format!("Expecting number for FlushThreshold, but got {:?}", conv_env))?;
+        Ok(Some(flush_threshold))
+    } else {
+        Ok(None)
     }
 }
 

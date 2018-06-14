@@ -7,13 +7,17 @@ extern crate env_logger;
 extern crate flexi_logger;
 extern crate fst;
 // extern crate fst_levenshtein;
-// extern crate cpuprofiler;
+
 #[macro_use]
 extern crate measure_time;
 extern crate rayon;
 extern crate search_lib;
 #[macro_use]
 extern crate serde_json;
+
+#[cfg(feature = "enable_cpuprofiler")]
+extern crate cpuprofiler;
+
 
 #[allow(unused_imports)]
 use fst::{IntoStreamer, MapBuilder, Set};
@@ -135,13 +139,31 @@ static TAHLIA_INDICES: &str = r#"
 //     // println!("{:?}", search_lib::create::create_indices_csv("csv_test", "./data.csv", TAHLIA_INDICES));
 // }
 
+
+#[cfg(not(enable_cpuprofiler))]
+fn start_profiler(_: &str) {}
+#[cfg(not(enable_cpuprofiler))]
+fn stop_profiler() {}
+
+#[cfg(feature = "enable_cpuprofiler")]
+fn start_profiler(name: &str) {
+    use cpuprofiler::PROFILER;
+    PROFILER.lock().unwrap().start(name).unwrap();
+}
+
+#[cfg(feature = "enable_cpuprofiler")]
+fn stop_profiler() {
+    use cpuprofiler::PROFILER;
+    PROFILER.lock().unwrap().stop().unwrap();
+}
+
 #[allow(dead_code)]
 fn create_thalia_index_big() -> Result<(), io::Error> {
     // let mut f = File::open("data")?;
     // let mut json = String::new();
     // f.read_to_string(&mut json)?;
 
-    // PROFILER.lock().unwrap().start("./my-prof.profile").unwrap();
+    start_profiler("./my-prof.profile");
 
     search_lib::create::create_indices_from_file(
         &mut search_lib::persistence::Persistence::create("thalia_new".to_string()).unwrap(),
@@ -151,6 +173,7 @@ fn create_thalia_index_big() -> Result<(), io::Error> {
         false,
     ).unwrap();
 
+    stop_profiler();
     // PROFILER.lock().unwrap().stop().unwrap();
     // search_lib::create::create_indices_from_str(
     //     &mut search_lib::persistence::Persistence::create("thalia_new".to_string()).unwrap(),
@@ -235,7 +258,7 @@ fn create_jmdict_index_shards() -> Result<(), io::Error> {
 
     Ok(())
 }
-// use cpuprofiler::PROFILER;
+
 
 const JMDICT_INDICES: &str = r#"
     [
@@ -272,28 +295,27 @@ fn create_jmdict_index() -> Result<(), io::Error> {
     // let stream1 = Deserializer::from_reader(std::io::BufReader::new(&f)).into_iter::<Value>();
     // let stream2 = Deserializer::from_reader(std::io::BufReader::new(&f2)).into_iter::<Value>();
 
-    let stream1 = std::io::BufReader::new(File::open("jmdict_split.json")?)
-        .lines()
-        .map(|line| serde_json::from_str(&line.unwrap()));
-    let stream2 = std::io::BufReader::new(File::open("jmdict_split.json")?)
-        .lines()
-        .map(|line| serde_json::from_str(&line.unwrap()));
-    let stream3 = std::io::BufReader::new(File::open("jmdict_split.json")?).lines().map(|line| line.unwrap());
+    // let stream1 = std::io::BufReader::new(File::open("jmdict_split.json")?)
+    //     .lines()
+    //     .map(|line| serde_json::from_str(&line.unwrap()));
+    // let stream2 = std::io::BufReader::new(File::open("jmdict_split.json")?)
+    //     .lines()
+    //     .map(|line| serde_json::from_str(&line.unwrap()));
+    // let stream3 = std::io::BufReader::new(File::open("jmdict_split.json")?).lines().map(|line| line.unwrap());
 
     // let stream2 = Deserializer::from_reader(File::open("jmdict_split.json")?).into_iter::<Value>();
-    search_lib::create::create_indices_from_streams(
+
+    search_lib::create::create_indices_from_file(
         &mut search_lib::persistence::Persistence::create("jmdict".to_string()).unwrap(),
-        stream1,
-        stream2,
-        stream3,
+        "jmdict_split.json",
         JMDICT_INDICES,
         None,
         false,
     ).unwrap();
 
-    let mut f = File::open("jmdict.json")?;
-    let mut s = String::new();
-    f.read_to_string(&mut s)?;
+    // let mut f = File::open("jmdict.json")?;
+    // let mut s = String::new();
+    // f.read_to_string(&mut s)?;
 
     // search_lib::create::create_indices_from_str(
     //     &mut search_lib::persistence::Persistence::create("jmdict".to_string()).unwrap(),

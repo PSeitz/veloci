@@ -109,6 +109,7 @@ git = "https://github.com/PSeitz/stainless"
 [features]
 default = []
 flame_it = ["flame", "flamer"]
+enable_cpuprofiler = []
 
 [lib]
 name = "search_lib"

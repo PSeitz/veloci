@@ -82,7 +82,7 @@ fn test_vec_buffwriter() -> (u32, u32) {
     }
     ind.flush().unwrap();
 
-    let data: Vec<_> = ind.kmerge_sorted_iter().unwrap().collect();
+    let data: Vec<_> = ind.flush_and_kmerge().unwrap().collect();
     data[0]
 }
 
