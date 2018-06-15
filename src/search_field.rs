@@ -21,7 +21,6 @@ use half::f16;
 use rayon::prelude::*;
 use std;
 use std::ptr;
-use util::*;
 
 #[derive(Debug, Default)]
 pub struct SearchFieldResult {

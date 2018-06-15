@@ -597,12 +597,12 @@ pub fn to_monotone<T: mayda::utility::Bits>(data: &[T]) -> mayda::Monotone<T> {
     uniform
 }
 
-fn load_bytes(file: &File, offset: u64, num_bytes: usize) -> Vec<u8> {
-    let mut data = vec![];
-    data.resize(num_bytes, 0);
-    load_bytes_into(&mut data, file, offset);
-    data
-}
+// fn load_bytes(file: &File, offset: u64, num_bytes: usize) -> Vec<u8> {
+//     let mut data = vec![];
+//     data.resize(num_bytes, 0);
+//     load_bytes_into(&mut data, file, offset);
+//     data
+// }
 
 #[cfg_attr(feature = "flame_it", flame)]
 pub fn valid_pair_to_parallel_arrays<T: IndexIdToParentData>(tuples: &mut Vec<create::ValIdPair>) -> ParallelArrays<T> {

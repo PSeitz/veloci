@@ -12,7 +12,6 @@ use parking_lot::Mutex;
 
 use std;
 use std::fs;
-use std::fs::File;
 use std::io;
 use std::io::Cursor;
 use std::io::Write;
@@ -1113,35 +1112,35 @@ fn get_encoded(mut val: u32) -> Option<u32> {
     }
 }
 
-#[inline(always)]
-fn get_u32_values_from_pointing_file(find: u64, size: usize, start_and_end_file: &Mutex<fs::File>, data_file: &Mutex<fs::File>) -> Option<Vec<u32>> {
-    // trace_time!("get_u32_values_from_pointing_file");
-    if find >= size as u64 {
-        return None;
-    }
-    let mut offsets: Vec<u8> = vec_with_size_uninitialized(4);
-    load_bytes_into(&mut offsets, &*start_and_end_file.lock(), find as u64 * 4);
+// #[inline(always)]
+// fn get_u32_values_from_pointing_file(find: u64, size: usize, start_and_end_file: &Mutex<fs::File>, data_file: &Mutex<fs::File>) -> Option<Vec<u32>> {
+//     // trace_time!("get_u32_values_from_pointing_file");
+//     if find >= size as u64 {
+//         return None;
+//     }
+//     let mut offsets: Vec<u8> = vec_with_size_uninitialized(4);
+//     load_bytes_into(&mut offsets, &*start_and_end_file.lock(), find as u64 * 4);
 
-    let pos_in_data_or_encoded_id = {
-        let mut rdr = Cursor::new(&offsets);
-        rdr.read_u32::<LittleEndian>().unwrap() //TODO AVOID CONVERT
-    };
+//     let pos_in_data_or_encoded_id = {
+//         let mut rdr = Cursor::new(&offsets);
+//         rdr.read_u32::<LittleEndian>().unwrap() //TODO AVOID CONVERT
+//     };
 
-    if let Some(val) = get_encoded(pos_in_data_or_encoded_id) {
-        return Some(vec![val]);
-    }
+//     if let Some(val) = get_encoded(pos_in_data_or_encoded_id) {
+//         return Some(vec![val]);
+//     }
 
-    if pos_in_data_or_encoded_id == EMPTY_BUCKET {
-        return None;
-    }
+//     if pos_in_data_or_encoded_id == EMPTY_BUCKET {
+//         return None;
+//     }
 
-    load_bytes_into(&mut offsets, &*data_file.lock(), pos_in_data_or_encoded_id as u64 * 4); // first el is length of data
-    let mut rdr = Cursor::new(offsets);
-    let data_start = pos_in_data_or_encoded_id + 1; // actual data starts after len
-    let data_end = data_start + rdr.read_u32::<LittleEndian>().unwrap(); //TODO AVOID CONVERT JUST CAST LIEKE A DAREDEVIL
+//     load_bytes_into(&mut offsets, &*data_file.lock(), pos_in_data_or_encoded_id as u64 * 4); // first el is length of data
+//     let mut rdr = Cursor::new(offsets);
+//     let data_start = pos_in_data_or_encoded_id + 1; // actual data starts after len
+//     let data_end = data_start + rdr.read_u32::<LittleEndian>().unwrap(); //TODO AVOID CONVERT JUST CAST LIEKE A DAREDEVIL
 
-    Some(get_my_data_danger_zooone(data_start, data_end, data_file))
-}
+//     Some(get_my_data_danger_zooone(data_start, data_end, data_file))
+// }
 
 pub fn id_to_parent_to_array_of_array<T: IndexIdToParentData>(store: &IndexIdToParent<Output = T>) -> Vec<Vec<T>> {
     let mut data: Vec<Vec<T>> = prepare_data_for_array_of_array(store, &Vec::new);
