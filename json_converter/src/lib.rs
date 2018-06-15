@@ -152,7 +152,6 @@ pub fn for_each_elemento<F, F2>(
 }
 
 pub trait IDProvider {
-    #[inline(always)]
     fn get_id(&mut self, path: &str) -> u32;
 }
 

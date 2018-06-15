@@ -118,7 +118,7 @@ impl<T:GetValue + Default + Clone> BufferedIndexWriter<T> {
             self.max_value_id = std::cmp::max(value.get_value(), self.max_value_id);
             self.cache.push(KeyValue {
                 key: id,
-                value: value,
+                value,
             });
         }
 
@@ -146,7 +146,7 @@ impl<T:GetValue + Default + Clone> BufferedIndexWriter<T> {
 
         self.cache.push(KeyValue {
             key: id,
-            value: value,
+            value,
         });
 
         self.check_flush(id_has_changed)?;
@@ -263,7 +263,7 @@ impl<T:GetValue + Default + Clone> BufferedIndexWriter<T> {
 
     /// returns iterator over sorted elements
     #[inline]
-    fn kmerge<'a>(&'a self) -> impl Iterator<Item = KeyValue< T>> {
+    fn kmerge(&self) -> impl Iterator<Item = KeyValue< T>> {
         let iters = self.multi_iter().unwrap();
         iters.into_iter().kmerge_by(|a, b| (*a).key < (*b).key)
     }
@@ -305,7 +305,7 @@ pub struct MMapIterRef<'a, T:GetValue> {
 
 impl<'a, T:GetValue> MMapIterRef<'a, T> {
     fn new(mmap: &'a memmap::Mmap, offset: u32, len: u32) -> Self {
-        MMapIterRef { mmap, pos: 0, offset: offset, len: len, phantom:PhantomData }
+        MMapIterRef { mmap, pos: 0, offset, len, phantom:PhantomData }
     }
 }
 
