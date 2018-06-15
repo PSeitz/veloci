@@ -19,11 +19,9 @@ use facet::*;
 use mayda::{Access, Encode};
 use parking_lot::Mutex;
 
-use num;
 use num::cast::ToPrimitive;
 use num::NumCast;
 use std::fs;
-use std::io::Cursor;
 use std::marker::PhantomData;
 
 use type_info::TypeInfo;
@@ -34,93 +32,55 @@ use std::u32;
 use memmap::Mmap;
 use memmap::MmapOptions;
 
-impl_type_info_single_templ!(IndexIdToMultipleParentCompressedMaydaDIRECT);
-impl_type_info_single_templ!(IndexIdToMultipleParent);
+// impl_type_info_single_templ!(IndexIdToMultipleParent);
 impl_type_info_single_templ!(IndexIdToOneParentMayda); // TODO ADD TESTST FOR IndexIdToOneParentMayda
 impl_type_info_single_templ!(IndexIdToOneParent);
-// impl_type_info_single_templ!(FSTToOneParent);
 impl_type_info_single_templ!(ParallelArrays);
 
-impl_type_info_single_templ!(SingleArrayFileReader);
+// impl_type_info_single_templ!(SingleArrayFileReader);
 impl_type_info_single_templ!(SingleArrayMMAP);
 
-#[derive(Debug, HeapSizeOf)]
-pub struct IndexIdToMultipleParent<T: IndexIdToParentData> {
-    pub data: Vec<Vec<T>>,
-}
-impl<T: IndexIdToParentData> IndexIdToMultipleParent<T> {
-    #[allow(dead_code)]
-    pub fn new(data: &IndexIdToParent<Output = T>) -> IndexIdToMultipleParent<T> {
-        IndexIdToMultipleParent {
-            data: id_to_parent_to_array_of_array(data),
-        }
-    }
-}
-impl<T: IndexIdToParentData> IndexIdToParent for IndexIdToMultipleParent<T> {
-    type Output = T;
+// #[derive(Debug, HeapSizeOf)]
+// pub struct IndexIdToMultipleParent<T: IndexIdToParentData> {
+//     pub data: Vec<Vec<T>>,
+// }
+// impl<T: IndexIdToParentData> IndexIdToMultipleParent<T> {
+//     #[allow(dead_code)]
+//     pub fn new(data: &IndexIdToParent<Output = T>) -> IndexIdToMultipleParent<T> {
+//         IndexIdToMultipleParent {
+//             data: id_to_parent_to_array_of_array(data),
+//         }
+//     }
+// }
+// impl<T: IndexIdToParentData> IndexIdToParent for IndexIdToMultipleParent<T> {
+//     type Output = T;
 
-    #[inline]
-    fn count_values_for_ids(&self, ids: &[u32], _top: Option<u32>) -> FnvHashMap<T, usize> {
-        let mut hits = FnvHashMap::default();
-        let size = self.data.len();
-        for id in ids {
-            if *id >= size as u32 {
-                continue;
-            }
-            for hit_id in &self.data[*id as usize] {
-                let stat = hits.entry(*hit_id).or_insert(0);
-                *stat += 1;
-            }
-        }
-        hits
-    }
+//     #[inline]
+//     fn count_values_for_ids(&self, ids: &[u32], _top: Option<u32>) -> FnvHashMap<T, usize> {
+//         let mut hits = FnvHashMap::default();
+//         let size = self.data.len();
+//         for id in ids {
+//             if *id >= size as u32 {
+//                 continue;
+//             }
+//             for hit_id in &self.data[*id as usize] {
+//                 let stat = hits.entry(*hit_id).or_insert(0);
+//                 *stat += 1;
+//             }
+//         }
+//         hits
+//     }
 
-    fn get_keys(&self) -> Vec<T> {
-        (NumCast::from(0).unwrap()..NumCast::from(self.data.len()).unwrap()).collect()
-    }
+//     fn get_keys(&self) -> Vec<T> {
+//         (NumCast::from(0).unwrap()..NumCast::from(self.data.len()).unwrap()).collect()
+//     }
 
-    fn get_values(&self, id: u64) -> Option<Vec<T>> {
-        let vec: Option<Vec<T>> = self.data.get(id as usize).map(|el| el.iter().map(|el| NumCast::from(*el).unwrap()).collect());
-        if vec.is_some() && vec.as_ref().unwrap().is_empty() {
-            return None;
-        }
-        vec
-    }
-}
-
-#[derive(Debug, HeapSizeOf)]
-#[allow(dead_code)]
-pub struct IndexIdToMultipleParentCompressedMaydaDIRECT<T: IndexIdToParentData> {
-    data: Vec<mayda::Uniform<T>>,
-}
-impl<T: IndexIdToParentData> IndexIdToMultipleParentCompressedMaydaDIRECT<T> {
-    #[allow(dead_code)]
-    pub fn new(store: &IndexIdToParent<Output = T>) -> IndexIdToMultipleParentCompressedMaydaDIRECT<T> {
-        let data = id_to_parent_to_array_of_array_mayda(store);
-        IndexIdToMultipleParentCompressedMaydaDIRECT { data }
-    }
-}
-
-impl<T: IndexIdToParentData> IndexIdToParent for IndexIdToMultipleParentCompressedMaydaDIRECT<T> {
-    type Output = T;
-
-    fn get_keys(&self) -> Vec<T> {
-        (NumCast::from(0).unwrap()..NumCast::from(self.data.len()).unwrap()).collect()
-    }
-
-    default fn get_values(&self, id: u64) -> Option<Vec<T>> {
-        self.data
-            .get(id as usize)
-            .map(|el| el.decode().iter().map(|el| NumCast::from(*el).unwrap()).collect())
-    }
-}
-
-// impl IndexIdToParent for IndexIdToMultipleParentCompressedMaydaDIRECT<u32> {
-//     type Output = u32;
-//     fn get_values(&self, id: u64) -> Option<Vec<u32>> {
-//         self.data.get(id as usize).map(|el| {
-//             el.decode()
-//         })
+//     fn get_values(&self, id: u64) -> Option<Vec<T>> {
+//         let vec: Option<Vec<T>> = self.data.get(id as usize).map(|el| el.iter().map(|el| NumCast::from(*el).unwrap()).collect());
+//         if vec.is_some() && vec.as_ref().unwrap().is_empty() {
+//             return None;
+//         }
+//         vec
 //     }
 // }
 
@@ -426,137 +386,137 @@ impl IndexIdToParent for SingleArrayMMAP<u64> {
     }
 }
 
-#[derive(Debug)]
-pub struct SingleArrayFileReader<T: IndexIdToParentData> {
-    pub data_file: Mutex<fs::File>,
-    pub data_metadata: Mutex<fs::Metadata>,
-    pub ok: PhantomData<T>,
-}
+// #[derive(Debug)]
+// pub struct SingleArrayFileReader<T: IndexIdToParentData> {
+//     pub data_file: Mutex<fs::File>,
+//     pub data_metadata: Mutex<fs::Metadata>,
+//     pub ok: PhantomData<T>,
+// }
 
-trait GetSize {
-    fn get_size(&self) -> usize;
-}
+// trait GetSize {
+//     fn get_size(&self) -> usize;
+// }
 
-impl<T: IndexIdToParentData> SingleArrayFileReader<T> {
-    pub fn new(data_file: fs::File, data_metadata: fs::Metadata) -> Self {
-        SingleArrayFileReader {
-            data_file: Mutex::new(data_file),
-            data_metadata: Mutex::new(data_metadata),
-            ok: PhantomData,
-        }
-    }
-}
-impl<T: IndexIdToParentData> GetSize for SingleArrayFileReader<T> {
-    default fn get_size(&self) -> usize {
-        unimplemented!()
-    }
-}
+// impl<T: IndexIdToParentData> SingleArrayFileReader<T> {
+//     pub fn new(data_file: fs::File, data_metadata: fs::Metadata) -> Self {
+//         SingleArrayFileReader {
+//             data_file: Mutex::new(data_file),
+//             data_metadata: Mutex::new(data_metadata),
+//             ok: PhantomData,
+//         }
+//     }
+// }
+// impl<T: IndexIdToParentData> GetSize for SingleArrayFileReader<T> {
+//     default fn get_size(&self) -> usize {
+//         unimplemented!()
+//     }
+// }
 
-impl GetSize for SingleArrayFileReader<u32> {
-    fn get_size(&self) -> usize {
-        self.data_metadata.lock().len() as usize / 4
-    }
-}
-impl GetSize for SingleArrayFileReader<u64> {
-    fn get_size(&self) -> usize {
-        self.data_metadata.lock().len() as usize / 8
-    }
-}
+// impl GetSize for SingleArrayFileReader<u32> {
+//     fn get_size(&self) -> usize {
+//         self.data_metadata.lock().len() as usize / 4
+//     }
+// }
+// impl GetSize for SingleArrayFileReader<u64> {
+//     fn get_size(&self) -> usize {
+//         self.data_metadata.lock().len() as usize / 8
+//     }
+// }
 
-impl<T: IndexIdToParentData> IndexIdToParent for SingleArrayFileReader<T> {
-    type Output = T;
+// impl<T: IndexIdToParentData> IndexIdToParent for SingleArrayFileReader<T> {
+//     type Output = T;
 
-    fn get_keys(&self) -> Vec<T> {
-        (NumCast::from(0).unwrap()..NumCast::from(self.get_size()).unwrap()).collect()
-    }
+//     fn get_keys(&self) -> Vec<T> {
+//         (NumCast::from(0).unwrap()..NumCast::from(self.get_size()).unwrap()).collect()
+//     }
 
-    default fn get_values(&self, _find: u64) -> Option<Vec<T>> {
-        unimplemented!()
-    }
+//     default fn get_values(&self, _find: u64) -> Option<Vec<T>> {
+//         unimplemented!()
+//     }
 
-    #[inline]
-    default fn get_num_keys(&self) -> usize {
-        self.get_size()
-    }
+//     #[inline]
+//     default fn get_num_keys(&self) -> usize {
+//         self.get_size()
+//     }
 
-    default fn get_value(&self, _find: u64) -> Option<T> {
-        unimplemented!()
-    }
-}
+//     default fn get_value(&self, _find: u64) -> Option<T> {
+//         unimplemented!()
+//     }
+// }
 
-impl IndexIdToParent for SingleArrayFileReader<u64> {
-    #[inline]
-    fn get_values(&self, find: u64) -> Option<Vec<u64>> {
-        self.get_value(find).map(|el| vec![el])
-    }
+// impl IndexIdToParent for SingleArrayFileReader<u64> {
+//     #[inline]
+//     fn get_values(&self, find: u64) -> Option<Vec<u64>> {
+//         self.get_value(find).map(|el| vec![el])
+//     }
 
-    #[inline]
-    fn get_mutliple_value(&self, range: std::ops::RangeInclusive<usize>) -> Option<Vec<Self::Output>> {
-        get_bytes(
-            std::mem::size_of::<u64>(),
-            *range.start() as u64,
-            range.size_hint().0 as u64,
-            &self.data_file,
-            &self.data_metadata,
-        ).map(|bytes| {
-            bytes_to_vec_u64(&bytes) // TODO Performance In place bytes to u64 ?
-        })
-    }
+//     #[inline]
+//     fn get_mutliple_value(&self, range: std::ops::RangeInclusive<usize>) -> Option<Vec<Self::Output>> {
+//         get_bytes(
+//             std::mem::size_of::<u64>(),
+//             *range.start() as u64,
+//             range.size_hint().0 as u64,
+//             &self.data_file,
+//             &self.data_metadata,
+//         ).map(|bytes| {
+//             bytes_to_vec_u64(&bytes) // TODO Performance In place bytes to u64 ?
+//         })
+//     }
 
-    #[inline]
-    fn get_value(&self, find: u64) -> Option<u64> {
-        get_reader(std::mem::size_of::<u64>(), find, 1, &self.data_file, &self.data_metadata)
-            .map(|mut rdr| rdr.read_u64::<LittleEndian>().unwrap())
-            .filter(|el| *el != num::cast::<u32, u64>(u32::MAX).unwrap())
-    }
-}
-impl IndexIdToParent for SingleArrayFileReader<u32> {
-    #[inline]
-    fn get_mutliple_value(&self, range: std::ops::RangeInclusive<usize>) -> Option<Vec<Self::Output>> {
-        get_bytes(
-            std::mem::size_of::<u32>(),
-            *range.start() as u64,
-            range.size_hint().0 as u64,
-            &self.data_file,
-            &self.data_metadata,
-        ).map(|bytes| {
-            bytes_to_vec_u32(&bytes) // TODO Performance In place bytes to u32 ?
-        })
-    }
+//     #[inline]
+//     fn get_value(&self, find: u64) -> Option<u64> {
+//         get_reader(std::mem::size_of::<u64>(), find, 1, &self.data_file, &self.data_metadata)
+//             .map(|mut rdr| rdr.read_u64::<LittleEndian>().unwrap())
+//             .filter(|el| *el != num::cast::<u32, u64>(u32::MAX).unwrap())
+//     }
+// }
+// impl IndexIdToParent for SingleArrayFileReader<u32> {
+//     #[inline]
+//     fn get_mutliple_value(&self, range: std::ops::RangeInclusive<usize>) -> Option<Vec<Self::Output>> {
+//         get_bytes(
+//             std::mem::size_of::<u32>(),
+//             *range.start() as u64,
+//             range.size_hint().0 as u64,
+//             &self.data_file,
+//             &self.data_metadata,
+//         ).map(|bytes| {
+//             bytes_to_vec_u32(&bytes) // TODO Performance In place bytes to u32 ?
+//         })
+//     }
 
-    #[inline]
-    fn get_values(&self, find: u64) -> Option<Vec<u32>> {
-        self.get_value(find).map(|el| vec![el])
-    }
+//     #[inline]
+//     fn get_values(&self, find: u64) -> Option<Vec<u32>> {
+//         self.get_value(find).map(|el| vec![el])
+//     }
 
-    #[inline]
-    fn get_value(&self, find: u64) -> Option<u32> {
-        get_reader(std::mem::size_of::<u32>(), find, 1, &self.data_file, &self.data_metadata)
-            .map(|mut rdr| rdr.read_u32::<LittleEndian>().unwrap())
-            .filter(|el| *el != u32::MAX)
-    }
-}
-impl<T: IndexIdToParentData> HeapSizeOf for SingleArrayFileReader<T> {
-    fn heap_size_of_children(&self) -> usize {
-        0
-    }
-}
+//     #[inline]
+//     fn get_value(&self, find: u64) -> Option<u32> {
+//         get_reader(std::mem::size_of::<u32>(), find, 1, &self.data_file, &self.data_metadata)
+//             .map(|mut rdr| rdr.read_u32::<LittleEndian>().unwrap())
+//             .filter(|el| *el != u32::MAX)
+//     }
+// }
+// impl<T: IndexIdToParentData> HeapSizeOf for SingleArrayFileReader<T> {
+//     fn heap_size_of_children(&self) -> usize {
+//         0
+//     }
+// }
 
-#[inline]
-fn get_bytes(block_size: usize, find: u64, num_elem: u64, data_file: &Mutex<fs::File>, data_metadata: &Mutex<fs::Metadata>) -> Option<Vec<u8>> {
-    let size = data_metadata.lock().len() as usize / block_size;
-    if find >= size as u64 {
-        return None;
-    }
-    let data_bytes = load_bytes(&*data_file.lock(), find as u64 * block_size as u64, block_size * num_elem as usize);
+// #[inline]
+// fn get_bytes(block_size: usize, find: u64, num_elem: u64, data_file: &Mutex<fs::File>, data_metadata: &Mutex<fs::Metadata>) -> Option<Vec<u8>> {
+//     let size = data_metadata.lock().len() as usize / block_size;
+//     if find >= size as u64 {
+//         return None;
+//     }
+//     let data_bytes = load_bytes(&*data_file.lock(), find as u64 * block_size as u64, block_size * num_elem as usize);
 
-    Some(data_bytes)
-}
+//     Some(data_bytes)
+// }
 
-#[inline]
-fn get_reader(block_size: usize, find: u64, num_elem: u64, data_file: &Mutex<fs::File>, data_metadata: &Mutex<fs::Metadata>) -> Option<Cursor<Vec<u8>>> {
-    get_bytes(block_size, find, num_elem, data_file, data_metadata).map(Cursor::new)
-}
+// #[inline]
+// fn get_reader(block_size: usize, find: u64, num_elem: u64, data_file: &Mutex<fs::File>, data_metadata: &Mutex<fs::Metadata>) -> Option<Cursor<Vec<u8>>> {
+//     get_bytes(block_size, find, num_elem, data_file, data_metadata).map(Cursor::new)
+// }
 
 pub fn id_to_parent_to_array_of_array<T: IndexIdToParentData>(store: &IndexIdToParent<Output = T>) -> Vec<Vec<T>> {
     let mut data: Vec<Vec<T>> = prepare_data_for_array_of_array(store, &Vec::new);
@@ -774,30 +734,30 @@ mod tests {
             check_test_data_1_to_1(&store);
         }
 
-        #[test]
-        fn test_single_file_array_u64() {
-            let store = get_test_data_1_to_1();
+        // #[test]
+        // fn test_single_file_array_u64() {
+        //     let store = get_test_data_1_to_1();
 
-            let mut file = tempfile().unwrap();
-            file.write_all(&vec_to_bytes_u64(&store.data)).unwrap();
+        //     let mut file = tempfile().unwrap();
+        //     file.write_all(&vec_to_bytes_u64(&store.data)).unwrap();
 
-            let meta_data = file.metadata().unwrap();
-            let store = SingleArrayFileReader::<u64>::new(file, meta_data);
-            check_test_data_1_to_1(&store);
-        }
+        //     let meta_data = file.metadata().unwrap();
+        //     let store = SingleArrayFileReader::<u64>::new(file, meta_data);
+        //     check_test_data_1_to_1(&store);
+        // }
 
-        #[test]
-        fn test_single_file_array_u32() {
-            let store = get_test_data_1_to_1();
+        // #[test]
+        // fn test_single_file_array_u32() {
+        //     let store = get_test_data_1_to_1();
 
-            let mut file = tempfile().unwrap();
+        //     let mut file = tempfile().unwrap();
 
-            file.write_all(&vec_to_bytes_u32(&store.data)).unwrap();
+        //     file.write_all(&vec_to_bytes_u32(&store.data)).unwrap();
 
-            let meta_data = file.metadata().unwrap();
-            let store = SingleArrayFileReader::<u32>::new(file, meta_data);
-            check_test_data_1_to_1(&store);
-        }
+        //     let meta_data = file.metadata().unwrap();
+        //     let store = SingleArrayFileReader::<u32>::new(file, meta_data);
+        //     check_test_data_1_to_1(&store);
+        // }
 
     }
 
@@ -938,15 +898,15 @@ mod tests {
         //     })
         // }
 
-        #[bench]
-        fn indirect_pointing_uncompressed_im(b: &mut test::Bencher) {
-            let mut rng = rand::thread_rng();
-            let between = Range::new(0, 40_000);
-            let store = get_test_data_large(40_000, 15);
-            let mayda = IndexIdToMultipleParent::<u32>::new(&store);
+        // #[bench]
+        // fn indirect_pointing_uncompressed_im(b: &mut test::Bencher) {
+        //     let mut rng = rand::thread_rng();
+        //     let between = Range::new(0, 40_000);
+        //     let store = get_test_data_large(40_000, 15);
+        //     let mayda = IndexIdToMultipleParent::<u32>::new(&store);
 
-            b.iter(|| mayda.get_values(between.ind_sample(&mut rng)))
-        }
+        //     b.iter(|| mayda.get_values(between.ind_sample(&mut rng)))
+        // }
 
     }
 

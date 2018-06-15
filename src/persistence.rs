@@ -311,12 +311,14 @@ impl Persistence {
                 );
             }
             LoadingType::Disk => {
+
                 let data_file = self.get_file_handle(path)?;
                 let data_metadata = self.get_file_metadata_handle(path)?;
 
+                let store = SingleArrayMMAP::<u64>::new(data_file, data_metadata, u32::MAX);
                 self.indices
                     .index_64
-                    .insert(path.to_string(), Box::new(SingleArrayFileReader::<u64>::new(data_file, data_metadata)));
+                    .insert(path.to_string(), Box::new(store));
             }
         }
 
@@ -341,15 +343,6 @@ impl Persistence {
             let start_and_end_file = get_file_handle_complete_path(&indirect_path)?;
             let data_file = get_file_handle_complete_path(&indirect_data_path)?;
             match loading_type {
-                // LoadingType::Disk => {
-                //     let store = TokenToAnchorScoreMmap::new(&start_and_end_file, &data_file);
-                //     self.indices.token_to_anchor_to_score.insert(el.path.to_string(), Box::new(store));
-                // }
-                // LoadingType::InMemoryUnCompressed | LoadingType::InMemory => {
-                //     let mut store = TokenToAnchorScoreBinary::default();
-                //     store.read(&indirect_path, &indirect_data_path).unwrap();
-                //     self.indices.token_to_anchor_to_score.insert(el.path.to_string(), Box::new(store));
-                // }
                 LoadingType::Disk => {
                     let store = Box::new(TokenToAnchorScoreVintMmap::new(&start_and_end_file, &data_file));
                     self.indices.token_to_anchor_to_score.insert(el.path.to_string(), store);
@@ -361,7 +354,6 @@ impl Persistence {
                 }
             }
 
-            // token_to_anchor_to_score
         }
 
         let loaded_data: Result<Vec<(String, Box<IndexIdToParent<Output = u32>>)>, SearchError> = self
