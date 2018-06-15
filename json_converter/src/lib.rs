@@ -17,18 +17,6 @@ use chashmap::CHashMap;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 pub mod bench;
-use serde_json::{Deserializer, StreamDeserializer};
-#[test]
-fn test_json_blubber() {
-    let data = "{\"k\": 3}1\"cool\"\"stuff\" 3{}  [0, 1, 2]";
-
-    let stream: serde_json::StreamDeserializer<serde_json::de::StrRead, Value> = Deserializer::from_str(data).into_iter::<Value>();
-
-    for value in stream {
-        println!("{}", value.unwrap());
-    }
-}
-
 pub struct ForEachOpt {}
 
 #[inline(always)]
