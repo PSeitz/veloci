@@ -5,6 +5,7 @@ extern crate byteorder;
 
 use itertools::Itertools;
 use memmap::MmapOptions;
+use memmap::Mmap;
 
 // use byteorder::{ByteOrder, LittleEndian};
 use std::fs::File;
@@ -73,6 +74,7 @@ pub struct BufferedIndexWriter<T:GetValue = u32> {
     flush_threshold: usize,
     /// written parts offsets in the file
     parts: Vec<Part>,
+    temp_file_mmap: Option<Mmap>,
 }
 
 impl<T:GetValue + Default + Clone> Default for BufferedIndexWriter<T> {
@@ -86,12 +88,13 @@ impl<T:GetValue + Default + Clone> BufferedIndexWriter<T> {
         BufferedIndexWriter {
             cache: vec![],
             temp_file: None,
+            temp_file_mmap: None,
             max_value_id: 0,
             num_values: 0,
             stable_sort,
             ids_are_sorted,
             last_id: std::u32::MAX,
-            flush_threshold: 4_000_000,
+            flush_threshold: 16_000_000,
             parts: vec![],
         }
     }
@@ -219,6 +222,22 @@ impl<T:GetValue + Default + Clone> BufferedIndexWriter<T> {
         }
     }
 
+    pub fn multi_iter_ref(&mut self) -> Result<(Vec<MMapIterRef<T>>), io::Error> {
+        let mut vecco = vec![];
+        if let Some(file) = &self.temp_file {
+            let mmap: &Mmap = self.temp_file_mmap.get_or_insert_with(|| unsafe {MmapOptions::new().map(&file).unwrap()});
+            for part in self.parts.iter() {
+                let len = part.len * mem::size_of::<KeyValue<T>>() as u32;
+                let offset = part.offset * mem::size_of::<KeyValue<T>>() as u32;
+                vecco.push(MMapIterRef::<T>::new(mmap, offset, len));
+            }
+            Ok(vecco)
+
+        }else{
+            Ok(vec![])
+        }
+    }
+
     #[inline]
     pub fn is_in_memory(&self) -> bool {
         self.parts.is_empty()
@@ -248,7 +267,7 @@ impl<T:GetValue + Default + Clone> BufferedIndexWriter<T> {
 
     /// returns iterator over sorted elements
     #[inline]
-    fn kmerge(&self) -> impl Iterator<Item = KeyValue<T>> {
+    fn kmerge<'a>(&'a self) -> impl Iterator<Item = KeyValue< T>> {
         let iters = self.multi_iter().unwrap();
         let mergo = iters.into_iter().kmerge_by(|a, b| (*a).key < (*b).key);
         mergo
@@ -278,13 +297,65 @@ impl<T:GetValue + Default> fmt::Display for BufferedIndexWriter<T> {
 // }
 
 
-// pub fn vec_to_bytes_u32(data: &[u32]) -> Vec<u8> {
-//     let mut wtr: Vec<u8> = vec_with_size_uninitialized(data.len() * std::mem::size_of::<u32>());
-//     LittleEndian::write_u32_into(data, &mut wtr);
-//     wtr
-// }
 
 use std::marker::PhantomData;
+
+#[inline]
+// Maximum speed, Maximum unsafe
+fn read_pair_very_raw_p<T:GetValue + Default>(p: *const u8) -> KeyValue<T> {
+    // let mut out: (u32, u32) = (0, 0);
+    let mut out: KeyValue<T> = KeyValue::default();
+    unsafe {
+        copy_nonoverlapping(p, &mut out as *mut KeyValue<T> as *mut u8, mem::size_of::<KeyValue<T>>());
+    }
+    out
+}
+
+#[derive(Debug)]
+pub struct MMapIterRef<'a, T:GetValue> {
+    mmap: &'a memmap::Mmap,
+    pos: u32,
+    offset: u32,
+    len: u32,
+    phantom: PhantomData<T>,
+}
+
+impl<'a, T:GetValue> MMapIterRef<'a, T> {
+    fn new(mmap: &'a memmap::Mmap, offset: u32, len: u32) -> Self {
+        MMapIterRef { mmap, pos: 0, offset: offset, len: len, phantom:PhantomData }
+    }
+}
+
+impl<'a, T:GetValue + Default> Iterator for MMapIterRef<'a, T> {
+    type Item = KeyValue<T>;
+
+    #[inline]
+    fn next(&mut self) -> Option<KeyValue<T>> {
+        if self.len <= self.pos {
+            return None;
+        }
+        let pair = read_pair_very_raw_p((&self.mmap[(self.offset + self.pos) as usize..]).as_ptr());
+        self.pos += mem::size_of::<KeyValue<T>>() as u32;
+        Some(pair)
+    }
+    #[inline]
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let remaining_els = (self.len - (self.pos)) / mem::size_of::<KeyValue<T>>() as u32;
+        (remaining_els as usize, Some(remaining_els as usize))
+    }
+}
+
+impl<'a, T:GetValue + Default>  ExactSizeIterator for MMapIterRef<'a, T> {
+    #[inline]
+    fn len(&self) -> usize {
+        let remaining_els = (self.len - self.pos) / mem::size_of::<KeyValue<T>>() as u32;
+        remaining_els as usize
+    }
+}
+
+impl<'a, T:GetValue + Default>  FusedIterator for MMapIterRef<'a, T> {}
+
+
 #[derive(Debug)]
 pub struct MMapIter<T:GetValue> {
     mmap: memmap::Mmap,
@@ -298,16 +369,6 @@ impl<T:GetValue> MMapIter<T> {
     }
 }
 
-#[inline]
-// Maximum speed, Maximum unsafe
-fn read_pair_very_raw_p<T:GetValue + Default>(p: *const u8) -> KeyValue<T> {
-    // let mut out: (u32, u32) = (0, 0);
-    let mut out: KeyValue<T> = KeyValue::default();
-    unsafe {
-        copy_nonoverlapping(p, &mut out as *mut KeyValue<T> as *mut u8, mem::size_of::<KeyValue<T>>());
-    }
-    out
-}
 
 impl<T:GetValue + Default> Iterator for MMapIter<T> {
     type Item = KeyValue<T>;
@@ -345,22 +406,28 @@ fn test_buffered_index_writer() {
     ind.add(2, 2).unwrap();
     ind.flush().unwrap();
 
-    let mut iters = ind.multi_iter().unwrap();
-    assert_eq!(iters[0].next(), Some(KeyValue::new(2, 2)));
-    assert_eq!(iters[0].next(), None);
+    {
+        let mut iters = ind.multi_iter_ref().unwrap();
+        assert_eq!(iters[0].next(), Some(KeyValue::new(2, 2)));
+        assert_eq!(iters[0].next(), None);
+    }
 
-    let mut iters = ind.multi_iter().unwrap();
-    assert_eq!(iters[0].next(), Some(KeyValue::new(2, 2)));
-    assert_eq!(iters[0].next(), None);
+    {
+        let mut iters = ind.multi_iter_ref().unwrap();
+        assert_eq!(iters[0].next(), Some(KeyValue::new(2, 2)));
+        assert_eq!(iters[0].next(), None);
+    }
 
     ind.add(1, 3).unwrap();
     ind.flush().unwrap();
     ind.add(4, 4).unwrap();
     ind.flush().unwrap();
 
-    let mut iters = ind.multi_iter().unwrap();
-    assert_eq!(iters[1].next(), Some(KeyValue::new(1, 3)));
-    assert_eq!(iters[1].next(), None);
+    {
+        let mut iters = ind.multi_iter_ref().unwrap();
+        assert_eq!(iters[1].next(), Some(KeyValue::new(1, 3)));
+        assert_eq!(iters[1].next(), None);
+    }
 
     let mut mergo = ind.flush_and_kmerge().unwrap();
     assert_eq!(mergo.next(), Some(KeyValue::new(1, 3)));

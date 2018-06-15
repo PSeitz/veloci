@@ -71,8 +71,8 @@ fn test_vec() {
     // (all_data, all_ids)
 }
 
-fn test_vec_buffwriter() -> (u32, u32) {
-    let mut ind = buffered_index_writer::BufferedIndexWriter::new();
+fn test_vec_buffwriter() -> u32 {
+    let mut ind = buffered_index_writer::BufferedIndexWriter::default();
 
     let num_loops = 65_000_000;
     info_time!("test_vec_buffwriter");
@@ -83,7 +83,7 @@ fn test_vec_buffwriter() -> (u32, u32) {
     ind.flush().unwrap();
 
     let data: Vec<_> = ind.flush_and_kmerge().unwrap().collect();
-    data[0]
+    data[0].value
 }
 
 fn test_vec_parrallel() {
