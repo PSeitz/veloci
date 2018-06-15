@@ -44,6 +44,8 @@ Cargo.lock
 /data_split_*
 /thalia*
 /single_data*
+/root*
+/bench_ta*
 /jmdict*
 /mochaTest/
 /mochaTest_wf/

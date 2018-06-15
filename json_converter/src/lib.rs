@@ -119,7 +119,7 @@ pub fn for_each_elemento<F, F2>(
     F2: FnMut(u32, &str, u32, u32),
 {
     if let Some(arr) = data.as_array() {
-        let delimiter: &'static str = if current_path.len() == 0 || current_path.ends_with(".") { "" } else { "." };
+        let delimiter: &'static str = if current_path.len() == 0 || current_path.ends_with('.') { "" } else { "." };
         current_path.push_str(delimiter);
         current_path.push_str(current_el_name);
         current_path.push_str("[]");
@@ -133,7 +133,7 @@ pub fn for_each_elemento<F, F2>(
             }
         }
     } else if let Some(obj) = data.as_object() {
-        let delimiter: &'static str = if current_path.len() == 0 || current_path.ends_with(".") { "" } else { "." };
+        let delimiter: &'static str = if current_path.is_empty() || current_path.ends_with('.') { "" } else { "." };
         current_path.push_str(delimiter);
         current_path.push_str(current_el_name);
         let prev_len = current_path.len();

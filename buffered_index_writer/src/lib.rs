@@ -15,6 +15,7 @@ use std::mem;
 use std::io::prelude::*;
 use std::io::BufWriter;
 use std::ptr::copy_nonoverlapping;
+use std::marker::PhantomData;
 
 #[macro_use]
 extern crate measure_time;
@@ -45,11 +46,6 @@ pub struct KeyValue<T:GetValue> {
     pub value: T,
 }
 
-impl<T:GetValue> KeyValue<T> {
-    fn new(key: u32, value: T) -> Self {
-        KeyValue{key, value}
-    }
-}
 
 #[derive(Debug, Clone)]
 struct Part {
@@ -178,7 +174,7 @@ impl<T:GetValue + Default + Clone> BufferedIndexWriter<T> {
         unsafe {
             let slice =
                 slice::from_raw_parts(self.cache.as_ptr() as *const u8, self.cache.len() * mem::size_of::<KeyValue<T>>());
-            data_file.write(&slice)?;
+            data_file.write_all(&slice)?;
         }
 
         // data_file.write(&vec_to_bytes_u32(&self.cache.map()))?;
@@ -206,7 +202,7 @@ impl<T:GetValue + Default + Clone> BufferedIndexWriter<T> {
 
         // let file = File::open(&self.data_path)?;
         if let Some(file) = &self.temp_file {
-            for part in self.parts.iter() {
+            for part in &self.parts {
                 let mmap = unsafe {
                     MmapOptions::new()
                         .offset(part.offset as usize * mem::size_of::<KeyValue<T>>())
@@ -226,7 +222,7 @@ impl<T:GetValue + Default + Clone> BufferedIndexWriter<T> {
         let mut vecco = vec![];
         if let Some(file) = &self.temp_file {
             let mmap: &Mmap = self.temp_file_mmap.get_or_insert_with(|| unsafe {MmapOptions::new().map(&file).unwrap()});
-            for part in self.parts.iter() {
+            for part in &self.parts {
                 let len = part.len * mem::size_of::<KeyValue<T>>() as u32;
                 let offset = part.offset * mem::size_of::<KeyValue<T>>() as u32;
                 vecco.push(MMapIterRef::<T>::new(mmap, offset, len));
@@ -269,8 +265,7 @@ impl<T:GetValue + Default + Clone> BufferedIndexWriter<T> {
     #[inline]
     fn kmerge<'a>(&'a self) -> impl Iterator<Item = KeyValue< T>> {
         let iters = self.multi_iter().unwrap();
-        let mergo = iters.into_iter().kmerge_by(|a, b| (*a).key < (*b).key);
-        mergo
+        iters.into_iter().kmerge_by(|a, b| (*a).key < (*b).key)
     }
 
 }
@@ -279,26 +274,14 @@ impl<T:GetValue + Default + Clone> BufferedIndexWriter<T> {
 use std::fmt;
 impl<T:GetValue + Default> fmt::Display for BufferedIndexWriter<T> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        for el in self.cache.iter(){
-            write!(f, "{}\t{}\n", el.key, el.value.get_value())?;
+        for el in &self.cache{
+            writeln!(f, "{}\t{}", el.key, el.value.get_value())?;
         }
         Ok(())
     }
 }
 
-// impl fmt::Debug for BufferedIndexWriter {
-//     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
 
-//         for el in self.cache {
-//             write!(f, "({}, {})", el.key, el.value);
-//         }
-//         f
-//     }
-// }
-
-
-
-use std::marker::PhantomData;
 
 #[inline]
 // Maximum speed, Maximum unsafe
@@ -408,13 +391,13 @@ fn test_buffered_index_writer() {
 
     {
         let mut iters = ind.multi_iter_ref().unwrap();
-        assert_eq!(iters[0].next(), Some(KeyValue::new(2, 2)));
+        assert_eq!(iters[0].next(), Some(KeyValue{key:2, value:2}));
         assert_eq!(iters[0].next(), None);
     }
 
     {
         let mut iters = ind.multi_iter_ref().unwrap();
-        assert_eq!(iters[0].next(), Some(KeyValue::new(2, 2)));
+        assert_eq!(iters[0].next(), Some(KeyValue{key:2, value:2}));
         assert_eq!(iters[0].next(), None);
     }
 
@@ -425,12 +408,12 @@ fn test_buffered_index_writer() {
 
     {
         let mut iters = ind.multi_iter_ref().unwrap();
-        assert_eq!(iters[1].next(), Some(KeyValue::new(1, 3)));
+        assert_eq!(iters[1].next(), Some(KeyValue{key:1, value:3}));
         assert_eq!(iters[1].next(), None);
     }
 
     let mut mergo = ind.flush_and_kmerge().unwrap();
-    assert_eq!(mergo.next(), Some(KeyValue::new(1, 3)));
-    assert_eq!(mergo.next(), Some(KeyValue::new(2, 2)));
-    assert_eq!(mergo.next(), Some(KeyValue::new(4, 4)));
+    assert_eq!(mergo.next(), Some(KeyValue{key:1, value:3}));
+    assert_eq!(mergo.next(), Some(KeyValue{key:2, value:2}));
+    assert_eq!(mergo.next(), Some(KeyValue{key:4, value:4}));
 }
