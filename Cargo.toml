@@ -79,8 +79,8 @@ path = "json_converter"
 features = ["fst_automaton"]
 git = "https://github.com/PSeitz/levenshtein-automata"
 
-[dependencies.mayda]
-git = "https://github.com/PSeitz/mayda"
+# [dependencies.mayda]
+# git = "https://github.com/PSeitz/mayda"
 
 [dependencies.parking_lot]
 features = ["nightly"]
