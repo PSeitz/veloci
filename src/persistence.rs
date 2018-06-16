@@ -22,7 +22,7 @@ use bincode::deserialize;
 use fnv::FnvHashMap;
 
 use log;
-use mayda;
+// use mayda;
 
 use fst::Map;
 use rayon::prelude::*;
@@ -170,13 +170,23 @@ pub enum IDDataType {
 }
 // use persistence_data;
 
+// pub trait IndexIdToParentData:
+//     Integer + Clone + NumCast + mayda::utility::Bits + HeapSizeOf + Debug + Sync + Send + Copy + ToPrimitive + std::iter::Step + std::hash::Hash + 'static
+// {
+// }
+// impl<T> IndexIdToParentData for T
+// where
+//     T: Integer + Clone + NumCast + mayda::utility::Bits + HeapSizeOf + Debug + Sync + Send + Copy + ToPrimitive + std::iter::Step + std::hash::Hash + 'static,
+// {
+// }
+
 pub trait IndexIdToParentData:
-    Integer + Clone + NumCast + mayda::utility::Bits + HeapSizeOf + Debug + Sync + Send + Copy + ToPrimitive + std::iter::Step + std::hash::Hash + 'static
+    Integer + Clone + NumCast + HeapSizeOf + Debug + Sync + Send + Copy + ToPrimitive + std::iter::Step + std::hash::Hash + 'static
 {
 }
 impl<T> IndexIdToParentData for T
 where
-    T: Integer + Clone + NumCast + mayda::utility::Bits + HeapSizeOf + Debug + Sync + Send + Copy + ToPrimitive + std::iter::Step + std::hash::Hash + 'static,
+    T: Integer + Clone + NumCast + HeapSizeOf + Debug + Sync + Send + Copy + ToPrimitive + std::iter::Step + std::hash::Hash + 'static,
 {
 }
 
@@ -293,7 +303,7 @@ impl Persistence {
         let loading_type = load_type_from_env()?.unwrap_or(LoadingType::Disk);
 
         match loading_type {
-            LoadingType::InMemoryUnCompressed => {
+            LoadingType::InMemoryUnCompressed | LoadingType::InMemory=> {
                 let file_path = get_file_path(&self.db, path);
                 self.indices.index_64.insert(
                     path.to_string(),
@@ -303,13 +313,13 @@ impl Persistence {
                     }),
                 );
             }
-            LoadingType::InMemory => {
-                let file_path = get_file_path(&self.db, path);
-                self.indices.index_64.insert(
-                    path.to_string(),
-                    Box::new(IndexIdToOneParentMayda::from_vec(&load_index_u64(&file_path)?, u32::MAX)),
-                );
-            }
+            // LoadingType::InMemory => {
+            //     let file_path = get_file_path(&self.db, path);
+            //     self.indices.index_64.insert(
+            //         path.to_string(),
+            //         Box::new(IndexIdToOneParentMayda::from_vec(&load_index_u64(&file_path)?, u32::MAX)),
+            //     );
+            // }
             LoadingType::Disk => {
 
                 let data_file = self.get_file_handle(path)?;
@@ -424,9 +434,13 @@ impl Persistence {
                         }
                         KVStoreType::ParallelArrays => panic!("WAAAAAAA"),
                         KVStoreType::IndexIdToOneParent => {
-                            let data_u32 = bytes_to_vec_u32(&file_path_to_bytes(&data_direct_path)?);
+                            // let data_u32 = bytes_to_vec_u32(&file_path_to_bytes(&data_direct_path)?);
 
-                            let store = IndexIdToOneParentMayda::from_vec(&data_u32, el.max_value_id);
+                            // let store = IndexIdToOneParentMayda::from_vec(&data_u32, el.max_value_id);
+                            let store = IndexIdToOneParent {
+                                data: bytes_to_vec_u32(&file_path_to_bytes(&data_direct_path)?),
+                                max_value_id: el.max_value_id,
+                            };
 
                             return Ok((el.path.to_string(), Box::new(store) as Box<IndexIdToParent<Output = u32>>));
                         }
@@ -493,16 +507,22 @@ impl Persistence {
                     let data_file = self.get_file_handle(&el.path)?;
                     let data_metadata = self.get_file_metadata_handle(&el.path)?;
                     let store = SingleArrayMMAP::<u32>::new(data_file, data_metadata, el.max_value_id);
+                    // self.indices
+                    //     .boost_valueid_to_value
+                    //     .insert(el.path.to_string(), Box::new(IndexIdToOneParentMayda::<u32>::new(&store, u32::MAX)));
                     self.indices
                         .boost_valueid_to_value
-                        .insert(el.path.to_string(), Box::new(IndexIdToOneParentMayda::<u32>::new(&store, u32::MAX)));
+                        .insert(el.path.to_string(), Box::new(store));
                 }
                 KVStoreType::ParallelArrays => {
                     let encoded = file_path_to_bytes(&get_file_path(&self.db, &el.path))?;
                     let store: ParallelArrays<u32> = deserialize(&encoded[..]).unwrap();
+                    // self.indices
+                    //     .boost_valueid_to_value
+                    //     .insert(el.path.to_string(), Box::new(IndexIdToOneParentMayda::<u32>::new(&store, u32::MAX))); // TODO: enable other Diskbased Types
                     self.indices
                         .boost_valueid_to_value
-                        .insert(el.path.to_string(), Box::new(IndexIdToOneParentMayda::<u32>::new(&store, u32::MAX))); // TODO: enable other Diskbased Types
+                        .insert(el.path.to_string(), Box::new(store)); // TODO: enable other Diskbased Types
                 }
             }
         }

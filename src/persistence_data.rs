@@ -9,14 +9,14 @@ use util::*;
 use byteorder::{LittleEndian, ReadBytesExt};
 use create;
 use lru_cache;
-use mayda;
+// use mayda;
 use persistence::*;
 pub use persistence_data_indirect::*;
 use snap;
 
 use facet::*;
 
-use mayda::{Access, Encode};
+// use mayda::{Access, Encode};
 use parking_lot::Mutex;
 
 use num::cast::ToPrimitive;
@@ -33,7 +33,7 @@ use memmap::Mmap;
 use memmap::MmapOptions;
 
 // impl_type_info_single_templ!(IndexIdToMultipleParent);
-impl_type_info_single_templ!(IndexIdToOneParentMayda); // TODO ADD TESTST FOR IndexIdToOneParentMayda
+// impl_type_info_single_templ!(IndexIdToOneParentMayda); // TODO ADD TESTST FOR IndexIdToOneParentMayda
 impl_type_info_single_templ!(IndexIdToOneParent);
 impl_type_info_single_templ!(ParallelArrays);
 
@@ -187,73 +187,73 @@ where
     coll.to_map(top)
 }
 
-#[derive(Debug, HeapSizeOf)]
-pub struct IndexIdToOneParentMayda<T: IndexIdToParentData> {
-    pub data: mayda::Uniform<T>,
-    pub size: usize,
-    pub max_value_id: u32,
-}
-impl<T: IndexIdToParentData> IndexIdToOneParentMayda<T> {
-    #[allow(dead_code)]
-    pub fn from_vec(data: &[T], max_value_id: u32) -> IndexIdToOneParentMayda<T> {
-        IndexIdToOneParentMayda {
-            size: data.len(),
-            data: to_uniform(data),
-            max_value_id,
-        }
-    }
+// #[derive(Debug, HeapSizeOf)]
+// pub struct IndexIdToOneParentMayda<T: IndexIdToParentData> {
+//     pub data: mayda::Uniform<T>,
+//     pub size: usize,
+//     pub max_value_id: u32,
+// }
+// impl<T: IndexIdToParentData> IndexIdToOneParentMayda<T> {
+//     #[allow(dead_code)]
+//     pub fn from_vec(data: &[T], max_value_id: u32) -> IndexIdToOneParentMayda<T> {
+//         IndexIdToOneParentMayda {
+//             size: data.len(),
+//             data: to_uniform(data),
+//             max_value_id,
+//         }
+//     }
 
-    #[allow(dead_code)]
-    pub fn new(data: &IndexIdToParent<Output = T>, max_value_id: u32) -> IndexIdToOneParentMayda<T> {
-        let yep = IndexIdToOneParent::new(data);
-        IndexIdToOneParentMayda {
-            size: yep.data.len(),
-            data: to_uniform(&yep.data),
-            max_value_id,
-        }
-    }
-}
+//     #[allow(dead_code)]
+//     pub fn new(data: &IndexIdToParent<Output = T>, max_value_id: u32) -> IndexIdToOneParentMayda<T> {
+//         let yep = IndexIdToOneParent::new(data);
+//         IndexIdToOneParentMayda {
+//             size: yep.data.len(),
+//             data: to_uniform(&yep.data),
+//             max_value_id,
+//         }
+//     }
+// }
 
-impl<T: IndexIdToParentData> IndexIdToParent for IndexIdToOneParentMayda<T> {
-    type Output = T;
+// impl<T: IndexIdToParentData> IndexIdToParent for IndexIdToOneParentMayda<T> {
+//     type Output = T;
 
-    #[inline]
-    fn count_values_for_ids(&self, ids: &[u32], top: Option<u32>) -> FnvHashMap<T, usize> {
-        count_values_for_ids(ids, top, self.max_value_id, |id: u64| self.get_value(id))
-    }
+//     #[inline]
+//     fn count_values_for_ids(&self, ids: &[u32], top: Option<u32>) -> FnvHashMap<T, usize> {
+//         count_values_for_ids(ids, top, self.max_value_id, |id: u64| self.get_value(id))
+//     }
 
-    fn get_keys(&self) -> Vec<T> {
-        (NumCast::from(0).unwrap()..NumCast::from(self.data.len()).unwrap()).collect()
-    }
+//     fn get_keys(&self) -> Vec<T> {
+//         (NumCast::from(0).unwrap()..NumCast::from(self.data.len()).unwrap()).collect()
+//     }
 
-    #[inline]
-    fn get_mutliple_value(&self, range: std::ops::RangeInclusive<usize>) -> Option<Vec<T>> {
-        Some(self.data.access(range))
-    }
+//     #[inline]
+//     fn get_mutliple_value(&self, range: std::ops::RangeInclusive<usize>) -> Option<Vec<T>> {
+//         Some(self.data.access(range))
+//     }
 
-    #[inline]
-    fn get_value(&self, id: u64) -> Option<T> {
-        if id >= self.size as u64 {
-            return None;
-        };
-        let val = self.data.access(id as usize);
-        if val.to_u64().unwrap() == u32::MAX as u64 {
-            None
-        } else {
-            Some(val)
-        }
-    }
+//     #[inline]
+//     fn get_value(&self, id: u64) -> Option<T> {
+//         if id >= self.size as u64 {
+//             return None;
+//         };
+//         let val = self.data.access(id as usize);
+//         if val.to_u64().unwrap() == u32::MAX as u64 {
+//             None
+//         } else {
+//             Some(val)
+//         }
+//     }
 
-    #[inline]
-    fn get_values(&self, id: u64) -> Option<Vec<T>> {
-        self.get_value(id).map(|el| vec![el])
-    }
+//     #[inline]
+//     fn get_values(&self, id: u64) -> Option<Vec<T>> {
+//         self.get_value(id).map(|el| vec![el])
+//     }
 
-    #[inline]
-    fn get_num_keys(&self) -> usize {
-        self.data.len()
-    }
-}
+//     #[inline]
+//     fn get_num_keys(&self) -> usize {
+//         self.data.len()
+//     }
+// }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct ParallelArrays<T: IndexIdToParentData> {
@@ -546,21 +546,21 @@ pub fn id_to_parent_to_array_of_array_snappy(store: &IndexIdToParent<Output = u3
     }
     data
 }
-pub fn id_to_parent_to_array_of_array_mayda<T: IndexIdToParentData>(store: &IndexIdToParent<Output = T>) -> Vec<mayda::Uniform<T>> {
-    let mut data: Vec<mayda::Uniform<T>> = prepare_data_for_array_of_array(store, &mayda::Uniform::new);
-    let valids = store.get_keys();
+// pub fn id_to_parent_to_array_of_array_mayda<T: IndexIdToParentData>(store: &IndexIdToParent<Output = T>) -> Vec<mayda::Uniform<T>> {
+//     let mut data: Vec<mayda::Uniform<T>> = prepare_data_for_array_of_array(store, &mayda::Uniform::new);
+//     let valids = store.get_keys();
 
-    // debug_time!("convert key_value_store to vec vec");
-    for valid in valids {
-        let mut uniform = mayda::Uniform::new();
-        if let Some(vals) = store.get_values(NumCast::from(valid).unwrap()) {
-            let yeps: Vec<T> = vals.iter().map(|el| NumCast::from(*el).unwrap()).collect();
-            uniform.encode(&yeps).unwrap();
-            data[valid.to_usize().unwrap()] = uniform;
-        }
-    }
-    data
-}
+//     // debug_time!("convert key_value_store to vec vec");
+//     for valid in valids {
+//         let mut uniform = mayda::Uniform::new();
+//         if let Some(vals) = store.get_values(NumCast::from(valid).unwrap()) {
+//             let yeps: Vec<T> = vals.iter().map(|el| NumCast::from(*el).unwrap()).collect();
+//             uniform.encode(&yeps).unwrap();
+//             data[valid.to_usize().unwrap()] = uniform;
+//         }
+//     }
+//     data
+// }
 
 fn prepare_data_for_array_of_array<T: Clone, K: IndexIdToParentData>(store: &IndexIdToParent<Output = K>, f: &Fn() -> T) -> Vec<T> {
     let mut data = vec![];
@@ -585,17 +585,17 @@ fn prepare_data_for_array_of_array<T: Clone, K: IndexIdToParentData>(store: &Ind
 
 // }
 
-//TODO TRY WITH FROM ITERATOR oder so
-pub fn to_uniform<T: mayda::utility::Bits>(data: &[T]) -> mayda::Uniform<T> {
-    let mut uniform = mayda::Uniform::new();
-    uniform.encode(data).unwrap();
-    uniform
-}
-pub fn to_monotone<T: mayda::utility::Bits>(data: &[T]) -> mayda::Monotone<T> {
-    let mut uniform = mayda::Monotone::new();
-    uniform.encode(data).unwrap();
-    uniform
-}
+// //TODO TRY WITH FROM ITERATOR oder so
+// pub fn to_uniform<T: mayda::utility::Bits>(data: &[T]) -> mayda::Uniform<T> {
+//     let mut uniform = mayda::Uniform::new();
+//     uniform.encode(data).unwrap();
+//     uniform
+// }
+// pub fn to_monotone<T: mayda::utility::Bits>(data: &[T]) -> mayda::Monotone<T> {
+//     let mut uniform = mayda::Monotone::new();
+//     uniform.encode(data).unwrap();
+//     uniform
+// }
 
 // fn load_bytes(file: &File, offset: u64, num_bytes: usize) -> Vec<u8> {
 //     let mut data = vec![];
@@ -787,15 +787,15 @@ mod tests {
             }
         }
 
-        #[bench]
-        fn indirect_pointing_mayda(b: &mut test::Bencher) {
-            let mut rng = rand::thread_rng();
-            let between = Range::new(0, 40_000);
-            let store = get_test_data_large(40_000, 15);
-            let mayda = IndexIdToMultipleParentCompressedMaydaINDIRECTOne::<u32>::new(&store);
+        // #[bench]
+        // fn indirect_pointing_mayda(b: &mut test::Bencher) {
+        //     let mut rng = rand::thread_rng();
+        //     let between = Range::new(0, 40_000);
+        //     let store = get_test_data_large(40_000, 15);
+        //     let mayda = IndexIdToMultipleParentCompressedMaydaINDIRECTOne::<u32>::new(&store);
 
-            b.iter(|| mayda.get_values(between.ind_sample(&mut rng)))
-        }
+        //     b.iter(|| mayda.get_values(between.ind_sample(&mut rng)))
+        // }
 
         pub fn bench_fnvhashmap_group_by(num_entries: u32, max_val: u32) -> FnvHashMap<u32, u32> {
             let mut hits: FnvHashMap<u32, u32> = FnvHashMap::default();

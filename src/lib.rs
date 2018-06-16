@@ -86,7 +86,9 @@ extern crate json_converter;
 extern crate ordered_float;
 
 extern crate colored;
-extern crate mayda;
+
+// #[cfg(feature = "mayda")]
+// extern crate mayda;
 
 extern crate half;
 #[macro_use]

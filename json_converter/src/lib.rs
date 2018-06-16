@@ -21,11 +21,11 @@ pub struct ForEachOpt {}
 
 #[inline(always)]
 pub fn convert_to_string(value: &Value) -> Cow<str> {
-    match value {
-        &Value::String(ref s) => Cow::from(s.as_str()),
-        &Value::Number(ref i) if i.is_u64() => Cow::from(i.as_u64().unwrap().to_string()),
-        &Value::Number(ref i) if i.is_f64() => Cow::from(i.as_f64().unwrap().to_string()),
-        &Value::Bool(ref i) => Cow::from(i.to_string()),
+    match *value {
+        Value::String(ref s) => Cow::from(s.as_str()),
+        Value::Number(ref i) if i.is_u64() => Cow::from(i.as_u64().unwrap().to_string()),
+        Value::Number(ref i) if i.is_f64() => Cow::from(i.as_f64().unwrap().to_string()),
+        Value::Bool(ref i) => Cow::from(i.to_string()),
         _ => Cow::from(""),
     }
 }
@@ -80,7 +80,7 @@ pub fn for_each_element<F, F2, I: Iterator<Item = Result<serde_json::Value, serd
 {
     let mut path = String::with_capacity(25);
 
-    let mut is_new_doc = true;
+    let mut is_new_doc;
     for el in data {
         is_new_doc = true;
         // let root_id = id_provider.get_id("");
@@ -119,7 +119,7 @@ pub fn for_each_elemento<F, F2>(
     F2: FnMut(u32, &str, u32, u32),
 {
     if let Some(arr) = data.as_array() {
-        let delimiter: &'static str = if current_path.len() == 0 || current_path.ends_with('.') { "" } else { "." };
+        let delimiter: &'static str = if current_path.is_empty() || current_path.ends_with('.') { "" } else { "." };
         current_path.push_str(delimiter);
         current_path.push_str(current_el_name);
         current_path.push_str("[]");
@@ -201,7 +201,7 @@ impl IDProvider for IDHolder {
         }
 
         self.ids.insert(path.to_string(), 0);
-        return 0;
+        0
     }
 }
 
