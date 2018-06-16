@@ -26,7 +26,7 @@ extern crate lazy_static;
 extern crate log;
 #[macro_use]
 extern crate measure_time;
-extern crate search_lib;
+extern crate native_search;
 
 use rocket::fairing;
 use rocket::response::{self, Responder, Response};
@@ -35,13 +35,13 @@ use rocket::Request;
 use rocket::http::ContentType;
 use rocket_contrib::{Json, Value};
 
-use search_lib::doc_loader::*;
-use search_lib::persistence;
-use search_lib::persistence::Persistence;
-use search_lib::query_generator;
-use search_lib::search;
-use search_lib::search_field;
-use search_lib::shards::Shards;
+use native_search::doc_loader::*;
+use native_search::persistence;
+use native_search::persistence::Persistence;
+use native_search::query_generator;
+use native_search::search;
+use native_search::search_field;
+use native_search::shards::Shards;
 
 use chashmap::CHashMap;
 
@@ -168,7 +168,7 @@ fn version() -> String {
     "0.5".to_string()
 }
 
-fn search_in_persistence(persistence: &Persistence, request: search_lib::search::Request, _enable_flame: bool) -> Result<SearchResult, search::SearchError> {
+fn search_in_persistence(persistence: &Persistence, request: native_search::search::Request, _enable_flame: bool) -> Result<SearchResult, search::SearchError> {
     // info!("Searching ... ");
     let select = request.select.clone();
     let hits = {
@@ -380,7 +380,7 @@ fn highlight_post(database: String, mut request: Json<search::RequestSearchPart>
 }
 
 fn main() {
-    search_lib::trace::enable_log();
+    native_search::trace::enable_log();
 
     for preload_db in std::env::args().skip(1) {
         ensure_database(&preload_db).unwrap();

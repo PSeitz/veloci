@@ -1,0 +1,37 @@
+[package]
+authors = ["Pascal Powerman <you@gmail.com>"]
+autobenches = false
+name = "native_search_bin"
+version = "0.1.0"
+
+[dependencies]
+rocket = "0.3"
+rocket_codegen = "0.3"
+rocket_contrib = "0.3"
+serde = "1.0.1"
+serde_derive = "1.0.1"
+serde_json = "1.0.0"
+fnv = "1.0.3"
+native_search = { path = "../"}
+
+[[bin]]
+name = "rocket_server"
+path = "rocket_server.rs"
+
+[dependencies.uuid]
+features = ["v4"]
+version = "0.6"
+
+[dev-dependencies]
+criterion = "0.2.3"
+env_logger = "0.3"
+pretty_assertions = "0.1.2"
+rand = "0.4"
+tempfile = "3"
+
+[profile.release]
+codegen-units = 1
+debug = true
+lto = true
+opt-level = 3
+panic = "unwind"

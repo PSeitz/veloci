@@ -46,9 +46,9 @@ ordered-float = "0.5.0"
 prettytable-rs = "^0.6"
 rayon = "1.0.1"
 regex = "0.2"
-rocket = "0.3"
-rocket_codegen = "0.3"
-rocket_contrib = "0.3"
+# rocket = "0.3"
+# rocket_codegen = "0.3"
+# rocket_contrib = "0.3"
 serde = "1.0.1"
 serde_derive = "1.0.1"
 serde_json = "1.0.0"
@@ -78,9 +78,6 @@ path = "json_converter"
 [dependencies.levenshtein_automata]
 features = ["fst_automaton"]
 git = "https://github.com/PSeitz/levenshtein-automata"
-
-# [dependencies.mayda]
-# git = "https://github.com/PSeitz/mayda"
 
 [dependencies.parking_lot]
 features = ["nightly"]
