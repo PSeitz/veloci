@@ -91,11 +91,11 @@ impl<T: IndexIdToParentData> IndexIdToMultipleParentIndirectFlushingInOrder<T> {
         data_cache.resize(1, T::zero()); // resize data by one, because 0 is reserved for the empty buckets
         IndexIdToMultipleParentIndirectFlushingInOrder {
             ids_cache: vec![],
-            data_cache: data_cache,
+            data_cache,
             current_data_offset: 0,
             current_id_offset: 0,
-            indirect_path: indirect_path,
-            data_path: data_path,
+            indirect_path,
+            data_path,
             max_value_id: 0,
             avg_join_size: 0.,
             num_values: 0,
@@ -118,7 +118,7 @@ impl<T: IndexIdToParentData> IndexIdToMultipleParentIndirectFlushingInOrder<T> {
     #[inline]
     pub fn add(&mut self, id: u32, add_data: Vec<T>) -> Result<(), io::Error> {
         //set max_value_id
-        for el in add_data.iter() {
+        for el in &add_data {
             self.max_value_id = std::cmp::max((*el).to_u32().unwrap(), self.max_value_id);
         }
         self.num_values += 1;
@@ -416,7 +416,7 @@ impl<T: IndexIdToParentData> Default for IndexIdToMultipleParentIndirect<T> {
         IndexIdToMultipleParentIndirect {
             start_pos: vec![],
             cache: LruCache::new(250),
-            data: data,
+            data,
             max_value_id: 0,
             avg_join_size: 0.0,
             num_values: 0,
@@ -445,22 +445,20 @@ impl<T: IndexIdToParentData> IndexIdToMultipleParentIndirect<T> {
             self.max_value_id = std::cmp::max(val, self.max_value_id);
             set_high_bit(&mut val); // encode directly, much wow, much compression
             self.start_pos[pos] = num::cast(val).unwrap();
-        } else {
-            if let Some(&mut start) = self.cache.get_mut(&add_data) {
-                //reuse and reference existing data
-                self.start_pos[pos] = num::cast(start).unwrap();
-            } else {
-                self.start_pos[pos] = num::cast(start).unwrap();
-                self.data.push(num::cast(add_data.len()).unwrap());
-                for val in add_data.iter() {
-                    self.max_value_id = std::cmp::max(val.to_u32().unwrap(), self.max_value_id);
-                    self.data.push(*val);
-                }
+        } else if let Some(&mut start) = self.cache.get_mut(&add_data) {
+    //reuse and reference existing data
+    self.start_pos[pos] = num::cast(start).unwrap();
+} else {
+    self.start_pos[pos] = num::cast(start).unwrap();
+    self.data.push(num::cast(add_data.len()).unwrap());
+    for val in add_data.iter() {
+        self.max_value_id = std::cmp::max(val.to_u32().unwrap(), self.max_value_id);
+        self.data.push(*val);
+    }
 
-                self.cache.insert(add_data, num::cast(start).unwrap());
-                self.start_pos[pos] = num::cast(start).unwrap();
-            }
-        }
+    self.cache.insert(add_data, num::cast(start).unwrap());
+    self.start_pos[pos] = num::cast(start).unwrap();
+}
         self.num_values += 1;
         self.num_ids += add_data_len as u32;
         self.avg_join_size = calc_avg_join_size(self.num_values, self.num_ids);
@@ -471,7 +469,7 @@ impl<T: IndexIdToParentData> IndexIdToMultipleParentIndirect<T> {
         let (max_value_id, num_values, num_ids, start_pos, data) = to_indirect_arrays_dedup(data, 0, sort_and_dedup);
 
         IndexIdToMultipleParentIndirect {
-            start_pos: start_pos,
+            start_pos,
             data,
             cache: LruCache::new(250),
             max_value_id: max_value_id.to_u32().unwrap(),
@@ -941,12 +939,12 @@ impl<T: IndexIdToParentData> PointingMMAPFileReader<T> {
                 .unwrap()
         };
         PointingMMAPFileReader {
-            start_and_end_file: start_and_end_file,
-            data_file: data_file,
+            start_and_end_file,
+            data_file,
             indirect_metadata: Mutex::new(indirect_metadata),
             ok: PhantomData,
-            max_value_id: max_value_id,
-            avg_join_size: avg_join_size,
+            max_value_id,
+            avg_join_size,
         }
     }
 }

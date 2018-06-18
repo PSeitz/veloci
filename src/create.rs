@@ -97,7 +97,7 @@ pub struct TermInfo {
 impl TermInfo {
     #[inline]
     pub fn new(id: u32) -> TermInfo {
-        TermInfo { id: id, num_occurences: 0 }
+        TermInfo { id, num_occurences: 0 }
     }
 }
 
@@ -130,8 +130,8 @@ impl ValIdPair {
     #[inline]
     pub fn new(valid: u32, parent_val_id: u32) -> ValIdPair {
         ValIdPair {
-            valid: valid,
-            parent_val_id: parent_val_id,
+            valid,
+            parent_val_id,
         }
     }
 }
@@ -224,7 +224,7 @@ impl std::fmt::Display for ValIdPair {
 // }
 
 #[allow(dead_code)]
-fn print_vec(vec: &Vec<ValIdPair>, valid_header: &str, parentid_header: &str) -> String {
+fn print_vec(vec: &[ValIdPair], valid_header: &str, parentid_header: &str) -> String {
     format!("{}\t{}", valid_header, parentid_header)
         + &vec
             .iter()
@@ -239,7 +239,7 @@ fn print_index_id_to_parent(vec: &IndexIdToMultipleParentIndirect<u32>, valid_he
     format!("{}\t{}", valid_header, parentid_header)
         + &keys
             .iter()
-            .map(|key| format!("\n{}\t{:?}", key, vec.get_values(*key as u64)))
+            .map(|key| format!("\n{}\t{:?}", key, vec.get_values(u64::from(*key))))
             .collect::<Vec<_>>()
             .join("")
 }
@@ -253,11 +253,11 @@ fn store_full_text_info_and_set_ids(
 ) -> Result<(), io::Error> {
     debug_time!(format!("store_fst strings and string offsets {:?}", path));
 
-    info!(
-        "{:?} mappo.memory_footprint() {}",
-        path,
-        persistence::get_readable_size(all_terms.memory_footprint())
-    );
+    // info!(
+    //     "{:?} mappo.memory_footprint() {}",
+    //     path,
+    //     persistence::get_readable_size(all_terms.memory_footprint())
+    // );
 
     if log_enabled!(log::Level::Trace) {
         let mut all_text: Vec<_> = all_terms.keys().collect();
@@ -265,27 +265,28 @@ fn store_full_text_info_and_set_ids(
 
         trace!("{:?} Terms: {:?}", path, all_text);
     }
-    let mut term_and_mut_val: Vec<(&str, &mut TermInfo)> = all_terms.iter_mut().collect();
+    // let mut term_and_mut_val: Vec<(&str, &mut TermInfo)> = all_terms.iter_mut().collect();
+    let mut term_and_mut_val: Vec<(&String, &mut TermInfo)> = all_terms.iter_mut().collect();
     term_and_mut_val.sort_unstable_by_key(|el| el.0);
 
     for (i, term_and_info) in term_and_mut_val.iter_mut().enumerate() {
         term_and_info.1.id = i as u32;
     }
 
-    store_fst(persistence, term_and_mut_val, &path).expect("Could not store fst");
+    store_fst(persistence, &term_and_mut_val, &path).expect("Could not store fst");
     fulltext_indices.insert(path.to_string(), options.clone());
 
     Ok(())
 }
 
 // fn store_fst(persistence: &mut Persistence, all_terms: &TermMap, sorted_terms: Vec<&String>, path: &str) -> Result<(), fst::Error> {
-fn store_fst(persistence: &Persistence, sorted_terms: Vec<(&str, &mut TermInfo)>, path: &str) -> Result<(), fst::Error> {
+fn store_fst(persistence: &Persistence, sorted_terms: &[(&String, &mut TermInfo)], path: &str) -> Result<(), fst::Error> {
     debug_time!(format!("store_fst {:?}", path));
     let wtr = persistence.get_buffered_writer(&concat(path, ".fst"))?;
     // Create a builder that can be used to insert new key-value pairs.
     let mut build = MapBuilder::new(wtr)?;
     for (term, info) in sorted_terms.iter() {
-        build.insert(term, info.id as u64).expect("could not insert into fst");
+        build.insert(term, u64::from(info.id)).expect("could not insert into fst");
     }
 
     build.finish()?;
@@ -295,11 +296,15 @@ fn store_fst(persistence: &Persistence, sorted_terms: Vec<(&str, &mut TermInfo)>
 
 use term_hashmap;
 
-type TermMap = term_hashmap::HashMap<TermInfo>;
+// type TermMap = term_hashmap::HashMap<TermInfo>;
+type TermMap = FnvHashMap<String, TermInfo>;
 
 #[inline]
 fn add_count_text(terms: &mut TermMap, text: &str) {
-    let stat = terms.get_or_insert(text, || TermInfo::default());
+    // let stat = terms.get_or_insert(text, || TermInfo::default());
+    // stat.num_occurences += 1;
+
+    let stat = get_or_insert_prefer_get(terms as *mut FnvHashMap<_, _>, text, &|| TermInfo::default());
     stat.num_occurences += 1;
 }
 
@@ -467,9 +472,9 @@ pub fn get_allterms_per_path<I: Iterator<Item = Result<serde_json::Value, serde_
         json_converter::for_each_element(stream, &mut id_holder, &mut opt, &mut cb_text, &mut callback_ids);
     }
 
-    for (_path, map) in data.terms_in_path.iter_mut() {
-        map.shrink_to_fit();
-    }
+    // for (_path, map) in data.terms_in_path.iter_mut() {
+    //     map.shrink_to_fit();
+    // }
 
     std::mem::swap(&mut data.id_holder, &mut id_holder);
 
@@ -507,20 +512,20 @@ pub fn get_allterms_per_path<I: Iterator<Item = Result<serde_json::Value, serde_
 //     }
 // }
 
-fn replace_term_ids<T: KeyValuePair>(yep: &mut Vec<T>, index: &Vec<u32>) {
-    for el in yep.iter_mut() {
-        let val_id = el.get_key() as usize;
-        el.set_key(index[val_id]);
-    }
-}
+// fn replace_term_ids<T: KeyValuePair>(yep: &mut Vec<T>, index: &[u32]) {
+//     for el in yep.iter_mut() {
+//         let val_id = el.get_key() as usize;
+//         el.set_key(index[val_id]);
+//     }
+// }
 
-#[test]
-fn replace_term_ids_test() {
-    let mut yep = vec![];
-    yep.push(ValIdPair::new(1 as u32, 2 as u32));
-    replace_term_ids(&mut yep, &vec![10, 10]);
-    assert_eq!(yep, vec![ValIdPair::new(10 as u32, 2 as u32)]);
-}
+// #[test]
+// fn replace_term_ids_test() {
+//     let mut yep = vec![];
+//     yep.push(ValIdPair::new(1 as u32, 2 as u32));
+//     replace_term_ids(&mut yep, &vec![10, 10]);
+//     assert_eq!(yep, vec![ValIdPair::new(10 as u32, 2 as u32)]);
+// }
 
 #[derive(Debug)]
 struct BufferedTextIdToTokenIdsData {
@@ -620,7 +625,7 @@ fn stream_iter_to_anchor_score(
     iter: impl Iterator<Item = buffered_index_writer::KeyValue<(u32, u32)>>,
     target: &mut TokenToAnchorScoreVintFlushing,
 ) -> Result<(), io::Error> {
-    use std::mem::transmute;
+    // use std::mem::transmute;
     use std::slice::from_raw_parts_mut;
     for (id, group) in &iter.group_by(|el| el.key) {
         let mut group: Vec<(u32, u32)> = group.map(|el| el.value).collect();
@@ -636,7 +641,7 @@ fn stream_iter_to_anchor_score(
             }
         });
         let mut slice: &mut [u32] = unsafe {
-            transmute(from_raw_parts_mut(group.as_mut_ptr(), group.len() * 2)) //DANGER ZONE: THIS COULD BREAK IF THE MEMORY LAYOUT OF TUPLE CHANGES
+            &mut *(from_raw_parts_mut(group.as_mut_ptr(), group.len() * 2) as *mut [(u32, u32)] as *mut [u32]) //DANGER ZONE: THIS COULD BREAK IF THE MEMORY LAYOUT OF TUPLE CHANGES
         };
         target.set_scores(id, &mut slice)?;
     }
@@ -701,7 +706,7 @@ where
                 }; //Create facet index only for 1:N
 
                 PathData {
-                    anchor_to_text_id: anchor_to_text_id,
+                    anchor_to_text_id,
                     boost: boost_info_data,
                     // parent_id is monotonically increasing, hint buffered index writer, it's already sorted
                     parent_to_text_id: BufferedIndexWriter::new_for_sorted_id_insertion(),
@@ -710,7 +715,7 @@ where
                 }
             });
 
-            let all_terms = create_cache.term_data.terms_in_path.get(path).unwrap();
+            let all_terms = &create_cache.term_data.terms_in_path[path];
             let options: &FulltextIndexOptions = fulltext_info_for_path
                 .get(path)
                 .and_then(|el| el.options.as_ref())
@@ -731,7 +736,7 @@ where
             data.anchor_to_text_id.as_mut().map(|el| el.add(anchor_id, text_info.id));
             data.boost.as_mut().map(|el| {
                 // if options.boost_type == "int" {
-                let my_int = value.parse::<u32>().expect(&format!("Expected an int value but got {:?}", value));
+                let my_int = value.parse::<u32>().unwrap_or_else(|_| panic!("Expected an int value but got {:?}", value));
                 el.push(ValIdToValue {
                     valid: parent_val_id,
                     value: my_int,
@@ -791,7 +796,7 @@ where
 
     std::mem::swap(&mut create_cache.term_data.id_holder, &mut id_holder);
 
-    for (_key, data) in path_data.iter_mut() {
+    for data in path_data.values_mut() {
         if let Some(ref mut tuples) = data.boost {
             tuples.shrink_to_fit();
         }
@@ -907,7 +912,7 @@ fn free_vec<T>(vecco: &mut Vec<T>) {
 }
 
 fn convert_raw_path_data_to_indices(
-    db: String,
+    db: &str,
     path_data: FnvHashMap<String, PathData>,
     tuples_to_parent_in_path: FnvHashMap<String, PathDataIds>,
     facet_index: &FnvHashSet<String>,
@@ -1055,13 +1060,13 @@ fn convert_raw_path_data_to_indices(
     indices
 }
 
-pub fn create_fulltext_index<'a, I, J, K, S: AsRef<str>>(
+pub fn create_fulltext_index<I, J, K, S: AsRef<str>>(
     stream1: I,
     stream2: J,
     stream3: K,
     mut persistence: &mut Persistence,
-    indices_json: &Vec<CreateIndex>,
-    create_cache: &mut CreateCache,
+    indices_json: &[CreateIndex],
+    _create_cache: &mut CreateCache,
     load_persistence: bool,
 ) -> Result<(), CreateError>
 where
@@ -1069,31 +1074,32 @@ where
     J: Iterator<Item = Result<serde_json::Value, serde_json::Error>>,
     K: Iterator<Item = S>,
 {
+    let mut create_cache = CreateCache::default();
     let fulltext_info_for_path: FnvHashMap<String, Fulltext> = indices_json
         .iter()
-        .flat_map(|index| match index {
-            &CreateIndex::FulltextInfo(ref fulltext_info) => Some((fulltext_info.fulltext.to_string() + ".textindex", (*fulltext_info).clone())),
+        .flat_map(|index| match *index {
+            CreateIndex::FulltextInfo(ref fulltext_info) => Some((fulltext_info.fulltext.to_string() + ".textindex", (*fulltext_info).clone())),
             _ => None,
         })
         .collect();
 
     let boost_info_for_path: FnvHashMap<String, Boost> = indices_json
         .iter()
-        .flat_map(|index| match index {
-            &CreateIndex::BoostInfo(ref boost_info) => Some((boost_info.boost.to_string() + ".textindex", (*boost_info).clone())),
+        .flat_map(|index| match *index {
+            CreateIndex::BoostInfo(ref boost_info) => Some((boost_info.boost.to_string() + ".textindex", (*boost_info).clone())),
             _ => None,
         })
         .collect();
 
     let facet_index: FnvHashSet<String> = indices_json
         .iter()
-        .flat_map(|index| match index {
-            &CreateIndex::FacetInfo(ref el) => Some(el.facet.to_string() + ".textindex"),
+        .flat_map(|index| match *index {
+            CreateIndex::FacetInfo(ref el) => Some(el.facet.to_string() + ".textindex"),
             _ => None,
         })
         .collect();
 
-    write_docs(&mut persistence, create_cache, stream3)?;
+    write_docs(&mut persistence, &mut create_cache, stream3)?;
     get_allterms_per_path(stream1, &fulltext_info_for_path, &mut create_cache.term_data)?;
 
     let default_fulltext_options = FulltextIndexOptions::new_with_tokenize();
@@ -1118,14 +1124,14 @@ where
         }
         persistence.load_all_fst();
 
-        info!(
-            "All text memory {}",
-            persistence::get_readable_size(create_cache.term_data.terms_in_path.iter().map(|el| el.1.memory_footprint()).sum())
-        );
-        info!(
-            "All raw text data memory {}",
-            persistence::get_readable_size(create_cache.term_data.terms_in_path.iter().map(|el| el.1.total_size_of_text_data()).sum())
-        );
+        // info!(
+        //     "All text memory {}",
+        //     persistence::get_readable_size(create_cache.term_data.terms_in_path.iter().map(|el| el.1.memory_footprint()).sum())
+        // );
+        // info!(
+        //     "All raw text data memory {}",
+        //     persistence::get_readable_size(create_cache.term_data.terms_in_path.iter().map(|el| el.1.total_size_of_text_data()).sum())
+        // );
     }
 
     // check_similarity(&data.terms_in_path);
@@ -1133,7 +1139,7 @@ where
     trace!("all_terms {:?}", create_cache.term_data.terms_in_path);
 
     let (mut path_data, tuples_to_parent_in_path) =
-        parse_json_and_prepare_indices(stream2, &persistence, &fulltext_info_for_path, &boost_info_for_path, &facet_index, create_cache)?;
+        parse_json_and_prepare_indices(stream2, &persistence, &fulltext_info_for_path, &boost_info_for_path, &facet_index, &mut create_cache)?;
 
     std::mem::drop(create_cache);
 
@@ -1141,23 +1147,23 @@ where
         trace_indices(&mut path_data);
     }
 
-    let mut indices = convert_raw_path_data_to_indices(persistence.db.to_string(), path_data, tuples_to_parent_in_path, &facet_index);
+    let mut indices = convert_raw_path_data_to_indices(&persistence.db, path_data, tuples_to_parent_in_path, &facet_index);
     if persistence.persistence_type == persistence::PersistenceType::Persistent {
         info_time!("write indices");
         let mut key_value_stores = vec![];
         let mut anchor_score_stores = vec![];
         let mut boost_stores = vec![];
 
-        for ind_index in indices.indirect_indices_flush.iter_mut() {
+        for ind_index in &mut indices.indirect_indices_flush {
             key_value_stores.push(persistence.flush_indirect_index(&mut ind_index.1, &ind_index.0, ind_index.2.clone())?);
         }
-        for direct_index in indices.direct_indices.iter() {
+        for direct_index in &indices.direct_indices {
             key_value_stores.push(persistence.write_direct_index(&direct_index.1, direct_index.0.to_string(), direct_index.2.clone())?);
         }
-        for index in indices.anchor_score_indices_flush.iter_mut() {
+        for index in &mut indices.anchor_score_indices_flush {
             anchor_score_stores.push(persistence.flush_score_index_vint(&mut index.1, &index.0, LoadingType::Disk)?);
         }
-        for index in indices.boost_indices.iter() {
+        for index in &indices.boost_indices {
             boost_stores.push(persistence.write_direct_index(&index.1, &index.0, LoadingType::Disk)?);
         }
         persistence.meta_data.key_value_stores.extend(key_value_stores);
@@ -1254,7 +1260,7 @@ pub fn add_token_values_to_tokens(persistence: &mut Persistence, data_str: &str,
         let hits = search_field::get_hits_in_field(persistence, options.clone(), None)?;
         if hits.hits_vec.len() == 1 {
             tuples.push(ValIdToValue {
-                valid: hits.hits_vec.iter().nth(0).unwrap().id,
+                valid: hits.hits_vec[0].id,
                 value: el.value.unwrap(),
             });
         }
@@ -1388,7 +1394,7 @@ where
     info_time!(format!("total time create_indices for {:?}", persistence.db));
 
     let indices_json: Vec<CreateIndex> = serde_json::from_str(indices).unwrap();
-    let mut create_cache = create_cache.unwrap_or_else(|| CreateCache::default());
+    let mut create_cache = create_cache.unwrap_or_else(CreateCache::default);
     create_fulltext_index(stream1, stream2, stream3, &mut persistence, &indices_json, &mut create_cache, load_persistence)?;
 
     info_time!(format!("write json and metadata {:?}", persistence.db));

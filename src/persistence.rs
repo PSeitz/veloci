@@ -114,7 +114,7 @@ fn default_avg_join() -> f32 {
     1000.0
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq)]
 pub enum LoadingType {
     InMemory,
     InMemoryUnCompressed,
@@ -192,7 +192,7 @@ where
 
 pub trait TokenToAnchorScore: Debug + HeapSizeOf + Sync + Send + type_info::TypeInfo {
     fn get_scores(&self, id: u32) -> Option<Vec<AnchorScore>>;
-    fn get_score_iter<'a>(&'a self, id: u32) -> AnchorScoreIter<'a>;
+    fn get_score_iter(& self, id: u32) -> AnchorScoreIter;
     fn get_max_id(&self) -> usize;
 }
 

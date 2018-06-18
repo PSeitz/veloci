@@ -114,7 +114,6 @@ pub mod type_info;
 pub mod bucket_list;
 pub mod create;
 // pub mod create_from_csv;
-pub mod create_from_json;
 pub mod doc_loader;
 pub mod execution_plan;
 pub mod expression;
