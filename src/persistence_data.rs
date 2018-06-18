@@ -309,7 +309,7 @@ pub struct SingleArrayMMAP<T: IndexIdToParentData> {
 
 impl<T: IndexIdToParentData> SingleArrayMMAP<T> {
     fn get_size(&self) -> usize {
-        self.data_metadata.lock().len() as usize / 4
+        self.data_metadata.lock().len() as usize / std::mem::size_of::<T>()
     }
 
     pub fn new(data_file: fs::File, data_metadata: fs::Metadata, max_value_id: u32) -> Self {
