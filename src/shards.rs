@@ -40,11 +40,8 @@ where
     let mut current_worst = top_n.last().cloned().unwrap();
 
     for el in iter {
-        match compare(&el, &current_worst) {
-            Ordering::Greater => {
-                continue;
-            }
-            _ => {}
+        if let Ordering::Greater = compare(&el, &current_worst) {
+            continue;
         }
 
         if !top_n.is_empty() && (top_n.len() % (top * 5)) == 0 {
@@ -123,7 +120,7 @@ impl Shards {
         // extend existing persistence or create new persistence and add to list
         // println!("self.shards.len() {:?}", self.shards.len());
         if self.shards.is_empty() {
-            self.add_new_shard_from_docs(docs, indices);
+            self.add_new_shard_from_docs(docs, indices).unwrap();
         } else {
             let use_existing_shard_for_docs = false;
             // {
@@ -141,7 +138,7 @@ impl Shards {
             // }
 
             if !use_existing_shard_for_docs {
-                self.add_new_shard_from_docs(docs, indices);
+                self.add_new_shard_from_docs(docs, indices).unwrap();
             }
         }
 
@@ -175,7 +172,7 @@ impl Shards {
             self.shards.retain(|shard| {
                 if invalid_shards.contains(&shard.shard_id) {
                     // println!("deleting {:?}", &shard.persistence.db);
-                    fs::remove_dir_all(&shard.persistence.db);
+                    fs::remove_dir_all(&shard.persistence.db).unwrap();
                     false
                 } else {
                     true
@@ -192,7 +189,7 @@ impl Shards {
     fn add_new_shard_from_docs(&mut self, docs: &str, indices: &str) -> Result<(), search::SearchError> {
         let mut new_shard = self.get_new_shard()?;
         // println!("new shard {:?}", new_shard.persistence.db);
-        create::create_indices_from_str(&mut new_shard.persistence, docs, indices, None, true);
+        create::create_indices_from_str(&mut new_shard.persistence, docs, indices, None, true).unwrap();
         self.shards.push(new_shard);
         Ok(())
     }
@@ -246,7 +243,7 @@ impl Shards {
             .iter()
             .map(|el| {
                 let hits: Vec<Hit> = vec![el.hit.clone()];
-                search::to_documents(&el.shard.persistence, &hits, select.clone(), &el.result)[0].clone()
+                search::to_documents(&el.shard.persistence, &hits, &select, &el.result)[0].clone()
             })
             .collect();
 
@@ -261,7 +258,7 @@ impl Shards {
         let mut all_results = SearchResultWithDoc::default();
         for shard in self.shards.iter() {
             let hits = search::search(request.clone(), &shard.persistence)?;
-            let result = search::to_search_result(&shard.persistence, hits, select.clone());
+            let result = search::to_search_result(&shard.persistence, hits, &select);
             all_results.merge(&result); //TODO merge with above
         }
         Ok(all_results)

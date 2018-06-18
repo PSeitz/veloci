@@ -94,7 +94,7 @@ impl StepExecutor for PlanStepType {
                 output_next_steps,
                 ..
             } => {
-                let field_result = search_field::get_hits_in_field(persistence, req, None)?;
+                let field_result = search_field::get_hits_in_field(persistence, &req, None)?;
                 output_next_steps.send(field_result)?;
                 drop(output_next_steps);
                 for el in input_prev_steps {
@@ -304,44 +304,6 @@ pub fn plan_creator_search_part(mut request_part: RequestSearchPart, mut request
     // (steps, rx)
 }
 
-// #[cfg_attr(feature="flame_it", flame)]
-// pub fn execute_step(step: PlanStepType, persistence: &Persistence) -> Result<(), SearchError>
-// {
-
-//     match step {
-//         PlanStepType::FieldSearch{mut req, input_prev_steps, output_next_steps, ..} => {
-//             let field_result = search_field::get_hits_in_field(persistence, &mut req)?;
-//             output_next_steps.send(field_result)?;
-//             // Ok(field_result.hits)
-//             Ok(())
-//         }
-//         PlanStepType::ValueIdToParent{input_prev_steps, output_next_steps, path, trace_info:joop, ..} => {
-//             output_next_steps.send(join_to_parent_with_score(persistence, input_prev_steps[0].recv().unwrap(), &path, &joop)?)?;
-//             Ok(())
-//         }
-//         PlanStepType::Boost{req,input_prev_steps, output_next_steps, ..} => {
-//             let mut input = input_prev_steps[0].recv().unwrap();
-//             add_boost(persistence, &req, &mut input)?;
-//             output_next_steps.send(input)?;
-//             Ok(())
-//         }
-//         PlanStepType::Union{steps, input_prev_steps, output_next_steps, ..} => {
-//             execute_steps(steps, persistence)?;
-//             output_next_steps.send(union_hits(input_prev_steps.iter().map(|el| el.recv().unwrap()).collect()))?;
-//             Ok(())
-//         }
-//         PlanStepType::Intersect{steps, input_prev_steps, output_next_steps, ..} => {
-//             execute_steps(steps, persistence)?;
-//             output_next_steps.send(intersect_hits(input_prev_steps.iter().map(|el| el.recv().unwrap()).collect()))?;
-//             Ok(())
-//         }
-//         PlanStepType::FromAttribute{steps, output_next_steps, ..} => {
-//             execute_steps(steps, persistence)?;
-//             // output_next_steps.send(intersect_hits(input_prev_steps.iter().map(|el| el.recv().unwrap()).collect()));
-//             Ok(())
-//         }
-//     }
-// }
 use rayon::prelude::*;
 
 #[cfg_attr(feature = "flame_it", flame)]

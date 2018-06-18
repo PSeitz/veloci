@@ -59,7 +59,7 @@ extern crate log;
 
 extern crate test;
 
-extern crate chashmap;
+
 extern crate itertools;
 
 extern crate lru_time_cache;
@@ -95,7 +95,7 @@ extern crate half;
 extern crate lazy_static;
 
 extern crate chrono;
-extern crate term_hashmap;
+// extern crate term_hashmap;
 // extern crate time;
 // extern crate bit_set;
 // extern crate bit_vec;
@@ -129,6 +129,9 @@ pub mod search_field;
 pub mod shards;
 pub mod tokenizer;
 pub mod trace;
+
+#[cfg(test)]
+extern crate chashmap;
 
 #[cfg(test)]
 extern crate rand;

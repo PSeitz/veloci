@@ -36,15 +36,15 @@ pub struct SearchFieldResult {
 }
 
 impl SearchFieldResult {
-    pub fn iter<'a>(&'a self, term_id: u8, _field_id: u8) -> SearchFieldResultIterator<'a> {
+    pub fn iter(& self, term_id: u8, _field_id: u8) -> SearchFieldResultIterator {
         let begin = self.hits_vec.as_ptr();
         let end = unsafe { begin.offset(self.hits_vec.len() as isize) as *const search::Hit };
 
         SearchFieldResultIterator {
             list: &self.hits_vec,
             ptr: begin,
-            end: end,
-            term_id: term_id,
+            end,
+            term_id,
             // field_id: field_id,
         }
     }
@@ -125,9 +125,9 @@ pub type Score = f32;
 // }
 fn get_default_score_for_distance(distance: u8, prefix_matches: bool) -> f32 {
     if prefix_matches {
-        2.0 / ((distance as f32 + 1.0).log2() + 0.2)
+        2.0 / ((f32::from(distance) + 1.0).log2() + 0.2)
     } else {
-        2.0 / (distance as f32 + 0.2)
+        2.0 / (f32::from(distance) + 0.2)
     }
 }
 
@@ -236,7 +236,7 @@ pub fn suggest_multi(persistence: &Persistence, req: Request) -> Result<SuggestF
             search_part.top = top;
             search_part.skip = skip;
             search_part.resolve_token_to_parent_hits = Some(false);
-            get_hits_in_field(persistence, search_part, None)
+            get_hits_in_field(persistence, &search_part, None)
         })
         .collect();
     // for mut search_part in search_parts {
@@ -274,14 +274,14 @@ pub fn highlight(persistence: &Persistence, options: &mut RequestSearchPart) -> 
 
     Ok(get_text_score_id_from_result(
         false,
-        &[get_hits_in_field(persistence, options.clone(), None)?],
+        &[get_hits_in_field(persistence, &options, None)?],
         options.skip,
         options.top,
     ))
 }
 
 #[cfg_attr(feature = "flame_it", flame)]
-pub fn get_hits_in_field(persistence: &Persistence, options: RequestSearchPart, filter: Option<&FnvHashSet<u32>>) -> Result<SearchFieldResult, SearchError> {
+pub fn get_hits_in_field(persistence: &Persistence, options: &RequestSearchPart, filter: Option<&FnvHashSet<u32>>) -> Result<SearchFieldResult, SearchError> {
     let mut options = options.clone();
     options.path = options.path.to_string() + ".textindex";
 
@@ -341,10 +341,8 @@ fn get_hits_in_field_one_term(
 
     if options.fast_field {
         result = resolve_token_to_anchor(persistence, options, filter, &result)?;
-    } else {
-        if options.resolve_token_to_parent_hits.unwrap_or(true) {
-            resolve_token_hits(persistence, &options.path, &mut result, options, filter)?;
-        }
+    } else if options.resolve_token_to_parent_hits.unwrap_or(true) {
+        resolve_token_hits(persistence, &options.path, &mut result, options, filter)?;
     }
 
     Ok(result)
@@ -355,9 +353,7 @@ fn get_term_ids_in_field(persistence: &Persistence, options: &mut RequestSearchP
     let mut result = SearchFieldResult::default();
     //limit levenshtein distance to reasonable values
     let lower_term = options.terms[0].to_lowercase();
-    options.levenshtein_distance.as_mut().map(|d| {
-        *d = std::cmp::min(*d, lower_term.chars().count() as u32 - 1);
-    });
+    if let Some(d) = options.levenshtein_distance.as_mut() { *d = std::cmp::min(*d, lower_term.chars().count() as u32 - 1); }
 
     trace!("Will Check distance {:?}", options.levenshtein_distance.unwrap_or(0) != 0);
     trace!("Will Check starts_with {:?}", options.starts_with);
@@ -394,15 +390,11 @@ fn get_term_ids_in_field(persistence: &Persistence, options: &mut RequestSearchP
                 let line_lower = line.to_lowercase();
 
                 // In the case of levenshtein != 0 or starts_with, we want prefix_matches to have a score boost - so that "awe" scores better for awesome than aber
-                let prefix_matches = if should_check_prefix_match && line_lower.starts_with(&lower_term) {
-                    true
-                } else {
-                    false
-                };
+                let prefix_matches = should_check_prefix_match && line_lower.starts_with(&lower_term);
 
                 //TODO: find term for multitoken
                 let mut score = get_default_score_for_distance(distance_dfa(&line_lower, &dfa, &lower_term), prefix_matches);
-                options.boost.map(|boost_val| score *= boost_val);
+                if let Some(boost_val) = options.boost { score *= boost_val }
 
                 if limit_result {
                     if score < worst_score {
@@ -652,31 +644,31 @@ pub fn get_text_for_ids(persistence: &Persistence, path: &str, ids: &[u32]) -> V
 pub fn get_text_for_id_disk(persistence: &Persistence, path: &str, id: u32) -> String {
     let mut faccess: persistence::FileSearch = persistence.get_file_search(path);
     let offsets = persistence.get_offsets(path).unwrap();
-    faccess.get_text_for_id(id as usize, &**offsets)
+    faccess.get_text_for_id(id as usize, offsets)
 }
 
 #[cfg_attr(feature = "flame_it", flame)]
 pub fn get_text_for_id(persistence: &Persistence, path: &str, id: u32) -> String {
-    let map = persistence.indices.fst.get(path).expect(&format!("fst not found loaded in indices {} ", path));
+    let map = persistence.indices.fst.get(path).unwrap_or_else(|| panic!("fst not found loaded in indices {} ", path));
 
     let mut bytes = vec![];
-    ord_to_term(map.as_fst(), id as u64, &mut bytes);
+    ord_to_term(map.as_fst(), u64::from(id), &mut bytes);
     str::from_utf8(&bytes).unwrap().to_string()
 }
 
 #[cfg_attr(feature = "flame_it", flame)]
 pub fn get_text_for_id_2(persistence: &Persistence, path: &str, id: u32, bytes: &mut Vec<u8>) {
-    let map = persistence.indices.fst.get(path).expect(&format!("fst not found loaded in indices {} ", path));
-    ord_to_term(map.as_fst(), id as u64, bytes);
+    let map = persistence.indices.fst.get(path).unwrap_or_else(|| panic!("fst not found loaded in indices {} ", path));
+    ord_to_term(map.as_fst(), u64::from(id), bytes);
 }
 
 #[cfg_attr(feature = "flame_it", flame)]
 pub fn get_id_text_map_for_ids(persistence: &Persistence, path: &str, ids: &[u32]) -> FnvHashMap<u32, String> {
-    let map = persistence.indices.fst.get(path).expect(&format!("fst not found loaded in indices {} ", path));
+    let map = persistence.indices.fst.get(path).unwrap_or_else(|| panic!("fst not found loaded in indices {} ", path));
     ids.iter()
         .map(|id| {
             let mut bytes = vec![];
-            ord_to_term(map.as_fst(), *id as u64, &mut bytes);
+            ord_to_term(map.as_fst(), u64::from(*id), &mut bytes);
             (*id, str::from_utf8(&bytes).unwrap().to_string())
         })
         .collect()
@@ -741,7 +733,7 @@ pub fn resolve_token_hits(
     {
         debug_time!(format!("{} adding parent_id from tokens", token_path));
         for hit in &result.hits_vec {
-            if let Some(parent_ids_for_token) = token_kvdata.get_values(hit.id as u64) {
+            if let Some(parent_ids_for_token) = token_kvdata.get_values(u64::from(hit.id)) {
                 // let token_text_length_offsets = text_offsets.get_mutliple_value(hit.id as usize..=hit.id as usize + 1).unwrap();
                 // let token_text_length = token_text_length_offsets[1] - token_text_length_offsets[0];
 
@@ -774,7 +766,7 @@ pub fn resolve_token_hits(
         result.hits_ids = result
             .hits_ids
             .iter()
-            .flat_map(|id| token_kvdata.get_values(*id as u64))
+            .flat_map(|id| token_kvdata.get_values(u64::from(*id)))
             .flat_map(|el| el)
             .collect();
     }
@@ -803,7 +795,7 @@ pub fn resolve_token_hits(
             if add_snippets {
                 //value_id_to_token_hits.insert(parent_id, t2.map(|el| el.2).collect_vec()); //TODO maybe store hits here, in case only best x are needed
                 let snippet_config = options.snippet_info.as_ref().unwrap_or(&search::DEFAULT_SNIPPETINFO);
-                let highlighted_document = highlight_document(persistence, path, parent_id as u64, &t2.map(|el| el.2).collect_vec(), snippet_config)?;
+                let highlighted_document = highlight_document(persistence, path, u64::from(parent_id), &t2.map(|el| el.2).collect_vec(), snippet_config)?;
                 if let Some(highlighted_document) = highlighted_document {
                     result.highlight.insert(parent_id, highlighted_document);
                 }

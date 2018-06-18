@@ -88,11 +88,11 @@ impl TokenToAnchorScoreVintFlushing {
         data_cache.resize(1, 0); // resize data by one, because 0 is reserved for the empty buckets
         TokenToAnchorScoreVintFlushing {
             ids_cache: vec![],
-            data_cache: data_cache,
+            data_cache,
             current_data_offset: 0,
             current_id_offset: 0,
-            indirect_path: indirect_path,
-            data_path: data_path,
+            indirect_path,
+            data_path,
             avg_join_size: 0.,
             num_values: 0,
             num_ids: 0,
@@ -125,14 +125,14 @@ impl TokenToAnchorScoreVintFlushing {
         self.current_id_offset == 0
     }
 
-    pub fn to_im_store(self) -> TokenToAnchorScoreVintIM {
+    pub fn into_im_store(self) -> TokenToAnchorScoreVintIM {
         TokenToAnchorScoreVintIM {
             start_pos: self.ids_cache,
             data: self.data_cache,
         }
     }
 
-    pub fn to_mmap(self) -> Result<(TokenToAnchorScoreVintMmap), io::Error> {
+    pub fn into_mmap(self) -> Result<(TokenToAnchorScoreVintMmap), io::Error> {
         //TODO MAX VALUE ID IS NOT SET
         Ok(TokenToAnchorScoreVintMmap::new(
             &File::open(&self.indirect_path)?,
@@ -253,7 +253,7 @@ impl TokenToAnchorScore for TokenToAnchorScoreVintIM {
         Some(AnchorScoreIter::new(&self.data[pos as usize..]).collect())
     }
 
-    fn get_score_iter<'a>(&'a self, id: u32) -> AnchorScoreIter<'a> {
+    fn get_score_iter(& self, id: u32) -> AnchorScoreIter {
         if id as usize >= self.get_size() {
             return AnchorScoreIter::new(&[]);
         }
@@ -302,7 +302,7 @@ impl TokenToAnchorScore for TokenToAnchorScoreVintMmap {
         Some(AnchorScoreIter::new(&self.data[pos as usize..]).collect())
     }
 
-    fn get_score_iter<'a>(&'a self, id: u32) -> AnchorScoreIter<'a> {
+    fn get_score_iter(&self, id: u32) -> AnchorScoreIter {
         if id as usize >= self.start_pos.len() / 4 {
             return AnchorScoreIter::new(&[]);
             // return None;
@@ -327,7 +327,7 @@ fn test_token_to_anchor_score_vint() {
     let mut yeps = TokenToAnchorScoreVintFlushing::default();
 
     yeps.set_scores(1, &mut vec![1, 1]).unwrap();
-    let yeps = yeps.to_im_store();
+    let yeps = yeps.into_im_store();
     println!("{:?}", yeps);
     assert_eq!(yeps.get_scores(0), None);
     assert_eq!(yeps.get_scores(1), Some(vec![AnchorScore::new(1, f16::from_f32(1.0))]));
@@ -335,7 +335,7 @@ fn test_token_to_anchor_score_vint() {
 
     let mut yeps = TokenToAnchorScoreVintFlushing::default();
     yeps.set_scores(5, &mut vec![1, 1, 2, 3]).unwrap();
-    let yeps = yeps.to_im_store();
+    let yeps = yeps.into_im_store();
     assert_eq!(yeps.get_scores(4), None);
     assert_eq!(
         yeps.get_scores(5),

@@ -1,10 +1,7 @@
 use itertools::Itertools;
 use std;
-use std::fs::File;
 
 use heapsize::HeapSizeOf;
-
-use util::*;
 
 use byteorder::{LittleEndian, ReadBytesExt};
 use create;
@@ -726,8 +723,6 @@ mod tests {
 
     mod test_direct_1_to_1 {
         use super::*;
-        use std::io::prelude::*;
-        use tempfile::tempfile;
         #[test]
         fn test_index_id_to_parent_im() {
             let store = get_test_data_1_to_1::<u32>();
@@ -765,27 +760,27 @@ mod tests {
         use super::*;
         use rand::distributions::{IndependentSample, Range};
 
-        fn get_test_data_large(num_ids: usize, max_num_values_per_id: usize) -> ParallelArrays<u32> {
-            let mut rng = rand::thread_rng();
-            let between = Range::new(0, max_num_values_per_id);
+        // fn get_test_data_large(num_ids: usize, max_num_values_per_id: usize) -> ParallelArrays<u32> {
+        //     let mut rng = rand::thread_rng();
+        //     let between = Range::new(0, max_num_values_per_id);
 
-            let mut keys = vec![];
-            let mut values = vec![];
+        //     let mut keys = vec![];
+        //     let mut values = vec![];
 
-            for x in 0..num_ids {
-                let num_values = between.ind_sample(&mut rng) as u64;
+        //     for x in 0..num_ids {
+        //         let num_values = between.ind_sample(&mut rng) as u64;
 
-                for _ in 0..num_values {
-                    keys.push(x as u32);
-                    // values.push(pseudo_rand((x as u32 * i as u32) as u32));
-                    values.push(between.ind_sample(&mut rng) as u32);
-                }
-            }
-            ParallelArrays {
-                values1: keys,
-                values2: values,
-            }
-        }
+        //         for _ in 0..num_values {
+        //             keys.push(x as u32);
+        //             // values.push(pseudo_rand((x as u32 * i as u32) as u32));
+        //             values.push(between.ind_sample(&mut rng) as u32);
+        //         }
+        //     }
+        //     ParallelArrays {
+        //         values1: keys,
+        //         values2: values,
+        //     }
+        // }
 
         // #[bench]
         // fn indirect_pointing_mayda(b: &mut test::Bencher) {

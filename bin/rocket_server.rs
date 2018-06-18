@@ -8,12 +8,11 @@ extern crate rocket_contrib;
 
 extern crate chashmap;
 extern crate env_logger;
-extern crate flexi_logger;
 extern crate fnv;
 extern crate serde;
 #[macro_use]
 extern crate serde_json;
-extern crate snap;
+// extern crate snap;
 
 // extern crate time;
 // extern crate bodyparser;
@@ -26,7 +25,7 @@ extern crate lazy_static;
 extern crate log;
 #[macro_use]
 extern crate measure_time;
-extern crate native_search;
+extern crate search_lib;
 
 use rocket::fairing;
 use rocket::response::{self, Responder, Response};
@@ -35,13 +34,13 @@ use rocket::Request;
 use rocket::http::ContentType;
 use rocket_contrib::{Json, Value};
 
-use native_search::doc_loader::*;
-use native_search::persistence;
-use native_search::persistence::Persistence;
-use native_search::query_generator;
-use native_search::search;
-use native_search::search_field;
-use native_search::shards::Shards;
+use search_lib::doc_loader::*;
+use search_lib::persistence;
+use search_lib::persistence::Persistence;
+use search_lib::query_generator;
+use search_lib::search;
+use search_lib::search_field;
+use search_lib::shards::Shards;
 
 use chashmap::CHashMap;
 
@@ -168,7 +167,7 @@ fn version() -> String {
     "0.5".to_string()
 }
 
-fn search_in_persistence(persistence: &Persistence, request: native_search::search::Request, _enable_flame: bool) -> Result<SearchResult, search::SearchError> {
+fn search_in_persistence(persistence: &Persistence, request: search_lib::search::Request, _enable_flame: bool) -> Result<SearchResult, search::SearchError> {
     // info!("Searching ... ");
     let select = request.select.clone();
     let hits = {
@@ -178,7 +177,7 @@ fn search_in_persistence(persistence: &Persistence, request: native_search::sear
     info!("Loading Documents... ");
     let doc = {
         info_time!("Loading Documents...  ");
-        SearchResult(search::to_search_result(&persistence, hits, select))
+        SearchResult(search::to_search_result(&persistence, hits, &select))
     };
     debug!("Returning ... ");
     Ok(doc)
@@ -363,7 +362,7 @@ fn suggest_get(database: String, params: QueryParams) -> Result<SuggestResult, s
         params.top,
         params.skip,
         params.levenshtein,
-        fields,
+        &fields,
         params.levenshtein_auto_limit,
     );
 
@@ -380,7 +379,7 @@ fn highlight_post(database: String, mut request: Json<search::RequestSearchPart>
 }
 
 fn main() {
-    native_search::trace::enable_log();
+    search_lib::trace::enable_log();
 
     for preload_db in std::env::args().skip(1) {
         ensure_database(&preload_db).unwrap();

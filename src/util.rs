@@ -28,7 +28,7 @@ pub fn normalize_text(text: &str) -> String {
     }
     let mut new_str = text.to_owned();
     // for tupl in &*RElet tupl = &&*REGEXES;
-    for ref tupl in &*REGEXES {
+    for tupl in REGEXES.iter() {
         new_str = (tupl.0).replace_all(&new_str, tupl.1).into_owned();
     }
 
@@ -61,7 +61,7 @@ pub fn load_flush_threshold_from_env() -> Result<Option<u32>, search::SearchErro
 
 #[inline]
 pub fn set_bit_at(input: &mut u32, n: u8) {
-    *input = *input | (1 << n)
+    *input |= 1 << n
 }
 
 const ONLY_HIGH_BIT_SET: u32 = (1 << 31);
@@ -69,11 +69,11 @@ const ALL_BITS_BUT_HIGHEST_SET: u32 = (1 << 31) - 1;
 
 #[inline]
 pub fn set_high_bit(input: &mut u32) {
-    *input = *input | ONLY_HIGH_BIT_SET
+    *input |= ONLY_HIGH_BIT_SET
 }
 #[inline]
 pub fn unset_high_bit(input: &mut u32) {
-    *input = *input & ALL_BITS_BUT_HIGHEST_SET
+    *input &= ALL_BITS_BUT_HIGHEST_SET
 }
 
 #[inline]
@@ -241,10 +241,10 @@ pub fn get_my_data_danger_zooone(start: u32, end: u32, data_file: &Mutex<fs::Fil
 
         unsafe {
             // complete control of the allocation to which `p` points.
-            let ptr = std::mem::transmute::<*mut u32, *mut u8>(p);
+            let ptr = p as *mut u8;
             let mut data_bytes = Vec::from_raw_parts(ptr, len * 4, cap);
 
-            load_bytes_into(&mut data_bytes, &*data_file.lock(), start as u64 * 4); //READ directly into u32 data
+            load_bytes_into(&mut data_bytes, &*data_file.lock(), u64::from(start) * 4); //READ directly into u32 data
 
             // forget about temp data_bytes: no destructor run, so we can use data again
             mem::forget(data_bytes);
@@ -281,7 +281,7 @@ pub fn extract_prop_name(path: &str) -> &str {
         .map(|el| if el.ends_with("[]") { &el[0..el.len() - 2] } else { el })
         .filter(|el| *el != "textindex")
         .last()
-        .expect(&format!("could not extract prop name from path {:?}", path))
+        .unwrap_or_else(|| panic!("could not extract prop name from path {:?}", path))
 }
 
 #[inline]
@@ -345,12 +345,12 @@ impl NodeTree {
 pub fn to_node_tree(mut paths: Vec<Vec<String>>) -> NodeTree {
     paths.sort_by_key(|el| el[0].clone()); // sort for group_by
     let mut next = HashMap::default();
-    for (key, group) in &paths.into_iter().group_by(|el| el.get(0).map(|el| el.clone())) {
+    for (key, group) in &paths.into_iter().group_by(|el| el.get(0).cloned()) {
         let key = key.unwrap();
         let mut next_paths = group.collect_vec();
 
         let mut is_leaf = false;
-        for ref mut el in next_paths.iter_mut() {
+        for el in &mut next_paths {
             el.remove(0);
             if el.is_empty() {
                 //removing last part means it's a leaf

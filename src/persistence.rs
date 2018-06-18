@@ -2,8 +2,7 @@ use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fs::{self, File};
 use std::io::prelude::*;
-#[allow(unused_imports)]
-use std::io::{self, Cursor, SeekFrom};
+use std::io::{self, SeekFrom};
 use std::marker::Sync;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
@@ -15,8 +14,6 @@ use num::{self, Integer, NumCast};
 
 use lru_cache;
 use serde_json;
-// use serde_json::StreamDeserializer;
-// use serde_json::Value;
 
 use bincode::deserialize;
 use fnv::FnvHashMap;
@@ -273,7 +270,7 @@ pub trait IndexIdToParent: Debug + HeapSizeOf + Sync + Send + type_info::TypeInf
     }
 }
 
-pub fn trace_index_id_to_parent<T: IndexIdToParentData>(val: &Box<IndexIdToParent<Output = T>>) {
+pub fn trace_index_id_to_parent<T: IndexIdToParentData>(val: &IndexIdToParent<Output = T>) {
     if log_enabled!(log::Level::Trace) {
         let keys = val.get_keys();
         for key in keys.iter().take(100) {
@@ -346,7 +343,7 @@ impl Persistence {
 
         //ANCHOR TO SCORE
         for el in &self.meta_data.anchor_score_stores {
-            let loading_type = get_loading_type(el.loading_type.clone())?;
+            let loading_type = get_loading_type(el.loading_type)?;
 
             let indirect_path = get_file_path(&self.db, &el.path) + ".indirect";
             let indirect_data_path = get_file_path(&self.db, &el.path) + ".data";
@@ -375,7 +372,7 @@ impl Persistence {
                 // info!("loading key_value_store {:?}", &el.path);
                 info_time!(format!("loaded key_value_store {:?}", &el.path));
 
-                let loading_type = get_loading_type(el.loading_type.clone())?;
+                let loading_type = get_loading_type(el.loading_type)?;
 
                 let indirect_path = get_file_path(&self.db, &el.path) + ".indirect";
                 let indirect_data_path = get_file_path(&self.db, &el.path) + ".data";
@@ -403,7 +400,7 @@ impl Persistence {
                                 num_ids: 0,
                             };
 
-                            return Ok((el.path.to_string(), Box::new(store) as Box<IndexIdToParent<Output = u32>>));
+                            Ok((el.path.to_string(), Box::new(store) as Box<IndexIdToParent<Output = u32>>))
                         }
                         KVStoreType::ParallelArrays => panic!("WAAAAAAA PAAAANIIC"),
                         KVStoreType::IndexIdToOneParent => {
@@ -412,7 +409,7 @@ impl Persistence {
                                 max_value_id: el.max_value_id,
                             };
 
-                            return Ok((el.path.to_string(), Box::new(store) as Box<IndexIdToParent<Output = u32>>));
+                            Ok((el.path.to_string(), Box::new(store) as Box<IndexIdToParent<Output = u32>>))
                         }
                     },
                     LoadingType::InMemory => match el.persistence_type {
@@ -430,7 +427,7 @@ impl Persistence {
                                 num_ids: 0,
                             };
 
-                            return Ok((el.path.to_string(), Box::new(store) as Box<IndexIdToParent<Output = u32>>));
+                            Ok((el.path.to_string(), Box::new(store) as Box<IndexIdToParent<Output = u32>>))
                         }
                         KVStoreType::ParallelArrays => panic!("WAAAAAAA"),
                         KVStoreType::IndexIdToOneParent => {
@@ -442,7 +439,7 @@ impl Persistence {
                                 max_value_id: el.max_value_id,
                             };
 
-                            return Ok((el.path.to_string(), Box::new(store) as Box<IndexIdToParent<Output = u32>>));
+                            Ok((el.path.to_string(), Box::new(store) as Box<IndexIdToParent<Output = u32>>))
                         }
                     },
                     LoadingType::Disk => {
@@ -474,7 +471,7 @@ impl Persistence {
                                 //     .key_value_stores
                                 //     .insert(el.path.to_string(), Box::new(store));
 
-                                return Ok((el.path.to_string(), Box::new(store) as Box<IndexIdToParent<Output = u32>>));
+                                Ok((el.path.to_string(), Box::new(store) as Box<IndexIdToParent<Output = u32>>))
                             }
                             KVStoreType::ParallelArrays => panic!("WAAAAAAA"),
                             KVStoreType::IndexIdToOneParent => {
@@ -482,7 +479,7 @@ impl Persistence {
                                 let data_metadata = get_file_metadata_handle_complete_path(&data_direct_path)?;
                                 let store = SingleArrayMMAP::<u32>::new(data_file, data_metadata, el.max_value_id);
 
-                                return Ok((el.path.to_string(), Box::new(store) as Box<IndexIdToParent<Output = u32>>));
+                                Ok((el.path.to_string(), Box::new(store) as Box<IndexIdToParent<Output = u32>>))
                             }
                         }
                     }
@@ -533,7 +530,7 @@ impl Persistence {
 
     #[cfg_attr(feature = "flame_it", flame)]
     pub fn load_all_fst(&mut self) -> Result<(), search::SearchError> {
-        for (ref path, _) in &self.meta_data.fulltext_indices {
+        for path in self.meta_data.fulltext_indices.keys() {
             let map = self.load_fst(path)?;
             self.indices.fst.insert(path.to_string(), map);
         }
@@ -542,10 +539,10 @@ impl Persistence {
 
     #[cfg_attr(feature = "flame_it", flame)]
     pub fn load_all_id_lists(&mut self) -> Result<(), search::SearchError> {
-        for (_, ref idlist) in &self.meta_data.id_lists.clone() {
-            match &idlist.id_type {
-                &IDDataType::U32 => {}
-                &IDDataType::U64 => self.load_index_64(&idlist.path)?,
+        for idlist in self.meta_data.id_lists.clone().values() {
+            match idlist.id_type {
+                IDDataType::U32 => {}
+                IDDataType::U64 => self.load_index_64(&idlist.path)?,
             }
         }
         Ok(())
@@ -589,10 +586,11 @@ impl Persistence {
     }
 
     #[cfg_attr(feature = "flame_it", flame)]
-    pub fn get_boost(&self, path: &str) -> Result<&Box<IndexIdToParent<Output = u32>>, search::SearchError> {
+    pub fn get_boost(&self, path: &str) -> Result<&IndexIdToParent<Output = u32>, search::SearchError> {
         self.indices
             .boost_valueid_to_value
             .get(path)
+            .map(|el| el.as_ref())
             .ok_or_else(|| From::from(format!("Did not found path in indices {:?}", path)))
     }
 
@@ -602,9 +600,11 @@ impl Persistence {
     }
 
     #[cfg_attr(feature = "flame_it", flame)]
-    pub fn get_token_to_anchor(&self, path: &str) -> Result<&Box<TokenToAnchorScore>, search::SearchError> {
+    pub fn get_token_to_anchor(&self, path: &str) -> Result<&TokenToAnchorScore, search::SearchError> {
         let path = path.to_string() + ".to_anchor_id_score";
-        self.indices.token_to_anchor_to_score.get(&path).ok_or_else(|| {
+        self.indices.token_to_anchor_to_score.get(&path)
+        .map(|el| el.as_ref())
+        .ok_or_else(|| {
             let error = format!("Did not found path in indices {}", path);
             error!("{:?}", error);
             From::from(error)
@@ -612,8 +612,10 @@ impl Persistence {
     }
 
     #[cfg_attr(feature = "flame_it", flame)]
-    pub fn get_valueid_to_parent(&self, path: &str) -> Result<&Box<IndexIdToParent<Output = u32>>, search::SearchError> {
-        self.indices.key_value_stores.get(path).ok_or_else(|| {
+    pub fn get_valueid_to_parent(&self, path: &str) -> Result<&IndexIdToParent<Output = u32>, search::SearchError> {
+        self.indices.key_value_stores.get(path)
+        .map(|el| el.as_ref())
+        .ok_or_else(|| {
             let error = format!("Did not found path in indices {:?}", path);
             error!("{:?}", error);
             From::from(error)
@@ -621,10 +623,11 @@ impl Persistence {
     }
 
     #[cfg_attr(feature = "flame_it", flame)]
-    pub fn get_offsets(&self, path: &str) -> Result<&Box<IndexIdToParent<Output = u64>>, search::SearchError> {
+    pub fn get_offsets(&self, path: &str) -> Result<&IndexIdToParent<Output = u64>, search::SearchError> {
         self.indices
             .index_64
             .get(&(path.to_string() + ".offsets"))
+            .map(|el| el.as_ref())
             .ok_or_else(|| From::from(format!("Did not found path in indices {:?}", path)))
     }
 
@@ -742,7 +745,7 @@ impl Persistence {
         File::create(data_file_path)?.write_all(&vec_to_bytes_u32(&store.data))?;
 
         Ok(KVStoreMetaData {
-            loading_type: loading_type,
+            loading_type,
             persistence_type: KVStoreType::IndexIdToOneParent,
             is_1_to_n: false,
             is_empty: false, // TODO
@@ -760,7 +763,7 @@ impl Persistence {
     ) -> Result<(KVStoreMetaData), io::Error> {
         store.flush()?;
         Ok(KVStoreMetaData {
-            loading_type: loading_type,
+            loading_type,
             persistence_type: KVStoreType::IndexIdToMultipleParentIndirect,
             is_1_to_n: true, //TODO FIXME ADD 1:1 Flushing index
             path: path.to_string(),
@@ -778,7 +781,7 @@ impl Persistence {
     ) -> Result<(KVStoreMetaData), io::Error> {
         store.flush()?;
         Ok(KVStoreMetaData {
-            loading_type: loading_type,
+            loading_type,
             persistence_type: KVStoreType::IndexIdToMultipleParentIndirect,
             is_1_to_n: false,
             is_empty: false, // TODO
@@ -802,7 +805,7 @@ impl Persistence {
         fs::create_dir_all(&db)?;
         let meta_data = MetaData { ..Default::default() };
         Ok(Persistence {
-            persistence_type: persistence_type,
+            persistence_type,
             meta_data,
             db,
             lru_cache: HashMap::default(),
@@ -900,7 +903,7 @@ pub struct FileSearch {
 }
 
 impl FileSearch {
-    fn load_text<'a>(&mut self, pos: u64, offsets: &IndexIdToParent<Output = u64>) {
+    fn load_text(&mut self, pos: u64, offsets: &IndexIdToParent<Output = u64>) {
         // @Temporary Use Result
         let string_size = offsets.get_value(pos + 1).unwrap() - offsets.get_value(pos).unwrap() - 1;
         // let mut buffer:Vec<u8> = Vec::with_capacity(string_size as usize);
@@ -913,7 +916,7 @@ impl FileSearch {
         // str::from_utf8(&buffer).unwrap() // @Temporary  -> use unchecked if stable
     }
 
-    pub fn get_text_for_id<'a>(&mut self, pos: usize, offsets: &IndexIdToParent<Output = u64>) -> String {
+    pub fn get_text_for_id(&mut self, pos: usize, offsets: &IndexIdToParent<Output = u64>) -> String {
         self.load_text(pos as u64, offsets);
         str::from_utf8(&self.buffer).unwrap().to_string() // TODO maybe avoid clone
     }
@@ -922,7 +925,7 @@ impl FileSearch {
         // load_index_64_into_cache(&(path.to_string()+".offsets")).unwrap();
         FileSearch {
             path: path.to_string(),
-            file: file,
+            file,
             buffer: Vec::with_capacity(50 as usize),
         }
     }
@@ -973,7 +976,7 @@ fn load_type_from_env() -> Result<Option<LoadingType>, search::SearchError> {
 }
 
 fn get_loading_type(loading_type: LoadingType) -> Result<LoadingType, search::SearchError> {
-    let mut loading_type = loading_type.clone();
+    let mut loading_type = loading_type;
     if let Some(val) = load_type_from_env()? {
         // Overrule Loadingtype from env
         loading_type = val;
@@ -1002,7 +1005,7 @@ pub fn bytes_to_vec<T>(data: &[u8]) -> Vec<T> {
     let mut out_dat = vec_with_size_uninitialized(data.len() / std::mem::size_of::<T>());
     // LittleEndian::read_u64_into(&data, &mut out_dat);
     unsafe {
-        let ptr = std::mem::transmute::<*const u8, *const T>(data.as_ptr());
+        let ptr = data.as_ptr() as *const T;
         ptr.copy_to_nonoverlapping(out_dat.as_mut_ptr(), data.len() / std::mem::size_of::<T>());
     }
     out_dat

@@ -39,7 +39,7 @@ mod tests {
 
     fn search_testo_to_doc(req: Value) -> search::SearchResultWithDoc {
         let pers = PERSISTENCES.get(&"default".to_string()).expect("Can't find loaded persistence");
-        search::to_search_result(&pers, search_testo_to_hitso(req).expect("search error"), None)
+        search::to_search_result(&pers, search_testo_to_hitso(req).expect("search error"), &None)
     }
 
     fn search_testo_to_hitso(req: Value) -> Result<search::SearchResult, search::SearchError> {

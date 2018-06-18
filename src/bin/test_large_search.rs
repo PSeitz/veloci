@@ -61,5 +61,5 @@ fn search_freestyle(term: &str, pers: &persistence::Persistence) -> Vec<search::
     };
     let requesto = query_generator::search_query(pers, yop);
     let hits = search::search(requesto, pers).unwrap();
-    search::to_documents(pers, &hits.data, None, &hits)
+    search::to_documents(pers, &hits.data, &None, &hits)
 }

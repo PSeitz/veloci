@@ -78,15 +78,12 @@ pub fn highlight_document(
         let vals = text_id_to_token_ids.get_values(value_id);
         if let Some(vals) = vals {
             vals
+        } else if token_ids.contains(&(value_id as u32)) {
+            return Ok(Some(
+                opt.snippet_start_tag.to_string() + &get_text_for_id(persistence, path, value_id as u32) + &opt.snippet_end_tag,
+            ));
         } else {
-            //got a text id, check if it was hit
-            if token_ids.contains(&(value_id as u32)) {
-                return Ok(Some(
-                    opt.snippet_start_tag.to_string() + &get_text_for_id(persistence, path, value_id as u32) + &opt.snippet_end_tag,
-                ));
-            } else {
-                return Ok(None); //No hits
-            }
+            return Ok(None); //No hits
         }
     };
     trace!("documents_token_ids {}", get_readable_size(documents_token_ids.heap_size_of_children()));
@@ -124,7 +121,7 @@ pub fn highlight_document(
     {
         trace_time!("group near tokens");
         let mut previous_token_pos = -num_tokens;
-        for token_pos in token_positions_in_document.iter() {
+        for token_pos in &token_positions_in_document {
             if *token_pos as i64 - previous_token_pos >= num_tokens {
                 grouped.push(vec![]);
             }
@@ -145,7 +142,7 @@ pub fn highlight_document(
     all_tokens = all_tokens.into_iter().dedup().collect_vec();
     let id_to_text = get_id_text_map_for_ids(persistence, path, all_tokens.as_slice());
 
-    let estimated_snippet_size = std::cmp::min(opt.max_snippets as u64 * 100, documents_token_ids.len() as u64 * 10);
+    let estimated_snippet_size = std::cmp::min(u64::from(opt.max_snippets) * 100, documents_token_ids.len() as u64 * 10);
 
     trace_time!("create snippet string");
     let mut snippet = grouped

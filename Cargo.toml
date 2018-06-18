@@ -83,8 +83,8 @@ git = "https://github.com/PSeitz/levenshtein-automata"
 features = ["nightly"]
 version = "0.5"
 
-[dependencies.term_hashmap]
-git = "https://github.com/PSeitz/rust_string_hashmap"
+# [dependencies.term_hashmap]
+# git = "https://github.com/PSeitz/rust_string_hashmap"
 
 [dependencies.uuid]
 features = ["v4"]

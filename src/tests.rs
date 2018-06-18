@@ -237,11 +237,11 @@ mod tests {
     fn search_testo_to_doco_qp(qp: query_generator::SearchQueryGeneratorParameters) -> search::SearchResultWithDoc {
         let pers = PERSISTENCES.get(&"default".to_string()).expect("Can't find loaded persistence");
         let requesto = query_generator::search_query(&pers, qp);
-        search::to_search_result(&pers, search_testo_to_hitso(requesto.clone()).expect("search error"), requesto.select)
+        search::to_search_result(&pers, search_testo_to_hitso(requesto.clone()).expect("search error"), &requesto.select)
     }
     fn search_testo_to_doco_req(requesto: search::Request) -> Result<search::SearchResultWithDoc, search::SearchError> {
         let pers = PERSISTENCES.get(&"default".to_string()).expect("Can't find loaded persistence");
-        Ok(search::to_search_result(&pers, search_testo_to_hitso(requesto.clone())?, requesto.select))
+        Ok(search::to_search_result(&pers, search_testo_to_hitso(requesto.clone())?, &requesto.select))
     }
 
     fn search_testo_to_hitso(requesto: search::Request) -> Result<search::SearchResult, search::SearchError> {
@@ -704,7 +704,7 @@ mod tests {
             });
             let requesto: search::RequestSearchPart = serde_json::from_str(&req.to_string()).expect("Can't parse json");
             let mut pers = PERSISTENCES.get(&"default".to_string()).unwrap();
-            let results = search_field::get_hits_in_field(&mut pers, requesto, None).unwrap();
+            let results = search_field::get_hits_in_field(&mut pers, &requesto, None).unwrap();
             let mut all_terms = results.terms.values().collect::<Vec<&String>>();
             all_terms.sort();
             // assert_eq!(all_terms, ["majestät", "majestätischer", "majestätischer anblick", "majestätisches", "majestätisches aussehen"]);

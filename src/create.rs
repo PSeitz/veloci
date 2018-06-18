@@ -294,7 +294,7 @@ fn store_fst(persistence: &Persistence, sorted_terms: &[(&String, &mut TermInfo)
     Ok(())
 }
 
-use term_hashmap;
+// use term_hashmap;
 
 // type TermMap = term_hashmap::HashMap<TermInfo>;
 type TermMap = FnvHashMap<String, TermInfo>;
@@ -354,53 +354,12 @@ where
     }
 }
 
-// fn calculate_token_score_in_doc(tokens_to_anchor_id: &mut Vec<ValIdPairToken>) -> Vec<TokenToAnchorScore> {
-//     // Sort by anchor, tokenid, token_pos
-//     tokens_to_anchor_id.sort_unstable_by(|a, b| {
-//         let sort_anch = a.anchor_id.cmp(&b.anchor_id);
-//         if sort_anch == std::cmp::Ordering::Equal {
-//             let sort_valid = a.token_or_text_id.cmp(&b.token_or_text_id);
-//             if sort_valid == std::cmp::Ordering::Equal {
-//                 a.token_pos.cmp(&b.token_pos)
-//             } else {
-//                 sort_valid
-//             }
-//         } else {
-//             sort_anch
-//         }
-//     }); // sort by parent id
-
-//     let mut dat = Vec::with_capacity(tokens_to_anchor_id.len());
-//     for (_, mut group) in &tokens_to_anchor_id.into_iter().group_by(|el| (el.anchor_id, el.token_or_text_id)) {
-//         let first = group.next().unwrap();
-//         let best_pos = first.token_pos;
-//         let num_occurences = first.num_occurences;
-
-//         let mut is_exact = first.num_tokens_in_text == 1 && first.token_pos == 0;
-
-//         let score = calculate_token_score_for_entry(best_pos, num_occurences, is_exact);
-
-//         // trace!("best_pos {:?}",best_pos);
-//         // trace!("num_occurences_in_doc {:?}",num_occurences_in_doc);
-//         // trace!("first.num_occurences {:?}",first.num_occurences);
-//         // trace!("scorescore {:?}",score);
-
-//         dat.push(TokenToAnchorScore {
-//             valid: first.token_or_text_id,
-//             anchor_id: first.anchor_id,
-//             score,
-//         });
-//     }
-
-//     dat
-// }
-
 fn calculate_and_add_token_score_in_doc(
     tokens_to_anchor_id: &mut Vec<ValIdPairToken>,
     anchor_id: u32,
     _num_tokens_in_text: u32,
     index: &mut BufferedIndexWriter<(u32, u32)>,
-) {
+) -> Result<(), io::Error>   {
     // Sort by tokenid, token_pos
     tokens_to_anchor_id.sort_unstable_by(|a, b| {
         let sort_valid = a.token_or_text_id.cmp(&b.token_or_text_id);
@@ -418,8 +377,9 @@ fn calculate_and_add_token_score_in_doc(
 
         let score = calculate_token_score_for_entry(best_pos, num_occurences, false);
 
-        index.add(first.token_or_text_id, (anchor_id, score));
+        index.add(first.token_or_text_id, (anchor_id, score))?;
     }
+    Ok(())
 }
 
 #[inline]
@@ -774,10 +734,10 @@ where
 
                 if !data.text_id_to_token_ids.contains(text_info.id) {
                     trace!("Adding for {:?} {:?} token_ids {:?}", value, text_info.id, tokens_ids);
-                    data.text_id_to_token_ids.add_all(text_info.id, tokens_ids);
+                    data.text_id_to_token_ids.add_all(text_info.id, tokens_ids).unwrap();
                 }
 
-                calculate_and_add_token_score_in_doc(&mut tokens_to_anchor_id, anchor_id, current_token_pos, &mut data.token_to_anchor_id_score);
+                calculate_and_add_token_score_in_doc(&mut tokens_to_anchor_id, anchor_id, current_token_pos, &mut data.token_to_anchor_id_score).unwrap(); // TODO Error Handling in closure
             }
         };
 
@@ -1122,7 +1082,7 @@ where
         for fulltext_indices in reso? {
             persistence.meta_data.fulltext_indices.extend(fulltext_indices);
         }
-        persistence.load_all_fst();
+        persistence.load_all_fst().unwrap(); //TODO error handling
 
         // info!(
         //     "All text memory {}",
@@ -1175,7 +1135,7 @@ where
     if load_persistence {
         // persistence.load_from_disk();
 
-        persistence.load_all_id_lists();
+        persistence.load_all_id_lists().unwrap(); //TODO Error handling
 
         for index in indices.indirect_indices_flush {
             let path = index.0;
@@ -1183,7 +1143,7 @@ where
 
             if index.is_in_memory() {
                 //Move data to IndexIdToMultipleParentIndirect
-                persistence.indices.key_value_stores.insert(path, Box::new(index.to_im_store()));
+                persistence.indices.key_value_stores.insert(path, Box::new(index.into_im_store()));
             } else {
                 //load data with MMap
                 let start_and_end_file = persistence::get_file_handle_complete_path(&index.indirect_path).unwrap(); //TODO ERROR HANDLINGU
@@ -1207,9 +1167,9 @@ where
         }
         for (path, index) in indices.anchor_score_indices_flush {
             if index.is_in_memory() {
-                persistence.indices.token_to_anchor_to_score.insert(path, Box::new(index.to_im_store()));
+                persistence.indices.token_to_anchor_to_score.insert(path, Box::new(index.into_im_store()));
             } else {
-                persistence.indices.token_to_anchor_to_score.insert(path, Box::new(index.to_mmap()?));
+                persistence.indices.token_to_anchor_to_score.insert(path, Box::new(index.into_mmap()?));
             }
         }
         for index in indices.boost_indices {
@@ -1257,7 +1217,7 @@ pub fn add_token_values_to_tokens(persistence: &mut Persistence, data_str: &str,
         options.terms = vec![el.text];
         options.terms = options.terms.iter().map(|el| util::normalize_text(el)).collect::<Vec<_>>();
 
-        let hits = search_field::get_hits_in_field(persistence, options.clone(), None)?;
+        let hits = search_field::get_hits_in_field(persistence, &options, None)?;
         if hits.hits_vec.len() == 1 {
             tuples.push(ValIdToValue {
                 valid: hits.hits_vec[0].id,

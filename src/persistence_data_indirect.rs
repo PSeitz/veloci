@@ -14,7 +14,6 @@ use parking_lot::Mutex;
 use std;
 use std::fs;
 use std::io;
-use std::io::Cursor;
 use std::io::Write;
 
 use num;
@@ -103,7 +102,7 @@ impl<T: IndexIdToParentData> IndexIdToMultipleParentIndirectFlushingInOrder<T> {
         }
     }
 
-    pub fn to_im_store(self) -> IndexIdToMultipleParentIndirect<T> {
+    pub fn into_im_store(self) -> IndexIdToMultipleParentIndirect<T> {
         let mut store = IndexIdToMultipleParentIndirect::default();
         //TODO this conversion is not needed, it's always u32
         store.start_pos = self.ids_cache.iter().map(|el| num::cast(*el).unwrap()).collect::<Vec<_>>();
@@ -1177,12 +1176,12 @@ fn prepare_data_for_array_of_array<T: Clone, K: IndexIdToParentData>(store: &Ind
 //     uniform
 // }
 
-fn to_indirect_arrays<T: Integer + Clone + NumCast + Copy + IndexIdToParentData, K: IndexIdToParentData>(
-    store: &IndexIdToParent<Output = K>,
-    cache_size: usize,
-) -> (T, u32, u32, Vec<T>, Vec<T>) {
-    to_indirect_arrays_dedup(store, cache_size, false)
-}
+// fn to_indirect_arrays<T: Integer + Clone + NumCast + Copy + IndexIdToParentData, K: IndexIdToParentData>(
+//     store: &IndexIdToParent<Output = K>,
+//     cache_size: usize,
+// ) -> (T, u32, u32, Vec<T>, Vec<T>) {
+//     to_indirect_arrays_dedup(store, cache_size, false)
+// }
 
 fn to_indirect_arrays_dedup<T: Integer + Clone + NumCast + Copy + IndexIdToParentData, K: IndexIdToParentData>(
     store: &IndexIdToParent<Output = K>,
@@ -1327,9 +1326,7 @@ use std::u32;
 mod tests {
     use super::*;
     use persistence_data::*;
-    use rand;
     use std::fs::File;
-    use test;
 
     fn get_test_data_1_to_n() -> ParallelArrays<u32> {
         let keys = vec![0, 0, 1, 2, 3, 3, 5, 9, 10];
@@ -1362,12 +1359,11 @@ mod tests {
 
     mod test_indirect {
         use super::*;
-        use rand::distributions::{IndependentSample, Range};
         use tempfile::tempdir;
         #[test]
         fn test_pointing_file_andmmap_array() {
             let store = get_test_data_1_to_n();
-            let (max_value_id, num_values, num_ids, keys, values) = to_indirect_arrays(&store, 0);
+            let (max_value_id, num_values, num_ids, keys, values) = to_indirect_arrays_dedup(&store, 0, false);
             let dir = tempdir().unwrap();
             let indirect_path = dir.path().join("indirect");
             let data_path = dir.path().join("data");

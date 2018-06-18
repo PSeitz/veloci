@@ -7,7 +7,6 @@ use itertools::Itertools;
 use memmap::MmapOptions;
 use memmap::Mmap;
 
-// use byteorder::{ByteOrder, LittleEndian};
 use std::fs::File;
 use std::io;
 use std::iter::FusedIterator;
@@ -16,11 +15,6 @@ use std::io::prelude::*;
 use std::io::BufWriter;
 use std::ptr::copy_nonoverlapping;
 use std::marker::PhantomData;
-
-#[macro_use]
-extern crate measure_time;
-#[macro_use]
-extern crate log;
 
 pub trait GetValue {
     fn get_value(&self) -> u32;

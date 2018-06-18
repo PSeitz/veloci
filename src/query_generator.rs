@@ -24,7 +24,7 @@ fn get_all_field_names(persistence: &Persistence, fields: &Option<Vec<String>>) 
         .keys()
         .map(|field| extract_field_name(field))
         .filter(|el| {
-            if let &Some(ref filter) = fields {
+            if let Some(ref filter) = *fields {
                 return filter.contains(el);
             }
             true
@@ -40,7 +40,7 @@ pub fn normalize_to_single_space(text: &str) -> String {
 
     }
     let mut new_str = text.to_owned();
-    for ref tupl in &*REGEXES {
+    for tupl in REGEXES.iter() {
         new_str = tupl.replace_all(&new_str, " ").into_owned();
     }
 
@@ -49,7 +49,7 @@ pub fn normalize_to_single_space(text: &str) -> String {
 
 fn replace_all_with_space(s: &mut String, remove: &str) {
     while let Some(pos) = s.find(remove) {
-        s.replace_range(pos..=pos + remove.len() - 1, " ");
+        s.replace_range(pos..pos + remove.len(), " ");
     }
 }
 
@@ -81,16 +81,16 @@ pub fn search_query(persistence: &Persistence, mut opt: SearchQueryGeneratorPara
         let mut s = opt.search_term.to_string();
         replace_all_with_space(&mut s, " AND ");
         s = normalize_to_single_space(&s);
-        s.split(" ").map(|el| el.to_string()).collect()
+        s.split(' ').map(|el| el.to_string()).collect()
     } else {
         let mut s = opt.search_term.to_string();
         replace_all_with_space(&mut s, " OR ");
         s = normalize_to_single_space(&s);
-        s.split(" ").map(|el| el.to_string()).collect()
+        s.split(' ').map(|el| el.to_string()).collect()
     };
 
     // let terms = opt.search_term.split(" ").map(|el|el.to_string()).collect::<Vec<&str>>();
-    let op = opt.operator.as_ref().map(|op| op.to_lowercase()).unwrap_or("or".to_string());
+    let op = opt.operator.as_ref().map(|op| op.to_lowercase()).unwrap_or_else(|| "or".to_string());
 
     let facets_req: Option<Vec<FacetRequest>> = opt.facets.as_ref().map(|facets_fields| {
         facets_fields
@@ -107,8 +107,8 @@ pub fn search_query(persistence: &Persistence, mut opt: SearchQueryGeneratorPara
         .iter()
         .flat_map(|(boost_term, boost_value): (&String, &f32)| {
             let mut boost_term = boost_term.to_string();
-            let filter: Option<Vec<String>> = if boost_term.contains(":") {
-                let mut parts: Vec<String> = boost_term.split(":").map(|el| el.to_string()).collect();
+            let filter: Option<Vec<String>> = if boost_term.contains(':') {
+                let mut parts: Vec<String> = boost_term.split(':').map(|el| el.to_string()).collect();
                 boost_term = parts.remove(1);
                 Some(parts)
             } else {
@@ -143,7 +143,7 @@ pub fn search_query(persistence: &Persistence, mut opt: SearchQueryGeneratorPara
                         let part = RequestSearchPart {
                             path: field_name.to_string(),
                             terms: vec![term.to_string()],
-                            boost: opt.boost_fields.get(field_name).map(|el| *el),
+                            boost: opt.boost_fields.get(field_name).cloned(),
                             levenshtein_distance: Some(levenshtein_distance as u32),
                             resolve_token_to_parent_hits: Some(true),
                             ..Default::default()
@@ -183,7 +183,7 @@ pub fn search_query(persistence: &Persistence, mut opt: SearchQueryGeneratorPara
                         let part = RequestSearchPart {
                             path: field_name.to_string(),
                             terms: vec![term.to_string()],
-                            boost: opt.boost_fields.get(field_name).map(|el| *el),
+                            boost: opt.boost_fields.get(field_name).cloned(),
                             levenshtein_distance: Some(levenshtein_distance as u32),
                             resolve_token_to_parent_hits: Some(true),
                             ..Default::default()
@@ -231,7 +231,7 @@ pub fn suggest_query(
     mut top: Option<usize>,
     skip: Option<usize>,
     levenshtein: Option<usize>,
-    fields: Option<Vec<String>>,
+    fields: &Option<Vec<String>>,
     levenshtein_auto_limit: Option<usize>,
 ) -> Request {
     // let req = persistence.meta_data.fulltext_indices.key
@@ -250,9 +250,9 @@ pub fn suggest_query(
                 path: field_name.to_string(),
                 terms: vec![request.to_string()],
                 levenshtein_distance: Some(levenshtein_distance as u32),
-                starts_with: starts_with,
-                top: top,
-                skip: skip,
+                starts_with,
+                top,
+                skip,
                 ..Default::default()
             }
         })
@@ -260,8 +260,8 @@ pub fn suggest_query(
 
     Request {
         suggest: Some(requests),
-        top: top,
-        skip: skip,
+        top,
+        skip,
         ..Default::default()
     }
 }

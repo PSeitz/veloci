@@ -306,7 +306,7 @@ impl std::fmt::Display for DocWithHit {
 }
 
 fn highlight_on_original_document(doc: &str, why_found_terms: &FnvHashMap<String, FnvHashSet<String>>) -> FnvHashMap<String, Vec<String>> {
-    let mut highlighted_texts = FnvHashMap::default();
+    let mut highlighted_texts: FnvHashMap<_,Vec<_>> = FnvHashMap::default();
     let stream = serde_json::Deserializer::from_str(&doc).into_iter::<serde_json::Value>();
 
     let mut opt = json_converter::ForEachOpt {};
@@ -317,7 +317,7 @@ fn highlight_on_original_document(doc: &str, why_found_terms: &FnvHashMap<String
             if let Some(terms) = why_found_terms.get(path) {
                 if let Some(highlighted) = highlight_field::highlight_text(value, &terms, &DEFAULT_SNIPPETINFO) {
                     let field_name = extract_field_name(path); // extract_field_name removes .textindex
-                    let mut jepp = highlighted_texts.entry(field_name).or_insert(vec![]);
+                    let mut jepp = highlighted_texts.entry(field_name).or_default();
                     jepp.push(highlighted);
                 }
             }
@@ -332,7 +332,7 @@ fn highlight_on_original_document(doc: &str, why_found_terms: &FnvHashMap<String
 
 // @FixMe Tests should use to_search_result
 #[cfg_attr(feature = "flame_it", flame)]
-pub fn to_documents(persistence: &Persistence, hits: &[Hit], select: Option<Vec<String>>, result: &SearchResult) -> Vec<DocWithHit> {
+pub fn to_documents(persistence: &Persistence, hits: &[Hit], select: &Option<Vec<String>>, result: &SearchResult) -> Vec<DocWithHit> {
     let tokens_set = {
         result
             .why_found_terms
@@ -350,7 +350,7 @@ pub fn to_documents(persistence: &Persistence, hits: &[Hit], select: Option<Vec<
                 return DocWithHit {
                     doc: read_data(persistence, hit.id, &select).unwrap(), // TODO validate fields
                     hit: hit.clone(),
-                    why_found: result.why_found_info.get(&hit.id).cloned().unwrap_or(FnvHashMap::default()),
+                    why_found: result.why_found_info.get(&hit.id).cloned().unwrap_or_default(),
                 };
             } else {
                 let doc_str = DocLoader::get_doc(persistence, hit.id as usize).unwrap(); // TODO No unwrapo
@@ -367,9 +367,9 @@ pub fn to_documents(persistence: &Persistence, hits: &[Hit], select: Option<Vec<
 }
 
 #[cfg_attr(feature = "flame_it", flame)]
-pub fn to_search_result(persistence: &Persistence, hits: SearchResult, select: Option<Vec<String>>) -> SearchResultWithDoc {
+pub fn to_search_result(persistence: &Persistence, hits: SearchResult, select: &Option<Vec<String>>) -> SearchResultWithDoc {
     SearchResultWithDoc {
-        data: to_documents(&persistence, &hits.data, select, &hits),
+        data: to_documents(&persistence, &hits.data, &select, &hits),
         num_hits: hits.num_hits,
         facets: hits.facets,
     }
@@ -378,7 +378,7 @@ pub fn to_search_result(persistence: &Persistence, hits: SearchResult, select: O
 pub fn get_search_result(persistence: &Persistence, request: Request) -> Result<SearchResultWithDoc, SearchError> {
     let select = request.select.clone();
     let res = search(request, &persistence)?;
-    Ok(to_search_result(&persistence, res, select))
+    Ok(to_search_result(&persistence, res, &select))
 }
 
 #[inline]
@@ -393,7 +393,7 @@ fn get_why_found(
 ) -> Result<FnvHashMap<u32, FnvHashMap<String, Vec<String>>>, SearchError> {
     debug!("why_found info {:?}", term_id_hits_in_field);
     info_time!("why_found");
-    let mut anchor_highlights = FnvHashMap::default();
+    let mut anchor_highlights: FnvHashMap<_, FnvHashMap<_,Vec<_>>> = FnvHashMap::default();
 
     for (path, term_with_ids) in term_id_hits_in_field.iter() {
         let field_name = &extract_field_name(path); // extract_field_name removes .textindex
@@ -410,15 +410,15 @@ fn get_why_found(
 
         for anchor_id in anchor_ids {
             //debug_time!(format!("highlight anchor_id {:?}", anchor_id)); // TODO flip loops and trace time per anchor
-            let ids = facet::join_anchor_to_leaf(persistence, &vec![*anchor_id], &paths)?;
+            let ids = facet::join_anchor_to_leaf(persistence, &[*anchor_id], &paths)?;
 
             for value_id in ids {
                 let path = paths.last().unwrap().to_string();
                 let highlighted_document =
-                    highlight_field::highlight_document(persistence, &path, value_id as u64, &all_term_ids_hits_in_path, &DEFAULT_SNIPPETINFO).unwrap();
+                    highlight_field::highlight_document(persistence, &path, u64::from(value_id), &all_term_ids_hits_in_path, &DEFAULT_SNIPPETINFO).unwrap();
                 if let Some(highlighted_document) = highlighted_document {
-                    let jepp = anchor_highlights.entry(*anchor_id).or_insert(FnvHashMap::default());
-                    let mut field_highlights = jepp.entry(field_name.clone()).or_insert(vec![]);
+                    let jepp = anchor_highlights.entry(*anchor_id).or_default();
+                    let mut field_highlights = jepp.entry(field_name.clone()).or_default();
                     field_highlights.push(highlighted_document);
                 }
             }
@@ -485,7 +485,7 @@ pub fn boost_text_locality(persistence: &Persistence, path: &str, term_with_ids:
     let mut boost_text_ids = vec![];
     {
         trace_time!("text_locality_boost get and group text_ids");
-        for (_, ids) in term_with_ids {
+        for ids in term_with_ids.values() {
             let mut text_ids = get_all_value_ids(&ids, token_to_text_id);
             text_ids.sort_unstable();
             terms_text_ids.push(text_ids);
@@ -503,7 +503,7 @@ pub fn boost_text_locality(persistence: &Persistence, path: &str, term_with_ids:
 
     for text_id in boost_text_ids {
         let num_hits_in_same_text = text_id.1;
-        if let Some(anchor_ids) = text_id_to_anchor.get_values(text_id.0 as u64) {
+        if let Some(anchor_ids) = text_id_to_anchor.get_values(u64::from(text_id.0)) {
             for anchor_id in anchor_ids {
                 boost_anchor.push(Hit::new(anchor_id, num_hits_in_same_text as f32 * num_hits_in_same_text as f32));
             }
@@ -514,10 +514,10 @@ pub fn boost_text_locality(persistence: &Persistence, path: &str, term_with_ids:
 }
 
 use persistence::*;
-fn get_all_value_ids(ids: &[u32], token_to_text_id: &Box<IndexIdToParent<Output = u32>>) -> Vec<u32> {
+fn get_all_value_ids(ids: &[u32], token_to_text_id: &IndexIdToParent<Output = u32>) -> Vec<u32> {
     let mut text_ids: Vec<u32> = vec![];
     for id in ids {
-        if let Some(ids) = token_to_text_id.get_values(*id as u64) {
+        if let Some(ids) = token_to_text_id.get_values(u64::from(*id)) {
             text_ids.extend(ids.iter()); // TODO move data, swap first
         }
     }
@@ -583,7 +583,7 @@ pub fn search(mut request: Request, persistence: &Persistence) -> Result<SearchR
 
     {
         if let Some(boost_term) = request.boost_term {
-            res = apply_boost_term(persistence, res, boost_term)?;
+            res = apply_boost_term(persistence, res, &boost_term)?;
         }
     }
 
@@ -639,23 +639,23 @@ pub fn search(mut request: Request, persistence: &Persistence) -> Result<SearchR
 }
 
 #[cfg_attr(feature = "flame_it", flame)]
-pub fn apply_boost_term(persistence: &Persistence, mut res: SearchFieldResult, boost_term: Vec<RequestSearchPart>) -> Result<SearchFieldResult, SearchError> {
+pub fn apply_boost_term(persistence: &Persistence, mut res: SearchFieldResult, boost_term: &[RequestSearchPart]) -> Result<SearchFieldResult, SearchError> {
     info_time!("boost_term");
     {
-        persistence.term_boost_cache.write().get(&boost_term); //poke
+        persistence.term_boost_cache.write().get(boost_term); //poke
     }
 
     let mut from_cache = false;
     // Attentión - The read lock is still active in the else block therefore we need to create an extra scope to avoid deadlocks
     // This should be probably fixed sometime with better lifetime handling in rust
     {
-        if let Some(data) = persistence.term_boost_cache.read().peek(&boost_term) {
+        if let Some(data) = persistence.term_boost_cache.read().peek(boost_term) {
             // let mut boost_iter = data.hits_ids.iter().map(|el|el.clone());
             // res = apply_boost_from_iter(res, &mut boost_iter)
             info_time!("boost_term_cache");
             let mut boost_iter = data.iter()
                 .map(|el| {
-                    let boost_val: f32 = el.request.boost.unwrap_or(2.0).clone();
+                    let boost_val: f32 = el.request.boost.unwrap_or(2.0);
                     el.hits_ids.iter().map(move |id| Hit::new(*id, boost_val))
                 })
                 .into_iter()
@@ -753,18 +753,18 @@ pub fn apply_boost_term(persistence: &Persistence, mut res: SearchFieldResult, b
 
     if !from_cache {
         let r: Result<Vec<_>, SearchError> = boost_term
-            .clone()
+            .to_vec()
             .into_par_iter()
-            .map(|mut boost_term_req| {
+            .map(|mut boost_term_req: RequestSearchPart| {
                 boost_term_req.ids_only = true;
                 boost_term_req.fast_field = true;
-                search_field::get_hits_in_field(persistence, boost_term_req, None)
+                search_field::get_hits_in_field(persistence, &boost_term_req, None)
             })
             .collect();
         let mut data = r?;
         res = boost_intersect_hits_vec_multi(res, &mut data);
         {
-            persistence.term_boost_cache.write().insert(boost_term.clone(), data);
+            persistence.term_boost_cache.write().insert(boost_term.to_vec(), data);
         }
     }
     Ok(res)
@@ -772,7 +772,7 @@ pub fn apply_boost_term(persistence: &Persistence, mut res: SearchFieldResult, b
 
 //TODO no copy
 #[cfg_attr(feature = "flame_it", flame)]
-pub fn apply_top_skip<T: Clone>(hits: &Vec<T>, skip: Option<usize>, top: Option<usize>) -> Vec<T> {
+pub fn apply_top_skip<T: Clone>(hits: &[T], skip: Option<usize>, top: Option<usize>) -> Vec<T> {
     let skip = skip.unwrap_or(0);
     if let Some(mut top) = top {
         top = cmp::min(top + skip, hits.len());
@@ -780,14 +780,12 @@ pub fn apply_top_skip<T: Clone>(hits: &Vec<T>, skip: Option<usize>, top: Option<
     } else {
         hits[skip..].to_vec()
     }
-    // top = cmp::min(top + skip, hits.len());
-    // hits[skip..top].to_vec()
 }
 
 use facet;
 
 #[cfg_attr(feature = "flame_it", flame)]
-pub fn get_shortest_result<T: std::iter::ExactSizeIterator>(results: &Vec<T>) -> usize {
+pub fn get_shortest_result<T: std::iter::ExactSizeIterator>(results: &[T]) -> usize {
     let mut shortest = (0, std::u64::MAX);
     for (index, res) in results.iter().enumerate() {
         if (res.len() as u64) < shortest.1 {
@@ -798,7 +796,7 @@ pub fn get_shortest_result<T: std::iter::ExactSizeIterator>(results: &Vec<T>) ->
 }
 
 #[cfg_attr(feature = "flame_it", flame)]
-pub fn get_longest_result<T: std::iter::ExactSizeIterator>(results: &Vec<T>) -> usize {
+pub fn get_longest_result<T: std::iter::ExactSizeIterator>(results: &[T]) -> usize {
     let mut longest = (0, std::u64::MIN);
     for (index, res) in results.iter().enumerate() {
         if (res.len() as u64) > longest.1 {
@@ -810,11 +808,11 @@ pub fn get_longest_result<T: std::iter::ExactSizeIterator>(results: &Vec<T>) -> 
 
 fn merge_term_id_hits(results: &mut Vec<SearchFieldResult>) -> FnvHashMap<String, FnvHashMap<String, Vec<TermId>>> {
     //attr -> term -> hits
-    let mut term_id_hits_in_field = FnvHashMap::default();
+    let mut term_id_hits_in_field: FnvHashMap<String, FnvHashMap<String, Vec<TermId>>> = FnvHashMap::default();
     for el in results.iter_mut() {
         for (attr, mut v) in el.term_id_hits_in_field.drain() {
             // term_id_hits_in_field.insert(attr, v);
-            let attr_term_hits = term_id_hits_in_field.entry(attr).or_insert(FnvHashMap::default());
+            let attr_term_hits = term_id_hits_in_field.entry(attr).or_default();
             for (term, hits) in v.drain() {
                 attr_term_hits.insert(term, hits);
             }
@@ -825,10 +823,10 @@ fn merge_term_id_hits(results: &mut Vec<SearchFieldResult>) -> FnvHashMap<String
 }
 fn merge_term_id_texts(results: &mut Vec<SearchFieldResult>) -> FnvHashMap<String, Vec<String>> {
     //attr -> term_texts
-    let mut term_text_in_field = FnvHashMap::default();
+    let mut term_text_in_field: FnvHashMap<String, Vec<String>> = FnvHashMap::default();
     for el in results.iter_mut() {
         for (attr, mut v) in el.term_text_in_field.drain() {
-            let attr_term_hits = term_text_in_field.entry(attr).or_insert(vec![]);
+            let attr_term_hits = term_text_in_field.entry(attr).or_default();
             attr_term_hits.extend(v.iter().cloned());
         }
     }
@@ -845,7 +843,7 @@ pub fn union_hits_vec(mut or_results: Vec<SearchFieldResult>) -> SearchFieldResu
     let term_id_hits_in_field = { merge_term_id_hits(&mut or_results) };
     let term_text_in_field = { merge_term_id_texts(&mut or_results) };
 
-    let index_longest = get_longest_result(&or_results.iter().map(|el| el.hits_vec.iter()).collect());
+    let index_longest:usize = get_longest_result(&or_results.iter().map(|el| el.hits_vec.iter()).collect::<Vec<_>>());
 
     let longest_len = or_results[index_longest].hits_vec.len() as f32;
     let len_total: usize = or_results.iter().map(|el| el.hits_vec.len()).sum();
@@ -903,7 +901,7 @@ pub fn union_hits_vec(mut or_results: Vec<SearchFieldResult>) -> SearchFieldResu
 
     {
         debug_time!("union hits sort input".to_string());
-        for res in or_results.iter_mut() {
+        for res in &mut or_results {
             res.hits_vec.sort_unstable_by_key(|el| el.id);
             //TODO ALSO DEDUP???
         }
@@ -971,8 +969,6 @@ pub fn union_hits_vec(mut or_results: Vec<SearchFieldResult>) -> SearchFieldResu
         // let field_locality_boost = num_hits as f32 / num_fields;
         // sum_score = sum_score * num_distinct_terms * num_distinct_terms * field_locality_boost;
 
-        // sum_score = sum_score * num_distinct_terms * num_distinct_terms;
-
         // let mut sum_score = group.map(|a| a.score).sum();
         union_hits.push(Hit::new(id, sum_score));
         // term_id_hits = 0;
@@ -981,8 +977,8 @@ pub fn union_hits_vec(mut or_results: Vec<SearchFieldResult>) -> SearchFieldResu
 
     // debug!("union hits merged from {} to {} hits", prev, union_hits.len() );
     SearchFieldResult {
-        term_id_hits_in_field: term_id_hits_in_field,
-        term_text_in_field: term_text_in_field,
+        term_id_hits_in_field,
+        term_text_in_field,
         hits_vec: union_hits,
         ..Default::default()
     }
@@ -1065,9 +1061,9 @@ pub fn intersect_hits_vec(mut and_results: Vec<SearchFieldResult>) -> SearchFiel
     let term_id_hits_in_field = { merge_term_id_hits(&mut and_results) };
     let term_text_in_field = { merge_term_id_texts(&mut and_results) };
 
-    let index_shortest = get_shortest_result(&and_results.iter().map(|el| el.hits_vec.iter()).collect());
+    let index_shortest = get_shortest_result(&and_results.iter().map(|el| el.hits_vec.iter()).collect::<Vec<_>>());
 
-    for res in and_results.iter_mut() {
+    for res in &mut and_results {
         res.hits_vec.sort_unstable_by_key(|el| el.id); //TODO ALSO DEDUP???
     }
     let mut shortest_result = and_results.swap_remove(index_shortest).hits_vec;
@@ -1086,7 +1082,7 @@ pub fn intersect_hits_vec(mut and_results: Vec<SearchFieldResult>) -> SearchFiel
         .collect::<Vec<_>>();
 
     let mut intersected_hits = Vec::with_capacity(shortest_result.len());
-    for current_el in shortest_result.iter_mut() {
+    for current_el in &mut shortest_result {
         let current_id = current_el.id;
         let current_score = current_el.score;
 
@@ -1115,8 +1111,8 @@ pub fn intersect_hits_vec(mut and_results: Vec<SearchFieldResult>) -> SearchFiel
     }
     // all_results
     SearchFieldResult {
-        term_id_hits_in_field: term_id_hits_in_field,
-        term_text_in_field: term_text_in_field,
+        term_id_hits_in_field,
+        term_text_in_field,
         hits_vec: intersected_hits,
         ..Default::default()
     }
@@ -1155,7 +1151,7 @@ pub fn boost_intersect_hits_vec(mut results: SearchFieldResult, mut boost: Searc
 fn apply_boost_from_iter(mut results: SearchFieldResult, mut boost_iter: &mut Iterator<Item = Hit>) -> SearchFieldResult {
     let move_boost = |hit: &mut Hit, hit_curr: &mut Hit, boost_iter: &mut Iterator<Item = Hit>| {
         //Forward the boost iterator and look for matches
-        while let Some(ref b_hit) = boost_iter.next() {
+        for b_hit in boost_iter {
             if b_hit.id > hit.id {
                 *hit_curr = b_hit.clone(); //TODO LOW maybe change data pointed to by hit_curr
                 break;
@@ -1169,7 +1165,7 @@ fn apply_boost_from_iter(mut results: SearchFieldResult, mut boost_iter: &mut It
 
     if let Some(yep) = boost_iter.next() {
         let mut hit_curr = yep;
-        for mut hit in results.hits_vec.iter_mut() {
+        for mut hit in &mut results.hits_vec {
             if hit_curr.id < hit.id {
                 move_boost(&mut hit, &mut hit_curr, &mut boost_iter);
             } else if hit_curr.id == hit.id {
@@ -1196,7 +1192,7 @@ pub fn boost_intersect_hits_vec_multi(mut results: SearchFieldResult, boost: &mu
     let mut boost_iter = boost
         .iter()
         .map(|el| {
-            let boost_val: f32 = el.request.boost.unwrap_or(2.0).clone();
+            let boost_val: f32 = el.request.boost.unwrap_or(2.0);
             el.hits_ids.iter().map(move |id| Hit::new(*id, boost_val)) //TODO create version for hits_vec
         })
         .into_iter()
@@ -1335,16 +1331,16 @@ pub fn add_boost(persistence: &Persistence, boost: &RequestBoostPart, hits: &mut
     let expre = boost.expression.as_ref().map(|expression| ScoreExpression::new(expression.clone()));
     let default = vec![];
     let skip_when_score = boost.skip_when_score.as_ref().unwrap_or(&default);
-    for hit in hits.hits_vec.iter_mut() {
-        if skip_when_score.len() > 0 && skip_when_score.iter().find(|x| *x == &hit.score).is_some() {
+    for hit in &mut hits.hits_vec {
+        if !skip_when_score.is_empty() && skip_when_score.iter().any(|x| (*x - hit.score).abs() < 0.00001 ) { // float comparisons should usually include a error margin
             continue;
         }
         let value_id = &hit.id;
         let mut score = &mut hit.score;
         // let ref vals_opt = boostkv_store.get(*value_id as usize);
-        let ref val_opt = boostkv_store.get_value(*value_id as u64);
+        let val_opt = &boostkv_store.get_value(u64::from(*value_id));
 
-        val_opt.as_ref().map(|boost_value| {
+        if let Some(boost_value) = val_opt.as_ref() {
             debug!("Found in boosting for value_id {:?}: {:?}", value_id, val_opt);
             let boost_value = *boost_value;
             match boost.boost_fun {
@@ -1376,7 +1372,7 @@ pub fn add_boost(persistence: &Persistence, boost: &RequestBoostPart, hits: &mut
                 }
                 None => {}
             }
-            expre.as_ref().map(|exp| {
+            if let Some(exp) = expre.as_ref() {
                 let prev_score = *score;
                 *score += exp.get_score(boost_value as f32);
                 trace!(
@@ -1386,8 +1382,8 @@ pub fn add_boost(persistence: &Persistence, boost: &RequestBoostPart, hits: &mut
                     boost_value,
                     exp.get_score(boost_value as f32)
                 );
-            });
-        });
+            }
+        }
     }
     Ok(())
 }
@@ -1403,7 +1399,7 @@ pub enum SearchError {
     FstError(fst::Error),
     // FstLevenShtein(fst_levenshtein::Error),
     CrossBeamError(crossbeam_channel::SendError<std::collections::HashMap<u32, f32, std::hash::BuildHasherDefault<fnv::FnvHasher>>>),
-    CrossBeamError2(crossbeam_channel::SendError<SearchFieldResult>),
+    CrossBeamError2(Box<crossbeam_channel::SendError<SearchFieldResult>>),
     CrossBeamErrorReceive(crossbeam_channel::RecvError),
     TooManyStates,
 }
@@ -1440,7 +1436,7 @@ impl From<crossbeam_channel::SendError<std::collections::HashMap<u32, f32, std::
 }
 impl From<crossbeam_channel::SendError<SearchFieldResult>> for SearchError {
     fn from(err: crossbeam_channel::SendError<SearchFieldResult>) -> SearchError {
-        SearchError::CrossBeamError2(err)
+        SearchError::CrossBeamError2(Box::new(err))
     }
 }
 impl From<crossbeam_channel::RecvError> for SearchError {

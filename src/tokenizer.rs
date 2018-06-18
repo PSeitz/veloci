@@ -34,16 +34,13 @@ impl Tokenizer for SimpleTokenizer {
     {
         let mut last_byte_pos = 0;
         for (char_byte_pos, char) in orignal.char_indices() {
-            match is_default_seperator(char) {
-                true => {
-                    if char_byte_pos != last_byte_pos {
-                        cb_text(&orignal[last_byte_pos..char_byte_pos], false);
-                    }
-                    let next_pos = char_byte_pos + char.len_utf8();
-                    cb_text(&orignal[char_byte_pos..next_pos], false);
-                    last_byte_pos = next_pos;
+            if is_default_seperator(char) {
+                if char_byte_pos != last_byte_pos {
+                    cb_text(&orignal[last_byte_pos..char_byte_pos], false);
                 }
-                false => {}
+                let next_pos = char_byte_pos + char.len_utf8();
+                cb_text(&orignal[char_byte_pos..next_pos], false);
+                last_byte_pos = next_pos;
             }
         }
 
@@ -66,23 +63,18 @@ impl Tokenizer for SimpleTokenizerCharsIterateGroupTokens {
         let mut last_returned_byte = 0;
         let mut last_was_token = false;
         for (char_byte_pos, char) in orignal.char_indices() {
-            match is_default_seperator(char) {
-                true => {
-                    if char_byte_pos == 0 {
-                        last_was_token = true;
-                    } else if !last_was_token {
-                        cb_text(&orignal[last_returned_byte..char_byte_pos], false);
-                        last_was_token = true;
-                        last_returned_byte = char_byte_pos;
-                    }
+            if is_default_seperator(char) {
+                if char_byte_pos == 0 {
+                    last_was_token = true;
+                } else if !last_was_token {
+                    cb_text(&orignal[last_returned_byte..char_byte_pos], false);
+                    last_was_token = true;
+                    last_returned_byte = char_byte_pos;
                 }
-                false => {
-                    if last_was_token {
-                        cb_text(&orignal[last_returned_byte..char_byte_pos], true);
-                        last_was_token = false;
-                        last_returned_byte = char_byte_pos;
-                    }
-                }
+            } else if last_was_token {
+                cb_text(&orignal[last_returned_byte..char_byte_pos], true);
+                last_was_token = false;
+                last_returned_byte = char_byte_pos;
             }
         }
 
