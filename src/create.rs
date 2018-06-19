@@ -265,8 +265,8 @@ fn store_full_text_info_and_set_ids(
 
         trace!("{:?} Terms: {:?}", path, all_text);
     }
-    // let mut term_and_mut_val: Vec<(&str, &mut TermInfo)> = all_terms.iter_mut().collect();
-    let mut term_and_mut_val: Vec<(&String, &mut TermInfo)> = all_terms.iter_mut().collect();
+    let mut term_and_mut_val: Vec<(&str, &mut TermInfo)> = all_terms.iter_mut().collect();
+    // let mut term_and_mut_val: Vec<(&String, &mut TermInfo)> = all_terms.iter_mut().collect();
     term_and_mut_val.sort_unstable_by_key(|el| el.0);
 
     for (i, term_and_info) in term_and_mut_val.iter_mut().enumerate() {
@@ -279,8 +279,8 @@ fn store_full_text_info_and_set_ids(
     Ok(())
 }
 
-// fn store_fst(persistence: &mut Persistence, all_terms: &TermMap, sorted_terms: Vec<&String>, path: &str) -> Result<(), fst::Error> {
-fn store_fst(persistence: &Persistence, sorted_terms: &[(&String, &mut TermInfo)], path: &str) -> Result<(), fst::Error> {
+fn store_fst(persistence: &Persistence, sorted_terms: &[(&str, &mut TermInfo)], path: &str) -> Result<(), fst::Error> {
+// fn store_fst(persistence: &Persistence, sorted_terms: &[(&String, &mut TermInfo)], path: &str) -> Result<(), fst::Error> {
     debug_time!(format!("store_fst {:?}", path));
     let wtr = persistence.get_buffered_writer(&concat(path, ".fst"))?;
     // Create a builder that can be used to insert new key-value pairs.
@@ -294,18 +294,17 @@ fn store_fst(persistence: &Persistence, sorted_terms: &[(&String, &mut TermInfo)
     Ok(())
 }
 
-// use term_hashmap;
-
-// type TermMap = term_hashmap::HashMap<TermInfo>;
-type TermMap = FnvHashMap<String, TermInfo>;
+use term_hashmap;
+type TermMap = term_hashmap::HashMap<TermInfo>;
+// type TermMap = FnvHashMap<String, TermInfo>;
 
 #[inline]
 fn add_count_text(terms: &mut TermMap, text: &str) {
-    // let stat = terms.get_or_insert(text, || TermInfo::default());
-    // stat.num_occurences += 1;
-
-    let stat = get_or_insert_prefer_get(terms as *mut FnvHashMap<_, _>, text, &|| TermInfo::default());
+    let stat = terms.get_or_insert(text, || TermInfo::default());
     stat.num_occurences += 1;
+
+    // let stat = get_or_insert_prefer_get(terms as *mut FnvHashMap<_, _>, text, &|| TermInfo::default());
+    // stat.num_occurences += 1;
 }
 
 #[inline]
