@@ -645,16 +645,16 @@ pub fn valid_pair_to_direct_index<T: create::KeyValuePair>(tuples: &mut [T]) -> 
     index
 }
 
-#[cfg_attr(feature = "flame_it", flame)]
-pub fn boost_pair_to_parallel_arrays<T: create::KeyValuePair>(tuples: &mut [T]) -> ParallelArrays<u32> {
-    tuples.sort_unstable_by_key(|a| a.get_key());
-    let valids = tuples.iter().map(|el| num::cast(el.get_key()).unwrap()).collect::<Vec<_>>();
-    let values = tuples.iter().map(|el| num::cast(el.get_value()).unwrap()).collect::<Vec<_>>();
-    ParallelArrays {
-        values1: valids,
-        values2: values,
-    }
-}
+// #[cfg_attr(feature = "flame_it", flame)]
+// pub fn boost_pair_to_parallel_arrays<T: create::KeyValuePair>(tuples: &mut [T]) -> ParallelArrays<u32> {
+//     tuples.sort_unstable_by_key(|a| a.get_key());
+//     let valids = tuples.iter().map(|el| num::cast(el.get_key()).unwrap()).collect::<Vec<_>>();
+//     let values = tuples.iter().map(|el| num::cast(el.get_value()).unwrap()).collect::<Vec<_>>();
+//     ParallelArrays {
+//         values1: valids,
+//         values2: values,
+//     }
+// }
 
 #[test]
 fn test_index_parrallel_arrays() {

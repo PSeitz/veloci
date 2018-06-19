@@ -263,7 +263,6 @@ impl TokenToAnchorScore for TokenToAnchorScoreVintIM {
         }
         AnchorScoreIter::new(&self.data[pos as usize..])
     }
-
 }
 
 impl TokenToAnchorScoreVintMmap {

@@ -138,7 +138,6 @@ impl FromStr for LoadingType {
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub enum KVStoreType {
-    ParallelArrays,
     IndexIdToMultipleParentIndirect,
     IndexIdToOneParent,
 }
@@ -393,7 +392,6 @@ impl Persistence {
 
                             Ok((el.path.to_string(), Box::new(store) as Box<IndexIdToParent<Output = u32>>))
                         }
-                        KVStoreType::ParallelArrays => panic!("WAAAAAAA PAAAANIIC"),
                         KVStoreType::IndexIdToOneParent => {
                             let store = IndexIdToOneParent {
                                 data: bytes_to_vec_u32(&file_path_to_bytes(&data_direct_path)?),
@@ -420,7 +418,6 @@ impl Persistence {
 
                             Ok((el.path.to_string(), Box::new(store) as Box<IndexIdToParent<Output = u32>>))
                         }
-                        KVStoreType::ParallelArrays => panic!("WAAAAAAA"),
                         KVStoreType::IndexIdToOneParent => {
                             // let data_u32 = bytes_to_vec_u32(&file_path_to_bytes(&data_direct_path)?);
 
@@ -464,7 +461,6 @@ impl Persistence {
 
                                 Ok((el.path.to_string(), Box::new(store) as Box<IndexIdToParent<Output = u32>>))
                             }
-                            KVStoreType::ParallelArrays => panic!("WAAAAAAA"),
                             KVStoreType::IndexIdToOneParent => {
                                 let data_file = get_file_handle_complete_path(&data_direct_path)?;
                                 let data_metadata = get_file_metadata_handle_complete_path(&data_direct_path)?;
@@ -500,14 +496,14 @@ impl Persistence {
                     //     .insert(el.path.to_string(), Box::new(IndexIdToOneParentMayda::<u32>::new(&store, u32::MAX)));
                     self.indices.boost_valueid_to_value.insert(el.path.to_string(), Box::new(store));
                 }
-                KVStoreType::ParallelArrays => {
-                    let encoded = file_path_to_bytes(&get_file_path(&self.db, &el.path))?;
-                    let store: ParallelArrays<u32> = deserialize(&encoded[..]).unwrap();
-                    // self.indices
-                    //     .boost_valueid_to_value
-                    //     .insert(el.path.to_string(), Box::new(IndexIdToOneParentMayda::<u32>::new(&store, u32::MAX))); // TODO: enable other Diskbased Types
-                    self.indices.boost_valueid_to_value.insert(el.path.to_string(), Box::new(store)); // TODO: enable other Diskbased Types
-                }
+                // KVStoreType::ParallelArrays => {
+                //     let encoded = file_path_to_bytes(&get_file_path(&self.db, &el.path))?;
+                //     let store: ParallelArrays<u32> = deserialize(&encoded[..]).unwrap();
+                //     // self.indices
+                //     //     .boost_valueid_to_value
+                //     //     .insert(el.path.to_string(), Box::new(IndexIdToOneParentMayda::<u32>::new(&store, u32::MAX))); // TODO: enable other Diskbased Types
+                //     self.indices.boost_valueid_to_value.insert(el.path.to_string(), Box::new(store)); // TODO: enable other Diskbased Types
+                // }
             }
         }
 

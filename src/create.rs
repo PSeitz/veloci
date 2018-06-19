@@ -650,7 +650,8 @@ where
         let mut cb_text = |anchor_id: u32, value: &str, path: &str, parent_val_id: u32, _is_new_doc: bool| {
             let data = get_or_insert_prefer_get(&mut path_data as *mut FnvHashMap<_, _>, path, &|| {
                 let boost_info_data = if boost_info_for_path.contains_key(path) { Some(vec![]) } else { None };
-                let anchor_to_text_id = if facet_index.contains(path) && is_1_to_n(path) { //Create facet index only for 1:N
+                let anchor_to_text_id = if facet_index.contains(path) && is_1_to_n(path) {
+                    //Create facet index only for 1:N
                     // anchor_id is monotonically increasing, hint buffered index writer, it's already sorted
                     Some(BufferedIndexWriter::new_for_sorted_id_insertion())
                 } else {
