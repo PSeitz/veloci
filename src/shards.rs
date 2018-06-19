@@ -207,7 +207,7 @@ impl Shards {
     pub fn search_all_shards_from_qp(
         &self,
         q_params: &query_generator::SearchQueryGeneratorParameters,
-        select: Option<Vec<String>>,
+        select: &Option<Vec<String>>,
     ) -> Result<SearchResultWithDoc, search::SearchError> {
         let mut all_search_results = SearchResultWithDoc::default();
 
@@ -218,7 +218,7 @@ impl Shards {
                 print_time!(format!("search shard {:?}", shard.shard_id));
                 let request = query_generator::search_query(&shard.persistence, q_params.clone());
                 let result = search::search(request, &shard.persistence)?;
-                Ok(ShardResult { shard: &shard, result: result })
+                Ok(ShardResult { shard: &shard, result })
             })
             .collect::<Result<Vec<ShardResult>, search::SearchError>>()?;
 
@@ -253,10 +253,10 @@ impl Shards {
         Ok(all_search_results)
     }
 
-    pub fn search_all_shards(&self, request: search::Request) -> Result<SearchResultWithDoc, search::SearchError> {
+    pub fn search_all_shards(&self, request: &search::Request) -> Result<SearchResultWithDoc, search::SearchError> {
         let select = request.select.clone();
         let mut all_results = SearchResultWithDoc::default();
-        for shard in self.shards.iter() {
+        for shard in &self.shards {
             let hits = search::search(request.clone(), &shard.persistence)?;
             let result = search::to_search_result(&shard.persistence, hits, &select);
             all_results.merge(&result); //TODO merge with above
@@ -271,7 +271,7 @@ impl Shards {
             let entry = entry?;
             let path = entry.path();
             shards.push(Shard {
-                shard_id: shard_id,
+                shard_id,
                 persistence: persistence::Persistence::load(path.to_str().unwrap())?,
             });
             shard_id += 1;

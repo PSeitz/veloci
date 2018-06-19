@@ -59,13 +59,13 @@ pub trait OutputProvider {
 
 impl OutputProvider for PlanStepType {
     fn get_output(&self) -> PlanDataReceiver {
-        match self {
-            &PlanStepType::FieldSearch { ref plans_output, .. }
-            | &PlanStepType::ValueIdToParent { ref plans_output, .. }
-            | &PlanStepType::Boost { ref plans_output, .. }
-            | &PlanStepType::Union { ref plans_output, .. }
-            | &PlanStepType::Intersect { ref plans_output, .. }
-            | &PlanStepType::FromAttribute { ref plans_output, .. } => plans_output.clone(),
+        match *self {
+            PlanStepType::FieldSearch { ref plans_output, .. }
+            | PlanStepType::ValueIdToParent { ref plans_output, .. }
+            | PlanStepType::Boost { ref plans_output, .. }
+            | PlanStepType::Union { ref plans_output, .. }
+            | PlanStepType::Intersect { ref plans_output, .. }
+            | PlanStepType::FromAttribute { ref plans_output, .. } => plans_output.clone(),
         }
     }
 }
@@ -110,7 +110,7 @@ impl StepExecutor for PlanStepType {
                 trace_info: joop,
                 ..
             } => {
-                output_next_steps.send(join_to_parent_with_score(persistence, input_prev_steps[0].recv()?, &path, &joop)?)?;
+                output_next_steps.send(join_to_parent_with_score(persistence, &input_prev_steps[0].recv()?, &path, &joop)?)?;
                 for el in input_prev_steps {
                     drop(el);
                 }
@@ -296,7 +296,7 @@ pub fn plan_creator_search_part(mut request_part: RequestSearchPart, mut request
 
         PlanStepType::FromAttribute {
             plans_output: rx.clone(),
-            steps: steps,
+            steps,
             output_next_steps: rx,
         }
     }

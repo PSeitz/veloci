@@ -18,7 +18,7 @@ use std::io::Write;
 
 use num;
 use num::cast::ToPrimitive;
-use num::{Integer, NumCast};
+// use num::{Integer, NumCast};
 use std::marker::PhantomData;
 
 use facet::*;
@@ -450,7 +450,7 @@ impl<T: IndexIdToParentData> IndexIdToMultipleParentIndirect<T> {
 } else {
     self.start_pos[pos] = num::cast(start).unwrap();
     self.data.push(num::cast(add_data.len()).unwrap());
-    for val in add_data.iter() {
+    for val in &add_data {
         self.max_value_id = std::cmp::max(val.to_u32().unwrap(), self.max_value_id);
         self.data.push(*val);
     }
@@ -541,9 +541,9 @@ impl<T: IndexIdToParentData> IndexIdToParent for IndexIdToMultipleParentIndirect
             }
 
             for position in &positions_vec {
-                let length: u32 = NumCast::from(self.data[*position as usize]).unwrap();
-                for id in &self.data[NumCast::from(*position + 1).unwrap()..NumCast::from(*position + 1 + length).unwrap()] {
-                    // for id in &self.data[NumCast::from(position[0]).unwrap()..NumCast::from(position[1]).unwrap()] {
+                let length: u32 = num::cast(self.data[*position as usize]).unwrap();
+                for id in &self.data[num::cast(*position + 1).unwrap()..num::cast(*position + 1 + length).unwrap()] {
+                    // for id in &self.data[num::cast(position[0]).unwrap()..num::cast(position[1]).unwrap()] {
                     coll.add(*id);
                 }
             }
@@ -553,7 +553,7 @@ impl<T: IndexIdToParentData> IndexIdToParent for IndexIdToMultipleParentIndirect
     }
 
     fn get_keys(&self) -> Vec<T> {
-        (NumCast::from(0).unwrap()..NumCast::from(self.get_size()).unwrap()).collect()
+        (num::cast(0).unwrap()..num::cast(self.get_size()).unwrap()).collect()
     }
 
     #[inline]
@@ -565,7 +565,7 @@ impl<T: IndexIdToParentData> IndexIdToParent for IndexIdToMultipleParentIndirect
             let data_start_pos = self.start_pos[id as usize];
             let data_start_pos_length = data_start_pos.to_u32().unwrap();
             if let Some(val) = get_encoded(data_start_pos_length) {
-                return Some(vec![NumCast::from(val).unwrap()]);
+                return Some(vec![num::cast(val).unwrap()]);
             }
             if data_start_pos_length == EMPTY_BUCKET {
                 return None;
@@ -573,10 +573,10 @@ impl<T: IndexIdToParentData> IndexIdToParent for IndexIdToMultipleParentIndirect
             // if positions[0] == positions[1] {
             //     return None;
             // }
-            let data_length: u32 = NumCast::from(self.data[data_start_pos_length as usize]).unwrap();
+            let data_length: u32 = num::cast(self.data[data_start_pos_length as usize]).unwrap();
             let data_start_pos = data_start_pos_length + 1;
             let end: u32 = data_start_pos + data_length;
-            Some(self.data[NumCast::from(data_start_pos).unwrap()..NumCast::from(end).unwrap()].to_vec())
+            Some(self.data[num::cast(data_start_pos).unwrap()..num::cast(end).unwrap()].to_vec())
         }
     }
 }
@@ -602,7 +602,7 @@ impl<T: IndexIdToParentData> IndexIdToParent for IndexIdToMultipleParentIndirect
 //             start_pos,
 //             data,
 //             size,
-//             max_value_id: NumCast::from(max_value_id).unwrap(),
+//             max_value_id: num::cast(max_value_id).unwrap(),
 //             avg_join_size: calc_avg_join_size(num_values, num_ids),
 //         }
 //     }
@@ -736,7 +736,7 @@ impl<T: IndexIdToParentData> IndexIdToParent for IndexIdToMultipleParentIndirect
 //         //         data_cache.resize(positions[1].to_usize().unwrap() - positions[0].to_usize().unwrap(), T::zero());
 //         //         let new_len = data_cache.len();
 
-//         //         self.data.access_into(NumCast::from(positions[0]).unwrap()..NumCast::from(positions[1]).unwrap(), &mut data_cache[0 .. new_len]);
+//         //         self.data.access_into(num::cast(positions[0]).unwrap()..num::cast(positions[1]).unwrap(), &mut data_cache[0 .. new_len]);
 //         //         for id in data_cache.iter() {
 //         //             coll.add(*id);
 //         //         }
@@ -779,7 +779,7 @@ impl<T: IndexIdToParentData> IndexIdToParent for IndexIdToMultipleParentIndirect
 //         //     let new_len = data_cache.len();
 
 //         //     self.data.access_into(
-//         //         NumCast::from(positions[0]).unwrap()..NumCast::from(positions[1]).unwrap(),
+//         //         num::cast(positions[0]).unwrap()..num::cast(positions[1]).unwrap(),
 //         //         &mut data_cache[0..new_len],
 //         //     );
 //         //     for id in &data_cache {
@@ -793,7 +793,7 @@ impl<T: IndexIdToParentData> IndexIdToParent for IndexIdToMultipleParentIndirect
 //     }
 
 //     fn get_keys(&self) -> Vec<T> {
-//         (NumCast::from(0).unwrap()..NumCast::from(self.start_pos.len()).unwrap()).collect()
+//         (num::cast(0).unwrap()..num::cast(self.start_pos.len()).unwrap()).collect()
 //     }
 
 //     #[inline]
@@ -856,16 +856,16 @@ impl<T: IndexIdToParentData> IndexIdToParent for IndexIdToMultipleParentIndirect
 //         let data_start_pos = start_pos.access(id as usize);
 //         let data_start_pos_length = data_start_pos.to_u32().unwrap();
 //         if let Some(val) = get_encoded(data_start_pos_length) {
-//             return Some(vec![NumCast::from(val).unwrap()]);
+//             return Some(vec![num::cast(val).unwrap()]);
 //         }
 //         if data_start_pos_length == EMPTY_BUCKET {
 //             return None;
 //         }
 
-//         let data_length: u32 = NumCast::from(data.access(data_start_pos_length as usize)).unwrap();
+//         let data_length: u32 = num::cast(data.access(data_start_pos_length as usize)).unwrap();
 //         let data_start_pos = data_start_pos_length + 1;
 //         let end: u32 = data_start_pos + data_length;
-//         Some(data.access(NumCast::from(data_start_pos).unwrap()..NumCast::from(end).unwrap()))
+//         Some(data.access(num::cast(data_start_pos).unwrap()..num::cast(end).unwrap()))
 //     }
 // }
 
@@ -892,7 +892,7 @@ impl<T: IndexIdToParentData> IndexIdToParent for IndexIdToMultipleParentIndirect
 //     type Output = T;
 
 //     fn get_keys(&self) -> Vec<T> {
-//         (NumCast::from(0).unwrap()..NumCast::from(self.start_pos.len()).unwrap()).collect()
+//         (num::cast(0).unwrap()..num::cast(self.start_pos.len()).unwrap()).collect()
 //     }
 
 //     #[inline]
@@ -958,7 +958,7 @@ impl<T: IndexIdToParentData> IndexIdToParent for PointingMMAPFileReader<T> {
     type Output = T;
 
     fn get_keys(&self) -> Vec<T> {
-        (NumCast::from(0).unwrap()..NumCast::from(self.get_size()).unwrap()).collect()
+        (num::cast(0).unwrap()..num::cast(self.get_size()).unwrap()).collect()
     }
 
     default fn get_values(&self, find: u64) -> Option<Vec<T>> {
@@ -968,7 +968,7 @@ impl<T: IndexIdToParentData> IndexIdToParent for PointingMMAPFileReader<T> {
             self.get_size(),
             &self.start_and_end_file,
             &self.data_file,
-        ).map(|el| el.iter().map(|el| NumCast::from(*el).unwrap()).collect())
+        ).map(|el| el.iter().map(|el| num::cast(*el).unwrap()).collect())
     }
 }
 
@@ -984,7 +984,7 @@ fn get_u32_values_from_pointing_mmap_file(find: u64, size: usize, start_pos: &Mm
 
         let data_start_pos_length = data_start_pos.to_u32().unwrap();
         if let Some(val) = get_encoded(data_start_pos_length) {
-            return Some(vec![NumCast::from(val).unwrap()]);
+            return Some(vec![num::cast(val).unwrap()]);
         }
         if data_start_pos_length == EMPTY_BUCKET {
             return None;
@@ -1057,7 +1057,7 @@ fn get_u32_values_from_pointing_mmap_file(find: u64, size: usize, start_pos: &Mm
 //     type Output = T;
 
 //     fn get_keys(&self) -> Vec<T> {
-//         (NumCast::from(0).unwrap()..NumCast::from(self.get_size()).unwrap()).collect()
+//         (num::cast(0).unwrap()..num::cast(self.get_size()).unwrap()).collect()
 //     }
 
 //     default fn get_values(&self, find: u64) -> Option<Vec<T>> {
@@ -1067,7 +1067,7 @@ fn get_u32_values_from_pointing_mmap_file(find: u64, size: usize, start_pos: &Mm
 //             self.get_size(),
 //             &self.start_and_end_file,
 //             &self.data_file,
-//         ).map(|el| el.iter().map(|el| NumCast::from(*el).unwrap()).collect())
+//         ).map(|el| el.iter().map(|el| num::cast(*el).unwrap()).collect())
 //     }
 // }
 // impl<T: IndexIdToParentData> HeapSizeOf for PointingArrayFileReader<T> {
@@ -1145,8 +1145,8 @@ pub fn id_to_parent_to_array_of_array<T: IndexIdToParentData>(store: &IndexIdToP
     let valids = store.get_keys();
 
     for valid in valids {
-        if let Some(vals) = store.get_values(NumCast::from(valid).unwrap()) {
-            data[valid.to_usize().unwrap()] = vals.iter().map(|el| NumCast::from(*el).unwrap()).collect();
+        if let Some(vals) = store.get_values(num::cast(valid).unwrap()) {
+            data[valid.to_usize().unwrap()] = vals.iter().map(|el| num::cast(*el).unwrap()).collect();
             // vals.sort(); // WHY U SORT ?
         }
     }
@@ -1183,7 +1183,7 @@ fn prepare_data_for_array_of_array<T: Clone, K: IndexIdToParentData>(store: &Ind
 //     to_indirect_arrays_dedup(store, cache_size, false)
 // }
 
-fn to_indirect_arrays_dedup<T: Integer + Clone + NumCast + Copy + IndexIdToParentData, K: IndexIdToParentData>(
+fn to_indirect_arrays_dedup<T: num::Integer + num::NumCast + Clone + Copy + IndexIdToParentData, K: IndexIdToParentData>(
     store: &IndexIdToParent<Output = K>,
     _cache_size: usize,
     sort_and_dedup: bool,
@@ -1220,7 +1220,7 @@ fn to_indirect_arrays_dedup<T: Integer + Clone + NumCast + Copy + IndexIdToParen
 
     for valid in 0..=num::cast(last_id).unwrap() {
         //let start = offset;
-        if let Some(mut vals) = store.get_values(valid as u64) {
+        if let Some(mut vals) = store.get_values(u64::from(valid)) {
             if sort_and_dedup {
                 vals.sort();
                 vals.dedup();

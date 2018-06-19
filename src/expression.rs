@@ -61,16 +61,13 @@ impl ScoreExpression {
         let mut current = "".to_string();
         // let currVal = None;
         for next_char in expression.chars() {
-            match next_char {
-                ' ' => {
-                    let val = current.parse::<f32>();
-                    // trace!("{:?}", val);
-                    if val.is_ok() {
-                        operations.push(OperatorType::Float(val.unwrap()));
-                    }
-                    current.clear();
+            if let ' ' = next_char {
+                let val = current.parse::<f32>();
+                // trace!("{:?}", val);
+                if val.is_ok() {
+                    operations.push(OperatorType::Float(val.unwrap()));
                 }
-                _ => {}
+                current.clear();
             }
 
             if next_char != ' ' {
@@ -112,8 +109,8 @@ impl ScoreExpression {
     pub fn new(expression: String) -> Self {
         let ops = ScoreExpression::parse(&expression);
         ScoreExpression {
-            expression: expression,
-            ops: ops,
+            expression,
+            ops,
         }
     }
 }

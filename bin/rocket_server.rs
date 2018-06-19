@@ -330,7 +330,7 @@ fn search_get_shard(database: String, params: QueryParams) -> Result<SearchResul
         boost_terms: boost_terms,
     };
 
-    Ok(SearchResult(shard.search_all_shards_from_qp(&q_params, query_param_to_vec(params.select))?))
+    Ok(SearchResult(shard.search_all_shards_from_qp(&q_params, &query_param_to_vec(params.select))?))
 }
 
 #[post("/<database>/suggest", format = "application/json", data = "<request>")]

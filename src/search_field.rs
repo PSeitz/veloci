@@ -484,7 +484,7 @@ fn resolve_token_to_anchor(
             let mut iter = token_to_anchor_score.get_score_iter(hit.id);
             anchor_ids_hits.reserve(iter.size_hint().1.unwrap());
             for el in iter {
-                if should_filter(&filter, el.id) {
+                if should_filter(filter, el.id) {
                     continue;
                 }
                 let final_score = hit.score * (el.score.to_f32() / 100.0); // TODO ADD LIMIT FOR TOP X
@@ -692,7 +692,7 @@ pub fn get_id_text_map_for_ids(persistence: &Persistence, path: &str, ids: &[u32
 // }
 
 #[inline]
-fn should_filter(filter: &Option<&FnvHashSet<u32>>, id: u32) -> bool {
+fn should_filter(filter: Option<&FnvHashSet<u32>>, id: u32) -> bool {
     filter.map(|filter| filter.contains(&id)).unwrap_or(false)
 }
 
@@ -739,7 +739,7 @@ pub fn resolve_token_hits(
 
                 token_hits.reserve(parent_ids_for_token.len());
                 for token_parentval_id in parent_ids_for_token {
-                    if should_filter(&filter, token_parentval_id) {
+                    if should_filter(filter, token_parentval_id) {
                         continue;
                     }
 
@@ -834,8 +834,8 @@ fn distance(s1: &str, s2: &str) -> u8 {
     unsafe {
         column.set_len(len_s1 + 1);
     }
-    for x in 0..len_s1 + 1 {
-        column[x] = x as u8;
+    for (i, item) in column.iter_mut().enumerate().take(len_s1 + 1) {
+        *item = i as u8;
     }
 
     for (x, current_char2) in s2.chars().enumerate() {

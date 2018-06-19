@@ -17,7 +17,8 @@ use facet::*;
 use parking_lot::Mutex;
 
 use num::cast::ToPrimitive;
-use num::NumCast;
+// use num::NumCast;
+use num;
 use std::fs;
 use std::marker::PhantomData;
 
@@ -69,11 +70,11 @@ impl_type_info_single_templ!(SingleArrayMMAP);
 //     }
 
 //     fn get_keys(&self) -> Vec<T> {
-//         (NumCast::from(0).unwrap()..NumCast::from(self.data.len()).unwrap()).collect()
+//         (num::cast(0).unwrap()..num::cast(self.data.len()).unwrap()).collect()
 //     }
 
 //     fn get_values(&self, id: u64) -> Option<Vec<T>> {
-//         let vec: Option<Vec<T>> = self.data.get(id as usize).map(|el| el.iter().map(|el| NumCast::from(*el).unwrap()).collect());
+//         let vec: Option<Vec<T>> = self.data.get(id as usize).map(|el| el.iter().map(|el| num::cast(*el).unwrap()).collect());
 //         if vec.is_some() && vec.as_ref().unwrap().is_empty() {
 //             return None;
 //         }
@@ -87,7 +88,7 @@ impl_type_info_single_templ!(SingleArrayMMAP);
 //     //     else {
 //     //         let positions = &self.start_and_end[(id * 2) as usize..=((id * 2) as usize + 1)];
 //     //         if positions[0] == positions[1] {return None}
-//     //         Some(self.data[NumCast::from(positions[0]).unwrap() .. NumCast::from(positions[1]).unwrap()].to_vec())
+//     //         Some(self.data[num::cast(positions[0]).unwrap() .. num::cast(positions[1]).unwrap()].to_vec())
 //     //     }
 //     // }
 
@@ -124,9 +125,9 @@ impl<T: IndexIdToParentData> IndexIdToOneParent<T> {
             .iter()
             .map(|el| {
                 if !el.is_empty() {
-                    NumCast::from(el[0]).unwrap()
+                    num::cast(el[0]).unwrap()
                 } else {
-                    NumCast::from(NOT_FOUND).unwrap()
+                    num::cast(NOT_FOUND).unwrap()
                 }
             })
             .collect();
@@ -142,14 +143,14 @@ impl<T: IndexIdToParentData> IndexIdToParent for IndexIdToOneParent<T> {
     }
 
     fn get_keys(&self) -> Vec<T> {
-        (NumCast::from(0).unwrap()..NumCast::from(self.data.len()).unwrap()).collect()
+        (num::cast(0).unwrap()..num::cast(self.data.len()).unwrap()).collect()
     }
 
     fn get_value(&self, id: u64) -> Option<T> {
         let val = self.data.get(id as usize);
         match val {
             Some(val) => {
-                if val.to_u64().unwrap() == NOT_FOUND as u64 {
+                if val.to_u64().unwrap() == u64::from(NOT_FOUND) {
                     None
                 } else {
                     Some(*val)
@@ -177,7 +178,7 @@ where
 {
     let mut coll: Box<AggregationCollector<T>> = get_collector(ids.len() as u32, 1.0, max_value_id);
     for id in ids {
-        if let Some(hit) = get_value(*id as u64) {
+        if let Some(hit) = get_value(u64::from(*id)) {
             coll.add(hit);
         }
     }
@@ -220,7 +221,7 @@ where
 //     }
 
 //     fn get_keys(&self) -> Vec<T> {
-//         (NumCast::from(0).unwrap()..NumCast::from(self.data.len()).unwrap()).collect()
+//         (num::cast(0).unwrap()..num::cast(self.data.len()).unwrap()).collect()
 //     }
 
 //     #[inline]
@@ -262,7 +263,7 @@ impl<T: IndexIdToParentData> IndexIdToParent for ParallelArrays<T> {
     type Output = T;
 
     fn get_keys(&self) -> Vec<T> {
-        let mut keys: Vec<T> = self.values1.iter().map(|el| NumCast::from(*el).unwrap()).collect();
+        let mut keys: Vec<T> = self.values1.iter().map(|el| num::cast(*el).unwrap()).collect();
         keys.sort();
         keys.dedup();
         keys
@@ -271,7 +272,7 @@ impl<T: IndexIdToParentData> IndexIdToParent for ParallelArrays<T> {
     #[inline]
     fn get_values(&self, id: u64) -> Option<Vec<T>> {
         let mut result = Vec::new();
-        let casted_id = NumCast::from(id).unwrap();
+        let casted_id = num::cast(id).unwrap();
         if let Ok(mut pos) = self.values1.binary_search(&casted_id) {
             //this is not a lower_bounds search so we MUST move to the first hit
             while pos != 0 && self.values1[pos - 1] == casted_id {
@@ -309,7 +310,7 @@ impl<T: IndexIdToParentData> SingleArrayMMAP<T> {
         self.data_metadata.lock().len() as usize / std::mem::size_of::<T>()
     }
 
-    pub fn new(data_file: fs::File, data_metadata: fs::Metadata, max_value_id: u32) -> Self {
+    pub fn new(data_file: &fs::File, data_metadata: fs::Metadata, max_value_id: u32) -> Self {
         let data_file = unsafe {
             MmapOptions::new()
                 .len(std::cmp::max(data_metadata.len() as usize, 4048))
@@ -317,7 +318,7 @@ impl<T: IndexIdToParentData> SingleArrayMMAP<T> {
                 .unwrap()
         };
         SingleArrayMMAP {
-            data_file: data_file,
+            data_file,
             data_metadata: Mutex::new(data_metadata),
             max_value_id,
             ok: PhantomData,
@@ -334,7 +335,7 @@ impl<T: IndexIdToParentData> IndexIdToParent for SingleArrayMMAP<T> {
     type Output = T;
 
     fn get_keys(&self) -> Vec<T> {
-        (NumCast::from(0).unwrap()..NumCast::from(self.get_size()).unwrap()).collect()
+        (num::cast(0).unwrap()..num::cast(self.get_size()).unwrap()).collect()
     }
 
     #[inline]
@@ -363,7 +364,7 @@ impl IndexIdToParent for SingleArrayMMAP<u32> {
         if id == u32::MAX {
             None
         } else {
-            Some(NumCast::from(id).unwrap())
+            Some(num::cast(id).unwrap())
         }
     }
 }
@@ -375,10 +376,10 @@ impl IndexIdToParent for SingleArrayMMAP<u64> {
         }
         let pos = find as usize * 8;
         let id = (&self.data_file[pos..pos + 8]).read_u64::<LittleEndian>().unwrap();
-        if id == u32::MAX as u64 {
+        if id == u64::from(u32::MAX) {
             None
         } else {
-            Some(NumCast::from(id).unwrap())
+            Some(num::cast(id).unwrap())
         }
     }
 }
@@ -424,7 +425,7 @@ impl IndexIdToParent for SingleArrayMMAP<u64> {
 //     type Output = T;
 
 //     fn get_keys(&self) -> Vec<T> {
-//         (NumCast::from(0).unwrap()..NumCast::from(self.get_size()).unwrap()).collect()
+//         (num::cast(0).unwrap()..num::cast(self.get_size()).unwrap()).collect()
 //     }
 
 //     default fn get_values(&self, _find: u64) -> Option<Vec<T>> {
@@ -520,8 +521,8 @@ pub fn id_to_parent_to_array_of_array<T: IndexIdToParentData>(store: &IndexIdToP
     let valids = store.get_keys();
 
     for valid in valids {
-        if let Some(vals) = store.get_values(NumCast::from(valid).unwrap()) {
-            data[valid.to_usize().unwrap()] = vals.iter().map(|el| NumCast::from(*el).unwrap()).collect();
+        if let Some(vals) = store.get_values(num::cast(valid).unwrap()) {
+            data[valid.to_usize().unwrap()] = vals.iter().map(|el| num::cast(*el).unwrap()).collect();
             // vals.sort(); // WHY U SORT ?
         }
     }
@@ -535,7 +536,7 @@ pub fn id_to_parent_to_array_of_array_snappy(store: &IndexIdToParent<Output = u3
     // debug_time!("convert key_value_store to vec vec");
     for valid in valids {
         let mut encoder = snap::Encoder::new();
-        let mut vals = store.get_values(NumCast::from(valid).unwrap()).unwrap();
+        let mut vals = store.get_values(num::cast(valid).unwrap()).unwrap();
         // let mut dat = vec_to_bytes_u32(&vals);
         let mut dat = encoder.compress_vec(&vec_to_bytes_u32(&vals)).unwrap();
         dat.shrink_to_fit();
@@ -550,8 +551,8 @@ pub fn id_to_parent_to_array_of_array_snappy(store: &IndexIdToParent<Output = u3
 //     // debug_time!("convert key_value_store to vec vec");
 //     for valid in valids {
 //         let mut uniform = mayda::Uniform::new();
-//         if let Some(vals) = store.get_values(NumCast::from(valid).unwrap()) {
-//             let yeps: Vec<T> = vals.iter().map(|el| NumCast::from(*el).unwrap()).collect();
+//         if let Some(vals) = store.get_values(num::cast(valid).unwrap()) {
+//             let yeps: Vec<T> = vals.iter().map(|el| num::cast(*el).unwrap()).collect();
 //             uniform.encode(&yeps).unwrap();
 //             data[valid.to_usize().unwrap()] = uniform;
 //         }
@@ -604,8 +605,8 @@ fn prepare_data_for_array_of_array<T: Clone, K: IndexIdToParentData>(store: &Ind
 #[cfg_attr(feature = "flame_it", flame)]
 pub fn valid_pair_to_parallel_arrays<T: IndexIdToParentData>(tuples: &mut Vec<create::ValIdPair>) -> ParallelArrays<T> {
     tuples.sort_unstable_by_key(|a| a.valid);
-    let valids = tuples.iter().map(|el| NumCast::from(el.valid).unwrap()).collect::<Vec<_>>();
-    let parent_val_ids = tuples.iter().map(|el| NumCast::from(el.parent_val_id).unwrap()).collect::<Vec<_>>();
+    let valids = tuples.iter().map(|el| num::cast(el.valid).unwrap()).collect::<Vec<_>>();
+    let parent_val_ids = tuples.iter().map(|el| num::cast(el.parent_val_id).unwrap()).collect::<Vec<_>>();
     ParallelArrays {
         values1: valids,
         values2: parent_val_ids,
@@ -648,8 +649,8 @@ pub fn valid_pair_to_direct_index<T: create::KeyValuePair>(tuples: &mut [T]) -> 
 #[cfg_attr(feature = "flame_it", flame)]
 pub fn boost_pair_to_parallel_arrays<T: create::KeyValuePair>(tuples: &mut [T]) -> ParallelArrays<u32> {
     tuples.sort_unstable_by_key(|a| a.get_key());
-    let valids = tuples.iter().map(|el| NumCast::from(el.get_key()).unwrap()).collect::<Vec<_>>();
-    let values = tuples.iter().map(|el| NumCast::from(el.get_value()).unwrap()).collect::<Vec<_>>();
+    let valids = tuples.iter().map(|el| num::cast(el.get_key()).unwrap()).collect::<Vec<_>>();
+    let values = tuples.iter().map(|el| num::cast(el.get_value()).unwrap()).collect::<Vec<_>>();
     ParallelArrays {
         values1: valids,
         values2: values,
@@ -702,7 +703,7 @@ mod tests {
     fn get_test_data_1_to_1<T: IndexIdToParentData>() -> IndexIdToOneParent<T> {
         let values = vec![5, 6, 9, 9, 9, 50000];
         IndexIdToOneParent {
-            data: values.iter().map(|el| NumCast::from(*el).unwrap()).collect(),
+            data: values.iter().map(|el| num::cast(*el).unwrap()).collect(),
             max_value_id: 50000,
         }
     }

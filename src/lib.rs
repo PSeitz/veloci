@@ -51,13 +51,13 @@ extern crate regex;
 extern crate uuid;
 
 #[macro_use]
+#[allow(unused_imports)]
 extern crate dump;
 
 extern crate flexi_logger;
 #[macro_use]
 extern crate log;
 
-extern crate test;
 
 
 extern crate itertools;
@@ -111,7 +111,6 @@ extern crate lru_cache;
 pub mod util;
 #[macro_use]
 pub mod type_info;
-pub mod bucket_list;
 pub mod create;
 // pub mod create_from_csv;
 pub mod doc_loader;
@@ -132,6 +131,9 @@ pub mod trace;
 
 #[cfg(test)]
 extern crate chashmap;
+
+#[cfg(test)]
+extern crate test;
 
 #[cfg(test)]
 extern crate rand;

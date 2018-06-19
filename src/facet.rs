@@ -1,7 +1,7 @@
 use fnv::FnvHashMap;
 use itertools::Itertools;
 use num;
-use num::NumCast;
+// use num::NumCast;
 use persistence::*;
 use search::*;
 use search_field::*;
@@ -85,7 +85,7 @@ pub fn get_facet(persistence: &Persistence, req: &FacetRequest, ids: &[u32]) -> 
     Ok(groups_with_text)
 }
 
-pub fn join_anchor_to_leaf(persistence: &Persistence, ids: &[u32], steps: &Vec<String>) -> Result<Vec<u32>, SearchError> {
+pub fn join_anchor_to_leaf(persistence: &Persistence, ids: &[u32], steps: &[String]) -> Result<Vec<u32>, SearchError> {
     //Use facet index as shortcut
     if persistence.has_index(&(steps.last().unwrap().to_string() + ".anchor_to_text_id")) {
         return Ok(join_for_n_to_m(persistence, ids, &(steps.last().unwrap().to_string() + ".anchor_to_text_id"))?);
@@ -129,7 +129,7 @@ pub fn join_for_n_to_m(persistence: &Persistence, value_ids: &[u32], path: &str)
 pub fn join_for_n_to_n(persistence: &Persistence, value_ids: &[u32], path: &str) -> Result<Vec<u32>, SearchError> {
     let kv_store = persistence.get_valueid_to_parent(path)?;
 
-    Ok(value_ids.iter().flat_map(|el| kv_store.get_value(*el as u64)).collect())
+    Ok(value_ids.iter().flat_map(|el| kv_store.get_value(u64::from(*el))).collect())
     // Ok(kv_store.get_values(value_id as u64))
 }
 
@@ -148,13 +148,13 @@ pub fn get_collector<T: 'static + IndexIdToParentData>(num_ids: u32, avg_join_si
     if prefer_vec {
         let mut dat = vec![];
         dat.resize(vec_len as usize, T::zero());
-        return Box::new(dat);
+        Box::new(dat)
     } else {
-        return Box::new(FnvHashMap::default());
-    };
+        Box::new(FnvHashMap::default())
+    }
 }
 
-fn get_top_n_sort_from_iter<'a, T: num::Zero + std::cmp::PartialOrd + Copy + std::fmt::Debug, K: Copy, I: Iterator<Item = (K, T)>>(
+fn get_top_n_sort_from_iter<T: num::Zero + std::cmp::PartialOrd + Copy + std::fmt::Debug, K: Copy, I: Iterator<Item = (K, T)>>(
     iter: I,
     top: usize,
 ) -> Vec<(K, T)> {
@@ -188,7 +188,7 @@ impl<T: IndexIdToParentData> AggregationCollector<T> for Vec<T> {
                 self.iter().enumerate().filter(|el| *el.1 != T::zero()).map(|el| (el.0, *el.1)),
                 top.unwrap() as usize,
             ).into_iter()
-                .map(|el| (NumCast::from(el.0).unwrap(), NumCast::from(el.1).unwrap()))
+                .map(|el| (num::cast(el.0).unwrap(), num::cast(el.1).unwrap()))
                 .collect()
         } else {
             let mut groups: Vec<(u32, T)> = self.iter().enumerate().filter(|el| *el.1 != T::zero()).map(|el| (el.0 as u32, *el.1)).collect();
@@ -196,7 +196,7 @@ impl<T: IndexIdToParentData> AggregationCollector<T> for Vec<T> {
             // groups = apply_top_skip(groups, 0, top.unwrap_or(std::u32::MAX) as usize);
             groups
                 .into_iter()
-                .map(|el| (NumCast::from(el.0).unwrap(), NumCast::from(el.1).unwrap()))
+                .map(|el| (num::cast(el.0).unwrap(), num::cast(el.1).unwrap()))
                 .collect()
         }
     }

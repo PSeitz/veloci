@@ -694,7 +694,7 @@ where
 
             data.text_id_to_anchor.add(text_info.id, anchor_id).unwrap(); // TODO Error Handling in closure
             data.anchor_to_text_id.as_mut().map(|el| el.add(anchor_id, text_info.id));
-            data.boost.as_mut().map(|el| {
+            if let Some(el) = data.boost.as_mut() {
                 // if options.boost_type == "int" {
                 let my_int = value.parse::<u32>().unwrap_or_else(|_| panic!("Expected an int value but got {:?}", value));
                 el.push(ValIdToValue {
@@ -702,7 +702,7 @@ where
                     value: my_int,
                 });
                 // } // TODO More cases
-            });
+            }
             trace!("Found id {:?} for {:?}", text_info, value);
 
             let score = calculate_token_score_for_entry(0, text_info.num_occurences, true);
@@ -1115,10 +1115,10 @@ where
         let mut boost_stores = vec![];
 
         for ind_index in &mut indices.indirect_indices_flush {
-            key_value_stores.push(persistence.flush_indirect_index(&mut ind_index.1, &ind_index.0, ind_index.2.clone())?);
+            key_value_stores.push(persistence.flush_indirect_index(&mut ind_index.1, &ind_index.0, ind_index.2)?);
         }
         for direct_index in &indices.direct_indices {
-            key_value_stores.push(persistence.write_direct_index(&direct_index.1, direct_index.0.to_string(), direct_index.2.clone())?);
+            key_value_stores.push(persistence.write_direct_index(&direct_index.1, direct_index.0.to_string(), direct_index.2)?);
         }
         for index in &mut indices.anchor_score_indices_flush {
             anchor_score_stores.push(persistence.flush_score_index_vint(&mut index.1, &index.0, LoadingType::Disk)?);
@@ -1337,7 +1337,7 @@ pub fn create_indices_from_file(
     create_indices_from_streams(persistence, stream1, stream2, stream3, indices, create_cache, load_persistence)
 }
 
-pub fn create_indices_from_streams<'a, I, J, K, S: AsRef<str>>(
+pub fn create_indices_from_streams<I, J, K, S: AsRef<str>>(
     mut persistence: &mut Persistence,
     stream1: I,
     stream2: J,

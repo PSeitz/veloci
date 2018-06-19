@@ -47,7 +47,7 @@ pub struct AnchorScore {
 }
 impl AnchorScore {
     pub fn new(id: u32, score: f16) -> AnchorScore {
-        AnchorScore { id: id, score: score }
+        AnchorScore { id, score }
     }
 }
 
@@ -60,6 +60,6 @@ pub struct AnchorScoreSerialize {
 
 impl AnchorScoreSerialize {
     pub fn new(id: u32, score: u16) -> AnchorScoreSerialize {
-        AnchorScoreSerialize { id: id, score: score }
+        AnchorScoreSerialize { id, score }
     }
 }

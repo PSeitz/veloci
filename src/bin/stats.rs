@@ -83,7 +83,7 @@ fn main() {
 
                 let mut increases = vec![];
                 let mut last = 0;
-                for el in text_id_score.iter() {
+                for el in &text_id_score {
                     increases.push(el.id - last);
                     last = el.id;
                 }

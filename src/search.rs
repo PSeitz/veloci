@@ -26,7 +26,6 @@ use rayon::prelude::*;
 
 use highlight_field;
 use search_field;
-
 #[derive(Serialize, Deserialize, Default, Clone, Debug)]
 pub struct Request {
     #[serde(skip_serializing_if = "Option::is_none")] pub or: Option<Vec<Request>>,
@@ -1087,7 +1086,6 @@ pub fn intersect_hits_vec(mut and_results: Vec<SearchFieldResult>) -> SearchFiel
         let current_score = current_el.score;
 
         if iterators_and_current.iter_mut().all(|ref mut iter_n_current| {
-            // let current_data = &mut iter_n_current.1;
             if (iter_n_current.1).id == current_id {
                 return true;
             }
@@ -1514,13 +1512,13 @@ pub fn read_data(persistence: &Persistence, id: u32, fields: &[String]) -> Resul
 #[cfg_attr(feature = "flame_it", flame)]
 pub fn read_tree(persistence: &Persistence, id: u32, tree: &NodeTree) -> Result<serde_json::Value, SearchError> {
     let mut json = json!({});
-    match tree {
-        &NodeTree::Map(ref map) => {
+    match *tree {
+        NodeTree::Map(ref map) => {
             for (prop, sub_tree) in map.iter() {
                 let current_path = concat(&prop, ".parentToValueId");
                 let is_array = prop.ends_with("[]");
-                match sub_tree {
-                    &NodeTree::IsLeaf => {
+                match *sub_tree {
+                    NodeTree::IsLeaf => {
                         if is_array {
                             if let Some(sub_ids) = join_for_1_to_n(persistence, id, &current_path)? {
                                 let mut sub_data = vec![];
@@ -1535,7 +1533,7 @@ pub fn read_tree(persistence: &Persistence, id: u32, tree: &NodeTree) -> Result<
                             json[extract_prop_name(prop)] = json!(texto);
                         }
                     }
-                    &NodeTree::Map(ref _next) => {
+                    NodeTree::Map(ref _next) => {
                         if !persistence.has_index(&current_path) {
                             // Special case a node without information an object in object e.g. there is no information 1:n to store
                             json[extract_prop_name(prop)] = read_tree(persistence, id, &sub_tree)?;
@@ -1554,7 +1552,7 @@ pub fn read_tree(persistence: &Persistence, id: u32, tree: &NodeTree) -> Result<
                 }
             }
         }
-        &NodeTree::IsLeaf => {}
+        NodeTree::IsLeaf => {}
     }
 
     Ok(json)
@@ -1569,7 +1567,7 @@ pub fn get_read_tree_from_fields(_persistence: &Persistence, fields: &[String]) 
 #[cfg_attr(feature = "flame_it", flame)]
 pub fn join_to_parent_with_score(
     persistence: &Persistence,
-    input: SearchFieldResult,
+    input: &SearchFieldResult,
     path: &str,
     _trace_time_info: &str,
 ) -> Result<SearchFieldResult, SearchError> {
@@ -1579,16 +1577,16 @@ pub fn join_to_parent_with_score(
     let mut hits = Vec::with_capacity(num_hits);
     let kv_store = persistence.get_valueid_to_parent(path)?;
 
-    for hit in input.hits_vec.iter() {
+    for hit in &input.hits_vec {
         let mut score = hit.score;
-        kv_store.get_values(hit.id as u64).as_ref().map(|values| {
+        if let Some(values) = kv_store.get_values(u64::from(hit.id)).as_ref() {
             total_values += values.len();
             hits.reserve(values.len());
             // trace!("value_id: {:?} values: {:?} ", value_id, values);
             for parent_val_id in values {
                 hits.push(Hit::new(*parent_val_id, score));
             }
-        });
+        }
     }
     hits.sort_unstable_by_key(|a| a.id);
     hits.dedup_by(|a, b| {
@@ -1619,11 +1617,11 @@ pub fn join_for_read(persistence: &Persistence, input: Vec<u32>, path: &str) -> 
     // debug_time!("term hits hit to column");
     debug_time!(format!("{:?} ", path));
     for value_id in input {
-        let ref values = kv_store.get_values(value_id as u64);
-        values.as_ref().map(|values| {
+        let values = &kv_store.get_values(u64::from(value_id));
+        if let Some(values) = values.as_ref() {
             hits.reserve(values.len());
             hits.insert(value_id, values.clone());
-        });
+        }
     }
     debug!("hits hit {:?} distinct in column {:?}", hits.len(), path);
 
@@ -1633,12 +1631,12 @@ pub fn join_for_read(persistence: &Persistence, input: Vec<u32>, path: &str) -> 
 pub fn join_for_1_to_1(persistence: &Persistence, value_id: u32, path: &str) -> Result<std::option::Option<u32>, SearchError> {
     let kv_store = persistence.get_valueid_to_parent(path)?;
     // trace!("path {:?} id {:?} resulto {:?}", path, value_id, kv_store.get_value(value_id as u64));
-    Ok(kv_store.get_value(value_id as u64))
+    Ok(kv_store.get_value(u64::from(value_id)))
 }
 #[cfg_attr(feature = "flame_it", flame)]
 pub fn join_for_1_to_n(persistence: &Persistence, value_id: u32, path: &str) -> Result<Option<Vec<u32>>, SearchError> {
     let kv_store = persistence.get_valueid_to_parent(path)?;
-    Ok(kv_store.get_values(value_id as u64))
+    Ok(kv_store.get_values(u64::from(value_id)))
 }
 
 // #[cfg_attr(feature="flame_it", flame)]

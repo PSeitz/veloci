@@ -10,7 +10,7 @@ use std::{self, env, mem, str, u32};
 
 use byteorder::{ByteOrder, LittleEndian};
 use num::cast::ToPrimitive;
-use num::{self, Integer, NumCast};
+use num::{self, Integer};
 
 use lru_cache;
 use serde_json;
@@ -157,7 +157,7 @@ pub struct IDList {
     pub path: String,
     pub size: u64,
     pub id_type: IDDataType,
-    pub doc_id_type: bool,
+    // pub doc_id_type: bool,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
@@ -168,22 +168,22 @@ pub enum IDDataType {
 // use persistence_data;
 
 // pub trait IndexIdToParentData:
-//     Integer + Clone + NumCast + mayda::utility::Bits + HeapSizeOf + Debug + Sync + Send + Copy + ToPrimitive + std::iter::Step + std::hash::Hash + 'static
+//     Integer + Clone + num::NumCast + mayda::utility::Bits + HeapSizeOf + Debug + Sync + Send + Copy + ToPrimitive + std::iter::Step + std::hash::Hash + 'static
 // {
 // }
 // impl<T> IndexIdToParentData for T
 // where
-//     T: Integer + Clone + NumCast + mayda::utility::Bits + HeapSizeOf + Debug + Sync + Send + Copy + ToPrimitive + std::iter::Step + std::hash::Hash + 'static,
+//     T: Integer + Clone + num::NumCast + mayda::utility::Bits + HeapSizeOf + Debug + Sync + Send + Copy + ToPrimitive + std::iter::Step + std::hash::Hash + 'static,
 // {
 // }
 
 pub trait IndexIdToParentData:
-    Integer + Clone + NumCast + HeapSizeOf + Debug + Sync + Send + Copy + ToPrimitive + std::iter::Step + std::hash::Hash + 'static
+    Integer + Clone + num::NumCast + HeapSizeOf + Debug + Sync + Send + Copy + ToPrimitive + std::iter::Step + std::hash::Hash + 'static
 {
 }
 impl<T> IndexIdToParentData for T
 where
-    T: Integer + Clone + NumCast + HeapSizeOf + Debug + Sync + Send + Copy + ToPrimitive + std::iter::Step + std::hash::Hash + 'static,
+    T: Integer + Clone + num::NumCast + HeapSizeOf + Debug + Sync + Send + Copy + ToPrimitive + std::iter::Step + std::hash::Hash + 'static,
 {
 }
 
@@ -211,7 +211,7 @@ pub trait IndexIdToParent: Debug + HeapSizeOf + Sync + Send + type_info::TypeInf
     #[inline]
     fn append_values_for_ids(&self, ids: &[u32], vec: &mut Vec<Self::Output>) {
         for id in ids {
-            if let Some(vals) = self.get_values(*id as u64) {
+            if let Some(vals) = self.get_values(u64::from(*id)) {
                 vec.reserve(vals.len());
                 for id in vals {
                     vec.push(id);
@@ -224,7 +224,7 @@ pub trait IndexIdToParent: Debug + HeapSizeOf + Sync + Send + type_info::TypeInf
     fn count_values_for_ids(&self, ids: &[u32], _top: Option<u32>) -> FnvHashMap<Self::Output, usize> {
         let mut hits = FnvHashMap::default();
         for id in ids {
-            if let Some(vals) = self.get_values(*id as u64) {
+            if let Some(vals) = self.get_values(u64::from(*id)) {
                 // vec.reserve(vals.len());
                 for id in vals {
                     let stat = hits.entry(id).or_insert(0);
@@ -266,7 +266,7 @@ pub trait IndexIdToParent: Debug + HeapSizeOf + Sync + Send + type_info::TypeInf
     fn is_1_to_n(&self) -> bool {
         let keys = self.get_keys();
         keys.iter()
-            .any(|key| self.get_values(NumCast::from(*key).unwrap()).map(|values| values.len() > 1).unwrap_or(false))
+            .any(|key| self.get_values(num::cast(*key).unwrap()).map(|values| values.len() > 1).unwrap_or(false))
     }
 }
 
@@ -274,7 +274,7 @@ pub fn trace_index_id_to_parent<T: IndexIdToParentData>(val: &IndexIdToParent<Ou
     if log_enabled!(log::Level::Trace) {
         let keys = val.get_keys();
         for key in keys.iter().take(100) {
-            if let Some(vals) = val.get_values(NumCast::from(*key).unwrap()) {
+            if let Some(vals) = val.get_values(num::cast(*key).unwrap()) {
                 let mut to = std::cmp::min(vals.len(), 100);
                 trace!("key {:?} to {:?}", key, &vals[0..to]);
             }
@@ -285,7 +285,7 @@ pub fn trace_index_id_to_parent<T: IndexIdToParentData>(val: &IndexIdToParent<Ou
 pub fn get_readable_size(value: usize) -> ColoredString {
     match value {
         0...1_000 => format!("{:?} b", value).blue(),
-        1_000...1_000_000 => format!("{:?} kb", value / 1_000).green(),
+        1_001...1_000_000 => format!("{:?} kb", value / 1_000).green(),
         _ => format!("{:?} mb", value / 1_000_000).red(),
     }
 }
@@ -322,7 +322,7 @@ impl Persistence {
                 let data_file = self.get_file_handle(path)?;
                 let data_metadata = self.get_file_metadata_handle(path)?;
 
-                let store = SingleArrayMMAP::<u64>::new(data_file, data_metadata, u32::MAX);
+                let store = SingleArrayMMAP::<u64>::new(&data_file, data_metadata, u32::MAX);
                 self.indices
                     .index_64
                     .insert(path.to_string(), Box::new(store));
@@ -477,7 +477,7 @@ impl Persistence {
                             KVStoreType::IndexIdToOneParent => {
                                 let data_file = get_file_handle_complete_path(&data_direct_path)?;
                                 let data_metadata = get_file_metadata_handle_complete_path(&data_direct_path)?;
-                                let store = SingleArrayMMAP::<u32>::new(data_file, data_metadata, el.max_value_id);
+                                let store = SingleArrayMMAP::<u32>::new(&data_file, data_metadata, el.max_value_id);
 
                                 Ok((el.path.to_string(), Box::new(store) as Box<IndexIdToParent<Output = u32>>))
                             }
@@ -503,7 +503,7 @@ impl Persistence {
                 KVStoreType::IndexIdToOneParent => {
                     let data_file = self.get_file_handle(&el.path)?;
                     let data_metadata = self.get_file_metadata_handle(&el.path)?;
-                    let store = SingleArrayMMAP::<u32>::new(data_file, data_metadata, el.max_value_id);
+                    let store = SingleArrayMMAP::<u32>::new(&data_file, data_metadata, el.max_value_id);
                     // self.indices
                     //     .boost_valueid_to_value
                     //     .insert(el.path.to_string(), Box::new(IndexIdToOneParentMayda::<u32>::new(&store, u32::MAX)));
@@ -704,7 +704,7 @@ impl Persistence {
     }
 
     #[cfg_attr(feature = "flame_it", flame)]
-    pub fn write_offset<T: Clone + Integer + NumCast + Copy + Debug>(&self, bytes: &[u8], data: &[T], path: &str) -> Result<((String, IDList)), io::Error> {
+    pub fn write_offset<T: Clone + Integer + num::NumCast + Copy + Debug>(&self, bytes: &[u8], data: &[T], path: &str) -> Result<((String, IDList)), io::Error> {
         debug_time!(format!("Wrote Index {} With size {:?}", path, data.len()));
         File::create(util::get_file_path(&self.db, path))?.write_all(bytes)?;
         info!("Wrote Index {} With size {:?}", path, data.len());
@@ -714,22 +714,13 @@ impl Persistence {
             8 => IDDataType::U64,
             _ => panic!("wrong sizeee"),
         };
-        // self.meta_data.id_lists.insert(
-        //     path.to_string(),
-        //     IDList {
-        //         path: path.to_string(),
-        //         size: data.len() as u64,
-        //         id_type: sizo,
-        //         doc_id_type: check_is_docid_type(data),
-        //     },
-        // );
         Ok((
             path.to_string(),
             IDList {
                 path: path.to_string(),
                 size: data.len() as u64,
                 id_type: sizo,
-                doc_id_type: check_is_docid_type(data),
+                // doc_id_type: check_is_docid_type(data),
             },
         ))
     }
@@ -1035,15 +1026,15 @@ pub fn load_index_u64<P: AsRef<Path> + std::fmt::Debug>(s1: P) -> Result<Vec<u64
     Ok(bytes_to_vec_u64(&file_path_to_bytes(s1)?))
 }
 
-fn check_is_docid_type<T: Integer + NumCast + Copy>(data: &[T]) -> bool {
-    for (index, value_id) in data.iter().enumerate() {
-        let blub: usize = num::cast(*value_id).unwrap();
-        if blub != index {
-            return false;
-        }
-    }
-    true
-}
+// fn check_is_docid_type<T: Integer + num::NumCast + Copy>(data: &[T]) -> bool {
+//     for (index, value_id) in data.iter().enumerate() {
+//         let blub: usize = num::cast(*value_id).unwrap();
+//         if blub != index {
+//             return false;
+//         }
+//     }
+//     true
+// }
 
 pub fn get_file_metadata_handle_complete_path(path: &str) -> Result<fs::Metadata, io::Error> {
     Ok(fs::metadata(path)?)
