@@ -1,4 +1,11 @@
 language: rust
+sudo: required
+dist: trusty
+addons:
+    apt:
+        packages:
+            - libssl-dev
+cache: cargo
 rust:
   - nightly
 env:
@@ -6,3 +13,21 @@ env:
   - PersistenceType=Persistent LoadingType=InMemory RUST_BACKTRACE=full RUST_LOG=search_lib=trace
   - PersistenceType=Persistent LoadingType=InMemoryUnCompressed RUST_BACKTRACE=full RUST_LOG=search_lib=trace
   - PersistenceType=Transient RUST_BACKTRACE=full RUST_LOG=search_lib=trace
+matrix:
+  allow_failures:
+    - rust: nightly
+script:
+- cargo clean
+- cargo build
+- cargo test
+
+after_success: |
+  if [[ "$TRAVIS_RUST_VERSION" == stable ]]; then
+    bash <(curl https://raw.githubusercontent.com/xd009642/tarpaulin/master/travis-install.sh)
+    # Uncomment the following line for coveralls.io
+    cargo tarpaulin --ciserver travis-ci --coveralls $TRAVIS_JOB_ID
+
+    # Uncomment the following two lines create and upload a report for codecov.io
+    # cargo tarpaulin --out Xml
+    # bash <(curl -s https://codecov.io/bash)
+  fi
