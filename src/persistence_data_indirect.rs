@@ -10,7 +10,7 @@ use type_info::TypeInfo;
 use parking_lot::Mutex;
 
 use std;
-use std::fs;
+use std::fs::{self, File};
 use std::io;
 use std::io::Write;
 
@@ -132,9 +132,7 @@ impl<T: IndexIdToParentData> IndexIdToMultipleParentIndirectFlushingInOrder<T> {
             self.data_cache.extend(add_data);
         }
 
-        //TODO threshold 0 is buggy?
         if self.ids_cache.len() * 4 + self.data_cache.len() >= 4_000_000 {
-            // TODO: Make good flushes every 4MB currently
             self.flush()?;
         }
         Ok(())
@@ -303,12 +301,37 @@ pub struct PointingMMAPFileReader<T: IndexIdToParentData> {
     pub avg_join_size: f32,
 }
 
+
 impl<T: IndexIdToParentData> PointingMMAPFileReader<T> {
     #[inline]
     fn get_size(&self) -> usize {
         self.indirect_metadata.lock().len() as usize / 4
     }
 
+    pub fn from_path(
+        path: &str,
+        max_value_id: u32,
+        avg_join_size: f32,
+    ) -> Result<Self, io::Error> {
+        let start_and_end_file = unsafe {
+            MmapOptions::new()
+                .map(&File::open(path.to_string() + ".indirect")?)
+                .unwrap()
+        };
+        let data_file = unsafe {
+            MmapOptions::new()
+                .map(&File::open(path.to_string() + ".data")?)
+                .unwrap()
+        };
+        Ok(PointingMMAPFileReader {
+            start_and_end_file,
+            data_file,
+            indirect_metadata: Mutex::new(File::open(path.to_string() + ".indirect")?.metadata()?),
+            ok: PhantomData,
+            max_value_id,
+            avg_join_size,
+        })
+    }
     pub fn new(
         start_and_end_file: &fs::File,
         data_file: &fs::File,

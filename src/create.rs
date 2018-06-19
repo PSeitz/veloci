@@ -22,6 +22,7 @@ use std::io::BufRead;
 use tokenizer::*;
 use util::*;
 use util::{self, concat};
+use persistence_data::*;
 
 use buffered_index_writer::BufferedIndexWriter;
 use fixedbitset::FixedBitSet;
@@ -525,7 +526,8 @@ struct PathData {
     parent_to_text_id: BufferedIndexWriter,
     text_id_to_anchor: BufferedIndexWriter,
     anchor_to_text_id: Option<BufferedIndexWriter>,
-    boost: Option<Vec<ValIdToValue>>,
+    // boost: Option<Vec<ValIdToValue>>,
+    boost: Option<BufferedIndexWriter>,
     // max_valid: u32,
     // max_parentid: u32,
 }
@@ -649,7 +651,8 @@ where
         info_time!("build path data");
         let mut cb_text = |anchor_id: u32, value: &str, path: &str, parent_val_id: u32, _is_new_doc: bool| {
             let data = get_or_insert_prefer_get(&mut path_data as *mut FnvHashMap<_, _>, path, &|| {
-                let boost_info_data = if boost_info_for_path.contains_key(path) { Some(vec![]) } else { None };
+                // let boost_info_data = if boost_info_for_path.contains_key(path) { Some(vec![]) } else { None };
+                let boost_info_data = if boost_info_for_path.contains_key(path) { Some(BufferedIndexWriter::new_for_sorted_id_insertion()) } else { None };
                 let anchor_to_text_id = if facet_index.contains(path) && is_1_to_n(path) {
                     //Create facet index only for 1:N
                     // anchor_id is monotonically increasing, hint buffered index writer, it's already sorted
@@ -686,14 +689,17 @@ where
             data.parent_to_text_id.add(parent_val_id, text_info.id).unwrap(); // TODO Error Handling in closure
 
             data.text_id_to_anchor.add(text_info.id, anchor_id).unwrap(); // TODO Error Handling in closure
-            data.anchor_to_text_id.as_mut().map(|el| el.add(anchor_id, text_info.id));
+            if let Some(el) = data.anchor_to_text_id.as_mut(){
+                el.add(anchor_id, text_info.id).unwrap(); // TODO Error Handling in closure
+            }
             if let Some(el) = data.boost.as_mut() {
                 // if options.boost_type == "int" {
                 let my_int = value.parse::<u32>().unwrap_or_else(|_| panic!("Expected an int value but got {:?}", value));
-                el.push(ValIdToValue {
-                    valid: parent_val_id,
-                    value: my_int,
-                });
+                el.add(parent_val_id, my_int).unwrap(); // TODO Error Handling in closure
+                // el.push(ValIdToValue {
+                //     valid: parent_val_id,
+                //     value: my_int,
+                // });
                 // } // TODO More cases
             }
             trace!("Found id {:?} for {:?}", text_info, value);
@@ -749,11 +755,11 @@ where
 
     std::mem::swap(&mut create_cache.term_data.id_holder, &mut id_holder);
 
-    for data in path_data.values_mut() {
-        if let Some(ref mut tuples) = data.boost {
-            tuples.shrink_to_fit();
-        }
-    }
+    // for data in path_data.values_mut() {
+    //     if let Some(ref mut tuples) = data.boost {
+    //         tuples.shrink_to_fit();
+    //     }
+    // }
 
     Ok((path_data, tuples_to_parent_in_path))
 }
@@ -810,7 +816,7 @@ fn trace_indices(path_data: &mut FnvHashMap<String, PathData>) {
     }
 }
 
-use persistence_data::*;
+
 
 fn add_index_flush(
     db_path: &str,
@@ -855,14 +861,15 @@ fn add_anchor_score_flush(
 struct IndicesFromRawData {
     direct_indices: Vec<(String, IndexIdToOneParent<u32>, LoadingType)>,
     indirect_indices_flush: Vec<(String, IndexIdToMultipleParentIndirectFlushingInOrder<u32>, LoadingType)>,
-    boost_indices: Vec<(String, IndexIdToOneParent<u32>)>,
+    // boost_indices: Vec<(String, IndexIdToOneParent<u32>)>,
+    boost_indices: Vec<(String, IndexIdToMultipleParentIndirectFlushingInOrder<u32>, LoadingType)>,
     anchor_score_indices_flush: Vec<(String, TokenToAnchorScoreVintFlushing)>,
 }
 
-fn free_vec<T>(vecco: &mut Vec<T>) {
-    vecco.clear();
-    vecco.shrink_to_fit();
-}
+// fn free_vec<T>(vecco: &mut Vec<T>) {
+//     vecco.clear();
+//     vecco.shrink_to_fit();
+// }
 
 fn convert_raw_path_data_to_indices(
     db: &str,
@@ -876,7 +883,7 @@ fn convert_raw_path_data_to_indices(
 
     let indices_vec: Result<Vec<_>, io::Error> = path_data
         .into_par_iter()
-        .map(|(path, mut data)| {
+        .map(|(path, data)| {
             let mut indices = IndicesFromRawData::default();
 
             let path = &path;
@@ -954,10 +961,17 @@ fn convert_raw_path_data_to_indices(
                 ).unwrap(); //TODO Error handling
             }
 
-            if let Some(ref mut tuples) = data.boost {
-                let store = valid_pair_to_direct_index(tuples);
-                indices.boost_indices.push((concat(&extract_field_name(path), ".boost_valid_to_value"), store));
-                free_vec(tuples);
+            if let Some(buffered_index_data) = data.boost {
+
+                let boost_path = concat(&extract_field_name(path), ".boost_valid_to_value");
+                let indirect_file_path = util::get_file_path(&db, &(boost_path.to_string() + ".indirect"));
+                let data_file_path = util::get_file_path(&db, &(boost_path.to_string() + ".data"));
+
+                let mut store = IndexIdToMultipleParentIndirectFlushingInOrder::<u32>::new(indirect_file_path, data_file_path);
+                stream_buffered_index_writer_to_indirect_index(buffered_index_data, &mut store, false)?;
+                // indices.indirect_indices_flush.push((path, store, loading_type));
+                // let store = valid_pair_to_direct_index(tuples);
+                indices.boost_indices.push((boost_path, store, LoadingType::InMemoryUnCompressed));
             }
 
             Ok(indices)
@@ -1122,8 +1136,9 @@ where
         for index in &mut indices.anchor_score_indices_flush {
             anchor_score_stores.push(persistence.flush_score_index_vint(&mut index.1, &index.0, LoadingType::Disk)?);
         }
-        for index in &indices.boost_indices {
-            boost_stores.push(persistence.write_direct_index(&index.1, &index.0, LoadingType::Disk)?);
+        for index in &mut indices.boost_indices {
+            // boost_stores.push(persistence.write_direct_index(&index.1, &index.0, LoadingType::Disk)?);
+            boost_stores.push(persistence.flush_indirect_index(&mut index.1, &index.0, index.2)?);
         }
         persistence.meta_data.key_value_stores.extend(key_value_stores);
         persistence.meta_data.anchor_score_stores.extend(anchor_score_stores);
@@ -1145,18 +1160,11 @@ where
                 persistence.indices.key_value_stores.insert(path, Box::new(index.into_im_store()));
             } else {
                 //load data with MMap
-                let start_and_end_file = persistence::get_file_handle_complete_path(&index.indirect_path).unwrap(); //TODO ERROR HANDLINGU
-                let data_file = persistence::get_file_handle_complete_path(&index.data_path).unwrap(); //TODO ERROR HANDLINGU
-                let indirect_metadata = persistence::get_file_metadata_handle_complete_path(&index.indirect_path).unwrap(); //TODO ERROR HANDLINGU
-                let data_metadata = persistence::get_file_metadata_handle_complete_path(&index.data_path).unwrap(); //TODO ERROR HANDLINGU
-                let store = PointingMMAPFileReader::new(
-                    &start_and_end_file,
-                    &data_file,
-                    indirect_metadata,
-                    &data_metadata,
+                let store = PointingMMAPFileReader::from_path(
+                    &get_file_path(&persistence.db, &path),
                     index.max_value_id,
                     index.avg_join_size,
-                );
+                )?;
 
                 persistence.indices.key_value_stores.insert(path, Box::new(store));
             }
@@ -1172,7 +1180,21 @@ where
             }
         }
         for index in indices.boost_indices {
-            persistence.indices.boost_valueid_to_value.insert(index.0, Box::new(index.1));
+            let path = index.0;
+            let index = index.1;
+            // persistence.indices.boost_valueid_to_value.insert(index.0, Box::new(index.1));
+            if index.is_in_memory() {
+                //Move data to IndexIdToMultipleParentIndirect
+                persistence.indices.boost_valueid_to_value.insert(path, Box::new(index.into_im_store()));
+            } else {
+                let store = PointingMMAPFileReader::from_path(
+                    &get_file_path(&persistence.db, &path),
+                    index.max_value_id,
+                    index.avg_join_size,
+                )?;
+
+                persistence.indices.boost_valueid_to_value.insert(path, Box::new(store));
+            }
         }
     }
 

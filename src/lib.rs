@@ -67,7 +67,7 @@ extern crate prettytable;
 
 extern crate bincode;
 extern crate levenshtein_automata;
-extern crate snap;
+// extern crate snap;
 
 extern crate heapsize;
 #[macro_use]

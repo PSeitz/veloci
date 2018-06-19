@@ -465,7 +465,7 @@ mod tests {
                 }
             });
             let wa = search_testo_to_doc(req).data;
-            assert_eq!(wa[0].doc["meanings"]["eng"][0], "will");
+            assert_eq!(wa[0].doc["meanings"]["eng"][2], "der große karl");
         }
 
         it "should search word non tokenized'"{
@@ -528,6 +528,7 @@ mod tests {
 
             let hits = search_testo_to_doc(req).data;
             assert_eq!(hits.len(), 1);
+            assert_eq!(hits[0].doc["ent_seq"], "1587680");
         }
 
         it "AND connect hits different fields - no hit"{
@@ -564,6 +565,7 @@ mod tests {
 
             let hits = search_testo_to_doc(req).data;
             assert_eq!(hits.len(), 1);
+            assert_eq!(hits[0].doc["ent_seq"], "1000");
         }
 
         it "OR connect hits"{

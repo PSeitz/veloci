@@ -52,7 +52,7 @@ regex = "0.2"
 serde = "1.0.1"
 serde_derive = "1.0.1"
 serde_json = "1.0.0"
-snap = "0.2"
+# snap = "0.2"
 
 [dependencies.btree]
 git = "https://github.com/wspeirs/btree"

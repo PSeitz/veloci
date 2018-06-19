@@ -8,11 +8,9 @@ use byteorder::{LittleEndian, ReadBytesExt};
 use create;
 use persistence::*;
 pub use persistence_data_indirect::*;
-use snap;
 
 use facet::*;
 use parking_lot::Mutex;
-use num::cast::ToPrimitive;
 use num;
 
 use type_info::TypeInfo;
@@ -286,32 +284,32 @@ fn test_index_parrallel_arrays() {
     assert_eq!(ix.get_values(0).unwrap(), vec![0, 1]);
 }
 
-#[test]
-fn test_snap() {
-    use byteorder::WriteBytesExt;
-    let mut encoder = snap::Encoder::new();
-    let mut data: Vec<Vec<u32>> = vec![];
-    data.push(vec![11, 12, 13, 14, 15, 16, 17, 18, 19, 110, 111, 112, 113, 114, 115, 116, 117, 118]);
-    data.push(vec![10, 11, 12, 13, 14, 15]);
-    data.push(vec![10]);
-    info!("data orig {:?}", data.heap_size_of_children());
+// #[test]
+// fn test_snap() {
+//     use byteorder::WriteBytesExt;
+//     let mut encoder = snap::Encoder::new();
+//     let mut data: Vec<Vec<u32>> = vec![];
+//     data.push(vec![11, 12, 13, 14, 15, 16, 17, 18, 19, 110, 111, 112, 113, 114, 115, 116, 117, 118]);
+//     data.push(vec![10, 11, 12, 13, 14, 15]);
+//     data.push(vec![10]);
+//     info!("data orig {:?}", data.heap_size_of_children());
 
-    let data4: Vec<Vec<u8>> = data.iter().map(|el| vec_to_bytes_u32(el)).collect();
-    info!("data byteorder {:?}", data4.heap_size_of_children());
+//     let data4: Vec<Vec<u8>> = data.iter().map(|el| vec_to_bytes_u32(el)).collect();
+//     info!("data byteorder {:?}", data4.heap_size_of_children());
 
-    let data5: Vec<Vec<u8>> = data.iter()
-        .map(|el| {
-            let mut dat = encoder.compress_vec(&vec_to_bytes_u32(el)).unwrap();
-            dat.shrink_to_fit();
-            dat
-        })
-        .collect();
-    info!("data byteorder compressed {:?}", data5.heap_size_of_children());
+//     let data5: Vec<Vec<u8>> = data.iter()
+//         .map(|el| {
+//             let mut dat = encoder.compress_vec(&vec_to_bytes_u32(el)).unwrap();
+//             dat.shrink_to_fit();
+//             dat
+//         })
+//         .collect();
+//     info!("data byteorder compressed {:?}", data5.heap_size_of_children());
 
-    let mut wtr: Vec<u8> = vec![];
-    wtr.write_u32::<LittleEndian>(10).unwrap();
-    info!("wtr {:?}", wtr);
-}
+//     let mut wtr: Vec<u8> = vec![];
+//     wtr.write_u32::<LittleEndian>(10).unwrap();
+//     info!("wtr {:?}", wtr);
+// }
 
 #[cfg(test)]
 mod tests {
