@@ -15,7 +15,6 @@ use num::{self, Integer};
 use lru_cache;
 use serde_json;
 
-use bincode::deserialize;
 use fnv::FnvHashMap;
 
 use log;
