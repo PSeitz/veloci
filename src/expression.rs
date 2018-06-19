@@ -108,10 +108,7 @@ impl ScoreExpression {
 
     pub fn new(expression: String) -> Self {
         let ops = ScoreExpression::parse(&expression);
-        ScoreExpression {
-            expression,
-            ops,
-        }
+        ScoreExpression { expression, ops }
     }
 }
 

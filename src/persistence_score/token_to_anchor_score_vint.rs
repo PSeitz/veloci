@@ -253,7 +253,7 @@ impl TokenToAnchorScore for TokenToAnchorScoreVintIM {
         Some(AnchorScoreIter::new(&self.data[pos as usize..]).collect())
     }
 
-    fn get_score_iter(& self, id: u32) -> AnchorScoreIter {
+    fn get_score_iter(&self, id: u32) -> AnchorScoreIter {
         if id as usize >= self.get_size() {
             return AnchorScoreIter::new(&[]);
         }

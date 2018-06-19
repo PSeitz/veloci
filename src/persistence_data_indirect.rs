@@ -399,12 +399,8 @@ pub struct IndexIdToMultipleParentIndirect<T: IndexIdToParentData> {
 }
 impl<T: IndexIdToParentData> HeapSizeOf for IndexIdToMultipleParentIndirect<T> {
     fn heap_size_of_children(&self) -> usize {
-        self.start_pos.heap_size_of_children()
-            + self.data.heap_size_of_children()
-            + self.max_value_id.heap_size_of_children()
-            + self.avg_join_size.heap_size_of_children()
-            + self.num_values.heap_size_of_children()
-            + self.num_ids.heap_size_of_children()
+        self.start_pos.heap_size_of_children() + self.data.heap_size_of_children() + self.max_value_id.heap_size_of_children()
+            + self.avg_join_size.heap_size_of_children() + self.num_values.heap_size_of_children() + self.num_ids.heap_size_of_children()
     }
 }
 
@@ -445,19 +441,19 @@ impl<T: IndexIdToParentData> IndexIdToMultipleParentIndirect<T> {
             set_high_bit(&mut val); // encode directly, much wow, much compression
             self.start_pos[pos] = num::cast(val).unwrap();
         } else if let Some(&mut start) = self.cache.get_mut(&add_data) {
-    //reuse and reference existing data
-    self.start_pos[pos] = num::cast(start).unwrap();
-} else {
-    self.start_pos[pos] = num::cast(start).unwrap();
-    self.data.push(num::cast(add_data.len()).unwrap());
-    for val in &add_data {
-        self.max_value_id = std::cmp::max(val.to_u32().unwrap(), self.max_value_id);
-        self.data.push(*val);
-    }
+            //reuse and reference existing data
+            self.start_pos[pos] = num::cast(start).unwrap();
+        } else {
+            self.start_pos[pos] = num::cast(start).unwrap();
+            self.data.push(num::cast(add_data.len()).unwrap());
+            for val in &add_data {
+                self.max_value_id = std::cmp::max(val.to_u32().unwrap(), self.max_value_id);
+                self.data.push(*val);
+            }
 
-    self.cache.insert(add_data, num::cast(start).unwrap());
-    self.start_pos[pos] = num::cast(start).unwrap();
-}
+            self.cache.insert(add_data, num::cast(start).unwrap());
+            self.start_pos[pos] = num::cast(start).unwrap();
+        }
         self.num_values += 1;
         self.num_ids += add_data_len as u32;
         self.avg_join_size = calc_avg_join_size(self.num_values, self.num_ids);

@@ -36,7 +36,7 @@ pub struct SearchFieldResult {
 }
 
 impl SearchFieldResult {
-    pub fn iter(& self, term_id: u8, _field_id: u8) -> SearchFieldResultIterator {
+    pub fn iter(&self, term_id: u8, _field_id: u8) -> SearchFieldResultIterator {
         let begin = self.hits_vec.as_ptr();
         let end = unsafe { begin.offset(self.hits_vec.len() as isize) as *const search::Hit };
 
@@ -223,8 +223,7 @@ fn get_text_score_id_from_result(suggest_text: bool, results: &[SearchFieldResul
 }
 pub fn suggest_multi(persistence: &Persistence, req: Request) -> Result<SuggestFieldResult, SearchError> {
     info_time!("suggest time");
-    let search_parts: Vec<RequestSearchPart> = req
-        .suggest
+    let search_parts: Vec<RequestSearchPart> = req.suggest
         .ok_or_else(|| SearchError::StringError("only suggest allowed in suggest function".to_string()))?;
     // let mut search_results = vec![];
     let top = req.top;
@@ -353,7 +352,9 @@ fn get_term_ids_in_field(persistence: &Persistence, options: &mut RequestSearchP
     let mut result = SearchFieldResult::default();
     //limit levenshtein distance to reasonable values
     let lower_term = options.terms[0].to_lowercase();
-    if let Some(d) = options.levenshtein_distance.as_mut() { *d = std::cmp::min(*d, lower_term.chars().count() as u32 - 1); }
+    if let Some(d) = options.levenshtein_distance.as_mut() {
+        *d = std::cmp::min(*d, lower_term.chars().count() as u32 - 1);
+    }
 
     trace!("Will Check distance {:?}", options.levenshtein_distance.unwrap_or(0) != 0);
     trace!("Will Check starts_with {:?}", options.starts_with);
@@ -394,7 +395,9 @@ fn get_term_ids_in_field(persistence: &Persistence, options: &mut RequestSearchP
 
                 //TODO: find term for multitoken
                 let mut score = get_default_score_for_distance(distance_dfa(&line_lower, &dfa, &lower_term), prefix_matches);
-                if let Some(boost_val) = options.boost { score *= boost_val }
+                if let Some(boost_val) = options.boost {
+                    score *= boost_val
+                }
 
                 if limit_result {
                     if score < worst_score {
@@ -649,7 +652,11 @@ pub fn get_text_for_id_disk(persistence: &Persistence, path: &str, id: u32) -> S
 
 #[cfg_attr(feature = "flame_it", flame)]
 pub fn get_text_for_id(persistence: &Persistence, path: &str, id: u32) -> String {
-    let map = persistence.indices.fst.get(path).unwrap_or_else(|| panic!("fst not found loaded in indices {} ", path));
+    let map = persistence
+        .indices
+        .fst
+        .get(path)
+        .unwrap_or_else(|| panic!("fst not found loaded in indices {} ", path));
 
     let mut bytes = vec![];
     ord_to_term(map.as_fst(), u64::from(id), &mut bytes);
@@ -658,13 +665,21 @@ pub fn get_text_for_id(persistence: &Persistence, path: &str, id: u32) -> String
 
 #[cfg_attr(feature = "flame_it", flame)]
 pub fn get_text_for_id_2(persistence: &Persistence, path: &str, id: u32, bytes: &mut Vec<u8>) {
-    let map = persistence.indices.fst.get(path).unwrap_or_else(|| panic!("fst not found loaded in indices {} ", path));
+    let map = persistence
+        .indices
+        .fst
+        .get(path)
+        .unwrap_or_else(|| panic!("fst not found loaded in indices {} ", path));
     ord_to_term(map.as_fst(), u64::from(id), bytes);
 }
 
 #[cfg_attr(feature = "flame_it", flame)]
 pub fn get_id_text_map_for_ids(persistence: &Persistence, path: &str, ids: &[u32]) -> FnvHashMap<u32, String> {
-    let map = persistence.indices.fst.get(path).unwrap_or_else(|| panic!("fst not found loaded in indices {} ", path));
+    let map = persistence
+        .indices
+        .fst
+        .get(path)
+        .unwrap_or_else(|| panic!("fst not found loaded in indices {} ", path));
     ids.iter()
         .map(|id| {
             let mut bytes = vec![];

@@ -45,8 +45,7 @@ pub fn get_bit_at(input: u32, n: u8) -> bool {
 
 pub fn load_flush_threshold_from_env() -> Result<Option<u32>, search::SearchError> {
     if let Some(val) = env::var_os("FlushThreshold") {
-        let conv_env = val
-            .clone()
+        let conv_env = val.clone()
             .into_string()
             .map_err(|_err| search::SearchError::StringError(format!("Could not convert LoadingType environment variable to utf-8: {:?}", val)))?;
 

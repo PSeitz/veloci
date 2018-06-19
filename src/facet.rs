@@ -194,10 +194,7 @@ impl<T: IndexIdToParentData> AggregationCollector<T> for Vec<T> {
             let mut groups: Vec<(u32, T)> = self.iter().enumerate().filter(|el| *el.1 != T::zero()).map(|el| (el.0 as u32, *el.1)).collect();
             groups.sort_by(|a, b| b.1.cmp(&a.1));
             // groups = apply_top_skip(groups, 0, top.unwrap_or(std::u32::MAX) as usize);
-            groups
-                .into_iter()
-                .map(|el| (num::cast(el.0).unwrap(), num::cast(el.1).unwrap()))
-                .collect()
+            groups.into_iter().map(|el| (num::cast(el.0).unwrap(), num::cast(el.1).unwrap())).collect()
         }
     }
 

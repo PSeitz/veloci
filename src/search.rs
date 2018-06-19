@@ -305,7 +305,7 @@ impl std::fmt::Display for DocWithHit {
 }
 
 fn highlight_on_original_document(doc: &str, why_found_terms: &FnvHashMap<String, FnvHashSet<String>>) -> FnvHashMap<String, Vec<String>> {
-    let mut highlighted_texts: FnvHashMap<_,Vec<_>> = FnvHashMap::default();
+    let mut highlighted_texts: FnvHashMap<_, Vec<_>> = FnvHashMap::default();
     let stream = serde_json::Deserializer::from_str(&doc).into_iter::<serde_json::Value>();
 
     let mut opt = json_converter::ForEachOpt {};
@@ -392,7 +392,7 @@ fn get_why_found(
 ) -> Result<FnvHashMap<u32, FnvHashMap<String, Vec<String>>>, SearchError> {
     debug!("why_found info {:?}", term_id_hits_in_field);
     info_time!("why_found");
-    let mut anchor_highlights: FnvHashMap<_, FnvHashMap<_,Vec<_>>> = FnvHashMap::default();
+    let mut anchor_highlights: FnvHashMap<_, FnvHashMap<_, Vec<_>>> = FnvHashMap::default();
 
     for (path, term_with_ids) in term_id_hits_in_field.iter() {
         let field_name = &extract_field_name(path); // extract_field_name removes .textindex
@@ -532,13 +532,12 @@ fn top_n_sort(data: Vec<Hit>, top_n: u32) -> Vec<Hit> {
             continue;
         }
         if !new_data.is_empty() && new_data.len() as u32 == top_n + 200 {
-
             // Sort by score and anchor_id -- WITHOUT anchor_id SORTING SKIP MAY WORK NOT CORRECTLY FOR SAME SCORED ANCHOR_IDS
             new_data.sort_unstable_by(|a, b| {
                 let cmp = b.score.partial_cmp(&a.score);
-                if cmp == Some(Ordering::Equal){
+                if cmp == Some(Ordering::Equal) {
                     b.id.partial_cmp(&a.id).unwrap_or(Ordering::Equal)
-                }else{
+                } else {
                     cmp.unwrap()
                 }
             });
@@ -553,9 +552,9 @@ fn top_n_sort(data: Vec<Hit>, top_n: u32) -> Vec<Hit> {
     // Sort by score and anchor_id -- WITHOUT anchor_id SORTING SKIP MAY WORK NOT CORRECTLY FOR SAME SCORED ANCHOR_IDS
     new_data.sort_unstable_by(|a, b| {
         let cmp = b.score.partial_cmp(&a.score);
-        if cmp == Some(Ordering::Equal){
+        if cmp == Some(Ordering::Equal) {
             b.id.partial_cmp(&a.id).unwrap_or(Ordering::Equal)
-        }else{
+        } else {
             cmp.unwrap()
         }
     });
@@ -842,7 +841,7 @@ pub fn union_hits_vec(mut or_results: Vec<SearchFieldResult>) -> SearchFieldResu
     let term_id_hits_in_field = { merge_term_id_hits(&mut or_results) };
     let term_text_in_field = { merge_term_id_texts(&mut or_results) };
 
-    let index_longest:usize = get_longest_result(&or_results.iter().map(|el| el.hits_vec.iter()).collect::<Vec<_>>());
+    let index_longest: usize = get_longest_result(&or_results.iter().map(|el| el.hits_vec.iter()).collect::<Vec<_>>());
 
     let longest_len = or_results[index_longest].hits_vec.len() as f32;
     let len_total: usize = or_results.iter().map(|el| el.hits_vec.len()).sum();
@@ -1330,7 +1329,8 @@ pub fn add_boost(persistence: &Persistence, boost: &RequestBoostPart, hits: &mut
     let default = vec![];
     let skip_when_score = boost.skip_when_score.as_ref().unwrap_or(&default);
     for hit in &mut hits.hits_vec {
-        if !skip_when_score.is_empty() && skip_when_score.iter().any(|x| (*x - hit.score).abs() < 0.00001 ) { // float comparisons should usually include a error margin
+        if !skip_when_score.is_empty() && skip_when_score.iter().any(|x| (*x - hit.score).abs() < 0.00001) {
+            // float comparisons should usually include a error margin
             continue;
         }
         let value_id = &hit.id;

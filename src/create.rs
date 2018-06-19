@@ -129,10 +129,7 @@ pub struct ValIdPair {
 impl ValIdPair {
     #[inline]
     pub fn new(valid: u32, parent_val_id: u32) -> ValIdPair {
-        ValIdPair {
-            valid,
-            parent_val_id,
-        }
+        ValIdPair { valid, parent_val_id }
     }
 }
 
@@ -226,8 +223,7 @@ impl std::fmt::Display for ValIdPair {
 #[allow(dead_code)]
 fn print_vec(vec: &[ValIdPair], valid_header: &str, parentid_header: &str) -> String {
     format!("{}\t{}", valid_header, parentid_header)
-        + &vec
-            .iter()
+        + &vec.iter()
             .map(|el| format!("\n{}\t{}", el.valid, el.parent_val_id))
             .collect::<Vec<_>>()
             .join("")
@@ -237,8 +233,7 @@ fn print_vec(vec: &[ValIdPair], valid_header: &str, parentid_header: &str) -> St
 fn print_index_id_to_parent(vec: &IndexIdToMultipleParentIndirect<u32>, valid_header: &str, parentid_header: &str) -> String {
     let keys = vec.get_keys();
     format!("{}\t{}", valid_header, parentid_header)
-        + &keys
-            .iter()
+        + &keys.iter()
             .map(|key| format!("\n{}\t{:?}", key, vec.get_values(u64::from(*key))))
             .collect::<Vec<_>>()
             .join("")
@@ -280,7 +275,7 @@ fn store_full_text_info_and_set_ids(
 }
 
 fn store_fst(persistence: &Persistence, sorted_terms: &[(&str, &mut TermInfo)], path: &str) -> Result<(), fst::Error> {
-// fn store_fst(persistence: &Persistence, sorted_terms: &[(&String, &mut TermInfo)], path: &str) -> Result<(), fst::Error> {
+    // fn store_fst(persistence: &Persistence, sorted_terms: &[(&String, &mut TermInfo)], path: &str) -> Result<(), fst::Error> {
     debug_time!(format!("store_fst {:?}", path));
     let wtr = persistence.get_buffered_writer(&concat(path, ".fst"))?;
     // Create a builder that can be used to insert new key-value pairs.
@@ -358,7 +353,7 @@ fn calculate_and_add_token_score_in_doc(
     anchor_id: u32,
     _num_tokens_in_text: u32,
     index: &mut BufferedIndexWriter<(u32, u32)>,
-) -> Result<(), io::Error>   {
+) -> Result<(), io::Error> {
     // Sort by tokenid, token_pos
     tokens_to_anchor_id.sort_unstable_by(|a, b| {
         let sort_valid = a.token_or_text_id.cmp(&b.token_or_text_id);
@@ -1097,8 +1092,14 @@ where
     info_time!("create and (write) fulltext_index");
     trace!("all_terms {:?}", create_cache.term_data.terms_in_path);
 
-    let (mut path_data, tuples_to_parent_in_path) =
-        parse_json_and_prepare_indices(stream2, &persistence, &fulltext_info_for_path, &boost_info_for_path, &facet_index, &mut create_cache)?;
+    let (mut path_data, tuples_to_parent_in_path) = parse_json_and_prepare_indices(
+        stream2,
+        &persistence,
+        &fulltext_info_for_path,
+        &boost_info_for_path,
+        &facet_index,
+        &mut create_cache,
+    )?;
 
     std::mem::drop(create_cache);
 

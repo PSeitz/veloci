@@ -121,8 +121,7 @@ pub struct IndexIdToOneParent<T: IndexIdToParentData> {
 impl<T: IndexIdToParentData> IndexIdToOneParent<T> {
     pub fn new(data: &IndexIdToParent<Output = T>) -> IndexIdToOneParent<T> {
         let data: Vec<Vec<T>> = id_to_parent_to_array_of_array(data);
-        let data = data
-            .iter()
+        let data = data.iter()
             .map(|el| {
                 if !el.is_empty() {
                     num::cast(el[0]).unwrap()
@@ -679,8 +678,7 @@ fn test_snap() {
     let data4: Vec<Vec<u8>> = data.iter().map(|el| vec_to_bytes_u32(el)).collect();
     info!("data byteorder {:?}", data4.heap_size_of_children());
 
-    let data5: Vec<Vec<u8>> = data
-        .iter()
+    let data5: Vec<Vec<u8>> = data.iter()
         .map(|el| {
             let mut dat = encoder.compress_vec(&vec_to_bytes_u32(el)).unwrap();
             dat.shrink_to_fit();

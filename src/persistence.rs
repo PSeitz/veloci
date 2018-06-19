@@ -65,13 +65,10 @@ pub struct KVStoreMetaData {
     pub path: String,
     pub is_1_to_n: bool, // In the sense of 1:n   1key, n values
     pub persistence_type: KVStoreType,
-    #[serde(default)]
-    pub is_empty: bool,
+    #[serde(default)] pub is_empty: bool,
     pub loading_type: LoadingType,
-    #[serde(default = "default_max_value_id")]
-    pub max_value_id: u32, // max value on the "right" side key -> value, key -> value ..
-    #[serde(default = "default_avg_join")]
-    pub avg_join_size: f32, // some join statistics
+    #[serde(default = "default_max_value_id")] pub max_value_id: u32, // max value on the "right" side key -> value, key -> value ..
+    #[serde(default = "default_avg_join")] pub avg_join_size: f32,    // some join statistics
 }
 
 pub static NOT_FOUND: u32 = u32::MAX;
@@ -177,10 +174,7 @@ pub enum IDDataType {
 // {
 // }
 
-pub trait IndexIdToParentData:
-    Integer + Clone + num::NumCast + HeapSizeOf + Debug + Sync + Send + Copy + ToPrimitive + std::iter::Step + std::hash::Hash + 'static
-{
-}
+pub trait IndexIdToParentData: Integer + Clone + num::NumCast + HeapSizeOf + Debug + Sync + Send + Copy + ToPrimitive + std::iter::Step + std::hash::Hash + 'static {}
 impl<T> IndexIdToParentData for T
 where
     T: Integer + Clone + num::NumCast + HeapSizeOf + Debug + Sync + Send + Copy + ToPrimitive + std::iter::Step + std::hash::Hash + 'static,
@@ -189,7 +183,7 @@ where
 
 pub trait TokenToAnchorScore: Debug + HeapSizeOf + Sync + Send + type_info::TypeInfo {
     fn get_scores(&self, id: u32) -> Option<Vec<AnchorScore>>;
-    fn get_score_iter(& self, id: u32) -> AnchorScoreIter;
+    fn get_score_iter(&self, id: u32) -> AnchorScoreIter;
     fn get_max_id(&self) -> usize;
 }
 
@@ -300,7 +294,7 @@ impl Persistence {
         let loading_type = load_type_from_env()?.unwrap_or(LoadingType::Disk);
 
         match loading_type {
-            LoadingType::InMemoryUnCompressed | LoadingType::InMemory=> {
+            LoadingType::InMemoryUnCompressed | LoadingType::InMemory => {
                 let file_path = get_file_path(&self.db, path);
                 self.indices.index_64.insert(
                     path.to_string(),
@@ -318,14 +312,11 @@ impl Persistence {
             //     );
             // }
             LoadingType::Disk => {
-
                 let data_file = self.get_file_handle(path)?;
                 let data_metadata = self.get_file_metadata_handle(path)?;
 
                 let store = SingleArrayMMAP::<u64>::new(&data_file, data_metadata, u32::MAX);
-                self.indices
-                    .index_64
-                    .insert(path.to_string(), Box::new(store));
+                self.indices.index_64.insert(path.to_string(), Box::new(store));
             }
         }
 
@@ -360,11 +351,9 @@ impl Persistence {
                     self.indices.token_to_anchor_to_score.insert(el.path.to_string(), Box::new(store));
                 }
             }
-
         }
 
-        let loaded_data: Result<Vec<(String, Box<IndexIdToParent<Output = u32>>)>, SearchError> = self
-            .meta_data
+        let loaded_data: Result<Vec<(String, Box<IndexIdToParent<Output = u32>>)>, SearchError> = self.meta_data
             .key_value_stores
             .clone()
             .into_par_iter()
@@ -380,7 +369,10 @@ impl Persistence {
 
                 //Insert dummy index, to seperate between emtpy indexes and nonexisting indexes
                 if el.is_empty {
-                    let store = IndexIdToOneParent { data: vec![], max_value_id: 0 };
+                    let store = IndexIdToOneParent {
+                        data: vec![],
+                        max_value_id: 0,
+                    };
                     return Ok((el.path.to_string(), Box::new(store) as Box<IndexIdToParent<Output = u32>>));
                 }
 
@@ -507,9 +499,7 @@ impl Persistence {
                     // self.indices
                     //     .boost_valueid_to_value
                     //     .insert(el.path.to_string(), Box::new(IndexIdToOneParentMayda::<u32>::new(&store, u32::MAX)));
-                    self.indices
-                        .boost_valueid_to_value
-                        .insert(el.path.to_string(), Box::new(store));
+                    self.indices.boost_valueid_to_value.insert(el.path.to_string(), Box::new(store));
                 }
                 KVStoreType::ParallelArrays => {
                     let encoded = file_path_to_bytes(&get_file_path(&self.db, &el.path))?;
@@ -517,9 +507,7 @@ impl Persistence {
                     // self.indices
                     //     .boost_valueid_to_value
                     //     .insert(el.path.to_string(), Box::new(IndexIdToOneParentMayda::<u32>::new(&store, u32::MAX))); // TODO: enable other Diskbased Types
-                    self.indices
-                        .boost_valueid_to_value
-                        .insert(el.path.to_string(), Box::new(store)); // TODO: enable other Diskbased Types
+                    self.indices.boost_valueid_to_value.insert(el.path.to_string(), Box::new(store)); // TODO: enable other Diskbased Types
                 }
             }
         }
@@ -602,9 +590,7 @@ impl Persistence {
     #[cfg_attr(feature = "flame_it", flame)]
     pub fn get_token_to_anchor(&self, path: &str) -> Result<&TokenToAnchorScore, search::SearchError> {
         let path = path.to_string() + ".to_anchor_id_score";
-        self.indices.token_to_anchor_to_score.get(&path)
-        .map(|el| el.as_ref())
-        .ok_or_else(|| {
+        self.indices.token_to_anchor_to_score.get(&path).map(|el| el.as_ref()).ok_or_else(|| {
             let error = format!("Did not found path in indices {}", path);
             error!("{:?}", error);
             From::from(error)
@@ -613,9 +599,7 @@ impl Persistence {
 
     #[cfg_attr(feature = "flame_it", flame)]
     pub fn get_valueid_to_parent(&self, path: &str) -> Result<&IndexIdToParent<Output = u32>, search::SearchError> {
-        self.indices.key_value_stores.get(path)
-        .map(|el| el.as_ref())
-        .ok_or_else(|| {
+        self.indices.key_value_stores.get(path).map(|el| el.as_ref()).ok_or_else(|| {
             let error = format!("Did not found path in indices {:?}", path);
             error!("{:?}", error);
             From::from(error)
@@ -704,7 +688,12 @@ impl Persistence {
     }
 
     #[cfg_attr(feature = "flame_it", flame)]
-    pub fn write_offset<T: Clone + Integer + num::NumCast + Copy + Debug>(&self, bytes: &[u8], data: &[T], path: &str) -> Result<((String, IDList)), io::Error> {
+    pub fn write_offset<T: Clone + Integer + num::NumCast + Copy + Debug>(
+        &self,
+        bytes: &[u8],
+        data: &[T],
+        path: &str,
+    ) -> Result<((String, IDList)), io::Error> {
         debug_time!(format!("Wrote Index {} With size {:?}", path, data.len()));
         File::create(util::get_file_path(&self.db, path))?.write_all(bytes)?;
         info!("Wrote Index {} With size {:?}", path, data.len());
@@ -841,9 +830,7 @@ impl Persistence {
         );
         info!("indices.fst {}", get_readable_size(self.get_fst_sizes()));
         info!("------");
-        let total_size = self.get_fst_sizes()
-            + self.indices.key_value_stores.heap_size_of_children()
-            + self.indices.index_64.heap_size_of_children()
+        let total_size = self.get_fst_sizes() + self.indices.key_value_stores.heap_size_of_children() + self.indices.index_64.heap_size_of_children()
             + self.indices.boost_valueid_to_value.heap_size_of_children()
             + self.indices.token_to_anchor_to_score.heap_size_of_children();
 
@@ -953,8 +940,7 @@ impl FileSearch {
 
 fn load_type_from_env() -> Result<Option<LoadingType>, search::SearchError> {
     if let Some(val) = env::var_os("LoadingType") {
-        let conv_env = val
-            .clone()
+        let conv_env = val.clone()
             .into_string()
             .map_err(|_err| search::SearchError::StringError(format!("Could not convert LoadingType environment variable to utf-8: {:?}", val)))?;
         let loading_type = LoadingType::from_str(&conv_env).map_err(|_err| {
