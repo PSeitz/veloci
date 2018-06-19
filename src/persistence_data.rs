@@ -298,7 +298,7 @@ impl<T: IndexIdToParentData> HeapSizeOf for ParallelArrays<T> {
 
 #[derive(Debug)]
 pub struct SingleArrayMMAP<T: IndexIdToParentData> {
-    pub data_file: Mmap,                    //TODO CHECK MUTEX NEEEDED
+    pub data_file: Mmap,
     pub data_metadata: Mutex<fs::Metadata>, //TODO PLS FIXME max_value_id??, avg_join_size??
     pub max_value_id: u32,
     pub ok: PhantomData<T>,

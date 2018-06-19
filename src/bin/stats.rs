@@ -75,7 +75,8 @@ fn main() {
         let mut total_comp_enc_score = 0;
         let mut total_comp_enc_score_three = 0;
 
-        for id in 0..token_to_anchor_score.get_max_id() {
+        // for id in 0..token_to_anchor_score.get_max_id() {
+        for id in 0..1000 {
             if let Some(text_id_score) = token_to_anchor_score.get_scores(id as u32) {
                 // let increases:Vec<_> = [0 as u32].into_iter().cloned().chain(text_id_score.iter().map(|el|el.id as u32))
                 //     .tuples().map(|(id1, id2)|id2 as i32 - id1 as i32 - 1).collect();

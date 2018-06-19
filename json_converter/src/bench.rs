@@ -3,7 +3,6 @@ mod bencho {
     use for_each_element;
     use serde_json;
     use serde_json::{Deserializer, Value};
-    use ForEachOpt;
     use IDHolder;
 
     use test::Bencher;
@@ -24,7 +23,6 @@ mod bencho {
             })
             .collect();
 
-        let mut opt = ForEachOpt {};
         let mut id_holder = IDHolder::new();
 
         let data = json!(long_string);
@@ -41,7 +39,7 @@ mod bencho {
             };
 
             let stream = Deserializer::from_str(&data_str).into_iter::<Value>();
-            for_each_element(stream, &mut id_holder, &mut opt, &mut cb_text, &mut callback_ids);
+            for_each_element(stream, &mut id_holder, &mut cb_text, &mut callback_ids);
         })
     }
 

@@ -404,8 +404,6 @@ pub fn get_allterms_per_path<I: Iterator<Item = Result<serde_json::Value, serde_
 ) -> Result<(), io::Error> {
     info_time!("get_allterms_per_path");
 
-    let mut opt = json_converter::ForEachOpt {};
-
     let tokenizer = SimpleTokenizerCharsIterateGroupTokens {};
     let default_fulltext_options = FulltextIndexOptions::new_with_tokenize();
 
@@ -423,12 +421,12 @@ pub fn get_allterms_per_path<I: Iterator<Item = Result<serde_json::Value, serde_
         };
         let mut callback_ids = |_anchor_id: u32, _path: &str, _value_id: u32, _parent_val_id: u32| {};
 
-        json_converter::for_each_element(stream, &mut id_holder, &mut opt, &mut cb_text, &mut callback_ids);
+        json_converter::for_each_element(stream, &mut id_holder, &mut cb_text, &mut callback_ids);
     }
 
-    // for (_path, map) in data.terms_in_path.iter_mut() {
-    //     map.shrink_to_fit();
-    // }
+    for map in data.terms_in_path.values_mut() {
+        map.shrink_to_fit();
+    }
 
     std::mem::swap(&mut data.id_holder, &mut id_holder);
 
@@ -652,12 +650,12 @@ where
         let mut cb_text = |anchor_id: u32, value: &str, path: &str, parent_val_id: u32, _is_new_doc: bool| {
             let data = get_or_insert_prefer_get(&mut path_data as *mut FnvHashMap<_, _>, path, &|| {
                 let boost_info_data = if boost_info_for_path.contains_key(path) { Some(vec![]) } else { None };
-                let anchor_to_text_id = if facet_index.contains(path) && is_1_to_n(path) {
+                let anchor_to_text_id = if facet_index.contains(path) && is_1_to_n(path) { //Create facet index only for 1:N
                     // anchor_id is monotonically increasing, hint buffered index writer, it's already sorted
                     Some(BufferedIndexWriter::new_for_sorted_id_insertion())
                 } else {
                     None
-                }; //Create facet index only for 1:N
+                };
 
                 PathData {
                     anchor_to_text_id,
@@ -745,7 +743,7 @@ where
             tuples.parent_to_value.add(parent_val_id, value_id).unwrap(); // TODO Error Handling in closure
         };
 
-        json_converter::for_each_element(stream1, &mut id_holder, &mut json_converter::ForEachOpt {}, &mut cb_text, &mut callback_ids);
+        json_converter::for_each_element(stream1, &mut id_holder, &mut cb_text, &mut callback_ids);
     }
 
     std::mem::swap(&mut create_cache.term_data.id_holder, &mut id_holder);

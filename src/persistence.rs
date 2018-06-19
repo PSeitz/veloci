@@ -184,7 +184,6 @@ where
 pub trait TokenToAnchorScore: Debug + HeapSizeOf + Sync + Send + type_info::TypeInfo {
     fn get_scores(&self, id: u32) -> Option<Vec<AnchorScore>>;
     fn get_score_iter(&self, id: u32) -> AnchorScoreIter;
-    fn get_max_id(&self) -> usize;
 }
 
 pub trait IndexIdToParent: Debug + HeapSizeOf + Sync + Send + type_info::TypeInfo {

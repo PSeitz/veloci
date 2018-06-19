@@ -308,7 +308,6 @@ fn highlight_on_original_document(doc: &str, why_found_terms: &FnvHashMap<String
     let mut highlighted_texts: FnvHashMap<_, Vec<_>> = FnvHashMap::default();
     let stream = serde_json::Deserializer::from_str(&doc).into_iter::<serde_json::Value>();
 
-    let mut opt = json_converter::ForEachOpt {};
     let mut id_holder = json_converter::IDHolder::new();
 
     {
@@ -324,7 +323,7 @@ fn highlight_on_original_document(doc: &str, why_found_terms: &FnvHashMap<String
 
         let mut callback_ids = |_anchor_id: u32, _path: &str, _value_id: u32, _parent_val_id: u32| {};
 
-        json_converter::for_each_element(stream, &mut id_holder, &mut opt, &mut cb_text, &mut callback_ids);
+        json_converter::for_each_element(stream, &mut id_holder, &mut cb_text, &mut callback_ids);
     }
     highlighted_texts
 }

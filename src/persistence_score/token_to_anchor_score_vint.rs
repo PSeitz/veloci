@@ -264,11 +264,6 @@ impl TokenToAnchorScore for TokenToAnchorScoreVintIM {
         AnchorScoreIter::new(&self.data[pos as usize..])
     }
 
-    #[inline]
-    fn get_max_id(&self) -> usize {
-        //TODO REMOVE METHOD
-        self.get_size()
-    }
 }
 
 impl TokenToAnchorScoreVintMmap {
@@ -312,11 +307,6 @@ impl TokenToAnchorScore for TokenToAnchorScoreVintMmap {
             return AnchorScoreIter::new(&[]);
         }
         AnchorScoreIter::new(&self.data[pos as usize..])
-    }
-
-    #[inline]
-    fn get_max_id(&self) -> usize {
-        self.start_pos.len() / 4
     }
 }
 
