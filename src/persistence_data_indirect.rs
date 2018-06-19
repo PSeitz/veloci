@@ -31,7 +31,7 @@ impl_type_info_single_templ!(PointingMMAPFileReader);
 
 const EMPTY_BUCKET: u32 = 0;
 
-pub fn calc_avg_join_size(num_values: u32, num_ids: u32) -> f32 {
+pub(crate) fn calc_avg_join_size(num_values: u32, num_ids: u32) -> f32 {
     num_values as f32 / std::cmp::max(1, num_ids).to_f32().unwrap()
 }
 
@@ -51,7 +51,7 @@ pub struct IndexIdToMultipleParentIndirectFlushingInOrder<T: IndexIdToParentData
     pub num_ids: u32,
 }
 
-pub fn flush_to_file_indirect(indirect_path: &str, data_path: &str, indirect_data: &[u8], data: &[u8]) -> Result<(), io::Error> {
+pub(crate) fn flush_to_file_indirect(indirect_path: &str, data_path: &str, indirect_data: &[u8], data: &[u8]) -> Result<(), io::Error> {
     let mut indirect = std::fs::OpenOptions::new()
         .read(true)
         .write(true)

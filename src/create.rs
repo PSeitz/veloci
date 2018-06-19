@@ -90,16 +90,9 @@ pub struct BoostIndexOptions {
 }
 
 #[derive(Debug, Default)]
-pub struct TermInfo {
-    pub id: u32,
-    pub num_occurences: u32,
-}
-
-impl TermInfo {
-    #[inline]
-    pub fn new(id: u32) -> TermInfo {
-        TermInfo { id, num_occurences: 0 }
-    }
+pub(crate) struct TermInfo {
+    pub(crate) id: u32,
+    pub(crate) num_occurences: u32,
 }
 
 // #[inline]
@@ -122,33 +115,26 @@ impl TermInfo {
 // }
 
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
-pub struct ValIdPair {
-    pub valid: u32,
-    pub parent_val_id: u32,
-}
-
-impl ValIdPair {
-    #[inline]
-    pub fn new(valid: u32, parent_val_id: u32) -> ValIdPair {
-        ValIdPair { valid, parent_val_id }
-    }
+pub(crate) struct ValIdPair {
+    pub(crate) valid: u32,
+    pub(crate) parent_val_id: u32,
 }
 
 #[derive(Debug, Default, Clone)]
-pub struct ValIdPairToken {
-    pub token_or_text_id: u32,
-    pub token_pos: u32,
-    pub num_occurences: u32,
+pub(crate) struct ValIdPairToken {
+    pub(crate) token_or_text_id: u32,
+    pub(crate) token_pos: u32,
+    pub(crate) num_occurences: u32,
 }
 
 #[derive(Debug, Default, Clone)]
-pub struct TokenToAnchorScore {
-    pub valid: u32,
-    pub anchor_id: u32,
-    pub score: u32,
+pub(crate) struct TokenToAnchorScore {
+    pub(crate) valid: u32,
+    pub(crate) anchor_id: u32,
+    pub(crate) score: u32,
 }
 
-pub trait KeyValuePair {
+pub(crate) trait KeyValuePair {
     fn get_key(&self) -> u32;
     fn set_key(&mut self, id: u32);
     fn get_value(&self) -> u32;
@@ -202,9 +188,9 @@ impl KeyValuePair for ValIdToValue {
 /// e.g. boost value 5000 for id 5
 /// 5 -> 5000
 #[derive(Debug, Clone)]
-pub struct ValIdToValue {
-    pub valid: u32,
-    pub value: u32,
+pub(crate) struct ValIdToValue {
+    pub(crate) valid: u32,
+    pub(crate) value: u32,
 }
 
 impl std::fmt::Display for ValIdPair {
@@ -397,7 +383,7 @@ pub struct AllTermsAndDocumentBuilder {
     terms_in_path: FnvHashMap<String, TermMap>,
 }
 
-pub fn get_allterms_per_path<I: Iterator<Item = Result<serde_json::Value, serde_json::Error>>>(
+fn get_allterms_per_path<I: Iterator<Item = Result<serde_json::Value, serde_json::Error>>>(
     stream: I,
     // persistence: &mut Persistence,
     fulltext_info_for_path: &FnvHashMap<String, Fulltext>,
@@ -497,7 +483,7 @@ impl Default for BufferedTextIdToTokenIdsData {
 
 impl BufferedTextIdToTokenIdsData {
     #[inline]
-    pub fn contains(&self, text_id: u32) -> bool {
+    fn contains(&self, text_id: u32) -> bool {
         self.text_id_flag.contains(text_id as usize)
     }
 
@@ -510,7 +496,7 @@ impl BufferedTextIdToTokenIdsData {
     }
 
     #[inline]
-    pub fn add_all(&mut self, text_id: u32, token_ids: Vec<u32>) -> Result<(), io::Error> {
+    fn add_all(&mut self, text_id: u32, token_ids: Vec<u32>) -> Result<(), io::Error> {
         self.flag(text_id);
         self.data.add_all(text_id, token_ids)
     }
@@ -1281,7 +1267,7 @@ use std::io::BufReader;
 //     f(buf)
 // }
 
-pub trait FastLinesTrait<T> {
+trait FastLinesTrait<T> {
     fn fast_lines(self) -> FastLinesJson<Self>
     where
         Self: Sized,
@@ -1300,7 +1286,7 @@ impl<T> FastLinesTrait<T> for BufReader<T> {
 }
 
 #[derive(Debug)]
-pub struct FastLinesJson<T> {
+struct FastLinesJson<T> {
     reader: T,
     cache: Vec<u8>,
 }

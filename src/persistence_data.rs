@@ -7,7 +7,7 @@ use heapsize::HeapSizeOf;
 use byteorder::{LittleEndian, ReadBytesExt};
 use create;
 use persistence::*;
-pub use persistence_data_indirect::*;
+pub(crate) use persistence_data_indirect::*;
 
 use facet::*;
 use parking_lot::Mutex;
@@ -226,7 +226,7 @@ impl IndexIdToParent for SingleArrayMMAP<u64> {
     }
 }
 
-pub fn id_to_parent_to_array_of_array<T: IndexIdToParentData>(store: &IndexIdToParent<Output = T>) -> Vec<Vec<T>> {
+pub(crate) fn id_to_parent_to_array_of_array<T: IndexIdToParentData>(store: &IndexIdToParent<Output = T>) -> Vec<Vec<T>> {
     let mut data: Vec<Vec<T>> = prepare_data_for_array_of_array(store, &Vec::new);
     let valids = store.get_keys();
 
@@ -249,19 +249,19 @@ fn prepare_data_for_array_of_array<T: Clone, K: IndexIdToParentData>(store: &Ind
     data
 }
 
-#[cfg_attr(feature = "flame_it", flame)]
-pub fn valid_pair_to_parallel_arrays<T: IndexIdToParentData>(tuples: &mut Vec<create::ValIdPair>) -> ParallelArrays<T> {
-    tuples.sort_unstable_by_key(|a| a.valid);
-    let valids = tuples.iter().map(|el| num::cast(el.valid).unwrap()).collect::<Vec<_>>();
-    let parent_val_ids = tuples.iter().map(|el| num::cast(el.parent_val_id).unwrap()).collect::<Vec<_>>();
-    ParallelArrays {
-        values1: valids,
-        values2: parent_val_ids,
-    }
-}
+// #[cfg_attr(feature = "flame_it", flame)]
+// pub(crate) fn valid_pair_to_parallel_arrays<T: IndexIdToParentData>(tuples: &mut Vec<create::ValIdPair>) -> ParallelArrays<T> {
+//     tuples.sort_unstable_by_key(|a| a.valid);
+//     let valids = tuples.iter().map(|el| num::cast(el.valid).unwrap()).collect::<Vec<_>>();
+//     let parent_val_ids = tuples.iter().map(|el| num::cast(el.parent_val_id).unwrap()).collect::<Vec<_>>();
+//     ParallelArrays {
+//         values1: valids,
+//         values2: parent_val_ids,
+//     }
+// }
 
 #[cfg_attr(feature = "flame_it", flame)]
-pub fn valid_pair_to_direct_index<T: create::KeyValuePair>(tuples: &mut [T]) -> IndexIdToOneParent<u32> {
+pub(crate) fn valid_pair_to_direct_index<T: create::KeyValuePair>(tuples: &mut [T]) -> IndexIdToOneParent<u32> {
     //-> Box<IndexIdToParent<Output = u32>> {
     tuples.sort_unstable_by_key(|a| a.get_key());
     let mut index = IndexIdToOneParent::<u32>::default();
@@ -353,7 +353,7 @@ mod tests {
         use super::*;
         use rand::distributions::{IndependentSample, Range};
 
-        pub fn bench_fnvhashmap_group_by(num_entries: u32, max_val: u32) -> FnvHashMap<u32, u32> {
+        pub(crate) fn bench_fnvhashmap_group_by(num_entries: u32, max_val: u32) -> FnvHashMap<u32, u32> {
             let mut hits: FnvHashMap<u32, u32> = FnvHashMap::default();
             hits.reserve(num_entries as usize);
             let mut rng = rand::thread_rng();
@@ -365,7 +365,7 @@ mod tests {
             hits
         }
 
-        pub fn bench_vec_group_by_direct(num_entries: u32, max_val: u32, hits: &mut Vec<u32>) -> &mut Vec<u32> {
+        pub(crate) fn bench_vec_group_by_direct(num_entries: u32, max_val: u32, hits: &mut Vec<u32>) -> &mut Vec<u32> {
             // let mut hits:Vec<u32> = vec![];
             hits.resize(max_val as usize + 1, 0);
             let mut rng = rand::thread_rng();
@@ -375,7 +375,7 @@ mod tests {
             }
             hits
         }
-        pub fn bench_vec_group_by_direct_u8(num_entries: u32, max_val: u32, hits: &mut Vec<u8>) -> &mut Vec<u8> {
+        pub(crate) fn bench_vec_group_by_direct_u8(num_entries: u32, max_val: u32, hits: &mut Vec<u8>) -> &mut Vec<u8> {
             // let mut hits:Vec<u32> = vec![];
             hits.resize(max_val as usize + 1, 0);
             let mut rng = rand::thread_rng();
@@ -386,7 +386,7 @@ mod tests {
             hits
         }
 
-        pub fn bench_vec_group_by_flex(num_entries: u32, max_val: u32) -> Vec<u32> {
+        pub(crate) fn bench_vec_group_by_flex(num_entries: u32, max_val: u32) -> Vec<u32> {
             let mut hits: Vec<u32> = vec![];
             // hits.resize(max_val as usize + 1, 0);
             let mut rng = rand::thread_rng();

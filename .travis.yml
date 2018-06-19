@@ -22,7 +22,8 @@ script:
 - cargo test
 
 after_success: |
-  bash <(curl https://raw.githubusercontent.com/xd009642/tarpaulin/master/travis-install.sh)
+  # bash <(curl https://raw.githubusercontent.com/xd009642/tarpaulin/master/travis-install.sh)
+  cargo install cargo-tarpaulin
   # Uncomment the following line for coveralls.io
   cargo tarpaulin --ciserver travis-ci --coveralls $TRAVIS_JOB_ID
 
