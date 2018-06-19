@@ -540,7 +540,7 @@ impl Persistence {
     }
 
     #[cfg_attr(feature = "flame_it", flame)]
-    pub fn get_file_search(&self, path: &str) -> FileSearch {
+    pub(crate) fn get_file_search(&self, path: &str) -> FileSearch {
         FileSearch::new(path, self.get_file_handle(path).unwrap())
     }
 
@@ -844,7 +844,7 @@ impl Persistence {
 }
 
 #[derive(Debug)]
-pub struct FileSearch {
+pub(crate) struct FileSearch {
     path: String,
     // offsets: Vec<u64>,
     file: File,

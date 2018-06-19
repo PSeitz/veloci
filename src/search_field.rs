@@ -636,19 +636,19 @@ fn resolve_token_to_anchor(
     Ok(res)
 }
 
-#[cfg_attr(feature = "flame_it", flame)]
-pub fn get_text_for_ids(persistence: &Persistence, path: &str, ids: &[u32]) -> Vec<String> {
-    // let mut faccess: persistence::FileSearch = persistence.get_file_search(path);
-    // let offsets = persistence.get_offsets(path).unwrap();
-    ids.iter().map(|id| get_text_for_id(persistence, path, *id)).collect()
-}
+// #[cfg_attr(feature = "flame_it", flame)]
+// fn get_text_for_ids(persistence: &Persistence, path: &str, ids: &[u32]) -> Vec<String> {
+//     // let mut faccess: persistence::FileSearch = persistence.get_file_search(path);
+//     // let offsets = persistence.get_offsets(path).unwrap();
+//     ids.iter().map(|id| get_text_for_id(persistence, path, *id)).collect()
+// }
 
-#[cfg_attr(feature = "flame_it", flame)]
-pub fn get_text_for_id_disk(persistence: &Persistence, path: &str, id: u32) -> String {
-    let mut faccess: persistence::FileSearch = persistence.get_file_search(path);
-    let offsets = persistence.get_offsets(path).unwrap();
-    faccess.get_text_for_id(id as usize, offsets)
-}
+// #[cfg_attr(feature = "flame_it", flame)]
+// fn get_text_for_id_disk(persistence: &Persistence, path: &str, id: u32) -> String {
+//     let mut faccess: persistence::FileSearch = persistence.get_file_search(path);
+//     let offsets = persistence.get_offsets(path).unwrap();
+//     faccess.get_text_for_id(id as usize, offsets)
+// }
 
 #[cfg_attr(feature = "flame_it", flame)]
 pub fn get_text_for_id(persistence: &Persistence, path: &str, id: u32) -> String {
@@ -660,18 +660,18 @@ pub fn get_text_for_id(persistence: &Persistence, path: &str, id: u32) -> String
 
     let mut bytes = vec![];
     ord_to_term(map.as_fst(), u64::from(id), &mut bytes);
-    str::from_utf8(&bytes).unwrap().to_string()
+    unsafe{String::from_utf8_unchecked(bytes)}
 }
 
-#[cfg_attr(feature = "flame_it", flame)]
-pub fn get_text_for_id_2(persistence: &Persistence, path: &str, id: u32, bytes: &mut Vec<u8>) {
-    let map = persistence
-        .indices
-        .fst
-        .get(path)
-        .unwrap_or_else(|| panic!("fst not found loaded in indices {} ", path));
-    ord_to_term(map.as_fst(), u64::from(id), bytes);
-}
+// #[cfg_attr(feature = "flame_it", flame)]
+// pub fn get_text_for_id_2(persistence: &Persistence, path: &str, id: u32, bytes: &mut Vec<u8>) {
+//     let map = persistence
+//         .indices
+//         .fst
+//         .get(path)
+//         .unwrap_or_else(|| panic!("fst not found loaded in indices {} ", path));
+//     ord_to_term(map.as_fst(), u64::from(id), bytes);
+// }
 
 #[cfg_attr(feature = "flame_it", flame)]
 pub fn get_id_text_map_for_ids(persistence: &Persistence, path: &str, ids: &[u32]) -> FnvHashMap<u32, String> {

@@ -47,22 +47,7 @@ pub struct TokenToAnchorScoreVintFlushing {
     pub num_ids: u32,
 }
 
-pub fn get_serialized_most_common_encoded(data: &mut Vec<(u32, u32)>) -> Vec<u8> {
-    let mut vint = VIntArrayEncodeMostCommon::default();
-
-    let mut last = 0;
-    for el in data.iter_mut() {
-        let actual_val = el.0;
-        el.0 -= last;
-        last = actual_val;
-    }
-
-    let values: Vec<u32> = data.iter().flat_map(|(el1, el2)| vec![*el1, *el2]).collect();
-    vint.encode_vals(&values);
-    vint.serialize()
-}
-
-pub fn get_serialized_most_common_encoded_2(data: &mut [u32]) -> Vec<u8> {
+fn get_serialized_most_common_encoded(data: &mut [u32]) -> Vec<u8> {
     let mut vint = VIntArrayEncodeMostCommon::default();
 
     let mut last = 0;
@@ -112,7 +97,7 @@ impl TokenToAnchorScoreVintFlushing {
         self.ids_cache[id_pos] = self.current_data_offset + self.data_cache.len() as u32;
 
         self.ids_cache[id_pos] = self.current_data_offset + self.data_cache.len() as u32;
-        self.data_cache.extend(get_serialized_most_common_encoded_2(&mut add_data));
+        self.data_cache.extend(get_serialized_most_common_encoded(&mut add_data));
 
         if self.ids_cache.len() + self.data_cache.len() >= 1_000_000 {
             self.flush()?;

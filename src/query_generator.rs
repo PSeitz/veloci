@@ -32,7 +32,7 @@ fn get_all_field_names(persistence: &Persistence, fields: &Option<Vec<String>>) 
         .collect()
 }
 
-pub fn normalize_to_single_space(text: &str) -> String {
+fn normalize_to_single_space(text: &str) -> String {
     lazy_static! {
         static ref REGEXES:Vec<Regex> = vec![
             Regex::new(r"\s\s+").unwrap() // replace tabs, newlines, double spaces with single spaces

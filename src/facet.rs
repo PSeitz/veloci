@@ -8,11 +8,11 @@ use search_field::*;
 use std::cmp::Ordering;
 use util;
 
-pub fn get_top_facet_group<T: IndexIdToParentData>(hits: &FnvHashMap<T, usize>, top: Option<usize>) -> Vec<(T, u32)> {
+fn get_top_facet_group<T: IndexIdToParentData>(hits: &FnvHashMap<T, usize>, top: Option<usize>) -> Vec<(T, u32)> {
     let mut groups: Vec<(T, u32)> = hits.iter().map(|ref tupl| (*tupl.0, *tupl.1 as u32)).collect();
 
     //TODO MERGECODE with below
-    groups.sort_by(|a, b| b.1.cmp(&a.1));
+    groups.sort_unstable_by(|a, b| b.1.cmp(&a.1));
     groups = apply_top_skip(&groups, None, top);
     groups
 }
@@ -73,7 +73,7 @@ pub fn get_facet(persistence: &Persistence, req: &FacetRequest, ids: &[u32]) -> 
         for (key, group) in &next_level_ids.into_iter().group_by(|el| *el) {
             groups.push((key, group.count()));
         }
-        groups.sort_by(|a, b| b.1.cmp(&a.1));
+        groups.sort_unstable_by(|a, b| b.1.cmp(&a.1));
         groups = apply_top_skip(&groups, None, req.top);
     }
 
@@ -85,7 +85,7 @@ pub fn get_facet(persistence: &Persistence, req: &FacetRequest, ids: &[u32]) -> 
     Ok(groups_with_text)
 }
 
-pub fn join_anchor_to_leaf(persistence: &Persistence, ids: &[u32], steps: &[String]) -> Result<Vec<u32>, SearchError> {
+pub(crate) fn join_anchor_to_leaf(persistence: &Persistence, ids: &[u32], steps: &[String]) -> Result<Vec<u32>, SearchError> {
     //Use facet index as shortcut
     if persistence.has_index(&(steps.last().unwrap().to_string() + ".anchor_to_text_id")) {
         return Ok(join_for_n_to_m(persistence, ids, &(steps.last().unwrap().to_string() + ".anchor_to_text_id"))?);
@@ -105,7 +105,7 @@ pub fn join_anchor_to_leaf(persistence: &Persistence, ids: &[u32], steps: &[Stri
 }
 
 #[cfg_attr(feature = "flame_it", flame)]
-pub fn join_for_n_to_m(persistence: &Persistence, value_ids: &[u32], path: &str) -> Result<Vec<u32>, SearchError> {
+fn join_for_n_to_m(persistence: &Persistence, value_ids: &[u32], path: &str) -> Result<Vec<u32>, SearchError> {
     let kv_store = persistence.get_valueid_to_parent(path)?;
     let mut hits = vec![];
     hits.reserve(value_ids.len()); // reserve by statistics
@@ -124,21 +124,12 @@ pub fn join_for_n_to_m(persistence: &Persistence, value_ids: &[u32], path: &str)
     Ok(hits)
 }
 
-//TODO in_place version
-#[cfg_attr(feature = "flame_it", flame)]
-pub fn join_for_n_to_n(persistence: &Persistence, value_ids: &[u32], path: &str) -> Result<Vec<u32>, SearchError> {
-    let kv_store = persistence.get_valueid_to_parent(path)?;
-
-    Ok(value_ids.iter().flat_map(|el| kv_store.get_value(u64::from(*el))).collect())
-    // Ok(kv_store.get_values(value_id as u64))
-}
-
-pub trait AggregationCollector<T: IndexIdToParentData> {
+pub(crate) trait AggregationCollector<T: IndexIdToParentData> {
     fn add(&mut self, id: T);
     fn to_map(self: Box<Self>, top: Option<u32>) -> FnvHashMap<T, usize>;
 }
 
-pub fn get_collector<T: 'static + IndexIdToParentData>(num_ids: u32, avg_join_size: f32, max_value_id: u32) -> Box<AggregationCollector<T>> {
+pub(crate) fn get_collector<T: 'static + IndexIdToParentData>(num_ids: u32, avg_join_size: f32, max_value_id: u32) -> Box<AggregationCollector<T>> {
     let num_inserts = (num_ids as f32 * avg_join_size) as u32;
     let vec_len = max_value_id + 1;
 

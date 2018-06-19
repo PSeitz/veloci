@@ -26,6 +26,12 @@ use rayon::prelude::*;
 
 use highlight_field;
 use search_field;
+
+use persistence::*;
+use expression::ScoreExpression;
+use fnv;
+use std::fmt;
+
 #[derive(Serialize, Deserialize, Default, Clone, Debug)]
 pub struct Request {
     #[serde(skip_serializing_if = "Option::is_none")] pub or: Option<Vec<Request>>,
@@ -185,7 +191,7 @@ fn default_max_snippets() -> u32 {
 }
 
 lazy_static! {
-    pub static ref DEFAULT_SNIPPETINFO: SnippetInfo = SnippetInfo {
+    pub(crate) static ref DEFAULT_SNIPPETINFO: SnippetInfo = SnippetInfo {
         num_words_around_snippet: default_num_words_around_snippet(),
         snippet_start_tag: default_snippet_start(),
         snippet_end_tag: default_snippet_end(),
@@ -379,10 +385,10 @@ pub fn get_search_result(persistence: &Persistence, request: Request) -> Result<
     Ok(to_search_result(&persistence, res, &select))
 }
 
-#[inline]
-pub fn to_bucket_and_id(value: u32) -> (u16, u16) {
-    ((value >> 16) as u16, value as u16)
-}
+// #[inline]
+// fn to_bucket_and_id(value: u32) -> (u16, u16) {
+//     ((value >> 16) as u16, value as u16)
+// }
 
 fn get_why_found(
     persistence: &Persistence,
@@ -472,7 +478,7 @@ fn boost_text_locality_all(
     Ok(boost_anchor)
 }
 
-pub fn boost_text_locality(persistence: &Persistence, path: &str, term_with_ids: &FnvHashMap<String, Vec<TermId>>) -> Result<(Vec<Hit>), SearchError> {
+fn boost_text_locality(persistence: &Persistence, path: &str, term_with_ids: &FnvHashMap<String, Vec<TermId>>) -> Result<(Vec<Hit>), SearchError> {
     let mut boost_anchor = vec![];
     if term_with_ids.len() <= 1 {
         // No boost for single term hits
@@ -511,7 +517,6 @@ pub fn boost_text_locality(persistence: &Persistence, path: &str, term_with_ids:
     Ok(boost_anchor)
 }
 
-use persistence::*;
 fn get_all_value_ids(ids: &[u32], token_to_text_id: &IndexIdToParent<Output = u32>) -> Vec<u32> {
     let mut text_ids: Vec<u32> = vec![];
     for id in ids {
@@ -1028,27 +1033,6 @@ fn union_hits_vec_test() {
     );
 }
 
-// #[cfg_attr(feature = "flame_it", flame)]
-// pub fn intersect_hits(mut and_results: Vec<SearchFieldResult>) -> SearchFieldResult {
-//     let mut all_results: FnvHashMap<u32, f32> = FnvHashMap::default();
-//     let index_shortest = get_shortest_result(&and_results.iter().map(|el| el.hits_vec.iter()).collect());
-
-//     let shortest_result = and_results.swap_remove(index_shortest).hits;
-//     for (k, v) in shortest_result {
-//         if and_results.iter().all(|ref x| x.hits.contains_key(&k)) {
-//             // if all hits contain this key
-//             // all_results.insert(k, v);
-//             let score: f32 = and_results.iter().map(|el| *el.hits.get(&k).unwrap_or(&0.0)).sum();
-//             all_results.insert(k, v + score);
-//         }
-//     }
-//     // all_results
-//     SearchFieldResult {
-//         hits: all_results,
-//         ..Default::default()
-//     }
-// }
-
 #[cfg_attr(feature = "flame_it", flame)]
 pub fn intersect_hits_vec(mut and_results: Vec<SearchFieldResult>) -> SearchFieldResult {
     if and_results.len() == 1 {
@@ -1135,14 +1119,14 @@ fn intersect_hits_vec_test() {
     assert_eq!(res.hits_vec, vec![Hit::new(0, 40.0), Hit::new(10, 50.0)]);
 }
 
-#[cfg_attr(feature = "flame_it", flame)]
-pub fn boost_intersect_hits_vec(mut results: SearchFieldResult, mut boost: SearchFieldResult) -> SearchFieldResult {
-    results.hits_vec.sort_unstable_by_key(|el| el.id); //TODO SORT NEEDED??
-    boost.hits_vec.sort_unstable_by_key(|el| el.id); //TODO SORT NEEDED??
+// #[cfg_attr(feature = "flame_it", flame)]
+// fn boost_intersect_hits_vec(mut results: SearchFieldResult, mut boost: SearchFieldResult) -> SearchFieldResult {
+//     results.hits_vec.sort_unstable_by_key(|el| el.id); //TODO SORT NEEDED??
+//     boost.hits_vec.sort_unstable_by_key(|el| el.id); //TODO SORT NEEDED??
 
-    let mut boost_iter = boost.hits_vec.into_iter();
-    apply_boost_from_iter(results, &mut boost_iter) // TODO FIXME
-}
+//     let mut boost_iter = boost.hits_vec.into_iter();
+//     apply_boost_from_iter(results, &mut boost_iter) // TODO FIXME
+// }
 
 fn apply_boost_from_iter(mut results: SearchFieldResult, mut boost_iter: &mut Iterator<Item = Hit>) -> SearchFieldResult {
     let move_boost = |hit: &mut Hit, hit_curr: &mut Hit, boost_iter: &mut Iterator<Item = Hit>| {
@@ -1175,7 +1159,7 @@ fn apply_boost_from_iter(mut results: SearchFieldResult, mut boost_iter: &mut It
 }
 
 #[cfg_attr(feature = "flame_it", flame)]
-pub fn boost_intersect_hits_vec_multi(mut results: SearchFieldResult, boost: &mut Vec<SearchFieldResult>) -> SearchFieldResult {
+fn boost_intersect_hits_vec_multi(mut results: SearchFieldResult, boost: &mut Vec<SearchFieldResult>) -> SearchFieldResult {
     {
         debug_time!("boost hits sort input".to_string());
         results.hits_vec.sort_unstable_by_key(|el| el.id); //TODO SORT NEEDED??
@@ -1226,47 +1210,47 @@ fn boost_intersect_hits_vec_test_multi() {
     assert_eq!(res.hits_vec, vec![Hit::new(0, 40.0), Hit::new(5, 20.0), Hit::new(10, 80.0), Hit::new(60, 40.0)]);
 }
 
-#[test]
-fn boost_intersect_hits_vec_test() {
-    let hits1 = vec![Hit::new(10, 20.0), Hit::new(0, 20.0), Hit::new(5, 20.0)]; // unsorted
-    let boost = vec![Hit::new(0, 20.0), Hit::new(3, 20.0), Hit::new(10, 30.0), Hit::new(20, 30.0)];
+// #[test]
+// fn boost_intersect_hits_vec_test() {
+//     let hits1 = vec![Hit::new(10, 20.0), Hit::new(0, 20.0), Hit::new(5, 20.0)]; // unsorted
+//     let boost = vec![Hit::new(0, 20.0), Hit::new(3, 20.0), Hit::new(10, 30.0), Hit::new(20, 30.0)];
 
-    let res = boost_intersect_hits_vec(
-        SearchFieldResult {
-            hits_vec: hits1,
-            ..Default::default()
-        },
-        SearchFieldResult {
-            hits_vec: boost,
-            ..Default::default()
-        },
-    );
+//     let res = boost_intersect_hits_vec(
+//         SearchFieldResult {
+//             hits_vec: hits1,
+//             ..Default::default()
+//         },
+//         SearchFieldResult {
+//             hits_vec: boost,
+//             ..Default::default()
+//         },
+//     );
 
-    assert_eq!(res.hits_vec, vec![Hit::new(0, 400.0), Hit::new(5, 20.0), Hit::new(10, 600.0)]);
-}
+//     assert_eq!(res.hits_vec, vec![Hit::new(0, 400.0), Hit::new(5, 20.0), Hit::new(10, 600.0)]);
+// }
 
 #[cfg(test)]
 mod bench_intersect {
     use super::*;
     use test;
-    #[bench]
-    fn bench_boost_intersect_hits_vec(b: &mut test::Bencher) {
-        let hits1: Vec<Hit> = (0..4_000_00).map(|i| Hit::new(i * 5 as u32, 2.2 as f32)).collect();
-        let hits2: Vec<Hit> = (0..40_000).map(|i| Hit::new(i * 3 as u32, 2.2 as f32)).collect();
+    // #[bench]
+    // fn bench_boost_intersect_hits_vec(b: &mut test::Bencher) {
+    //     let hits1: Vec<Hit> = (0..4_000_00).map(|i| Hit::new(i * 5 as u32, 2.2 as f32)).collect();
+    //     let hits2: Vec<Hit> = (0..40_000).map(|i| Hit::new(i * 3 as u32, 2.2 as f32)).collect();
 
-        b.iter(|| {
-            boost_intersect_hits_vec(
-                SearchFieldResult {
-                    hits_vec: hits1.clone(),
-                    ..Default::default()
-                },
-                SearchFieldResult {
-                    hits_vec: hits2.clone(),
-                    ..Default::default()
-                },
-            )
-        })
-    }
+    //     b.iter(|| {
+    //         boost_intersect_hits_vec(
+    //             SearchFieldResult {
+    //                 hits_vec: hits1.clone(),
+    //                 ..Default::default()
+    //             },
+    //             SearchFieldResult {
+    //                 hits_vec: hits2.clone(),
+    //                 ..Default::default()
+    //             },
+    //         )
+    //     })
+    // }
 
     #[bench]
     fn bench_boost_intersect_hits_vec_multi(b: &mut test::Bencher) {
@@ -1309,13 +1293,6 @@ mod bench_intersect {
 //     b.iter(|| intersect_hits_vec())
 // }
 
-use expression::ScoreExpression;
-
-#[allow(dead_code)]
-#[derive(Debug)]
-struct BoostIter {
-    // iterHashmap: IterMut<K, V> (&'a K, &'a mut V)
-}
 
 #[cfg_attr(feature = "flame_it", flame)]
 pub fn add_boost(persistence: &Persistence, boost: &RequestBoostPart, hits: &mut SearchFieldResult) -> Result<(), SearchError> {
@@ -1385,7 +1362,6 @@ pub fn add_boost(persistence: &Persistence, boost: &RequestBoostPart, hits: &mut
     Ok(())
 }
 
-use fnv;
 
 #[derive(Debug)]
 pub enum SearchError {
@@ -1455,7 +1431,7 @@ impl<'a> From<&'a str> for SearchError {
 }
 
 pub use std::error::Error;
-use std::fmt;
+
 
 impl fmt::Display for SearchError {
     fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
@@ -1498,7 +1474,7 @@ fn join_and_get_text_for_ids(persistence: &Persistence, id: u32, prop: &str) -> 
     Ok(text_value_id_opt.map(|text_value_id| get_text_for_id(persistence, &concat(&prop, ".textindex"), text_value_id)))
 }
 
-pub fn read_data(persistence: &Persistence, id: u32, fields: &[String]) -> Result<serde_json::Value, SearchError> {
+pub(crate) fn read_data(persistence: &Persistence, id: u32, fields: &[String]) -> Result<serde_json::Value, SearchError> {
     // let all_steps: FnvHashMap<String, Vec<String>> = fields.iter().map(|field| (field.clone(), util::get_steps_to_anchor(&field))).collect();
     // let all_steps: Vec<Vec<String>> = fields.iter().map(|field| util::get_steps_to_anchor(&field)).collect();
     // let paths = util::get_steps_to_anchor(&request.path);
@@ -1509,7 +1485,7 @@ pub fn read_data(persistence: &Persistence, id: u32, fields: &[String]) -> Resul
 }
 
 #[cfg_attr(feature = "flame_it", flame)]
-pub fn read_tree(persistence: &Persistence, id: u32, tree: &NodeTree) -> Result<serde_json::Value, SearchError> {
+fn read_tree(persistence: &Persistence, id: u32, tree: &NodeTree) -> Result<serde_json::Value, SearchError> {
     let mut json = json!({});
     match *tree {
         NodeTree::Map(ref map) => {
