@@ -1485,7 +1485,7 @@ pub(crate) fn read_data(persistence: &Persistence, id: u32, fields: &[String]) -
 }
 
 #[cfg_attr(feature = "flame_it", flame)]
-fn read_tree(persistence: &Persistence, id: u32, tree: &NodeTree) -> Result<serde_json::Value, SearchError> {
+pub fn read_tree(persistence: &Persistence, id: u32, tree: &NodeTree) -> Result<serde_json::Value, SearchError> {
     let mut json = json!({});
     match *tree {
         NodeTree::Map(ref map) => {

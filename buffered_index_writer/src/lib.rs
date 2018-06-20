@@ -212,21 +212,21 @@ impl<T:GetValue + Default + Clone> BufferedIndexWriter<T> {
         }
     }
 
-    pub fn multi_iter_ref(&mut self) -> Result<(Vec<MMapIterRef<T>>), io::Error> {
-        let mut vecco = vec![];
-        if let Some(file) = &self.temp_file {
-            let mmap: &Mmap = self.temp_file_mmap.get_or_insert_with(|| unsafe {MmapOptions::new().map(&file).unwrap()});
-            for part in &self.parts {
-                let len = part.len * mem::size_of::<KeyValue<T>>() as u32;
-                let offset = part.offset * mem::size_of::<KeyValue<T>>() as u32;
-                vecco.push(MMapIterRef::<T>::new(mmap, offset, len));
-            }
-            Ok(vecco)
+    // pub fn multi_iter_ref(&mut self) -> Result<(Vec<MMapIterRef<T>>), io::Error> {
+    //     let mut vecco = vec![];
+    //     if let Some(file) = &self.temp_file {
+    //         let mmap: &Mmap = self.temp_file_mmap.get_or_insert_with(|| unsafe {MmapOptions::new().map(&file).unwrap()});
+    //         for part in &self.parts {
+    //             let len = part.len * mem::size_of::<KeyValue<T>>() as u32;
+    //             let offset = part.offset * mem::size_of::<KeyValue<T>>() as u32;
+    //             vecco.push(MMapIterRef::<T>::new(mmap, offset, len));
+    //         }
+    //         Ok(vecco)
 
-        }else{
-            Ok(vec![])
-        }
-    }
+    //     }else{
+    //         Ok(vec![])
+    //     }
+    // }
 
     #[inline]
     pub fn is_in_memory(&self) -> bool {
@@ -257,10 +257,18 @@ impl<T:GetValue + Default + Clone> BufferedIndexWriter<T> {
 
     /// returns iterator over sorted elements
     #[inline]
-    fn kmerge(&self) -> impl Iterator<Item = KeyValue< T>> {
+    fn kmerge(&self) -> impl Iterator<Item = KeyValue<T>> {
         let iters = self.multi_iter().unwrap();
         iters.into_iter().kmerge_by(|a, b| (*a).key < (*b).key)
     }
+
+
+    // /// returns iterator over sorted elements
+    // #[inline]
+    // fn kmerge_2<'a>(&'a mut self) -> impl Iterator<Item = KeyValue<T>> + 'a{
+    //     let iters = self.multi_iter_ref().unwrap();
+    //     iters.into_iter().kmerge_by(|a, b| (*a).key < (*b).key)
+    // }
 
 }
 
@@ -288,49 +296,49 @@ fn read_pair_very_raw_p<T:GetValue + Default>(p: *const u8) -> KeyValue<T> {
     out
 }
 
-#[derive(Debug)]
-pub struct MMapIterRef<'a, T:GetValue> {
-    mmap: &'a memmap::Mmap,
-    pos: u32,
-    offset: u32,
-    len: u32,
-    phantom: PhantomData<T>,
-}
+// #[derive(Debug)]
+// pub struct MMapIterRef<'a, T:GetValue> {
+//     mmap: &'a memmap::Mmap,
+//     pos: u32,
+//     offset: u32,
+//     len: u32,
+//     phantom: PhantomData<T>,
+// }
 
-impl<'a, T:GetValue> MMapIterRef<'a, T> {
-    fn new(mmap: &'a memmap::Mmap, offset: u32, len: u32) -> Self {
-        MMapIterRef { mmap, pos: 0, offset, len, phantom:PhantomData }
-    }
-}
+// impl<'a, T:GetValue> MMapIterRef<'a, T> {
+//     fn new(mmap: &'a memmap::Mmap, offset: u32, len: u32) -> Self {
+//         MMapIterRef { mmap, pos: 0, offset, len, phantom:PhantomData }
+//     }
+// }
 
-impl<'a, T:GetValue + Default> Iterator for MMapIterRef<'a, T> {
-    type Item = KeyValue<T>;
+// impl<'a, T:GetValue + Default> Iterator for MMapIterRef<'a, T> {
+//     type Item = KeyValue<T>;
 
-    #[inline]
-    fn next(&mut self) -> Option<KeyValue<T>> {
-        if self.len <= self.pos {
-            return None;
-        }
-        let pair = read_pair_very_raw_p((&self.mmap[(self.offset + self.pos) as usize..]).as_ptr());
-        self.pos += mem::size_of::<KeyValue<T>>() as u32;
-        Some(pair)
-    }
-    #[inline]
-    fn size_hint(&self) -> (usize, Option<usize>) {
-        let remaining_els = (self.len - (self.pos)) / mem::size_of::<KeyValue<T>>() as u32;
-        (remaining_els as usize, Some(remaining_els as usize))
-    }
-}
+//     #[inline]
+//     fn next(&mut self) -> Option<KeyValue<T>> {
+//         if self.len <= self.pos {
+//             return None;
+//         }
+//         let pair = read_pair_very_raw_p((&self.mmap[(self.offset + self.pos) as usize..]).as_ptr());
+//         self.pos += mem::size_of::<KeyValue<T>>() as u32;
+//         Some(pair)
+//     }
+//     #[inline]
+//     fn size_hint(&self) -> (usize, Option<usize>) {
+//         let remaining_els = (self.len - (self.pos)) / mem::size_of::<KeyValue<T>>() as u32;
+//         (remaining_els as usize, Some(remaining_els as usize))
+//     }
+// }
 
-impl<'a, T:GetValue + Default>  ExactSizeIterator for MMapIterRef<'a, T> {
-    #[inline]
-    fn len(&self) -> usize {
-        let remaining_els = (self.len - self.pos) / mem::size_of::<KeyValue<T>>() as u32;
-        remaining_els as usize
-    }
-}
+// impl<'a, T:GetValue + Default>  ExactSizeIterator for MMapIterRef<'a, T> {
+//     #[inline]
+//     fn len(&self) -> usize {
+//         let remaining_els = (self.len - self.pos) / mem::size_of::<KeyValue<T>>() as u32;
+//         remaining_els as usize
+//     }
+// }
 
-impl<'a, T:GetValue + Default>  FusedIterator for MMapIterRef<'a, T> {}
+// impl<'a, T:GetValue + Default>  FusedIterator for MMapIterRef<'a, T> {}
 
 
 #[derive(Debug)]
@@ -384,13 +392,13 @@ fn test_buffered_index_writer() {
     ind.flush().unwrap();
 
     {
-        let mut iters = ind.multi_iter_ref().unwrap();
+        let mut iters = ind.multi_iter().unwrap();
         assert_eq!(iters[0].next(), Some(KeyValue{key:2, value:2}));
         assert_eq!(iters[0].next(), None);
     }
 
     {
-        let mut iters = ind.multi_iter_ref().unwrap();
+        let mut iters = ind.multi_iter().unwrap();
         assert_eq!(iters[0].next(), Some(KeyValue{key:2, value:2}));
         assert_eq!(iters[0].next(), None);
     }
@@ -401,7 +409,7 @@ fn test_buffered_index_writer() {
     ind.flush().unwrap();
 
     {
-        let mut iters = ind.multi_iter_ref().unwrap();
+        let mut iters = ind.multi_iter().unwrap();
         assert_eq!(iters[1].next(), Some(KeyValue{key:1, value:3}));
         assert_eq!(iters[1].next(), None);
     }

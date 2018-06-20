@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fs::{self, File};
 use std::io::prelude::*;
-use std::io::{self, SeekFrom};
+use std::io::{self};
 use std::marker::Sync;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
@@ -66,8 +66,8 @@ pub struct KVStoreMetaData {
     pub persistence_type: KVStoreType,
     #[serde(default)] pub is_empty: bool,
     pub loading_type: LoadingType,
-    #[serde(default = "default_max_value_id")] pub max_value_id: u32, // max value on the "right" side key -> value, key -> value ..
-    #[serde(default = "default_avg_join")] pub avg_join_size: f32,    // some join statistics
+    pub max_value_id: u32, // max value on the "right" side key -> value, key -> value ..
+    pub avg_join_size: f32,    // some join statistics
 }
 
 pub static NOT_FOUND: u32 = u32::MAX;
@@ -99,13 +99,13 @@ pub struct Persistence {
     pub term_boost_cache: RwLock<LruCache<Vec<RequestSearchPart>, Vec<search_field::SearchFieldResult>>>,
 }
 
-//TODO Only tmp
-fn default_max_value_id() -> u32 {
-    std::u32::MAX
-}
-fn default_avg_join() -> f32 {
-    1000.0
-}
+// //TODO Only tmp
+// fn default_max_value_id() -> u32 {
+//     std::u32::MAX
+// }
+// fn default_avg_join() -> f32 {
+//     1000.0
+// }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq)]
 pub enum LoadingType {
@@ -190,16 +190,6 @@ pub trait IndexIdToParent: Debug + HeapSizeOf + Sync + Send + type_info::TypeInf
     fn get_values(&self, id: u64) -> Option<Vec<Self::Output>>;
 
     #[inline]
-    fn append_values(&self, id: u64, vec: &mut Vec<Self::Output>) {
-        if let Some(vals) = self.get_values(id) {
-            vec.reserve(vals.len());
-            for id in vals {
-                vec.push(id);
-            }
-        }
-    }
-
-    #[inline]
     fn append_values_for_ids(&self, ids: &[u32], vec: &mut Vec<Self::Output>) {
         for id in ids {
             if let Some(vals) = self.get_values(u64::from(*id)) {
@@ -226,19 +216,19 @@ pub trait IndexIdToParent: Debug + HeapSizeOf + Sync + Send + type_info::TypeInf
         hits
     }
 
-    #[inline]
-    fn get_count_for_id(&self, id: u64) -> Option<usize> {
-        self.get_values(id).map(|el| el.len())
-    }
+    // #[inline]
+    // fn get_count_for_id(&self, id: u64) -> Option<usize> {
+    //     self.get_values(id).map(|el| el.len())
+    // }
 
-    #[inline]
-    fn get_mutliple_value(&self, range: std::ops::RangeInclusive<usize>) -> Option<Vec<Self::Output>> {
-        let mut dat = Vec::with_capacity(range.size_hint().0);
-        for i in range {
-            dat.push(self.get_value(i as u64).unwrap())
-        }
-        Some(dat)
-    }
+    // #[inline]
+    // fn get_mutliple_value(&self, range: std::ops::RangeInclusive<usize>) -> Option<Vec<Self::Output>> {
+    //     let mut dat = Vec::with_capacity(range.size_hint().0);
+    //     for i in range {
+    //         dat.push(self.get_value(i as u64).unwrap())
+    //     }
+    //     Some(dat)
+    // }
 
     #[inline]
     fn get_value(&self, id: u64) -> Option<Self::Output> {
@@ -520,13 +510,13 @@ impl Persistence {
         // Ok(Map::from_bytes(buffer)?)
     }
 
-    #[cfg_attr(feature = "flame_it", flame)]
-    pub fn get_fst(&self, path: &str) -> Result<(&Map), search::SearchError> {
-        self.indices
-            .fst
-            .get(path)
-            .ok_or_else(|| From::from(format!("fst {} not found loaded in indices", path)))
-    }
+    // #[cfg_attr(feature = "flame_it", flame)]
+    // pub fn get_fst(&self, path: &str) -> Result<(&Map), search::SearchError> {
+    //     self.indices
+    //         .fst
+    //         .get(path)
+    //         .ok_or_else(|| From::from(format!("fst {} not found loaded in indices", path)))
+    // }
 
     #[cfg_attr(feature = "flame_it", flame)]
     pub fn get_file_metadata_handle(&self, path: &str) -> Result<fs::Metadata, io::Error> {
@@ -539,10 +529,10 @@ impl Persistence {
             .map_err(|err| search::SearchError::StringError(format!("Could not open {} {:?}", path, err)))?)
     }
 
-    #[cfg_attr(feature = "flame_it", flame)]
-    pub(crate) fn get_file_search(&self, path: &str) -> FileSearch {
-        FileSearch::new(path, self.get_file_handle(path).unwrap())
-    }
+    // #[cfg_attr(feature = "flame_it", flame)]
+    // pub(crate) fn get_file_search(&self, path: &str) -> FileSearch {
+    //     FileSearch::new(path, self.get_file_handle(path).unwrap())
+    // }
 
     #[cfg_attr(feature = "flame_it", flame)]
     pub fn get_boost(&self, path: &str) -> Result<&IndexIdToParent<Output = u32>, search::SearchError> {
@@ -634,11 +624,11 @@ impl Persistence {
         Ok(())
     }
 
-    #[cfg_attr(feature = "flame_it", flame)]
-    pub fn read_data(&self, path: &str, data: &[u8]) -> Result<(), io::Error> {
-        File::create(&get_file_path(&self.db, path))?.write_all(data)?;
-        Ok(())
-    }
+    // #[cfg_attr(feature = "flame_it", flame)]
+    // pub fn read_data(&self, path: &str, data: &[u8]) -> Result<(), io::Error> {
+    //     File::create(&get_file_path(&self.db, path))?.write_all(data)?;
+    //     Ok(())
+    // }
 
     // fn store_fst(all_terms: &Vec<String>, path:&str) -> Result<(), fst::Error> {
     //     info_time!("store_fst");
@@ -843,71 +833,72 @@ impl Persistence {
     }
 }
 
-#[derive(Debug)]
-pub(crate) struct FileSearch {
-    path: String,
-    // offsets: Vec<u64>,
-    file: File,
-    buffer: Vec<u8>,
-}
+// #[derive(Debug)]
+// pub(crate) struct FileSearch {
+//     path: String,
+//     // offsets: Vec<u64>,
+//     file: File,
+//     buffer: Vec<u8>,
+// }
 
-impl FileSearch {
-    fn load_text(&mut self, pos: u64, offsets: &IndexIdToParent<Output = u64>) {
-        // @Temporary Use Result
-        let string_size = offsets.get_value(pos + 1).unwrap() - offsets.get_value(pos).unwrap() - 1;
-        // let mut buffer:Vec<u8> = Vec::with_capacity(string_size as usize);
-        // unsafe { buffer.set_len(string_size as usize); }
-        self.buffer.resize(string_size as usize, 0);
-        self.file.seek(SeekFrom::Start(offsets.get_value(pos).unwrap())).unwrap();
-        self.file.read_exact(&mut self.buffer).unwrap();
-        // unsafe {str::from_utf8_unchecked(&buffer)}
-        // let s = unsafe {str::from_utf8_unchecked(&buffer)};
-        // str::from_utf8(&buffer).unwrap() // @Temporary  -> use unchecked if stable
-    }
+// impl FileSearch {
+//     fn load_text(&mut self, pos: u64, offsets: &IndexIdToParent<Output = u64>) {
+//         use std::io::{SeekFrom};
+//         // @Temporary Use Result
+//         let string_size = offsets.get_value(pos + 1).unwrap() - offsets.get_value(pos).unwrap() - 1;
+//         // let mut buffer:Vec<u8> = Vec::with_capacity(string_size as usize);
+//         // unsafe { buffer.set_len(string_size as usize); }
+//         self.buffer.resize(string_size as usize, 0);
+//         self.file.seek(SeekFrom::Start(offsets.get_value(pos).unwrap())).unwrap();
+//         self.file.read_exact(&mut self.buffer).unwrap();
+//         // unsafe {str::from_utf8_unchecked(&buffer)}
+//         // let s = unsafe {str::from_utf8_unchecked(&buffer)};
+//         // str::from_utf8(&buffer).unwrap() // @Temporary  -> use unchecked if stable
+//     }
 
-    pub fn get_text_for_id(&mut self, pos: usize, offsets: &IndexIdToParent<Output = u64>) -> String {
-        self.load_text(pos as u64, offsets);
-        str::from_utf8(&self.buffer).unwrap().to_string() // TODO maybe avoid clone
-    }
+//     pub fn get_text_for_id(&mut self, pos: usize, offsets: &IndexIdToParent<Output = u64>) -> String {
+//         self.load_text(pos as u64, offsets);
+//         str::from_utf8(&self.buffer).unwrap().to_string() // TODO maybe avoid clone
+//     }
 
-    fn new(path: &str, file: File) -> Self {
-        // load_index_64_into_cache(&(path.to_string()+".offsets")).unwrap();
-        FileSearch {
-            path: path.to_string(),
-            file,
-            buffer: Vec::with_capacity(50 as usize),
-        }
-    }
+//     fn new(path: &str, file: File) -> Self {
+//         // load_index_64_into_cache(&(path.to_string()+".offsets")).unwrap();
+//         FileSearch {
+//             path: path.to_string(),
+//             file,
+//             buffer: Vec::with_capacity(50 as usize),
+//         }
+//     }
 
-    // pub fn binary_search(&mut self, term: &str, persistence: &Persistence) -> Result<(String, i64), io::Error> {
-    //     // let cache_lock = INDEX_64_CACHE.read().unwrap();
-    //     // let offsets = cache_lock.get(&(self.path.to_string()+".offsets")).unwrap();
-    //     let offsets = persistence.indices.index_64.get(&(self.path.to_string() + ".offsets")).unwrap();
-    //     debug_time!("term binary_search");
-    //     if offsets.len() < 2 {
-    //         return Ok(("".to_string(), -1));
-    //     }
-    //     let mut low = 0;
-    //     let mut high = offsets.len() - 2;
-    //     let mut i;
-    //     while low <= high {
-    //         i = (low + high) >> 1;
-    //         self.load_text(i, offsets);
-    //         // info!("Comparing {:?}", str::from_utf8(&buffer).unwrap());
-    //         // comparison = comparator(arr[i], find);
-    //         if str::from_utf8(&self.buffer).unwrap() < term {
-    //             low = i + 1;
-    //             continue;
-    //         }
-    //         if str::from_utf8(&self.buffer).unwrap() > term {
-    //             high = i - 1;
-    //             continue;
-    //         }
-    //         return Ok((str::from_utf8(&self.buffer).unwrap().to_string(), i as i64));
-    //     }
-    //     Ok(("".to_string(), -1))
-    // }
-}
+//     // pub fn binary_search(&mut self, term: &str, persistence: &Persistence) -> Result<(String, i64), io::Error> {
+//     //     // let cache_lock = INDEX_64_CACHE.read().unwrap();
+//     //     // let offsets = cache_lock.get(&(self.path.to_string()+".offsets")).unwrap();
+//     //     let offsets = persistence.indices.index_64.get(&(self.path.to_string() + ".offsets")).unwrap();
+//     //     debug_time!("term binary_search");
+//     //     if offsets.len() < 2 {
+//     //         return Ok(("".to_string(), -1));
+//     //     }
+//     //     let mut low = 0;
+//     //     let mut high = offsets.len() - 2;
+//     //     let mut i;
+//     //     while low <= high {
+//     //         i = (low + high) >> 1;
+//     //         self.load_text(i, offsets);
+//     //         // info!("Comparing {:?}", str::from_utf8(&buffer).unwrap());
+//     //         // comparison = comparator(arr[i], find);
+//     //         if str::from_utf8(&self.buffer).unwrap() < term {
+//     //             low = i + 1;
+//     //             continue;
+//     //         }
+//     //         if str::from_utf8(&self.buffer).unwrap() > term {
+//     //             high = i - 1;
+//     //             continue;
+//     //         }
+//     //         return Ok((str::from_utf8(&self.buffer).unwrap().to_string(), i as i64));
+//     //     }
+//     //     Ok(("".to_string(), -1))
+//     // }
+// }
 
 fn load_type_from_env() -> Result<Option<LoadingType>, search::SearchError> {
     if let Some(val) = env::var_os("LoadingType") {
@@ -932,24 +923,24 @@ fn get_loading_type(loading_type: LoadingType) -> Result<LoadingType, search::Se
     Ok(loading_type)
 }
 
-pub fn vec_to_bytes_u32(data: &[u32]) -> Vec<u8> {
+pub(crate) fn vec_to_bytes_u32(data: &[u32]) -> Vec<u8> {
     let mut wtr: Vec<u8> = vec_with_size_uninitialized(data.len() * std::mem::size_of::<u32>());
     LittleEndian::write_u32_into(data, &mut wtr);
     wtr
 }
-pub fn vec_to_bytes_u64(data: &[u64]) -> Vec<u8> {
+pub(crate) fn vec_to_bytes_u64(data: &[u64]) -> Vec<u8> {
     let mut wtr: Vec<u8> = vec_with_size_uninitialized(data.len() * std::mem::size_of::<u64>());
     LittleEndian::write_u64_into(data, &mut wtr);
     wtr
 }
 
-pub fn bytes_to_vec_u32(data: &[u8]) -> Vec<u32> {
+pub(crate) fn bytes_to_vec_u32(data: &[u8]) -> Vec<u32> {
     bytes_to_vec::<u32>(&data)
 }
-pub fn bytes_to_vec_u64(data: &[u8]) -> Vec<u64> {
+pub(crate) fn bytes_to_vec_u64(data: &[u8]) -> Vec<u64> {
     bytes_to_vec::<u64>(&data)
 }
-pub fn bytes_to_vec<T>(data: &[u8]) -> Vec<T> {
+pub(crate) fn bytes_to_vec<T>(data: &[u8]) -> Vec<T> {
     let mut out_dat = vec_with_size_uninitialized(data.len() / std::mem::size_of::<T>());
     // LittleEndian::read_u64_into(&data, &mut out_dat);
     unsafe {
@@ -959,12 +950,12 @@ pub fn bytes_to_vec<T>(data: &[u8]) -> Vec<T> {
     out_dat
 }
 
-pub fn file_path_to_bytes<P: AsRef<Path> + std::fmt::Debug>(s1: P) -> Result<Vec<u8>, search::SearchError> {
+pub(crate) fn file_path_to_bytes<P: AsRef<Path> + std::fmt::Debug>(s1: P) -> Result<Vec<u8>, search::SearchError> {
     let f = get_file_handle_complete_path(s1)?;
     file_handle_to_bytes(&f)
 }
 
-pub fn file_handle_to_bytes(f: &File) -> Result<Vec<u8>, search::SearchError> {
+pub(crate) fn file_handle_to_bytes(f: &File) -> Result<Vec<u8>, search::SearchError> {
     let file_size = { f.metadata()?.len() as usize };
     let mut reader = std::io::BufReader::new(f);
     let mut buffer: Vec<u8> = Vec::with_capacity(file_size);
@@ -973,12 +964,12 @@ pub fn file_handle_to_bytes(f: &File) -> Result<Vec<u8>, search::SearchError> {
     Ok(buffer)
 }
 
-pub fn load_index_u32<P: AsRef<Path> + std::fmt::Debug>(s1: P) -> Result<Vec<u32>, search::SearchError> {
+pub(crate) fn load_index_u32<P: AsRef<Path> + std::fmt::Debug>(s1: P) -> Result<Vec<u32>, search::SearchError> {
     info!("Loading Index32 {:?} ", s1);
     Ok(bytes_to_vec_u32(&file_path_to_bytes(s1)?))
 }
 
-pub fn load_index_u64<P: AsRef<Path> + std::fmt::Debug>(s1: P) -> Result<Vec<u64>, search::SearchError> {
+pub(crate) fn load_index_u64<P: AsRef<Path> + std::fmt::Debug>(s1: P) -> Result<Vec<u64>, search::SearchError> {
     info!("Loading Index64 {:?} ", s1);
     Ok(bytes_to_vec_u64(&file_path_to_bytes(s1)?))
 }
@@ -993,10 +984,10 @@ pub fn load_index_u64<P: AsRef<Path> + std::fmt::Debug>(s1: P) -> Result<Vec<u64
 //     true
 // }
 
-pub fn get_file_metadata_handle_complete_path(path: &str) -> Result<fs::Metadata, io::Error> {
+pub(crate) fn get_file_metadata_handle_complete_path(path: &str) -> Result<fs::Metadata, io::Error> {
     Ok(fs::metadata(path)?)
 }
 
-pub fn get_file_handle_complete_path<P: AsRef<Path> + std::fmt::Debug>(path: P) -> Result<File, search::SearchError> {
+pub(crate) fn get_file_handle_complete_path<P: AsRef<Path> + std::fmt::Debug>(path: P) -> Result<File, search::SearchError> {
     Ok(File::open(&path).map_err(|err| search::SearchError::StringError(format!("Could not open {:?} {:?}", path, err)))?)
 }

@@ -909,6 +909,11 @@ mod tests {
             assert_eq!(hits[0].doc["meanings"]["ger"][0], "majestätischer Anblick (m)");
         }
 
+        it "get_bytes_indexed"{
+            let pers = PERSISTENCES.get(&"default".to_string()).expect("Can't find loaded persistence");
+            assert_eq!(pers.get_bytes_indexed().unwrap(), 2423);
+        }
+
         it "boost text localitaet"{
             let req = json!({
                 "or":[
@@ -922,7 +927,7 @@ mod tests {
             assert_eq!(hits[0].doc["meanings"]["ger"][0], "text localität");
         }
 
-        it "search and get facet"{
+        it "search and get facet with facet index"{
             let req = json!({
                 "search": {"terms":["will"], "path": "meanings.eng[]"},
                 "facets": [{"field":"tags[]"}, {"field":"commonness"}]
@@ -933,6 +938,18 @@ mod tests {
             let facets = hits.facets.unwrap();
             assert_eq!(facets.get("tags[]").unwrap(), &vec![("nice".to_string(), 2), ("cool".to_string(), 1)] );
             assert_eq!(facets.get("commonness").unwrap(), &vec![("20".to_string(), 2)] );
+        }
+
+        it "search and get facet without facet index"{ // meanings.eng[] hat no facet index and is a 1-n facet
+            let req = json!({
+                "search": {"terms":["test"], "path": "meanings.ger[]"},
+                "facets": [{"field":"meanings.eng[]"}]
+            });
+
+            let hits = search_testo_to_doc(req);
+            assert_eq!(hits.data.len(), 1);
+            let facets = hits.facets.unwrap();
+            assert_eq!(facets.get("meanings.eng[]").unwrap(), &vec![("test1".to_string(), 1)] );
         }
 
         // it "majestät"{
