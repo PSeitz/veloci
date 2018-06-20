@@ -51,15 +51,15 @@ impl AnchorScore {
     }
 }
 
-#[repr(packed)]
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct AnchorScoreSerialize {
-    pub id: u32,
-    pub score: u16,
-}
+// #[repr(packed)]
+// #[derive(Debug, Clone, Copy, PartialEq)]
+// pub struct AnchorScoreSerialize {
+//     pub id: u32,
+//     pub score: u16,
+// }
 
-impl AnchorScoreSerialize {
-    pub fn new(id: u32, score: u16) -> AnchorScoreSerialize {
-        AnchorScoreSerialize { id, score }
-    }
-}
+// impl AnchorScoreSerialize {
+//     pub fn new(id: u32, score: u16) -> AnchorScoreSerialize {
+//         AnchorScoreSerialize { id, score }
+//     }
+// }

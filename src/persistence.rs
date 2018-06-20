@@ -180,7 +180,6 @@ where
 }
 
 pub trait TokenToAnchorScore: Debug + HeapSizeOf + Sync + Send + type_info::TypeInfo {
-    fn get_scores(&self, id: u32) -> Option<Vec<AnchorScore>>;
     fn get_score_iter(&self, id: u32) -> AnchorScoreIter;
 }
 

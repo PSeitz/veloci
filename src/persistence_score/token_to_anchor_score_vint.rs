@@ -224,19 +224,6 @@ impl<'a> Iterator for AnchorScoreIter<'a> {
 impl<'a> FusedIterator for AnchorScoreIter<'a> {}
 
 impl TokenToAnchorScore for TokenToAnchorScoreVintIM {
-    #[inline]
-    fn get_scores(&self, id: u32) -> Option<Vec<AnchorScore>> {
-        if id as usize >= self.get_size() {
-            return None;
-        }
-
-        let pos = self.start_pos[id as usize];
-        if pos == EMPTY_BUCKET {
-            return None;
-        }
-
-        Some(AnchorScoreIter::new(&self.data[pos as usize..]).collect())
-    }
 
     fn get_score_iter(&self, id: u32) -> AnchorScoreIter {
         if id as usize >= self.get_size() {
@@ -269,17 +256,6 @@ impl HeapSizeOf for TokenToAnchorScoreVintMmap {
 }
 
 impl TokenToAnchorScore for TokenToAnchorScoreVintMmap {
-    #[inline]
-    fn get_scores(&self, id: u32) -> Option<Vec<AnchorScore>> {
-        if id as usize >= self.start_pos.len() / 4 {
-            return None;
-        }
-        let pos = get_u32_from_bytes(&self.start_pos, id as usize * 4);
-        if pos == EMPTY_BUCKET {
-            return None;
-        }
-        Some(AnchorScoreIter::new(&self.data[pos as usize..]).collect())
-    }
 
     fn get_score_iter(&self, id: u32) -> AnchorScoreIter {
         if id as usize >= self.start_pos.len() / 4 {
@@ -303,19 +279,19 @@ fn test_token_to_anchor_score_vint() {
     yeps.set_scores(1, &mut vec![1, 1]).unwrap();
     let yeps = yeps.into_im_store();
     println!("{:?}", yeps);
-    assert_eq!(yeps.get_scores(0), None);
-    assert_eq!(yeps.get_scores(1), Some(vec![AnchorScore::new(1, f16::from_f32(1.0))]));
-    assert_eq!(yeps.get_scores(2), None);
+    assert_eq!(yeps.get_score_iter(0).collect::<Vec<AnchorScore>>(), vec![]);
+    assert_eq!(yeps.get_score_iter(1).collect::<Vec<AnchorScore>>(), vec![AnchorScore::new(1, f16::from_f32(1.0))]);
+    assert_eq!(yeps.get_score_iter(2).collect::<Vec<AnchorScore>>(), vec![]);
 
     let mut yeps = TokenToAnchorScoreVintFlushing::default();
     yeps.set_scores(5, &mut vec![1, 1, 2, 3]).unwrap();
     let yeps = yeps.into_im_store();
-    assert_eq!(yeps.get_scores(4), None);
+    assert_eq!(yeps.get_score_iter(4).collect::<Vec<AnchorScore>>(), vec![]);
     assert_eq!(
-        yeps.get_scores(5),
-        Some(vec![AnchorScore::new(1, f16::from_f32(1.0)), AnchorScore::new(2, f16::from_f32(3.0))])
+        yeps.get_score_iter(5).collect::<Vec<AnchorScore>>(),
+        vec![AnchorScore::new(1, f16::from_f32(1.0)), AnchorScore::new(2, f16::from_f32(3.0))]
     );
-    assert_eq!(yeps.get_scores(6), None);
+    assert_eq!(yeps.get_score_iter(6).collect::<Vec<AnchorScore>>(), vec![]);
 
     let dir = tempdir().unwrap();
     let data = dir.path().join("TokenToAnchorScoreVintTestData");

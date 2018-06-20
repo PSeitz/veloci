@@ -115,6 +115,7 @@ mod tests {
     fn test_tokenizer_control_sequences_alt() {
         let tokenizer = SimpleTokenizer {};
         let mut vec: Vec<String> = vec![];
+        assert_eq!(tokenizer.has_tokens("das \n ist ein txt, test"), true);
         tokenizer.get_tokens("das \n ist ein txt, test", &mut |token: &str, _is_seperator: bool| {
             vec.push(token.to_string());
         });

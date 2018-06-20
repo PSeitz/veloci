@@ -197,7 +197,9 @@ pub fn plan_creator(request: Request) -> PlanStepType {
     } else {
         //TODO HANDLE SUGGEST
         //TODO ADD ERROR
-        plan_creator_search_part(request.search.as_ref().unwrap().clone(), request)
+        // plan_creator_search_part(request.search.as_ref().unwrap().clone(), request)
+        panic!("missing 'and' 'or' 'search' in request - suggest not yet handled in search api {:?}" , request);
+
     }
 }
 

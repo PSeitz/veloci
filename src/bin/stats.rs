@@ -77,105 +77,106 @@ fn main() {
 
         // for id in 0..token_to_anchor_score.get_max_id() {
         for id in 0..1000 {
-            if let Some(text_id_score) = token_to_anchor_score.get_scores(id as u32) {
-                // let increases:Vec<_> = [0 as u32].into_iter().cloned().chain(text_id_score.iter().map(|el|el.id as u32))
-                //     .tuples().map(|(id1, id2)|id2 as i32 - id1 as i32 - 1).collect();
-                // let sum:i32 = increases.iter().sum();
+            let text_id_score: Vec<_> = token_to_anchor_score.get_score_iter(id as u32).collect();
+            // if let Some(text_id_score) = token_to_anchor_score.get_scores(id as u32) {
+            // let increases:Vec<_> = [0 as u32].into_iter().cloned().chain(text_id_score.iter().map(|el|el.id as u32))
+            //     .tuples().map(|(id1, id2)|id2 as i32 - id1 as i32 - 1).collect();
+            // let sum:i32 = increases.iter().sum();
 
-                let mut increases = vec![];
-                let mut last = 0;
-                for el in &text_id_score {
-                    increases.push(el.id - last);
-                    last = el.id;
-                }
-
-                // let scores:Vec<_> = text_id_score.iter().map(|el|el.score.to_f32() as u32).collect();
-
-                let scores_bytes = text_id_score.len(); // 1 byte for each element
-                total_comp_enc_score += scores_bytes;
-                total_comp_enc_score_three += scores_bytes;
-                total_comp += scores_bytes;
-                total_uncomp += text_id_score.len() * 4;
-
-                info!("{:?}", &increases[0..(std::cmp::min(1000, increases.len()) as usize)]);
-
-                let mut map_scores = text_id_score.iter().map(|el| el.score.to_f32() as u32).fold(FnvHashMap::default(), |mut m, c| {
-                    *m.entry(c).or_insert(0) += 1;
-                    m
-                });
-
-                total_comp += increases
-                    .iter()
-                    .map(|&inc| {
-                        if inc < 128 {
-                            1
-                        } else if inc < 16000 {
-                            2
-                        } else if inc < 2_000_000 {
-                            3
-                        } else {
-                            4
-                        }
-                    })
-                    .sum::<usize>();
-
-                // println!("total_comp {:?}", total_comp);
-                // println!("increases {:?}", increases.len());
-
-                let most_occurences = map_scores.values().max().unwrap();
-
-                // let occurences = num_occurences_of_scores[0];
-
-                let sum_comp_enc_score = increases
-                    .iter()
-                    .map(|&inc| {
-                        if inc < 64 {
-                            1
-                        } else if inc < 8000 {
-                            2
-                        } else if inc < 1_000_000 {
-                            3
-                        } else {
-                            4
-                        }
-                    })
-                    .sum::<usize>();
-                total_comp_enc_score += sum_comp_enc_score;
-                total_comp_enc_score -= most_occurences;
-
-                if map_scores.len() >= 3 {
-                    let mut num_occurences_of_scores: Vec<_> = map_scores.values().collect();
-                    num_occurences_of_scores.sort();
-                    num_occurences_of_scores = num_occurences_of_scores.into_iter().rev().collect();
-                    let occurences = num_occurences_of_scores[0] + num_occurences_of_scores[1] + num_occurences_of_scores[2];
-
-                    total_comp_enc_score_three += increases
-                        .iter()
-                        .map(|&inc| {
-                            if inc < 32 {
-                                1
-                            } else if inc < 4000 {
-                                2
-                            } else if inc < 500_000 {
-                                3
-                            } else {
-                                4
-                            }
-                        })
-                        .sum::<usize>();
-                    total_comp_enc_score_three -= occurences;
-                } else {
-                    //not enough values, take single encoded
-                    total_comp_enc_score_three += sum_comp_enc_score;
-                    total_comp_enc_score_three -= most_occurences;
-                }
-
-                let maybe_header_size = 4;
-                total_comp_enc_score += maybe_header_size + maybe_header_size; //DOUBLE HEADERSIZE FOR ENCODING ??
-                total_comp_enc_score_three += maybe_header_size + maybe_header_size; //DOUBLE HEADERSIZE FOR ENCODING ??
-                total_comp += maybe_header_size + maybe_header_size; //DOUBLE HEADERSIZE FOR ENCODING ??
-                total_uncomp += maybe_header_size;
+            let mut increases = vec![];
+            let mut last = 0;
+            for el in &text_id_score {
+                increases.push(el.id - last);
+                last = el.id;
             }
+
+            // let scores:Vec<_> = text_id_score.iter().map(|el|el.score.to_f32() as u32).collect();
+
+            let scores_bytes = text_id_score.len(); // 1 byte for each element
+            total_comp_enc_score += scores_bytes;
+            total_comp_enc_score_three += scores_bytes;
+            total_comp += scores_bytes;
+            total_uncomp += text_id_score.len() * 4;
+
+            info!("{:?}", &increases[0..(std::cmp::min(1000, increases.len()) as usize)]);
+
+            let mut map_scores = text_id_score.iter().map(|el| el.score.to_f32() as u32).fold(FnvHashMap::default(), |mut m, c| {
+                *m.entry(c).or_insert(0) += 1;
+                m
+            });
+
+            total_comp += increases
+                .iter()
+                .map(|&inc| {
+                    if inc < 128 {
+                        1
+                    } else if inc < 16000 {
+                        2
+                    } else if inc < 2_000_000 {
+                        3
+                    } else {
+                        4
+                    }
+                })
+                .sum::<usize>();
+
+            // println!("total_comp {:?}", total_comp);
+            // println!("increases {:?}", increases.len());
+
+            let most_occurences = map_scores.values().max().unwrap();
+
+            // let occurences = num_occurences_of_scores[0];
+
+            let sum_comp_enc_score = increases
+                .iter()
+                .map(|&inc| {
+                    if inc < 64 {
+                        1
+                    } else if inc < 8000 {
+                        2
+                    } else if inc < 1_000_000 {
+                        3
+                    } else {
+                        4
+                    }
+                })
+                .sum::<usize>();
+            total_comp_enc_score += sum_comp_enc_score;
+            total_comp_enc_score -= most_occurences;
+
+            if map_scores.len() >= 3 {
+                let mut num_occurences_of_scores: Vec<_> = map_scores.values().collect();
+                num_occurences_of_scores.sort();
+                num_occurences_of_scores = num_occurences_of_scores.into_iter().rev().collect();
+                let occurences = num_occurences_of_scores[0] + num_occurences_of_scores[1] + num_occurences_of_scores[2];
+
+                total_comp_enc_score_three += increases
+                    .iter()
+                    .map(|&inc| {
+                        if inc < 32 {
+                            1
+                        } else if inc < 4000 {
+                            2
+                        } else if inc < 500_000 {
+                            3
+                        } else {
+                            4
+                        }
+                    })
+                    .sum::<usize>();
+                total_comp_enc_score_three -= occurences;
+            } else {
+                //not enough values, take single encoded
+                total_comp_enc_score_three += sum_comp_enc_score;
+                total_comp_enc_score_three -= most_occurences;
+            }
+
+            let maybe_header_size = 4;
+            total_comp_enc_score += maybe_header_size + maybe_header_size; //DOUBLE HEADERSIZE FOR ENCODING ??
+            total_comp_enc_score_three += maybe_header_size + maybe_header_size; //DOUBLE HEADERSIZE FOR ENCODING ??
+            total_comp += maybe_header_size + maybe_header_size; //DOUBLE HEADERSIZE FOR ENCODING ??
+            total_uncomp += maybe_header_size;
+
         }
 
         println!("path                  {:?}", path);

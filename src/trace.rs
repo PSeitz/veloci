@@ -31,7 +31,7 @@ pub fn format_log(record: &Record) -> String {
 }
 
 static LOG_ENABLED: RwLock<bool> = RwLock::new(false);
-
+#[cfg_attr(tarpaulin, skip)]
 pub fn enable_log() {
     let mut log_enabledo = LOG_ENABLED.write();
     if !*log_enabledo {
