@@ -366,11 +366,11 @@ impl Persistence {
                     LoadingType::InMemoryUnCompressed => match el.persistence_type {
                         KVStoreType::IndexIdToMultipleParentIndirect => {
                             let indirect_u32 = bytes_to_vec_u32(&file_handle_to_bytes(&get_file_handle_complete_path(&indirect_path)?)?);
-                            let data_u32 = bytes_to_vec_u32(&file_handle_to_bytes(&get_file_handle_complete_path(&indirect_data_path)?)?);
+                            // let data_u32 = bytes_to_vec_u32(&file_handle_to_bytes(&get_file_handle_complete_path(&indirect_data_path)?)?);
 
                             let store = IndexIdToMultipleParentIndirect {
                                 start_pos: indirect_u32,
-                                data: data_u32,
+                                data: file_handle_to_bytes(&get_file_handle_complete_path(&indirect_data_path)?)?,
                                 cache: lru_cache::LruCache::new(0),
                                 max_value_id: el.max_value_id,
                                 avg_join_size: el.avg_join_size,
@@ -392,11 +392,11 @@ impl Persistence {
                     LoadingType::InMemory => match el.persistence_type {
                         KVStoreType::IndexIdToMultipleParentIndirect => {
                             let indirect_u32 = bytes_to_vec_u32(&file_path_to_bytes(&indirect_path)?);
-                            let data_u32 = bytes_to_vec_u32(&file_path_to_bytes(&indirect_data_path)?);
+                            // let data_u32 = bytes_to_vec_u32(&file_path_to_bytes(&indirect_data_path)?);
 
                             let store = IndexIdToMultipleParentIndirect {
                                 start_pos: indirect_u32,
-                                data: data_u32,
+                                data: file_path_to_bytes(&indirect_data_path)?,
                                 cache: lru_cache::LruCache::new(0),
                                 max_value_id: el.max_value_id,
                                 avg_join_size: el.avg_join_size,
@@ -697,7 +697,7 @@ impl Persistence {
 
     pub fn flush_indirect_index(
         &self,
-        store: &mut IndexIdToMultipleParentIndirectFlushingInOrder<u32>,
+        store: &mut IndexIdToMultipleParentIndirectFlushingInOrderVint<u32>,
         path: &str,
         loading_type: LoadingType,
     ) -> Result<(KVStoreMetaData), io::Error> {

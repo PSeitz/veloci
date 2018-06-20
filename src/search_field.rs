@@ -404,7 +404,9 @@ fn get_term_ids_in_field(persistence: &Persistence, options: &mut RequestSearchP
                         // debug!("ABORT SCORE {:?}", score);
                         return;
                     }
-                    if !result.hits_vec.is_empty() && (result.hits_vec.len() as u32 % (top_n_search * 5)) == 0 {
+
+                    if !result.hits_vec.is_empty() && result.hits_vec.len() as u32 == 200 + top_n_search {
+                    // if !result.hits_vec.is_empty() && (result.hits_vec.len() as u32 % (top_n_search * 5)) == 0 {
                         result
                             .hits_vec
                             .sort_unstable_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(Ordering::Equal));

@@ -13,7 +13,7 @@ use std;
 use std::fs::{self, File};
 use std::io;
 use std::io::Write;
-
+use std::u32;
 use num;
 use num::cast::ToPrimitive;
 use std::marker::PhantomData;
@@ -33,22 +33,6 @@ const EMPTY_BUCKET: u32 = 0;
 
 pub(crate) fn calc_avg_join_size(num_values: u32, num_ids: u32) -> f32 {
     num_values as f32 / std::cmp::max(1, num_ids).to_f32().unwrap()
-}
-
-/// This data structure assumes that a set is only called once for a id, and ids are set in order.
-#[derive(Serialize, Deserialize, Debug, Clone, HeapSizeOf)]
-pub struct IndexIdToMultipleParentIndirectFlushingInOrder<T: IndexIdToParentData> {
-    pub ids_cache: Vec<u32>,
-    pub data_cache: Vec<T>,
-    pub current_data_offset: u32,
-    /// Already written ids_cache
-    pub current_id_offset: u32,
-    pub indirect_path: String,
-    pub data_path: String,
-    pub max_value_id: u32,
-    pub avg_join_size: f32,
-    pub num_values: u32,
-    pub num_ids: u32,
 }
 
 pub(crate) fn flush_to_file_indirect(indirect_path: &str, data_path: &str, indirect_data: &[u8], data: &[u8]) -> Result<(), io::Error> {
@@ -73,15 +57,34 @@ pub(crate) fn flush_to_file_indirect(indirect_path: &str, data_path: &str, indir
     Ok(())
 }
 
+
+/// This data structure assumes that a set is only called once for a id, and ids are set in order.
+#[derive(Serialize, Debug, Clone, HeapSizeOf)]
+pub struct IndexIdToMultipleParentIndirectFlushingInOrderVint<T: IndexIdToParentData> {
+    pub ids_cache: Vec<u32>,
+    pub data_cache: Vec<u8>,
+    pub current_data_offset: u32,
+    /// Already written ids_cache
+    pub current_id_offset: u32,
+    pub indirect_path: String,
+    pub data_path: String,
+    pub max_value_id: u32,
+    pub avg_join_size: f32,
+    pub num_values: u32,
+    pub num_ids: u32,
+    pub ok: PhantomData<T>,
+}
+
+use vint::vint::*;
+
 // TODO: Indirect Stuff @Performance @Memory
-// use vint for data
 // use vint for indirect, use not highest bit in indirect, but the highest unused bit. Max(value_id, single data_id, which would be encoded in the valueid index)
 //
-impl<T: IndexIdToParentData> IndexIdToMultipleParentIndirectFlushingInOrder<T> {
+impl<T: IndexIdToParentData> IndexIdToMultipleParentIndirectFlushingInOrderVint<T> {
     pub fn new(indirect_path: String, data_path: String) -> Self {
         let mut data_cache = vec![];
-        data_cache.resize(1, T::zero()); // resize data by one, because 0 is reserved for the empty buckets
-        IndexIdToMultipleParentIndirectFlushingInOrder {
+        data_cache.resize(1, 1); // resize data by one, because 0 is reserved for the empty buckets
+        IndexIdToMultipleParentIndirectFlushingInOrderVint {
             ids_cache: vec![],
             data_cache,
             current_data_offset: 0,
@@ -92,13 +95,15 @@ impl<T: IndexIdToParentData> IndexIdToMultipleParentIndirectFlushingInOrder<T> {
             avg_join_size: 0.,
             num_values: 0,
             num_ids: 0,
+            ok: PhantomData,
         }
     }
 
-    pub fn into_im_store(self) -> IndexIdToMultipleParentIndirect<T> {
+    pub fn into_im_store(self) -> IndexIdToMultipleParentIndirect<u32> {
         let mut store = IndexIdToMultipleParentIndirect::default();
         //TODO this conversion is not needed, it's always u32
-        store.start_pos = self.ids_cache.iter().map(|el| num::cast(*el).unwrap()).collect::<Vec<_>>();
+        store.start_pos = self.ids_cache;
+
         store.data = self.data_cache;
         store.max_value_id = self.max_value_id;
         store.avg_join_size = calc_avg_join_size(self.num_values, self.num_ids);
@@ -128,8 +133,12 @@ impl<T: IndexIdToParentData> IndexIdToMultipleParentIndirectFlushingInOrder<T> {
             self.ids_cache[id_pos] = val;
         } else {
             self.ids_cache[id_pos] = self.current_data_offset + self.data_cache.len() as u32;
-            self.data_cache.push(num::cast(add_data.len()).unwrap());
-            self.data_cache.extend(add_data);
+
+            let mut vint = VIntArray::default();
+            for el in add_data {
+                vint.encode(num::cast(el).unwrap());
+            }
+            self.data_cache.extend(vint.serialize());
         }
 
         if self.ids_cache.len() * 4 + self.data_cache.len() >= 4_000_000 {
@@ -153,9 +162,6 @@ impl<T: IndexIdToParentData> IndexIdToMultipleParentIndirectFlushingInOrder<T> {
             return Ok(());
         }
 
-        //TODO this conversion is not needed, it's always u32
-        let conv_to_u32 = self.data_cache.iter().map(|el| num::cast(*el).unwrap()).collect::<Vec<_>>();
-
         self.current_id_offset += self.ids_cache.len() as u32;
         self.current_data_offset += self.data_cache.len() as u32;
 
@@ -163,7 +169,7 @@ impl<T: IndexIdToParentData> IndexIdToMultipleParentIndirectFlushingInOrder<T> {
             &self.indirect_path,
             &self.data_path,
             &vec_to_bytes_u32(&self.ids_cache),
-            &vec_to_bytes_u32(&conv_to_u32),
+            &self.data_cache,
         )?;
 
         self.data_cache.clear();
@@ -175,11 +181,13 @@ impl<T: IndexIdToParentData> IndexIdToMultipleParentIndirectFlushingInOrder<T> {
     }
 }
 
+
+
 #[derive(Debug, Clone)]
 pub struct IndexIdToMultipleParentIndirect<T: IndexIdToParentData> {
     pub start_pos: Vec<T>,
     pub cache: LruCache<Vec<T>, u32>,
-    pub data: Vec<T>,
+    pub data: Vec<u8>,
     pub max_value_id: u32,
     pub avg_join_size: f32,
     pub num_values: u32,
@@ -195,7 +203,7 @@ impl<T: IndexIdToParentData> HeapSizeOf for IndexIdToMultipleParentIndirect<T> {
 impl<T: IndexIdToParentData> Default for IndexIdToMultipleParentIndirect<T> {
     fn default() -> IndexIdToMultipleParentIndirect<T> {
         let mut data = vec![];
-        data.resize(1, T::zero()); // resize data by one, because 0 is reserved for the empty buckets
+        data.resize(1, 1); // resize data by one, because 0 is reserved for the empty buckets
         IndexIdToMultipleParentIndirect {
             start_pos: vec![],
             cache: LruCache::new(250),
@@ -251,10 +259,9 @@ impl<T: IndexIdToParentData> IndexIdToParent for IndexIdToMultipleParentIndirect
             }
 
             for position in &positions_vec {
-                let length: u32 = num::cast(self.data[*position as usize]).unwrap();
-                for id in &self.data[num::cast(*position + 1).unwrap()..num::cast(*position + 1 + length).unwrap()] {
-                    // for id in &self.data[num::cast(position[0]).unwrap()..num::cast(position[1]).unwrap()] {
-                    coll.add(*id);
+                let iter = VintArrayIterator::from_slice(&self.data[*position as usize ..]);
+                for el in iter{
+                    coll.add(num::cast(el).unwrap());
                 }
             }
             positions_vec.clear();
@@ -280,13 +287,10 @@ impl<T: IndexIdToParentData> IndexIdToParent for IndexIdToMultipleParentIndirect
             if data_start_pos_length == EMPTY_BUCKET {
                 return None;
             }
-            // if positions[0] == positions[1] {
-            //     return None;
-            // }
-            let data_length: u32 = num::cast(self.data[data_start_pos_length as usize]).unwrap();
-            let data_start_pos = data_start_pos_length + 1;
-            let end: u32 = data_start_pos + data_length;
-            Some(self.data[num::cast(data_start_pos).unwrap()..num::cast(end).unwrap()].to_vec())
+
+            let iter = VintArrayIterator::from_slice(&self.data[data_start_pos.to_usize().unwrap() ..]);
+            let decoded_data: Vec<u32> = iter.collect();
+            Some(decoded_data.iter().map(|el| num::cast(*el).unwrap()).collect())
         }
     }
 }
@@ -375,7 +379,7 @@ impl<T: IndexIdToParentData> IndexIdToParent for PointingMMAPFileReader<T> {
     }
 
     default fn get_values(&self, find: u64) -> Option<Vec<T>> {
-        get_u32_values_from_pointing_mmap_file(
+        get_u32_values_from_pointing_mmap_file_vint(
             //FIXME BUG BUG if file is not u32
             find,
             self.get_size(),
@@ -386,28 +390,24 @@ impl<T: IndexIdToParentData> IndexIdToParent for PointingMMAPFileReader<T> {
 }
 
 #[inline(always)]
-fn get_u32_values_from_pointing_mmap_file(find: u64, size: usize, start_pos: &Mmap, data_file: &Mmap) -> Option<Vec<u32>> {
-    // dump!(bytes_to_vec_u32(&start_pos[..]), bytes_to_vec_u32(&data_file[..]));
-    // trace_time!("get_u32_values_from_mmap_file");
+fn get_u32_values_from_pointing_mmap_file_vint(find: u64, size: usize, start_pos: &Mmap, data_file: &Mmap) -> Option<Vec<u32>> {
     if find >= size as u64 {
         None
     } else {
         let start_index = find as usize * 4;
         let data_start_pos = (&start_pos[start_index as usize..start_index + 4]).read_u32::<LittleEndian>().unwrap();
 
-        let data_start_pos_length = data_start_pos.to_u32().unwrap();
-        if let Some(val) = get_encoded(data_start_pos_length) {
+        let data_start_pos_or_data = data_start_pos.to_u32().unwrap();
+        if let Some(val) = get_encoded(data_start_pos_or_data) {
             return Some(vec![num::cast(val).unwrap()]);
         }
-        if data_start_pos_length == EMPTY_BUCKET {
+        if data_start_pos_or_data == EMPTY_BUCKET {
             return None;
         }
-        let data_length_index = data_start_pos as usize * 4;
-        let data_length: u32 = (&data_file[data_length_index..data_length_index + 4]).read_u32::<LittleEndian>().unwrap();
-        // let data_start_pos = data_start_pos_length + 1;
-        let data_start_index = data_length_index + 4;
-        let end: usize = (data_start_index + data_length as usize * 4) as usize;
-        Some(bytes_to_vec_u32(&data_file[data_start_index..end]))
+
+        let iter = VintArrayIterator::from_slice(&data_file[data_start_pos as usize..]);
+        let decoded_data: Vec<u32> = iter.collect();
+        Some(decoded_data)
     }
 
 }
@@ -421,7 +421,7 @@ fn get_encoded(mut val: u32) -> Option<u32> {
         None
     }
 }
-use std::u32;
+
 
 #[cfg(test)]
 mod tests {
@@ -429,8 +429,8 @@ mod tests {
     use persistence_data::*;
     use std::fs::File;
 
-    fn get_test_data_1_to_n_ind(ind_path:String, data_path:String) -> IndexIdToMultipleParentIndirectFlushingInOrder<u32> {
-        let mut store = IndexIdToMultipleParentIndirectFlushingInOrder::<u32>::new(ind_path, data_path,);
+    fn get_test_data_1_to_n_ind(ind_path:String, data_path:String) -> IndexIdToMultipleParentIndirectFlushingInOrderVint<u32> {
+        let mut store = IndexIdToMultipleParentIndirectFlushingInOrderVint::<u32>::new(ind_path, data_path,);
         store.add(0, vec![5, 6]).unwrap();
         store.add(1, vec![9]).unwrap();
         store.add(2, vec![9]).unwrap();
@@ -493,7 +493,7 @@ mod tests {
             let data_path = dir.path().join("data").to_str().unwrap().to_string();
             let store = get_test_data_1_to_n_ind("indirect_path".to_string(), "data_path".to_string()).into_im_store();
 
-            let mut ind = IndexIdToMultipleParentIndirectFlushingInOrder::<u32>::new(
+            let mut ind = IndexIdToMultipleParentIndirectFlushingInOrderVint::<u32>::new(
                 indirect_path.to_string(),
                 data_path.to_string(),
             );

@@ -525,7 +525,7 @@ fn is_1_to_n(path: &str) -> bool {
 // use buffered_index_writer::KeyValue;
 fn stream_iter_to_indirect_index(
     iter: impl Iterator<Item = buffered_index_writer::KeyValue<u32>>,
-    target: &mut IndexIdToMultipleParentIndirectFlushingInOrder<u32>,
+    target: &mut IndexIdToMultipleParentIndirectFlushingInOrderVint<u32>,
     sort_and_dedup: bool,
 ) -> Result<(), io::Error> {
     for (id, group) in &iter.group_by(|el| el.key) {
@@ -542,7 +542,7 @@ fn stream_iter_to_indirect_index(
 
 fn stream_buffered_index_writer_to_indirect_index(
     mut index_writer: BufferedIndexWriter,
-    target: &mut IndexIdToMultipleParentIndirectFlushingInOrder<u32>,
+    target: &mut IndexIdToMultipleParentIndirectFlushingInOrderVint<u32>,
     sort_and_dedup: bool,
 ) -> Result<(), io::Error> {
     // flush_and_kmerge will flush elements to disk, this is unnecessary for small indices, so we check for im
@@ -821,7 +821,7 @@ fn add_index_flush(
     let indirect_file_path = util::get_file_path(db_path, &(path.to_string() + ".indirect"));
     let data_file_path = util::get_file_path(db_path, &(path.to_string() + ".data"));
 
-    let mut store = IndexIdToMultipleParentIndirectFlushingInOrder::<u32>::new(indirect_file_path, data_file_path);
+    let mut store = IndexIdToMultipleParentIndirectFlushingInOrderVint::<u32>::new(indirect_file_path, data_file_path);
     stream_buffered_index_writer_to_indirect_index(buffered_index_data, &mut store, sort_and_dedup)?;
     indices.indirect_indices_flush.push((path, store, loading_type));
     Ok(())
@@ -846,9 +846,9 @@ fn add_anchor_score_flush(
 #[derive(Debug, Default)]
 struct IndicesFromRawData {
     direct_indices: Vec<(String, IndexIdToOneParent<u32>, LoadingType)>,
-    indirect_indices_flush: Vec<(String, IndexIdToMultipleParentIndirectFlushingInOrder<u32>, LoadingType)>,
+    indirect_indices_flush: Vec<(String, IndexIdToMultipleParentIndirectFlushingInOrderVint<u32>, LoadingType)>,
     // boost_indices: Vec<(String, IndexIdToOneParent<u32>)>,
-    boost_indices: Vec<(String, IndexIdToMultipleParentIndirectFlushingInOrder<u32>, LoadingType)>,
+    boost_indices: Vec<(String, IndexIdToMultipleParentIndirectFlushingInOrderVint<u32>, LoadingType)>,
     anchor_score_indices_flush: Vec<(String, TokenToAnchorScoreVintFlushing)>,
 }
 
@@ -953,7 +953,7 @@ fn convert_raw_path_data_to_indices(
                 let indirect_file_path = util::get_file_path(&db, &(boost_path.to_string() + ".indirect"));
                 let data_file_path = util::get_file_path(&db, &(boost_path.to_string() + ".data"));
 
-                let mut store = IndexIdToMultipleParentIndirectFlushingInOrder::<u32>::new(indirect_file_path, data_file_path);
+                let mut store = IndexIdToMultipleParentIndirectFlushingInOrderVint::<u32>::new(indirect_file_path, data_file_path);
                 stream_buffered_index_writer_to_indirect_index(buffered_index_data, &mut store, false)?;
                 // indices.indirect_indices_flush.push((path, store, loading_type));
                 // let store = valid_pair_to_direct_index(tuples);

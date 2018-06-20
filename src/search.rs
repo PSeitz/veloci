@@ -287,12 +287,6 @@ impl Hit {
     }
 }
 
-impl From<(u32, f32)> for Hit {
-    fn from(tupl: (u32, f32)) -> Self {
-        Hit::new(tupl.0, tupl.1)
-    }
-}
-
 // #[cfg_attr(feature = "flame_it", flame)]
 // fn hits_to_sorted_array(hits: FnvHashMap<u32, f32>) -> Vec<Hit> {
 //     //TODO add top n sort
@@ -379,11 +373,11 @@ pub fn to_search_result(persistence: &Persistence, hits: SearchResult, select: &
     }
 }
 
-pub fn get_search_result(persistence: &Persistence, request: Request) -> Result<SearchResultWithDoc, SearchError> {
-    let select = request.select.clone();
-    let res = search(request, &persistence)?;
-    Ok(to_search_result(&persistence, res, &select))
-}
+// pub fn get_search_result(persistence: &Persistence, request: Request) -> Result<SearchResultWithDoc, SearchError> {
+//     let select = request.select.clone();
+//     let res = search(request, &persistence)?;
+//     Ok(to_search_result(&persistence, res, &select))
+// }
 
 // #[inline]
 // fn to_bucket_and_id(value: u32) -> (u16, u16) {

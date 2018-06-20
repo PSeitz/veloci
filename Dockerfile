@@ -5,6 +5,7 @@ COPY src src
 COPY Cargo.toml .
 COPY index.html .
 COPY json_converter json_converter
+COPY buffered_index_writer buffered_index_writer
 #COPY jmdict jmdict
 
 RUN ls -al
