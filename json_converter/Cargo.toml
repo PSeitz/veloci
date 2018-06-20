@@ -15,7 +15,6 @@ log = "0.4"
 heapsize = "0.4.1"
 flexi_logger = "0.6"
 rayon = "1.0.1"
-chashmap = { git = "https://github.com/nathanaeljones/tfs"}
 
 [dev-dependencies]
 colored = "1.4"

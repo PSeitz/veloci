@@ -8,6 +8,7 @@ use parking_lot::RwLock;
 /// ```[2016-01-13 15:25:01.640870 +01:00] INFO [src/foo/bar:26] Task successfully read from conf.json```
 /// <br>
 /// i.e. with timestamp and file location.
+#[cfg_attr(tarpaulin, skip)]
 pub fn format_log(record: &Record) -> String {
     if module_path!().split("::").nth(0) == record.module_path().unwrap_or("<unnamed>").split("::").nth(0) {
         format!(

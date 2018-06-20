@@ -1,5 +1,4 @@
 #![recursion_limit = "128"]
-
 #[macro_use]
 extern crate log;
 
@@ -12,6 +11,8 @@ extern crate fst;
 extern crate measure_time;
 extern crate rayon;
 extern crate search_lib;
+
+#[allow(unused_imports)]
 #[macro_use]
 extern crate serde_json;
 

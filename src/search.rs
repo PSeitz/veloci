@@ -527,6 +527,15 @@ fn get_all_value_ids(ids: &[u32], token_to_text_id: &IndexIdToParent<Output = u3
     text_ids
 }
 
+fn sort_by_score_and_id(a:&Hit, b:&Hit) -> Ordering {
+    let cmp = b.score.partial_cmp(&a.score);
+    if cmp == Some(Ordering::Equal) {
+        b.id.partial_cmp(&a.id).unwrap_or(Ordering::Equal)
+    } else {
+        cmp.unwrap()
+    }
+}
+
 fn top_n_sort(data: Vec<Hit>, top_n: u32) -> Vec<Hit> {
     let mut worst_score = std::f32::MIN;
 
@@ -537,14 +546,7 @@ fn top_n_sort(data: Vec<Hit>, top_n: u32) -> Vec<Hit> {
         }
         if !new_data.is_empty() && new_data.len() as u32 == top_n + 200 {
             // Sort by score and anchor_id -- WITHOUT anchor_id SORTING SKIP MAY WORK NOT CORRECTLY FOR SAME SCORED ANCHOR_IDS
-            new_data.sort_unstable_by(|a, b| {
-                let cmp = b.score.partial_cmp(&a.score);
-                if cmp == Some(Ordering::Equal) {
-                    b.id.partial_cmp(&a.id).unwrap_or(Ordering::Equal)
-                } else {
-                    cmp.unwrap()
-                }
-            });
+            new_data.sort_unstable_by(sort_by_score_and_id);
             new_data.truncate(top_n as usize);
             worst_score = new_data.last().unwrap().score;
             trace!("new worst {:?}", worst_score);
@@ -554,14 +556,7 @@ fn top_n_sort(data: Vec<Hit>, top_n: u32) -> Vec<Hit> {
     }
 
     // Sort by score and anchor_id -- WITHOUT anchor_id SORTING SKIP MAY WORK NOT CORRECTLY FOR SAME SCORED ANCHOR_IDS
-    new_data.sort_unstable_by(|a, b| {
-        let cmp = b.score.partial_cmp(&a.score);
-        if cmp == Some(Ordering::Equal) {
-            b.id.partial_cmp(&a.id).unwrap_or(Ordering::Equal)
-        } else {
-            cmp.unwrap()
-        }
-    });
+    new_data.sort_unstable_by(sort_by_score_and_id);
     new_data
 }
 
@@ -620,12 +615,10 @@ pub fn search(mut request: Request, persistence: &Persistence) -> Result<SearchR
     {
         debug_time!("sort search by score");
         if let Some(top) = request.top {
-            search_result.data = top_n_sort(res.hits_vec, top as u32 + request.skip.unwrap_or(0) as u32); //TODO Add sort by id when equal
+            search_result.data = top_n_sort(res.hits_vec, top as u32 + request.skip.unwrap_or(0) as u32);
         } else {
             search_result.data = res.hits_vec;
-            search_result
-                .data
-                .sort_unstable_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(Ordering::Equal)); //TODO Add sort by id when equal
+            search_result.data.sort_unstable_by(sort_by_score_and_id);
         }
     }
     let topn_results = apply_top_skip(&search_result.data, request.skip, request.top);
@@ -1585,23 +1578,24 @@ pub fn join_to_parent_with_score(
     Ok(res)
 }
 
-#[cfg_attr(feature = "flame_it", flame)]
-pub fn join_for_read(persistence: &Persistence, input: Vec<u32>, path: &str) -> Result<FnvHashMap<u32, Vec<u32>>, SearchError> {
-    let mut hits: FnvHashMap<u32, Vec<u32>> = FnvHashMap::default();
-    let kv_store = persistence.get_valueid_to_parent(path)?;
-    // debug_time!("term hits hit to column");
-    debug_time!(format!("{:?} ", path));
-    for value_id in input {
-        let values = &kv_store.get_values(u64::from(value_id));
-        if let Some(values) = values.as_ref() {
-            hits.reserve(values.len());
-            hits.insert(value_id, values.clone());
-        }
-    }
-    debug!("hits hit {:?} distinct in column {:?}", hits.len(), path);
+// #[cfg_attr(feature = "flame_it", flame)]
+// pub(crate) fn join_for_read(persistence: &Persistence, input: Vec<u32>, path: &str) -> Result<FnvHashMap<u32, Vec<u32>>, SearchError> {
+//     let mut hits: FnvHashMap<u32, Vec<u32>> = FnvHashMap::default();
+//     let kv_store = persistence.get_valueid_to_parent(path)?;
+//     // debug_time!("term hits hit to column");
+//     debug_time!(format!("{:?} ", path));
+//     for value_id in input {
+//         let values = &kv_store.get_values(u64::from(value_id));
+//         if let Some(values) = values.as_ref() {
+//             hits.reserve(values.len());
+//             hits.insert(value_id, values.clone());
+//         }
+//     }
+//     debug!("hits hit {:?} distinct in column {:?}", hits.len(), path);
 
-    Ok(hits)
-}
+//     Ok(hits)
+// }
+
 #[cfg_attr(feature = "flame_it", flame)]
 pub fn join_for_1_to_1(persistence: &Persistence, value_id: u32, path: &str) -> Result<std::option::Option<u32>, SearchError> {
     let kv_store = persistence.get_valueid_to_parent(path)?;

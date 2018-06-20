@@ -862,7 +862,7 @@ mod tests {
             assert_eq!(hits[0].doc["meanings"]["ger"][0], "(1) weich");
         }
 
-        it "should boost terms"{
+        it "should boost terms and from cache"{
             let req = json!({
                 "search": {
                     "terms":["weich"],
@@ -877,7 +877,13 @@ mod tests {
                 }]
             });
 
-            let hits = search_testo_to_doc(req).data;
+            let hits = search_testo_to_doc(req.clone()).data;
+            assert_eq!(hits[0].doc["meanings"]["ger"][0], "(1) 2 3 super nice weich");
+
+            //using boost cache here
+            let hits = search_testo_to_doc(req.clone()).data;
+            assert_eq!(hits[0].doc["meanings"]["ger"][0], "(1) 2 3 super nice weich");
+            let hits = search_testo_to_doc(req.clone()).data;
             assert_eq!(hits[0].doc["meanings"]["ger"][0], "(1) 2 3 super nice weich");
         }
 

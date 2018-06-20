@@ -3,7 +3,6 @@
 #![feature(entry_and_modify)]
 #[macro_use]
 extern crate serde_json;
-extern crate chashmap;
 extern crate fnv;
 extern crate rayon;
 extern crate test;
@@ -13,8 +12,6 @@ use serde_json::Value;
 use std::borrow::Cow;
 use std::str;
 // use rayon::prelude::*;
-use chashmap::CHashMap;
-use std::sync::atomic::{AtomicUsize, Ordering};
 
 pub mod bench;
 
@@ -26,42 +23,6 @@ pub fn convert_to_string(value: &Value) -> Cow<str> {
         Value::Number(ref i) if i.is_f64() => Cow::from(i.as_f64().unwrap().to_string()),
         Value::Bool(ref i) => Cow::from(i.to_string()),
         _ => Cow::from(""),
-    }
-}
-
-
-pub fn for_each_element_and_doc<F, F2, F3, I: Iterator<Item = Result<serde_json::Value, serde_json::Error>>>(
-    data: I,
-    id_provider: &mut IDProvider,
-    cb_text: &mut F,
-    cb_ids: &mut F2,
-    cb_docs: &mut F3,
-) where
-    F: FnMut(u32, &str, &str, u32, bool),
-    F2: FnMut(u32, &str, u32, u32),
-    F3: FnMut(&Value),
-{
-    let mut path = String::with_capacity(25);
-    let mut is_new_doc;
-    for el in data {
-        is_new_doc = true;
-        // let root_id = id_provider.get_id("");
-        // for_each_elemento(&el.unwrap(), root_id, id_provider, root_id, &mut path, "", cb_text, cb_ids);
-        // path.clear();
-
-        if let Some(arr) = el.as_ref().unwrap().as_array() {
-            for el in arr.iter() {
-                let root_id = id_provider.get_id("");
-                for_each_elemento(el, root_id, id_provider, root_id, &mut path, "", cb_text, cb_ids, &mut is_new_doc);
-                path.clear();
-                cb_docs(el);
-            }
-        } else {
-            let root_id = id_provider.get_id("");
-            for_each_elemento(el.as_ref().unwrap(), root_id, id_provider, root_id, &mut path, "", cb_text, cb_ids, &mut is_new_doc);
-            cb_docs(el.as_ref().unwrap());
-        }
-        path.clear();
     }
 }
 
@@ -149,36 +110,6 @@ pub fn for_each_elemento<F, F2>(
 
 pub trait IDProvider {
     fn get_id(&mut self, path: &str) -> u32;
-}
-
-#[derive(Debug, Default)]
-pub struct ConcurrentIDHolder {
-    pub ids: CHashMap<String, AtomicUsize>,
-}
-
-impl IDProvider for ConcurrentIDHolder {
-    #[inline(always)]
-    fn get_id(&mut self, path: &str) -> u32 {
-        {
-            if let Some(e) = self.ids.get_mut(path) {
-                return e.fetch_add(1, Ordering::SeqCst) as u32;
-            }
-        }
-
-        {
-            self.ids.upsert(path.to_string(), || AtomicUsize::new(0), |_exisitng| {});
-        }
-
-        if let Some(e) = self.ids.get_mut(path) {
-            return e.fetch_add(1, Ordering::SeqCst) as u32;
-        }
-        panic!("path not existing in id holder");
-    }
-}
-impl ConcurrentIDHolder {
-    pub fn new() -> ConcurrentIDHolder {
-        ConcurrentIDHolder { ids: CHashMap::default() }
-    }
 }
 
 #[derive(Debug, Clone, Default)]

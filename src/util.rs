@@ -1,21 +1,11 @@
-use fnv::FnvHashMap;
-use parking_lot::Mutex;
 use regex::Regex;
-use search;
-use search::Hit;
-use serde_json;
-use serde_json::{StreamDeserializer, Value};
 use std;
-use std::env;
-use std::fs;
 use std::fs::File;
 use std::io;
 use std::io::prelude::*;
-use std::io::SeekFrom;
-use std::mem;
 use std::path::Path;
 
-pub fn normalize_text(text: &str) -> String {
+pub(crate) fn normalize_text(text: &str) -> String {
     lazy_static! {
         static ref REGEXES:Vec<(Regex, & 'static str)> = vec![
             (Regex::new(r"\([fmn\d]\)").unwrap(), " "),
@@ -35,31 +25,31 @@ pub fn normalize_text(text: &str) -> String {
     new_str.to_lowercase().trim().to_owned()
 }
 
-pub fn get_bit_at(input: u32, n: u8) -> bool {
-    if n < 32 {
-        input & (1 << n) != 0
-    } else {
-        false
-    }
-}
+// pub(crate) fn get_bit_at(input: u32, n: u8) -> bool {
+//     if n < 32 {
+//         input & (1 << n) != 0
+//     } else {
+//         false
+//     }
+// }
 
-pub fn load_flush_threshold_from_env() -> Result<Option<u32>, search::SearchError> {
-    if let Some(val) = env::var_os("FlushThreshold") {
-        let conv_env = val.clone()
-            .into_string()
-            .map_err(|_err| search::SearchError::StringError(format!("Could not convert LoadingType environment variable to utf-8: {:?}", val)))?;
+// pub(crate) fn load_flush_threshold_from_env() -> Result<Option<u32>, search::SearchError> {
+//     if let Some(val) = env::var_os("FlushThreshold") {
+//         let conv_env = val.clone()
+//             .into_string()
+//             .map_err(|_err| search::SearchError::StringError(format!("Could not convert LoadingType environment variable to utf-8: {:?}", val)))?;
 
-        let flush_threshold = conv_env
-            .parse::<u32>()
-            .map_err(|_err| format!("Expecting number for FlushThreshold, but got {:?}", conv_env))?;
-        Ok(Some(flush_threshold))
-    } else {
-        Ok(None)
-    }
-}
+//         let flush_threshold = conv_env
+//             .parse::<u32>()
+//             .map_err(|_err| format!("Expecting number for FlushThreshold, but got {:?}", conv_env))?;
+//         Ok(Some(flush_threshold))
+//     } else {
+//         Ok(None)
+//     }
+// }
 
 #[inline]
-pub fn set_bit_at(input: &mut u32, n: u8) {
+pub(crate) fn set_bit_at(input: &mut u32, n: u8) {
     *input |= 1 << n
 }
 
@@ -67,16 +57,16 @@ const ONLY_HIGH_BIT_SET: u32 = (1 << 31);
 const ALL_BITS_BUT_HIGHEST_SET: u32 = (1 << 31) - 1;
 
 #[inline]
-pub fn set_high_bit(input: &mut u32) {
+pub(crate) fn set_high_bit(input: &mut u32) {
     *input |= ONLY_HIGH_BIT_SET
 }
 #[inline]
-pub fn unset_high_bit(input: &mut u32) {
+pub(crate) fn unset_high_bit(input: &mut u32) {
     *input &= ALL_BITS_BUT_HIGHEST_SET
 }
 
 #[inline]
-pub fn is_hight_bit_set(input: u32) -> bool {
+pub(crate) fn is_hight_bit_set(input: u32) -> bool {
     input & ONLY_HIGH_BIT_SET != 0
 }
 
@@ -87,7 +77,7 @@ pub fn is_hight_bit_set(input: u32) -> bool {
 // }
 use std::ptr::copy_nonoverlapping;
 #[inline]
-pub fn get_u32_from_bytes(data: &[u8], pos: usize) -> u32 {
+pub(crate) fn get_u32_from_bytes(data: &[u8], pos: usize) -> u32 {
     let mut out: u32 = 0;
     unsafe {
         copy_nonoverlapping(data[pos..].as_ptr(), &mut out as *mut u32 as *mut u8, 4);
@@ -95,47 +85,47 @@ pub fn get_u32_from_bytes(data: &[u8], pos: usize) -> u32 {
     out
 }
 
-#[inline]
-pub fn unsafe_increase_len<T>(vec: &mut Vec<T>, add: usize) -> usize {
-    vec.reserve(1 + add);
-    let curr_pos = vec.len();
-    unsafe {
-        vec.set_len(curr_pos + add);
-    }
-    curr_pos
-}
+// #[inline]
+// pub(crate) fn unsafe_increase_len<T>(vec: &mut Vec<T>, add: usize) -> usize {
+//     vec.reserve(1 + add);
+//     let curr_pos = vec.len();
+//     unsafe {
+//         vec.set_len(curr_pos + add);
+//     }
+//     curr_pos
+// }
 
-pub fn hits_map_to_vec(hits: &FnvHashMap<u32, f32>) -> Vec<Hit> {
-    hits.iter().map(|(id, score)| Hit { id: *id, score: *score }).collect()
-}
+// pub(crate) fn hits_map_to_vec(hits: &FnvHashMap<u32, f32>) -> Vec<Hit> {
+//     hits.iter().map(|(id, score)| Hit { id: *id, score: *score }).collect()
+// }
 
-pub fn hits_vec_to_map(vec_hits: Vec<Hit>) -> FnvHashMap<u32, f32> {
-    let mut hits: FnvHashMap<u32, f32> = FnvHashMap::default();
-    for hit in vec_hits {
-        hits.insert(hit.id, hit.score);
-    }
-    hits
-}
+// pub(crate) fn hits_vec_to_map(vec_hits: Vec<Hit>) -> FnvHashMap<u32, f32> {
+//     let mut hits: FnvHashMap<u32, f32> = FnvHashMap::default();
+//     for hit in vec_hits {
+//         hits.insert(hit.id, hit.score);
+//     }
+//     hits
+// }
 
-pub fn boost_path(path: &str) -> (String, String) {
-    concat_tuple(path, ".boost.subObjId", ".boost.value")
-}
+// pub(crate) fn boost_path(path: &str) -> (String, String) {
+//     concat_tuple(path, ".boost.subObjId", ".boost.value")
+// }
 
-pub fn iter_json_stream<'a, F, T>(data: StreamDeserializer<'a, T, Value>, cb: &mut F)
-where
-    F: FnMut(&serde_json::Value),
-    T: serde_json::de::Read<'a>,
-{
-    for el in data {
-        if let Some(arr) = el.as_ref().unwrap().as_array() {
-            for el in arr.iter() {
-                cb(el);
-            }
-        } else {
-            cb(el.as_ref().unwrap());
-        }
-    }
-}
+// pub(crate) fn iter_json_stream<'a, F, T>(data: StreamDeserializer<'a, T, Value>, cb: &mut F)
+// where
+//     F: FnMut(&serde_json::Value),
+//     T: serde_json::de::Read<'a>,
+// {
+//     for el in data {
+//         if let Some(arr) = el.as_ref().unwrap().as_array() {
+//             for el in arr.iter() {
+//                 cb(el);
+//             }
+//         } else {
+//             cb(el.as_ref().unwrap());
+//         }
+//     }
+// }
 
 // #[test]
 // fn concatooo() {
@@ -149,7 +139,7 @@ where
 //     fn into(&'a self) -> String;
 // }
 
-pub trait IntoString: Sized {
+pub(crate) trait IntoString: Sized {
     fn into_string(self) -> String;
 }
 
@@ -179,28 +169,28 @@ impl IntoString for String {
     }
 }
 
-pub fn concat<S: IntoString + AsRef<str>>(path: S, suffix: &str) -> String {
+pub(crate) fn concat<S: IntoString + AsRef<str>>(path: S, suffix: &str) -> String {
     path.as_ref().into_string() + suffix
 }
 
-// pub fn concat(path: &str, suffix: &str) -> String {
+// pub(crate) fn concat(path: &str, suffix: &str) -> String {
 //     path.to_string() + suffix
 // }
 
-pub fn get_file_path(folder: &str, path: &str) -> String {
+pub(crate) fn get_file_path(folder: &str, path: &str) -> String {
     folder.to_string() + "/" + path
 }
 
-pub fn concat_tuple(path: &str, suffix: &str, suffix2: &str) -> (String, String) {
-    (concat(path, suffix), concat(path, suffix2))
-}
+// pub(crate) fn concat_tuple(path: &str, suffix: &str, suffix2: &str) -> (String, String) {
+//     (concat(path, suffix), concat(path, suffix2))
+// }
 
-pub fn get_file_path_name(path_to_anchor: &str, is_text_index_part: bool) -> String {
+pub(crate) fn get_file_path_name(path_to_anchor: &str, is_text_index_part: bool) -> String {
     let suffix = if is_text_index_part { ".textindex" } else { "" };
     path_to_anchor.to_owned() + suffix
 }
 
-pub fn file_as_string<P: AsRef<Path> + std::fmt::Debug>(path: P) -> Result<(String), io::Error> {
+pub(crate) fn file_as_string<P: AsRef<Path> + std::fmt::Debug>(path: P) -> Result<(String), io::Error> {
     info!("Loading File {:?}", path);
     let mut file = File::open(path)?;
     let mut contents = String::new();
@@ -208,21 +198,21 @@ pub fn file_as_string<P: AsRef<Path> + std::fmt::Debug>(path: P) -> Result<(Stri
     Ok(contents)
 }
 
-pub fn get_level(path: &str) -> u32 {
-    path.matches("[]").count() as u32
-}
+// pub(crate) fn get_level(path: &str) -> u32 {
+//     path.matches("[]").count() as u32
+// }
 
-pub fn remove_array_marker(path: &str) -> String {
-    path.split('.')
-        .collect::<Vec<_>>()
-        .iter()
-        .map(|el| if el.ends_with("[]") { &el[0..el.len() - 2] } else { el })
-        .collect::<Vec<_>>()
-        .join(".")
-}
+// pub(crate) fn remove_array_marker(path: &str) -> String {
+//     path.split('.')
+//         .collect::<Vec<_>>()
+//         .iter()
+//         .map(|el| if el.ends_with("[]") { &el[0..el.len() - 2] } else { el })
+//         .collect::<Vec<_>>()
+//         .join(".")
+// }
 
 #[inline]
-pub fn vec_with_size_uninitialized<T>(size: usize) -> Vec<T> {
+pub(crate) fn vec_with_size_uninitialized<T>(size: usize) -> Vec<T> {
     let mut buffer = Vec::with_capacity(size);
     unsafe {
         buffer.set_len(size);
@@ -230,44 +220,44 @@ pub fn vec_with_size_uninitialized<T>(size: usize) -> Vec<T> {
     buffer
 }
 
+// #[inline]
+// pub(crate) fn get_my_data_danger_zooone(start: u32, end: u32, data_file: &Mutex<fs::File>) -> Vec<u32> {
+//     let mut data: Vec<u32> = vec_with_size_uninitialized(end as usize - start as usize);
+//     {
+//         let p = data.as_mut_ptr();
+//         let len = data.len();
+//         let cap = data.capacity();
+
+//         unsafe {
+//             // complete control of the allocation to which `p` points.
+//             let ptr = p as *mut u8;
+//             let mut data_bytes = Vec::from_raw_parts(ptr, len * 4, cap);
+
+//             load_bytes_into(&mut data_bytes, &*data_file.lock(), u64::from(start) * 4); //READ directly into u32 data
+
+//             // forget about temp data_bytes: no destructor run, so we can use data again
+//             mem::forget(data_bytes);
+//         }
+//     }
+//     data.retain(|el| *el != std::u32::MAX);
+//     data
+// }
+
+// #[inline]
+// pub(crate) fn load_bytes_into(buffer: &mut [u8], mut file: &File, offset: u64) {
+//     // @Temporary Use Result
+//     file.seek(SeekFrom::Start(offset)).unwrap();
+//     file.read_exact(buffer).unwrap();
+// }
+
+// #[inline]
+// pub(crate) fn write_bytes_at(buffer: &[u8], mut file: &File, offset: u64) -> Result<(), io::Error> {
+//     file.seek(SeekFrom::Start(offset))?;
+//     file.write_all(buffer)
+// }
+
 #[inline]
-pub fn get_my_data_danger_zooone(start: u32, end: u32, data_file: &Mutex<fs::File>) -> Vec<u32> {
-    let mut data: Vec<u32> = vec_with_size_uninitialized(end as usize - start as usize);
-    {
-        let p = data.as_mut_ptr();
-        let len = data.len();
-        let cap = data.capacity();
-
-        unsafe {
-            // complete control of the allocation to which `p` points.
-            let ptr = p as *mut u8;
-            let mut data_bytes = Vec::from_raw_parts(ptr, len * 4, cap);
-
-            load_bytes_into(&mut data_bytes, &*data_file.lock(), u64::from(start) * 4); //READ directly into u32 data
-
-            // forget about temp data_bytes: no destructor run, so we can use data again
-            mem::forget(data_bytes);
-        }
-    }
-    data.retain(|el| *el != std::u32::MAX);
-    data
-}
-
-#[inline]
-pub fn load_bytes_into(buffer: &mut [u8], mut file: &File, offset: u64) {
-    // @Temporary Use Result
-    file.seek(SeekFrom::Start(offset)).unwrap();
-    file.read_exact(buffer).unwrap();
-}
-
-#[inline]
-pub fn write_bytes_at(buffer: &[u8], mut file: &File, offset: u64) -> Result<(), io::Error> {
-    file.seek(SeekFrom::Start(offset))?;
-    file.write_all(buffer)
-}
-
-#[inline]
-pub fn extract_field_name(field: &str) -> String {
+pub(crate) fn extract_field_name(field: &str) -> String {
     field
     .chars()
     .take(field.chars().count() - 10) //remove .textindex
@@ -275,7 +265,7 @@ pub fn extract_field_name(field: &str) -> String {
     .collect()
 }
 
-pub fn extract_prop_name(path: &str) -> &str {
+pub(crate) fn extract_prop_name(path: &str) -> &str {
     path.split('.')
         .map(|el| if el.ends_with("[]") { &el[0..el.len() - 2] } else { el })
         .filter(|el| *el != "textindex")
@@ -284,7 +274,7 @@ pub fn extract_prop_name(path: &str) -> &str {
 }
 
 #[inline]
-pub fn get_steps_to_anchor(path: &str) -> Vec<String> {
+pub(crate) fn get_steps_to_anchor(path: &str) -> Vec<String> {
     let mut paths = vec![];
     let mut current = vec![];
     let parts = path.split('.');
@@ -311,7 +301,7 @@ macro_rules! print_json {
 /// Also includes for e.g {"meaning":{"ger":["aye"]}}
 /// the [meaning] and [meaning, ger] step, which is skipped in a search (not needed)
 #[inline]
-pub fn get_all_steps_to_anchor(path: &str) -> Vec<String> {
+pub(crate) fn get_all_steps_to_anchor(path: &str) -> Vec<String> {
     let mut paths = vec![];
     let mut current = vec![];
     let parts = path.split('.');
