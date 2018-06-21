@@ -2,6 +2,7 @@ FROM rustlang/rust:nightly
 
 WORKDIR .
 COPY src src
+COPY bin bin
 COPY Cargo.toml .
 COPY index.html .
 COPY json_converter json_converter
@@ -13,8 +14,9 @@ RUN ls -al
 RUN apt-get update
 RUN apt-get install -y numactl
 
-RUN cargo install
-
+# RUN cargo install --force
+# RUN cd bin
+RUN cd bin;cargo install
 # Make port 3000 available to the world outside this container
 EXPOSE 3000
 

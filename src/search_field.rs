@@ -448,7 +448,7 @@ fn get_term_ids_in_field(persistence: &Persistence, options: &mut RequestSearchP
         }
     }
 
-    // Store token_id hit for why_found
+    // Store token_id hit for why_found or text locality
     if options.store_term_id_hits && !result.hits_vec.is_empty() {
         let mut map = FnvHashMap::default();
         map.insert(options.terms[0].clone(), result.hits_vec.iter().map(|el| el.id).collect()); // TODO Avoid copy? just store hit?

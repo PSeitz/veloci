@@ -342,6 +342,23 @@ mod tests {
             assert_eq!(hits[0].doc["tags"], json!(["nice".to_string()]));
         }
 
+        it "should return an error when trying to query an invalid field"{
+            let req = json!({
+                "search": {
+                    "terms":["test"],
+                    "path": "notexisting"
+                }
+            });
+            let requesto: search::Request = serde_json::from_str(&req.to_string()).expect("Can't parse json");
+            let hits = search_testo_to_hitso(requesto);
+
+            match hits {
+                Err(search::SearchError::StringError(el)) => {assert_eq!(el, "fst not found loaded in indices notexisting.textindex ".to_string())},
+                _ => panic!("YESO"),
+            }
+
+        }
+
         it "simple_search querygenerator"{
             let mut params = query_generator::SearchQueryGeneratorParameters::default();
             params.search_term="urge".to_string();

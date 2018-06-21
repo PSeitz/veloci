@@ -242,8 +242,8 @@ impl<T: IndexIdToParentData> IndexIdToParent for IndexIdToMultipleParentIndirect
                 let pos = *id as usize;
                 // let positions = &self.start_pos[pos..=pos + 1];
                 let data_start_pos = self.start_pos[pos];
-                let data_start_pos_length = data_start_pos.to_u32().unwrap();
-                if let Some(val) = get_encoded(data_start_pos_length) {
+                let data_start_pos_or_data = data_start_pos.to_u32().unwrap();
+                if let Some(val) = get_encoded(data_start_pos_or_data) {
                     coll.add(num::cast(val).unwrap());
                     continue;
                 }
@@ -253,8 +253,8 @@ impl<T: IndexIdToParentData> IndexIdToParent for IndexIdToMultipleParentIndirect
                 //     continue;
                 // }
 
-                if data_start_pos_length != EMPTY_BUCKET {
-                    positions_vec.push(data_start_pos_length);
+                if data_start_pos_or_data != EMPTY_BUCKET {
+                    positions_vec.push(data_start_pos_or_data);
                 }
             }
 
@@ -273,6 +273,26 @@ impl<T: IndexIdToParentData> IndexIdToParent for IndexIdToMultipleParentIndirect
         (num::cast(0).unwrap()..num::cast(self.get_size()).unwrap()).collect()
     }
 
+    fn get_values_iter(&self, id: u64) -> VintArrayIteratorOpt {
+        if id >= self.get_size() as u64 {
+            VintArrayIteratorOpt{single_value: -2, iter: Box::new(VintArrayIterator::from_slice(&[]))}
+        } else {
+            // let positions = &self.start_pos[(id * 2) as usize..=((id * 2) as usize + 1)];
+            let data_start_pos = self.start_pos[id as usize];
+            let data_start_pos_or_data = data_start_pos.to_u32().unwrap();
+            if let Some(val) = get_encoded(data_start_pos_or_data) {
+                // return Some(vec![num::cast(val).unwrap()]);
+                // return VintArrayIterator::from_slice(&[5]);
+                return VintArrayIteratorOpt{single_value: val as i64, iter: Box::new(VintArrayIterator::from_slice(&[]))}
+            }
+            if data_start_pos_or_data == EMPTY_BUCKET {
+                // return VintArrayIterator::from_slice(&[]);
+                return VintArrayIteratorOpt{single_value: -2, iter: Box::new(VintArrayIterator::from_slice(&[]))}
+            }
+            VintArrayIteratorOpt{single_value: -1, iter: Box::new(VintArrayIterator::from_slice(&self.data[data_start_pos.to_usize().unwrap() ..]))}
+        }
+    }
+
     #[inline]
     default fn get_values(&self, id: u64) -> Option<Vec<T>> {
         if id >= self.get_size() as u64 {
@@ -280,11 +300,11 @@ impl<T: IndexIdToParentData> IndexIdToParent for IndexIdToMultipleParentIndirect
         } else {
             // let positions = &self.start_pos[(id * 2) as usize..=((id * 2) as usize + 1)];
             let data_start_pos = self.start_pos[id as usize];
-            let data_start_pos_length = data_start_pos.to_u32().unwrap();
-            if let Some(val) = get_encoded(data_start_pos_length) {
+            let data_start_pos_or_data = data_start_pos.to_u32().unwrap();
+            if let Some(val) = get_encoded(data_start_pos_or_data) {
                 return Some(vec![num::cast(val).unwrap()]);
             }
-            if data_start_pos_length == EMPTY_BUCKET {
+            if data_start_pos_or_data == EMPTY_BUCKET {
                 return None;
             }
 
@@ -297,8 +317,8 @@ impl<T: IndexIdToParentData> IndexIdToParent for IndexIdToMultipleParentIndirect
 
 #[derive(Debug)]
 pub struct PointingMMAPFileReader<T: IndexIdToParentData> {
-    pub start_and_end_file: Mmap,
-    pub data_file: Mmap,
+    pub start_pos: Mmap,
+    pub data: Mmap,
     pub indirect_metadata: Mutex<fs::Metadata>,
     pub ok: PhantomData<T>,
     pub max_value_id: u32,
@@ -317,19 +337,19 @@ impl<T: IndexIdToParentData> PointingMMAPFileReader<T> {
         max_value_id: u32,
         avg_join_size: f32,
     ) -> Result<Self, io::Error> {
-        let start_and_end_file = unsafe {
+        let start_pos = unsafe {
             MmapOptions::new()
                 .map(&File::open(path.to_string() + ".indirect")?)
                 .unwrap()
         };
-        let data_file = unsafe {
+        let data = unsafe {
             MmapOptions::new()
                 .map(&File::open(path.to_string() + ".data")?)
                 .unwrap()
         };
         Ok(PointingMMAPFileReader {
-            start_and_end_file,
-            data_file,
+            start_pos,
+            data,
             indirect_metadata: Mutex::new(File::open(path.to_string() + ".indirect")?.metadata()?),
             ok: PhantomData,
             max_value_id,
@@ -337,26 +357,26 @@ impl<T: IndexIdToParentData> PointingMMAPFileReader<T> {
         })
     }
     pub fn new(
-        start_and_end_file: &fs::File,
-        data_file: &fs::File,
+        start_pos: &fs::File,
+        data: &fs::File,
         indirect_metadata: fs::Metadata,
         _data_metadata: &fs::Metadata,
         max_value_id: u32,
         avg_join_size: f32,
     ) -> Self {
-        let start_and_end_file = unsafe {
+        let start_pos = unsafe {
             MmapOptions::new()
-                .map(&start_and_end_file)
+                .map(&start_pos)
                 .unwrap()
         };
-        let data_file = unsafe {
+        let data = unsafe {
             MmapOptions::new()
-                .map(&data_file)
+                .map(&data)
                 .unwrap()
         };
         PointingMMAPFileReader {
-            start_and_end_file,
-            data_file,
+            start_pos,
+            data,
             indirect_metadata: Mutex::new(indirect_metadata),
             ok: PhantomData,
             max_value_id,
@@ -378,23 +398,46 @@ impl<T: IndexIdToParentData> IndexIdToParent for PointingMMAPFileReader<T> {
         (num::cast(0).unwrap()..num::cast(self.get_size()).unwrap()).collect()
     }
 
-    default fn get_values(&self, find: u64) -> Option<Vec<T>> {
+    fn get_values_iter(&self, id: u64) -> VintArrayIteratorOpt {
+        if id >= self.get_size() as u64 {
+            VintArrayIteratorOpt{single_value: -2, iter: Box::new(VintArrayIterator::from_slice(&[]))}
+        } else {
+            // let positions = &self.start_pos[(id * 2) as usize..=((id * 2) as usize + 1)];
+            let start_index = id as usize * 4;
+            let data_start_pos = (&self.start_pos[start_index as usize..start_index + 4]).read_u32::<LittleEndian>().unwrap();
+            // let data_start_pos = self.start_pos[id as usize];
+            let data_start_pos_or_data = data_start_pos.to_u32().unwrap();
+            if let Some(val) = get_encoded(data_start_pos_or_data) {
+                // return Some(vec![num::cast(val).unwrap()]);
+                // return VintArrayIterator::from_slice(&[5]);
+                return VintArrayIteratorOpt{single_value: val as i64, iter: Box::new(VintArrayIterator::from_slice(&[]))}
+            }
+            if data_start_pos_or_data == EMPTY_BUCKET {
+                // return VintArrayIterator::from_slice(&[]);
+                return VintArrayIteratorOpt{single_value: -2, iter: Box::new(VintArrayIterator::from_slice(&[]))}
+            }
+            VintArrayIteratorOpt{single_value: -1, iter: Box::new(VintArrayIterator::from_slice(&self.data[data_start_pos.to_usize().unwrap() ..]))}
+        }
+    }
+
+
+    default fn get_values(&self, id: u64) -> Option<Vec<T>> {
         get_u32_values_from_pointing_mmap_file_vint(
             //FIXME BUG BUG if file is not u32
-            find,
+            id,
             self.get_size(),
-            &self.start_and_end_file,
-            &self.data_file,
+            &self.start_pos,
+            &self.data,
         ).map(|el| el.iter().map(|el| num::cast(*el).unwrap()).collect())
     }
 }
 
 #[inline(always)]
-fn get_u32_values_from_pointing_mmap_file_vint(find: u64, size: usize, start_pos: &Mmap, data_file: &Mmap) -> Option<Vec<u32>> {
-    if find >= size as u64 {
+fn get_u32_values_from_pointing_mmap_file_vint(id: u64, size: usize, start_pos: &Mmap, data: &Mmap) -> Option<Vec<u32>> {
+    if id >= size as u64 {
         None
     } else {
-        let start_index = find as usize * 4;
+        let start_index = id as usize * 4;
         let data_start_pos = (&start_pos[start_index as usize..start_index + 4]).read_u32::<LittleEndian>().unwrap();
 
         let data_start_pos_or_data = data_start_pos.to_u32().unwrap();
@@ -405,7 +448,7 @@ fn get_u32_values_from_pointing_mmap_file_vint(find: u64, size: usize, start_pos
             return None;
         }
 
-        let iter = VintArrayIterator::from_slice(&data_file[data_start_pos as usize..]);
+        let iter = VintArrayIterator::from_slice(&data[data_start_pos as usize..]);
         let decoded_data: Vec<u32> = iter.collect();
         Some(decoded_data)
     }
@@ -458,6 +501,24 @@ mod tests {
         assert_eq!(map.get(&5).unwrap(), &1);
         assert_eq!(map.get(&9).unwrap(), &3);
     }
+    fn check_test_data_1_to_n_iter(store: &IndexIdToParent<Output = u32>) {
+        let empty_vec: Vec<u32> = vec![];
+        assert_eq!(store.get_keys(), vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
+        assert_eq!(store.get_values_iter(0).collect::<Vec<u32>>(), vec![5, 6]);
+        assert_eq!(store.get_values_iter(1).collect::<Vec<u32>>(), vec![9]);
+        assert_eq!(store.get_values_iter(2).collect::<Vec<u32>>(), vec![9]);
+        assert_eq!(store.get_values_iter(3).collect::<Vec<u32>>(), vec![9, 50000]);
+        assert_eq!(store.get_values_iter(4).collect::<Vec<u32>>(), empty_vec);
+        assert_eq!(store.get_values_iter(5).collect::<Vec<u32>>(), vec![80]);
+        assert_eq!(store.get_values_iter(6).collect::<Vec<u32>>(), empty_vec);
+        assert_eq!(store.get_values_iter(9).collect::<Vec<u32>>(), vec![0]);
+        assert_eq!(store.get_values_iter(10).collect::<Vec<u32>>(), vec![0]);
+        assert_eq!(store.get_values_iter(11).collect::<Vec<u32>>(), empty_vec);
+
+        let map = store.count_values_for_ids(&[0, 1, 2, 3, 4, 5], None);
+        assert_eq!(map.get(&5).unwrap(), &1);
+        assert_eq!(map.get(&9).unwrap(), &3);
+    }
 
     mod test_indirect {
         use super::*;
@@ -470,20 +531,21 @@ mod tests {
             let mut store = get_test_data_1_to_n_ind(indirect_path.to_string(), data_path.to_string());
             store.flush().unwrap();
 
-            let start_and_end_file = File::open(&indirect_path).unwrap();
-            let data_file = File::open(&data_path).unwrap();
+            let start_pos = File::open(&indirect_path).unwrap();
+            let data = File::open(&data_path).unwrap();
             let indirect_metadata = fs::metadata(&indirect_path).unwrap();
             let data_metadata = fs::metadata(&data_path).unwrap();
 
             let store = PointingMMAPFileReader::new(
-                &start_and_end_file,
-                &data_file,
+                &start_pos,
+                &data,
                 indirect_metadata,
                 &data_metadata,
                 store.max_value_id,
                 calc_avg_join_size(store.num_values, store.num_ids),
             );
             check_test_data_1_to_n(&store);
+            check_test_data_1_to_n_iter(&store);
         }
 
         #[test]
@@ -506,27 +568,30 @@ mod tests {
             }
             ind.flush().unwrap();
 
-            let start_and_end_file = File::open(&indirect_path).unwrap();
-            let data_file = File::open(&data_path).unwrap();
+            let start_pos = File::open(&indirect_path).unwrap();
+            let data = File::open(&data_path).unwrap();
             let indirect_metadata = fs::metadata(&indirect_path).unwrap();
             let data_metadata = fs::metadata(&data_path).unwrap();
 
             let store = PointingMMAPFileReader::new(
-                &start_and_end_file,
-                &data_file,
+                &start_pos,
+                &data,
                 indirect_metadata,
                 &data_metadata,
                 ind.max_value_id,
                 calc_avg_join_size(ind.num_values, ind.num_ids),
             );
             check_test_data_1_to_n(&store);
+            check_test_data_1_to_n_iter(&store);
         }
 
 
         #[test]
         fn test_pointing_array_index_id_to_multiple_parent_indirect() {
             let store = get_test_data_1_to_n_ind("test_ind".to_string(), "test_data".to_string());
-            check_test_data_1_to_n(&store.into_im_store());
+            let store = store.into_im_store();
+            check_test_data_1_to_n(&store);
+            check_test_data_1_to_n_iter(&store);
         }
 
 

@@ -426,9 +426,10 @@ fn get_why_found(
     Ok(anchor_highlights)
 }
 
+#[inline]
 fn boost_text_locality_all(
     persistence: &Persistence,
-    term_id_hits_in_field: &FnvHashMap<String, FnvHashMap<String, Vec<TermId>>>,
+    term_id_hits_in_field: &mut FnvHashMap<String, FnvHashMap<String, Vec<TermId>>>,
 ) -> Result<(Vec<Hit>), SearchError> {
     debug!("boost_text_locality_all {:?}", term_id_hits_in_field);
     info_time!("boost_text_locality_all");
@@ -472,9 +473,9 @@ fn boost_text_locality_all(
     Ok(boost_anchor)
 }
 
-fn boost_text_locality(persistence: &Persistence, path: &str, term_with_ids: &FnvHashMap<String, Vec<TermId>>) -> Result<(Vec<Hit>), SearchError> {
+fn boost_text_locality(persistence: &Persistence, path: &str, search_term_to_text_ids: &mut FnvHashMap<String, Vec<TermId>>) -> Result<(Vec<Hit>), SearchError> {
     let mut boost_anchor = vec![];
-    if term_with_ids.len() <= 1 {
+    if search_term_to_text_ids.len() <= 1 {
         // No boost for single term hits
         return Ok(vec![]);
     }
@@ -483,8 +484,8 @@ fn boost_text_locality(persistence: &Persistence, path: &str, term_with_ids: &Fn
     let mut boost_text_ids = vec![];
     {
         trace_time!("text_locality_boost get and group text_ids");
-        for ids in term_with_ids.values() {
-            let mut text_ids = get_all_value_ids(&ids, token_to_text_id);
+        for text_ids in search_term_to_text_ids.values() {
+            let mut text_ids = get_all_value_ids(&text_ids, token_to_text_id);
             text_ids.sort_unstable();
             terms_text_ids.push(text_ids);
         }
@@ -499,28 +500,35 @@ fn boost_text_locality(persistence: &Persistence, path: &str, term_with_ids: &Fn
     let text_id_to_anchor = persistence.get_valueid_to_parent(&concat(&path, ".text_id_to_anchor"))?;
     trace_time!("text_locality_boost text_ids to anchor");
 
+    boost_text_ids.sort_unstable_by_key(|el| el.0);
     for text_id in boost_text_ids {
         let num_hits_in_same_text = text_id.1;
-        if let Some(anchor_ids) = text_id_to_anchor.get_values(u64::from(text_id.0)) {
-            for anchor_id in anchor_ids {
-                boost_anchor.push(Hit::new(anchor_id, num_hits_in_same_text as f32 * num_hits_in_same_text as f32));
-            }
+        for anchor_id in text_id_to_anchor.get_values_iter(u64::from(text_id.0)) {
+            boost_anchor.push(Hit::new(anchor_id, num_hits_in_same_text as f32 * num_hits_in_same_text as f32));
         }
+        // if let Some(anchor_ids) = text_id_to_anchor.get_values(u64::from(text_id.0)) {
+        //     for anchor_id in anchor_ids {
+        //         boost_anchor.push(Hit::new(anchor_id, num_hits_in_same_text as f32 * num_hits_in_same_text as f32));
+        //     }
+        // }
     }
     boost_anchor.sort_unstable_by_key(|el| el.id);
     Ok(boost_anchor)
 }
 
+#[inline]
 fn get_all_value_ids(ids: &[u32], token_to_text_id: &IndexIdToParent<Output = u32>) -> Vec<u32> {
     let mut text_ids: Vec<u32> = vec![];
     for id in ids {
-        if let Some(ids) = token_to_text_id.get_values(u64::from(*id)) {
-            text_ids.extend(ids.iter()); // TODO move data, swap first
-        }
+        text_ids.extend(token_to_text_id.get_values_iter(u64::from(*id)))
+        // if let Some(ids) = token_to_text_id.get_values(u64::from(*id)) {
+        //     text_ids.extend(ids.iter()); // TODO move data, swap first
+        // }
     }
     text_ids
 }
 
+#[inline]
 fn sort_by_score_and_id(a:&Hit, b:&Hit) -> Ordering {
     let cmp = b.score.partial_cmp(&a.score);
     if cmp == Some(Ordering::Equal) {
@@ -530,6 +538,7 @@ fn sort_by_score_and_id(a:&Hit, b:&Hit) -> Ordering {
     }
 }
 
+#[inline]
 fn top_n_sort(data: Vec<Hit>, top_n: u32) -> Vec<Hit> {
     let mut worst_score = std::f32::MIN;
 
@@ -580,7 +589,7 @@ pub fn search(mut request: Request, persistence: &Persistence) -> Result<SearchR
 
     if request.text_locality {
         info_time!("boost_text_locality_all");
-        let boost_anchor = boost_text_locality_all(&persistence, &res.term_id_hits_in_field)?;
+        let boost_anchor = boost_text_locality_all(&persistence, &mut res.term_id_hits_in_field)?;
         res = apply_boost_from_iter(res, &mut boost_anchor.iter().cloned());
     }
     let term_id_hits_in_field = res.term_id_hits_in_field;
@@ -948,6 +957,10 @@ pub fn union_hits_vec(mut or_results: Vec<SearchFieldResult>) -> SearchFieldResu
             set_bit_at(&mut term_id_hits, el.term_id);
             sum_score += el.score.to_f32();
         }
+
+        // if num_hits <= 3{
+        //     continue;
+        // }
 
         // if num_hits != 1 {
         let num_distinct_terms = term_id_hits.count_ones() as f32;
@@ -1601,47 +1614,3 @@ pub fn join_for_1_to_n(persistence: &Persistence, value_id: u32, path: &str) -> 
     let kv_store = persistence.get_valueid_to_parent(path)?;
     Ok(kv_store.get_values(u64::from(value_id)))
 }
-
-// #[cfg_attr(feature="flame_it", flame)]
-// fn join_to_parent<I>(persistence: &Persistence, input: I, path: &str, trace_time_info: &str) -> FnvHashMap<u32, f32>
-//     where
-//     I: IntoIterator<Item = (u32, f32)> ,
-// {
-//     let mut total_values = 0;
-//     let mut hits: FnvHashMap<u32, f32> = FnvHashMap::default();
-//     let hits_iter = input.into_iter();
-//     let num_hits = hits_iter.size_hint().1.unwrap_or(0);
-//     hits.reserve(num_hits);
-//     let kv_store = persistence.get_valueid_to_parent(&concat(&path, ".valueIdToParent"));
-//     // debug_time!("term hits hit to column");
-//     debug_time!(format!("{:?} {:?}", path, trace_time_info));
-//     for (term_id, score) in hits_iter {
-//         let ref values = kv_store.get_values(term_id as u64);
-//         values.as_ref().map(|values| {
-//             total_values += values.len();
-//             hits.reserve(values.len());
-//             // trace!("value_id: {:?} values: {:?} ", value_id, values);
-//             for parent_val_id in values {
-//                 // @Temporary
-//                 match hits.entry(*parent_val_id as u32) {
-//                     Vacant(entry) => {
-//                         trace!("value_id: {:?} to parent: {:?} score {:?}", term_id, parent_val_id, score);
-//                         entry.insert(score);
-//                     }
-//                     Occupied(entry) => if *entry.get() < score {
-//                         trace!("value_id: {:?} to parent: {:?} score: {:?}", term_id, parent_val_id, score.max(*entry.get()));
-//                         *entry.into_mut() = score.max(*entry.get());
-//                     },
-//                 }
-//             }
-//         });
-//     }
-//     debug!("{:?} hits hit {:?} distinct ({:?} total ) in column {:?}", num_hits, hits.len(), total_values, path);
-
-//     // debug!("{:?} hits in next_level_hits {:?}", next_level_hits.len(), &concat(path_name, ".valueIdToParent"));
-
-//     // trace!("next_level_hits from {:?}: {:?}", &concat(path_name, ".valueIdToParent"), hits);
-//     // debug!("{:?} hits in next_level_hits {:?}", hits.len(), &concat(path_name, ".valueIdToParent"));
-
-//     hits
-// }

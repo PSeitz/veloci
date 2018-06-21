@@ -1,5 +1,6 @@
 *
 !/src/*
+!/bin/*
 !/json_converter/*
 !/buffered_index_writer/*
 !Cargo.toml

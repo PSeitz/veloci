@@ -84,7 +84,7 @@ impl<T:GetValue + Default + Clone> BufferedIndexWriter<T> {
             stable_sort,
             ids_are_sorted,
             last_id: std::u32::MAX,
-            flush_threshold: 16_000_000,
+            flush_threshold: 4_000_000,
             parts: vec![],
         }
     }

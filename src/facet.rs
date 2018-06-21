@@ -112,15 +112,7 @@ fn join_for_n_to_m(persistence: &Persistence, value_ids: &[u32], path: &str) -> 
 
     kv_store.append_values_for_ids(value_ids, &mut hits);
 
-    // for id in value_ids {
-    //     if let Some(value_ids) = kv_store.get_values(*id as u64) {
-    //         trace!("adding value_ids {:?}", value_ids);
-    //         hits.extend(value_ids.iter());
-    //     }
-    // }
     trace!("hits {:?}", hits);
-    // Ok(value_ids.iter().flat_map(|el| kv_store.get_values(*el as u64).unwrap_or(vec![])).collect())
-    // Ok(kv_store.get_values(value_id as u64))
     Ok(hits)
 }
 

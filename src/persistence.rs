@@ -1,3 +1,4 @@
+use vint::vint::VintArrayIterator;
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fs::{self, File};
@@ -183,8 +184,46 @@ pub trait TokenToAnchorScore: Debug + HeapSizeOf + Sync + Send + type_info::Type
     fn get_score_iter(&self, id: u32) -> AnchorScoreIter;
 }
 
+
+#[derive(Debug, Clone)]
+pub struct VintArrayIteratorOpt<'a> {
+    pub(crate) single_value: i64,
+    pub(crate) iter: std::boxed::Box<VintArrayIterator<'a>>,
+}
+
+impl<'a> Iterator for VintArrayIteratorOpt<'a> {
+    type Item = u32;
+
+    #[inline]
+    fn next(&mut self) -> Option<u32> {
+        if self.single_value == -2 {
+            None
+        } else if self.single_value == -1{
+            self.iter.next()
+        }else{
+            let tmp = self.single_value;
+            self.single_value = -2;
+            Some(tmp as u32)
+        }
+    }
+
+    #[inline]
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        self.iter.size_hint()
+    }
+}
+
+// impl<'a> FusedIterator for VintArrayIteratorOpt<'a> {}
+
+
+
 pub trait IndexIdToParent: Debug + HeapSizeOf + Sync + Send + type_info::TypeInfo {
     type Output: IndexIdToParentData;
+
+    fn get_values_iter(&self, _id: u64) -> VintArrayIteratorOpt{
+        panic!("not implemented");
+        // VintArrayIteratorOpt{single_value: -2, iter: Box::new(VintArrayIterator::from_slice(&[]))}
+    }
 
     fn get_values(&self, id: u64) -> Option<Vec<Self::Output>>;
 
@@ -242,12 +281,12 @@ pub trait IndexIdToParent: Debug + HeapSizeOf + Sync + Send + type_info::TypeInf
         self.get_keys().len()
     }
 
-    #[inline]
-    fn is_1_to_n(&self) -> bool {
-        let keys = self.get_keys();
-        keys.iter()
-            .any(|key| self.get_values(num::cast(*key).unwrap()).map(|values| values.len() > 1).unwrap_or(false))
-    }
+    // #[inline]
+    // fn is_1_to_n(&self) -> bool {
+    //     let keys = self.get_keys();
+    //     keys.iter()
+    //         .any(|key| self.get_values(num::cast(*key).unwrap()).map(|values| values.len() > 1).unwrap_or(false))
+    // }
 }
 
 pub fn trace_index_id_to_parent<T: IndexIdToParentData>(val: &IndexIdToParent<Output = T>) {
