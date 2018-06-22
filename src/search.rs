@@ -834,6 +834,11 @@ fn merge_term_id_texts(results: &mut Vec<SearchFieldResult>) -> FnvHashMap<Strin
 
 #[cfg_attr(feature = "flame_it", flame)]
 pub fn union_hits_vec(mut or_results: Vec<SearchFieldResult>) -> SearchFieldResult {
+    if or_results.len() == 0 {
+        return SearchFieldResult {
+            ..Default::default()
+        }
+    }
     if or_results.len() == 1 {
         let res = or_results.swap_remove(0);
         return res;
@@ -1035,6 +1040,11 @@ fn union_hits_vec_test() {
 
 #[cfg_attr(feature = "flame_it", flame)]
 pub fn intersect_hits_vec(mut and_results: Vec<SearchFieldResult>) -> SearchFieldResult {
+    if and_results.len() == 0 {
+        return SearchFieldResult {
+            ..Default::default()
+        }
+    }
     if and_results.len() == 1 {
         let res = and_results.swap_remove(0);
         return res;

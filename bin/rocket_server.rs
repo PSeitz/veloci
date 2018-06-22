@@ -236,8 +236,14 @@ fn get_doc_for_id_direct(database: String, id: u32) -> Json<Value> {
 // }
 
 #[get("/<database>/search?<params>")]
-fn search_get(database: String, params: QueryParams) -> Result<SearchResult, search::SearchError> {
-    ensure_database(&database)?;
+fn search_get(database: String, params: Result<QueryParams, rocket::Error>) -> Result<SearchResult, Custom<String>> {
+    let params = params.map_err(|err|{
+        Custom(
+            Status::BadRequest,
+            format!("{:?}", err)
+        )
+    })?;
+    ensure_database(&database).map_err(search_error_to_rocket_error)?;
     let persistence = PERSISTENCES.get(&database).unwrap();
 
     let facets: Option<Vec<String>> = query_param_to_vec(params.facets);
@@ -288,7 +294,7 @@ fn search_get(database: String, params: QueryParams) -> Result<SearchResult, sea
     request.select = query_param_to_vec(params.select);
 
     debug!("{}", serde_json::to_string(&request).unwrap());
-    search_in_persistence(&persistence, request, false)
+    search_in_persistence(&persistence, request, false).map_err(search_error_to_rocket_error)
 }
 
 #[get("/<database>/search_shard?<params>")]
@@ -364,19 +370,7 @@ fn multipart_upload(database: String, cont_type: &ContentType, data: Data) -> Re
         )?;
 
     let resp = process_upload(boundary, data)
-        .map_err(|err|{
-            match err {
-                search::SearchError::StringError(msg) => {
-                    Custom(Status::BadRequest, msg)
-                },
-                _ => {
-                    Custom(
-                        Status::InternalServerError,
-                        "Some error happened".into()
-                    )
-                },
-            }
-        })?;
+        .map_err(search_error_to_rocket_error)?;
 
     search_lib::create::create_indices_from_str(
         &mut search_lib::persistence::Persistence::create(database.to_string()).unwrap(),
@@ -386,6 +380,20 @@ fn multipart_upload(database: String, cont_type: &ContentType, data: Data) -> Re
         false,
     ).unwrap();
     Ok(format!("created {:?}", &database))
+}
+
+fn search_error_to_rocket_error(err: search::SearchError) -> Custom<String> {
+     match err {
+        search::SearchError::StringError(msg) => {
+            Custom(Status::BadRequest, msg)
+        },
+        _ => {
+            Custom(
+                Status::InternalServerError,
+                "Some error happened".into()
+            )
+        },
+    }
 }
 
 fn process_upload(boundary: &str, data: Data) -> Result<(String, Option<String>), search::SearchError> {
