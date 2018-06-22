@@ -346,61 +346,46 @@ fn search_get_shard(database: String, params: QueryParams) -> Result<SearchResul
 // use std::io;
 #[post("/<database>", data = "<data>")]
 // signature requires the request to have a `Content-Type`
-fn multipart_upload(database: String, cont_type: &ContentType, data: Data) -> Result<(), search::SearchError> {
+fn multipart_upload(database: String, cont_type: &ContentType, data: Data) -> Result<String, Custom<String>> {
     // this and the next check can be implemented as a request guard but it seems like just
     // more boilerplate than necessary
-    // if !cont_type.is_form_data() {
-    //     return Err(Custom(
-    //         Status::BadRequest,
-    //         "Content-Type not multipart/form-data".into()
-    //     ));
-    // }
-
-    // let (_, boundary) = cont_type.params().find(|&(k, _)| k == "boundary").ok_or_else(
-    //         || Custom(
-    //             Status::BadRequest,
-    //             "`Content-Type: multipart/form-data` boundary param not provided".into()
-    //         )
-    //     )?;
-
-    // match process_upload(boundary, data) {
-    //     Ok(resp) => {
-    //         // Ok(Stream::from(Cursor::new(resp)))
-    //         search_lib::create::create_indices_from_str(
-    //             &mut search_lib::persistence::Persistence::create(database).unwrap(),
-    //             &resp.0,
-    //             &resp.1.unwrap_or("[]".to_string()),
-    //             None,
-    //             false,
-    //         ).unwrap();
-    //         Ok(())
-    //     },
-    //     Err(err) => Err(Custom(Status::InternalServerError, err.to_string()))
-    // }
-
-
     if !cont_type.is_form_data() {
-        return Err(search::SearchError::StringError(
+        return Err(Custom(
+            Status::BadRequest,
             "Content-Type not multipart/form-data".into()
         ));
     }
 
     let (_, boundary) = cont_type.params().find(|&(k, _)| k == "boundary").ok_or_else(
-        || search::SearchError::StringError(
-            "`Content-Type: multipart/form-data` boundary param not provided".into()
-        )
-    )?;
+            || Custom(
+                Status::BadRequest,
+                "`Content-Type: multipart/form-data` boundary param not provided".into()
+            )
+        )?;
 
+    let resp = process_upload(boundary, data)
+        .map_err(|err|{
+            match err {
+                search::SearchError::StringError(msg) => {
+                    Custom(Status::BadRequest, msg)
+                },
+                _ => {
+                    Custom(
+                        Status::InternalServerError,
+                        "Some error happened".into()
+                    )
+                },
+            }
+        })?;
 
-    let resp = process_upload(boundary, data)?;
     search_lib::create::create_indices_from_str(
-        &mut search_lib::persistence::Persistence::create(database).unwrap(),
+        &mut search_lib::persistence::Persistence::create(database.to_string()).unwrap(),
         &resp.0,
         &resp.1.unwrap_or("[]".to_string()),
         None,
         false,
     ).unwrap();
-    Ok(())
+    Ok(format!("created {:?}", &database))
 }
 
 fn process_upload(boundary: &str, data: Data) -> Result<(String, Option<String>), search::SearchError> {
@@ -409,7 +394,7 @@ fn process_upload(boundary: &str, data: Data) -> Result<(String, Option<String>)
     // saves all fields, any field longer than 10kB goes to a temporary directory
     // Entries could implement FromData though that would give zero control over
     // how the files are saved; Multipart would be a good impl candidate though
-    match Multipart::with_body(data.open(), boundary).save().temp() {
+    match Multipart::with_body(data.open(), boundary).save().size_limit(500_000_000).temp() {
         Full(entries) => process_entries(entries),
         Partial(partial, reason) => {
             error!("Request partially processed: {:?}", reason);
