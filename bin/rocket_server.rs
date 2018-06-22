@@ -333,6 +333,40 @@ fn search_get_shard(database: String, params: QueryParams) -> Result<SearchResul
     Ok(SearchResult(shard.search_all_shards_from_qp(&q_params, &query_param_to_vec(params.select))?))
 }
 
+
+#[post("/<database>",  data = "<data>")]
+fn create_db(database: String, data: rocket::data::Data) -> Result<String, search::SearchError> {
+
+    if PERSISTENCES.contains_key(&database) {  //TODO @BUG @FixMe ERROR OWASP
+        PERSISTENCES.remove(&database);
+    }
+
+    let mut out:Vec<u8> = vec![];
+    search_lib::create::convert_any_json_data_to_line_delimited(data.open(), &mut out).unwrap();
+
+    search_lib::create::create_indices_from_str(
+        &mut search_lib::persistence::Persistence::create(database).unwrap(),
+        unsafe{std::str::from_utf8_unchecked(&out)},
+        "[]",
+        None,
+        false,
+    ).unwrap();
+    Ok("created".to_string())
+}
+
+#[delete("/<database>")]
+fn delete_db(database: String) -> Result<String, search::SearchError> {
+    if PERSISTENCES.contains_key(&database) {
+        PERSISTENCES.remove(&database);
+    }
+    use std::path::Path;
+    if Path::new(&database).exists() {
+        std::fs::remove_dir_all(&database)?; //TODO @BUG @FixMe ERROR OWASP
+    }
+
+    Ok("deleted".to_string())
+}
+
 #[post("/<database>/suggest", format = "application/json", data = "<request>")]
 fn suggest_post(database: String, request: Json<search::Request>) -> Result<SuggestResult, search::SearchError> {
     ensure_database(&database)?;
@@ -390,7 +424,7 @@ fn main() {
     println!("Starting Server...");
     rocket::ignite()
         // .mount("/", routes![version, get_doc_for_id_direct, get_doc_for_id_tree, search_get, search_post, suggest_get, suggest_post, highlight_post])
-        .mount("/", routes![version, get_doc_for_id_direct, get_doc_for_id_tree, search_get, search_post, suggest_get, search_get_shard, suggest_post, highlight_post, inspect_data])
+        .mount("/", routes![version, delete_db, create_db, get_doc_for_id_direct, get_doc_for_id_tree, search_get, search_post, suggest_get, search_get_shard, suggest_post, highlight_post, inspect_data])
         .attach(Gzip)
         .launch();
 }
