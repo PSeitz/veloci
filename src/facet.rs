@@ -19,7 +19,7 @@ fn get_top_facet_group<T: IndexIdToParentData>(hits: &FnvHashMap<T, usize>, top:
 
 //TODO Check ignorecase, check duplicates in facet data
 pub fn get_facet(persistence: &Persistence, req: &FacetRequest, ids: &[u32]) -> Result<Vec<(String, usize)>, SearchError> {
-    info_time!(format!("facets in field {:?}", req.field));
+    info_time!("facets in field {:?}", req.field);
     trace!("get_facet for ids {:?}", ids);
     let steps = util::get_steps_to_anchor(&req.field);
     info!("facet on {:?}", steps);
@@ -33,11 +33,11 @@ pub fn get_facet(persistence: &Persistence, req: &FacetRequest, ids: &[u32]) -> 
         };
         let kv_store = persistence.get_valueid_to_parent(&path)?;
         let hits = {
-            debug_time!(format!("facet count_values_for_ids {:?}", req.field));
+            debug_time!("facet count_values_for_ids {:?}", req.field);
             kv_store.count_values_for_ids(ids, req.top.map(|el| el as u32))
         };
 
-        debug_time!(format!("facet collect and get texts {:?}", req.field));
+        debug_time!("facet collect and get texts {:?}", req.field);
 
         let groups = get_top_facet_group(&hits, req.top);
         // let mut groups:Vec<(u32, usize)> = hits.iter().map(|ref tupl| (*tupl.0, *tupl.1)).collect();
@@ -55,11 +55,11 @@ pub fn get_facet(persistence: &Persistence, req: &FacetRequest, ids: &[u32]) -> 
     }
 
     // let mut next_level_ids = {
-    //     debug_time!(format!("facets in field first join {:?}", req.field));
+    //     debug_time!("facets in field first join {:?}", req.field);
     //     join_for_n_to_m(persistence, ids, &(steps.first().unwrap().to_string() + ".parentToValueId"))?
     // };
     // for step in steps.iter().skip(1) {
-    //     debug_time!(format!("facet step {:?}", step));
+    //     debug_time!("facet step {:?}", step);
     //     debug!("facet step {:?}", step);
     //     next_level_ids = join_for_n_to_m(persistence, &next_level_ids, &(step.to_string() + ".parentToValueId"))?;
     // }
@@ -68,7 +68,7 @@ pub fn get_facet(persistence: &Persistence, req: &FacetRequest, ids: &[u32]) -> 
 
     let mut groups = vec![];
     {
-        debug_time!(format!("facet group by field {:?}", req.field));
+        debug_time!("facet group by field {:?}", req.field);
         next_level_ids.sort();
         for (key, group) in &next_level_ids.into_iter().group_by(|el| *el) {
             groups.push((key, group.count()));

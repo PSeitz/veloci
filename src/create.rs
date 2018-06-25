@@ -233,7 +233,7 @@ fn store_full_text_info_and_set_ids(
     options: &FulltextIndexOptions,
     fulltext_indices: &mut FnvHashMap<String, FulltextIndexOptions>,
 ) -> Result<(), io::Error> {
-    debug_time!(format!("store_fst strings and string offsets {:?}", path));
+    debug_time!("store_fst strings and string offsets {:?}", path);
 
     // info!(
     //     "{:?} mappo.memory_footprint() {}",
@@ -263,7 +263,7 @@ fn store_full_text_info_and_set_ids(
 
 fn store_fst(persistence: &Persistence, sorted_terms: &[(&str, &mut TermInfo)], path: &str) -> Result<(), fst::Error> {
     // fn store_fst(persistence: &Persistence, sorted_terms: &[(&String, &mut TermInfo)], path: &str) -> Result<(), fst::Error> {
-    debug_time!(format!("store_fst {:?}", path));
+    debug_time!("store_fst {:?}", path);
     let wtr = persistence.get_buffered_writer(&concat(path, ".fst"))?;
     // Create a builder that can be used to insert new key-value pairs.
     let mut build = MapBuilder::new(wtr)?;
@@ -1358,13 +1358,13 @@ where
     J: Iterator<Item = Result<serde_json::Value, serde_json::Error>>,
     K: Iterator<Item = S>,
 {
-    info_time!(format!("total time create_indices for {:?}", persistence.db));
+    info_time!("total time create_indices for {:?}", persistence.db);
 
     let indices_json: Vec<CreateIndex> = serde_json::from_str(indices).unwrap();
     let mut create_cache = create_cache.unwrap_or_else(CreateCache::default);
     create_fulltext_index(stream1, stream2, stream3, &mut persistence, &indices_json, &mut create_cache, load_persistence)?;
 
-    info_time!(format!("write json and metadata {:?}", persistence.db));
+    info_time!("write json and metadata {:?}", persistence.db);
 
     persistence.write_meta_data()?;
 

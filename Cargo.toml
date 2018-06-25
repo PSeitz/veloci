@@ -39,20 +39,16 @@ lazy_static = "1.0.0"
 log = "0.4"
 lru-cache = "0.1.1"
 lru_time_cache = "0.8.0"
-measure_time = "0.5"
+measure_time = "0.6.0"
 memmap = "0.6.2"
 num = "0.1"
 ordered-float = "0.5.0"
 prettytable-rs = "^0.6"
 rayon = "1.0.1"
 regex = "0.2"
-# rocket = "0.3"
-# rocket_codegen = "0.3"
-# rocket_contrib = "0.3"
 serde = "1.0.1"
 serde_derive = "1.0.1"
 serde_json = "1.0.0"
-# snap = "0.2"
 
 [dependencies.btree]
 git = "https://github.com/wspeirs/btree"
@@ -105,8 +101,8 @@ git = "https://github.com/PSeitz/stainless"
 
 [features]
 default = []
-flame_it = ["flame", "flamer"]
 enable_cpuprofiler = []
+flame_it = ["flame", "flamer"]
 
 [lib]
 name = "search_lib"

@@ -10,24 +10,16 @@ use parking_lot::RwLock;
 /// i.e. with timestamp and file location.
 #[cfg_attr(tarpaulin, skip)]
 pub fn format_log(record: &Record) -> String {
-    if module_path!().split("::").nth(0) == record.module_path().unwrap_or("<unnamed>").split("::").nth(0) {
-        format!(
-            "[{}] {} [{}:{}] {}",
-            Local::now().format("%Y-%m-%d %H:%M:%S%.6f %:z"),
-            record.level(),
-            record.file().unwrap_or("<unnamed>"),
-            record.line().unwrap_or(0),
-            &record.args()
-        )
-    } else {
-        format!(
-            "[{}] {} [{}] {}",
-            Local::now().format("%Y-%m-%d %H:%M:%S%.6f %:z"),
-            record.level(),
-            record.module_path().unwrap_or("<unnamed>"),
-            &record.args()
-        )
-    }
+
+    format!(
+        "[{}] {} [{}:{}] {}",
+        Local::now().format("%Y-%m-%d %H:%M:%S%.6f %:z"),
+        record.level(),
+        record.file().unwrap_or("<unnamed>"),
+        record.line().unwrap_or(0),
+        &record.args()
+    )
+
 }
 
 static LOG_ENABLED: RwLock<bool> = RwLock::new(false);

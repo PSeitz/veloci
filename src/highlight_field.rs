@@ -69,7 +69,7 @@ pub fn highlight_document(
     opt: &SnippetInfo,
 ) -> Result<Option<String>, search::SearchError> {
     let text_id_to_token_ids = persistence.get_valueid_to_parent(&concat(path, ".text_id_to_token_ids"))?;
-    trace_time!(format!("highlight_document id {}", value_id));
+    trace_time!("highlight_document id {}", value_id);
 
     let documents_token_ids: Vec<u32> = {
         trace_time!("get documents_token_ids");

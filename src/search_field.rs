@@ -169,7 +169,7 @@ where
         .get(&options.path)
         .ok_or_else(|| SearchError::StringError(format!("fst not found loaded in indices {} ", options.path)))?;
     let lev = {
-        trace_time!(format!("{} LevenshteinIC create", &options.path));
+        trace_time!("{} LevenshteinIC create", &options.path);
         let lev_automaton_builder = LevenshteinAutomatonBuilder::new(options.levenshtein_distance.unwrap_or(0) as u8, true);
         lev_automaton_builder.build_dfa(&options.terms[0], true)
         // LevenshteinIC::new(&options.terms[0], options.levenshtein_distance.unwrap_or(0))?
@@ -331,7 +331,7 @@ fn get_hits_in_field_one_term(
     options: &mut RequestSearchPart,
     filter: Option<&FnvHashSet<u32>>,
 ) -> Result<SearchFieldResult, SearchError> {
-    debug_time!(format!("{} get_hits_in_field", &options.path));
+    debug_time!("{} get_hits_in_field", &options.path);
 
     let mut result = get_term_ids_in_field(persistence, options)?;
 
@@ -371,7 +371,7 @@ fn get_term_ids_in_field(persistence: &Persistence, options: &mut RequestSearchP
     //TODO Move to topnstruct
 
     {
-        debug_time!(format!("{} find token ids", &options.path));
+        debug_time!("{} find token ids", &options.path);
         let lev_automaton_builder = LevenshteinAutomatonBuilder::new(options.levenshtein_distance.unwrap_or(0) as u8, true);
 
         let dfa = lev_automaton_builder.build_dfa(&lower_term, false);
@@ -479,12 +479,12 @@ fn resolve_token_to_anchor(
     result: &SearchFieldResult,
 ) -> Result<SearchFieldResult, SearchError> {
     let mut res = SearchFieldResult::new_from(&result);
-    debug_time!(format!("{} fast_field", &options.path));
+    debug_time!("{} fast_field", &options.path);
     let mut anchor_ids_hits = vec![];
 
     let token_to_anchor_score = persistence.get_token_to_anchor(&options.path)?;
     {
-        debug_time!(format!("{} tokens.to_anchor_id_score", &options.path));
+        debug_time!("{} tokens.to_anchor_id_score", &options.path);
         for hit in &result.hits_vec {
             let mut iter = token_to_anchor_score.get_score_iter(hit.id);
             anchor_ids_hits.reserve(iter.size_hint().1.unwrap());
@@ -506,7 +506,7 @@ fn resolve_token_to_anchor(
     }
 
     // {
-    //     debug_time!(format!("{} tokens.to_anchor_id_score", &options.path));
+    //     debug_time!("{} tokens.to_anchor_id_score", &options.path);
     //     let iterators:Vec<_> = result.hits_vec.iter().map(|hit|{
     //         let iter = token_to_anchor_score.get_score_iter(hit.id);
     //         anchor_ids_hits.reserve(iter.size_hint().1.unwrap());
@@ -523,10 +523,10 @@ fn resolve_token_to_anchor(
     // }
     // {
     //     let mut all_hits = vec![];
-    //     debug_time!(format!("{} tokens.to_anchor_id_score", &options.path));
+    //     debug_time!("{} tokens.to_anchor_id_score", &options.path);
     //     for hit in &result.hits_vec {
     //         if let Some(text_id_score) = token_to_anchor_score.get_scores(hit.id) {
-    //             // trace_time!(format!("{} adding anchor hits for id {:?}", &options.path, hit.id));
+    //             // trace_time!("{} adding anchor hits for id {:?}", &options.path, hit.id);
     //             // let mut curr_pos = unsafe_increase_len(&mut anchor_ids_hits, text_id_score.len());
     //             let mut token_hits = vec![];
     //             let mut curr_pos = unsafe_increase_len(&mut token_hits, text_id_score.len());
@@ -543,7 +543,7 @@ fn resolve_token_to_anchor(
     //     }
     //     debug!("{} found {:?} token in {:?} anchor_ids", &options.path, result.hits_vec.len(), anchor_ids_hits.len() );
 
-    //     debug_time!(format!("{} KMERGO ", &options.path));
+    //     debug_time!("{} KMERGO ", &options.path);
 
     //     let iterators: Vec<_> = all_hits
     //     .iter()
@@ -560,11 +560,11 @@ fn resolve_token_to_anchor(
 
     // { //TEEEEEEEEEEEEEEEEEEEEEEEEEST
     //     let mut the_bits = FixedBitSet::with_capacity(7000);
-    //     info_time!(format!("{} WAAAA BITS SETZEN WAAA", &options.path));
+    //     info_time!("{} WAAAA BITS SETZEN WAAA", &options.path);
     //     for hit in &result.hits_vec {
     //         // iterate over token hits
     //         if let Some(text_id_score) = token_kvdata.get_values(hit.id as u64) {
-    //             //trace_time!(format!("{} adding anchor hits for id {:?}", &options.path, hit.id));
+    //             //trace_time!("{} adding anchor hits for id {:?}", &options.path, hit.id);
     //             for (text_id, _) in text_id_score.iter().tuples() {
     //                 let yep = *text_id as usize;
     //                 if the_bits.len() <= yep + 1{
@@ -580,7 +580,7 @@ fn resolve_token_to_anchor(
     // {
     //     //Collect hits from same anchor and sum boost
     //     let mut merged_fast_field_res = vec![];
-    //     debug_time!(format!("{} sort and merge fast_field", &options.path));
+    //     debug_time!("{} sort and merge fast_field", &options.path);
     //     anchor_hits.sort_unstable_by(|a, b| b.id.partial_cmp(&a.id).unwrap_or(Ordering::Equal));
     //     for (text_id, group) in &anchor_hits.iter().group_by(|el| el.id) {
     //         merged_fast_field_res.push(search::Hit::new(text_id, group.map(|el| el.score).sum())) //Todo FixMe Perofrmance avoid copy inplace group by
@@ -589,9 +589,9 @@ fn resolve_token_to_anchor(
     // }
 
     {
-        debug_time!(format!("{} fast_field sort and dedup sum", &options.path));
+        debug_time!("{} fast_field sort and dedup sum", &options.path);
         anchor_ids_hits.sort_unstable_by_key(|a| a.id);
-        debug_time!(format!("{} fast_field  dedup only", &options.path));
+        debug_time!("{} fast_field  dedup only", &options.path);
         anchor_ids_hits.dedup_by(|a, b| {
             if a.id == b.id {
                 b.score += a.score; // TODO: Check if b is always kept and a discarded in case of equality
@@ -607,7 +607,7 @@ fn resolve_token_to_anchor(
     let mut fast_field_res_ids = vec![];
     {
         for id in &result.hits_ids {
-            debug_time!(format!("{} added anchor ids for id {:?}", &options.path, id));
+            debug_time!("{} added anchor ids for id {:?}", &options.path, id);
             let mut iter = token_to_anchor_score.get_score_iter(*id);
             fast_field_res_ids.reserve(iter.size_hint().1.unwrap() / 2);
             for el in iter {
@@ -733,10 +733,7 @@ pub fn resolve_token_hits(
 
     let add_snippets = options.snippet.unwrap_or(false);
 
-    debug_time!(format!("{} resolve_token_hits", path));
-    // let text_offsets = persistence
-    //     .get_offsets(path)
-    //     .expect(&format!("Could not find {:?} in index_64 indices", concat(path, ".offsets")));
+    debug_time!("{} resolve_token_hits", path);
 
     let token_path = concat(path, ".tokens_to_text_id");
     let token_kvdata = persistence.get_valueid_to_parent(&token_path)?;
@@ -748,7 +745,7 @@ pub fn resolve_token_hits(
     let mut token_hits: Vec<(u32, f32, u32)> = vec![];
     // let mut anchor_hits = FnvHashMap::default();
     {
-        debug_time!(format!("{} adding parent_id from tokens", token_path));
+        debug_time!("{} adding parent_id from tokens", token_path);
         for hit in &result.hits_vec {
             if let Some(parent_ids_for_token) = token_kvdata.get_values(u64::from(hit.id)) {
                 // let token_text_length_offsets = text_offsets.get_mutliple_value(hit.id as usize..=hit.id as usize + 1).unwrap();
@@ -790,10 +787,10 @@ pub fn resolve_token_hits(
 
     debug!("found {:?} token in {:?} texts", result.hits_vec.iter().count(), token_hits.iter().count());
     {
-        debug_time!(format!("token_hits.sort_by {:?}", path));
+        debug_time!("token_hits.sort_by {:?}", path);
         token_hits.sort_unstable_by(|a, b| a.0.cmp(&b.0)); // sort by parent id
     }
-    debug_time!(format!("{} extend token_results", path));
+    debug_time!("{} extend token_results", path);
     // hits.extend(token_hits);
     trace!("{} token_hits in textindex: {:?}", path, token_hits);
     if !token_hits.is_empty() {

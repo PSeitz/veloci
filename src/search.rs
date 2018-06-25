@@ -596,7 +596,7 @@ pub fn search(mut request: Request, persistence: &Persistence) -> Result<SearchR
     search_result.why_found_terms = res.term_text_in_field;
 
     if let Some(facets_req) = request.facets {
-        info_time!(format!("all_facets {:?}", facets_req.iter().map(|el| el.field.clone()).collect::<Vec<_>>()));
+        info_time!("all_facets {:?}", facets_req.iter().map(|el| el.field.clone()).collect::<Vec<_>>());
 
         let hit_ids: Vec<u32> = {
             // get sorted ids, for facets
@@ -742,7 +742,7 @@ pub fn apply_boost_term(persistence: &Persistence, mut res: SearchFieldResult, b
 
             // }
 
-            debug_time!("boost_intersect_hits_vec_multi".to_string());
+            debug_time!("boost_intersect_hits_vec_multi");
             res = apply_boost_from_iter(res, &mut boost_iter);
 
             from_cache = true;
@@ -898,7 +898,7 @@ pub fn union_hits_vec(mut or_results: Vec<SearchFieldResult>) -> SearchFieldResu
     // }else{
 
     {
-        debug_time!("union hits sort input".to_string());
+        debug_time!("union hits sort input");
         for res in &mut or_results {
             res.hits_vec.sort_unstable_by_key(|el| el.id);
             //TODO ALSO DEDUP???
@@ -939,7 +939,7 @@ pub fn union_hits_vec(mut or_results: Vec<SearchFieldResult>) -> SearchFieldResu
     // let mergo = kmerge_by::kmerge_by(iterators.into_iter(), |a, b| a.id < b.id);
     // let mergo = kmerge_by::kmerge_by(iterators.into_iter(), |a, b| a.id < b.id);
 
-    debug_time!("union hits kmerge".to_string());
+    debug_time!("union hits kmerge");
 
     // for (mut id, mut group) in &mergo.into_iter().group_by(|el| el.0.id) {
     //     let sum_score = group.map(|a| a.0.score).sum(); // TODO same term = MAX, different terms = SUM
@@ -1161,7 +1161,7 @@ fn apply_boost_from_iter(mut results: SearchFieldResult, mut boost_iter: &mut It
 #[cfg_attr(feature = "flame_it", flame)]
 fn boost_intersect_hits_vec_multi(mut results: SearchFieldResult, boost: &mut Vec<SearchFieldResult>) -> SearchFieldResult {
     {
-        debug_time!("boost hits sort input".to_string());
+        debug_time!("boost hits sort input");
         results.hits_vec.sort_unstable_by_key(|el| el.id); //TODO SORT NEEDED??
         for res in boost.iter_mut() {
             res.hits_vec.sort_unstable_by_key(|el| el.id);
@@ -1178,7 +1178,7 @@ fn boost_intersect_hits_vec_multi(mut results: SearchFieldResult, boost: &mut Ve
         .into_iter()
         .kmerge_by(|a, b| a.id < b.id);
 
-    debug_time!("boost_intersect_hits_vec_multi".to_string());
+    debug_time!("boost_intersect_hits_vec_multi");
     apply_boost_from_iter(results, &mut boost_iter)
 }
 

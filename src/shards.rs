@@ -213,7 +213,7 @@ impl Shards {
         let r: Vec<ShardResult> = self.shards
             .par_iter()
             .map(|shard| {
-                print_time!(format!("search shard {:?}", shard.shard_id));
+                print_time!("search shard {:?}", shard.shard_id);
                 let request = query_generator::search_query(&shard.persistence, q_params.clone());
                 let result = search::search(request, &shard.persistence)?;
                 Ok(ShardResult { shard: &shard, result })

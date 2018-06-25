@@ -350,7 +350,7 @@ impl Persistence {
 
     #[cfg_attr(feature = "flame_it", flame)]
     pub fn load_from_disk(&mut self) -> Result<(), search::SearchError> {
-        info_time!(format!("loaded persistence {:?}", &self.db));
+        info_time!("loaded persistence {:?}", &self.db);
         self.load_all_id_lists()?;
 
         for el in &self.meta_data.key_value_stores {
@@ -384,7 +384,7 @@ impl Persistence {
             .into_par_iter()
             .map(|el| {
                 // info!("loading key_value_store {:?}", &el.path);
-                info_time!(format!("loaded key_value_store {:?}", &el.path));
+                info_time!("loaded key_value_store {:?}", &el.path);
 
                 let loading_type = get_loading_type(el.loading_type)?;
 
@@ -693,7 +693,7 @@ impl Persistence {
         data: &[T],
         path: &str,
     ) -> Result<((String, IDList)), io::Error> {
-        debug_time!(format!("Wrote Index {} With size {:?}", path, data.len()));
+        debug_time!("Wrote Index {} With size {:?}", path, data.len());
         File::create(util::get_file_path(&self.db, path))?.write_all(bytes)?;
         info!("Wrote Index {} With size {:?}", path, data.len());
         trace!("{:?}", data);
