@@ -26,13 +26,22 @@ extern crate log;
 #[macro_use]
 extern crate measure_time;
 extern crate search_lib;
+extern crate multipart;
 
 use rocket::fairing;
 use rocket::response::{self, Responder, Response};
 use rocket::Request;
 
-use rocket::http::ContentType;
 use rocket_contrib::{Json, Value};
+
+use multipart::server::Multipart;
+use multipart::server::save::Entries;
+use multipart::server::save::SaveResult::*;
+
+use rocket::Data;
+use rocket::http::{ContentType, Status};
+// use rocket::response::Stream;
+use rocket::response::status::Custom;
 
 use search_lib::doc_loader::*;
 use search_lib::persistence;
@@ -227,8 +236,14 @@ fn get_doc_for_id_direct(database: String, id: u32) -> Json<Value> {
 // }
 
 #[get("/<database>/search?<params>")]
-fn search_get(database: String, params: QueryParams) -> Result<SearchResult, search::SearchError> {
-    ensure_database(&database)?;
+fn search_get(database: String, params: Result<QueryParams, rocket::Error>) -> Result<SearchResult, Custom<String>> {
+    let params = params.map_err(|err|{
+        Custom(
+            Status::BadRequest,
+            format!("{:?}", err)
+        )
+    })?;
+    ensure_database(&database).map_err(search_error_to_rocket_error)?;
     let persistence = PERSISTENCES.get(&database).unwrap();
 
     let facets: Option<Vec<String>> = query_param_to_vec(params.facets);
@@ -279,7 +294,7 @@ fn search_get(database: String, params: QueryParams) -> Result<SearchResult, sea
     request.select = query_param_to_vec(params.select);
 
     debug!("{}", serde_json::to_string(&request).unwrap());
-    search_in_persistence(&persistence, request, false)
+    search_in_persistence(&persistence, request, false).map_err(search_error_to_rocket_error)
 }
 
 #[get("/<database>/search_shard?<params>")]
@@ -331,6 +346,148 @@ fn search_get_shard(database: String, params: QueryParams) -> Result<SearchResul
     };
 
     Ok(SearchResult(shard.search_all_shards_from_qp(&q_params, &query_param_to_vec(params.select))?))
+}
+
+// ******************************************** UPLOAD UPLOAD ********************************************
+// use std::io;
+#[post("/<database>", data = "<data>")]
+// signature requires the request to have a `Content-Type`
+fn multipart_upload(database: String, cont_type: &ContentType, data: Data) -> Result<String, Custom<String>> {
+    // this and the next check can be implemented as a request guard but it seems like just
+    // more boilerplate than necessary
+    if !cont_type.is_form_data() {
+        return Err(Custom(
+            Status::BadRequest,
+            "Content-Type not multipart/form-data".into()
+        ));
+    }
+
+    let (_, boundary) = cont_type.params().find(|&(k, _)| k == "boundary").ok_or_else(
+            || Custom(
+                Status::BadRequest,
+                "`Content-Type: multipart/form-data` boundary param not provided".into()
+            )
+        )?;
+
+    let resp = process_upload(boundary, data)
+        .map_err(search_error_to_rocket_error)?;
+
+    search_lib::create::create_indices_from_str(
+        &mut search_lib::persistence::Persistence::create(database.to_string()).unwrap(),
+        &resp.0,
+        &resp.1.unwrap_or("[]".to_string()),
+        None,
+        false,
+    ).unwrap();
+    Ok(format!("created {:?}", &database))
+}
+
+fn search_error_to_rocket_error(err: search::SearchError) -> Custom<String> {
+     match err {
+        search::SearchError::StringError(msg) => {
+            Custom(Status::BadRequest, msg)
+        },
+        _ => {
+            Custom(
+                Status::InternalServerError,
+                "Some error happened".into()
+            )
+        },
+    }
+}
+
+fn process_upload(boundary: &str, data: Data) -> Result<(String, Option<String>), search::SearchError> {
+    // let mut out = Vec::new();
+
+    // saves all fields, any field longer than 10kB goes to a temporary directory
+    // Entries could implement FromData though that would give zero control over
+    // how the files are saved; Multipart would be a good impl candidate though
+    match Multipart::with_body(data.open(), boundary).save().size_limit(500_000_000).temp() {
+        Full(entries) => process_entries(entries),
+        Partial(partial, reason) => {
+            error!("Request partially processed: {:?}", reason);
+            // writeln!(out, "Request partially processed: {:?}", reason)?;
+            // if let Some(field) = partial.partial {
+            //     writeln!(out, "Stopped on field: {:?}", field.source.headers)?;
+            // }
+
+            process_entries(partial.entries)
+        },
+        Error(e) => return Err(search_lib::search::SearchError::Io(e)),
+    }
+
+    // Ok(out)
+}
+use std::io::prelude::*;
+// having a streaming output would be nice; there's one for returning a `Read` impl
+// but not one that you can `write()` to
+fn process_entries(entries: Entries) -> Result<(String, Option<String>), search::SearchError> {
+    if entries.fields_count() == 2 {
+        let mut config = String::new();
+        entries.fields
+            .get(&"config".to_string())
+            .ok_or_else(|| {
+                search::SearchError::StringError(format!("expecting content field, but got {:?}", entries.fields.keys().collect::<Vec<_>>()))
+            })?
+            [0].data.readable()?
+            .read_to_string(&mut config)?;
+
+        let data_reader = entries.fields
+            .get(&"data".to_string())
+            .ok_or_else(|| {
+                search::SearchError::StringError(format!("expecting data field, but got {:?}", entries.fields.keys().collect::<Vec<_>>()))
+            })?[0].data.readable()?;
+
+        let mut data:Vec<u8> = vec![];
+        search_lib::create::convert_any_json_data_to_line_delimited(data_reader, &mut data)?;
+        return Ok((unsafe{String::from_utf8_unchecked(data)}, Some(config)));
+    }
+    
+    let mut data:Vec<u8> = vec![];
+    let data_reader = entries.fields
+            .get(&"data".to_string())
+            .ok_or_else(|| {
+                search::SearchError::StringError(format!("expecting data field, but got {:?}", entries.fields.keys().collect::<Vec<_>>()))
+            })?[0].data.readable()?;
+    search_lib::create::convert_any_json_data_to_line_delimited(data_reader, &mut data)?;
+    Ok((unsafe{String::from_utf8_unchecked(data)}, None))
+}
+
+
+
+#[post("/<database>",  data = "<data>")]
+fn create_db(database: String, data: rocket::data::Data) -> Result<String, search::SearchError> {
+
+    if PERSISTENCES.contains_key(&database) {  //TODO @BUG @FixMe ERROR OWASP
+        PERSISTENCES.remove(&database);
+    }
+
+    let mut out:Vec<u8> = vec![];
+    search_lib::create::convert_any_json_data_to_line_delimited(data.open(), &mut out).unwrap();
+
+    search_lib::create::create_indices_from_str(
+        &mut search_lib::persistence::Persistence::create(database).unwrap(),
+        unsafe{std::str::from_utf8_unchecked(&out)},
+        "[]",
+        None,
+        false,
+    ).unwrap();
+    Ok("created".to_string())
+}
+
+// ******************************************** UPLOAD UPLOAD ********************************************
+
+#[delete("/<database>")]
+fn delete_db(database: String) -> Result<String, search::SearchError> {
+    if PERSISTENCES.contains_key(&database) {
+        PERSISTENCES.remove(&database);
+    }
+    use std::path::Path;
+    if Path::new(&database).exists() {
+        std::fs::remove_dir_all(&database)?; //TODO @BUG @FixMe ERROR OWASP
+    }
+
+    Ok("deleted".to_string())
 }
 
 #[post("/<database>/suggest", format = "application/json", data = "<request>")]
@@ -390,7 +547,7 @@ fn main() {
     println!("Starting Server...");
     rocket::ignite()
         // .mount("/", routes![version, get_doc_for_id_direct, get_doc_for_id_tree, search_get, search_post, suggest_get, suggest_post, highlight_post])
-        .mount("/", routes![version, get_doc_for_id_direct, get_doc_for_id_tree, search_get, search_post, suggest_get, search_get_shard, suggest_post, highlight_post, inspect_data])
+        .mount("/", routes![version, delete_db, multipart_upload, get_doc_for_id_direct, get_doc_for_id_tree, search_get, search_post, suggest_get, search_get_shard, suggest_post, highlight_post, inspect_data])
         .attach(Gzip)
         .launch();
 }

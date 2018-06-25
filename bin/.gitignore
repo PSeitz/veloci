@@ -42,5 +42,7 @@ Cargo.lock
 
 .criterion
 data
+debug/
+testo/
 
 

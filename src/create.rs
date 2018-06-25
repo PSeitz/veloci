@@ -1313,6 +1313,42 @@ impl<B: BufRead> Iterator for FastLinesJson<B> {
     }
 }
 
+
+pub fn convert_any_json_data_to_line_delimited<I: std::io::Read, O: std::io::Write>(input:I, out: &mut O) -> Result<(), io::Error>{
+    let stream = Deserializer::from_reader(input).into_iter::<Value>();
+
+    for value in stream {
+        let value = value?;
+        if let Some(arr) = value.as_array() {
+            for el in arr {
+                out.write_all(el.to_string().as_bytes())?;
+                out.write_all(b"\n")?;
+            }
+        }else{
+            out.write_all(value.to_string().as_bytes())?;
+            out.write_all(b"\n")?;
+        }
+    }
+    Ok(())
+
+}
+
+#[test]
+fn test_json_to_line_delimited() {
+    let value = r#"[
+        {"a": "b"},
+        {"c": "d"}
+    ]"#;
+    let mut out:Vec<u8> = vec![];
+    convert_any_json_data_to_line_delimited(value.as_bytes(), &mut out).unwrap();
+    assert_eq!(String::from_utf8(out).unwrap(),"{\"a\":\"b\"}\n{\"c\":\"d\"}\n" );
+
+    let value = r#"{  "a": "b"}{"c": "d"}"#;
+    let mut out:Vec<u8> = vec![];
+    convert_any_json_data_to_line_delimited(value.as_bytes(), &mut out).unwrap();
+    assert_eq!(String::from_utf8(out).unwrap(),"{\"a\":\"b\"}\n{\"c\":\"d\"}\n" );
+}
+
 pub fn create_indices_from_str(
     persistence: &mut Persistence,
     data_str: &str,
