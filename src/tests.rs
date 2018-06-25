@@ -176,12 +176,14 @@ mod tests {
             },
             {
                 "commonness": 30,
+                "float_value": 5.123,
                 "ent_seq": "26",
                 "tags": ["nice", "coolo"]
             },
             {
                 "commonness": 20,
                 "ent_seq": "27",
+                "my_bool" : true,
                 "tags": ["Eis", "cool"]
             },
             {
@@ -340,6 +342,32 @@ mod tests {
             assert_eq!(hits[0].doc["ent_seq"], "1587690");
             assert_eq!(hits[0].doc["commonness"], 20);
             assert_eq!(hits[0].doc["tags"], json!(["nice".to_string()]));
+        }
+
+        it "test_float"{
+            let req = json!({
+                "search": {
+                    "terms":["5.123"],
+                    "path": "float_value"
+                }
+            });
+
+            let hits = search_testo_to_doc(req).data;
+            assert_eq!(hits.len(), 1);
+            assert_eq!(hits[0].doc["float_value"], 5.123);
+        }
+
+        it "test_bool"{
+            let req = json!({
+                "search": {
+                    "terms":["true"],
+                    "path": "my_bool"
+                }
+            });
+
+            let hits = search_testo_to_doc(req).data;
+            assert_eq!(hits.len(), 1);
+            assert_eq!(hits[0].doc["my_bool"], true);
         }
 
         it "should return an error when trying to query an invalid field"{
@@ -934,7 +962,7 @@ mod tests {
 
         it "get_bytes_indexed"{
             let pers = PERSISTENCES.get(&"default".to_string()).expect("Can't find loaded persistence");
-            assert_eq!(pers.get_bytes_indexed().unwrap(), 2423);
+            assert_eq!(pers.get_bytes_indexed().unwrap(), 2458);
         }
 
         it "boost text localitaet"{

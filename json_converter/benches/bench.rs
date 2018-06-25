@@ -8,7 +8,6 @@ extern crate serde_json;
 use criterion::Criterion;
 
 use json_converter::for_each_element;
-use json_converter::ForEachOpt;
 use json_converter::IDHolder;
 use serde_json::{Deserializer, Value};
 
@@ -92,7 +91,6 @@ fn criterion_benchmark(c: &mut Criterion) {
         })
         .collect();
 
-    let mut opt = ForEachOpt {};
     let mut id_holder = IDHolder::new();
 
     let data = json!(long_string);
@@ -108,7 +106,7 @@ fn criterion_benchmark(c: &mut Criterion) {
             };
 
             let stream = Deserializer::from_str(&data_str).into_iter::<Value>();
-            for_each_element(stream, &mut id_holder, &mut opt, &mut cb_text, &mut callback_ids);
+            for_each_element(stream, &mut id_holder, &mut cb_text, &mut callback_ids);
         })
     });
 }

@@ -26,6 +26,7 @@ pub fn convert_to_string(value: &Value) -> Cow<str> {
     }
 }
 
+
 #[inline]
 pub fn for_each_element<F, F2, I: Iterator<Item = Result<serde_json::Value, serde_json::Error>>>(
     data: I,
@@ -33,29 +34,14 @@ pub fn for_each_element<F, F2, I: Iterator<Item = Result<serde_json::Value, serd
     cb_text: &mut F,
     cb_ids: &mut F2,
 ) where
-    F: FnMut(u32, &str, &str, u32, bool),
+    F: FnMut(u32, &str, &str, u32),
     F2: FnMut(u32, &str, u32, u32),
 {
     let mut path = String::with_capacity(25);
 
-    let mut is_new_doc;
     for el in data {
-        is_new_doc = true;
-        // let root_id = id_provider.get_id("");
-        // for_each_elemento(&el.unwrap(), root_id, id_provider, root_id, &mut path, "", cb_text, cb_ids);
-        // path.clear();
-
-        if let Some(arr) = el.as_ref().unwrap().as_array() {
-            //TODO code path invalid??, data format should always be line seperated
-            for el in arr.iter() {
-                let root_id = id_provider.get_id("");
-                for_each_elemento(el, root_id, id_provider, root_id, &mut path, "", cb_text, cb_ids, &mut is_new_doc);
-                path.clear();
-            }
-        } else {
-            let root_id = id_provider.get_id("");
-            for_each_elemento(el.as_ref().unwrap(), root_id, id_provider, root_id, &mut path, "", cb_text, cb_ids, &mut is_new_doc);
-        }
+        let root_id = id_provider.get_id("");
+        for_each_elemento(el.as_ref().unwrap(), root_id, id_provider, root_id, &mut path, "", cb_text, cb_ids);
         path.clear();
     }
 }
@@ -70,9 +56,8 @@ pub fn for_each_elemento<F, F2>(
     current_el_name: &str,
     cb_text: &mut F,
     cb_ids: &mut F2,
-    is_new_doc: &mut bool,
 ) where
-    F: FnMut(u32, &str, &str, u32, bool),
+    F: FnMut(u32, &str, &str, u32),
     F2: FnMut(u32, &str, u32, u32),
 {
     if let Some(arr) = data.as_array() {
@@ -84,7 +69,7 @@ pub fn for_each_elemento<F, F2>(
         for el in arr {
             let id = id_provider.get_id(&current_path);
             cb_ids(anchor_id, &current_path, id, parent_id);
-            for_each_elemento(el, anchor_id, id_provider, id, current_path, "", cb_text, cb_ids, is_new_doc);
+            for_each_elemento(el, anchor_id, id_provider, id, current_path, "", cb_text, cb_ids);
             unsafe {
                 current_path.as_mut_vec().truncate(prev_len);
             }
@@ -95,7 +80,7 @@ pub fn for_each_elemento<F, F2>(
         current_path.push_str(current_el_name);
         let prev_len = current_path.len();
         for (key, ref value) in obj.iter() {
-            for_each_elemento(value, anchor_id, id_provider, parent_id, &mut current_path, key, cb_text, cb_ids, is_new_doc);
+            for_each_elemento(value, anchor_id, id_provider, parent_id, &mut current_path, key, cb_text, cb_ids);
             unsafe {
                 current_path.as_mut_vec().truncate(prev_len);
             }
@@ -103,8 +88,7 @@ pub fn for_each_elemento<F, F2>(
     } else if !data.is_null() {
         current_path.push_str(current_el_name);
         current_path.push_str(".textindex");
-        cb_text(anchor_id, convert_to_string(&data).as_ref(), &current_path, parent_id, *is_new_doc);
-        *is_new_doc = false;
+        cb_text(anchor_id, convert_to_string(&data).as_ref(), &current_path, parent_id);
     }
 }
 
@@ -158,7 +142,7 @@ impl IDHolder {
 
 //     let mut id_holder = IDHolder::new();
 
-//     let mut cb_text = |_anchor_id: u32, value: &str, path: &str, parent_val_id: u32, _is_new_doc: bool| {
+//     let mut cb_text = |_anchor_id: u32, value: &str, path: &str, parent_val_id: u32| {
 //         println!("TEXT: path {} value {} parent_val_id {}", path, value, parent_val_id);
 //     };
 //     let mut callback_ids = |_anchor_id: u32, path: &str, val_id: u32, parent_val_id: u32| {

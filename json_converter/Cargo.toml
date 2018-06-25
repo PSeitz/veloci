@@ -1,27 +1,28 @@
 [package]
+authors = ["Pascal Seitz <pascal.seitz@gmail.com>"]
 name = "json_converter"
 version = "0.1.0"
-authors = ["Pascal Seitz <pascal.seitz@gmail.com>"]
+[[bench]]
+harness = false
+name = "bench"
 
 [dependencies]
-serde_derive = "1.0.1"
-serde = "1.0.1"
-serde_json = "1.0.0"
-rand = "0.4"
-regex = "0.2"
-lazy_static = "1.0.0"
-fnv = "1.0.3"
-log = "0.4"
-heapsize = "0.4.1"
 flexi_logger = "0.6"
+fnv = "1.0.3"
+heapsize = "0.4.1"
+lazy_static = "1.0.0"
+log = "0.4"
+rand = "0.4"
 rayon = "1.0.1"
+regex = "0.2"
+serde = "1.0.1"
+serde_derive = "1.0.1"
+serde_json = "1.0.0"
 
 [dev-dependencies]
 colored = "1.4"
-pretty_assertions = "0.1.2"
-stainless = {git = "https://github.com/PSeitz/stainless"}
 criterion = "0.2.3"
+pretty_assertions = "0.1.2"
 
-[[bench]]
-name = "bench"
-harness = false
+[dev-dependencies.stainless]
+git = "https://github.com/PSeitz/stainless"

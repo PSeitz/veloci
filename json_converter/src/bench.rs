@@ -31,7 +31,7 @@ mod bencho {
         b.iter(|| {
             // let texts = vec![];
             // texts.reserve(5000);
-            let mut cb_text = |_anchor_id: u32, _value: &str, _path: &str, _parent_val_id: u32, _is_new_doc:bool| {
+            let mut cb_text = |_anchor_id: u32, _value: &str, _path: &str, _parent_val_id: u32| {
                 // println!("TEXT: path {} value {} parent_val_id {}",path, value, parent_val_id);
             };
             let mut callback_ids = |_anchor_id: u32, _path: &str, _val_id: u32, _parent_val_id: u32| {

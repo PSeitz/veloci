@@ -298,11 +298,6 @@ fn add_text<T: Tokenizer>(text: &str, terms: &mut TermMap, options: &FulltextInd
 
     add_count_text(terms, text);
 
-    //Add lowercase version for search
-    // {
-    //     let stat = terms.entry(text.to_lowercase().trim().to_string()).or_insert(TermInfo::default());
-    //     stat.num_occurences += 1;
-    // }
 
     if options.tokenize && tokenizer.has_tokens(&text) {
         tokenizer.get_tokens(&text, &mut |token: &str, _is_seperator: bool| {
@@ -310,11 +305,6 @@ fn add_text<T: Tokenizer>(text: &str, terms: &mut TermMap, options: &FulltextInd
                 return;
             }
             add_count_text(terms, token);
-            // //Add lowercase version for non seperators
-            // if !is_seperator{
-            //     let stat = terms.entry(token_str.to_lowercase().trim().to_string()).or_insert(TermInfo::default());
-            //     stat.num_occurences += 1;
-            // }
         });
     }
 }
@@ -396,7 +386,7 @@ fn get_allterms_per_path<I: Iterator<Item = Result<serde_json::Value, serde_json
 
     let mut id_holder = json_converter::IDHolder::new();
     {
-        let mut cb_text = |_anchor_id: u32, value: &str, path: &str, _parent_val_id: u32, _is_new_doc: bool| {
+        let mut cb_text = |_anchor_id: u32, value: &str, path: &str, _parent_val_id: u32| {
             let options: &FulltextIndexOptions = fulltext_info_for_path
                 .get(path)
                 .and_then(|el| el.options.as_ref())
@@ -635,9 +625,8 @@ where
 
     {
         info_time!("build path data");
-        let mut cb_text = |anchor_id: u32, value: &str, path: &str, parent_val_id: u32, _is_new_doc: bool| {
+        let mut cb_text = |anchor_id: u32, value: &str, path: &str, parent_val_id: u32| {
             let data = get_or_insert_prefer_get(&mut path_data as *mut FnvHashMap<_, _>, path, &|| {
-                // let boost_info_data = if boost_info_for_path.contains_key(path) { Some(vec![]) } else { None };
                 let boost_info_data = if boost_info_for_path.contains_key(path) { Some(BufferedIndexWriter::new_for_sorted_id_insertion()) } else { None };
                 let anchor_to_text_id = if facet_index.contains(path) && is_1_to_n(path) {
                     //Create facet index only for 1:N
@@ -740,12 +729,6 @@ where
     }
 
     std::mem::swap(&mut create_cache.term_data.id_holder, &mut id_holder);
-
-    // for data in path_data.values_mut() {
-    //     if let Some(ref mut tuples) = data.boost {
-    //         tuples.shrink_to_fit();
-    //     }
-    // }
 
     Ok((path_data, tuples_to_parent_in_path))
 }
@@ -852,11 +835,6 @@ struct IndicesFromRawData {
     anchor_score_indices_flush: Vec<(String, TokenToAnchorScoreVintFlushing)>,
 }
 
-// fn free_vec<T>(vecco: &mut Vec<T>) {
-//     vecco.clear();
-//     vecco.shrink_to_fit();
-// }
-
 fn convert_raw_path_data_to_indices(
     db: &str,
     path_data: FnvHashMap<String, PathData>,
@@ -955,8 +933,6 @@ fn convert_raw_path_data_to_indices(
 
                 let mut store = IndexIdToMultipleParentIndirectFlushingInOrderVint::<u32>::new(indirect_file_path, data_file_path);
                 stream_buffered_index_writer_to_indirect_index(buffered_index_data, &mut store, false)?;
-                // indices.indirect_indices_flush.push((path, store, loading_type));
-                // let store = valid_pair_to_direct_index(tuples);
                 indices.boost_indices.push((boost_path, store, LoadingType::InMemoryUnCompressed));
             }
 
@@ -1123,7 +1099,6 @@ where
             anchor_score_stores.push(persistence.flush_score_index_vint(&mut index.1, &index.0, LoadingType::Disk)?);
         }
         for index in &mut indices.boost_indices {
-            // boost_stores.push(persistence.write_direct_index(&index.1, &index.0, LoadingType::Disk)?);
             boost_stores.push(persistence.flush_indirect_index(&mut index.1, &index.0, index.2)?);
         }
         persistence.meta_data.key_value_stores.extend(key_value_stores);
@@ -1133,8 +1108,6 @@ where
 
     // load the converted indices, without writing them
     if load_persistence {
-        // persistence.load_from_disk();
-
         persistence.load_all_id_lists().unwrap(); //TODO Error handling
 
         for index in indices.indirect_indices_flush {
@@ -1168,7 +1141,6 @@ where
         for index in indices.boost_indices {
             let path = index.0;
             let index = index.1;
-            // persistence.indices.boost_valueid_to_value.insert(index.0, Box::new(index.1));
             if index.is_in_memory() {
                 //Move data to IndexIdToMultipleParentIndirect
                 persistence.indices.boost_valueid_to_value.insert(path, Box::new(index.into_im_store()));
@@ -1243,30 +1215,6 @@ pub fn add_token_values_to_tokens(persistence: &mut Persistence, data_str: &str,
 }
 
 use std::io::BufReader;
-// A few methods below (read_to_string, read_line) will append data into a
-// `String` buffer, but we need to be pretty careful when doing this. The
-// implementation will just call `.as_mut_vec()` and then delegate to a
-// byte-oriented reading method, but we must ensure that when returning we never
-// leave `buf` in a state such that it contains invalid UTF-8 in its bounds.
-//
-// To this end, we use an RAII guard (to protect against panics) which updates
-// the length of the string when it is dropped. This guard initially truncates
-// the string to the prior length and only after we've validated that the
-// new contents are valid UTF-8 do we allow it to set a longer length.
-//
-// The unsafety in this function is twofold:
-//
-// 1. We're looking at the raw bytes of `buf`, so we take on the burden of UTF-8
-//    checks.
-// 2. We're passing a raw buffer to the function `f`, and it is expected that
-//    the function only *appends* bytes to the buffer. We'll get undefined
-//    behavior if existing bytes are overwritten to have non-UTF-8 data.
-// fn append_to_string<F>(buf: &mut String, f: F) -> Result<usize>
-//     where F: FnOnce(&mut Vec<u8>) -> Result<usize>
-// {
-//     f(buf)
-// }
-
 trait FastLinesTrait<T> {
     fn fast_lines(self) -> FastLinesJson<Self>
     where
