@@ -60,7 +60,7 @@ pub(crate) fn flush_to_file_indirect(indirect_path: &str, data_path: &str, indir
 
 /// This data structure assumes that a set is only called once for a id, and ids are set in order.
 #[derive(Serialize, Debug, Clone, HeapSizeOf)]
-pub struct IndexIdToMultipleParentIndirectFlushingInOrderVint<T: IndexIdToParentData> {
+pub struct IndexIdToMultipleParentIndirectFlushingInOrderVint {
     pub ids_cache: Vec<u32>,
     pub data_cache: Vec<u8>,
     pub current_data_offset: u32,
@@ -72,7 +72,6 @@ pub struct IndexIdToMultipleParentIndirectFlushingInOrderVint<T: IndexIdToParent
     pub avg_join_size: f32,
     pub num_values: u32,
     pub num_ids: u32,
-    pub ok: PhantomData<T>,
 }
 
 use vint::vint::*;
@@ -80,7 +79,7 @@ use vint::vint::*;
 // TODO: Indirect Stuff @Performance @Memory
 // use vint for indirect, use not highest bit in indirect, but the highest unused bit. Max(value_id, single data_id, which would be encoded in the valueid index)
 //
-impl<T: IndexIdToParentData> IndexIdToMultipleParentIndirectFlushingInOrderVint<T> {
+impl IndexIdToMultipleParentIndirectFlushingInOrderVint {
     pub fn new(indirect_path: String, data_path: String) -> Self {
         let mut data_cache = vec![];
         data_cache.resize(1, 1); // resize data by one, because 0 is reserved for the empty buckets
@@ -95,7 +94,6 @@ impl<T: IndexIdToParentData> IndexIdToMultipleParentIndirectFlushingInOrderVint<
             avg_join_size: 0.,
             num_values: 0,
             num_ids: 0,
-            ok: PhantomData,
         }
     }
 
@@ -113,7 +111,7 @@ impl<T: IndexIdToParentData> IndexIdToMultipleParentIndirectFlushingInOrderVint<
     }
 
     #[inline]
-    pub fn add(&mut self, id: u32, add_data: Vec<T>) -> Result<(), io::Error> {
+    pub fn add(&mut self, id: u32, add_data: Vec<u32>) -> Result<(), io::Error> {
         //set max_value_id
         for el in &add_data {
             self.max_value_id = std::cmp::max((*el).to_u32().unwrap(), self.max_value_id);
@@ -472,8 +470,8 @@ mod tests {
     use persistence_data::*;
     use std::fs::File;
 
-    fn get_test_data_1_to_n_ind(ind_path:String, data_path:String) -> IndexIdToMultipleParentIndirectFlushingInOrderVint<u32> {
-        let mut store = IndexIdToMultipleParentIndirectFlushingInOrderVint::<u32>::new(ind_path, data_path,);
+    fn get_test_data_1_to_n_ind(ind_path:String, data_path:String) -> IndexIdToMultipleParentIndirectFlushingInOrderVint {
+        let mut store = IndexIdToMultipleParentIndirectFlushingInOrderVint::new(ind_path, data_path,);
         store.add(0, vec![5, 6]).unwrap();
         store.add(1, vec![9]).unwrap();
         store.add(2, vec![9]).unwrap();
@@ -555,7 +553,7 @@ mod tests {
             let data_path = dir.path().join("data").to_str().unwrap().to_string();
             let store = get_test_data_1_to_n_ind("indirect_path".to_string(), "data_path".to_string()).into_im_store();
 
-            let mut ind = IndexIdToMultipleParentIndirectFlushingInOrderVint::<u32>::new(
+            let mut ind = IndexIdToMultipleParentIndirectFlushingInOrderVint::new(
                 indirect_path.to_string(),
                 data_path.to_string(),
             );

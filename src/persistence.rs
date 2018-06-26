@@ -326,6 +326,7 @@ impl Persistence {
                     Box::new(IndexIdToOneParent {
                         data: load_index_u64(&file_path)?,
                         max_value_id: u32::MAX,
+                        avg_join_size: 1.0,
                     }),
                 );
             }
@@ -390,6 +391,7 @@ impl Persistence {
 
                 let indirect_path = get_file_path(&self.db, &el.path) + ".indirect";
                 let indirect_data_path = get_file_path(&self.db, &el.path) + ".data";
+                // let data_direct_path = get_file_path(&self.db, &el.path) + ".data_direct";
                 let data_direct_path = get_file_path(&self.db, &el.path);
 
                 //Insert dummy index, to seperate between emtpy indexes and nonexisting indexes
@@ -397,6 +399,7 @@ impl Persistence {
                     let store = IndexIdToOneParent {
                         data: vec![],
                         max_value_id: 0,
+                        avg_join_size: 1.0
                     };
                     return Ok((el.path.to_string(), Box::new(store) as Box<IndexIdToParent<Output = u32>>));
                 }
@@ -423,6 +426,7 @@ impl Persistence {
                             let store = IndexIdToOneParent {
                                 data: bytes_to_vec_u32(&file_path_to_bytes(&data_direct_path)?),
                                 max_value_id: el.max_value_id,
+                                avg_join_size: el.avg_join_size,
                             };
 
                             Ok((el.path.to_string(), Box::new(store) as Box<IndexIdToParent<Output = u32>>))
@@ -452,6 +456,7 @@ impl Persistence {
                             let store = IndexIdToOneParent {
                                 data: bytes_to_vec_u32(&file_path_to_bytes(&data_direct_path)?),
                                 max_value_id: el.max_value_id,
+                                avg_join_size: el.avg_join_size,
                             };
 
                             Ok((el.path.to_string(), Box::new(store) as Box<IndexIdToParent<Output = u32>>))
@@ -734,9 +739,26 @@ impl Persistence {
         })
     }
 
+    pub fn flush_direct_index(
+        &self,
+        store: &mut IndexIdToOneParentFlushing,
+        path: &str,
+        loading_type: LoadingType,
+    ) -> Result<(KVStoreMetaData), io::Error> {
+        store.flush()?;
+        Ok(KVStoreMetaData {
+            loading_type,
+            persistence_type: KVStoreType::IndexIdToOneParent,
+            is_1_to_n: false,
+            path: path.to_string(),
+            is_empty: store.is_empty(),
+            max_value_id: store.max_value_id,
+            avg_join_size: store.avg_join_size,
+        })
+    }
     pub fn flush_indirect_index(
         &self,
-        store: &mut IndexIdToMultipleParentIndirectFlushingInOrderVint<u32>,
+        store: &mut IndexIdToMultipleParentIndirectFlushingInOrderVint,
         path: &str,
         loading_type: LoadingType,
     ) -> Result<(KVStoreMetaData), io::Error> {

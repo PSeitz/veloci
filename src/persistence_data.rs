@@ -1,11 +1,13 @@
 use std;
 use std::u32;
 use std::fs;
+use std::io;
+use std::io::Write;
 use std::marker::PhantomData;
 
 use heapsize::HeapSizeOf;
 use byteorder::{LittleEndian, ReadBytesExt};
-use create;
+
 use persistence::*;
 pub(crate) use persistence_data_indirect::*;
 
@@ -23,11 +25,98 @@ impl_type_info_single_templ!(IndexIdToOneParent);
 impl_type_info_single_templ!(ParallelArrays);
 impl_type_info_single_templ!(SingleArrayMMAP);
 
+const EMPTY_BUCKET: u32 = 0;
+
+/// This data structure assumes that a set is only called once for a id, and ids are set in order.
+#[derive(Serialize, Debug, Clone, HeapSizeOf, Default)]
+pub struct IndexIdToOneParentFlushing {
+    pub cache: Vec<u32>,
+    pub current_id_offset: u32,
+    pub path: String,
+    pub max_value_id: u32,
+    pub num_values: u32,
+    pub avg_join_size: f32,
+}
+
+impl IndexIdToOneParentFlushing {
+    pub fn new(path:String) -> IndexIdToOneParentFlushing {
+        IndexIdToOneParentFlushing{
+            path,
+            ..Default::default()
+        }
+    }
+    pub fn into_im_store(self) -> IndexIdToOneParent<u32> {
+        let mut store = IndexIdToOneParent::default();
+        //TODO this conversion is not needed, it's always u32
+        store.avg_join_size = calc_avg_join_size(self.num_values, self.cache.len() as u32);
+        store.data = self.cache;
+        store.max_value_id = self.max_value_id;
+        // store.num_values = self.num_values;
+        // store.num_ids = self.num_ids;
+        store
+    }
+
+    #[inline]
+    pub fn add(&mut self, id: u32, val: u32) -> Result<(), io::Error> {
+        self.max_value_id = std::cmp::max(val, self.max_value_id);
+        self.num_values += 1;
+
+        let id_pos = (id - self.current_id_offset) as usize;
+        if self.cache.len() <= id_pos {
+            //TODO this could become very big, check memory consumption upfront, and flush directly to disk, when a resize would step over a certain threshold @Memory
+            self.cache.resize(id_pos + 1, EMPTY_BUCKET);
+        }
+
+        self.cache[id_pos] = val;
+
+        if self.cache.len() * 4 >= 4_000_000 {
+            self.flush()?;
+        }
+        Ok(())
+    }
+
+    #[inline]
+    pub fn is_in_memory(&self) -> bool {
+        self.current_id_offset == 0
+    }
+
+    #[inline]
+    pub fn is_empty(&self) -> bool {
+        self.cache.is_empty() && self.current_id_offset == 0
+    }
+
+    pub fn flush(&mut self) -> Result<(), io::Error> {
+        if self.cache.is_empty() {
+            return Ok(());
+        }
+
+        self.current_id_offset += self.cache.len() as u32;
+
+        let mut data = std::fs::OpenOptions::new()
+            .read(true)
+            .write(true)
+            .append(true)
+            .create(true)
+            .open(&self.path)
+            .unwrap();
+
+        data.write_all(&vec_to_bytes_u32(&self.cache))?;
+
+        self.avg_join_size = calc_avg_join_size(self.num_values, self.current_id_offset + self.cache.len() as u32);
+        self.cache.clear();
+
+        Ok(())
+    }
+}
+
+
+
 
 #[derive(Debug, Default, HeapSizeOf)]
 pub struct IndexIdToOneParent<T: IndexIdToParentData> {
     pub data: Vec<T>,
     pub max_value_id: u32,
+    pub avg_join_size: f32,
 }
 impl<T: IndexIdToParentData> IndexIdToOneParent<T> {
     pub fn new(data: &IndexIdToParent<Output = T>) -> IndexIdToOneParent<T> {
@@ -41,7 +130,7 @@ impl<T: IndexIdToParentData> IndexIdToOneParent<T> {
                 }
             })
             .collect();
-        IndexIdToOneParent { data, max_value_id: u32::MAX } //TODO FIX max_value_id
+        IndexIdToOneParent { data, max_value_id: u32::MAX, avg_join_size: 1.0} //TODO FIX max_value_id
     }
 }
 impl<T: IndexIdToParentData> IndexIdToParent for IndexIdToOneParent<T> {
@@ -260,20 +349,35 @@ fn prepare_data_for_array_of_array<T: Clone, K: IndexIdToParentData>(store: &Ind
 //     }
 // }
 
-#[cfg_attr(feature = "flame_it", flame)]
-pub(crate) fn valid_pair_to_direct_index<T: create::KeyValuePair>(tuples: &mut [T]) -> IndexIdToOneParent<u32> {
-    //-> Box<IndexIdToParent<Output = u32>> {
-    tuples.sort_unstable_by_key(|a| a.get_key());
-    let mut index = IndexIdToOneParent::<u32>::default();
-    //TODO store max_value_id and resize index
-    for el in tuples.iter() {
-        index.data.resize(el.get_key() as usize + 1, NOT_FOUND);
-        index.data[el.get_key() as usize] = el.get_value();
-        index.max_value_id = std::cmp::max(index.max_value_id, el.get_value());
-    }
+// // #[cfg_attr(feature = "flame_it", flame)]
+// pub(crate) fn valid_pair_to_direct_index<T: create::KeyValuePair>(tuples: &mut [T]) -> IndexIdToOneParent<u32> {
+//     //-> Box<IndexIdToParent<Output = u32>> {
+//     tuples.sort_unstable_by_key(|a| a.get_key());
+//     let mut index = IndexIdToOneParent::<u32>::default();
+//     //TODO store max_value_id and resize index
+//     for el in tuples.iter() {
+//         index.data.resize(el.get_key() as usize + 1, NOT_FOUND);
+//         index.data[el.get_key() as usize] = el.get_value();
+//         index.max_value_id = std::cmp::max(index.max_value_id, el.get_value());
+//     }
 
-    index
-}
+//     index
+// }
+
+// // #[cfg_attr(feature = "flame_it", flame)]
+// pub(crate) fn valid_pair_to_direct_index<T: create::KeyValuePair>(tuples: &mut [T]) -> IndexIdToOneParent<u32> {
+//     //-> Box<IndexIdToParent<Output = u32>> {
+//     tuples.sort_unstable_by_key(|a| a.get_key());
+//     let mut index = IndexIdToOneParent::<u32>::default();
+//     //TODO store max_value_id and resize index
+//     for el in tuples.iter() {
+//         index.data.resize(el.get_key() as usize + 1, NOT_FOUND);
+//         index.data[el.get_key() as usize] = el.get_value();
+//         index.max_value_id = std::cmp::max(index.max_value_id, el.get_value());
+//     }
+
+//     index
+// }
 
 #[test]
 fn test_index_parrallel_arrays() {
@@ -322,6 +426,7 @@ mod tests {
         IndexIdToOneParent {
             data: values.iter().map(|el| num::cast(*el).unwrap()).collect(),
             max_value_id: 50000,
+            avg_join_size: 1.0
         }
     }
 

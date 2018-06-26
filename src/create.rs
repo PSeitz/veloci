@@ -2,6 +2,7 @@ use std::fs::File;
 use std::io;
 use std::io::Write;
 use std::{self, str};
+use std::io::BufReader;
 
 use fnv::FnvHashMap;
 use fnv::FnvHashSet;
@@ -115,11 +116,11 @@ pub(crate) struct TermInfo {
 //     }
 // }
 
-#[derive(Debug, Default, Clone, PartialEq, Eq)]
-pub(crate) struct ValIdPair {
-    pub(crate) valid: u32,
-    pub(crate) parent_val_id: u32,
-}
+// #[derive(Debug, Default, Clone, PartialEq, Eq)]
+// pub(crate) struct ValIdPair {
+//     pub(crate) valid: u32,
+//     pub(crate) parent_val_id: u32,
+// }
 
 #[derive(Debug, Default, Clone)]
 pub(crate) struct ValIdPairToken {
@@ -135,55 +136,55 @@ pub(crate) struct TokenToAnchorScore {
     pub(crate) score: u32,
 }
 
-pub(crate) trait KeyValuePair {
-    fn get_key(&self) -> u32;
-    fn set_key(&mut self, id: u32);
-    fn get_value(&self) -> u32;
-    fn set_value(&mut self, id: u32);
-}
+// pub(crate) trait KeyValuePair {
+//     fn get_key(&self) -> u32;
+//     fn set_key(&mut self, id: u32);
+//     fn get_value(&self) -> u32;
+//     fn set_value(&mut self, id: u32);
+// }
 
-impl KeyValuePair for ValIdPair {
-    #[inline]
-    fn get_key(&self) -> u32 {
-        self.valid
-    }
+// impl KeyValuePair for ValIdPair {
+//     #[inline]
+//     fn get_key(&self) -> u32 {
+//         self.valid
+//     }
 
-    #[inline]
-    fn set_key(&mut self, id: u32) {
-        self.valid = id;
-    }
+//     #[inline]
+//     fn set_key(&mut self, id: u32) {
+//         self.valid = id;
+//     }
 
-    #[inline]
-    fn get_value(&self) -> u32 {
-        self.parent_val_id
-    }
+//     #[inline]
+//     fn get_value(&self) -> u32 {
+//         self.parent_val_id
+//     }
 
-    #[inline]
-    fn set_value(&mut self, id: u32) {
-        self.parent_val_id = id;
-    }
-}
-impl KeyValuePair for ValIdToValue {
-    #[inline]
-    fn get_key(&self) -> u32 {
-        self.valid
-    }
+//     #[inline]
+//     fn set_value(&mut self, id: u32) {
+//         self.parent_val_id = id;
+//     }
+// }
+// impl KeyValuePair for ValIdToValue {
+//     #[inline]
+//     fn get_key(&self) -> u32 {
+//         self.valid
+//     }
 
-    #[inline]
-    fn set_key(&mut self, id: u32) {
-        self.valid = id;
-    }
+//     #[inline]
+//     fn set_key(&mut self, id: u32) {
+//         self.valid = id;
+//     }
 
-    #[inline]
-    fn get_value(&self) -> u32 {
-        self.value
-    }
+//     #[inline]
+//     fn get_value(&self) -> u32 {
+//         self.value
+//     }
 
-    #[inline]
-    fn set_value(&mut self, id: u32) {
-        self.value = id;
-    }
-}
+//     #[inline]
+//     fn set_value(&mut self, id: u32) {
+//         self.value = id;
+//     }
+// }
 
 /// Used for boost
 /// e.g. boost value 5000 for id 5
@@ -194,12 +195,12 @@ pub(crate) struct ValIdToValue {
     pub(crate) value: u32,
 }
 
-impl std::fmt::Display for ValIdPair {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
-        write!(f, "\n{}\t{}", self.valid, self.parent_val_id)?;
-        Ok(())
-    }
-}
+// impl std::fmt::Display for ValIdPair {
+//     fn fmt(&self, f: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
+//         write!(f, "\n{}\t{}", self.valid, self.parent_val_id)?;
+//         Ok(())
+//     }
+// }
 
 // impl<ValIdPair> fmt::Display for Vec<ValIdPair> {
 //     fn fmt(&self, f: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
@@ -208,24 +209,22 @@ impl std::fmt::Display for ValIdPair {
 //     }
 // }
 
-#[allow(dead_code)]
-fn print_vec(vec: &[ValIdPair], valid_header: &str, parentid_header: &str) -> String {
-    format!("{}\t{}", valid_header, parentid_header)
-        + &vec.iter()
-            .map(|el| format!("\n{}\t{}", el.valid, el.parent_val_id))
-            .collect::<Vec<_>>()
-            .join("")
-}
+// fn print_vec(vec: &[ValIdPair], valid_header: &str, parentid_header: &str) -> String {
+//     format!("{}\t{}", valid_header, parentid_header)
+//         + &vec.iter()
+//             .map(|el| format!("\n{}\t{}", el.valid, el.parent_val_id))
+//             .collect::<Vec<_>>()
+//             .join("")
+// }
 
-#[allow(dead_code)]
-fn print_index_id_to_parent(vec: &IndexIdToMultipleParentIndirect<u32>, valid_header: &str, parentid_header: &str) -> String {
-    let keys = vec.get_keys();
-    format!("{}\t{}", valid_header, parentid_header)
-        + &keys.iter()
-            .map(|key| format!("\n{}\t{:?}", key, vec.get_values(u64::from(*key))))
-            .collect::<Vec<_>>()
-            .join("")
-}
+// fn print_index_id_to_parent(vec: &IndexIdToMultipleParentIndirect<u32>, valid_header: &str, parentid_header: &str) -> String {
+//     let keys = vec.get_keys();
+//     format!("{}\t{}", valid_header, parentid_header)
+//         + &keys.iter()
+//             .map(|key| format!("\n{}\t{:?}", key, vec.get_values(u64::from(*key))))
+//             .collect::<Vec<_>>()
+//             .join("")
+// }
 
 fn store_full_text_info_and_set_ids(
     persistence: &Persistence,
@@ -411,7 +410,6 @@ fn get_allterms_per_path<I: Iterator<Item = Result<serde_json::Value, serde_json
     Ok(())
 }
 
-// #[allow(dead_code)]
 // fn check_similarity(data: &FnvHashMap<String, TermMap>) {
 //     let mut map: FnvHashMap<String, FnvHashMap<String, (f32, f32)>> = FnvHashMap::default();
 
@@ -513,10 +511,56 @@ fn is_1_to_n(path: &str) -> bool {
     path.contains("[]")
 }
 
+
+// use buffered_index_writer::KeyValue;
+fn stream_iter_to_direct_index(
+    iter: impl Iterator<Item = buffered_index_writer::KeyValue<u32>>,
+    target: &mut IndexIdToOneParentFlushing,
+) -> Result<(), io::Error> {
+
+    for kv in iter {
+        target.add(kv.key, kv.value)?;
+    }
+
+    Ok(())
+}
+
+fn stream_buffered_index_writer_to_direct_index(
+    mut index_writer: BufferedIndexWriter,
+    target: &mut IndexIdToOneParentFlushing,
+) -> Result<(), io::Error> {
+    // flush_and_kmerge will flush elements to disk, this is unnecessary for small indices, so we check for im
+
+    if index_writer.is_in_memory() {
+        stream_iter_to_direct_index(index_writer.into_iter_inmemory(), target)?;
+    } else {
+        stream_iter_to_direct_index(index_writer.flush_and_kmerge()?, target)?;
+    }
+
+    //when there has been written something to disk flush the rest of the data too, so we have either all data im oder on disk
+    if !target.is_in_memory() {
+        target.flush()?;
+    }
+    Ok(())
+}
+fn buffered_index_to_direct_index (
+    db_path: &str,
+    path: String,
+    buffered_index_data: BufferedIndexWriter,
+) -> Result<IndexIdToOneParentFlushing, io::Error> {
+
+    let data_file_path = util::get_file_path(db_path, &path);
+    // let data_file_path = util::get_file_path(db_path, &(path + ".data_direct"));
+
+    let mut store = IndexIdToOneParentFlushing::new(data_file_path);
+    stream_buffered_index_writer_to_direct_index(buffered_index_data, &mut store)?;
+    Ok(store)
+}
+
 // use buffered_index_writer::KeyValue;
 fn stream_iter_to_indirect_index(
     iter: impl Iterator<Item = buffered_index_writer::KeyValue<u32>>,
-    target: &mut IndexIdToMultipleParentIndirectFlushingInOrderVint<u32>,
+    target: &mut IndexIdToMultipleParentIndirectFlushingInOrderVint,
     sort_and_dedup: bool,
 ) -> Result<(), io::Error> {
     for (id, group) in &iter.group_by(|el| el.key) {
@@ -533,7 +577,7 @@ fn stream_iter_to_indirect_index(
 
 fn stream_buffered_index_writer_to_indirect_index(
     mut index_writer: BufferedIndexWriter,
-    target: &mut IndexIdToMultipleParentIndirectFlushingInOrderVint<u32>,
+    target: &mut IndexIdToMultipleParentIndirectFlushingInOrderVint,
     sort_and_dedup: bool,
 ) -> Result<(), io::Error> {
     // flush_and_kmerge will flush elements to disk, this is unnecessary for small indices, so we check for im
@@ -802,13 +846,24 @@ fn add_index_flush(
     //     indices.direct_indices.push((path, store, loading_type));
     // } else {
 
+    let store = buffered_index_to_indirect_index_multiple(db_path, path.to_string(), buffered_index_data, sort_and_dedup)?;
+    indices.indirect_indices_flush.push((path, store, loading_type));
+    Ok(())
+}
+
+fn buffered_index_to_indirect_index_multiple (
+    db_path: &str,
+    path: String,
+    buffered_index_data: BufferedIndexWriter,
+    sort_and_dedup: bool,
+) -> Result<IndexIdToMultipleParentIndirectFlushingInOrderVint, io::Error> {
+
     let indirect_file_path = util::get_file_path(db_path, &(path.to_string() + ".indirect"));
     let data_file_path = util::get_file_path(db_path, &(path.to_string() + ".data"));
 
-    let mut store = IndexIdToMultipleParentIndirectFlushingInOrderVint::<u32>::new(indirect_file_path, data_file_path);
+    let mut store = IndexIdToMultipleParentIndirectFlushingInOrderVint::new(indirect_file_path, data_file_path);
     stream_buffered_index_writer_to_indirect_index(buffered_index_data, &mut store, sort_and_dedup)?;
-    indices.indirect_indices_flush.push((path, store, loading_type));
-    Ok(())
+    Ok(store)
 }
 
 fn add_anchor_score_flush(
@@ -830,9 +885,9 @@ fn add_anchor_score_flush(
 #[derive(Debug, Default)]
 struct IndicesFromRawData {
     direct_indices: Vec<(String, IndexIdToOneParent<u32>, LoadingType)>,
-    indirect_indices_flush: Vec<(String, IndexIdToMultipleParentIndirectFlushingInOrderVint<u32>, LoadingType)>,
+    indirect_indices_flush: Vec<(String, IndexIdToMultipleParentIndirectFlushingInOrderVint, LoadingType)>,
     // boost_indices: Vec<(String, IndexIdToOneParent<u32>)>,
-    boost_indices: Vec<(String, IndexIdToMultipleParentIndirectFlushingInOrderVint<u32>, LoadingType)>,
+    boost_indices: Vec<(String, IndexIdToMultipleParentIndirectFlushingInOrderVint, LoadingType)>,
     anchor_score_indices_flush: Vec<(String, TokenToAnchorScoreVintFlushing)>,
 }
 
@@ -932,7 +987,7 @@ fn convert_raw_path_data_to_indices(
                 let indirect_file_path = util::get_file_path(&db, &(boost_path.to_string() + ".indirect"));
                 let data_file_path = util::get_file_path(&db, &(boost_path.to_string() + ".data"));
 
-                let mut store = IndexIdToMultipleParentIndirectFlushingInOrderVint::<u32>::new(indirect_file_path, data_file_path);
+                let mut store = IndexIdToMultipleParentIndirectFlushingInOrderVint::new(indirect_file_path, data_file_path);
                 stream_buffered_index_writer_to_indirect_index(buffered_index_data, &mut store, false)?;
                 indices.boost_indices.push((boost_path, store, LoadingType::InMemoryUnCompressed));
             }
@@ -1188,7 +1243,8 @@ pub fn add_token_values_to_tokens(persistence: &mut Persistence, data_str: &str,
 
     let is_text_index = true;
     let path_name = util::get_file_path_name(&config.path, is_text_index);
-    let mut tuples: Vec<ValIdToValue> = vec![];
+    // let mut tuples: Vec<ValIdToValue> = vec![];
+    let mut tuples = BufferedIndexWriter::default();
 
     for el in data {
         if el.value.is_none() {
@@ -1199,68 +1255,80 @@ pub fn add_token_values_to_tokens(persistence: &mut Persistence, data_str: &str,
 
         let hits = search_field::get_hits_in_field(persistence, &options, None)?;
         if hits.hits_vec.len() == 1 {
-            tuples.push(ValIdToValue {
-                valid: hits.hits_vec[0].id,
-                value: el.value.unwrap(),
-            });
+            // tuples.push(ValIdToValue {
+            //     valid: hits.hits_vec[0].id,
+            //     value: el.value.unwrap(),
+            // });
+            tuples.add(hits.hits_vec[0].id, el.value.unwrap());
         }
     }
 
-    let store = valid_pair_to_direct_index(&mut tuples);
     let path = concat(&path_name, ".tokenValues.boost_valid_to_value");
-    let meta_data = persistence.write_direct_index(&store, &path, LoadingType::Disk)?;
-    persistence.meta_data.boost_stores.push(meta_data);
+    let mut store = buffered_index_to_direct_index(&persistence.db, path.to_string(), tuples).unwrap();
+    let voll_meta = persistence.flush_direct_index(&mut store, &path, LoadingType::InMemoryUnCompressed)?;
+    persistence.meta_data.boost_stores.push(voll_meta);
+    // persistence.indices.boost_valueid_to_value.insert(path.to_string(), Box::new(store));
+
+    // let store = valid_pair_to_direct_index(&mut tuples);
+    // let path = concat(&path_name, ".tokenValues.boost_valid_to_value");
+    // let meta_data = persistence.write_direct_index(&store, &path, LoadingType::Disk)?;
+    // persistence.meta_data.boost_stores.push(meta_data);
     persistence.write_meta_data()?;
+
+    //TODO FIX LOAD FOR IN_MEMORY
+    let data_file = persistence.get_file_handle(&path)?;
+    let data_metadata = persistence.get_file_metadata_handle(&path)?;
+    let store = SingleArrayMMAP::<u32>::new(&data_file, data_metadata, store.max_value_id);
     persistence.indices.boost_valueid_to_value.insert(path.to_string(), Box::new(store));
     Ok(())
 }
 
-use std::io::BufReader;
-trait FastLinesTrait<T> {
-    fn fast_lines(self) -> FastLinesJson<Self>
-    where
-        Self: Sized,
-    {
-        FastLinesJson { reader: self, cache: vec![] }
-    }
-}
 
-impl<T> FastLinesTrait<T> for BufReader<T> {
-    fn fast_lines(self) -> FastLinesJson<Self>
-    where
-        Self: Sized,
-    {
-        FastLinesJson { reader: self, cache: vec![] }
-    }
-}
+// trait FastLinesTrait<T> {
+//     fn fast_lines(self) -> FastLinesJson<Self>
+//     where
+//         Self: Sized,
+//     {
+//         FastLinesJson { reader: self, cache: vec![] }
+//     }
+// }
 
-#[derive(Debug)]
-struct FastLinesJson<T> {
-    reader: T,
-    cache: Vec<u8>,
-}
+// impl<T> FastLinesTrait<T> for BufReader<T> {
+//     fn fast_lines(self) -> FastLinesJson<Self>
+//     where
+//         Self: Sized,
+//     {
+//         FastLinesJson { reader: self, cache: vec![] }
+//     }
+// }
 
-impl<B: BufRead> Iterator for FastLinesJson<B> {
-    type Item = Result<serde_json::Value, serde_json::Error>;
+// #[derive(Debug)]
+// struct FastLinesJson<T> {
+//     reader: T,
+//     cache: Vec<u8>,
+// }
 
-    fn next(&mut self) -> Option<Result<serde_json::Value, serde_json::Error>> {
-        self.cache.clear();
-        match self.reader.read_until(b'\n', &mut self.cache) {
-            Ok(0) => None,
-            Ok(_n) => {
-                if self.cache.ends_with(b"\n") {
-                    self.cache.pop();
-                    if self.cache.ends_with(b"\r") {
-                        self.cache.pop();
-                    }
-                }
-                let json = serde_json::from_str(unsafe { std::str::from_utf8_unchecked(&self.cache) });
-                Some(json)
-            }
-            Err(_e) => None,
-        }
-    }
-}
+// impl<B: BufRead> Iterator for FastLinesJson<B> {
+//     type Item = Result<serde_json::Value, serde_json::Error>;
+
+//     fn next(&mut self) -> Option<Result<serde_json::Value, serde_json::Error>> {
+//         self.cache.clear();
+//         match self.reader.read_until(b'\n', &mut self.cache) {
+//             Ok(0) => None,
+//             Ok(_n) => {
+//                 if self.cache.ends_with(b"\n") {
+//                     self.cache.pop();
+//                     if self.cache.ends_with(b"\r") {
+//                         self.cache.pop();
+//                     }
+//                 }
+//                 let json = serde_json::from_str(unsafe { std::str::from_utf8_unchecked(&self.cache) });
+//                 Some(json)
+//             }
+//             Err(_e) => None,
+//         }
+//     }
+// }
 
 
 pub fn convert_any_json_data_to_line_delimited<I: std::io::Read, O: std::io::Write>(input:I, out: &mut O) -> Result<(), io::Error>{
@@ -1382,30 +1450,3 @@ impl From<std::str::Utf8Error> for CreateError {
         CreateError::Utf8Error(err)
     }
 }
-
-// #[cfg(test)]
-// mod test {
-//     use create;
-//     use serde_json;
-//     use serde_json::Value;
-
-//     #[test]
-//     fn test_ewwwwwwwq() {
-
-//         let opt: create::FulltextIndexOptions = serde_json::from_str(r#"{"tokenize":true, "stopwords": []}"#).unwrap();
-//         // let opt = create::FulltextIndexOptions{
-//         //     tokenize: true,
-//         //     stopwords: vec![]
-//         // };
-
-//         let dat2 = r#" [{ "name": "John Doe", "age": 43 }, { "name": "Jaa", "age": 43 }] "#;
-//         let data: Value = serde_json::from_str(dat2).unwrap();
-//         let res = create::create_fulltext_index(&data, "name", opt);
-//         let deserialized: create::BoostIndexOptions = serde_json::from_str(r#"{"boost_type":"int"}"#).unwrap();
-
-//         assert_eq!("Hello", "Hello");
-
-//         let service: create::CreateIndex = serde_json::from_str(r#"{"boost_type":"int"}"#).unwrap();
-
-//     }
-// }
