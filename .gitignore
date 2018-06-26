@@ -47,8 +47,7 @@ Cargo.lock
 /root*
 /bench_ta*
 /jmdict*
-/mochaTest/
-/mochaTest_wf/
+/mochaTest*
 /healthcare/
 /csv_test/
 /hoho/

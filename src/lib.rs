@@ -1,23 +1,14 @@
-#![feature(option_filter)]
-#![feature(extern_prelude)]
 #![feature(align_offset)]
-#![feature(offset_to)]
 #![feature(ptr_offset_from)]
 #![feature(pointer_methods)]
-#![feature(core_intrinsics)]
-#![feature(splice)]
 #![feature(entry_and_modify)]
-#![recursion_limit = "128"]
 #![feature(iterator_step_by)]
 #![feature(step_trait)]
 #![feature(specialization)]
 #![feature(inclusive_range)]
 #![feature(inclusive_range_methods)]
-#![feature(plugin)]
-#![cfg_attr(test, plugin(stainless))]
 #![feature(test)]
 #![feature(placement_in_syntax)]
-#![feature(use_extern_macros)]
 #![feature(box_syntax, box_patterns)]
 #![cfg_attr(feature = "unstable", feature(alloc, heap_api, repr_simd))]
 #![cfg_attr(feature = "flame_it", feature(plugin, custom_attribute))]
@@ -53,6 +44,7 @@ extern crate uuid;
 extern crate dump;
 
 extern crate flexi_logger;
+#[allow(unused_imports)]
 #[macro_use]
 extern crate log;
 
@@ -136,9 +128,9 @@ extern crate rand;
 #[cfg(test)]
 extern crate tempfile;
 
-#[cfg(test)]
-mod test_why_found;
-#[cfg(test)]
-mod tests;
+// #[cfg(test)]
+// mod test_why_found;
+// #[cfg(test)]
+// mod tests;
 
 use std::str;

@@ -6,6 +6,7 @@ use query_generator;
 use rayon::prelude::*;
 use search;
 use search::*;
+use serde_json;
 use std;
 use std::cmp::Ordering;
 use std::fs;

@@ -547,13 +547,8 @@ fn top_n_sort(data: Vec<Hit>, top_n: u32) -> Vec<Hit> {
         if el.score < worst_score {
             continue;
         }
-        if !new_data.is_empty() && new_data.len() as u32 == top_n + 200 {
-            // Sort by score and anchor_id -- WITHOUT anchor_id SORTING SKIP MAY WORK NOT CORRECTLY FOR SAME SCORED ANCHOR_IDS
-            new_data.sort_unstable_by(sort_by_score_and_id);
-            new_data.truncate(top_n as usize);
-            worst_score = new_data.last().unwrap().score;
-            trace!("new worst {:?}", worst_score);
-        }
+
+        check_apply_top_n_sort(&mut new_data, top_n, &sort_by_score_and_id, &mut |the_worst:&Hit| worst_score = the_worst.score);
 
         new_data.push(el);
     }
@@ -561,6 +556,19 @@ fn top_n_sort(data: Vec<Hit>, top_n: u32) -> Vec<Hit> {
     // Sort by score and anchor_id -- WITHOUT anchor_id SORTING SKIP MAY WORK NOT CORRECTLY FOR SAME SCORED ANCHOR_IDS
     new_data.sort_unstable_by(sort_by_score_and_id);
     new_data
+}
+
+#[inline]
+pub(crate) fn check_apply_top_n_sort<T:std::fmt::Debug>(new_data: &mut Vec<T>, top_n: u32, sort_compare: &Fn(&T,&T) -> Ordering, new_worst: &mut FnMut(&T)  ) {
+    if !new_data.is_empty() && new_data.len() as u32 == top_n + 200 {
+
+        new_data.sort_unstable_by(sort_compare);
+        new_data.truncate(top_n as usize);
+        let new_worst_value = new_data.last().unwrap();
+        trace!("new worst {:?}", new_worst_value);
+        new_worst(new_worst_value);
+        // worst_score = new_data.last().unwrap().score;
+    }
 }
 
 #[cfg_attr(feature = "flame_it", flame)]
@@ -1484,7 +1492,7 @@ fn join_and_get_text_for_ids(persistence: &Persistence, id: u32, prop: &str) -> 
     Ok(text_value_id_opt.map(|text_value_id| get_text_for_id(persistence, &concat(&prop, ".textindex"), text_value_id)))
 }
 
-pub(crate) fn read_data(persistence: &Persistence, id: u32, fields: &[String]) -> Result<serde_json::Value, SearchError> {
+pub fn read_data(persistence: &Persistence, id: u32, fields: &[String]) -> Result<serde_json::Value, SearchError> {
     // let all_steps: FnvHashMap<String, Vec<String>> = fields.iter().map(|field| (field.clone(), util::get_steps_to_anchor(&field))).collect();
     // let all_steps: Vec<Vec<String>> = fields.iter().map(|field| util::get_steps_to_anchor(&field)).collect();
     // let paths = util::get_steps_to_anchor(&request.path);

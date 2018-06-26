@@ -415,6 +415,9 @@ fn get_term_ids_in_field(persistence: &Persistence, options: &mut RequestSearchP
                         trace!("new worst {:?}", worst_score);
                     }
 
+
+                    search::check_apply_top_n_sort(&mut result.hits_vec, top_n_search, &|a, b| b.score.partial_cmp(&a.score).unwrap_or(Ordering::Equal), &mut |the_worst:&Hit| worst_score = the_worst.score);
+
                     // vec_hits.push((line_pos, score));
                     result.hits_vec.push(Hit::new(line_pos, score));
                     debug!("Hit: {:?}\tid: {:?} score: {:?}", line, line_pos, score);

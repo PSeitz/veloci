@@ -20,6 +20,7 @@ use serde_json::Deserializer;
 use serde_json::{self, Value};
 use std::io::BufRead;
 use tokenizer::*;
+use buffered_index_writer;
 use util::*;
 use util::{self, concat};
 use persistence_data::*;
@@ -1304,8 +1305,12 @@ pub fn create_indices_from_str(
     create_cache: Option<CreateCache>,
     load_persistence: bool,
 ) -> Result<(CreateCache), CreateError> {
-    let stream1 = Deserializer::from_str(&data_str).into_iter::<Value>(); //TODO Performance: Use custom line break deserializer to get string and json at the same time
-    let stream2 = Deserializer::from_str(&data_str).into_iter::<Value>();
+    // let stream1 = Deserializer::from_str(&data_str).into_iter::<Value>(); //TODO Performance: Use custom line break deserializer to get string and json at the same time
+    // let stream2 = Deserializer::from_str(&data_str).into_iter::<Value>();
+
+    let stream1 = data_str.lines().map(|line| serde_json::from_str(&line));
+    let stream2 = data_str.lines().map(|line| serde_json::from_str(&line));
+
     create_indices_from_streams(persistence, stream1, stream2, data_str.lines(), indices, create_cache, load_persistence)
 }
 pub fn create_indices_from_file(
