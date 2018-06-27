@@ -726,26 +726,26 @@ impl Persistence {
         ))
     }
 
-    pub fn write_direct_index<S: AsRef<str>>(
-        &self,
-        store: &IndexIdToOneParent<u32>,
-        path: S,
-        loading_type: LoadingType,
-    ) -> Result<(KVStoreMetaData), io::Error> {
-        let data_file_path = util::get_file_path(&self.db, &(path.as_ref().into_string()));
+    // pub fn write_direct_index<S: AsRef<str>>(
+    //     &self,
+    //     store: &IndexIdToOneParent<u32>,
+    //     path: S,
+    //     loading_type: LoadingType,
+    // ) -> Result<(KVStoreMetaData), io::Error> {
+    //     let data_file_path = util::get_file_path(&self.db, &(path.as_ref().into_string()));
 
-        File::create(data_file_path)?.write_all(&vec_to_bytes_u32(&store.data))?;
+    //     File::create(data_file_path)?.write_all(&vec_to_bytes_u32(&store.data))?;
 
-        Ok(KVStoreMetaData {
-            loading_type,
-            persistence_type: KVStoreType::IndexIdToOneParent,
-            is_1_to_n: false,
-            is_empty: false, // TODO
-            path: path.as_ref().into_string(),
-            max_value_id: store.max_value_id,
-            avg_join_size: 1 as f32, //TODO FIXME CHECKO NULLOS, 1 is not exact enough
-        })
-    }
+    //     Ok(KVStoreMetaData {
+    //         loading_type,
+    //         persistence_type: KVStoreType::IndexIdToOneParent,
+    //         is_1_to_n: false,
+    //         is_empty: false, // TODO
+    //         path: path.as_ref().into_string(),
+    //         max_value_id: store.max_value_id,
+    //         avg_join_size: 1 as f32, //TODO FIXME CHECKO NULLOS, 1 is not exact enough
+    //     })
+    // }
 
     pub fn flush_direct_index(&self, store: &mut IndexIdToOneParentFlushing, path: &str, loading_type: LoadingType) -> Result<(KVStoreMetaData), io::Error> {
         store.flush()?;
