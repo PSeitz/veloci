@@ -123,6 +123,15 @@ impl<T: IndexIdToParentData> IndexIdToParent for IndexIdToOneParent<T> {
         (num::cast(0).unwrap()..num::cast(self.data.len()).unwrap()).collect()
     }
 
+    #[inline]
+    fn get_values_iter(&self, id: u64) -> VintArrayIteratorOpt {
+        if let Some(val) = self.get_value(id) {
+            VintArrayIteratorOpt::from_single_val(num::cast(val).unwrap())
+        } else {
+            VintArrayIteratorOpt::empty()
+        }
+    }
+
     fn get_value(&self, id: u64) -> Option<T> {
         let val = self.data.get(id as usize);
         match val {
@@ -176,13 +185,6 @@ impl<T: IndexIdToParentData> IndexIdToParent for ParallelArrays<T> {
         keys.sort();
         keys.dedup();
         keys
-    }
-    fn get_values_iter(&self, id: u64) -> VintArrayIteratorOpt {
-        if let Some(val) = self.get_value(id) {
-            VintArrayIteratorOpt::from_single_val(num::cast(val).unwrap())
-        } else {
-            VintArrayIteratorOpt::empty()
-        }
     }
     #[inline]
     fn get_values(&self, id: u64) -> Option<Vec<T>> {
@@ -445,6 +447,21 @@ mod tests {
         assert_eq!(store.get_value(4).unwrap().to_u32().unwrap(), 9);
         assert_eq!(store.get_value(5).unwrap().to_u32().unwrap(), 50000);
         assert_eq!(store.get_value(6), None);
+
+        let empty_vec: Vec<u32> = vec![];
+        assert_eq!(store.get_values_iter(0).collect::<Vec<u32>>(), vec![5]);
+        assert_eq!(store.get_values_iter(1).collect::<Vec<u32>>(), vec![6]);
+        assert_eq!(store.get_values_iter(2).collect::<Vec<u32>>(), vec![9]);
+        assert_eq!(store.get_values_iter(3).collect::<Vec<u32>>(), vec![9]);
+        assert_eq!(store.get_values_iter(4).collect::<Vec<u32>>(), vec![9]);
+        assert_eq!(store.get_values_iter(5).collect::<Vec<u32>>(), vec![50000]);
+        assert_eq!(store.get_values_iter(6).collect::<Vec<u32>>(), empty_vec);
+        assert_eq!(store.get_values_iter(11).collect::<Vec<u32>>(), empty_vec);
+
+        // let map = store.count_values_for_ids(&[0, 1, 2, 3, 4, 5], None);
+        // assert_eq!(map.get(&5).unwrap(), &1);
+        // assert_eq!(map.get(&9).unwrap(), &3);
+
     }
 
     mod test_direct_1_to_1 {

@@ -475,8 +475,7 @@ mod tests {
         let map = store.count_values_for_ids(&[0, 1, 2, 3, 4, 5], None);
         assert_eq!(map.get(&5).unwrap(), &1);
         assert_eq!(map.get(&9).unwrap(), &3);
-    }
-    fn check_test_data_1_to_n_iter(store: &IndexIdToParent<Output = u32>) {
+
         let empty_vec: Vec<u32> = vec![];
         assert_eq!(store.get_keys(), vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
         assert_eq!(store.get_values_iter(0).collect::<Vec<u32>>(), vec![5, 6]);
@@ -520,7 +519,6 @@ mod tests {
                 calc_avg_join_size(store.num_values, store.num_ids),
             );
             check_test_data_1_to_n(&store);
-            check_test_data_1_to_n_iter(&store);
         }
 
         #[test]
@@ -553,7 +551,6 @@ mod tests {
                 calc_avg_join_size(ind.num_values, ind.num_ids),
             );
             check_test_data_1_to_n(&store);
-            check_test_data_1_to_n_iter(&store);
         }
 
         #[test]
@@ -561,7 +558,6 @@ mod tests {
             let store = get_test_data_1_to_n_ind("test_ind".to_string(), "test_data".to_string());
             let store = store.into_im_store();
             check_test_data_1_to_n(&store);
-            check_test_data_1_to_n_iter(&store);
         }
 
     }

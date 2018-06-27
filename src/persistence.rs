@@ -240,8 +240,7 @@ pub trait IndexIdToParent: Debug + HeapSizeOf + Sync + Send + type_info::TypeInf
     type Output: IndexIdToParentData;
 
     fn get_values_iter(&self, _id: u64) -> VintArrayIteratorOpt {
-        panic!("not implemented");
-        // VintArrayIteratorOpt{single_value: -2, iter: Box::new(VintArrayIterator::from_slice(&[]))}
+        unimplemented!()
     }
 
     fn get_values(&self, id: u64) -> Option<Vec<Self::Output>>;

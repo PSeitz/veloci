@@ -915,7 +915,7 @@ fn convert_raw_path_data_to_indices(
                 &db,
                 concat(path, ".valueIdToParent"),
                 data.text_id_to_parent,
-                false, // valueIdToParent relation is always 1 to 1, expect for text_ids, which can have multiple parents. Here we handle all .textindex data therefore is this always false
+                false, // valueIdToParent relation is always 1 to 1, expect for text_ids, which can have multiple parents. Here we handle only text_ids therefore is this always false
                 sort_and_dedup,
                 &mut indices,
                 LoadingType::Disk,
@@ -931,7 +931,7 @@ fn convert_raw_path_data_to_indices(
                 &db,
                 concat(path, ".parentToValueId"),
                 data.parent_to_text_id,
-                false,
+                true, // This is parent_to_text_id here - Every Value id hat one associated text_id -- TODO: VALIDATE
                 sort_and_dedup,
                 &mut indices,
                 loading_type,
