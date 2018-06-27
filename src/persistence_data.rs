@@ -43,7 +43,6 @@ impl IndexIdToOneParentFlushing {
     }
     pub fn into_im_store(self) -> IndexIdToOneParent<u32> {
         let mut store = IndexIdToOneParent::default();
-        //TODO this conversion is not needed, it's always u32
         store.avg_join_size = calc_avg_join_size(self.num_values, self.cache.len() as u32);
         store.data = self.cache;
         store.max_value_id = self.max_value_id;
@@ -111,21 +110,7 @@ pub struct IndexIdToOneParent<T: IndexIdToParentData> {
     pub max_value_id: u32,
     pub avg_join_size: f32,
 }
-// impl<T: IndexIdToParentData> IndexIdToOneParent<T> {
-//     pub fn new(data: &IndexIdToParent<Output = T>) -> IndexIdToOneParent<T> {
-//         let data: Vec<Vec<T>> = id_to_parent_to_array_of_array(data);
-//         let data = data.iter()
-//             .map(|el| {
-//                 if !el.is_empty() {
-//                     num::cast(el[0]).unwrap()
-//                 } else {
-//                     num::cast(EMPTY_BUCKET).unwrap()
-//                 }
-//             })
-//             .collect();
-//         IndexIdToOneParent { data, max_value_id: u32::MAX, avg_join_size: 1.0} //TODO FIX max_value_id
-//     }
-// }
+
 impl<T: IndexIdToParentData> IndexIdToParent for IndexIdToOneParent<T> {
     type Output = T;
 

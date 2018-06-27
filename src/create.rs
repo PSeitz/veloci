@@ -1136,6 +1136,7 @@ where
         persistence.meta_data.key_value_stores.extend(key_value_stores);
         persistence.meta_data.anchor_score_stores.extend(anchor_score_stores);
         persistence.meta_data.boost_stores.extend(boost_stores);
+        persistence.write_meta_data()?;
     }
 
     // load the converted indices, without writing them
@@ -1198,7 +1199,6 @@ where
     // }
     // store_fst(persistence, &all_ids_as_str, &concat(&path_name, ".valueIdToParent.fst")).expect("Could not store fst");
     //TEST FST AS ID MAPPER
-
     Ok(())
 }
 #[derive(Serialize, Deserialize, Debug)]
@@ -1391,8 +1391,6 @@ where
     create_fulltext_index(stream1, stream2, stream3, &mut persistence, &indices_json, &mut create_cache, load_persistence)?;
 
     info_time!("write json and metadata {:?}", persistence.db);
-
-    persistence.write_meta_data()?;
 
     Ok(create_cache)
 }
