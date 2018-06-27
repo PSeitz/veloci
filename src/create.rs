@@ -297,7 +297,6 @@ fn add_text<T: Tokenizer>(text: &str, terms: &mut TermMap, options: &FulltextInd
 
     add_count_text(terms, text);
 
-
     if options.tokenize && tokenizer.has_tokens(&text) {
         tokenizer.get_tokens(&text, &mut |token: &str, _is_seperator: bool| {
             if options.stopwords.as_ref().map(|el| el.contains(token)).unwrap_or(false) {
@@ -510,7 +509,6 @@ fn is_1_to_n(path: &str) -> bool {
     path.contains("[]")
 }
 
-
 // use buffered_index_writer::KeyValue;
 fn stream_iter_to_direct_index(
     iter: impl Iterator<Item = buffered_index_writer::KeyValue<u32>>,
@@ -522,12 +520,7 @@ fn stream_iter_to_direct_index(
     Ok(())
 }
 
-fn buffered_index_to_direct_index (
-    db_path: &str,
-    path: String,
-    mut buffered_index_data: BufferedIndexWriter,
-) -> Result<IndexIdToOneParentFlushing, io::Error> {
-
+fn buffered_index_to_direct_index(db_path: &str, path: String, mut buffered_index_data: BufferedIndexWriter) -> Result<IndexIdToOneParentFlushing, io::Error> {
     let data_file_path = util::get_file_path(db_path, &path);
 
     let mut store = IndexIdToOneParentFlushing::new(data_file_path);
@@ -659,7 +652,11 @@ where
         info_time!("build path data");
         let mut cb_text = |anchor_id: u32, value: &str, path: &str, parent_val_id: u32| {
             let data = get_or_insert_prefer_get(&mut path_data as *mut FnvHashMap<_, _>, path, &|| {
-                let boost_info_data = if boost_info_for_path.contains_key(path) { Some(BufferedIndexWriter::new_for_sorted_id_insertion()) } else { None };
+                let boost_info_data = if boost_info_for_path.contains_key(path) {
+                    Some(BufferedIndexWriter::new_for_sorted_id_insertion())
+                } else {
+                    None
+                };
                 let anchor_to_text_id = if facet_index.contains(path) && is_1_to_n(path) {
                     //Create facet index only for 1:N
                     // anchor_id is monotonically increasing, hint buffered index writer, it's already sorted
@@ -696,18 +693,18 @@ where
             data.parent_to_text_id.add(parent_val_id, text_info.id).unwrap(); // TODO Error Handling in closure
 
             data.text_id_to_anchor.add(text_info.id, anchor_id).unwrap(); // TODO Error Handling in closure
-            if let Some(el) = data.anchor_to_text_id.as_mut(){
+            if let Some(el) = data.anchor_to_text_id.as_mut() {
                 el.add(anchor_id, text_info.id).unwrap(); // TODO Error Handling in closure
             }
             if let Some(el) = data.boost.as_mut() {
                 // if options.boost_type == "int" {
                 let my_int = value.parse::<u32>().unwrap_or_else(|_| panic!("Expected an int value but got {:?}", value));
                 el.add(parent_val_id, my_int).unwrap(); // TODO Error Handling in closure
-                // el.push(ValIdToValue {
-                //     valid: parent_val_id,
-                //     value: my_int,
-                // });
-                // } // TODO More cases
+                                                        // el.push(ValIdToValue {
+                                                        //     valid: parent_val_id,
+                                                        //     value: my_int,
+                                                        // });
+                                                        // } // TODO More cases
             }
             trace!("Found id {:?} for {:?}", text_info, value);
 
@@ -778,7 +775,7 @@ where
         file_out.write_all(b"\n").unwrap();
         offsets.push(current_offset as u64 + persistence::VALUE_OFFSET as u64); // +1 because 0 is reserved for EMPTY_BUCKET
         current_offset += doc.as_ref().len();
-        current_offset += 1; // 
+        current_offset += 1; //
     }
     offsets.push(current_offset as u64 + persistence::VALUE_OFFSET as u64);
     create_cache.term_data.offsets.extend(offsets);
@@ -817,8 +814,6 @@ fn trace_indices(path_data: &mut FnvHashMap<String, PathData>) {
     }
 }
 
-
-
 fn add_index_flush(
     db_path: &str,
     path: String,
@@ -832,20 +827,18 @@ fn add_index_flush(
         let store = buffered_index_to_direct_index(db_path, path.to_string(), buffered_index_data)?;
         indices.direct_indices_flush.push((path, store, loading_type));
     } else {
-
         let store = buffered_index_to_indirect_index_multiple(db_path, path.to_string(), buffered_index_data, sort_and_dedup)?;
         indices.indirect_indices_flush.push((path, store, loading_type));
     }
     Ok(())
 }
 
-fn buffered_index_to_indirect_index_multiple (
+fn buffered_index_to_indirect_index_multiple(
     db_path: &str,
     path: String,
     buffered_index_data: BufferedIndexWriter,
     sort_and_dedup: bool,
 ) -> Result<IndexIdToMultipleParentIndirectFlushingInOrderVint, io::Error> {
-
     let indirect_file_path = util::get_file_path(db_path, &(path.to_string() + ".indirect"));
     let data_file_path = util::get_file_path(db_path, &(path.to_string() + ".data"));
 
@@ -967,7 +960,6 @@ fn convert_raw_path_data_to_indices(
             }
 
             if let Some(buffered_index_data) = data.boost {
-
                 let boost_path = concat(&extract_field_name(path), ".boost_valid_to_value");
                 let indirect_file_path = util::get_file_path(&db, &(boost_path.to_string() + ".indirect"));
                 let data_file_path = util::get_file_path(&db, &(boost_path.to_string() + ".data"));
@@ -1159,11 +1151,7 @@ where
                 persistence.indices.key_value_stores.insert(path, Box::new(index.into_im_store()));
             } else {
                 //load data with MMap
-                let store = PointingMMAPFileReader::from_path(
-                    &get_file_path(&persistence.db, &path),
-                    index.max_value_id,
-                    index.avg_join_size,
-                )?;
+                let store = PointingMMAPFileReader::from_path(&get_file_path(&persistence.db, &path), index.max_value_id, index.avg_join_size)?;
 
                 persistence.indices.key_value_stores.insert(path, Box::new(store));
             }
@@ -1180,7 +1168,6 @@ where
                 let store = SingleArrayMMAP::<u32>::from_path(&path, index.max_value_id)?;
                 persistence.indices.key_value_stores.insert(path, Box::new(store));
             }
-
         }
         for (path, index) in indices.anchor_score_indices_flush {
             if index.is_in_memory() {
@@ -1196,11 +1183,7 @@ where
                 //Move data to IndexIdToMultipleParentIndirect
                 persistence.indices.boost_valueid_to_value.insert(path, Box::new(index.into_im_store()));
             } else {
-                let store = PointingMMAPFileReader::from_path(
-                    &get_file_path(&persistence.db, &path),
-                    index.max_value_id,
-                    index.avg_join_size,
-                )?;
+                let store = PointingMMAPFileReader::from_path(&get_file_path(&persistence.db, &path), index.max_value_id, index.avg_join_size)?;
 
                 persistence.indices.boost_valueid_to_value.insert(path, Box::new(store));
             }
@@ -1272,7 +1255,6 @@ pub fn add_token_values_to_tokens(persistence: &mut Persistence, data_str: &str,
     Ok(())
 }
 
-
 // trait FastLinesTrait<T> {
 //     fn fast_lines(self) -> FastLinesJson<Self>
 //     where
@@ -1319,8 +1301,7 @@ pub fn add_token_values_to_tokens(persistence: &mut Persistence, data_str: &str,
 //     }
 // }
 
-
-pub fn convert_any_json_data_to_line_delimited<I: std::io::Read, O: std::io::Write>(input:I, out: &mut O) -> Result<(), io::Error>{
+pub fn convert_any_json_data_to_line_delimited<I: std::io::Read, O: std::io::Write>(input: I, out: &mut O) -> Result<(), io::Error> {
     let stream = Deserializer::from_reader(input).into_iter::<Value>();
 
     for value in stream {
@@ -1330,13 +1311,12 @@ pub fn convert_any_json_data_to_line_delimited<I: std::io::Read, O: std::io::Wri
                 out.write_all(el.to_string().as_bytes())?;
                 out.write_all(b"\n")?;
             }
-        }else{
+        } else {
             out.write_all(value.to_string().as_bytes())?;
             out.write_all(b"\n")?;
         }
     }
     Ok(())
-
 }
 
 #[test]
@@ -1345,14 +1325,14 @@ fn test_json_to_line_delimited() {
         {"a": "b"},
         {"c": "d"}
     ]"#;
-    let mut out:Vec<u8> = vec![];
+    let mut out: Vec<u8> = vec![];
     convert_any_json_data_to_line_delimited(value.as_bytes(), &mut out).unwrap();
-    assert_eq!(String::from_utf8(out).unwrap(),"{\"a\":\"b\"}\n{\"c\":\"d\"}\n" );
+    assert_eq!(String::from_utf8(out).unwrap(), "{\"a\":\"b\"}\n{\"c\":\"d\"}\n");
 
     let value = r#"{  "a": "b"}{"c": "d"}"#;
-    let mut out:Vec<u8> = vec![];
+    let mut out: Vec<u8> = vec![];
     convert_any_json_data_to_line_delimited(value.as_bytes(), &mut out).unwrap();
-    assert_eq!(String::from_utf8(out).unwrap(),"{\"a\":\"b\"}\n{\"c\":\"d\"}\n" );
+    assert_eq!(String::from_utf8(out).unwrap(), "{\"a\":\"b\"}\n{\"c\":\"d\"}\n");
 }
 
 pub fn create_indices_from_str(

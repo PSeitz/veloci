@@ -18,10 +18,7 @@ fn get_top_facet_group<T: IndexIdToParentData>(hits: &FnvHashMap<T, usize>, top:
 }
 
 fn get_groups_with_text(persistence: &Persistence, groups: &[(u32, u32)], field: &str) -> Vec<(String, usize)> {
-    groups
-    .iter()
-    .map(|el| (get_text_for_id(persistence, field, el.0), el.1 as usize))
-    .collect()
+    groups.iter().map(|el| (get_text_for_id(persistence, field, el.0), el.1 as usize)).collect()
 }
 
 //TODO Check ignorecase, check duplicates in facet data
@@ -48,7 +45,6 @@ pub fn get_facet(persistence: &Persistence, req: &FacetRequest, ids: &[u32]) -> 
 
         let groups = get_top_facet_group(&hits, req.top);
 
-
         let groups_with_text = get_groups_with_text(persistence, &groups, steps.last().unwrap());
         debug!("{:?}", groups_with_text);
         return Ok(groups_with_text);
@@ -72,9 +68,7 @@ pub fn get_facet(persistence: &Persistence, req: &FacetRequest, ids: &[u32]) -> 
 }
 
 pub(crate) fn join_anchor_to_leaf(persistence: &Persistence, ids: &[u32], steps: &[String]) -> Result<Vec<u32>, SearchError> {
-    let mut next_level_ids = {
-        join_for_n_to_m(persistence, ids, &(steps.first().unwrap().to_string() + ".parentToValueId"))?
-    };
+    let mut next_level_ids = { join_for_n_to_m(persistence, ids, &(steps.first().unwrap().to_string() + ".parentToValueId"))? };
     for step in steps.iter().skip(1) {
         trace!("facet step {:?}", step);
         next_level_ids = join_for_n_to_m(persistence, &next_level_ids, &(step.to_string() + ".parentToValueId"))?;

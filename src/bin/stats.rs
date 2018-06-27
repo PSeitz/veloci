@@ -176,7 +176,6 @@ fn main() {
             total_comp_enc_score_three += maybe_header_size + maybe_header_size; //DOUBLE HEADERSIZE FOR ENCODING ??
             total_comp += maybe_header_size + maybe_header_size; //DOUBLE HEADERSIZE FOR ENCODING ??
             total_uncomp += maybe_header_size;
-
         }
 
         println!("path                  {:?}", path);

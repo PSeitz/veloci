@@ -38,11 +38,8 @@ pub struct IndexIdToOneParentFlushing {
 }
 
 impl IndexIdToOneParentFlushing {
-    pub fn new(path:String) -> IndexIdToOneParentFlushing {
-        IndexIdToOneParentFlushing{
-            path,
-            ..Default::default()
-        }
+    pub fn new(path: String) -> IndexIdToOneParentFlushing {
+        IndexIdToOneParentFlushing { path, ..Default::default() }
     }
     pub fn into_im_store(self) -> IndexIdToOneParent<u32> {
         let mut store = IndexIdToOneParent::default();
@@ -66,7 +63,7 @@ impl IndexIdToOneParentFlushing {
             self.cache.resize(id_pos + 1, EMPTY_BUCKET);
         }
 
-        self.cache[id_pos] = val + 1; //+1 because EMPTY_BUCKET = 0 is already reserved 
+        self.cache[id_pos] = val + 1; //+1 because EMPTY_BUCKET = 0 is already reserved
 
         if self.cache.len() * 4 >= 4_000_000 {
             self.flush()?;
@@ -107,9 +104,6 @@ impl IndexIdToOneParentFlushing {
         Ok(())
     }
 }
-
-
-
 
 #[derive(Debug, Default, HeapSizeOf)]
 pub struct IndexIdToOneParent<T: IndexIdToParentData> {
@@ -201,7 +195,7 @@ impl<T: IndexIdToParentData> IndexIdToParent for ParallelArrays<T> {
     fn get_values_iter(&self, id: u64) -> VintArrayIteratorOpt {
         if let Some(val) = self.get_value(id) {
             VintArrayIteratorOpt::from_single_val(num::cast(val).unwrap())
-        }else{
+        } else {
             VintArrayIteratorOpt::empty()
         }
     }
@@ -261,11 +255,7 @@ impl<T: IndexIdToParentData> SingleArrayMMAP<T> {
         }
     }
     pub fn from_path(path: &str, max_value_id: u32) -> Result<Self, io::Error> {
-        let data_file = unsafe {
-            MmapOptions::new()
-                .map(&File::open(path)?)
-                .unwrap()
-        };
+        let data_file = unsafe { MmapOptions::new().map(&File::open(path)?).unwrap() };
         Ok(SingleArrayMMAP {
             data_file,
             data_metadata: Mutex::new(File::open(path)?.metadata()?),
@@ -297,13 +287,13 @@ impl<T: IndexIdToParentData> IndexIdToParent for SingleArrayMMAP<T> {
     }
 
     default fn get_value(&self, _find: u64) -> Option<T> {
-        unimplemented!()// implemented for u32, u64
+        unimplemented!() // implemented for u32, u64
     }
 
     fn get_values_iter(&self, id: u64) -> VintArrayIteratorOpt {
         if let Some(val) = self.get_value(id) {
             VintArrayIteratorOpt::from_single_val(num::cast(val).unwrap())
-        }else{
+        } else {
             VintArrayIteratorOpt::empty()
         }
     }
@@ -455,8 +445,7 @@ mod tests {
     //     }
     // }
 
-    fn get_test_data_1_to_1() -> Vec<u32>
-    {
+    fn get_test_data_1_to_1() -> Vec<u32> {
         vec![5, 6, 9, 9, 9, 50000]
     }
     fn check_test_data_1_to_1<T: IndexIdToParentData>(store: &IndexIdToParent<Output = T>) {

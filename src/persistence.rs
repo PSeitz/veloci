@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fs::{self, File};
 use std::io::prelude::*;
-use std::io::{self};
+use std::io;
 use std::marker::Sync;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
@@ -67,11 +67,11 @@ pub struct KVStoreMetaData {
     pub persistence_type: KVStoreType,
     #[serde(default)] pub is_empty: bool,
     pub loading_type: LoadingType,
-    pub max_value_id: u32, // max value on the "right" side key -> value, key -> value ..
-    pub avg_join_size: f32,    // some join statistics
+    pub max_value_id: u32,  // max value on the "right" side key -> value, key -> value ..
+    pub avg_join_size: f32, // some join statistics
 }
 
-pub static EMPTY_BUCKET: u32 =0;
+pub static EMPTY_BUCKET: u32 = 0;
 pub static VALUE_OFFSET: u32 = 1; // because 0 is reserved for EMPTY_BUCKET
 
 #[derive(Debug, Default)]
@@ -185,7 +185,6 @@ pub trait TokenToAnchorScore: Debug + HeapSizeOf + Sync + Send + type_info::Type
     fn get_score_iter(&self, id: u32) -> AnchorScoreIter;
 }
 
-
 #[derive(Debug, Clone)]
 pub struct VintArrayIteratorOpt<'a> {
     pub(crate) single_value: i64,
@@ -194,13 +193,22 @@ pub struct VintArrayIteratorOpt<'a> {
 
 impl<'a> VintArrayIteratorOpt<'a> {
     pub fn from_single_val(val: u32) -> Self {
-        VintArrayIteratorOpt{single_value: val as i64, iter: Box::new(VintArrayIterator::from_slice(&[]))}
+        VintArrayIteratorOpt {
+            single_value: val as i64,
+            iter: Box::new(VintArrayIterator::from_slice(&[])),
+        }
     }
     pub fn empty() -> Self {
-        VintArrayIteratorOpt{single_value: -2, iter: Box::new(VintArrayIterator::from_slice(&[]))}
+        VintArrayIteratorOpt {
+            single_value: -2,
+            iter: Box::new(VintArrayIterator::from_slice(&[])),
+        }
     }
     pub fn from_slice(data: &'a [u8]) -> Self {
-        VintArrayIteratorOpt{single_value: -1, iter: Box::new(VintArrayIterator::from_slice(&data))}
+        VintArrayIteratorOpt {
+            single_value: -1,
+            iter: Box::new(VintArrayIterator::from_slice(&data)),
+        }
     }
 }
 
@@ -211,9 +219,9 @@ impl<'a> Iterator for VintArrayIteratorOpt<'a> {
     fn next(&mut self) -> Option<u32> {
         if self.single_value == -2 {
             None
-        } else if self.single_value == -1{
+        } else if self.single_value == -1 {
             self.iter.next()
-        }else{
+        } else {
             let tmp = self.single_value;
             self.single_value = -2;
             Some(tmp as u32)
@@ -228,12 +236,10 @@ impl<'a> Iterator for VintArrayIteratorOpt<'a> {
 
 // impl<'a> FusedIterator for VintArrayIteratorOpt<'a> {}
 
-
-
 pub trait IndexIdToParent: Debug + HeapSizeOf + Sync + Send + type_info::TypeInfo {
     type Output: IndexIdToParentData;
 
-    fn get_values_iter(&self, _id: u64) -> VintArrayIteratorOpt{
+    fn get_values_iter(&self, _id: u64) -> VintArrayIteratorOpt {
         panic!("not implemented");
         // VintArrayIteratorOpt{single_value: -2, iter: Box::new(VintArrayIterator::from_slice(&[]))}
     }
@@ -412,7 +418,7 @@ impl Persistence {
                     let store = IndexIdToOneParent {
                         data: vec![],
                         max_value_id: 0,
-                        avg_join_size: 1.0
+                        avg_join_size: 1.0,
                     };
                     return Ok((el.path.to_string(), Box::new(store) as Box<IndexIdToParent<Output = u32>>));
                 }
@@ -475,26 +481,20 @@ impl Persistence {
                             Ok((el.path.to_string(), Box::new(store) as Box<IndexIdToParent<Output = u32>>))
                         }
                     },
-                    LoadingType::Disk => {
-                        match el.persistence_type {
-                            KVStoreType::IndexIdToMultipleParentIndirect => {
-                                let store = PointingMMAPFileReader::from_path(
-                                    &get_file_path(&self.db, &el.path),
-                                    el.max_value_id,
-                                    el.avg_join_size,
-                                )?;
+                    LoadingType::Disk => match el.persistence_type {
+                        KVStoreType::IndexIdToMultipleParentIndirect => {
+                            let store = PointingMMAPFileReader::from_path(&get_file_path(&self.db, &el.path), el.max_value_id, el.avg_join_size)?;
 
-                                Ok((el.path.to_string(), Box::new(store) as Box<IndexIdToParent<Output = u32>>))
-                            }
-                            KVStoreType::IndexIdToOneParent => {
-                                let data_file = get_file_handle_complete_path(&data_direct_path)?;
-                                let data_metadata = get_file_metadata_handle_complete_path(&data_direct_path)?;
-                                let store = SingleArrayMMAP::<u32>::new(&data_file, data_metadata, el.max_value_id);
-
-                                Ok((el.path.to_string(), Box::new(store) as Box<IndexIdToParent<Output = u32>>))
-                            }
+                            Ok((el.path.to_string(), Box::new(store) as Box<IndexIdToParent<Output = u32>>))
                         }
-                    }
+                        KVStoreType::IndexIdToOneParent => {
+                            let data_file = get_file_handle_complete_path(&data_direct_path)?;
+                            let data_metadata = get_file_metadata_handle_complete_path(&data_direct_path)?;
+                            let store = SingleArrayMMAP::<u32>::new(&data_file, data_metadata, el.max_value_id);
+
+                            Ok((el.path.to_string(), Box::new(store) as Box<IndexIdToParent<Output = u32>>))
+                        }
+                    },
                 }
             })
             .collect();
@@ -510,11 +510,7 @@ impl Persistence {
         for el in &self.meta_data.boost_stores {
             match el.persistence_type {
                 KVStoreType::IndexIdToMultipleParentIndirect => {
-                    let store = PointingMMAPFileReader::from_path(
-                        &get_file_path(&self.db, &el.path),
-                        el.max_value_id,
-                        el.avg_join_size,
-                    )?;
+                    let store = PointingMMAPFileReader::from_path(&get_file_path(&self.db, &el.path), el.max_value_id, el.avg_join_size)?;
                     self.indices.boost_valueid_to_value.insert(el.path.to_string(), Box::new(store));
                 }
                 KVStoreType::IndexIdToOneParent => {
@@ -752,12 +748,7 @@ impl Persistence {
         })
     }
 
-    pub fn flush_direct_index(
-        &self,
-        store: &mut IndexIdToOneParentFlushing,
-        path: &str,
-        loading_type: LoadingType,
-    ) -> Result<(KVStoreMetaData), io::Error> {
+    pub fn flush_direct_index(&self, store: &mut IndexIdToOneParentFlushing, path: &str, loading_type: LoadingType) -> Result<(KVStoreMetaData), io::Error> {
         store.flush()?;
         Ok(KVStoreMetaData {
             loading_type,

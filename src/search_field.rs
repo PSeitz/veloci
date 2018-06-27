@@ -406,7 +406,7 @@ fn get_term_ids_in_field(persistence: &Persistence, options: &mut RequestSearchP
                     }
 
                     if !result.hits_vec.is_empty() && result.hits_vec.len() as u32 == 200 + top_n_search {
-                    // if !result.hits_vec.is_empty() && (result.hits_vec.len() as u32 % (top_n_search * 5)) == 0 {
+                        // if !result.hits_vec.is_empty() && (result.hits_vec.len() as u32 % (top_n_search * 5)) == 0 {
                         result
                             .hits_vec
                             .sort_unstable_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(Ordering::Equal));
@@ -415,8 +415,12 @@ fn get_term_ids_in_field(persistence: &Persistence, options: &mut RequestSearchP
                         trace!("new worst {:?}", worst_score);
                     }
 
-
-                    search::check_apply_top_n_sort(&mut result.hits_vec, top_n_search, &|a, b| b.score.partial_cmp(&a.score).unwrap_or(Ordering::Equal), &mut |the_worst:&Hit| worst_score = the_worst.score);
+                    search::check_apply_top_n_sort(
+                        &mut result.hits_vec,
+                        top_n_search,
+                        &|a, b| b.score.partial_cmp(&a.score).unwrap_or(Ordering::Equal),
+                        &mut |the_worst: &Hit| worst_score = the_worst.score,
+                    );
 
                     // vec_hits.push((line_pos, score));
                     result.hits_vec.push(Hit::new(line_pos, score));
@@ -665,7 +669,7 @@ pub fn get_text_for_id(persistence: &Persistence, path: &str, id: u32) -> String
 
     let mut bytes = vec![];
     ord_to_term(map.as_fst(), u64::from(id), &mut bytes);
-    unsafe{String::from_utf8_unchecked(bytes)}
+    unsafe { String::from_utf8_unchecked(bytes) }
 }
 
 // #[cfg_attr(feature = "flame_it", flame)]

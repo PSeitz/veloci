@@ -56,7 +56,6 @@ pub(crate) fn flush_to_file_indirect(indirect_path: &str, data_path: &str, indir
     Ok(())
 }
 
-
 /// This data structure assumes that a set is only called once for a id, and ids are set in order.
 #[derive(Serialize, Debug, Clone, HeapSizeOf)]
 pub struct IndexIdToMultipleParentIndirectFlushingInOrderVint {
@@ -162,12 +161,7 @@ impl IndexIdToMultipleParentIndirectFlushingInOrderVint {
         self.current_id_offset += self.ids_cache.len() as u32;
         self.current_data_offset += self.data_cache.len() as u32;
 
-        flush_to_file_indirect(
-            &self.indirect_path,
-            &self.data_path,
-            &vec_to_bytes_u32(&self.ids_cache),
-            &self.data_cache,
-        )?;
+        flush_to_file_indirect(&self.indirect_path, &self.data_path, &vec_to_bytes_u32(&self.ids_cache), &self.data_cache)?;
 
         self.data_cache.clear();
         self.ids_cache.clear();
@@ -177,8 +171,6 @@ impl IndexIdToMultipleParentIndirectFlushingInOrderVint {
         Ok(())
     }
 }
-
-
 
 #[derive(Debug, Clone)]
 pub struct IndexIdToMultipleParentIndirect<T: IndexIdToParentData> {
@@ -220,7 +212,6 @@ impl<T: IndexIdToParentData> IndexIdToMultipleParentIndirect<T> {
     }
 }
 
-
 impl<T: IndexIdToParentData> IndexIdToParent for IndexIdToMultipleParentIndirect<T> {
     type Output = T;
 
@@ -256,8 +247,8 @@ impl<T: IndexIdToParentData> IndexIdToParent for IndexIdToMultipleParentIndirect
             }
 
             for position in &positions_vec {
-                let iter = VintArrayIterator::from_slice(&self.data[*position as usize ..]);
-                for el in iter{
+                let iter = VintArrayIterator::from_slice(&self.data[*position as usize..]);
+                for el in iter {
                     coll.add(num::cast(el).unwrap());
                 }
             }
@@ -284,7 +275,7 @@ impl<T: IndexIdToParentData> IndexIdToParent for IndexIdToMultipleParentIndirect
                 return VintArrayIteratorOpt::empty();
             }
             // VintArrayIteratorOpt{single_value: -1, iter: Box::new(VintArrayIterator::from_slice(&self.data[data_start_pos.to_usize().unwrap() ..]))}
-            VintArrayIteratorOpt::from_slice(&self.data[data_start_pos.to_usize().unwrap() ..])
+            VintArrayIteratorOpt::from_slice(&self.data[data_start_pos.to_usize().unwrap()..])
             // {single_value: -1, iter: Box::new(VintArrayIterator::from_slice(&self.data[data_start_pos.to_usize().unwrap() ..]))}
         }
     }
@@ -304,7 +295,7 @@ impl<T: IndexIdToParentData> IndexIdToParent for IndexIdToMultipleParentIndirect
                 return None;
             }
 
-            let iter = VintArrayIterator::from_slice(&self.data[data_start_pos.to_usize().unwrap() ..]);
+            let iter = VintArrayIterator::from_slice(&self.data[data_start_pos.to_usize().unwrap()..]);
             let decoded_data: Vec<u32> = iter.collect();
             Some(decoded_data.iter().map(|el| num::cast(*el).unwrap()).collect())
         }
@@ -321,28 +312,15 @@ pub struct PointingMMAPFileReader<T: IndexIdToParentData> {
     pub avg_join_size: f32,
 }
 
-
 impl<T: IndexIdToParentData> PointingMMAPFileReader<T> {
     #[inline]
     fn get_size(&self) -> usize {
         self.indirect_metadata.lock().len() as usize / 4
     }
 
-    pub fn from_path(
-        path: &str,
-        max_value_id: u32,
-        avg_join_size: f32,
-    ) -> Result<Self, io::Error> {
-        let start_pos = unsafe {
-            MmapOptions::new()
-                .map(&File::open(path.to_string() + ".indirect")?)
-                .unwrap()
-        };
-        let data = unsafe {
-            MmapOptions::new()
-                .map(&File::open(path.to_string() + ".data")?)
-                .unwrap()
-        };
+    pub fn from_path(path: &str, max_value_id: u32, avg_join_size: f32) -> Result<Self, io::Error> {
+        let start_pos = unsafe { MmapOptions::new().map(&File::open(path.to_string() + ".indirect")?).unwrap() };
+        let data = unsafe { MmapOptions::new().map(&File::open(path.to_string() + ".data")?).unwrap() };
         Ok(PointingMMAPFileReader {
             start_pos,
             data,
@@ -360,16 +338,8 @@ impl<T: IndexIdToParentData> PointingMMAPFileReader<T> {
         max_value_id: u32,
         avg_join_size: f32,
     ) -> Self {
-        let start_pos = unsafe {
-            MmapOptions::new()
-                .map(&start_pos)
-                .unwrap()
-        };
-        let data = unsafe {
-            MmapOptions::new()
-                .map(&data)
-                .unwrap()
-        };
+        let start_pos = unsafe { MmapOptions::new().map(&start_pos).unwrap() };
+        let data = unsafe { MmapOptions::new().map(&data).unwrap() };
         PointingMMAPFileReader {
             start_pos,
             data,
@@ -396,7 +366,10 @@ impl<T: IndexIdToParentData> IndexIdToParent for PointingMMAPFileReader<T> {
 
     fn get_values_iter(&self, id: u64) -> VintArrayIteratorOpt {
         if id >= self.get_size() as u64 {
-            VintArrayIteratorOpt{single_value: -2, iter: Box::new(VintArrayIterator::from_slice(&[]))}
+            VintArrayIteratorOpt {
+                single_value: -2,
+                iter: Box::new(VintArrayIterator::from_slice(&[])),
+            }
         } else {
             // let positions = &self.start_pos[(id * 2) as usize..=((id * 2) as usize + 1)];
             let start_index = id as usize * 4;
@@ -406,16 +379,24 @@ impl<T: IndexIdToParentData> IndexIdToParent for PointingMMAPFileReader<T> {
             if let Some(val) = get_encoded(data_start_pos_or_data) {
                 // return Some(vec![num::cast(val).unwrap()]);
                 // return VintArrayIterator::from_slice(&[5]);
-                return VintArrayIteratorOpt{single_value: val as i64, iter: Box::new(VintArrayIterator::from_slice(&[]))}
+                return VintArrayIteratorOpt {
+                    single_value: val as i64,
+                    iter: Box::new(VintArrayIterator::from_slice(&[])),
+                };
             }
             if data_start_pos_or_data == EMPTY_BUCKET {
                 // return VintArrayIterator::from_slice(&[]);
-                return VintArrayIteratorOpt{single_value: -2, iter: Box::new(VintArrayIterator::from_slice(&[]))}
+                return VintArrayIteratorOpt {
+                    single_value: -2,
+                    iter: Box::new(VintArrayIterator::from_slice(&[])),
+                };
             }
-            VintArrayIteratorOpt{single_value: -1, iter: Box::new(VintArrayIterator::from_slice(&self.data[data_start_pos.to_usize().unwrap() ..]))}
+            VintArrayIteratorOpt {
+                single_value: -1,
+                iter: Box::new(VintArrayIterator::from_slice(&self.data[data_start_pos.to_usize().unwrap()..])),
+            }
         }
     }
-
 
     default fn get_values(&self, id: u64) -> Option<Vec<T>> {
         get_u32_values_from_pointing_mmap_file_vint(
@@ -448,7 +429,6 @@ fn get_u32_values_from_pointing_mmap_file_vint(id: u64, size: usize, start_pos: 
         let decoded_data: Vec<u32> = iter.collect();
         Some(decoded_data)
     }
-
 }
 
 fn get_encoded(mut val: u32) -> Option<u32> {
@@ -461,15 +441,14 @@ fn get_encoded(mut val: u32) -> Option<u32> {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use persistence_data::*;
     use std::fs::File;
 
-    fn get_test_data_1_to_n_ind(ind_path:String, data_path:String) -> IndexIdToMultipleParentIndirectFlushingInOrderVint {
-        let mut store = IndexIdToMultipleParentIndirectFlushingInOrderVint::new(ind_path, data_path,);
+    fn get_test_data_1_to_n_ind(ind_path: String, data_path: String) -> IndexIdToMultipleParentIndirectFlushingInOrderVint {
+        let mut store = IndexIdToMultipleParentIndirectFlushingInOrderVint::new(ind_path, data_path);
         store.add(0, vec![5, 6]).unwrap();
         store.add(1, vec![9]).unwrap();
         store.add(2, vec![9]).unwrap();
@@ -551,10 +530,7 @@ mod tests {
             let data_path = dir.path().join("data").to_str().unwrap().to_string();
             let store = get_test_data_1_to_n_ind("indirect_path".to_string(), "data_path".to_string()).into_im_store();
 
-            let mut ind = IndexIdToMultipleParentIndirectFlushingInOrderVint::new(
-                indirect_path.to_string(),
-                data_path.to_string(),
-            );
+            let mut ind = IndexIdToMultipleParentIndirectFlushingInOrderVint::new(indirect_path.to_string(), data_path.to_string());
 
             for key in store.get_keys() {
                 if let Some(vals) = store.get_values(key.into()) {
@@ -580,7 +556,6 @@ mod tests {
             check_test_data_1_to_n_iter(&store);
         }
 
-
         #[test]
         fn test_pointing_array_index_id_to_multiple_parent_indirect() {
             let store = get_test_data_1_to_n_ind("test_ind".to_string(), "test_data".to_string());
@@ -588,7 +563,6 @@ mod tests {
             check_test_data_1_to_n(&store);
             check_test_data_1_to_n_iter(&store);
         }
-
 
     }
 

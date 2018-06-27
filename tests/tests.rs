@@ -2,13 +2,12 @@
 #![cfg_attr(test, plugin(stainless))]
 #![recursion_limit = "128"]
 
-extern crate search_lib;
-#[macro_use]
-extern crate lazy_static;
 extern crate env_logger;
 #[macro_use]
+extern crate lazy_static;
+extern crate search_lib;
+#[macro_use]
 extern crate serde_json;
-
 
 use search_lib::create;
 use search_lib::persistence;
@@ -18,7 +17,6 @@ use search_lib::search_field;
 use search_lib::trace;
 use search_lib::facet;
 use serde_json::Value;
-
 
 fn search_testo_to_doc(req: Value) -> search::SearchResultWithDoc {
     search_testo_to_doco(req).expect("search error")
@@ -296,7 +294,6 @@ fn test_json_request() {
     let requesto: search::Request = serde_json::from_str(r#"{"search":{"path":"asdf", "terms":[ "asdf"], "levenshtein_distance":1}}"#).unwrap();
     assert_eq!(requesto.search.unwrap().levenshtein_distance, Some(1));
 }
-
 
 describe! search_test {
 
@@ -1077,7 +1074,6 @@ describe! search_test {
 
 }
 
-
 // #[test]
 // fn checked_was_abgehst_22() {
 //     let small_test_json:&str = r#"[
@@ -1107,7 +1103,6 @@ describe! search_test {
 //     assert_eq!(lines, text);
 
 // }
-
 
 // #[cfg(test)]
 // mod test {

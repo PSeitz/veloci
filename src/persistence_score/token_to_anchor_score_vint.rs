@@ -224,7 +224,6 @@ impl<'a> Iterator for AnchorScoreIter<'a> {
 impl<'a> FusedIterator for AnchorScoreIter<'a> {}
 
 impl TokenToAnchorScore for TokenToAnchorScoreVintIM {
-
     fn get_score_iter(&self, id: u32) -> AnchorScoreIter {
         if id as usize >= self.get_size() {
             return AnchorScoreIter::new(&[]);
@@ -256,7 +255,6 @@ impl HeapSizeOf for TokenToAnchorScoreVintMmap {
 }
 
 impl TokenToAnchorScore for TokenToAnchorScoreVintMmap {
-
     fn get_score_iter(&self, id: u32) -> AnchorScoreIter {
         if id as usize >= self.start_pos.len() / 4 {
             return AnchorScoreIter::new(&[]);
@@ -280,7 +278,10 @@ fn test_token_to_anchor_score_vint() {
     let yeps = yeps.into_im_store();
     println!("{:?}", yeps);
     assert_eq!(yeps.get_score_iter(0).collect::<Vec<AnchorScore>>(), vec![]);
-    assert_eq!(yeps.get_score_iter(1).collect::<Vec<AnchorScore>>(), vec![AnchorScore::new(1, f16::from_f32(1.0))]);
+    assert_eq!(
+        yeps.get_score_iter(1).collect::<Vec<AnchorScore>>(),
+        vec![AnchorScore::new(1, f16::from_f32(1.0))]
+    );
     assert_eq!(yeps.get_score_iter(2).collect::<Vec<AnchorScore>>(), vec![]);
 
     let mut yeps = TokenToAnchorScoreVintFlushing::default();

@@ -473,7 +473,11 @@ fn boost_text_locality_all(
     Ok(boost_anchor)
 }
 
-fn boost_text_locality(persistence: &Persistence, path: &str, search_term_to_text_ids: &mut FnvHashMap<String, Vec<TermId>>) -> Result<(Vec<Hit>), SearchError> {
+fn boost_text_locality(
+    persistence: &Persistence,
+    path: &str,
+    search_term_to_text_ids: &mut FnvHashMap<String, Vec<TermId>>,
+) -> Result<(Vec<Hit>), SearchError> {
     let mut boost_anchor = vec![];
     if search_term_to_text_ids.len() <= 1 {
         // No boost for single term hits
@@ -529,7 +533,7 @@ fn get_all_value_ids(ids: &[u32], token_to_text_id: &IndexIdToParent<Output = u3
 }
 
 #[inline]
-fn sort_by_score_and_id(a:&Hit, b:&Hit) -> Ordering {
+fn sort_by_score_and_id(a: &Hit, b: &Hit) -> Ordering {
     let cmp = b.score.partial_cmp(&a.score);
     if cmp == Some(Ordering::Equal) {
         b.id.partial_cmp(&a.id).unwrap_or(Ordering::Equal)
@@ -548,7 +552,9 @@ fn top_n_sort(data: Vec<Hit>, top_n: u32) -> Vec<Hit> {
             continue;
         }
 
-        check_apply_top_n_sort(&mut new_data, top_n, &sort_by_score_and_id, &mut |the_worst:&Hit| worst_score = the_worst.score);
+        check_apply_top_n_sort(&mut new_data, top_n, &sort_by_score_and_id, &mut |the_worst: &Hit| {
+            worst_score = the_worst.score
+        });
 
         new_data.push(el);
     }
@@ -559,9 +565,8 @@ fn top_n_sort(data: Vec<Hit>, top_n: u32) -> Vec<Hit> {
 }
 
 #[inline]
-pub(crate) fn check_apply_top_n_sort<T:std::fmt::Debug>(new_data: &mut Vec<T>, top_n: u32, sort_compare: &Fn(&T,&T) -> Ordering, new_worst: &mut FnMut(&T)  ) {
+pub(crate) fn check_apply_top_n_sort<T: std::fmt::Debug>(new_data: &mut Vec<T>, top_n: u32, sort_compare: &Fn(&T, &T) -> Ordering, new_worst: &mut FnMut(&T)) {
     if !new_data.is_empty() && new_data.len() as u32 == top_n + 200 {
-
         new_data.sort_unstable_by(sort_compare);
         new_data.truncate(top_n as usize);
         let new_worst_value = new_data.last().unwrap();
@@ -843,9 +848,7 @@ fn merge_term_id_texts(results: &mut Vec<SearchFieldResult>) -> FnvHashMap<Strin
 #[cfg_attr(feature = "flame_it", flame)]
 pub fn union_hits_vec(mut or_results: Vec<SearchFieldResult>) -> SearchFieldResult {
     if or_results.len() == 0 {
-        return SearchFieldResult {
-            ..Default::default()
-        }
+        return SearchFieldResult { ..Default::default() };
     }
     if or_results.len() == 1 {
         let res = or_results.swap_remove(0);
@@ -1049,9 +1052,7 @@ fn union_hits_vec_test() {
 #[cfg_attr(feature = "flame_it", flame)]
 pub fn intersect_hits_vec(mut and_results: Vec<SearchFieldResult>) -> SearchFieldResult {
     if and_results.len() == 0 {
-        return SearchFieldResult {
-            ..Default::default()
-        }
+        return SearchFieldResult { ..Default::default() };
     }
     if and_results.len() == 1 {
         let res = and_results.swap_remove(0);
@@ -1311,7 +1312,6 @@ mod bench_intersect {
 //     b.iter(|| intersect_hits_vec())
 // }
 
-
 #[cfg_attr(feature = "flame_it", flame)]
 pub fn add_boost(persistence: &Persistence, boost: &RequestBoostPart, hits: &mut SearchFieldResult) -> Result<(), SearchError> {
     // let key = util::boost_path(&boost.path);
@@ -1379,7 +1379,6 @@ pub fn add_boost(persistence: &Persistence, boost: &RequestBoostPart, hits: &mut
     }
     Ok(())
 }
-
 
 #[derive(Debug)]
 pub enum SearchError {
@@ -1449,7 +1448,6 @@ impl<'a> From<&'a str> for SearchError {
 }
 
 pub use std::error::Error;
-
 
 impl fmt::Display for SearchError {
     fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
