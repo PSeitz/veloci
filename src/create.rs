@@ -2,7 +2,6 @@ use std::fs::File;
 use std::io;
 use std::io::Write;
 use std::{self, str};
-use std::io::BufReader;
 
 use fnv::FnvHashMap;
 use fnv::FnvHashSet;
@@ -11,7 +10,7 @@ use itertools::Itertools;
 use json_converter;
 use log;
 use persistence;
-use persistence::{IndexIdToParent, LoadingType, Persistence};
+use persistence::{LoadingType, Persistence};
 use persistence_data_indirect::*;
 use persistence_score::token_to_anchor_score_vint::*;
 use rayon::prelude::*;
@@ -517,43 +516,32 @@ fn stream_iter_to_direct_index(
     iter: impl Iterator<Item = buffered_index_writer::KeyValue<u32>>,
     target: &mut IndexIdToOneParentFlushing,
 ) -> Result<(), io::Error> {
-
     for kv in iter {
         target.add(kv.key, kv.value)?;
     }
-
     Ok(())
 }
 
-fn stream_buffered_index_writer_to_direct_index(
-    mut index_writer: BufferedIndexWriter,
-    target: &mut IndexIdToOneParentFlushing,
-) -> Result<(), io::Error> {
-    // flush_and_kmerge will flush elements to disk, this is unnecessary for small indices, so we check for im
-
-    if index_writer.is_in_memory() {
-        stream_iter_to_direct_index(index_writer.into_iter_inmemory(), target)?;
-    } else {
-        stream_iter_to_direct_index(index_writer.flush_and_kmerge()?, target)?;
-    }
-
-    //when there has been written something to disk flush the rest of the data too, so we have either all data im oder on disk
-    if !target.is_in_memory() {
-        target.flush()?;
-    }
-    Ok(())
-}
 fn buffered_index_to_direct_index (
     db_path: &str,
     path: String,
-    buffered_index_data: BufferedIndexWriter,
+    mut buffered_index_data: BufferedIndexWriter,
 ) -> Result<IndexIdToOneParentFlushing, io::Error> {
 
     let data_file_path = util::get_file_path(db_path, &path);
-    // let data_file_path = util::get_file_path(db_path, &(path + ".data_direct"));
 
     let mut store = IndexIdToOneParentFlushing::new(data_file_path);
-    stream_buffered_index_writer_to_direct_index(buffered_index_data, &mut store)?;
+    if buffered_index_data.is_in_memory() {
+        stream_iter_to_direct_index(buffered_index_data.into_iter_inmemory(), &mut store)?;
+    } else {
+        stream_iter_to_direct_index(buffered_index_data.flush_and_kmerge()?, &mut store)?;
+    }
+
+    //when there has been written something to disk flush the rest of the data too, so we have either all data im oder on disk
+    if !store.is_in_memory() {
+        store.flush()?;
+    }
+
     Ok(store)
 }
 
@@ -581,7 +569,6 @@ fn stream_buffered_index_writer_to_indirect_index(
     sort_and_dedup: bool,
 ) -> Result<(), io::Error> {
     // flush_and_kmerge will flush elements to disk, this is unnecessary for small indices, so we check for im
-
     if index_writer.is_in_memory() {
         stream_iter_to_indirect_index(index_writer.into_iter_inmemory(), target, sort_and_dedup)?;
     } else {
@@ -789,11 +776,11 @@ where
     for doc in stream3 {
         file_out.write_all(&doc.as_ref().as_bytes()).unwrap();
         file_out.write_all(b"\n").unwrap();
-        offsets.push(current_offset as u64);
+        offsets.push(current_offset as u64 + persistence::VALUE_OFFSET as u64); // +1 because 0 is reserved for EMPTY_BUCKET
         current_offset += doc.as_ref().len();
-        current_offset += 1;
+        current_offset += 1; // 
     }
-    offsets.push(current_offset as u64);
+    offsets.push(current_offset as u64 + persistence::VALUE_OFFSET as u64);
     create_cache.term_data.offsets.extend(offsets);
     create_cache.term_data.current_offset = current_offset;
     let (id_list_path, id_list_meta_data) = persistence.write_offset(
@@ -836,18 +823,19 @@ fn add_index_flush(
     db_path: &str,
     path: String,
     buffered_index_data: BufferedIndexWriter,
-    _is_always_1_to_1: bool,
+    is_always_1_to_1: bool,
     sort_and_dedup: bool,
     indices: &mut IndicesFromRawData,
     loading_type: LoadingType,
 ) -> Result<(), io::Error> {
-    // if is_always_1_to_1 {
-    //     let store = valid_pair_to_direct_index(tuples);
-    //     indices.direct_indices.push((path, store, loading_type));
-    // } else {
+    if is_always_1_to_1 {
+        let store = buffered_index_to_direct_index(db_path, path.to_string(), buffered_index_data)?;
+        indices.direct_indices_flush.push((path, store, loading_type));
+    } else {
 
-    let store = buffered_index_to_indirect_index_multiple(db_path, path.to_string(), buffered_index_data, sort_and_dedup)?;
-    indices.indirect_indices_flush.push((path, store, loading_type));
+        let store = buffered_index_to_indirect_index_multiple(db_path, path.to_string(), buffered_index_data, sort_and_dedup)?;
+        indices.indirect_indices_flush.push((path, store, loading_type));
+    }
     Ok(())
 }
 
@@ -884,7 +872,7 @@ fn add_anchor_score_flush(
 
 #[derive(Debug, Default)]
 struct IndicesFromRawData {
-    direct_indices: Vec<(String, IndexIdToOneParent<u32>, LoadingType)>,
+    direct_indices_flush: Vec<(String, IndexIdToOneParentFlushing, LoadingType)>,
     indirect_indices_flush: Vec<(String, IndexIdToMultipleParentIndirectFlushingInOrderVint, LoadingType)>,
     // boost_indices: Vec<(String, IndexIdToOneParent<u32>)>,
     boost_indices: Vec<(String, IndexIdToMultipleParentIndirectFlushingInOrderVint, LoadingType)>,
@@ -899,7 +887,6 @@ fn convert_raw_path_data_to_indices(
 ) -> IndicesFromRawData {
     info_time!("convert_raw_path_data_to_indices");
     let mut indices = IndicesFromRawData::default();
-    let is_text_id_to_parent = |path: &str| path.ends_with(".textindex");
 
     let indices_vec: Result<Vec<_>, io::Error> = path_data
         .into_par_iter()
@@ -931,13 +918,11 @@ fn convert_raw_path_data_to_indices(
                 LoadingType::Disk,
             )?;
 
-            let is_alway_1_to_1 = !is_text_id_to_parent(path); // valueIdToParent relation is always 1 to 1, expect for text_ids, which can have multiple parents
-
             add_index_flush(
                 &db,
                 concat(path, ".valueIdToParent"),
                 data.text_id_to_parent,
-                is_alway_1_to_1,
+                false, // valueIdToParent relation is always 1 to 1, expect for text_ids, which can have multiple parents. Here we handle all .textindex data therefore is this always false
                 sort_and_dedup,
                 &mut indices,
                 LoadingType::Disk,
@@ -953,7 +938,7 @@ fn convert_raw_path_data_to_indices(
                 &db,
                 concat(path, ".parentToValueId"),
                 data.parent_to_text_id,
-                is_alway_1_to_1,
+                false,
                 sort_and_dedup,
                 &mut indices,
                 loading_type,
@@ -998,7 +983,7 @@ fn convert_raw_path_data_to_indices(
 
     let indices_vec = indices_vec.unwrap(); //TODO Error handling
     for mut indice in indices_vec {
-        indices.direct_indices.append(&mut indice.direct_indices);
+        indices.direct_indices_flush.append(&mut indice.direct_indices_flush);
         indices.indirect_indices_flush.append(&mut indice.indirect_indices_flush);
         indices.boost_indices.append(&mut indice.boost_indices);
         indices.anchor_score_indices_flush.append(&mut indice.anchor_score_indices_flush);
@@ -1009,13 +994,12 @@ fn convert_raw_path_data_to_indices(
         .map(|(path, data)| {
             let mut indices = IndicesFromRawData::default();
 
-            let is_alway_1_to_1 = !is_text_id_to_parent(&path);
             let path = &path;
             add_index_flush(
                 &db,
                 concat(path, ".valueIdToParent"),
                 data.value_to_parent,
-                is_alway_1_to_1,
+                true, // valueIdToParent relation is always 1 to 1, expect for text_ids, which can have multiple parents. Here we handle all except .textindex data therefore is this always true
                 false,
                 &mut indices,
                 LoadingType::Disk,
@@ -1024,7 +1008,7 @@ fn convert_raw_path_data_to_indices(
                 &db,
                 concat(path, ".parentToValueId"),
                 data.parent_to_value,
-                is_alway_1_to_1,
+                false,
                 false,
                 &mut indices,
                 LoadingType::Disk,
@@ -1036,7 +1020,7 @@ fn convert_raw_path_data_to_indices(
 
     for mut indice in indices_vec_2.unwrap() {
         //TODO Error handling
-        indices.direct_indices.append(&mut indice.direct_indices);
+        indices.direct_indices_flush.append(&mut indice.direct_indices_flush);
         indices.indirect_indices_flush.append(&mut indice.indirect_indices_flush);
         indices.boost_indices.append(&mut indice.boost_indices);
         indices.anchor_score_indices_flush.append(&mut indice.anchor_score_indices_flush);
@@ -1148,8 +1132,8 @@ where
         for ind_index in &mut indices.indirect_indices_flush {
             key_value_stores.push(persistence.flush_indirect_index(&mut ind_index.1, &ind_index.0, ind_index.2)?);
         }
-        for direct_index in &indices.direct_indices {
-            key_value_stores.push(persistence.write_direct_index(&direct_index.1, direct_index.0.to_string(), direct_index.2)?);
+        for direct_index in &mut indices.direct_indices_flush {
+            key_value_stores.push(persistence.flush_direct_index(&mut direct_index.1, &direct_index.0, direct_index.2)?);
         }
         for index in &mut indices.anchor_score_indices_flush {
             anchor_score_stores.push(persistence.flush_score_index_vint(&mut index.1, &index.0, LoadingType::Disk)?);
@@ -1184,8 +1168,19 @@ where
                 persistence.indices.key_value_stores.insert(path, Box::new(store));
             }
         }
-        for index in indices.direct_indices {
-            persistence.indices.key_value_stores.insert(index.0, Box::new(index.1));
+        for index in indices.direct_indices_flush {
+            let path = index.0;
+            let index = index.1;
+
+            if index.is_in_memory() {
+                //Move data to IndexIdToOneParent
+                persistence.indices.key_value_stores.insert(path, Box::new(index.into_im_store()));
+            } else {
+                //load data with MMap
+                let store = SingleArrayMMAP::<u32>::from_path(&path, index.max_value_id)?;
+                persistence.indices.key_value_stores.insert(path, Box::new(store));
+            }
+
         }
         for (path, index) in indices.anchor_score_indices_flush {
             if index.is_in_memory() {
@@ -1244,7 +1239,7 @@ pub fn add_token_values_to_tokens(persistence: &mut Persistence, data_str: &str,
     let is_text_index = true;
     let path_name = util::get_file_path_name(&config.path, is_text_index);
     // let mut tuples: Vec<ValIdToValue> = vec![];
-    let mut tuples = BufferedIndexWriter::default();
+    let mut buffered_index_data = BufferedIndexWriter::default();
 
     for el in data {
         if el.value.is_none() {
@@ -1259,20 +1254,14 @@ pub fn add_token_values_to_tokens(persistence: &mut Persistence, data_str: &str,
             //     valid: hits.hits_vec[0].id,
             //     value: el.value.unwrap(),
             // });
-            tuples.add(hits.hits_vec[0].id, el.value.unwrap());
+            buffered_index_data.add(hits.hits_vec[0].id, el.value.unwrap())?;
         }
     }
 
     let path = concat(&path_name, ".tokenValues.boost_valid_to_value");
-    let mut store = buffered_index_to_direct_index(&persistence.db, path.to_string(), tuples).unwrap();
+    let mut store = buffered_index_to_direct_index(&persistence.db, path.to_string(), buffered_index_data).unwrap();
     let voll_meta = persistence.flush_direct_index(&mut store, &path, LoadingType::InMemoryUnCompressed)?;
     persistence.meta_data.boost_stores.push(voll_meta);
-    // persistence.indices.boost_valueid_to_value.insert(path.to_string(), Box::new(store));
-
-    // let store = valid_pair_to_direct_index(&mut tuples);
-    // let path = concat(&path_name, ".tokenValues.boost_valid_to_value");
-    // let meta_data = persistence.write_direct_index(&store, &path, LoadingType::Disk)?;
-    // persistence.meta_data.boost_stores.push(meta_data);
     persistence.write_meta_data()?;
 
     //TODO FIX LOAD FOR IN_MEMORY

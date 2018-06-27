@@ -71,7 +71,8 @@ pub struct KVStoreMetaData {
     pub avg_join_size: f32,    // some join statistics
 }
 
-pub static NOT_FOUND: u32 = u32::MAX;
+pub static EMPTY_BUCKET: u32 =0;
+pub static VALUE_OFFSET: u32 = 1; // because 0 is reserved for EMPTY_BUCKET
 
 #[derive(Debug, Default)]
 pub struct PersistenceIndices {
@@ -189,6 +190,18 @@ pub trait TokenToAnchorScore: Debug + HeapSizeOf + Sync + Send + type_info::Type
 pub struct VintArrayIteratorOpt<'a> {
     pub(crate) single_value: i64,
     pub(crate) iter: std::boxed::Box<VintArrayIterator<'a>>,
+}
+
+impl<'a> VintArrayIteratorOpt<'a> {
+    pub fn from_single_val(val: u32) -> Self {
+        VintArrayIteratorOpt{single_value: val as i64, iter: Box::new(VintArrayIterator::from_slice(&[]))}
+    }
+    pub fn empty() -> Self {
+        VintArrayIteratorOpt{single_value: -2, iter: Box::new(VintArrayIterator::from_slice(&[]))}
+    }
+    pub fn from_slice(data: &'a [u8]) -> Self {
+        VintArrayIteratorOpt{single_value: -1, iter: Box::new(VintArrayIterator::from_slice(&data))}
+    }
 }
 
 impl<'a> Iterator for VintArrayIteratorOpt<'a> {

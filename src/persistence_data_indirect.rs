@@ -4,6 +4,7 @@ use util::*;
 
 use byteorder::{LittleEndian, ReadBytesExt};
 
+use persistence::EMPTY_BUCKET;
 use persistence::*;
 use type_info::TypeInfo;
 
@@ -28,8 +29,6 @@ use memmap::MmapOptions;
 
 impl_type_info_single_templ!(IndexIdToMultipleParentIndirect);
 impl_type_info_single_templ!(PointingMMAPFileReader);
-
-const EMPTY_BUCKET: u32 = 0;
 
 pub(crate) fn calc_avg_join_size(num_values: u32, num_ids: u32) -> f32 {
     num_values as f32 / std::cmp::max(1, num_ids).to_f32().unwrap()
@@ -273,21 +272,20 @@ impl<T: IndexIdToParentData> IndexIdToParent for IndexIdToMultipleParentIndirect
 
     fn get_values_iter(&self, id: u64) -> VintArrayIteratorOpt {
         if id >= self.get_size() as u64 {
-            VintArrayIteratorOpt{single_value: -2, iter: Box::new(VintArrayIterator::from_slice(&[]))}
+            VintArrayIteratorOpt::empty()
         } else {
             // let positions = &self.start_pos[(id * 2) as usize..=((id * 2) as usize + 1)];
             let data_start_pos = self.start_pos[id as usize];
             let data_start_pos_or_data = data_start_pos.to_u32().unwrap();
             if let Some(val) = get_encoded(data_start_pos_or_data) {
-                // return Some(vec![num::cast(val).unwrap()]);
-                // return VintArrayIterator::from_slice(&[5]);
-                return VintArrayIteratorOpt{single_value: val as i64, iter: Box::new(VintArrayIterator::from_slice(&[]))}
+                return VintArrayIteratorOpt::from_single_val(val);
             }
             if data_start_pos_or_data == EMPTY_BUCKET {
-                // return VintArrayIterator::from_slice(&[]);
-                return VintArrayIteratorOpt{single_value: -2, iter: Box::new(VintArrayIterator::from_slice(&[]))}
+                return VintArrayIteratorOpt::empty();
             }
-            VintArrayIteratorOpt{single_value: -1, iter: Box::new(VintArrayIterator::from_slice(&self.data[data_start_pos.to_usize().unwrap() ..]))}
+            // VintArrayIteratorOpt{single_value: -1, iter: Box::new(VintArrayIterator::from_slice(&self.data[data_start_pos.to_usize().unwrap() ..]))}
+            VintArrayIteratorOpt::from_slice(&self.data[data_start_pos.to_usize().unwrap() ..])
+            // {single_value: -1, iter: Box::new(VintArrayIterator::from_slice(&self.data[data_start_pos.to_usize().unwrap() ..]))}
         }
     }
 
@@ -564,7 +562,6 @@ mod tests {
                     ind.flush().unwrap();
                 }
             }
-            ind.flush().unwrap();
 
             let start_pos = File::open(&indirect_path).unwrap();
             let data = File::open(&data_path).unwrap();

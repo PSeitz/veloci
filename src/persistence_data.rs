@@ -1,13 +1,14 @@
 use std;
 use std::u32;
-use std::fs;
 use std::io;
 use std::io::Write;
 use std::marker::PhantomData;
+use std::fs::{self, File};
 
 use heapsize::HeapSizeOf;
 use byteorder::{LittleEndian, ReadBytesExt};
 
+use persistence::EMPTY_BUCKET;
 use persistence::*;
 pub(crate) use persistence_data_indirect::*;
 
@@ -24,8 +25,6 @@ use memmap::MmapOptions;
 impl_type_info_single_templ!(IndexIdToOneParent);
 impl_type_info_single_templ!(ParallelArrays);
 impl_type_info_single_templ!(SingleArrayMMAP);
-
-const EMPTY_BUCKET: u32 = 0;
 
 /// This data structure assumes that a set is only called once for a id, and ids are set in order.
 #[derive(Serialize, Debug, Clone, HeapSizeOf, Default)]
@@ -67,7 +66,7 @@ impl IndexIdToOneParentFlushing {
             self.cache.resize(id_pos + 1, EMPTY_BUCKET);
         }
 
-        self.cache[id_pos] = val;
+        self.cache[id_pos] = val + 1; //+1 because EMPTY_BUCKET = 0 is already reserved 
 
         if self.cache.len() * 4 >= 4_000_000 {
             self.flush()?;
@@ -118,21 +117,21 @@ pub struct IndexIdToOneParent<T: IndexIdToParentData> {
     pub max_value_id: u32,
     pub avg_join_size: f32,
 }
-impl<T: IndexIdToParentData> IndexIdToOneParent<T> {
-    pub fn new(data: &IndexIdToParent<Output = T>) -> IndexIdToOneParent<T> {
-        let data: Vec<Vec<T>> = id_to_parent_to_array_of_array(data);
-        let data = data.iter()
-            .map(|el| {
-                if !el.is_empty() {
-                    num::cast(el[0]).unwrap()
-                } else {
-                    num::cast(NOT_FOUND).unwrap()
-                }
-            })
-            .collect();
-        IndexIdToOneParent { data, max_value_id: u32::MAX, avg_join_size: 1.0} //TODO FIX max_value_id
-    }
-}
+// impl<T: IndexIdToParentData> IndexIdToOneParent<T> {
+//     pub fn new(data: &IndexIdToParent<Output = T>) -> IndexIdToOneParent<T> {
+//         let data: Vec<Vec<T>> = id_to_parent_to_array_of_array(data);
+//         let data = data.iter()
+//             .map(|el| {
+//                 if !el.is_empty() {
+//                     num::cast(el[0]).unwrap()
+//                 } else {
+//                     num::cast(EMPTY_BUCKET).unwrap()
+//                 }
+//             })
+//             .collect();
+//         IndexIdToOneParent { data, max_value_id: u32::MAX, avg_join_size: 1.0} //TODO FIX max_value_id
+//     }
+// }
 impl<T: IndexIdToParentData> IndexIdToParent for IndexIdToOneParent<T> {
     type Output = T;
 
@@ -149,10 +148,10 @@ impl<T: IndexIdToParentData> IndexIdToParent for IndexIdToOneParent<T> {
         let val = self.data.get(id as usize);
         match val {
             Some(val) => {
-                if val.to_u64().unwrap() == u64::from(NOT_FOUND) {
+                if val.to_u32().unwrap() == EMPTY_BUCKET {
                     None
                 } else {
-                    Some(*val)
+                    Some(*val - T::one())
                 }
             }
             None => None,
@@ -199,7 +198,13 @@ impl<T: IndexIdToParentData> IndexIdToParent for ParallelArrays<T> {
         keys.dedup();
         keys
     }
-
+    fn get_values_iter(&self, id: u64) -> VintArrayIteratorOpt {
+        if let Some(val) = self.get_value(id) {
+            VintArrayIteratorOpt::from_single_val(num::cast(val).unwrap())
+        }else{
+            VintArrayIteratorOpt::empty()
+        }
+    }
     #[inline]
     fn get_values(&self, id: u64) -> Option<Vec<T>> {
         let mut result = Vec::new();
@@ -255,6 +260,19 @@ impl<T: IndexIdToParentData> SingleArrayMMAP<T> {
             ok: PhantomData,
         }
     }
+    pub fn from_path(path: &str, max_value_id: u32) -> Result<Self, io::Error> {
+        let data_file = unsafe {
+            MmapOptions::new()
+                .map(&File::open(path)?)
+                .unwrap()
+        };
+        Ok(SingleArrayMMAP {
+            data_file,
+            data_metadata: Mutex::new(File::open(path)?.metadata()?),
+            max_value_id,
+            ok: PhantomData,
+        })
+    }
 }
 impl<T: IndexIdToParentData> HeapSizeOf for SingleArrayMMAP<T> {
     fn heap_size_of_children(&self) -> usize {
@@ -274,13 +292,20 @@ impl<T: IndexIdToParentData> IndexIdToParent for SingleArrayMMAP<T> {
         self.get_size()
     }
 
-    default fn get_values(&self, find: u64) -> Option<Vec<T>> {
-        self.get_value(find).map(|el| vec![el])
+    default fn get_values(&self, id: u64) -> Option<Vec<T>> {
+        self.get_value(id).map(|el| vec![el])
     }
 
     default fn get_value(&self, _find: u64) -> Option<T> {
-        // implemented for u32, u64
-        unimplemented!()
+        unimplemented!()// implemented for u32, u64
+    }
+
+    fn get_values_iter(&self, id: u64) -> VintArrayIteratorOpt {
+        if let Some(val) = self.get_value(id) {
+            VintArrayIteratorOpt::from_single_val(num::cast(val).unwrap())
+        }else{
+            VintArrayIteratorOpt::empty()
+        }
     }
 }
 
@@ -292,10 +317,10 @@ impl IndexIdToParent for SingleArrayMMAP<u32> {
         }
         let pos = find as usize * 4;
         let id = (&self.data_file[pos..pos + 4]).read_u32::<LittleEndian>().unwrap();
-        if id == u32::MAX {
+        if id == EMPTY_BUCKET {
             None
         } else {
-            Some(num::cast(id).unwrap())
+            Some(num::cast(id - 1).unwrap())
         }
     }
 }
@@ -307,36 +332,36 @@ impl IndexIdToParent for SingleArrayMMAP<u64> {
         }
         let pos = find as usize * 8;
         let id = (&self.data_file[pos..pos + 8]).read_u64::<LittleEndian>().unwrap();
-        if id == u64::from(u32::MAX) {
+        if id == u64::from(EMPTY_BUCKET) {
             None
         } else {
-            Some(num::cast(id).unwrap())
+            Some(num::cast(id - 1).unwrap())
         }
     }
 }
 
-pub(crate) fn id_to_parent_to_array_of_array<T: IndexIdToParentData>(store: &IndexIdToParent<Output = T>) -> Vec<Vec<T>> {
-    let mut data: Vec<Vec<T>> = prepare_data_for_array_of_array(store, &Vec::new);
-    let valids = store.get_keys();
+// pub(crate) fn id_to_parent_to_array_of_array<T: IndexIdToParentData>(store: &IndexIdToParent<Output = T>) -> Vec<Vec<T>> {
+//     let mut data: Vec<Vec<T>> = prepare_data_for_array_of_array(store, &Vec::new);
+//     let valids = store.get_keys();
 
-    for valid in valids {
-        if let Some(vals) = store.get_values(num::cast(valid).unwrap()) {
-            data[valid.to_usize().unwrap()] = vals.iter().map(|el| num::cast(*el).unwrap()).collect();
-        }
-    }
-    data
-}
+//     for valid in valids {
+//         if let Some(vals) = store.get_values(num::cast(valid).unwrap()) {
+//             data[valid.to_usize().unwrap()] = vals.iter().map(|el| num::cast(*el).unwrap()).collect();
+//         }
+//     }
+//     data
+// }
 
-fn prepare_data_for_array_of_array<T: Clone, K: IndexIdToParentData>(store: &IndexIdToParent<Output = K>, f: &Fn() -> T) -> Vec<T> {
-    let mut data = vec![];
-    let mut valids = store.get_keys();
-    valids.dedup();
-    if valids.is_empty() {
-        return data;
-    }
-    data.resize(valids.last().unwrap().to_usize().unwrap() + 1, f());
-    data
-}
+// fn prepare_data_for_array_of_array<T: Clone, K: IndexIdToParentData>(store: &IndexIdToParent<Output = K>, f: &Fn() -> T) -> Vec<T> {
+//     let mut data = vec![];
+//     let mut valids = store.get_keys();
+//     valids.dedup();
+//     if valids.is_empty() {
+//         return data;
+//     }
+//     data.resize(valids.last().unwrap().to_usize().unwrap() + 1, f());
+//     data
+// }
 
 // #[cfg_attr(feature = "flame_it", flame)]
 // pub(crate) fn valid_pair_to_parallel_arrays<T: IndexIdToParentData>(tuples: &mut Vec<create::ValIdPair>) -> ParallelArrays<T> {
@@ -421,15 +446,19 @@ mod tests {
     use rand;
     use test;
 
-    fn get_test_data_1_to_1<T: IndexIdToParentData>() -> IndexIdToOneParent<T> {
-        let values = vec![5, 6, 9, 9, 9, 50000];
-        IndexIdToOneParent {
-            data: values.iter().map(|el| num::cast(*el).unwrap()).collect(),
-            max_value_id: 50000,
-            avg_join_size: 1.0
-        }
-    }
+    // fn get_test_data_1_to_1<T: IndexIdToParentData>() -> IndexIdToOneParent<T> {
+    //     let values = vec![5, 6, 9, 9, 9, 50000];
+    //     IndexIdToOneParent {
+    //         data: values.iter().map(|el| num::cast(*el).unwrap()).collect(),
+    //         max_value_id: 50000,
+    //         avg_join_size: 1.0
+    //     }
+    // }
 
+    fn get_test_data_1_to_1() -> Vec<u32>
+    {
+        vec![5, 6, 9, 9, 9, 50000]
+    }
     fn check_test_data_1_to_1<T: IndexIdToParentData>(store: &IndexIdToParent<Output = T>) {
         assert_eq!(
             store.get_keys().iter().map(|el| el.to_u32().unwrap()).collect::<Vec<_>>(),
@@ -445,11 +474,36 @@ mod tests {
     }
 
     mod test_direct_1_to_1 {
+        use tempfile::tempdir;
         use super::*;
+        // #[test]
+        // fn test_index_id_to_parent_im() {
+        //     let store = get_test_data_1_to_1::<u32>();
+        //     check_test_data_1_to_1(&store);
+        // }
+
+        #[test]
+        fn test_index_id_to_parent_flushing() {
+            let dir = tempdir().unwrap();
+            let data_path = dir.path().join("data").to_str().unwrap().to_string();
+            let mut ind = IndexIdToOneParentFlushing::new(data_path.to_string());
+            for (key, val) in get_test_data_1_to_1().iter().enumerate() {
+                ind.add(key as u32, *val as u32).unwrap();
+                ind.flush().unwrap();
+            }
+            let store = SingleArrayMMAP::<u32>::from_path(&data_path, ind.max_value_id).unwrap();
+            check_test_data_1_to_1(&store);
+        }
+
         #[test]
         fn test_index_id_to_parent_im() {
-            let store = get_test_data_1_to_1::<u32>();
-            check_test_data_1_to_1(&store);
+            let dir = tempdir().unwrap();
+            let data_path = dir.path().join("data").to_str().unwrap().to_string();
+            let mut ind = IndexIdToOneParentFlushing::new(data_path.to_string());
+            for (key, val) in get_test_data_1_to_1().iter().enumerate() {
+                ind.add(key as u32, *val as u32).unwrap();
+            }
+            check_test_data_1_to_1(&ind.into_im_store());
         }
 
     }
