@@ -23,7 +23,7 @@ use memmap::Mmap;
 use memmap::MmapOptions;
 
 impl_type_info_single_templ!(IndexIdToOneParent);
-impl_type_info_single_templ!(ParallelArrays);
+// impl_type_info_single_templ!(ParallelArrays);
 impl_type_info_single_templ!(SingleArrayMMAP);
 
 /// This data structure assumes that a set is only called once for a id, and ids are set in order.
@@ -171,48 +171,48 @@ where
     coll.to_map(top)
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
-pub struct ParallelArrays<T: IndexIdToParentData> {
-    pub values1: Vec<T>,
-    pub values2: Vec<T>,
-}
+// #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+// pub struct ParallelArrays<T: IndexIdToParentData> {
+//     pub values1: Vec<T>,
+//     pub values2: Vec<T>,
+// }
 
-impl<T: IndexIdToParentData> IndexIdToParent for ParallelArrays<T> {
-    type Output = T;
+// impl<T: IndexIdToParentData> IndexIdToParent for ParallelArrays<T> {
+//     type Output = T;
 
-    fn get_keys(&self) -> Vec<T> {
-        let mut keys: Vec<T> = self.values1.iter().map(|el| num::cast(*el).unwrap()).collect();
-        keys.sort();
-        keys.dedup();
-        keys
-    }
-    #[inline]
-    fn get_values(&self, id: u64) -> Option<Vec<T>> {
-        let mut result = Vec::new();
-        let casted_id = num::cast(id).unwrap();
-        if let Ok(mut pos) = self.values1.binary_search(&casted_id) {
-            //this is not a lower_bounds search so we MUST move to the first hit
-            while pos != 0 && self.values1[pos - 1] == casted_id {
-                pos -= 1;
-            }
-            let val_len = self.values1.len();
-            while pos < val_len && self.values1[pos] == casted_id {
-                result.push(self.values2[pos]);
-                pos += 1;
-            }
-        }
-        if result.is_empty() {
-            None
-        } else {
-            Some(result)
-        }
-    }
-}
-impl<T: IndexIdToParentData> HeapSizeOf for ParallelArrays<T> {
-    fn heap_size_of_children(&self) -> usize {
-        self.values1.heap_size_of_children() + self.values2.heap_size_of_children()
-    }
-}
+//     fn get_keys(&self) -> Vec<T> {
+//         let mut keys: Vec<T> = self.values1.iter().map(|el| num::cast(*el).unwrap()).collect();
+//         keys.sort();
+//         keys.dedup();
+//         keys
+//     }
+//     #[inline]
+//     fn get_values(&self, id: u64) -> Option<Vec<T>> {
+//         let mut result = Vec::new();
+//         let casted_id = num::cast(id).unwrap();
+//         if let Ok(mut pos) = self.values1.binary_search(&casted_id) {
+//             //this is not a lower_bounds search so we MUST move to the first hit
+//             while pos != 0 && self.values1[pos - 1] == casted_id {
+//                 pos -= 1;
+//             }
+//             let val_len = self.values1.len();
+//             while pos < val_len && self.values1[pos] == casted_id {
+//                 result.push(self.values2[pos]);
+//                 pos += 1;
+//             }
+//         }
+//         if result.is_empty() {
+//             None
+//         } else {
+//             Some(result)
+//         }
+//     }
+// }
+// impl<T: IndexIdToParentData> HeapSizeOf for ParallelArrays<T> {
+//     fn heap_size_of_children(&self) -> usize {
+//         self.values1.heap_size_of_children() + self.values2.heap_size_of_children()
+//     }
+// }
 
 #[derive(Debug)]
 pub struct SingleArrayMMAP<T: IndexIdToParentData> {
@@ -381,14 +381,14 @@ impl IndexIdToParent for SingleArrayMMAP<u64> {
 //     index
 // }
 
-#[test]
-fn test_index_parrallel_arrays() {
-    let ix = ParallelArrays {
-        values1: vec![0, 0, 1],
-        values2: vec![0, 1, 2],
-    };
-    assert_eq!(ix.get_values(0).unwrap(), vec![0, 1]);
-}
+// #[test]
+// fn test_index_parrallel_arrays() {
+//     let ix = ParallelArrays {
+//         values1: vec![0, 0, 1],
+//         values2: vec![0, 1, 2],
+//     };
+//     assert_eq!(ix.get_values(0).unwrap(), vec![0, 1]);
+// }
 
 // #[test]
 // fn test_snap() {
