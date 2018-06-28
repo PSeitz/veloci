@@ -7,6 +7,7 @@ use itertools::Itertools;
 use memmap::MmapOptions;
 use memmap::Mmap;
 
+use std::fmt;
 use std::fs::File;
 use std::io;
 use std::iter::FusedIterator;
@@ -50,6 +51,7 @@ struct Part {
 #[derive(Debug)]
 ///
 /// Order is not guaranteed to be kept the same for same ids -> insert (0, 1)..(0,2)   --> Output could be (0,2),(0,1) with BufferedIndexWriter::default()
+/// stable_sort with add_all fn keeps insertion order
 ///
 pub struct BufferedIndexWriter<T:GetValue = u32> {
     pub cache: Vec<KeyValue<T>>,
@@ -89,7 +91,6 @@ impl<T:GetValue + Default + Clone> BufferedIndexWriter<T> {
         }
     }
 
-    //TODO REPLACE TRANSACTION WITH CHANGE DETECTION FOR FLUSHING
     pub fn new_for_sorted_id_insertion() -> Self {
         BufferedIndexWriter::new_with_opt(false, true)
     }
@@ -171,8 +172,6 @@ impl<T:GetValue + Default + Clone> BufferedIndexWriter<T> {
             data_file.write_all(&slice)?;
         }
 
-        // data_file.write(&vec_to_bytes_u32(&self.cache.map()))?;
-
         self.parts.push(Part {
             offset: prev_part.offset + prev_part.len,
             len: self.cache.len() as u32,
@@ -233,12 +232,12 @@ impl<T:GetValue + Default + Clone> BufferedIndexWriter<T> {
         self.parts.is_empty()
     }
 
-    /// inmemory version for very small indices, where it's inefficient to write and then read from disk - data on disk will be ignored!
-    #[inline]
-    pub fn iter_inmemory<'a>(&'a mut self) -> impl Iterator<Item = &'a KeyValue<T>> {
-        self.sort_cache();
-        self.cache.iter()
-    }
+    // /// inmemory version for very small indices, where it's inefficient to write and then read from disk - data on disk will be ignored!
+    // #[inline]
+    // pub fn iter_inmemory<'a>(&'a mut self) -> impl Iterator<Item = &'a KeyValue<T>> {
+    //     self.sort_cache();
+    //     self.cache.iter()
+    // }
 
     /// inmemory version for very small indices, where it's inefficient to write and then read from disk - data on disk will be ignored!
     #[inline]
@@ -273,7 +272,7 @@ impl<T:GetValue + Default + Clone> BufferedIndexWriter<T> {
 }
 
 
-use std::fmt;
+
 impl<T:GetValue + Default> fmt::Display for BufferedIndexWriter<T> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         for el in &self.cache{
@@ -354,7 +353,6 @@ impl<T:GetValue> MMapIter<T> {
     }
 }
 
-
 impl<T:GetValue + Default> Iterator for MMapIter<T> {
     type Item = KeyValue<T>;
 
@@ -391,31 +389,40 @@ fn test_buffered_index_writer() {
     ind.add(2, 2).unwrap();
     ind.flush().unwrap();
 
-    {
-        let mut iters = ind.multi_iter().unwrap();
-        assert_eq!(iters[0].next(), Some(KeyValue{key:2, value:2}));
-        assert_eq!(iters[0].next(), None);
-    }
+    let mut iters = ind.multi_iter().unwrap();
+    assert_eq!(iters[0].next(), Some(KeyValue{key:2, value:2}));
+    assert_eq!(iters[0].next(), None);
 
-    {
-        let mut iters = ind.multi_iter().unwrap();
-        assert_eq!(iters[0].next(), Some(KeyValue{key:2, value:2}));
-        assert_eq!(iters[0].next(), None);
-    }
+    let mut iters = ind.multi_iter().unwrap();
+    assert_eq!(iters[0].next(), Some(KeyValue{key:2, value:2}));
+    assert_eq!(iters[0].next(), None);
 
     ind.add(1, 3).unwrap();
     ind.flush().unwrap();
     ind.add(4, 4).unwrap();
     ind.flush().unwrap();
 
-    {
-        let mut iters = ind.multi_iter().unwrap();
-        assert_eq!(iters[1].next(), Some(KeyValue{key:1, value:3}));
-        assert_eq!(iters[1].next(), None);
-    }
+    let mut iters = ind.multi_iter().unwrap();
+    assert_eq!(iters[1].next(), Some(KeyValue{key:1, value:3}));
+    assert_eq!(iters[1].next(), None);
 
     let mut mergo = ind.flush_and_kmerge().unwrap();
     assert_eq!(mergo.next(), Some(KeyValue{key:1, value:3}));
     assert_eq!(mergo.next(), Some(KeyValue{key:2, value:2}));
     assert_eq!(mergo.next(), Some(KeyValue{key:4, value:4}));
+
+    let mut ind = BufferedIndexWriter::default();
+    ind.add_all(2, vec![2, 2000]).unwrap();
+    ind.flush().unwrap();
+    let mut iters = ind.multi_iter().unwrap();
+    assert_eq!(iters[0].next(), Some(KeyValue{key:2, value:2}));
+    assert_eq!(iters[0].next(), Some(KeyValue{key:2, value:2000}));
+
+    let mut ind = BufferedIndexWriter::default();
+    ind.add_all(2, vec![2, 2000]).unwrap();
+    let mut iter = ind.into_iter_inmemory();
+    assert_eq!(iter.next(), Some(KeyValue{key:2, value:2}));
+    assert_eq!(iter.next(), Some(KeyValue{key:2, value:2000}));
+
+
 }

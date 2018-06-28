@@ -8,7 +8,6 @@ use search;
 use std;
 use std::fs::File;
 use std::io;
-use std::io::prelude::*;
 use std::iter::FusedIterator;
 
 use persistence_data_indirect;
@@ -145,41 +144,19 @@ impl TokenToAnchorScoreVintFlushing {
     }
 }
 
-pub fn flush_to_file_indirect(indirect_path: &str, data_path: &str, indirect_data: &[u8], data: &[u8]) -> Result<(), io::Error> {
-    let mut indirect = std::fs::OpenOptions::new()
-        .read(true)
-        .write(true)
-        .append(true)
-        .create(true)
-        .open(&indirect_path)
-        .unwrap();
-    let mut data_cache = std::fs::OpenOptions::new()
-        .read(true)
-        .write(true)
-        .append(true)
-        .create(true)
-        .open(&data_path)
-        .unwrap();
-
-    indirect.write_all(indirect_data)?;
-    data_cache.write_all(data)?;
-
-    Ok(())
-}
-
 impl TokenToAnchorScoreVintIM {
     #[inline]
     fn get_size(&self) -> usize {
         self.start_pos.len()
     }
 
-    pub fn write<P: AsRef<Path> + std::fmt::Debug>(&self, path_indirect: P, path_data: P) -> Result<(), io::Error> {
-        File::create(path_indirect)?.write_all(&vec_to_bytes_u32(&self.start_pos))?;
-        File::create(path_data)?.write_all(&self.data)?;
-        Ok(())
-    }
+    // pub(crate) fn write<P: AsRef<Path> + std::fmt::Debug>(&self, path_indirect: P, path_data: P) -> Result<(), io::Error> {
+    //     File::create(path_indirect)?.write_all(&vec_to_bytes_u32(&self.start_pos))?;
+    //     File::create(path_data)?.write_all(&self.data)?;
+    //     Ok(())
+    // }
 
-    pub fn read<P: AsRef<Path> + std::fmt::Debug>(&mut self, path_indirect: P, path_data: P) -> Result<(), search::SearchError> {
+    pub(crate) fn read<P: AsRef<Path> + std::fmt::Debug>(&mut self, path_indirect: P, path_data: P) -> Result<(), search::SearchError> {
         self.start_pos = load_index_u32(&path_indirect)?;
         self.data = file_path_to_bytes(&path_data)?;
         Ok(())
@@ -272,59 +249,42 @@ impl TokenToAnchorScore for TokenToAnchorScoreVintMmap {
 fn test_token_to_anchor_score_vint() {
     use tempfile::tempdir;
 
-    let mut yeps = TokenToAnchorScoreVintFlushing::default();
+    let mut store = TokenToAnchorScoreVintFlushing::default();
 
-    yeps.set_scores(1, &mut vec![1, 1]).unwrap();
-    let yeps = yeps.into_im_store();
-    println!("{:?}", yeps);
-    assert_eq!(yeps.get_score_iter(0).collect::<Vec<AnchorScore>>(), vec![]);
+    store.set_scores(1, &mut vec![1, 1]).unwrap();
+    let store = store.into_im_store();
+    assert_eq!(store.get_score_iter(0).collect::<Vec<_>>(), vec![]);
     assert_eq!(
-        yeps.get_score_iter(1).collect::<Vec<AnchorScore>>(),
+        store.get_score_iter(1).collect::<Vec<_>>(),
         vec![AnchorScore::new(1, f16::from_f32(1.0))]
     );
-    assert_eq!(yeps.get_score_iter(2).collect::<Vec<AnchorScore>>(), vec![]);
+    assert_eq!(store.get_score_iter(2).collect::<Vec<_>>(), vec![]);
 
-    let mut yeps = TokenToAnchorScoreVintFlushing::default();
-    yeps.set_scores(5, &mut vec![1, 1, 2, 3]).unwrap();
-    let yeps = yeps.into_im_store();
-    assert_eq!(yeps.get_score_iter(4).collect::<Vec<AnchorScore>>(), vec![]);
+    let mut store = TokenToAnchorScoreVintFlushing::default();
+    store.set_scores(5, &mut vec![1, 1, 2, 3]).unwrap();
+    let store = store.into_im_store();
+    assert_eq!(store.get_score_iter(4).collect::<Vec<_>>(), vec![]);
     assert_eq!(
-        yeps.get_score_iter(5).collect::<Vec<AnchorScore>>(),
+        store.get_score_iter(5).collect::<Vec<_>>(),
         vec![AnchorScore::new(1, f16::from_f32(1.0)), AnchorScore::new(2, f16::from_f32(3.0))]
     );
-    assert_eq!(yeps.get_score_iter(6).collect::<Vec<AnchorScore>>(), vec![]);
+    assert_eq!(store.get_score_iter(6).collect::<Vec<_>>(), vec![]);
 
     let dir = tempdir().unwrap();
-    let data = dir.path().join("TokenToAnchorScoreVintTestData");
-    let indirect = dir.path().join("TokenToAnchorScoreVintTestIndirect");
-    yeps.write(indirect.to_str().unwrap(), data.to_str().unwrap()).unwrap();
+    let data = dir.path().join("TokenToAnchorScoreVintTestData").to_str().unwrap().to_string();
+    let indirect = dir.path().join("TokenToAnchorScoreVintTestIndirect").to_str().unwrap().to_string();
 
-    // IM loaded from File
-    // let mut yeps = TokenToAnchorScoreVintFlushing::default();
-    // yeps.read(indirect.to_str().unwrap(), data.to_str().unwrap()).unwrap();
-    // assert_eq!(yeps.get_scores(0), None);
-    // assert_eq!(yeps.get_scores(1), Some(vec![AnchorScore::new(1, f16::from_f32(1.0))]));
-    // assert_eq!(yeps.get_scores(2), None);
-
-    // assert_eq!(yeps.get_scores(4), None);
-    // assert_eq!(
-    //     yeps.get_scores(5),
-    //     Some(vec![AnchorScore::new(1, f16::from_f32(1.0)), AnchorScore::new(2, f16::from_f32(3.0))])
-    // );
-    // assert_eq!(yeps.get_scores(6), None);
-
-    // // Mmap from File
-    // let start_and_end_file = File::open(indirect).unwrap();
-    // let data_file = File::open(data).unwrap();
-    // let yeps = TokenToAnchorScoreVintMmap::new(&start_and_end_file, &data_file);
-    // assert_eq!(yeps.get_scores(0), None);
-    // assert_eq!(yeps.get_scores(1), Some(vec![AnchorScore::new(1, f16::from_f32(1.0))]));
-    // assert_eq!(yeps.get_scores(2), None);
-
-    // assert_eq!(yeps.get_scores(4), None);
-    // assert_eq!(
-    //     yeps.get_scores(5),
-    //     Some(vec![AnchorScore::new(1, f16::from_f32(1.0)), AnchorScore::new(2, f16::from_f32(3.0))])
-    // );
-    // assert_eq!(yeps.get_scores(6), None);
+    let mut store = TokenToAnchorScoreVintFlushing::new(indirect, data);
+    store.set_scores(1, &mut vec![1, 1]).unwrap();
+    store.flush().unwrap();
+    store.set_scores(5, &mut vec![1, 1, 2, 3]).unwrap();
+    store.flush().unwrap();
+    let store = store.into_mmap().unwrap();
+    assert_eq!(store.get_score_iter(0).collect::<Vec<_>>(), vec![]);
+    assert_eq!(store.get_score_iter(1).collect::<Vec<_>>(), vec![AnchorScore::new(1, f16::from_f32(1.0))] );
+    assert_eq!(store.get_score_iter(2).collect::<Vec<_>>(), vec![]);
+    assert_eq!(
+        store.get_score_iter(5).collect::<Vec<_>>(),
+        vec![AnchorScore::new(1, f16::from_f32(1.0)), AnchorScore::new(2, f16::from_f32(3.0))]
+    );
 }
