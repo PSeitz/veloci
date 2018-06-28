@@ -3,9 +3,10 @@ authors = ["Pascal Seitz <pascal.seitz@gmail.com>"]
 name = "buffered_index_writer"
 version = "0.1.0"
 
-[[bin]]
-name = "bench"
-path = "bench.rs"
+# TODO Move to subfolder, for dev-dependency
+# [[bin]]
+# name = "bench"
+# path = "bench.rs"
 
 [dependencies]
 byteorder = "1.2.3"
@@ -21,3 +22,6 @@ debug = false
 lto = true
 opt-level = 3
 panic = "unwind"
+
+[dev-dependencies]
+measure_time = "0.6"

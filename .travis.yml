@@ -9,15 +9,13 @@ cache: cargo
 rust:
   - nightly
 env:
-  - PersistenceType=Persistent LoadingType=Disk RUST_BACKTRACE=full RUST_LOG=search_lib=trace
-  - PersistenceType=Persistent LoadingType=InMemory RUST_BACKTRACE=full RUST_LOG=search_lib=trace
-  - PersistenceType=Persistent LoadingType=InMemoryUnCompressed RUST_BACKTRACE=full RUST_LOG=search_lib=trace
-  - PersistenceType=Transient RUST_BACKTRACE=full RUST_LOG=search_lib=trace
-matrix:
-  allow_failures:
-    - rust: nightly
+  - TEST_DIR=./ PersistenceType=Persistent LoadingType=Disk RUST_BACKTRACE=full RUST_LOG=search_lib=trace
+  - TEST_DIR=./ PersistenceType=Persistent LoadingType=InMemory RUST_BACKTRACE=full RUST_LOG=search_lib=trace
+  - TEST_DIR=./ PersistenceType=Persistent LoadingType=InMemoryUnCompressed RUST_BACKTRACE=full RUST_LOG=search_lib=trace
+  - TEST_DIR=./ PersistenceType=Transient RUST_BACKTRACE=full RUST_LOG=search_lib=trace
+  - TEST_DIR=buffered_index_writer
 script:
-- cargo clean
+- cd $TEST_DIR
 - cargo build
 - cargo test
 
