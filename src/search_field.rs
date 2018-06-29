@@ -11,6 +11,7 @@ use persistence::Persistence;
 use search;
 use search::*;
 use std::cmp;
+use std::marker;
 use std::cmp::Ordering;
 use std::iter::FusedIterator;
 use str;
@@ -41,7 +42,8 @@ impl SearchFieldResult {
         let end = unsafe { begin.offset(self.hits_vec.len() as isize) as *const search::Hit };
 
         SearchFieldResultIterator {
-            list: &self.hits_vec,
+            // list: &self.hits_vec,
+            _marker: marker::PhantomData,
             ptr: begin,
             end,
             term_id,
@@ -62,9 +64,21 @@ impl SearchFieldResult {
     }
 }
 
+use test;
+#[bench]
+fn bench_search_field_iterator(b: &mut test::Bencher) {
+    let mut res = SearchFieldResult::default();
+    res.hits_vec = (0..6_000_000).map(|el| search::Hit::new(el, 1.0)).collect();
+    b.iter(|| {
+        let iter = res.iter(0,1);
+        iter.last().unwrap()
+    })
+}
+
 #[derive(Debug, Clone)]
 pub struct SearchFieldResultIterator<'a> {
-    list: &'a Vec<search::Hit>,
+    // list: &'a Vec<search::Hit>,
+    _marker: marker::PhantomData<&'a search::Hit>,
     ptr: *const search::Hit,
     end: *const search::Hit,
     term_id: u8,
@@ -76,7 +90,8 @@ impl<'a> Iterator for SearchFieldResultIterator<'a> {
 
     #[inline]
     fn count(self) -> usize {
-        self.list.len()
+        // self.list.len()
+        self.size_hint().0
     }
 
     #[inline]

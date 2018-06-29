@@ -213,13 +213,13 @@ pub(crate) fn file_as_string<P: AsRef<Path> + std::fmt::Debug>(path: P) -> Resul
 
 #[inline]
 pub(crate) fn vec_with_size_uninitialized<T>(size: usize) -> Vec<T> {
-    let mut buffer = Vec::with_capacity(size);
+    let mut buffer = vec![];
+    buffer.reserve_exact(size);
     unsafe {
         buffer.set_len(size);
     }
     buffer
 }
-
 // #[inline]
 // pub(crate) fn get_my_data_danger_zooone(start: u32, end: u32, data_file: &Mutex<fs::File>) -> Vec<u32> {
 //     let mut data: Vec<u32> = vec_with_size_uninitialized(end as usize - start as usize);

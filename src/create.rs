@@ -135,78 +135,6 @@ pub(crate) struct TokenToAnchorScore {
     pub(crate) score: u32,
 }
 
-// pub(crate) trait KeyValuePair {
-//     fn get_key(&self) -> u32;
-//     fn set_key(&mut self, id: u32);
-//     fn get_value(&self) -> u32;
-//     fn set_value(&mut self, id: u32);
-// }
-
-// impl KeyValuePair for ValIdPair {
-//     #[inline]
-//     fn get_key(&self) -> u32 {
-//         self.valid
-//     }
-
-//     #[inline]
-//     fn set_key(&mut self, id: u32) {
-//         self.valid = id;
-//     }
-
-//     #[inline]
-//     fn get_value(&self) -> u32 {
-//         self.parent_val_id
-//     }
-
-//     #[inline]
-//     fn set_value(&mut self, id: u32) {
-//         self.parent_val_id = id;
-//     }
-// }
-// impl KeyValuePair for ValIdToValue {
-//     #[inline]
-//     fn get_key(&self) -> u32 {
-//         self.valid
-//     }
-
-//     #[inline]
-//     fn set_key(&mut self, id: u32) {
-//         self.valid = id;
-//     }
-
-//     #[inline]
-//     fn get_value(&self) -> u32 {
-//         self.value
-//     }
-
-//     #[inline]
-//     fn set_value(&mut self, id: u32) {
-//         self.value = id;
-//     }
-// }
-
-/// Used for boost
-/// e.g. boost value 5000 for id 5
-/// 5 -> 5000
-#[derive(Debug, Clone)]
-pub(crate) struct ValIdToValue {
-    pub(crate) valid: u32,
-    pub(crate) value: u32,
-}
-
-// impl std::fmt::Display for ValIdPair {
-//     fn fmt(&self, f: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
-//         write!(f, "\n{}\t{}", self.valid, self.parent_val_id)?;
-//         Ok(())
-//     }
-// }
-
-// impl<ValIdPair> fmt::Display for Vec<ValIdPair> {
-//     fn fmt(&self, f: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
-//         write!(f, "(a, b)",)
-//         Ok(())
-//     }
-// }
 
 // fn print_vec(vec: &[ValIdPair], valid_header: &str, parentid_header: &str) -> String {
 //     format!("{}\t{}", valid_header, parentid_header)
@@ -523,7 +451,7 @@ fn stream_iter_to_direct_index(
 fn buffered_index_to_direct_index(db_path: &str, path: String, mut buffered_index_data: BufferedIndexWriter) -> Result<IndexIdToOneParentFlushing, io::Error> {
     let data_file_path = util::get_file_path(db_path, &path);
 
-    let mut store = IndexIdToOneParentFlushing::new(data_file_path);
+    let mut store = IndexIdToOneParentFlushing::new(data_file_path, buffered_index_data.max_value_id);
     if buffered_index_data.is_in_memory() {
         stream_iter_to_direct_index(buffered_index_data.into_iter_inmemory(), &mut store)?;
     } else {
@@ -842,7 +770,7 @@ fn buffered_index_to_indirect_index_multiple(
     let indirect_file_path = util::get_file_path(db_path, &(path.to_string() + ".indirect"));
     let data_file_path = util::get_file_path(db_path, &(path.to_string() + ".data"));
 
-    let mut store = IndexIdToMultipleParentIndirectFlushingInOrderVint::new(indirect_file_path, data_file_path);
+    let mut store = IndexIdToMultipleParentIndirectFlushingInOrderVint::new(indirect_file_path, data_file_path, buffered_index_data.max_value_id);
     stream_buffered_index_writer_to_indirect_index(buffered_index_data, &mut store, sort_and_dedup)?;
     Ok(store)
 }
@@ -964,7 +892,7 @@ fn convert_raw_path_data_to_indices(
                 let indirect_file_path = util::get_file_path(&db, &(boost_path.to_string() + ".indirect"));
                 let data_file_path = util::get_file_path(&db, &(boost_path.to_string() + ".data"));
 
-                let mut store = IndexIdToMultipleParentIndirectFlushingInOrderVint::new(indirect_file_path, data_file_path);
+                let mut store = IndexIdToMultipleParentIndirectFlushingInOrderVint::new(indirect_file_path, data_file_path, buffered_index_data.max_value_id);
                 stream_buffered_index_writer_to_indirect_index(buffered_index_data, &mut store, false)?;
                 indices.boost_indices.push((boost_path, store, LoadingType::InMemoryUnCompressed));
             }
@@ -1242,15 +1170,13 @@ pub fn add_token_values_to_tokens(persistence: &mut Persistence, data_str: &str,
     }
 
     let path = concat(&path_name, ".tokenValues.boost_valid_to_value");
-    let mut store = buffered_index_to_direct_index(&persistence.db, path.to_string(), buffered_index_data).unwrap();
+    let mut store = buffered_index_to_direct_index(&persistence.db, path.to_string(), buffered_index_data)?;
     let voll_meta = persistence.flush_direct_index(&mut store, &path, LoadingType::InMemoryUnCompressed)?;
     persistence.meta_data.boost_stores.push(voll_meta);
     persistence.write_meta_data()?;
 
     //TODO FIX LOAD FOR IN_MEMORY
-    let data_file = persistence.get_file_handle(&path)?;
-    let data_metadata = persistence.get_file_metadata_handle(&path)?;
-    let store = SingleArrayMMAP::<u32>::new(&data_file, data_metadata, store.max_value_id);
+    let store = SingleArrayMMAPPacked::<u32>::from_path(&util::get_file_path(&persistence.db, &path), store.max_value_id)?;
     persistence.indices.boost_valueid_to_value.insert(path.to_string(), Box::new(store));
     Ok(())
 }

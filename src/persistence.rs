@@ -262,7 +262,6 @@ pub trait IndexIdToParent: Debug + HeapSizeOf + Sync + Send + type_info::TypeInf
         let mut hits = FnvHashMap::default();
         for id in ids {
             if let Some(vals) = self.get_values(u64::from(*id)) {
-                // vec.reserve(vals.len());
                 for id in vals {
                     let stat = hits.entry(id).or_insert(0);
                     *stat += 1;
@@ -356,10 +355,7 @@ impl Persistence {
             //     );
             // }
             LoadingType::Disk => {
-                let data_file = self.get_file_handle(path)?;
-                let data_metadata = self.get_file_metadata_handle(path)?;
-
-                let store = SingleArrayMMAP::<u64>::new(&data_file, data_metadata, u32::MAX);
+                let store = SingleArrayMMAP::<u64>::from_path(&get_file_path(&self.db, path), u32::MAX)?;
                 self.indices.index_64.insert(path.to_string(), Box::new(store));
             }
         }
@@ -407,8 +403,6 @@ impl Persistence {
 
                 let loading_type = get_loading_type(el.loading_type)?;
 
-                let indirect_path = get_file_path(&self.db, &el.path) + ".indirect";
-                let indirect_data_path = get_file_path(&self.db, &el.path) + ".data";
                 // let data_direct_path = get_file_path(&self.db, &el.path) + ".data_direct";
                 let data_direct_path = get_file_path(&self.db, &el.path);
 
@@ -423,8 +417,10 @@ impl Persistence {
                 }
 
                 match loading_type {
-                    LoadingType::InMemoryUnCompressed => match el.persistence_type {
+                    LoadingType::InMemoryUnCompressed | LoadingType::InMemory => match el.persistence_type {
                         KVStoreType::IndexIdToMultipleParentIndirect => {
+                            let indirect_path = get_file_path(&self.db, &el.path) + ".indirect";
+                            let indirect_data_path = get_file_path(&self.db, &el.path) + ".data";
                             let indirect_u32 = bytes_to_vec_u32(&file_handle_to_bytes(&get_file_handle_complete_path(&indirect_path)?)?);
                             // let data_u32 = bytes_to_vec_u32(&file_handle_to_bytes(&get_file_handle_complete_path(&indirect_data_path)?)?);
 
@@ -441,40 +437,18 @@ impl Persistence {
                             Ok((el.path.to_string(), Box::new(store) as Box<IndexIdToParent<Output = u32>>))
                         }
                         KVStoreType::IndexIdToOneParent => {
-                            let store = IndexIdToOneParent {
-                                data: bytes_to_vec_u32(&file_path_to_bytes(&data_direct_path)?),
+                            // let store = IndexIdToOneParent {
+                            //     data: bytes_to_vec_u32(&file_path_to_bytes(&data_direct_path)?),
+                            //     max_value_id: el.max_value_id,
+                            //     avg_join_size: el.avg_join_size,
+                            // };
+
+                            let store = IndexIdToOneParentPacked {
+                                data: file_path_to_bytes(&data_direct_path)?,
                                 max_value_id: el.max_value_id,
                                 avg_join_size: el.avg_join_size,
-                            };
-
-                            Ok((el.path.to_string(), Box::new(store) as Box<IndexIdToParent<Output = u32>>))
-                        }
-                    },
-                    LoadingType::InMemory => match el.persistence_type {
-                        KVStoreType::IndexIdToMultipleParentIndirect => {
-                            let indirect_u32 = bytes_to_vec_u32(&file_path_to_bytes(&indirect_path)?);
-                            // let data_u32 = bytes_to_vec_u32(&file_path_to_bytes(&indirect_data_path)?);
-
-                            let store = IndexIdToMultipleParentIndirect {
-                                start_pos: indirect_u32,
-                                data: file_path_to_bytes(&indirect_data_path)?,
-                                cache: lru_cache::LruCache::new(0),
-                                max_value_id: el.max_value_id,
-                                avg_join_size: el.avg_join_size,
-                                num_values: 0,
-                                num_ids: 0,
-                            };
-
-                            Ok((el.path.to_string(), Box::new(store) as Box<IndexIdToParent<Output = u32>>))
-                        }
-                        KVStoreType::IndexIdToOneParent => {
-                            // let data_u32 = bytes_to_vec_u32(&file_path_to_bytes(&data_direct_path)?);
-
-                            // let store = IndexIdToOneParentMayda::from_vec(&data_u32, el.max_value_id);
-                            let store = IndexIdToOneParent {
-                                data: bytes_to_vec_u32(&file_path_to_bytes(&data_direct_path)?),
-                                max_value_id: el.max_value_id,
-                                avg_join_size: el.avg_join_size,
+                                bytes_required: get_bytes_required(el.max_value_id),
+                                ok: std::marker::PhantomData,
                             };
 
                             Ok((el.path.to_string(), Box::new(store) as Box<IndexIdToParent<Output = u32>>))
@@ -487,9 +461,8 @@ impl Persistence {
                             Ok((el.path.to_string(), Box::new(store) as Box<IndexIdToParent<Output = u32>>))
                         }
                         KVStoreType::IndexIdToOneParent => {
-                            let data_file = get_file_handle_complete_path(&data_direct_path)?;
-                            let data_metadata = get_file_metadata_handle_complete_path(&data_direct_path)?;
-                            let store = SingleArrayMMAP::<u32>::new(&data_file, data_metadata, el.max_value_id);
+
+                            let store = SingleArrayMMAPPacked::<u32>::from_path(&data_direct_path, el.max_value_id)?;
 
                             Ok((el.path.to_string(), Box::new(store) as Box<IndexIdToParent<Output = u32>>))
                         }
@@ -513,9 +486,11 @@ impl Persistence {
                     self.indices.boost_valueid_to_value.insert(el.path.to_string(), Box::new(store));
                 }
                 KVStoreType::IndexIdToOneParent => {
-                    let data_file = self.get_file_handle(&el.path)?;
-                    let data_metadata = self.get_file_metadata_handle(&el.path)?;
-                    let store = SingleArrayMMAP::<u32>::new(&data_file, data_metadata, el.max_value_id);
+                    // let data_file = self.get_file_handle(&el.path)?;
+                    // let data_metadata = self.get_file_metadata_handle(&el.path)?;
+                    // let store = SingleArrayMMAP::<u32>::new(&data_file, data_metadata, el.max_value_id);
+
+                    let store = SingleArrayMMAPPacked::<u32>::from_path(&get_file_path(&self.db, &el.path), el.max_value_id)?;
                     // self.indices
                     //     .boost_valueid_to_value
                     //     .insert(el.path.to_string(), Box::new(IndexIdToOneParentMayda::<u32>::new(&store, u32::MAX)));

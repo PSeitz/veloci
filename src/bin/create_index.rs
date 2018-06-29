@@ -77,7 +77,6 @@ static TAHLIA_INDICES: &str = r#"
     { "fulltext":"MATNR",        "options":{"tokenize":false} },
     { "fulltext":"ZZSW2_KEY",    "options":{"tokenize":false} },
     { "fulltext":"ZZONLINE_KAT", "options":{"tokenize":false} },
-    { "fulltext":"ZZONLINE_KAT", "options":{"tokenize":false} },
     { "fulltext":"ZZMYINFOARTNR","options":{"tokenize":false} },
     { "fulltext":"ISMLANGUAGES", "options":{"tokenize":false} },
     { "fulltext":"ISMPUBLDATE",  "options":{"tokenize":false} },

@@ -401,6 +401,7 @@ fn test_buffered_index_writer() {
     ind.flush().unwrap();
     ind.add(4, 4).unwrap();
     ind.flush().unwrap();
+    ind.flush().unwrap(); // double flush test
 
     let mut iters = ind.multi_iter().unwrap();
     assert_eq!(iters[1].next(), Some(KeyValue{key:1, value:3}));

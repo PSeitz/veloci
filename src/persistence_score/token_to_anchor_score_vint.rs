@@ -150,12 +150,6 @@ impl TokenToAnchorScoreVintIM {
         self.start_pos.len()
     }
 
-    // pub(crate) fn write<P: AsRef<Path> + std::fmt::Debug>(&self, path_indirect: P, path_data: P) -> Result<(), io::Error> {
-    //     File::create(path_indirect)?.write_all(&vec_to_bytes_u32(&self.start_pos))?;
-    //     File::create(path_data)?.write_all(&self.data)?;
-    //     Ok(())
-    // }
-
     pub(crate) fn read<P: AsRef<Path> + std::fmt::Debug>(&mut self, path_indirect: P, path_data: P) -> Result<(), search::SearchError> {
         self.start_pos = load_index_u32(&path_indirect)?;
         self.data = file_path_to_bytes(&path_data)?;
@@ -235,7 +229,6 @@ impl TokenToAnchorScore for TokenToAnchorScoreVintMmap {
     fn get_score_iter(&self, id: u32) -> AnchorScoreIter {
         if id as usize >= self.start_pos.len() / 4 {
             return AnchorScoreIter::new(&[]);
-            // return None;
         }
         let pos = get_u32_from_bytes(&self.start_pos, id as usize * 4);
         if pos == EMPTY_BUCKET {
@@ -279,6 +272,8 @@ fn test_token_to_anchor_score_vint() {
     store.flush().unwrap();
     store.set_scores(5, &mut vec![1, 1, 2, 3]).unwrap();
     store.flush().unwrap();
+    store.flush().unwrap(); // double flush test
+
     let store = store.into_mmap().unwrap();
     assert_eq!(store.get_score_iter(0).collect::<Vec<_>>(), vec![]);
     assert_eq!(store.get_score_iter(1).collect::<Vec<_>>(), vec![AnchorScore::new(1, f16::from_f32(1.0))] );

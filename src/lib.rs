@@ -120,7 +120,6 @@ pub mod trace;
 #[cfg(test)]
 extern crate chashmap;
 
-#[cfg(test)]
 extern crate test;
 
 #[cfg(test)]

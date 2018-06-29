@@ -3,7 +3,7 @@ use std::u32;
 use std::io;
 use std::io::Write;
 use std::marker::PhantomData;
-use std::fs::{self, File};
+use std::fs::{File};
 
 use heapsize::HeapSizeOf;
 use byteorder::{LittleEndian, ReadBytesExt};
@@ -13,7 +13,6 @@ use persistence::*;
 pub(crate) use persistence_data_indirect::*;
 
 use facet::*;
-use parking_lot::Mutex;
 use num;
 
 use type_info::TypeInfo;
@@ -23,8 +22,10 @@ use memmap::Mmap;
 use memmap::MmapOptions;
 
 impl_type_info_single_templ!(IndexIdToOneParent);
+impl_type_info_single_templ!(IndexIdToOneParentPacked);
 // impl_type_info_single_templ!(ParallelArrays);
 impl_type_info_single_templ!(SingleArrayMMAP);
+impl_type_info_single_templ!(SingleArrayMMAPPacked);
 
 /// This data structure assumes that a set is only called once for a id, and ids are set in order.
 #[derive(Serialize, Debug, Clone, HeapSizeOf, Default)]
@@ -38,8 +39,8 @@ pub struct IndexIdToOneParentFlushing {
 }
 
 impl IndexIdToOneParentFlushing {
-    pub fn new(path: String) -> IndexIdToOneParentFlushing {
-        IndexIdToOneParentFlushing { path, ..Default::default() }
+    pub fn new(path: String, max_value_id: u32) -> IndexIdToOneParentFlushing {
+        IndexIdToOneParentFlushing { path, max_value_id, ..Default::default() }
     }
     pub fn into_im_store(self) -> IndexIdToOneParent<u32> {
         let mut store = IndexIdToOneParent::default();
@@ -53,7 +54,6 @@ impl IndexIdToOneParentFlushing {
 
     #[inline]
     pub fn add(&mut self, id: u32, val: u32) -> Result<(), io::Error> {
-        self.max_value_id = std::cmp::max(val, self.max_value_id);
         self.num_values += 1;
 
         let id_pos = (id - self.current_id_offset) as usize;
@@ -95,12 +95,166 @@ impl IndexIdToOneParentFlushing {
             .open(&self.path)
             .unwrap();
 
-        data.write_all(&vec_to_bytes_u32(&self.cache))?;
+        let bytes_required = get_bytes_required(self.max_value_id);
+
+        let mut bytes = vec![];
+        encode_vals(&self.cache, bytes_required, &mut bytes).unwrap();
+        data.write_all(&bytes)?;
+
+        // data.write_all(&vec_to_bytes_u32(&self.cache))?;
 
         self.avg_join_size = calc_avg_join_size(self.num_values, self.current_id_offset + self.cache.len() as u32);
         self.cache.clear();
 
         Ok(())
+    }
+}
+
+
+#[derive(Debug, Clone, Copy, HeapSizeOf)]
+pub enum BytesRequired {
+    One = 1,
+    Two,
+    Three,
+    Four,
+}
+
+#[inline]
+pub fn get_bytes_required(mut val: u32) -> BytesRequired {
+    val = val+1;  //+1 because EMPTY_BUCKET = 0 is already reserved
+    if val < 1 << 8 {
+        BytesRequired::One
+    } else if val < 1 << 16 {
+        BytesRequired::Two
+    } else if val < 1 << 24 {
+        BytesRequired::Three
+    } else {
+        BytesRequired::Four
+    }
+}
+use std::mem;
+#[inline]
+pub fn encode_vals<O: std::io::Write>(vals: &[u32], bytes_required:BytesRequired, out: &mut O) -> Result<(), io::Error> {
+
+    //Maximum speed, Maximum unsafe
+    use std::slice;
+    unsafe {
+        let slice =
+            slice::from_raw_parts(vals.as_ptr() as *const u8, vals.len() * mem::size_of::<u32>());
+        let mut pos = 0;
+        while pos != slice.len(){
+            out.write_all(&slice[pos .. pos + bytes_required as usize])?;
+            pos+=4;
+        }
+    }
+    Ok(())
+}
+
+use std::ptr::copy_nonoverlapping;
+
+
+// pub fn decode_bit_packed_val(val: &[u8], num_bits: u8, index: usize) -> u32 {
+pub fn decode_bit_packed_val<T: IndexIdToParentData>(data: &[u8], bytes_required: BytesRequired, index: usize) -> Option<T> {
+    let bit_pos_start = index * bytes_required as usize;
+    if bit_pos_start >= data.len() {
+        None
+    }else{
+        let mut out = T::zero();
+        unsafe {
+            copy_nonoverlapping(data.as_ptr().add(bit_pos_start), &mut out as *mut T as *mut u8, bytes_required as usize);
+        }
+        Some(out - T::one())
+    }
+}
+
+#[test]
+fn test_encodsing_and_decoding_bitpacking() {
+    let vals: Vec<u32> = vec![123, 33, 545, 99];
+
+    let bytes_required = get_bytes_required(*vals.iter().max().unwrap() as u32);
+
+    let mut bytes = vec![];
+
+    encode_vals(&vals, bytes_required, &mut bytes).unwrap();
+
+    assert_eq!(decode_bit_packed_val::<u32>(&bytes, bytes_required, 0), Some(122));
+    assert_eq!(decode_bit_packed_val::<u32>(&bytes, bytes_required, 1), Some(32));
+    assert_eq!(decode_bit_packed_val::<u32>(&bytes, bytes_required, 2), Some(544));
+    assert_eq!(decode_bit_packed_val::<u32>(&bytes, bytes_required, 3), Some(98));
+    assert_eq!(decode_bit_packed_val::<u32>(&bytes, bytes_required, 4), None);
+    assert_eq!(decode_bit_packed_val::<u32>(&bytes, bytes_required, 5), None);
+
+    let vals: Vec<u32> = vec![50001, 33];
+    let bytes_required = get_bytes_required(*vals.iter().max().unwrap() as u32);
+    let mut bytes = vec![];
+
+    encode_vals(&vals, bytes_required, &mut bytes).unwrap();
+
+    assert_eq!(decode_bit_packed_val::<u32>(&bytes, bytes_required, 0), Some(50_000));
+    assert_eq!(decode_bit_packed_val::<u32>(&bytes, bytes_required, 1), Some(32));
+    assert_eq!(decode_bit_packed_val::<u32>(&bytes, bytes_required, 2), None);
+}
+
+
+#[derive(Debug, HeapSizeOf)]
+pub struct IndexIdToOneParentPacked<T: IndexIdToParentData> {
+    pub data: Vec<u8>,
+    pub max_value_id: u32,
+    pub avg_join_size: f32,
+    pub bytes_required: BytesRequired,
+    pub ok: PhantomData<T>,
+}
+
+#[inline]
+fn count_values_for_ids<F, T: IndexIdToParentData>(ids: &[u32], top: Option<u32>, avg_join_size:f32, max_value_id:u32, get_value: F) -> FnvHashMap<T, usize>
+where
+    F: Fn(u64) -> Option<T>
+{
+    if should_prefer_vec(ids.len() as u32, avg_join_size, max_value_id) {
+        let mut dat = vec![];
+        dat.resize(max_value_id as usize + 1, T::zero());
+        count_values_for_ids_for_agg(ids, top, dat, get_value)
+    }else {
+        let map = FnvHashMap::default();
+        // map.reserve((ids.len() as f32 * avg_join_size) as usize); TODO TO PROPERLY RESERVE HERE, NUMBER OF DISTINCT VALUES IS NEEDED IN THE INDEX
+        count_values_for_ids_for_agg(ids, top, map, get_value)
+    }
+
+}
+
+impl<T: IndexIdToParentData> IndexIdToParent for IndexIdToOneParentPacked<T> {
+    type Output = T;
+
+    #[inline]
+    fn count_values_for_ids(&self, ids: &[u32], top: Option<u32>) -> FnvHashMap<T, usize> {
+        count_values_for_ids(ids, top, self.avg_join_size, self.max_value_id, |id: u64| self.get_value(id))
+    }
+
+    fn get_keys(&self) -> Vec<T> {
+        (num::cast(0).unwrap()..num::cast(self.data.len()).unwrap()).collect()
+    }
+
+    #[inline]
+    fn get_values_iter(&self, id: u64) -> VintArrayIteratorOpt {
+        if let Some(val) = self.get_value(id) {
+            VintArrayIteratorOpt::from_single_val(num::cast(val).unwrap())
+        } else {
+            VintArrayIteratorOpt::empty()
+        }
+    }
+
+    fn get_value(&self, id: u64) -> Option<T> {
+        decode_bit_packed_val::<T>(&self.data, self.bytes_required, id as usize)
+    }
+
+    #[inline]
+    fn get_values(&self, id: u64) -> Option<Vec<T>> {
+        self.get_value(id).map(|el| vec![el])
+    }
+
+    #[inline]
+    fn get_num_keys(&self) -> usize {
+        self.data.len()
     }
 }
 
@@ -116,7 +270,7 @@ impl<T: IndexIdToParentData> IndexIdToParent for IndexIdToOneParent<T> {
 
     #[inline]
     fn count_values_for_ids(&self, ids: &[u32], top: Option<u32>) -> FnvHashMap<T, usize> {
-        count_values_for_ids(ids, top, self.max_value_id, |id: u64| self.get_value(id))
+        count_values_for_ids(ids, top, self.avg_join_size, self.max_value_id, |id: u64| self.get_value(id))
     }
 
     fn get_keys(&self) -> Vec<T> {
@@ -158,17 +312,17 @@ impl<T: IndexIdToParentData> IndexIdToParent for IndexIdToOneParent<T> {
 }
 
 #[inline]
-fn count_values_for_ids<T: IndexIdToParentData, F>(ids: &[u32], top: Option<u32>, max_value_id: u32, get_value: F) -> FnvHashMap<T, usize>
+fn count_values_for_ids_for_agg<C:AggregationCollector<T>, T: IndexIdToParentData, F>(ids: &[u32], top: Option<u32>, mut coll:C, get_value: F) -> FnvHashMap<T, usize>
 where
     F: Fn(u64) -> Option<T>,
 {
-    let mut coll: Box<AggregationCollector<T>> = get_collector(ids.len() as u32, 1.0, max_value_id);
+    // let mut coll: Box<AggregationCollector<T>> = get_collector(ids.len() as u32, 1.0, max_value_id);
     for id in ids {
         if let Some(hit) = get_value(u64::from(*id)) {
             coll.add(hit);
         }
     }
-    coll.to_map(top)
+    Box::new(coll).to_map(top)
 }
 
 // #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
@@ -215,37 +369,85 @@ where
 // }
 
 #[derive(Debug)]
+pub struct SingleArrayMMAPPacked<T: IndexIdToParentData> {
+    pub data_file: Mmap,
+    pub size: usize, //TODO PLS FIX avg_join_size
+    pub max_value_id: u32,
+    pub ok: PhantomData<T>,
+    pub bytes_required: BytesRequired,
+}
+
+impl<T: IndexIdToParentData> SingleArrayMMAPPacked<T> {
+    fn get_size(&self) -> usize {
+        self.size
+    }
+
+    pub fn from_path(path: &str, max_value_id: u32) -> Result<Self, io::Error> {
+        let data_file = unsafe { MmapOptions::new().map(&File::open(path)?).unwrap() };
+        Ok(SingleArrayMMAPPacked {
+            data_file,
+            size: File::open(path)?.metadata()?.len() as usize / get_bytes_required(max_value_id) as usize,
+            max_value_id,
+            ok: PhantomData,
+            bytes_required: get_bytes_required(max_value_id),
+        })
+    }
+}
+impl<T: IndexIdToParentData> HeapSizeOf for SingleArrayMMAPPacked<T> {
+    fn heap_size_of_children(&self) -> usize {
+        0
+    }
+}
+
+impl<T: IndexIdToParentData> IndexIdToParent for SingleArrayMMAPPacked<T> {
+    type Output = T;
+
+    fn get_keys(&self) -> Vec<T> {
+        (num::cast(0).unwrap()..num::cast(self.get_size()).unwrap()).collect()
+    }
+
+    #[inline]
+    default fn get_num_keys(&self) -> usize {
+        self.get_size()
+    }
+
+    default fn get_values(&self, id: u64) -> Option<Vec<T>> {
+        self.get_value(id).map(|el| vec![el])
+    }
+
+    default fn get_value(&self, id: u64) -> Option<T> {
+        decode_bit_packed_val::<T>(&self.data_file, self.bytes_required, id as usize)
+    }
+
+    fn get_values_iter(&self, id: u64) -> VintArrayIteratorOpt {
+        if let Some(val) = self.get_value(id) {
+            VintArrayIteratorOpt::from_single_val(num::cast(val).unwrap())
+        } else {
+            VintArrayIteratorOpt::empty()
+        }
+    }
+}
+
+
+#[derive(Debug)]
 pub struct SingleArrayMMAP<T: IndexIdToParentData> {
     pub data_file: Mmap,
-    pub data_metadata: Mutex<fs::Metadata>, //TODO PLS FIXME max_value_id??, avg_join_size??
+    pub size: usize, //TODO PLS FIX add avg_join_size
     pub max_value_id: u32,
     pub ok: PhantomData<T>,
 }
 
 impl<T: IndexIdToParentData> SingleArrayMMAP<T> {
+    #[inline]
     fn get_size(&self) -> usize {
-        self.data_metadata.lock().len() as usize / std::mem::size_of::<T>()
+        self.size
     }
 
-    pub fn new(data_file: &fs::File, data_metadata: fs::Metadata, max_value_id: u32) -> Self {
-        let data_file = unsafe {
-            MmapOptions::new()
-                .len(std::cmp::max(data_metadata.len() as usize, 4048))
-                .map(&data_file)
-                .unwrap()
-        };
-        SingleArrayMMAP {
-            data_file,
-            data_metadata: Mutex::new(data_metadata),
-            max_value_id,
-            ok: PhantomData,
-        }
-    }
     pub fn from_path(path: &str, max_value_id: u32) -> Result<Self, io::Error> {
         let data_file = unsafe { MmapOptions::new().map(&File::open(path)?).unwrap() };
         Ok(SingleArrayMMAP {
             data_file,
-            data_metadata: Mutex::new(File::open(path)?.metadata()?),
+            size: File::open(path)?.metadata()?.len() as usize / std::mem::size_of::<T>(),
             max_value_id,
             ok: PhantomData,
         })
@@ -316,107 +518,6 @@ impl IndexIdToParent for SingleArrayMMAP<u64> {
         }
     }
 }
-
-// pub(crate) fn id_to_parent_to_array_of_array<T: IndexIdToParentData>(store: &IndexIdToParent<Output = T>) -> Vec<Vec<T>> {
-//     let mut data: Vec<Vec<T>> = prepare_data_for_array_of_array(store, &Vec::new);
-//     let valids = store.get_keys();
-
-//     for valid in valids {
-//         if let Some(vals) = store.get_values(num::cast(valid).unwrap()) {
-//             data[valid.to_usize().unwrap()] = vals.iter().map(|el| num::cast(*el).unwrap()).collect();
-//         }
-//     }
-//     data
-// }
-
-// fn prepare_data_for_array_of_array<T: Clone, K: IndexIdToParentData>(store: &IndexIdToParent<Output = K>, f: &Fn() -> T) -> Vec<T> {
-//     let mut data = vec![];
-//     let mut valids = store.get_keys();
-//     valids.dedup();
-//     if valids.is_empty() {
-//         return data;
-//     }
-//     data.resize(valids.last().unwrap().to_usize().unwrap() + 1, f());
-//     data
-// }
-
-// #[cfg_attr(feature = "flame_it", flame)]
-// pub(crate) fn valid_pair_to_parallel_arrays<T: IndexIdToParentData>(tuples: &mut Vec<create::ValIdPair>) -> ParallelArrays<T> {
-//     tuples.sort_unstable_by_key(|a| a.valid);
-//     let valids = tuples.iter().map(|el| num::cast(el.valid).unwrap()).collect::<Vec<_>>();
-//     let parent_val_ids = tuples.iter().map(|el| num::cast(el.parent_val_id).unwrap()).collect::<Vec<_>>();
-//     ParallelArrays {
-//         values1: valids,
-//         values2: parent_val_ids,
-//     }
-// }
-
-// // #[cfg_attr(feature = "flame_it", flame)]
-// pub(crate) fn valid_pair_to_direct_index<T: create::KeyValuePair>(tuples: &mut [T]) -> IndexIdToOneParent<u32> {
-//     //-> Box<IndexIdToParent<Output = u32>> {
-//     tuples.sort_unstable_by_key(|a| a.get_key());
-//     let mut index = IndexIdToOneParent::<u32>::default();
-//     //TODO store max_value_id and resize index
-//     for el in tuples.iter() {
-//         index.data.resize(el.get_key() as usize + 1, NOT_FOUND);
-//         index.data[el.get_key() as usize] = el.get_value();
-//         index.max_value_id = std::cmp::max(index.max_value_id, el.get_value());
-//     }
-
-//     index
-// }
-
-// // #[cfg_attr(feature = "flame_it", flame)]
-// pub(crate) fn valid_pair_to_direct_index<T: create::KeyValuePair>(tuples: &mut [T]) -> IndexIdToOneParent<u32> {
-//     //-> Box<IndexIdToParent<Output = u32>> {
-//     tuples.sort_unstable_by_key(|a| a.get_key());
-//     let mut index = IndexIdToOneParent::<u32>::default();
-//     //TODO store max_value_id and resize index
-//     for el in tuples.iter() {
-//         index.data.resize(el.get_key() as usize + 1, NOT_FOUND);
-//         index.data[el.get_key() as usize] = el.get_value();
-//         index.max_value_id = std::cmp::max(index.max_value_id, el.get_value());
-//     }
-
-//     index
-// }
-
-// #[test]
-// fn test_index_parrallel_arrays() {
-//     let ix = ParallelArrays {
-//         values1: vec![0, 0, 1],
-//         values2: vec![0, 1, 2],
-//     };
-//     assert_eq!(ix.get_values(0).unwrap(), vec![0, 1]);
-// }
-
-// #[test]
-// fn test_snap() {
-//     use byteorder::WriteBytesExt;
-//     let mut encoder = snap::Encoder::new();
-//     let mut data: Vec<Vec<u32>> = vec![];
-//     data.push(vec![11, 12, 13, 14, 15, 16, 17, 18, 19, 110, 111, 112, 113, 114, 115, 116, 117, 118]);
-//     data.push(vec![10, 11, 12, 13, 14, 15]);
-//     data.push(vec![10]);
-//     info!("data orig {:?}", data.heap_size_of_children());
-
-//     let data4: Vec<Vec<u8>> = data.iter().map(|el| vec_to_bytes_u32(el)).collect();
-//     info!("data byteorder {:?}", data4.heap_size_of_children());
-
-//     let data5: Vec<Vec<u8>> = data.iter()
-//         .map(|el| {
-//             let mut dat = encoder.compress_vec(&vec_to_bytes_u32(el)).unwrap();
-//             dat.shrink_to_fit();
-//             dat
-//         })
-//         .collect();
-//     info!("data byteorder compressed {:?}", data5.heap_size_of_children());
-
-//     let mut wtr: Vec<u8> = vec![];
-//     wtr.write_u32::<LittleEndian>(10).unwrap();
-//     info!("wtr {:?}", wtr);
-// }
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -477,12 +578,12 @@ mod tests {
         fn test_index_id_to_parent_flushing() {
             let dir = tempdir().unwrap();
             let data_path = dir.path().join("data").to_str().unwrap().to_string();
-            let mut ind = IndexIdToOneParentFlushing::new(data_path.to_string());
+            let mut ind = IndexIdToOneParentFlushing::new(data_path.to_string(), *get_test_data_1_to_1().iter().max().unwrap());
             for (key, val) in get_test_data_1_to_1().iter().enumerate() {
                 ind.add(key as u32, *val as u32).unwrap();
                 ind.flush().unwrap();
             }
-            let store = SingleArrayMMAP::<u32>::from_path(&data_path, ind.max_value_id).unwrap();
+            let store = SingleArrayMMAPPacked::<u32>::from_path(&data_path, ind.max_value_id).unwrap();
             check_test_data_1_to_1(&store);
         }
 
@@ -490,7 +591,7 @@ mod tests {
         fn test_index_id_to_parent_im() {
             let dir = tempdir().unwrap();
             let data_path = dir.path().join("data").to_str().unwrap().to_string();
-            let mut ind = IndexIdToOneParentFlushing::new(data_path.to_string());
+            let mut ind = IndexIdToOneParentFlushing::new(data_path.to_string(), *get_test_data_1_to_1().iter().max().unwrap());
             for (key, val) in get_test_data_1_to_1().iter().enumerate() {
                 ind.add(key as u32, *val as u32).unwrap();
             }

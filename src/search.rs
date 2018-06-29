@@ -1003,11 +1003,11 @@ pub fn union_hits_vec(mut or_results: Vec<SearchFieldResult>) -> SearchFieldResu
     // }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct MiniHit {
     pub id: u32,
-    pub term_id: u8,
     pub score: f16,
+    pub term_id: u8,
     // pub field_id: u8,
 }
 

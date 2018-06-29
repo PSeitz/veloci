@@ -35,15 +35,6 @@ fn u32_to_bytes(val: u32) -> [u8; 4] {
     buffer
 }
 
-#[inline]
-pub fn vec_with_size_uninitialized<T>(size: usize) -> Vec<T> {
-    let mut buffer = Vec::with_capacity(size);
-    unsafe {
-        buffer.set_len(size);
-    }
-    buffer
-}
-
 fn test_vec() {
     let num_loops = 65_000_000;
     print_time!("vecco group by");

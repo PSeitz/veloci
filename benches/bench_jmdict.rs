@@ -234,7 +234,7 @@ fn get_request(term: &str, levenshtein_distance: u32) -> search::Request {
 fn search(term: &str, pers: &persistence::Persistence, levenshtein_distance: u32) -> Vec<search::DocWithHit> {
     let requesto = get_request(term, levenshtein_distance);
     let hits = search::search(requesto, pers).unwrap();
-    search::to_documents(pers, &hits.data, None, &hits)
+    search::to_documents(pers, &hits.data, &None, &hits)
 }
 fn search_freestyle(term: &str, pers: &persistence::Persistence) -> Vec<search::DocWithHit> {
     let yop = query_generator::SearchQueryGeneratorParameters {
@@ -243,7 +243,7 @@ fn search_freestyle(term: &str, pers: &persistence::Persistence) -> Vec<search::
     };
     let requesto = query_generator::search_query(pers, yop);
     let hits = search::search(requesto, pers).unwrap();
-    search::to_documents(pers, &hits.data, None, &hits)
+    search::to_documents(pers, &hits.data, &None, &hits)
 }
 fn suggest(term: &str, path: &str, pers: &persistence::Persistence) -> search_field::SuggestFieldResult {
     let req = json!({

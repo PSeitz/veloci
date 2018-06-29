@@ -4,11 +4,8 @@ use util::*;
 
 use byteorder::{LittleEndian, ReadBytesExt};
 
-use persistence::EMPTY_BUCKET;
 use persistence::*;
 use type_info::TypeInfo;
-
-use parking_lot::Mutex;
 
 use std;
 use std::fs::{self, File};
@@ -29,6 +26,8 @@ use memmap::MmapOptions;
 
 impl_type_info_single_templ!(IndexIdToMultipleParentIndirect);
 impl_type_info_single_templ!(PointingMMAPFileReader);
+
+const EMPTY_BUCKET: u32 = 0;
 
 pub(crate) fn calc_avg_join_size(num_values: u32, num_ids: u32) -> f32 {
     num_values as f32 / std::cmp::max(1, num_ids).to_f32().unwrap()
@@ -56,6 +55,7 @@ pub(crate) fn flush_to_file_indirect(indirect_path: &str, data_path: &str, indir
     Ok(())
 }
 
+
 /// This data structure assumes that a set is only called once for a id, and ids are set in order.
 #[derive(Serialize, Debug, Clone, HeapSizeOf)]
 pub struct IndexIdToMultipleParentIndirectFlushingInOrderVint {
@@ -78,7 +78,7 @@ use vint::vint::*;
 // use vint for indirect, use not highest bit in indirect, but the highest unused bit. Max(value_id, single data_id, which would be encoded in the valueid index)
 //
 impl IndexIdToMultipleParentIndirectFlushingInOrderVint {
-    pub fn new(indirect_path: String, data_path: String) -> Self {
+    pub fn new(indirect_path: String, data_path: String, max_value_id: u32) -> Self {
         let mut data_cache = vec![];
         data_cache.resize(1, 1); // resize data by one, because 0 is reserved for the empty buckets
         IndexIdToMultipleParentIndirectFlushingInOrderVint {
@@ -88,7 +88,7 @@ impl IndexIdToMultipleParentIndirectFlushingInOrderVint {
             current_id_offset: 0,
             indirect_path,
             data_path,
-            max_value_id: 0,
+            max_value_id: max_value_id,
             avg_join_size: 0.,
             num_values: 0,
             num_ids: 0,
@@ -110,10 +110,6 @@ impl IndexIdToMultipleParentIndirectFlushingInOrderVint {
 
     #[inline]
     pub fn add(&mut self, id: u32, add_data: Vec<u32>) -> Result<(), io::Error> {
-        //set max_value_id
-        for el in &add_data {
-            self.max_value_id = std::cmp::max((*el).to_u32().unwrap(), self.max_value_id);
-        }
         self.num_values += 1;
         self.num_ids += add_data.len() as u32;
 
@@ -161,7 +157,12 @@ impl IndexIdToMultipleParentIndirectFlushingInOrderVint {
         self.current_id_offset += self.ids_cache.len() as u32;
         self.current_data_offset += self.data_cache.len() as u32;
 
-        flush_to_file_indirect(&self.indirect_path, &self.data_path, &vec_to_bytes_u32(&self.ids_cache), &self.data_cache)?;
+        flush_to_file_indirect(
+            &self.indirect_path,
+            &self.data_path,
+            &vec_to_bytes_u32(&self.ids_cache),
+            &self.data_cache,
+        )?;
 
         self.data_cache.clear();
         self.ids_cache.clear();
@@ -171,6 +172,8 @@ impl IndexIdToMultipleParentIndirectFlushingInOrderVint {
         Ok(())
     }
 }
+
+
 
 #[derive(Debug, Clone)]
 pub struct IndexIdToMultipleParentIndirect<T: IndexIdToParentData> {
@@ -210,15 +213,9 @@ impl<T: IndexIdToParentData> IndexIdToMultipleParentIndirect<T> {
     fn get_size(&self) -> usize {
         self.start_pos.len()
     }
-}
-
-impl<T: IndexIdToParentData> IndexIdToParent for IndexIdToMultipleParentIndirect<T> {
-    type Output = T;
 
     #[inline]
-    fn count_values_for_ids(&self, ids: &[u32], top: Option<u32>) -> FnvHashMap<T, usize> {
-        // FIXME MAX ID WRONG SOMETIMES
-        let mut coll: Box<AggregationCollector<T>> = get_collector(ids.len() as u32, self.avg_join_size, self.max_value_id);
+    fn count_values_for_ids_for_agg<C:AggregationCollector<T>>(&self, ids: &[u32], top: Option<u32>, mut coll:C) -> FnvHashMap<T, usize> {
         let size = self.get_size();
 
         let mut positions_vec = Vec::with_capacity(8);
@@ -228,33 +225,44 @@ impl<T: IndexIdToParentData> IndexIdToParent for IndexIdToMultipleParentIndirect
                     continue;
                 }
                 let pos = *id as usize;
-                // let positions = &self.start_pos[pos..=pos + 1];
                 let data_start_pos = self.start_pos[pos];
                 let data_start_pos_or_data = data_start_pos.to_u32().unwrap();
                 if let Some(val) = get_encoded(data_start_pos_or_data) {
                     coll.add(num::cast(val).unwrap());
                     continue;
                 }
-                // if positions[0].to_u32().unwrap() == u32::MAX {
-                //     //data encoded in indirect array
-                //     coll.add(positions[1]);
-                //     continue;
-                // }
-
                 if data_start_pos_or_data != EMPTY_BUCKET {
                     positions_vec.push(data_start_pos_or_data);
                 }
             }
 
             for position in &positions_vec {
-                let iter = VintArrayIterator::from_slice(&self.data[*position as usize..]);
-                for el in iter {
+                let iter = VintArrayIterator::from_slice(&self.data[*position as usize ..]);
+                for el in iter{
                     coll.add(num::cast(el).unwrap());
                 }
             }
             positions_vec.clear();
         }
-        coll.to_map(top)
+        Box::new(coll).to_map(top)
+    }
+}
+
+
+impl<T: IndexIdToParentData> IndexIdToParent for IndexIdToMultipleParentIndirect<T> {
+    type Output = T;
+
+    #[inline]
+    fn count_values_for_ids(&self, ids: &[u32], top: Option<u32>) -> FnvHashMap<T, usize> {
+        if should_prefer_vec(ids.len() as u32, self.avg_join_size, self.max_value_id) {
+            let mut dat = vec![];
+            dat.resize(self.max_value_id as usize + 1, T::zero());
+            self.count_values_for_ids_for_agg(ids, top, dat)
+        }else {
+            let map = FnvHashMap::default();
+            // map.reserve((ids.len() as f32 * self.avg_join_size) as usize);  TODO TO PROPERLY RESERVE HERE, NUMBER OF DISTINCT VALUES IS NEEDED IN THE INDEX
+            self.count_values_for_ids_for_agg(ids, top, map)
+        }
     }
 
     fn get_keys(&self) -> Vec<T> {
@@ -263,20 +271,21 @@ impl<T: IndexIdToParentData> IndexIdToParent for IndexIdToMultipleParentIndirect
 
     fn get_values_iter(&self, id: u64) -> VintArrayIteratorOpt {
         if id >= self.get_size() as u64 {
-            VintArrayIteratorOpt::empty()
+            VintArrayIteratorOpt{single_value: -2, iter: Box::new(VintArrayIterator::from_slice(&[]))}
         } else {
             // let positions = &self.start_pos[(id * 2) as usize..=((id * 2) as usize + 1)];
             let data_start_pos = self.start_pos[id as usize];
             let data_start_pos_or_data = data_start_pos.to_u32().unwrap();
             if let Some(val) = get_encoded(data_start_pos_or_data) {
-                return VintArrayIteratorOpt::from_single_val(val);
+                // return Some(vec![num::cast(val).unwrap()]);
+                // return VintArrayIterator::from_slice(&[5]);
+                return VintArrayIteratorOpt{single_value: val as i64, iter: Box::new(VintArrayIterator::from_slice(&[]))}
             }
             if data_start_pos_or_data == EMPTY_BUCKET {
-                return VintArrayIteratorOpt::empty();
+                // return VintArrayIterator::from_slice(&[]);
+                return VintArrayIteratorOpt{single_value: -2, iter: Box::new(VintArrayIterator::from_slice(&[]))}
             }
-            // VintArrayIteratorOpt{single_value: -1, iter: Box::new(VintArrayIterator::from_slice(&self.data[data_start_pos.to_usize().unwrap() ..]))}
-            VintArrayIteratorOpt::from_slice(&self.data[data_start_pos.to_usize().unwrap()..])
-            // {single_value: -1, iter: Box::new(VintArrayIterator::from_slice(&self.data[data_start_pos.to_usize().unwrap() ..]))}
+            VintArrayIteratorOpt{single_value: -1, iter: Box::new(VintArrayIterator::from_slice(&self.data[data_start_pos.to_usize().unwrap() ..]))}
         }
     }
 
@@ -295,7 +304,7 @@ impl<T: IndexIdToParentData> IndexIdToParent for IndexIdToMultipleParentIndirect
                 return None;
             }
 
-            let iter = VintArrayIterator::from_slice(&self.data[data_start_pos.to_usize().unwrap()..]);
+            let iter = VintArrayIterator::from_slice(&self.data[data_start_pos.to_usize().unwrap() ..]);
             let decoded_data: Vec<u32> = iter.collect();
             Some(decoded_data.iter().map(|el| num::cast(*el).unwrap()).collect())
         }
@@ -306,44 +315,52 @@ impl<T: IndexIdToParentData> IndexIdToParent for IndexIdToMultipleParentIndirect
 pub struct PointingMMAPFileReader<T: IndexIdToParentData> {
     pub start_pos: Mmap,
     pub data: Mmap,
-    pub indirect_metadata: Mutex<fs::Metadata>,
+    pub size: usize,
     pub ok: PhantomData<T>,
     pub max_value_id: u32,
     pub avg_join_size: f32,
 }
 
+
 impl<T: IndexIdToParentData> PointingMMAPFileReader<T> {
     #[inline]
     fn get_size(&self) -> usize {
-        self.indirect_metadata.lock().len() as usize / 4
+        self.size
     }
 
-    pub fn from_path(path: &str, max_value_id: u32, avg_join_size: f32) -> Result<Self, io::Error> {
-        let start_pos = unsafe { MmapOptions::new().map(&File::open(path.to_string() + ".indirect")?).unwrap() };
-        let data = unsafe { MmapOptions::new().map(&File::open(path.to_string() + ".data")?).unwrap() };
+    pub fn from_path(
+        path: &str,
+        max_value_id: u32,
+        avg_join_size: f32,
+    ) -> Result<Self, io::Error> {
+        let start_pos = unsafe {
+            MmapOptions::new().map(&File::open(path.to_string() + ".indirect")?).unwrap()
+        };
+        let data = unsafe {
+            MmapOptions::new().map(&File::open(path.to_string() + ".data")?).unwrap()
+        };
         Ok(PointingMMAPFileReader {
             start_pos,
             data,
-            indirect_metadata: Mutex::new(File::open(path.to_string() + ".indirect")?.metadata()?),
+            size: File::open(path.to_string() + ".indirect")?.metadata()?.len() as usize / 4,
             ok: PhantomData,
             max_value_id,
             avg_join_size,
         })
     }
-    pub fn new(
+    pub fn new( //TODO REMOVE METHOD
         start_pos: &fs::File,
         data: &fs::File,
-        indirect_metadata: fs::Metadata,
-        _data_metadata: &fs::Metadata,
         max_value_id: u32,
         avg_join_size: f32,
     ) -> Self {
+        let size = start_pos.metadata().unwrap().len() as usize / 4;
         let start_pos = unsafe { MmapOptions::new().map(&start_pos).unwrap() };
         let data = unsafe { MmapOptions::new().map(&data).unwrap() };
         PointingMMAPFileReader {
             start_pos,
             data,
-            indirect_metadata: Mutex::new(indirect_metadata),
+            size: size,
             ok: PhantomData,
             max_value_id,
             avg_join_size,
@@ -366,10 +383,7 @@ impl<T: IndexIdToParentData> IndexIdToParent for PointingMMAPFileReader<T> {
 
     fn get_values_iter(&self, id: u64) -> VintArrayIteratorOpt {
         if id >= self.get_size() as u64 {
-            VintArrayIteratorOpt {
-                single_value: -2,
-                iter: Box::new(VintArrayIterator::from_slice(&[])),
-            }
+            VintArrayIteratorOpt{single_value: -2, iter: Box::new(VintArrayIterator::from_slice(&[]))}
         } else {
             // let positions = &self.start_pos[(id * 2) as usize..=((id * 2) as usize + 1)];
             let start_index = id as usize * 4;
@@ -379,24 +393,16 @@ impl<T: IndexIdToParentData> IndexIdToParent for PointingMMAPFileReader<T> {
             if let Some(val) = get_encoded(data_start_pos_or_data) {
                 // return Some(vec![num::cast(val).unwrap()]);
                 // return VintArrayIterator::from_slice(&[5]);
-                return VintArrayIteratorOpt {
-                    single_value: val as i64,
-                    iter: Box::new(VintArrayIterator::from_slice(&[])),
-                };
+                return VintArrayIteratorOpt{single_value: val as i64, iter: Box::new(VintArrayIterator::from_slice(&[]))}
             }
             if data_start_pos_or_data == EMPTY_BUCKET {
                 // return VintArrayIterator::from_slice(&[]);
-                return VintArrayIteratorOpt {
-                    single_value: -2,
-                    iter: Box::new(VintArrayIterator::from_slice(&[])),
-                };
+                return VintArrayIteratorOpt{single_value: -2, iter: Box::new(VintArrayIterator::from_slice(&[]))}
             }
-            VintArrayIteratorOpt {
-                single_value: -1,
-                iter: Box::new(VintArrayIterator::from_slice(&self.data[data_start_pos.to_usize().unwrap()..])),
-            }
+            VintArrayIteratorOpt{single_value: -1, iter: Box::new(VintArrayIterator::from_slice(&self.data[data_start_pos.to_usize().unwrap() ..]))}
         }
     }
+
 
     default fn get_values(&self, id: u64) -> Option<Vec<T>> {
         get_u32_values_from_pointing_mmap_file_vint(
@@ -429,6 +435,7 @@ fn get_u32_values_from_pointing_mmap_file_vint(id: u64, size: usize, start_pos: 
         let decoded_data: Vec<u32> = iter.collect();
         Some(decoded_data)
     }
+
 }
 
 fn get_encoded(mut val: u32) -> Option<u32> {
@@ -441,14 +448,15 @@ fn get_encoded(mut val: u32) -> Option<u32> {
     }
 }
 
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use persistence_data::*;
     use std::fs::File;
 
-    fn get_test_data_1_to_n_ind(ind_path: String, data_path: String) -> IndexIdToMultipleParentIndirectFlushingInOrderVint {
-        let mut store = IndexIdToMultipleParentIndirectFlushingInOrderVint::new(ind_path, data_path);
+    fn get_test_data_1_to_n_ind(ind_path:String, data_path:String) -> IndexIdToMultipleParentIndirectFlushingInOrderVint {
+        let mut store = IndexIdToMultipleParentIndirectFlushingInOrderVint::new(ind_path, data_path, u32::MAX);
         store.add(0, vec![5, 6]).unwrap();
         store.add(1, vec![9]).unwrap();
         store.add(2, vec![9]).unwrap();
@@ -475,7 +483,8 @@ mod tests {
         let map = store.count_values_for_ids(&[0, 1, 2, 3, 4, 5], None);
         assert_eq!(map.get(&5).unwrap(), &1);
         assert_eq!(map.get(&9).unwrap(), &3);
-
+    }
+    fn check_test_data_1_to_n_iter(store: &IndexIdToParent<Output = u32>) {
         let empty_vec: Vec<u32> = vec![];
         assert_eq!(store.get_keys(), vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
         assert_eq!(store.get_values_iter(0).collect::<Vec<u32>>(), vec![5, 6]);
@@ -507,18 +516,15 @@ mod tests {
 
             let start_pos = File::open(&indirect_path).unwrap();
             let data = File::open(&data_path).unwrap();
-            let indirect_metadata = fs::metadata(&indirect_path).unwrap();
-            let data_metadata = fs::metadata(&data_path).unwrap();
 
             let store = PointingMMAPFileReader::new(
                 &start_pos,
                 &data,
-                indirect_metadata,
-                &data_metadata,
                 store.max_value_id,
                 calc_avg_join_size(store.num_values, store.num_ids),
             );
             check_test_data_1_to_n(&store);
+            check_test_data_1_to_n_iter(&store);
         }
 
         #[test]
@@ -528,7 +534,11 @@ mod tests {
             let data_path = dir.path().join("data").to_str().unwrap().to_string();
             let store = get_test_data_1_to_n_ind("indirect_path".to_string(), "data_path".to_string()).into_im_store();
 
-            let mut ind = IndexIdToMultipleParentIndirectFlushingInOrderVint::new(indirect_path.to_string(), data_path.to_string());
+            let mut ind = IndexIdToMultipleParentIndirectFlushingInOrderVint::new(
+                indirect_path.to_string(),
+                data_path.to_string(),
+                u32::MAX
+            );
 
             for key in store.get_keys() {
                 if let Some(vals) = store.get_values(key.into()) {
@@ -536,29 +546,30 @@ mod tests {
                     ind.flush().unwrap();
                 }
             }
+            ind.flush().unwrap();
 
             let start_pos = File::open(&indirect_path).unwrap();
             let data = File::open(&data_path).unwrap();
-            let indirect_metadata = fs::metadata(&indirect_path).unwrap();
-            let data_metadata = fs::metadata(&data_path).unwrap();
 
             let store = PointingMMAPFileReader::new(
                 &start_pos,
                 &data,
-                indirect_metadata,
-                &data_metadata,
                 ind.max_value_id,
                 calc_avg_join_size(ind.num_values, ind.num_ids),
             );
             check_test_data_1_to_n(&store);
+            check_test_data_1_to_n_iter(&store);
         }
+
 
         #[test]
         fn test_pointing_array_index_id_to_multiple_parent_indirect() {
             let store = get_test_data_1_to_n_ind("test_ind".to_string(), "test_data".to_string());
             let store = store.into_im_store();
             check_test_data_1_to_n(&store);
+            check_test_data_1_to_n_iter(&store);
         }
+
 
     }
 
