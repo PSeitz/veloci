@@ -183,18 +183,11 @@ pub fn decode_bit_packed_val<T: IndexIdToParentData>(data: &[u8], bytes_required
         unsafe {
             copy_nonoverlapping(data.as_ptr().add(bit_pos_start), &mut out as *mut T as *mut u8, bytes_required as usize);
         }
-<<<<<<< HEAD
-        if out == T::zero() {
-            return None;
-        }
-        return Some(out - T::one());
-=======
         if out == T::zero(){ // == EMPTY_BUCKET
             None
         }else{
             Some(out - T::one())
         }
->>>>>>> af13fa73a9e489bb0472d152e0898d86c329efbb
     }
 }
 
