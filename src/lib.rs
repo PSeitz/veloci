@@ -13,6 +13,7 @@
 #![cfg_attr(feature = "unstable", feature(alloc, heap_api, repr_simd))]
 #![cfg_attr(feature = "flame_it", feature(plugin, custom_attribute))]
 #![cfg_attr(feature = "flame_it", plugin(flamer))]
+#![feature(core_intrinsics)]
 
 extern crate crossbeam_channel;
 extern crate crossbeam_utils;
@@ -21,6 +22,9 @@ extern crate crossbeam_utils;
 extern crate flame;
 
 extern crate memmap;
+
+#[cfg(feature = "enable_cpuprofiler")]
+extern crate cpuprofiler;
 
 #[macro_use]
 extern crate serde_derive;
@@ -97,6 +101,7 @@ extern crate lru_cache;
 
 #[macro_use]
 pub mod util;
+mod profiler;
 #[macro_use]
 pub mod type_info;
 pub mod create;

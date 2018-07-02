@@ -13,6 +13,7 @@ use persistence::*;
 pub(crate) use persistence_data_indirect::*;
 
 use facet::*;
+use profiler;
 use num;
 
 use type_info::TypeInfo;
@@ -21,8 +22,8 @@ use fnv::FnvHashMap;
 use memmap::Mmap;
 use memmap::MmapOptions;
 
-impl_type_info_single_templ!(IndexIdToOneParent);
-impl_type_info_single_templ!(IndexIdToOneParentPacked);
+// impl_type_info_dual_templ!(IndexIdToOneParent);
+// impl_type_info_single_templ!(IndexIdToOneParentPacked);
 // impl_type_info_single_templ!(ParallelArrays);
 impl_type_info_single_templ!(SingleArrayMMAP);
 impl_type_info_single_templ!(SingleArrayMMAPPacked);
@@ -42,7 +43,7 @@ impl IndexIdToOneParentFlushing {
     pub fn new(path: String, max_value_id: u32) -> IndexIdToOneParentFlushing {
         IndexIdToOneParentFlushing { path, max_value_id, ..Default::default() }
     }
-    pub fn into_im_store(self) -> IndexIdToOneParent<u32> {
+    pub fn into_im_store(self) -> IndexIdToOneParent<u32, u32> {
         let mut store = IndexIdToOneParent::default();
         store.avg_join_size = calc_avg_join_size(self.num_values, self.cache.len() as u32);
         store.data = self.cache;
@@ -153,7 +154,26 @@ pub fn encode_vals<O: std::io::Write>(vals: &[u32], bytes_required:BytesRequired
 use std::ptr::copy_nonoverlapping;
 
 
+// // pub fn decode_bit_packed_val(val: &[u8], num_bits: u8, index: usize) -> u32 {
+// #[inline]
+// pub fn decode_bit_packed_val<T: IndexIdToParentData>(data: &[u8], bytes_required: BytesRequired, index: usize) -> Option<T> {
+//     let bit_pos_start = index * bytes_required as usize;
+//     if bit_pos_start >= data.len() {
+//         None
+//     }else{
+//         let mut out = T::zero();
+//         unsafe {
+//             copy_nonoverlapping(data.as_ptr().add(bit_pos_start), &mut out as *mut T as *mut u8, bytes_required as usize);
+//         }
+//         if out == T::zero() {
+//             return None;
+//         }
+//         return Some(out - T::one());
+//     }
+// }
+
 // pub fn decode_bit_packed_val(val: &[u8], num_bits: u8, index: usize) -> u32 {
+#[inline]
 pub fn decode_bit_packed_val<T: IndexIdToParentData>(data: &[u8], bytes_required: BytesRequired, index: usize) -> Option<T> {
     let bit_pos_start = index * bytes_required as usize;
     if bit_pos_start >= data.len() {
@@ -163,8 +183,25 @@ pub fn decode_bit_packed_val<T: IndexIdToParentData>(data: &[u8], bytes_required
         unsafe {
             copy_nonoverlapping(data.as_ptr().add(bit_pos_start), &mut out as *mut T as *mut u8, bytes_required as usize);
         }
-        Some(out - T::one())
+        if out == T::zero() {
+            return None;
+        }
+        return Some(out - T::one());
     }
+}
+
+// pub fn decode_bit_packed_val(val: &[u8], num_bits: u8, index: usize) -> u32 {
+pub fn decode_bit_packed_vals<T: IndexIdToParentData>(data: &[u8], bytes_required: BytesRequired) -> Vec<T> {
+    let mut out:Vec<u8> = vec![];
+    out.resize(data.len() * std::mem::size_of::<T>() / bytes_required as usize, 0);
+    let mut pos = 0;
+    let mut out_pos = 0;
+    while pos < data.len(){
+        out[out_pos .. out_pos + bytes_required as usize].clone_from_slice(&data[pos .. pos + bytes_required as usize]);
+        pos+=bytes_required as usize;
+        out_pos+=std::mem::size_of::<T>();
+    }
+    bytes_to_vec(&out)
 }
 
 #[test]
@@ -195,16 +232,6 @@ fn test_encodsing_and_decoding_bitpacking() {
     assert_eq!(decode_bit_packed_val::<u32>(&bytes, bytes_required, 2), None);
 }
 
-
-#[derive(Debug, HeapSizeOf)]
-pub struct IndexIdToOneParentPacked<T: IndexIdToParentData> {
-    pub data: Vec<u8>,
-    pub max_value_id: u32,
-    pub avg_join_size: f32,
-    pub bytes_required: BytesRequired,
-    pub ok: PhantomData<T>,
-}
-
 #[inline]
 fn count_values_for_ids<F, T: IndexIdToParentData>(ids: &[u32], top: Option<u32>, avg_join_size:f32, max_value_id:u32, get_value: F) -> FnvHashMap<T, usize>
 where
@@ -222,50 +249,21 @@ where
 
 }
 
-impl<T: IndexIdToParentData> IndexIdToParent for IndexIdToOneParentPacked<T> {
-    type Output = T;
-
-    #[inline]
-    fn count_values_for_ids(&self, ids: &[u32], top: Option<u32>) -> FnvHashMap<T, usize> {
-        count_values_for_ids(ids, top, self.avg_join_size, self.max_value_id, |id: u64| self.get_value(id))
-    }
-
-    fn get_keys(&self) -> Vec<T> {
-        (num::cast(0).unwrap()..num::cast(self.data.len()).unwrap()).collect()
-    }
-
-    #[inline]
-    fn get_values_iter(&self, id: u64) -> VintArrayIteratorOpt {
-        if let Some(val) = self.get_value(id) {
-            VintArrayIteratorOpt::from_single_val(num::cast(val).unwrap())
-        } else {
-            VintArrayIteratorOpt::empty()
-        }
-    }
-
-    fn get_value(&self, id: u64) -> Option<T> {
-        decode_bit_packed_val::<T>(&self.data, self.bytes_required, id as usize)
-    }
-
-    #[inline]
-    fn get_values(&self, id: u64) -> Option<Vec<T>> {
-        self.get_value(id).map(|el| vec![el])
-    }
-
-    #[inline]
-    fn get_num_keys(&self) -> usize {
-        self.data.len()
-    }
-}
-
 #[derive(Debug, Default, HeapSizeOf)]
-pub struct IndexIdToOneParent<T: IndexIdToParentData> {
-    pub data: Vec<T>,
+pub struct IndexIdToOneParent<T: IndexIdToParentData, K:IndexIdToParentData> {
+    pub data: Vec<K>,
+    pub ok: PhantomData<T>,
     pub max_value_id: u32,
     pub avg_join_size: f32,
 }
 
-impl<T: IndexIdToParentData> IndexIdToParent for IndexIdToOneParent<T> {
+impl<T: IndexIdToParentData, K:IndexIdToParentData> TypeInfo for IndexIdToOneParent<T, K> {
+    fn type_name(&self) -> String {
+        unsafe { std::intrinsics::type_name::<Self>().to_string() }
+    }
+}
+
+impl<T: IndexIdToParentData, K:IndexIdToParentData> IndexIdToParent for IndexIdToOneParent<T, K> {
     type Output = T;
 
     #[inline]
@@ -293,7 +291,7 @@ impl<T: IndexIdToParentData> IndexIdToParent for IndexIdToOneParent<T> {
                 if val.to_u32().unwrap() == EMPTY_BUCKET {
                     None
                 } else {
-                    Some(*val - T::one())
+                    Some(num::cast(*val - K::one()).unwrap())
                 }
             }
             None => None,
@@ -411,14 +409,17 @@ impl<T: IndexIdToParentData> IndexIdToParent for SingleArrayMMAPPacked<T> {
         self.get_size()
     }
 
+    #[inline]
     default fn get_values(&self, id: u64) -> Option<Vec<T>> {
         self.get_value(id).map(|el| vec![el])
     }
 
+    #[inline]
     default fn get_value(&self, id: u64) -> Option<T> {
         decode_bit_packed_val::<T>(&self.data_file, self.bytes_required, id as usize)
     }
 
+    #[inline]
     fn get_values_iter(&self, id: u64) -> VintArrayIteratorOpt {
         if let Some(val) = self.get_value(id) {
             VintArrayIteratorOpt::from_single_val(num::cast(val).unwrap())

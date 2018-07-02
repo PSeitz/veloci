@@ -181,6 +181,7 @@ where
 {
 }
 
+
 pub trait TokenToAnchorScore: Debug + HeapSizeOf + Sync + Send + type_info::TypeInfo {
     fn get_score_iter(&self, id: u32) -> AnchorScoreIter;
 }
@@ -340,10 +341,11 @@ impl Persistence {
                 let file_path = get_file_path(&self.db, path);
                 self.indices.index_64.insert(
                     path.to_string(),
-                    Box::new(IndexIdToOneParent {
+                    Box::new(IndexIdToOneParent::<u64, u64> {
                         data: load_index_u64(&file_path)?,
                         max_value_id: u32::MAX,
                         avg_join_size: 1.0,
+                        ok: std::marker::PhantomData,
                     }),
                 );
             }
@@ -408,9 +410,10 @@ impl Persistence {
 
                 //Insert dummy index, to seperate between emtpy indexes and nonexisting indexes
                 if el.is_empty {
-                    let store = IndexIdToOneParent {
+                    let store = IndexIdToOneParent::<u32, u32> {
                         data: vec![],
                         max_value_id: 0,
+                        ok: std::marker::PhantomData,
                         avg_join_size: 1.0,
                     };
                     return Ok((el.path.to_string(), Box::new(store) as Box<IndexIdToParent<Output = u32>>));
@@ -443,15 +446,65 @@ impl Persistence {
                             //     avg_join_size: el.avg_join_size,
                             // };
 
-                            let store = IndexIdToOneParentPacked {
-                                data: file_path_to_bytes(&data_direct_path)?,
-                                max_value_id: el.max_value_id,
-                                avg_join_size: el.avg_join_size,
-                                bytes_required: get_bytes_required(el.max_value_id),
-                                ok: std::marker::PhantomData,
-                            };
+                            // let store = IndexIdToOneParentPacked {
+                            //     data: file_path_to_bytes(&data_direct_path)?,
+                            //     max_value_id: el.max_value_id,
+                            //     avg_join_size: el.avg_join_size,
+                            //     bytes_required: get_bytes_required(el.max_value_id),
+                            //     ok: std::marker::PhantomData,
+                            // };
 
-                            Ok((el.path.to_string(), Box::new(store) as Box<IndexIdToParent<Output = u32>>))
+
+                            // if LoadingType::InMemoryUnCompressed == loading_type {
+                                let bytes_required = get_bytes_required(el.max_value_id) as u8;
+                                if bytes_required == 1 {
+                                    let store = IndexIdToOneParent::<u32, u8> {
+                                        data: decode_bit_packed_vals(&file_path_to_bytes(&data_direct_path)?, get_bytes_required(el.max_value_id)),
+                                        max_value_id: el.max_value_id,
+                                        ok: std::marker::PhantomData,
+                                        avg_join_size: el.avg_join_size,
+                                    };
+                                    Ok((el.path.to_string(), Box::new(store) as Box<IndexIdToParent<Output = u32>>))
+                                }
+                                else if bytes_required == 2 {
+                                    let store = IndexIdToOneParent::<u32, u16> {
+                                        data: decode_bit_packed_vals(&file_path_to_bytes(&data_direct_path)?, get_bytes_required(el.max_value_id)),
+                                        max_value_id: el.max_value_id,
+                                        ok: std::marker::PhantomData,
+                                        avg_join_size: el.avg_join_size,
+                                    };
+                                    Ok((el.path.to_string(), Box::new(store) as Box<IndexIdToParent<Output = u32>>))
+                                }
+                                else {
+                                    let store = IndexIdToOneParent::<u32, u32> {
+                                        data: decode_bit_packed_vals(&file_path_to_bytes(&data_direct_path)?, get_bytes_required(el.max_value_id)),
+                                        max_value_id: el.max_value_id,
+                                        ok: std::marker::PhantomData,
+                                        avg_join_size: el.avg_join_size,
+                                    };
+
+                                    Ok((el.path.to_string(), Box::new(store) as Box<IndexIdToParent<Output = u32>>))
+                                }
+                                // let store = IndexIdToOneParent::<u32, u32> {
+                                //     data: decode_bit_packed_vals(&file_path_to_bytes(&data_direct_path)?, get_bytes_required(el.max_value_id)),
+                                //     max_value_id: el.max_value_id,
+                                //     ok: std::marker::PhantomData,
+                                //     avg_join_size: el.avg_join_size,
+                                // };
+
+                                // Ok((el.path.to_string(), Box::new(store) as Box<IndexIdToParent<Output = u32>>))
+                            // }else {
+                            //     let store = IndexIdToOneParentPacked {
+                            //         data: file_path_to_bytes(&data_direct_path)?,
+                            //         max_value_id: el.max_value_id,
+                            //         avg_join_size: el.avg_join_size,
+                            //         bytes_required: get_bytes_required(el.max_value_id),
+                            //         ok: std::marker::PhantomData,
+                            //     };
+                            //     Ok((el.path.to_string(), Box::new(store) as Box<IndexIdToParent<Output = u32>>))
+                            // }
+
+
                         }
                     },
                     LoadingType::Disk => match el.persistence_type {
@@ -996,7 +1049,7 @@ pub(crate) fn file_path_to_bytes<P: AsRef<Path> + std::fmt::Debug>(s1: P) -> Res
 pub(crate) fn file_handle_to_bytes(f: &File) -> Result<Vec<u8>, search::SearchError> {
     let file_size = { f.metadata()?.len() as usize };
     let mut reader = std::io::BufReader::new(f);
-    let mut buffer: Vec<u8> = Vec::with_capacity(file_size);
+    let mut buffer: Vec<u8> = Vec::with_capacity(file_size + 1);
     reader.read_to_end(&mut buffer)?;
     // buffer.shrink_to_fit();
     Ok(buffer)
