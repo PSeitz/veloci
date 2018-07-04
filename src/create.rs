@@ -433,10 +433,11 @@ impl BufferedTextIdToTokenIdsData {
 struct PathData {
     tokens_to_text_id: BufferedIndexWriter,
     token_to_anchor_id_score: BufferedIndexWriter<u32, (u32, u32)>,
+    token_pair_to_anchor: BufferedIndexWriter<(u32, u32), u32 >, // phrase_pair
     text_id_to_token_ids: BufferedTextIdToTokenIdsData,
     text_id_to_parent: BufferedIndexWriter,
 
-    parent_to_text_id: BufferedIndexWriter,
+    parent_to_text_id: BufferedIndexWriter, //Used to recreate objects, keep oder
     text_id_to_anchor: BufferedIndexWriter,
     anchor_to_text_id: Option<BufferedIndexWriter>,
     // boost: Option<Vec<ValIdToValue>>,
@@ -634,8 +635,6 @@ where
             let text_info = all_terms.get(value).expect("did not found term");
 
             data.text_id_to_parent.add(text_info.id, parent_val_id).unwrap(); // TODO Error Handling in closure
-
-            //Used to recreate objects, keep oder
             data.parent_to_text_id.add(parent_val_id, text_info.id).unwrap(); // TODO Error Handling in closure
 
             data.text_id_to_anchor.add(text_info.id, anchor_id).unwrap(); // TODO Error Handling in closure
@@ -645,12 +644,7 @@ where
             if let Some(el) = data.boost.as_mut() {
                 // if options.boost_type == "int" {
                 let my_int = value.parse::<u32>().unwrap_or_else(|_| panic!("Expected an int value but got {:?}", value));
-                el.add(parent_val_id, my_int).unwrap(); // TODO Error Handling in closure
-                                                        // el.push(ValIdToValue {
-                                                        //     valid: parent_val_id,
-                                                        //     value: my_int,
-                                                        // });
-                                                        // } // TODO More cases
+                el.add(parent_val_id, my_int).unwrap();
             }
             trace!("Found id {:?} for {:?}", text_info, value);
 
@@ -664,7 +658,9 @@ where
 
                 let text_ids_to_token_ids_already_stored = data.text_id_to_token_ids.contains(text_info.id);
 
-                tokenizer.get_tokens(value, &mut |token: &str, _is_seperator: bool| {
+                let mut prev_token:Option<u32> = None;
+
+                tokenizer.get_tokens(value, &mut |token: &str, is_seperator: bool| {
                     // if options.stopwords.as_ref().map(|el| el.contains(token)).unwrap_or(false) {
                     //     return; //TODO FIXEME BUG return here also prevents proper recreation of text with tokens
                     // }
@@ -682,6 +678,13 @@ where
                         token_pos: current_token_pos as u32,
                     });
                     current_token_pos += 1;
+
+                    if !is_seperator{
+                        if let Some(prev_token) = prev_token {
+                            data.token_pair_to_anchor.add((prev_token, token_info.id as u32), anchor_id);
+                        }
+                        prev_token = Some(token_info.id as u32);
+                    }
 
                     // phrase
                     // if !prev_phrase_token.is_empty() && !is_seperator {
