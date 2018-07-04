@@ -113,6 +113,7 @@ struct QueryParams {
     operator: Option<String>,
     select: Option<String>,
     why_found: Option<String>,
+    phrase_pairs: Option<String>,
     text_locality: Option<String>,
 }
 
@@ -281,8 +282,9 @@ fn search_get(database: String, params: Result<QueryParams, rocket::Error>) -> R
         levenshtein: params.levenshtein,
         levenshtein_auto_limit: params.levenshtein_auto_limit,
         facetlimit: params.facetlimit,
-        why_found: params.why_found.map(|el| el == "true" || el == "TRUE" || el == "True"),
-        text_locality: params.text_locality.map(|el| el == "true" || el == "TRUE" || el == "True"),
+        why_found: params.why_found.map(|el| el.to_lowercase() == "true"),
+        phrase_pairs: params.phrase_pairs.map(|el| el.to_lowercase() == "true"),
+        text_locality: params.text_locality.map(|el| el.to_lowercase() == "true"),
         facets: facets,
         fields: fields,
         boost_fields: boost_fields,
@@ -337,8 +339,9 @@ fn search_get_shard(database: String, params: QueryParams) -> Result<SearchResul
         levenshtein: params.levenshtein,
         levenshtein_auto_limit: params.levenshtein_auto_limit,
         facetlimit: params.facetlimit,
-        why_found: params.why_found.map(|el| el == "true" || el == "TRUE" || el == "True"),
-        text_locality: params.text_locality.map(|el| el == "true" || el == "TRUE" || el == "True"),
+        why_found: params.why_found.map(|el| el.to_lowercase() == "true"),
+        phrase_pairs: params.phrase_pairs.map(|el| el.to_lowercase() == "true"),
+        text_locality: params.text_locality.map(|el| el.to_lowercase() == "true"),
         facets: facets,
         fields: fields,
         boost_fields: boost_fields,
@@ -390,7 +393,7 @@ fn search_error_to_rocket_error(err: search::SearchError) -> Custom<String> {
         _ => {
             Custom(
                 Status::InternalServerError,
-                "Some error happened".into()
+                format!("SearchError: {:?}", err)
             )
         },
     }

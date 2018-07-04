@@ -1075,10 +1075,6 @@ pub(crate) fn load_index_u64<P: AsRef<Path> + std::fmt::Debug>(s1: P) -> Result<
 //     true
 // }
 
-pub(crate) fn get_file_metadata_handle_complete_path(path: &str) -> Result<fs::Metadata, io::Error> {
-    Ok(fs::metadata(path)?)
-}
-
 pub(crate) fn get_file_handle_complete_path<P: AsRef<Path> + std::fmt::Debug>(path: P) -> Result<File, search::SearchError> {
     Ok(File::open(&path).map_err(|err| search::SearchError::StringError(format!("Could not open {:?} {:?}", path, err)))?)
 }

@@ -1,7 +1,8 @@
 *
-!/src/*
-!/bin/*
-!/json_converter/*
-!/buffered_index_writer/*
-!Cargo.toml
+!**/*.toml
+!src/*.rs
+!src/persistence_score/*.rs
+!bin/*.rs
+!buffered_index_writer/src/*.rs
+!json_converter/src/*.rs
 !index.html

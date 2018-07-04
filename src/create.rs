@@ -217,19 +217,26 @@ fn add_count_text(terms: &mut TermMap, text: &str) {
 }
 
 #[inline]
-fn add_text<T: Tokenizer>(text: &str, terms: &mut TermMap, options: &FulltextIndexOptions, tokenizer: &T) {
+fn add_text<T: Tokenizer>(text: &str, terms: &mut TermMap, options: &FulltextIndexOptions, tokenizer: &T, _prev_phrase_token:&mut Vec<u8>) {
     trace!("text: {:?}", text);
-    if options.stopwords.as_ref().map(|el| el.contains(text)).unwrap_or(false) {
-        return;
-    }
+    // if options.stopwords.as_ref().map(|el| el.contains(text)).unwrap_or(false) {
+    //     return;
+    // }
 
     add_count_text(terms, text);
 
     if options.tokenize && tokenizer.has_tokens(&text) {
-        tokenizer.get_tokens(&text, &mut |token: &str, _is_seperator: bool| {
-            if options.stopwords.as_ref().map(|el| el.contains(token)).unwrap_or(false) {
-                return;
-            }
+        // let mut prev_phrase_token:Vec<u8> = vec![];
+        tokenizer.get_tokens(&text, &mut |token: &str, is_seperator: bool| {
+            // if options.stopwords.as_ref().map(|el| el.contains(token)).unwrap_or(false) {
+            //     return;
+            // }
+            // if !prev_phrase_token.is_empty() && !is_seperator {
+            //     prev_phrase_token.extend(token.as_bytes());
+            //     add_count_text(terms, unsafe { std::str::from_utf8_unchecked(&prev_phrase_token) });
+            // }
+            // prev_phrase_token.clear();
+            // prev_phrase_token.extend(token.as_bytes());
             add_count_text(terms, token);
         });
     }
@@ -255,7 +262,8 @@ fn calculate_and_add_token_score_in_doc(
     tokens_to_anchor_id: &mut Vec<ValIdPairToken>,
     anchor_id: u32,
     _num_tokens_in_text: u32,
-    index: &mut BufferedIndexWriter<(u32, u32)>,
+    index: &mut BufferedIndexWriter<u32, (u32, u32)>,
+    is_phrase: bool,
 ) -> Result<(), io::Error> {
     // Sort by tokenid, token_pos
     tokens_to_anchor_id.sort_unstable_by(|a, b| {
@@ -272,8 +280,10 @@ fn calculate_and_add_token_score_in_doc(
         let best_pos = first.token_pos;
         let num_occurences = first.num_occurences;
 
-        let score = calculate_token_score_for_entry(best_pos, num_occurences, false);
-
+        let mut score = calculate_token_score_for_entry(best_pos, num_occurences, false);
+        if is_phrase{
+            score *= 2;
+        }
         index.add(first.token_or_text_id, (anchor_id, score))?;
     }
     Ok(())
@@ -310,6 +320,8 @@ fn get_allterms_per_path<I: Iterator<Item = Result<serde_json::Value, serde_json
     let tokenizer = SimpleTokenizerCharsIterateGroupTokens {};
     let default_fulltext_options = FulltextIndexOptions::new_with_tokenize();
 
+    let mut prev_phrase_token:Vec<u8> = vec![];
+
     let mut id_holder = json_converter::IDHolder::new();
     {
         let mut cb_text = |_anchor_id: u32, value: &str, path: &str, _parent_val_id: u32| {
@@ -320,7 +332,7 @@ fn get_allterms_per_path<I: Iterator<Item = Result<serde_json::Value, serde_json
 
             let mut terms = get_or_insert_prefer_get(&mut data.terms_in_path as *mut FnvHashMap<_, _>, path, &|| TermMap::default());
 
-            add_text(value, &mut terms, &options, &tokenizer);
+            add_text(value, &mut terms, &options, &tokenizer, &mut prev_phrase_token);
         };
         let mut callback_ids = |_anchor_id: u32, _path: &str, _value_id: u32, _parent_val_id: u32| {};
 
@@ -411,7 +423,7 @@ impl BufferedTextIdToTokenIdsData {
     }
 
     #[inline]
-    fn add_all(&mut self, text_id: u32, token_ids: Vec<u32>) -> Result<(), io::Error> {
+    fn add_all(&mut self, text_id: u32, token_ids: &[u32]) -> Result<(), io::Error> {
         self.flag(text_id);
         self.data.add_all(text_id, token_ids)
     }
@@ -420,7 +432,7 @@ impl BufferedTextIdToTokenIdsData {
 #[derive(Debug, Default)]
 struct PathData {
     tokens_to_text_id: BufferedIndexWriter,
-    token_to_anchor_id_score: BufferedIndexWriter<(u32, u32)>,
+    token_to_anchor_id_score: BufferedIndexWriter<u32, (u32, u32)>,
     text_id_to_token_ids: BufferedTextIdToTokenIdsData,
     text_id_to_parent: BufferedIndexWriter,
 
@@ -439,7 +451,7 @@ fn is_1_to_n(path: &str) -> bool {
 
 // use buffered_index_writer::KeyValue;
 fn stream_iter_to_direct_index(
-    iter: impl Iterator<Item = buffered_index_writer::KeyValue<u32>>,
+    iter: impl Iterator<Item = buffered_index_writer::KeyValue<u32, u32>>,
     target: &mut IndexIdToOneParentFlushing,
 ) -> Result<(), io::Error> {
     for kv in iter {
@@ -468,7 +480,7 @@ fn buffered_index_to_direct_index(db_path: &str, path: String, mut buffered_inde
 
 // use buffered_index_writer::KeyValue;
 fn stream_iter_to_indirect_index(
-    iter: impl Iterator<Item = buffered_index_writer::KeyValue<u32>>,
+    iter: impl Iterator<Item = buffered_index_writer::KeyValue<u32, u32>>,
     target: &mut IndexIdToMultipleParentIndirectFlushingInOrderVint,
     sort_and_dedup: bool,
 ) -> Result<(), io::Error> {
@@ -505,7 +517,7 @@ fn stream_buffered_index_writer_to_indirect_index(
 
 // use buffered_index_writer::KeyValue;
 fn stream_iter_to_anchor_score(
-    iter: impl Iterator<Item = buffered_index_writer::KeyValue<(u32, u32)>>,
+    iter: impl Iterator<Item = buffered_index_writer::KeyValue<u32, (u32, u32)>>,
     target: &mut TokenToAnchorScoreVintFlushing,
 ) -> Result<(), io::Error> {
     // use std::mem::transmute;
@@ -533,7 +545,7 @@ fn stream_iter_to_anchor_score(
 }
 
 fn stream_buffered_index_writer_to_anchor_score(
-    mut index_writer: BufferedIndexWriter<(u32, u32)>,
+    mut index_writer: BufferedIndexWriter<u32, (u32, u32)>,
     target: &mut TokenToAnchorScoreVintFlushing,
 ) -> Result<(), io::Error> {
     // flush_and_kmerge will flush elements to disk, this is unnecessary for small indices, so we check for im
@@ -578,6 +590,12 @@ where
 
     {
         info_time!("build path data");
+
+        let mut tokens_ids = Vec::with_capacity(5);
+        let mut tokens_to_anchor_id = Vec::with_capacity(10);
+        let mut phrase_to_anchor_id = Vec::with_capacity(10);
+        // let mut prev_phrase_token:Vec<u8> = vec![];
+
         let mut cb_text = |anchor_id: u32, value: &str, path: &str, parent_val_id: u32| {
             let data = get_or_insert_prefer_get(&mut path_data as *mut FnvHashMap<_, _>, path, &|| {
                 let boost_info_data = if boost_info_for_path.contains_key(path) {
@@ -598,7 +616,7 @@ where
                     boost: boost_info_data,
                     // parent_id is monotonically increasing, hint buffered index writer, it's already sorted
                     parent_to_text_id: BufferedIndexWriter::new_for_sorted_id_insertion(),
-                    token_to_anchor_id_score: BufferedIndexWriter::<(u32, u32)>::new_unstable_sorted(),
+                    token_to_anchor_id_score: BufferedIndexWriter::<u32, (u32, u32)>::new_unstable_sorted(),
                     ..Default::default()
                 }
             });
@@ -609,9 +627,9 @@ where
                 .and_then(|el| el.options.as_ref())
                 .unwrap_or(&default_fulltext_options);
 
-            if options.stopwords.as_ref().map(|el| el.contains(value)).unwrap_or(false) {
-                return;
-            }
+            // if options.stopwords.as_ref().map(|el| el.contains(value)).unwrap_or(false) {
+            //     return;
+            // }
 
             let text_info = all_terms.get(value).expect("did not found term");
 
@@ -641,19 +659,22 @@ where
             data.token_to_anchor_id_score.add(text_info.id, (anchor_id, score)).unwrap(); // TODO Error Handling in closure
 
             if options.tokenize && tokenizer.has_tokens(value) {
+
                 let mut current_token_pos = 0;
-                let mut tokens_ids = Vec::with_capacity(5);
-                let mut tokens_to_anchor_id = Vec::with_capacity(10);
+
+                let text_ids_to_token_ids_already_stored = data.text_id_to_token_ids.contains(text_info.id);
 
                 tokenizer.get_tokens(value, &mut |token: &str, _is_seperator: bool| {
-                    if options.stopwords.as_ref().map(|el| el.contains(token)).unwrap_or(false) {
-                        return; //TODO FIXEME BUG return here also prevents proper recreation of text with tokens
-                    }
+                    // if options.stopwords.as_ref().map(|el| el.contains(token)).unwrap_or(false) {
+                    //     return; //TODO FIXEME BUG return here also prevents proper recreation of text with tokens
+                    // }
 
                     let token_info = all_terms.get(token).expect("did not found token");
                     trace!("Adding to tokens_ids {:?} : {:?}", token, token_info);
 
-                    tokens_ids.push(token_info.id as u32);
+                    if !text_ids_to_token_ids_already_stored {
+                        tokens_ids.push(token_info.id as u32);
+                    }
                     data.tokens_to_text_id.add(token_info.id, text_info.id).unwrap(); // TODO Error Handling in closure
                     tokens_to_anchor_id.push(ValIdPairToken {
                         token_or_text_id: token_info.id as u32,
@@ -661,14 +682,32 @@ where
                         token_pos: current_token_pos as u32,
                     });
                     current_token_pos += 1;
+
+                    // phrase
+                    // if !prev_phrase_token.is_empty() && !is_seperator {
+                    //     prev_phrase_token.extend(token.as_bytes());
+                    //     let phrase_info = all_terms.get(unsafe { std::str::from_utf8_unchecked(&prev_phrase_token) }).expect("did not found token");
+                    //         tokens_to_anchor_id.push(ValIdPairToken {
+                    //         token_or_text_id: phrase_info.id as u32,
+                    //         num_occurences: phrase_info.num_occurences as u32,
+                    //         token_pos: current_token_pos as u32,
+                    //     });
+                    // }
+                    // prev_phrase_token.clear();
+                    // prev_phrase_token.extend(token.as_bytes());
+
                 });
 
-                if !data.text_id_to_token_ids.contains(text_info.id) {
+                if !text_ids_to_token_ids_already_stored {
                     trace!("Adding for {:?} {:?} token_ids {:?}", value, text_info.id, tokens_ids);
-                    data.text_id_to_token_ids.add_all(text_info.id, tokens_ids).unwrap();
+                    data.text_id_to_token_ids.add_all(text_info.id, &tokens_ids).unwrap();
                 }
 
-                calculate_and_add_token_score_in_doc(&mut tokens_to_anchor_id, anchor_id, current_token_pos, &mut data.token_to_anchor_id_score).unwrap(); // TODO Error Handling in closure
+                calculate_and_add_token_score_in_doc(&mut tokens_to_anchor_id, anchor_id, current_token_pos, &mut data.token_to_anchor_id_score, false).unwrap(); // TODO Error Handling in closure
+                calculate_and_add_token_score_in_doc(&mut phrase_to_anchor_id, anchor_id, current_token_pos, &mut data.token_to_anchor_id_score, true).unwrap(); // TODO Error Handling in closure
+                tokens_to_anchor_id.clear();
+                phrase_to_anchor_id.clear();
+                tokens_ids.clear();
             }
         };
 
@@ -778,7 +817,7 @@ fn buffered_index_to_indirect_index_multiple(
 fn add_anchor_score_flush(
     db_path: &str,
     path: String,
-    buffered_index_data: BufferedIndexWriter<(u32, u32)>,
+    buffered_index_data: BufferedIndexWriter<u32, (u32, u32)>,
     indices: &mut IndicesFromRawData,
 ) -> Result<(), io::Error> {
     let indirect_file_path = util::get_file_path(db_path, &(path.to_string() + ".indirect"));

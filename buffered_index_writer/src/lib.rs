@@ -3,11 +3,15 @@ extern crate memmap;
 extern crate tempfile;
 extern crate byteorder;
 
+use std::fmt::Display;
 use itertools::Itertools;
 use memmap::MmapOptions;
 use memmap::Mmap;
 
 use std::fmt;
+use std::cmp::PartialOrd;
+use std::cmp::Ord;
+use std::default::Default;
 use std::fs::File;
 use std::io;
 use std::iter::FusedIterator;
@@ -36,8 +40,8 @@ impl GetValue for (u32,u32) {
 }
 
 #[derive(Debug, Default, PartialEq, Eq, Clone)]
-pub struct KeyValue<T:GetValue> {
-    pub key: u32,
+pub struct KeyValue<K: PartialOrd + Ord + Default + Copy, T:GetValue> {
+    pub key: K,
     pub value: T,
 }
 
@@ -53,8 +57,8 @@ struct Part {
 /// Order is not guaranteed to be kept the same for same ids -> insert (0, 1)..(0,2)   --> Output could be (0,2),(0,1) with BufferedIndexWriter::default()
 /// stable_sort with add_all fn keeps insertion order
 ///
-pub struct BufferedIndexWriter<T:GetValue = u32> {
-    pub cache: Vec<KeyValue<T>>,
+pub struct BufferedIndexWriter<K:PartialOrd + Ord + Default + Copy = u32, T:GetValue = u32> {
+    pub cache: Vec<KeyValue<K, T>>,
     pub temp_file: Option<File>,
     pub max_value_id: u32,
     pub num_values: u32,
@@ -62,20 +66,20 @@ pub struct BufferedIndexWriter<T:GetValue = u32> {
     stable_sort: bool,
     /// Ids are already sorted inserted, so there is no need to sort them
     ids_are_sorted: bool,
-    last_id: u32,
+    last_id: Option<K>,
     flush_threshold: usize,
     /// written parts offsets in the file
     parts: Vec<Part>,
     temp_file_mmap: Option<Mmap>,
 }
 
-impl<T:GetValue + Default + Clone> Default for BufferedIndexWriter<T> {
-    fn default() -> BufferedIndexWriter<T> {
+impl<K: PartialOrd + Ord + Default + Copy, T:GetValue + Default + Clone + Copy + > Default for BufferedIndexWriter<K, T> {
+    fn default() -> BufferedIndexWriter<K, T> {
         BufferedIndexWriter::new_unstable_sorted()
     }
 }
 
-impl<T:GetValue + Default + Clone> BufferedIndexWriter<T> {
+impl<K: PartialOrd + Ord + Default + Copy, T:GetValue + Default + Clone + Copy> BufferedIndexWriter<K,T> {
     pub fn new_with_opt(stable_sort: bool, ids_are_sorted: bool) -> Self {
         BufferedIndexWriter {
             cache: vec![],
@@ -85,7 +89,7 @@ impl<T:GetValue + Default + Clone> BufferedIndexWriter<T> {
             num_values: 0,
             stable_sort,
             ids_are_sorted,
-            last_id: std::u32::MAX,
+            last_id: None,
             flush_threshold: 4_000_000,
             parts: vec![],
         }
@@ -102,18 +106,18 @@ impl<T:GetValue + Default + Clone> BufferedIndexWriter<T> {
     }
 
     #[inline]
-    pub fn add_all(&mut self, id: u32, values: Vec<T>) -> Result<(), io::Error> {
+    pub fn add_all(&mut self, id: K, values: &[T]) -> Result<(), io::Error> {
         self.num_values += values.len() as u32;
 
         //To ensure ordering we flush only, when ids change
-        let id_has_changed = self.last_id != id;
-        self.last_id = id;
+        let id_has_changed = self.last_id != Some(id);
+        self.last_id = Some(id);
 
         for value in values {
             self.max_value_id = std::cmp::max(value.get_value(), self.max_value_id);
             self.cache.push(KeyValue {
                 key: id,
-                value,
+                value: *value,
             });
         }
 
@@ -124,20 +128,20 @@ impl<T:GetValue + Default + Clone> BufferedIndexWriter<T> {
 
     #[inline]
     pub fn check_flush(&mut self, id_has_changed:bool) -> Result<(), io::Error> {
-        if id_has_changed && self.cache.len() * mem::size_of::<KeyValue<T>>() >= self.flush_threshold {
+        if id_has_changed && self.cache.len() * mem::size_of::<KeyValue<K, T>>() >= self.flush_threshold {
             self.flush()?;
         }
         Ok(())
     }
 
     #[inline]
-    pub fn add(&mut self, id: u32, value: T) -> Result<(), io::Error> {
+    pub fn add(&mut self, id: K, value: T) -> Result<(), io::Error> {
         self.max_value_id = std::cmp::max(value.get_value(), self.max_value_id);
         self.num_values += 1;
 
         //To ensure ordering we flush only, when ids change
-        let id_has_changed = self.last_id != id;
-        self.last_id = id;
+        let id_has_changed = self.last_id != Some(id);
+        self.last_id = Some(id);
 
         self.cache.push(KeyValue {
             key: id,
@@ -168,7 +172,7 @@ impl<T:GetValue + Default + Clone> BufferedIndexWriter<T> {
         use std::slice;
         unsafe {
             let slice =
-                slice::from_raw_parts(self.cache.as_ptr() as *const u8, self.cache.len() * mem::size_of::<KeyValue<T>>());
+                slice::from_raw_parts(self.cache.as_ptr() as *const u8, self.cache.len() * mem::size_of::<KeyValue<K, T>>());
             data_file.write_all(&slice)?;
         }
 
@@ -190,7 +194,7 @@ impl<T:GetValue + Default + Clone> BufferedIndexWriter<T> {
         }
     }
 
-    pub fn multi_iter(&self) -> Result<(Vec<MMapIter<T>>), io::Error> {
+    pub fn multi_iter(&self) -> Result<(Vec<MMapIter<K,T>>), io::Error> {
         let mut vecco = vec![];
 
         // let file = File::open(&self.data_path)?;
@@ -198,11 +202,11 @@ impl<T:GetValue + Default + Clone> BufferedIndexWriter<T> {
             for part in &self.parts {
                 let mmap = unsafe {
                     MmapOptions::new()
-                        .offset(part.offset as usize * mem::size_of::<KeyValue<T>>())
-                        .len(part.len as usize * mem::size_of::<KeyValue<T>>())
+                        .offset(part.offset as usize * mem::size_of::<KeyValue<K,T>>())
+                        .len(part.len as usize * mem::size_of::<KeyValue<K,T>>())
                         .map(&file)?
                 };
-                vecco.push(MMapIter::<T>::new(mmap));
+                vecco.push(MMapIter::<K, T>::new(mmap));
             }
             Ok(vecco)
 
@@ -241,14 +245,14 @@ impl<T:GetValue + Default + Clone> BufferedIndexWriter<T> {
 
     /// inmemory version for very small indices, where it's inefficient to write and then read from disk - data on disk will be ignored!
     #[inline]
-    pub fn into_iter_inmemory(mut self) -> impl Iterator<Item = KeyValue<T>> {
+    pub fn into_iter_inmemory(mut self) -> impl Iterator<Item = KeyValue<K,T>> {
         self.sort_cache();
         self.cache.into_iter()
     }
 
     /// flushed changes on disk and returns iterator over sorted elements
     #[inline]
-    pub fn flush_and_kmerge(&mut self) -> Result<(impl Iterator<Item = KeyValue<T>>), io::Error> {
+    pub fn flush_and_kmerge(&mut self) -> Result<(impl Iterator<Item = KeyValue<K,T>>), io::Error> {
         self.flush()?;
 
         Ok(self.kmerge())
@@ -256,7 +260,7 @@ impl<T:GetValue + Default + Clone> BufferedIndexWriter<T> {
 
     /// returns iterator over sorted elements
     #[inline]
-    fn kmerge(&self) -> impl Iterator<Item = KeyValue<T>> {
+    fn kmerge(&self) -> impl Iterator<Item = KeyValue<K,T>> {
         let iters = self.multi_iter().unwrap();
         iters.into_iter().kmerge_by(|a, b| (*a).key < (*b).key)
     }
@@ -273,7 +277,7 @@ impl<T:GetValue + Default + Clone> BufferedIndexWriter<T> {
 
 
 
-impl<T:GetValue + Default> fmt::Display for BufferedIndexWriter<T> {
+impl<K: Display + PartialOrd + Ord + Default + Copy, T:GetValue + Default> fmt::Display for BufferedIndexWriter<K, T> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         for el in &self.cache{
             writeln!(f, "{}\t{}", el.key, el.value.get_value())?;
@@ -286,11 +290,11 @@ impl<T:GetValue + Default> fmt::Display for BufferedIndexWriter<T> {
 
 #[inline]
 // Maximum speed, Maximum unsafe
-fn read_pair_very_raw_p<T:GetValue + Default>(p: *const u8) -> KeyValue<T> {
+fn read_pair_very_raw_p<K:PartialOrd + Ord + Default + Copy, T:GetValue + Default>(p: *const u8) -> KeyValue<K,T> {
     // let mut out: (u32, u32) = (0, 0);
-    let mut out: KeyValue<T> = KeyValue::default();
+    let mut out: KeyValue<K, T> = KeyValue::default();
     unsafe {
-        copy_nonoverlapping(p, &mut out as *mut KeyValue<T> as *mut u8, mem::size_of::<KeyValue<T>>());
+        copy_nonoverlapping(p, &mut out as *mut KeyValue<K, T> as *mut u8, mem::size_of::<KeyValue<K, T>>());
     }
     out
 }
@@ -341,46 +345,47 @@ fn read_pair_very_raw_p<T:GetValue + Default>(p: *const u8) -> KeyValue<T> {
 
 
 #[derive(Debug)]
-pub struct MMapIter<T:GetValue> {
+pub struct MMapIter<K: PartialOrd + Ord + Default + Copy, T:GetValue> {
     mmap: memmap::Mmap,
     pos: u32,
     phantom: PhantomData<T>,
+    menace: PhantomData<K>,
 }
 
-impl<T:GetValue> MMapIter<T> {
+impl<K: PartialOrd + Ord + Default + Copy,T:GetValue> MMapIter<K,T> {
     fn new(mmap: memmap::Mmap) -> Self {
-        MMapIter { mmap, pos: 0, phantom:PhantomData }
+        MMapIter { mmap, pos: 0, phantom:PhantomData, menace:PhantomData }
     }
 }
 
-impl<T:GetValue + Default> Iterator for MMapIter<T> {
-    type Item = KeyValue<T>;
+impl<K: PartialOrd + Ord + Default + Copy,T:GetValue + Default> Iterator for MMapIter<K,T> {
+    type Item = KeyValue<K,T>;
 
     #[inline]
-    fn next(&mut self) -> Option<KeyValue<T>> {
+    fn next(&mut self) -> Option<KeyValue<K,T>> {
         if self.mmap.len() <= self.pos as usize {
             return None;
         }
         let pair = read_pair_very_raw_p((&self.mmap[self.pos as usize..]).as_ptr());
-        self.pos += mem::size_of::<KeyValue<T>>() as u32;
+        self.pos += mem::size_of::<KeyValue<K,T>>() as u32;
         Some(pair)
     }
     #[inline]
     fn size_hint(&self) -> (usize, Option<usize>) {
-        let remaining_els = (self.mmap.len() as u32 - self.pos) / mem::size_of::<KeyValue<T>>() as u32;
+        let remaining_els = (self.mmap.len() as u32 - self.pos) / mem::size_of::<KeyValue<K,T>>() as u32;
         (remaining_els as usize, Some(remaining_els as usize))
     }
 }
 
-impl<T:GetValue + Default>  ExactSizeIterator for MMapIter<T> {
+impl<K: PartialOrd + Ord + Default + Copy,T:GetValue + Default>  ExactSizeIterator for MMapIter<K,T> {
     #[inline]
     fn len(&self) -> usize {
-        let remaining_els = (self.mmap.len() as u32 - self.pos) / mem::size_of::<KeyValue<T>>() as u32;
+        let remaining_els = (self.mmap.len() as u32 - self.pos) / mem::size_of::<KeyValue<K,T>>() as u32;
         remaining_els as usize
     }
 }
 
-impl<T:GetValue + Default>  FusedIterator for MMapIter<T> {}
+impl<K: PartialOrd + Ord + Default + Copy,T:GetValue + Default>  FusedIterator for MMapIter<K,T> {}
 
 #[test]
 fn test_buffered_index_writer() {
@@ -413,14 +418,14 @@ fn test_buffered_index_writer() {
     assert_eq!(mergo.next(), Some(KeyValue{key:4, value:4}));
 
     let mut ind = BufferedIndexWriter::default();
-    ind.add_all(2, vec![2, 2000]).unwrap();
+    ind.add_all(2, &vec![2, 2000]).unwrap();
     ind.flush().unwrap();
     let mut iters = ind.multi_iter().unwrap();
     assert_eq!(iters[0].next(), Some(KeyValue{key:2, value:2}));
     assert_eq!(iters[0].next(), Some(KeyValue{key:2, value:2000}));
 
     let mut ind = BufferedIndexWriter::default();
-    ind.add_all(2, vec![2, 2000]).unwrap();
+    ind.add_all(2, &vec![2, 2000]).unwrap();
     let mut iter = ind.into_iter_inmemory();
     assert_eq!(iter.next(), Some(KeyValue{key:2, value:2}));
     assert_eq!(iter.next(), Some(KeyValue{key:2, value:2000}));

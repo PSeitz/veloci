@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::{str, f32};
 
 use regex::Regex;
+use itertools::Itertools;
 
 use persistence::Persistence;
 use search::*;
@@ -68,6 +69,7 @@ pub struct SearchQueryGeneratorParameters {
     pub fields: Option<Vec<String>>,
     pub boost_fields: HashMap<String, f32>,
     pub boost_terms: HashMap<String, f32>,
+    pub phrase_pairs: Option<bool>,
 }
 
 #[cfg_attr(feature = "flame_it", flame)]
@@ -75,7 +77,7 @@ pub fn search_query(persistence: &Persistence, mut opt: SearchQueryGeneratorPara
     // let req = persistence.meta_data.fulltext_indices.key
     opt.facetlimit = opt.facetlimit.or(Some(5));
     info_time!("generating search query");
-    let terms: Vec<String> = if opt.operator.is_none() && opt.search_term.contains(" AND ") {
+    let mut terms: Vec<String> = if opt.operator.is_none() && opt.search_term.contains(" AND ") {
         opt.operator = Some("and".to_string());
 
         let mut s = opt.search_term.to_string();
@@ -89,8 +91,16 @@ pub fn search_query(persistence: &Persistence, mut opt: SearchQueryGeneratorPara
         s.split(' ').map(|el| el.to_string()).collect()
     };
 
+
     // let terms = opt.search_term.split(" ").map(|el|el.to_string()).collect::<Vec<&str>>();
     let op = opt.operator.as_ref().map(|op| op.to_lowercase()).unwrap_or_else(|| "or".to_string());
+
+    // Add phrase pairs
+    if opt.phrase_pairs.unwrap_or(false) && op == "or".to_string() && terms.len() >= 2 {
+        for (term_a, term_b) in terms.clone().iter().tuple_windows() {
+            terms.push(term_a.to_string()+term_b);
+        }
+    }
 
     let facets_req: Option<Vec<FacetRequest>> = opt.facets.as_ref().map(|facets_fields| {
         facets_fields

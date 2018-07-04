@@ -1,15 +1,10 @@
 FROM rustlang/rust:nightly
 
 WORKDIR .
-COPY src src
-COPY bin bin
-COPY Cargo.toml .
-COPY index.html .
-COPY json_converter json_converter
-COPY buffered_index_writer buffered_index_writer
+COPY / /
 #COPY jmdict jmdict
 
-RUN ls -al
+RUN ls -al src
 
 RUN apt-get update
 RUN apt-get install -y numactl
