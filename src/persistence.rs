@@ -115,20 +115,21 @@ pub static VALUE_OFFSET: u32 = 1; // because 0 is reserved for EMPTY_BUCKET
 pub struct PersistenceIndices {
     pub key_value_stores: HashMap<String, Box<IndexIdToParent<Output = u32>>>,
     pub token_to_anchor_to_score: HashMap<String, Box<TokenToAnchorScore>>,
+    pub phrase_pair_to_anchor: HashMap<String, Box<PhrasePairToAnchor<Input = (u32, u32)>>>,
     pub boost_valueid_to_value: HashMap<String, Box<IndexIdToParent<Output = u32>>>,
     index_64: HashMap<String, Box<IndexIdToParent<Output = u64>>>,
     pub fst: HashMap<String, Map>,
 }
 
-impl PersistenceIndices {
-    fn merge(&mut self, other: PersistenceIndices) {
-        self.key_value_stores.extend(other.key_value_stores);
-        self.token_to_anchor_to_score.extend(other.token_to_anchor_to_score);
-        self.boost_valueid_to_value.extend(other.boost_valueid_to_value);
-        self.index_64.extend(other.index_64);
-        self.fst.extend(other.fst);
-    }
-}
+// impl PersistenceIndices {
+//     fn merge(&mut self, other: PersistenceIndices) {
+//         self.key_value_stores.extend(other.key_value_stores);
+//         self.token_to_anchor_to_score.extend(other.token_to_anchor_to_score);
+//         self.boost_valueid_to_value.extend(other.boost_valueid_to_value);
+//         self.index_64.extend(other.index_64);
+//         self.fst.extend(other.fst);
+//     }
+// }
 
 // #[derive(Debug)]
 // enum IndexVariants {
@@ -246,8 +247,9 @@ pub trait TokenToAnchorScore: Debug + HeapSizeOf + Sync + Send + type_info::Type
     fn get_score_iter(&self, id: u32) -> AnchorScoreIter;
 }
 
-pub trait PhrasePairToAnchor: Debug + HeapSizeOf + Sync + Send + type_info::TypeInfo {
-    fn get_values(&self, id: (u32, u32)) -> Option<Vec<u32>>;
+pub trait PhrasePairToAnchor: Debug + 'static + Sync + Send{
+    type Input: Debug;
+    fn get_values(&self, id: Self::Input) -> Option<Vec<u32>>;
 }
 
 #[derive(Debug, Clone)]
@@ -439,6 +441,15 @@ impl Persistence {
             match el.index_category {
 
                 IndexCategory::PhraseIndex => {
+                    // let store: Box<PhrasePairToAnchor<Input = (u32, u32)>> = match loading_type {
+                    //     LoadingType::Disk => {
+                    //         Box::new(IndexIdToMultipleParentIndirectBinarySearchMMAP::from_path(&get_file_path(&self.db, &el.path), el.metadata)?)
+                    //     }
+                    //     LoadingType::InMemoryUnCompressed | LoadingType::InMemory => {
+                    //         Box::new(IndexIdToMultipleParentIndirectBinarySearchMMAP::from_path(&get_file_path(&self.db, &el.path), el.metadata)?)
+                    //     }
+                    // };
+                    // self.indices.phrase_pair_to_anchor.insert(el.path.to_string(), store);
                 }
                 IndexCategory::AnchorScore => {
                     let store: Box<TokenToAnchorScore> = match loading_type {

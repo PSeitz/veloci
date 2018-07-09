@@ -143,7 +143,7 @@ pub struct IndexIdToMultipleParentIndirectBinarySearchMMAP<T> {
     pub metadata: IndexMetaData,
     pub size: usize,
 }
-impl<T: IndexIdToParentData> HeapSizeOf for IndexIdToMultipleParentIndirectBinarySearchMMAP<T> {
+impl<T: Ord + Copy + Default + std::fmt::Debug> HeapSizeOf for IndexIdToMultipleParentIndirectBinarySearchMMAP<T> {
     fn heap_size_of_children(&self) -> usize {
         0
     }
@@ -200,9 +200,12 @@ impl<T: Ord + Copy + Default + std::fmt::Debug> IndexIdToMultipleParentIndirectB
                 None
             }
     }
+}
 
+impl<T: 'static + Ord + Copy + Default + std::fmt::Debug + Sync + Send> PhrasePairToAnchor for IndexIdToMultipleParentIndirectBinarySearchMMAP<T> {
+    type Input=T;
     #[inline]
-    pub fn get_values(&self, id: T) -> Option<Vec<u32>> {
+    fn get_values(&self, id: Self::Input) -> Option<Vec<u32>>{
         let hit = self.binary_search(id);
         hit.map(|el|{
             let data_pos = el.1;
