@@ -1,10 +1,10 @@
 use fnv::FnvHashMap;
 use itertools::Itertools;
 use num;
-use std;
 use persistence::*;
 use search::*;
 use search_field::*;
+use std;
 use std::cmp::Ordering;
 use util;
 
@@ -94,21 +94,6 @@ pub(crate) trait AggregationCollector<T: IndexIdToParentData> {
     fn to_map(self: Box<Self>, top: Option<u32>) -> FnvHashMap<T, usize>;
 }
 
-// pub(crate) fn get_collector<T: 'static + IndexIdToParentData>(num_ids: u32, avg_join_size: f32, max_value_id: u32) -> Box<AggregationCollector<T>> {
-//     let num_inserts = (num_ids as f32 * avg_join_size) as u32;
-//     let vec_len = max_value_id + 1;
-
-//     let prefer_vec = num_inserts * 20 > vec_len;
-//     debug!("prefer_vec {} {}>{}", prefer_vec, num_inserts * 20, vec_len);
-
-//     if prefer_vec {
-//         let mut dat = vec![];
-//         dat.resize(vec_len as usize, T::zero());
-//         Box::new(dat)
-//     } else {
-//         Box::new(FnvHashMap::default())
-//     }
-// }
 
 pub(crate) fn should_prefer_vec(num_ids: u32, avg_join_size: f32, max_value_id: u32) -> bool {
     let num_inserts = (num_ids as f32 * avg_join_size) as u32;
@@ -119,26 +104,7 @@ pub(crate) fn should_prefer_vec(num_ids: u32, avg_join_size: f32, max_value_id: 
     prefer_vec
 }
 
-// pub(crate) fn get_collector_2<T: 'static + IndexIdToParentData, O:AggregationCollector<T> >(num_ids: u32, avg_join_size: f32, max_value_id: u32) -> impl AggregationCollector<T> {
-//     let num_inserts = (num_ids as f32 * avg_join_size) as u32;
-//     let vec_len = max_value_id + 1;
-
-//     let prefer_vec = num_inserts * 20 > vec_len;
-//     debug!("prefer_vec {} {}>{}", prefer_vec, num_inserts * 20, vec_len);
-
-//     if prefer_vec {
-//         let mut dat = vec![];
-//         dat.resize(vec_len as usize, T::zero());
-//         dat
-//     } else {
-//         FnvHashMap::default()
-//     }
-// }
-
-fn get_top_n_sort_from_iter<T: num::Zero + std::cmp::PartialOrd + Copy + std::fmt::Debug, K: Copy, I: Iterator<Item = (K, T)>>(
-    iter: I,
-    top: usize,
-) -> Vec<(K, T)> {
+fn get_top_n_sort_from_iter<T: num::Zero + std::cmp::PartialOrd + Copy + std::fmt::Debug, K: Copy, I: Iterator<Item = (K, T)>>(iter: I, top: usize) -> Vec<(K, T)> {
     let mut top_n: Vec<(K, T)> = vec![];
 
     let mut current_worst = T::zero();
@@ -165,11 +131,11 @@ impl<T: IndexIdToParentData> AggregationCollector<T> for Vec<T> {
         debug_time!("aggregation vec to_map");
 
         if let Some(top) = top {
-            get_top_n_sort_from_iter(self.iter().enumerate().filter(|el| *el.1 != T::zero()).map(|el| (el.0, *el.1)), top as usize,)
+            get_top_n_sort_from_iter(self.iter().enumerate().filter(|el| *el.1 != T::zero()).map(|el| (el.0, *el.1)), top as usize)
                 .into_iter()
                 .map(|el| (num::cast(el.0).unwrap(), num::cast(el.1).unwrap()))
                 .collect()
-        }else{
+        } else {
             let mut groups: Vec<(u32, T)> = self.iter().enumerate().filter(|el| *el.1 != T::zero()).map(|el| (el.0 as u32, *el.1)).collect();
             groups.sort_by(|a, b| b.1.cmp(&a.1));
             groups.into_iter().map(|el| (num::cast(el.0).unwrap(), num::cast(el.1).unwrap())).collect()

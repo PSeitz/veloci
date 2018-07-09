@@ -11,9 +11,9 @@ use persistence::Persistence;
 use search;
 use search::*;
 use std::cmp;
-use std::marker;
 use std::cmp::Ordering;
 use std::iter::FusedIterator;
+use std::marker;
 use str;
 use util;
 use util::concat;
@@ -70,7 +70,7 @@ fn bench_search_field_iterator(b: &mut test::Bencher) {
     let mut res = SearchFieldResult::default();
     res.hits_vec = (0..6_000_000).map(|el| search::Hit::new(el, 1.0)).collect();
     b.iter(|| {
-        let iter = res.iter(0,1);
+        let iter = res.iter(0, 1);
         iter.last().unwrap()
     })
 }
@@ -238,8 +238,7 @@ fn get_text_score_id_from_result(suggest_text: bool, results: &[SearchFieldResul
 }
 pub fn suggest_multi(persistence: &Persistence, req: Request) -> Result<SuggestFieldResult, SearchError> {
     info_time!("suggest time");
-    let search_parts: Vec<RequestSearchPart> = req.suggest
-        .ok_or_else(|| SearchError::StringError("only suggest allowed in suggest function".to_string()))?;
+    let search_parts: Vec<RequestSearchPart> = req.suggest.ok_or_else(|| SearchError::StringError("only suggest allowed in suggest function".to_string()))?;
     // let mut search_results = vec![];
     let top = req.top;
     let skip = req.skip;
@@ -341,11 +340,7 @@ pub fn get_hits_in_field(persistence: &Persistence, options: &RequestSearchPart,
 }
 
 #[cfg_attr(feature = "flame_it", flame)]
-fn get_hits_in_field_one_term(
-    persistence: &Persistence,
-    options: &mut RequestSearchPart,
-    filter: Option<&FnvHashSet<u32>>,
-) -> Result<SearchFieldResult, SearchError> {
+fn get_hits_in_field_one_term(persistence: &Persistence, options: &mut RequestSearchPart, filter: Option<&FnvHashSet<u32>>) -> Result<SearchFieldResult, SearchError> {
     debug_time!("{} get_hits_in_field", &options.path);
 
     let mut result = get_term_ids_in_field(persistence, options)?;
@@ -422,9 +417,7 @@ fn get_term_ids_in_field(persistence: &Persistence, options: &mut RequestSearchP
 
                     if !result.hits_vec.is_empty() && result.hits_vec.len() as u32 == 200 + top_n_search {
                         // if !result.hits_vec.is_empty() && (result.hits_vec.len() as u32 % (top_n_search * 5)) == 0 {
-                        result
-                            .hits_vec
-                            .sort_unstable_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(Ordering::Equal));
+                        result.hits_vec.sort_unstable_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(Ordering::Equal));
                         result.hits_vec.truncate(top_n_search as usize);
                         worst_score = result.hits_vec.last().unwrap().score;
                         trace!("new worst {:?}", worst_score);
@@ -457,14 +450,17 @@ fn get_term_ids_in_field(persistence: &Persistence, options: &mut RequestSearchP
             };
 
             get_text_lines(persistence, options, teh_callback)?;
+
         }
+    }
+
+    if !result.hits_vec.is_empty(){
+        info!("{:?}\thits for {:?} \t in {:?}", result.hits_vec.len(), options.terms[0], &options.path);
     }
 
     {
         if limit_result {
-            result
-                .hits_vec
-                .sort_unstable_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(Ordering::Equal));
+            result.hits_vec.sort_unstable_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(Ordering::Equal));
             result.hits_vec.truncate(top_n_search as usize);
             // result.hits = result.hits_vec..into_iter().collect();
         }
@@ -480,9 +476,7 @@ fn get_term_ids_in_field(persistence: &Persistence, options: &mut RequestSearchP
     // Store token_id terms for why_found
     if options.store_term_texts && !result.terms.is_empty() {
         debug!("term_text_in_field {:?}", result.terms.values().cloned().collect::<Vec<_>>());
-        result
-            .term_text_in_field
-            .insert(options.path.to_string(), result.terms.values().cloned().collect());
+        result.term_text_in_field.insert(options.path.to_string(), result.terms.values().cloned().collect());
     }
 
     if options.token_value.is_some() {
@@ -519,12 +513,7 @@ fn resolve_token_to_anchor(
             }
         }
 
-        debug!(
-            "{} found {:?} token in {:?} anchor_ids",
-            &options.path,
-            result.hits_vec.len(),
-            anchor_ids_hits.len()
-        );
+        debug!("{} found {:?} token in {:?} anchor_ids", &options.path, result.hits_vec.len(), anchor_ids_hits.len());
     }
 
     // {
@@ -676,11 +665,7 @@ fn resolve_token_to_anchor(
 
 #[cfg_attr(feature = "flame_it", flame)]
 pub fn get_text_for_id(persistence: &Persistence, path: &str, id: u32) -> String {
-    let map = persistence
-        .indices
-        .fst
-        .get(path)
-        .unwrap_or_else(|| panic!("fst not found loaded in indices {} ", path));
+    let map = persistence.indices.fst.get(path).unwrap_or_else(|| panic!("fst not found loaded in indices {} ", path));
 
     let mut bytes = vec![];
     ord_to_term(map.as_fst(), u64::from(id), &mut bytes);
@@ -699,11 +684,7 @@ pub fn get_text_for_id(persistence: &Persistence, path: &str, id: u32) -> String
 
 #[cfg_attr(feature = "flame_it", flame)]
 pub fn get_id_text_map_for_ids(persistence: &Persistence, path: &str, ids: &[u32]) -> FnvHashMap<u32, String> {
-    let map = persistence
-        .indices
-        .fst
-        .get(path)
-        .unwrap_or_else(|| panic!("fst not found loaded in indices {} ", path));
+    let map = persistence.indices.fst.get(path).unwrap_or_else(|| panic!("fst not found loaded in indices {} ", path));
     ids.iter()
         .map(|id| {
             let mut bytes = vec![];
@@ -743,11 +724,7 @@ pub fn resolve_token_hits(
     options: &RequestSearchPart,
     filter: Option<&FnvHashSet<u32>>,
 ) -> Result<(), search::SearchError> {
-    let has_tokens = persistence
-        .meta_data
-        .fulltext_indices
-        .get(path)
-        .map_or(false, |fulltext_info| fulltext_info.tokenize);
+    let has_tokens = persistence.meta_data.fulltext_indices.get(path).map_or(false, |fulltext_info| fulltext_info.tokenize);
     debug!("has_tokens {:?} {:?} is_fast_field {}", path, has_tokens, options.fast_field);
     if !has_tokens && !options.fast_field {
         return Ok(());
@@ -799,12 +776,7 @@ pub fn resolve_token_hits(
             }
         }
 
-        result.hits_ids = result
-            .hits_ids
-            .iter()
-            .flat_map(|id| token_kvdata.get_values(u64::from(*id)))
-            .flat_map(|el| el)
-            .collect();
+        result.hits_ids = result.hits_ids.iter().flat_map(|id| token_kvdata.get_values(u64::from(*id))).flat_map(|el| el).collect();
     }
 
     debug!("found {:?} token in {:?} texts", result.hits_vec.iter().count(), token_hits.iter().count());

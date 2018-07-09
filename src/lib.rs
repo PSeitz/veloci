@@ -114,6 +114,7 @@ pub mod highlight_field;
 pub mod persistence;
 pub mod persistence_data;
 pub mod persistence_data_indirect;
+pub mod persistence_data_binary_search;
 pub mod persistence_score;
 pub mod query_generator;
 pub mod search;

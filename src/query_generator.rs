@@ -1,8 +1,8 @@
 use std::collections::HashMap;
-use std::{str, f32};
+use std::{f32, str};
 
-use regex::Regex;
 use itertools::Itertools;
+use regex::Regex;
 
 use persistence::Persistence;
 use search::*;
@@ -91,14 +91,13 @@ pub fn search_query(persistence: &Persistence, mut opt: SearchQueryGeneratorPara
         s.split(' ').map(|el| el.to_string()).collect()
     };
 
-
     // let terms = opt.search_term.split(" ").map(|el|el.to_string()).collect::<Vec<&str>>();
     let op = opt.operator.as_ref().map(|op| op.to_lowercase()).unwrap_or_else(|| "or".to_string());
 
     // Add phrase pairs
     if opt.phrase_pairs.unwrap_or(false) && op == "or".to_string() && terms.len() >= 2 {
         for (term_a, term_b) in terms.clone().iter().tuple_windows() {
-            terms.push(term_a.to_string()+term_b);
+            terms.push(term_a.to_string() + term_b);
         }
     }
 
@@ -112,7 +111,8 @@ pub fn search_query(persistence: &Persistence, mut opt: SearchQueryGeneratorPara
             .collect()
     });
 
-    let boost_terms_req: Vec<RequestSearchPart> = opt.boost_terms
+    let boost_terms_req: Vec<RequestSearchPart> = opt
+        .boost_terms
         .iter()
         .flat_map(|(boost_term, boost_value): (&String, &f32)| {
             let mut boost_term = boost_term.to_string();
@@ -142,8 +142,7 @@ pub fn search_query(persistence: &Persistence, mut opt: SearchQueryGeneratorPara
         let requests: Vec<Request> = terms
             .iter()
             .map(|term| {
-                let mut levenshtein_distance = opt.levenshtein
-                    .unwrap_or_else(|| get_default_levenshtein(term, opt.levenshtein_auto_limit.unwrap_or(1)));
+                let mut levenshtein_distance = opt.levenshtein.unwrap_or_else(|| get_default_levenshtein(term, opt.levenshtein_auto_limit.unwrap_or(1)));
                 levenshtein_distance = std::cmp::min(levenshtein_distance, term.chars().count() - 1);
                 let parts = get_all_field_names(&persistence, &opt.fields)
                     .iter()
@@ -185,8 +184,7 @@ pub fn search_query(persistence: &Persistence, mut opt: SearchQueryGeneratorPara
                 let requests: Vec<Request> = terms
                     .iter()
                     .map(|term| {
-                        let levenshtein_distance = opt.levenshtein
-                            .unwrap_or_else(|| get_default_levenshtein(term, opt.levenshtein_auto_limit.unwrap_or(1)));
+                        let levenshtein_distance = opt.levenshtein.unwrap_or_else(|| get_default_levenshtein(term, opt.levenshtein_auto_limit.unwrap_or(1)));
                         let part = RequestSearchPart {
                             path: field_name.to_string(),
                             terms: vec![term.to_string()],

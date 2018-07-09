@@ -12,7 +12,7 @@ use json_converter::IDHolder;
 use serde_json::{Deserializer, Value};
 
 fn criterion_benchmark(c: &mut Criterion) {
-    let long_string: Vec<serde_json::Value> = (0..1000)
+    let json_values: Vec<serde_json::Value> = (0..5)
         .map(|_| {
             json!({
                 "commonness": 3103,
@@ -93,8 +93,16 @@ fn criterion_benchmark(c: &mut Criterion) {
 
     let mut id_holder = IDHolder::new();
 
-    let data = json!(long_string);
-    let data_str = serde_json::to_string(&data).unwrap();
+    // let data = json!(long_string);
+    let mut json_string_line_seperatred = String::new();
+    for val in json_values {
+        json_string_line_seperatred.push_str(&serde_json::to_string(&val).unwrap());
+        json_string_line_seperatred.push_str("\n");
+    }
+
+    // json_values.iter().map(|el|serde_json::to_string(&el).unwrap() + "\n")
+
+    // let data_str = serde_json::to_string(&data).unwrap();
 
     c.bench_function("walk json", move |b| {
         b.iter(|| {
@@ -105,7 +113,9 @@ fn criterion_benchmark(c: &mut Criterion) {
                 // println!("IDS: path {} val_id {} parent_val_id {}",path, val_id, parent_val_id);
             };
 
-            let stream = Deserializer::from_str(&data_str).into_iter::<Value>();
+
+            let stream = json_string_line_seperatred.lines().map(|line| serde_json::from_str(&line));
+            // let stream = Deserializer::from_str(&data_str).into_iter::<Value>();
             for_each_element(stream, &mut id_holder, &mut cb_text, &mut callback_ids);
         })
     });

@@ -10,12 +10,12 @@ extern crate search_lib;
 extern crate serde_json;
 
 use search_lib::create;
+use search_lib::facet;
 use search_lib::persistence;
 use search_lib::query_generator;
 use search_lib::search;
 use search_lib::search_field;
 use search_lib::trace;
-use search_lib::facet;
 use serde_json::Value;
 
 fn search_testo_to_doc(req: Value) -> search::SearchResultWithDoc {
@@ -45,7 +45,7 @@ fn search_testo_to_hitso(requesto: search::Request) -> Result<search::SearchResu
 
 static TEST_FOLDER: &str = "mochaTest";
 lazy_static! {
-    static ref TEST_PERSISTENCE:persistence::Persistence = {
+    static ref TEST_PERSISTENCE: persistence::Persistence = {
         trace::enable_log();
 
         let indices = r#"
@@ -70,18 +70,18 @@ lazy_static! {
 
         let mut persistence_type = persistence::PersistenceType::Transient;
         if let Some(val) = std::env::var_os("PersistenceType") {
-            if val.clone().into_string().unwrap() ==  "Transient"{
+            if val.clone().into_string().unwrap() == "Transient" {
                 persistence_type = persistence::PersistenceType::Transient;
-            }else if val.clone().into_string().unwrap() ==  "Persistent"{
+            } else if val.clone().into_string().unwrap() == "Persistent" {
                 persistence_type = persistence::PersistenceType::Persistent;
-            }else{
+            } else {
                 panic!("env PersistenceType needs to be Transient or Persistent");
             }
         }
 
         let mut pers = persistence::Persistence::create_type(TEST_FOLDER.to_string(), persistence_type.clone()).unwrap();
 
-        let mut out:Vec<u8> = vec![];
+        let mut out: Vec<u8> = vec![];
         search_lib::create::convert_any_json_data_to_line_delimited(data.to_string().as_bytes(), &mut out).unwrap();
         println!("{:?}", create::create_indices_from_str(&mut pers, std::str::from_utf8(&out).unwrap(), indices, None, true));
 
@@ -90,7 +90,6 @@ lazy_static! {
                 "path": "meanings.ger[]"
             });
             create::add_token_values_to_tokens(&mut pers, r#"[{"text": "Begeisterung", "value": 20 } ]"#, &config.to_string()).expect("Could not add token values");
-
         }
 
         if persistence_type == persistence::PersistenceType::Persistent {

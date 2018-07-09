@@ -1,5 +1,5 @@
 comment_width = 180
-max_width = 160
+max_width = 180
 error_on_line_overflow = false
 reorder_impl_items = true
 report_todo = "Always"

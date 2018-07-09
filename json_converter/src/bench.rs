@@ -9,24 +9,35 @@ mod bencho {
 
     #[bench]
     fn name(b: &mut Bencher) {
-        let long_string: Vec<serde_json::Value> = (0..50000)
+        let data: Vec<serde_json::Value> = (0..20000)
             .map(|_| {
                 json!({
-                "a": 1,
-                "more": ["ok", "nice"],
-                "objects": [{
-                    "stuff": "yii"
-                },{
-                    "stuff": "yaa"
-                }]
-            })
+                    "a": 1,
+                    "commonness": 35,
+                    "ent_seq": "1259290",
+                    "romaji": "Miru",
+                    "text": "みる",
+                    "more": ["ok", "nice"],
+                    "objects": [{
+                        "stuff": "yii"
+                    },{
+                        "stuff": "yaa"
+                    }]
+                })
             })
             .collect();
 
         let mut id_holder = IDHolder::new();
 
-        let data = json!(long_string);
-        let data_str = serde_json::to_string(&data).unwrap();
+        // let data = json!(long_string);
+        // let data_str = serde_json::to_string(&data).unwrap();
+
+                // let data = json!(long_string);
+        let mut json_string_line_seperatred = String::new();
+        for val in data {
+            json_string_line_seperatred.push_str(&serde_json::to_string(&val).unwrap());
+            json_string_line_seperatred.push_str("\n");
+        }
 
         b.iter(|| {
             // let texts = vec![];
@@ -38,7 +49,8 @@ mod bencho {
                 // println!("IDS: path {} val_id {} parent_val_id {}",path, val_id, parent_val_id);
             };
 
-            let stream = Deserializer::from_str(&data_str).into_iter::<Value>();
+            // let stream = Deserializer::from_str(&json_string_line_seperatred).into_iter::<Value>();
+            let stream = json_string_line_seperatred.lines().map(|line| serde_json::from_str(&line));
             for_each_element(stream, &mut id_holder, &mut cb_text, &mut callback_ids);
         })
     }

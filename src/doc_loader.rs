@@ -18,10 +18,7 @@ impl DocLoader {
         let (start, end) = {
             debug!("now loading document offsets for id {:?}", pos);
             let offsets = persistence.get_offsets("data").unwrap();
-            (
-                offsets.get_value(pos as u64).unwrap() as usize,
-                offsets.get_value(pos as u64 + 1).unwrap() as usize,
-            ) // @Temporary array access by get - option
+            (offsets.get_value(pos as u64).unwrap() as usize, offsets.get_value(pos as u64 + 1).unwrap() as usize) // @Temporary array access by get - option
         };
 
         let mut f = persistence.get_file_handle("data")?;

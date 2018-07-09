@@ -41,9 +41,10 @@ pub struct TokenToAnchorScoreVintFlushing {
     pub current_id_offset: u32,
     pub indirect_path: String,
     pub data_path: String,
-    pub avg_join_size: f32,
-    pub num_values: u32,
-    pub num_ids: u32,
+    // pub avg_join_size: f32,
+    // pub num_values: u32,
+    // pub num_ids: u32,
+    pub metadata: IndexMetaData,
 }
 
 fn get_serialized_most_common_encoded(data: &mut [u32]) -> Vec<u8> {
@@ -77,9 +78,7 @@ impl TokenToAnchorScoreVintFlushing {
             current_id_offset: 0,
             indirect_path,
             data_path,
-            avg_join_size: 0.,
-            num_values: 0,
-            num_ids: 0,
+            metadata: IndexMetaData::default(),
         }
     }
 
@@ -91,8 +90,8 @@ impl TokenToAnchorScoreVintFlushing {
             self.ids_cache.resize(id_pos + 1, EMPTY_BUCKET);
         }
 
-        self.num_values += add_data.len() as u32 / 2;
-        self.num_ids += 1;
+        self.metadata.num_values += add_data.len() as u32 / 2;
+        self.metadata.num_ids += 1;
         self.ids_cache[id_pos] = self.current_data_offset + self.data_cache.len() as u32;
 
         self.ids_cache[id_pos] = self.current_data_offset + self.data_cache.len() as u32;
@@ -118,10 +117,7 @@ impl TokenToAnchorScoreVintFlushing {
 
     pub fn into_mmap(self) -> Result<(TokenToAnchorScoreVintMmap), io::Error> {
         //TODO MAX VALUE ID IS NOT SET
-        Ok(TokenToAnchorScoreVintMmap::new(
-            &File::open(&self.indirect_path)?,
-            &File::open(&self.data_path)?,
-        ))
+        Ok(TokenToAnchorScoreVintMmap::from_path(&self.indirect_path, &self.data_path)?)
     }
 
     #[inline]
@@ -138,7 +134,7 @@ impl TokenToAnchorScoreVintFlushing {
         self.data_cache.clear();
         self.ids_cache.clear();
 
-        self.avg_join_size = persistence_data_indirect::calc_avg_join_size(self.num_values, self.num_ids);
+        self.metadata.avg_join_size = persistence_data_indirect::calc_avg_join_size(self.metadata.num_values, self.metadata.num_ids);
 
         Ok(())
     }
@@ -208,14 +204,14 @@ impl TokenToAnchorScore for TokenToAnchorScoreVintIM {
 }
 
 impl TokenToAnchorScoreVintMmap {
-    pub fn new(start_and_end_file: &fs::File, data_file: &fs::File) -> Self {
-        let start_and_end_file = unsafe { MmapOptions::new().map(&start_and_end_file).unwrap() };
-        let data_file = unsafe { MmapOptions::new().map(&data_file).unwrap() };
-        TokenToAnchorScoreVintMmap {
+    pub fn from_path(start_and_end_file: &str, data_file: &str,) -> Result<Self, io::Error> {
+        let start_and_end_file = unsafe { MmapOptions::new().map(&File::open(start_and_end_file)?).unwrap() };
+        let data_file = unsafe { MmapOptions::new().map(&File::open(data_file)?).unwrap() };
+        Ok(TokenToAnchorScoreVintMmap {
             start_pos: start_and_end_file,
             data: data_file,
             max_value_id: 0,
-        }
+        })
     }
 }
 
@@ -247,10 +243,7 @@ fn test_token_to_anchor_score_vint() {
     store.set_scores(1, &mut vec![1, 1]).unwrap();
     let store = store.into_im_store();
     assert_eq!(store.get_score_iter(0).collect::<Vec<_>>(), vec![]);
-    assert_eq!(
-        store.get_score_iter(1).collect::<Vec<_>>(),
-        vec![AnchorScore::new(1, f16::from_f32(1.0))]
-    );
+    assert_eq!(store.get_score_iter(1).collect::<Vec<_>>(), vec![AnchorScore::new(1, f16::from_f32(1.0))]);
     assert_eq!(store.get_score_iter(2).collect::<Vec<_>>(), vec![]);
 
     let mut store = TokenToAnchorScoreVintFlushing::default();
@@ -276,7 +269,7 @@ fn test_token_to_anchor_score_vint() {
 
     let store = store.into_mmap().unwrap();
     assert_eq!(store.get_score_iter(0).collect::<Vec<_>>(), vec![]);
-    assert_eq!(store.get_score_iter(1).collect::<Vec<_>>(), vec![AnchorScore::new(1, f16::from_f32(1.0))] );
+    assert_eq!(store.get_score_iter(1).collect::<Vec<_>>(), vec![AnchorScore::new(1, f16::from_f32(1.0))]);
     assert_eq!(store.get_score_iter(2).collect::<Vec<_>>(), vec![]);
     assert_eq!(
         store.get_score_iter(5).collect::<Vec<_>>(),

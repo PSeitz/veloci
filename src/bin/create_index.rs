@@ -339,8 +339,7 @@ fn create_single_data_index() -> Result<(), io::Error> {
 
     let start = std::time::Instant::now();
 
-    let mut persistence =
-        search_lib::persistence::Persistence::create_type("single_data".to_string(), search_lib::persistence::PersistenceType::Persistent).unwrap();
+    let mut persistence = search_lib::persistence::Persistence::create_type("single_data".to_string(), search_lib::persistence::PersistenceType::Persistent).unwrap();
     search_lib::create::create_indices_from_str(&mut persistence, &lines, JMDICT_INDICES, None, false).unwrap();
 
     let time_in_ms = (start.elapsed().as_secs() as f64 * 1_000.0) + (f64::from(start.elapsed().subsec_nanos()) / 1_000_000_f64);
@@ -536,8 +535,7 @@ fn create_single_data_index_() -> Result<(), io::Error> {
             })
             .collect::<Vec<_>>();
 
-        let mut persistence =
-            search_lib::persistence::Persistence::create_type("single_data".to_string(), search_lib::persistence::PersistenceType::Transient).unwrap();
+        let mut persistence = search_lib::persistence::Persistence::create_type("single_data".to_string(), search_lib::persistence::PersistenceType::Transient).unwrap();
         search_lib::create::create_indices_from_str(&mut persistence, &serde_json::to_string_pretty(&books).unwrap(), indices, None, false).unwrap();
     }
 

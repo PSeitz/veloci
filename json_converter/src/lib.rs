@@ -15,7 +15,7 @@ use std::str;
 
 pub mod bench;
 
-#[inline(always)]
+#[inline]
 pub fn convert_to_string(value: &Value) -> Cow<str> {
     match *value {
         Value::String(ref s) => Cow::from(s.as_str()),
@@ -28,9 +28,9 @@ pub fn convert_to_string(value: &Value) -> Cow<str> {
 
 
 #[inline]
-pub fn for_each_element<F, F2, I: Iterator<Item = Result<serde_json::Value, serde_json::Error>>>(
+pub fn for_each_element<ID: IDProvider, F, F2, I: Iterator<Item = Result<serde_json::Value, serde_json::Error>>>(
     data: I,
-    id_provider: &mut IDProvider,
+    id_provider: &mut ID,
     cb_text: &mut F,
     cb_ids: &mut F2,
 ) where
@@ -47,10 +47,10 @@ pub fn for_each_element<F, F2, I: Iterator<Item = Result<serde_json::Value, serd
 }
 
 
-pub fn for_each_elemento<F, F2>(
+pub fn for_each_elemento<ID: IDProvider, F, F2>(
     data: &Value,
     anchor_id: u32,
-    id_provider: &mut IDProvider,
+    id_provider: &mut ID,
     parent_id: u32,
     mut current_path: &mut String,
     current_el_name: &str,
@@ -92,33 +92,35 @@ pub fn for_each_elemento<F, F2>(
     }
 }
 
+// use std::collections::BTreeMap;
+
 pub trait IDProvider {
     fn get_id(&mut self, path: &str) -> u32;
 }
 
 #[derive(Debug, Clone, Default)]
-pub struct IDHolder {
-    pub ids: FnvHashMap<String, u32>,
-}
+pub struct IDHolder (
+    FnvHashMap<String, u32>,
+);
 
 impl IDProvider for IDHolder {
-    #[inline(always)]
+    #[inline]
     fn get_id(&mut self, path: &str) -> u32 {
         {
-            if let Some(e) = self.ids.get_mut(path) {
+            if let Some(e) = self.0.get_mut(path) {
                 *e += 1;
                 return *e;
             }
         }
 
-        self.ids.insert(path.to_string(), 0);
+        self.0.insert(path.to_string(), 0);
         0
     }
 }
 
 impl IDHolder {
     pub fn new() -> IDHolder {
-        IDHolder { ids: FnvHashMap::default() }
+        IDHolder(FnvHashMap::default() )
     }
 }
 

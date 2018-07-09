@@ -61,13 +61,7 @@ pub fn highlight_text(
 // }
 
 #[cfg_attr(feature = "flame_it", flame)]
-pub fn highlight_document(
-    persistence: &Persistence,
-    path: &str,
-    value_id: u64,
-    token_ids: &[u32],
-    opt: &SnippetInfo,
-) -> Result<Option<String>, search::SearchError> {
+pub fn highlight_document(persistence: &Persistence, path: &str, value_id: u64, token_ids: &[u32], opt: &SnippetInfo) -> Result<Option<String>, search::SearchError> {
     let text_id_to_token_ids = persistence.get_valueid_to_parent(&concat(path, ".text_id_to_token_ids"))?;
     trace_time!("highlight_document id {}", value_id);
 
@@ -159,9 +153,7 @@ pub fn highlight_document(
         })
         .take(opt.max_snippets as usize)
         .intersperse(opt.snippet_connector.to_string())
-        .fold(String::with_capacity(estimated_snippet_size as usize), |snippet, snippet_part| {
-            snippet + &snippet_part
-        });
+        .fold(String::with_capacity(estimated_snippet_size as usize), |snippet, snippet_part| snippet + &snippet_part);
 
     if !token_positions_in_document.is_empty() {
         let first_index = *token_positions_in_document.first().unwrap() as i64;
