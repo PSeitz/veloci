@@ -6,7 +6,6 @@ use vint::vint_encode_most_common::*;
 use itertools::Itertools;
 use search;
 use std;
-use std::fs::File;
 use std::io;
 use std::iter::FusedIterator;
 
@@ -115,7 +114,7 @@ impl TokenToAnchorScoreVintFlushing {
         }
     }
 
-    pub fn into_mmap(self) -> Result<(TokenToAnchorScoreVintMmap), io::Error> {
+    pub fn into_mmap(self) -> Result<(TokenToAnchorScoreVintMmap), search::SearchError> {
         //TODO MAX VALUE ID IS NOT SET
         Ok(TokenToAnchorScoreVintMmap::from_path(&self.indirect_path, &self.data_path)?)
     }
@@ -203,10 +202,11 @@ impl TokenToAnchorScore for TokenToAnchorScoreVintIM {
     }
 }
 
+use util::open_file;
 impl TokenToAnchorScoreVintMmap {
-    pub fn from_path(start_and_end_file: &str, data_file: &str,) -> Result<Self, io::Error> {
-        let start_and_end_file = unsafe { MmapOptions::new().map(&File::open(start_and_end_file)?).unwrap() };
-        let data_file = unsafe { MmapOptions::new().map(&File::open(data_file)?).unwrap() };
+    pub fn from_path(start_and_end_file: &str, data_file: &str,) -> Result<Self, search::SearchError> {
+        let start_and_end_file = unsafe { MmapOptions::new().map(&open_file(start_and_end_file)?).unwrap() };
+        let data_file = unsafe { MmapOptions::new().map(&open_file(data_file)?).unwrap() };
         Ok(TokenToAnchorScoreVintMmap {
             start_pos: start_and_end_file,
             data: data_file,

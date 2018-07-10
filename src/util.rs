@@ -4,6 +4,7 @@ use std::fs::File;
 use std::io;
 use std::io::prelude::*;
 use std::path::Path;
+use search;
 
 pub(crate) fn normalize_text(text: &str) -> String {
     lazy_static! {
@@ -23,6 +24,11 @@ pub(crate) fn normalize_text(text: &str) -> String {
     }
 
     new_str.to_lowercase().trim().to_owned()
+}
+
+
+pub fn open_file<P: AsRef<Path>>(path: P) -> Result<File, search::SearchError> {
+    Ok(File::open(path.as_ref()).map_err(|err| search::SearchError::StringError(format!("Could not open {} {:?}", path.as_ref().to_str().unwrap(), err)))?)
 }
 
 // pub(crate) fn get_bit_at(input: u32, n: u8) -> bool {

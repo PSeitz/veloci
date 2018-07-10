@@ -1,6 +1,5 @@
 use half::f16;
 use persistence::*;
-use std::fs;
 use std::path::Path;
 use type_info::TypeInfo;
 

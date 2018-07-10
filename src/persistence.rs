@@ -9,7 +9,6 @@ use std::time::Duration;
 use std::{self, env, mem, str, u32};
 use vint::vint::VintArrayIterator;
 
-use byteorder::{ByteOrder, LittleEndian};
 use num::cast::ToPrimitive;
 use num::{self, Integer};
 
@@ -22,7 +21,7 @@ use log;
 // use mayda;
 
 use fst::Map;
-use rayon::prelude::*;
+// use rayon::prelude::*;
 
 use prettytable::format;
 use prettytable::Table;
@@ -80,12 +79,12 @@ impl IndexMetaData {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq)]
 pub enum IndexCategory {
     Boost,
     KeyValue,
     AnchorScore,
-    PhraseIndex,
+    Phrase,
     IdList,
 }
 impl Default for IndexCategory {
@@ -114,7 +113,7 @@ pub static VALUE_OFFSET: u32 = 1; // because 0 is reserved for EMPTY_BUCKET
 #[derive(Debug, Default)]
 pub struct PersistenceIndices {
     pub key_value_stores: HashMap<String, Box<IndexIdToParent<Output = u32>>>,
-    pub token_to_anchor_to_score: HashMap<String, Box<TokenToAnchorScore>>,
+    pub token_to_anchor_score: HashMap<String, Box<TokenToAnchorScore>>,
     pub phrase_pair_to_anchor: HashMap<String, Box<PhrasePairToAnchor<Input = (u32, u32)>>>,
     pub boost_valueid_to_value: HashMap<String, Box<IndexIdToParent<Output = u32>>>,
     index_64: HashMap<String, Box<IndexIdToParent<Output = u64>>>,
@@ -124,7 +123,7 @@ pub struct PersistenceIndices {
 // impl PersistenceIndices {
 //     fn merge(&mut self, other: PersistenceIndices) {
 //         self.key_value_stores.extend(other.key_value_stores);
-//         self.token_to_anchor_to_score.extend(other.token_to_anchor_to_score);
+//         self.token_to_anchor_score.extend(other.token_to_anchor_score);
 //         self.boost_valueid_to_value.extend(other.boost_valueid_to_value);
 //         self.index_64.extend(other.index_64);
 //         self.fst.extend(other.fst);
@@ -440,7 +439,7 @@ impl Persistence {
             let loading_type = get_loading_type(el.loading_type)?;
             match el.index_category {
 
-                IndexCategory::PhraseIndex => {
+                IndexCategory::Phrase => {
                     // let store: Box<PhrasePairToAnchor<Input = (u32, u32)>> = match loading_type {
                     //     LoadingType::Disk => {
                     //         Box::new(IndexIdToMultipleParentIndirectBinarySearchMMAP::from_path(&get_file_path(&self.db, &el.path), el.metadata)?)
@@ -462,7 +461,7 @@ impl Persistence {
                             Box::new(store)
                         }
                     };
-                    self.indices.token_to_anchor_to_score.insert(el.path.to_string(), store);
+                    self.indices.token_to_anchor_score.insert(el.path.to_string(), store);
                 },
                 IndexCategory::Boost => {
                     match el.index_type {
@@ -733,10 +732,14 @@ impl Persistence {
         self.indices.key_value_stores.contains_key(path)
     }
 
+    pub fn get_file_path(&self, path: &str) -> String {
+        get_file_path(&self.db, path)
+    }
+
     #[cfg_attr(feature = "flame_it", flame)]
     pub fn get_token_to_anchor(&self, path: &str) -> Result<&TokenToAnchorScore, search::SearchError> {
         let path = path.to_string() + ".to_anchor_id_score";
-        self.indices.token_to_anchor_to_score.get(&path).map(|el| el.as_ref()).ok_or_else(|| {
+        self.indices.token_to_anchor_score.get(&path).map(|el| el.as_ref()).ok_or_else(|| {
             let error = format!("Did not found path in indices {}", path);
             error!("{:?}", error);
             From::from(error)
@@ -898,7 +901,7 @@ impl Persistence {
         store.flush()?;
         Ok(KVStoreMetaData {
             loading_type,
-            index_category: IndexCategory::PhraseIndex,
+            index_category: IndexCategory::Phrase,
             index_type: KVStoreType::IndexIdToMultipleParentIndirect,
             is_1_to_n: true, //TODO FIXME ADD 1:1 Flushing index
             path: path.to_string(),
@@ -971,8 +974,8 @@ impl Persistence {
         );
         info!("indices.boost_valueid_to_value {}", get_readable_size_for_children(&self.indices.boost_valueid_to_value));
         info!(
-            "indices.token_to_anchor_to_score {}",
-            get_readable_size_for_children(&self.indices.token_to_anchor_to_score)
+            "indices.token_to_anchor_score {}",
+            get_readable_size_for_children(&self.indices.token_to_anchor_score)
         );
         info!("indices.fst {}", get_readable_size(self.get_fst_sizes()));
         info!("------");
@@ -980,7 +983,7 @@ impl Persistence {
             + self.indices.key_value_stores.heap_size_of_children()
             + self.indices.index_64.heap_size_of_children()
             + self.indices.boost_valueid_to_value.heap_size_of_children()
-            + self.indices.token_to_anchor_to_score.heap_size_of_children();
+            + self.indices.token_to_anchor_score.heap_size_of_children();
 
         info!("totale size {}", get_readable_size(total_size));
 
@@ -988,7 +991,7 @@ impl Persistence {
         for (k, v) in &self.indices.key_value_stores {
             print_and_size.push((v.heap_size_of_children(), v.type_name(), k));
         }
-        for (k, v) in &self.indices.token_to_anchor_to_score {
+        for (k, v) in &self.indices.token_to_anchor_score {
             print_and_size.push((v.heap_size_of_children(), v.type_name(), k));
         }
         for (k, v) in &self.indices.index_64 {

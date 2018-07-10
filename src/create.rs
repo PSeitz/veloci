@@ -25,6 +25,7 @@ use std::io::BufRead;
 use tokenizer::*;
 use util::*;
 use util::{self, concat};
+use persistence::IndexCategory;
 
 use buffered_index_writer::BufferedIndexWriter;
 use fixedbitset::FixedBitSet;
@@ -227,7 +228,7 @@ fn add_text<T: Tokenizer>(text: &str, terms: &mut TermMap, options: &FulltextInd
 
     if options.tokenize && tokenizer.has_tokens(&text) {
         // let mut prev_phrase_token:Vec<u8> = vec![];
-        tokenizer.get_tokens(&text, &mut |token: &str, is_seperator: bool| {
+        tokenizer.get_tokens(&text, &mut |token: &str, _is_seperator: bool| {
             // if options.stopwords.as_ref().map(|el| el.contains(token)).unwrap_or(false) {
             //     return;
             // }
@@ -793,11 +794,10 @@ fn buffered_index_to_indirect_index_multiple(
     path: String,
     buffered_index_data: BufferedIndexWriter,
     sort_and_dedup: bool,
-) -> Result<IndexIdToMultipleParentIndirectFlushingInOrderVint, io::Error> {
-    let indirect_file_path = util::get_file_path(db_path, &(path.to_string() + ".indirect"));
-    let data_file_path = util::get_file_path(db_path, &(path.to_string() + ".data"));
-
-    let mut store = IndexIdToMultipleParentIndirectFlushingInOrderVint::new(indirect_file_path, data_file_path, buffered_index_data.max_value_id);
+) -> Result<IndexIdToMultipleParentIndirectFlushingInOrderVint, search::SearchError> {
+    // let indirect_file_path = util::get_file_path(db_path, &(path.to_string() + ".indirect"));
+    // let data_file_path = util::get_file_path(db_path, &(path.to_string() + ".data"));
+    let mut store = IndexIdToMultipleParentIndirectFlushingInOrderVint::new(get_file_path(db_path, &path), buffered_index_data.max_value_id);
     stream_buffered_index_writer_to_indirect_index(buffered_index_data, &mut store, sort_and_dedup)?;
     Ok(store)
 }
@@ -814,7 +814,7 @@ fn add_anchor_score_flush(
     let mut store = TokenToAnchorScoreVintFlushing::new(indirect_file_path, data_file_path);
     stream_buffered_index_writer_to_anchor_score(buffered_index_data, &mut store)?;
 
-    indices.anchor_score_indices_flush.push((path, store));
+    indices.push(IndexData{path, index: IndexVariants::TokenToAnchorScore(store), loading_type:LoadingType::Disk, index_category: IndexCategory::AnchorScore });
     Ok(())
 }
 
@@ -864,18 +864,26 @@ fn add_phrase_pair_flush(
     let mut store = IndexIdToMultipleParentIndirectFlushingInOrderVintNoDirectEncode::<(u32, u32)>::new(indirect_file_path, data_file_path, buffered_index_data.max_value_id);
     stream_buffered_index_writer_to_phrase_index(buffered_index_data, &mut store)?;
 
-    indices.phrase_indices_flush.push((path, store, LoadingType::Disk));
+    indices.push(IndexData{path, index: IndexVariants::Phrase(store), loading_type:LoadingType::Disk, index_category: IndexCategory::Phrase});
     Ok(())
 }
 
-#[derive(Debug, Default)]
-struct IndicesFromRawData {
-    phrase_indices_flush: Vec<(String, IndexIdToMultipleParentIndirectFlushingInOrderVintNoDirectEncode<(u32, u32)>, LoadingType)>,
-    direct_indices_flush: Vec<(String, IndexIdToOneParentFlushing, LoadingType)>,
-    indirect_indices_flush: Vec<(String, IndexIdToMultipleParentIndirectFlushingInOrderVint, LoadingType)>,
-    // boost_indices: Vec<(String, IndexIdToOneParent<u32>)>,
-    boost_indices: Vec<(String, IndexIdToMultipleParentIndirectFlushingInOrderVint, LoadingType)>,
-    anchor_score_indices_flush: Vec<(String, TokenToAnchorScoreVintFlushing)>,
+type IndicesFromRawData = Vec<IndexData>;
+
+#[derive(Debug)]
+struct IndexData {
+    path: String,
+    index:IndexVariants,
+    loading_type: LoadingType,
+    index_category: IndexCategory
+}
+
+#[derive(Debug)]
+enum IndexVariants {
+    Phrase(IndexIdToMultipleParentIndirectFlushingInOrderVintNoDirectEncode<(u32, u32)>),
+    SingleValue(IndexIdToOneParentFlushing),
+    MultiValue(IndexIdToMultipleParentIndirectFlushingInOrderVint),
+    TokenToAnchorScore(TokenToAnchorScoreVintFlushing),
 }
 
 fn convert_raw_path_data_to_indices(
@@ -887,7 +895,6 @@ fn convert_raw_path_data_to_indices(
     info_time!("convert_raw_path_data_to_indices");
     let mut indices = IndicesFromRawData::default();
 
-
     let add_index_flush = |
         path: String,
         buffered_index_data: BufferedIndexWriter,
@@ -895,18 +902,18 @@ fn convert_raw_path_data_to_indices(
         sort_and_dedup: bool,
         indices: &mut IndicesFromRawData,
         loading_type: LoadingType,
-    | -> Result<(), io::Error> {
+    | -> Result<(), search::SearchError> {
         if is_always_1_to_1 {
             let store = buffered_index_to_direct_index(db_path, path.to_string(), buffered_index_data)?;
-            indices.direct_indices_flush.push((path, store, loading_type));
+            indices.push(IndexData{path, index: IndexVariants::SingleValue(store), loading_type, index_category: IndexCategory::KeyValue });
         } else {
             let store = buffered_index_to_indirect_index_multiple(db_path, path.to_string(), buffered_index_data, sort_and_dedup)?;
-            indices.indirect_indices_flush.push((path, store, loading_type));
+            indices.push(IndexData{path, index: IndexVariants::MultiValue(store), loading_type, index_category: IndexCategory::KeyValue });
         }
         Ok(())
     };
 
-    let indices_vec: Result<Vec<_>, io::Error> = path_data
+    let indices_res: Result<Vec<_>, search::SearchError> = path_data
         .into_par_iter()
         .map(|(path, data)| {
             let mut indices = IndicesFromRawData::default();
@@ -981,28 +988,21 @@ fn convert_raw_path_data_to_indices(
 
             if let Some(buffered_index_data) = data.boost {
                 let boost_path = concat(&extract_field_name(path), ".boost_valid_to_value");
-                let indirect_file_path = util::get_file_path(&db_path, &(boost_path.to_string() + ".indirect"));
-                let data_file_path = util::get_file_path(&db_path, &(boost_path.to_string() + ".data"));
-
-                let mut store = IndexIdToMultipleParentIndirectFlushingInOrderVint::new(indirect_file_path, data_file_path, buffered_index_data.max_value_id);
+                let mut store = IndexIdToMultipleParentIndirectFlushingInOrderVint::new(util::get_file_path(&db_path, &boost_path), buffered_index_data.max_value_id);
                 stream_buffered_index_writer_to_indirect_index(buffered_index_data, &mut store, false)?;
-                indices.boost_indices.push((boost_path, store, LoadingType::InMemoryUnCompressed));
+                // indices.boost_indices.push((boost_path, store, LoadingType::InMemoryUnCompressed));
+                indices.push(IndexData{path: boost_path.to_string(), index: IndexVariants::MultiValue(store), loading_type: LoadingType::InMemoryUnCompressed, index_category: IndexCategory::Boost });
             }
 
             Ok(indices)
         })
         .collect();
 
-    let indices_vec = indices_vec.unwrap(); //TODO Error handling
-    for mut indice in indices_vec {
-        indices.direct_indices_flush.append(&mut indice.direct_indices_flush);
-        indices.phrase_indices_flush.append(&mut indice.phrase_indices_flush);
-        indices.indirect_indices_flush.append(&mut indice.indirect_indices_flush);
-        indices.boost_indices.append(&mut indice.boost_indices);
-        indices.anchor_score_indices_flush.append(&mut indice.anchor_score_indices_flush);
+    for mut indice in indices_res.unwrap() {  //TODO ERROR HANDLING
+        indices.extend(indice);
     }
 
-    let indices_vec_2: Result<Vec<_>, io::Error> = tuples_to_parent_in_path
+    let indices_res_2: Result<Vec<_>, search::SearchError> = tuples_to_parent_in_path
         .into_par_iter()
         .map(|(path, data)| {
             let mut indices = IndicesFromRawData::default();
@@ -1029,13 +1029,8 @@ fn convert_raw_path_data_to_indices(
         })
         .collect();
 
-    for mut indice in indices_vec_2.unwrap() {
-        //TODO Error handling
-        indices.direct_indices_flush.append(&mut indice.direct_indices_flush);
-        indices.phrase_indices_flush.append(&mut indice.phrase_indices_flush);
-        indices.indirect_indices_flush.append(&mut indice.indirect_indices_flush);
-        indices.boost_indices.append(&mut indice.boost_indices);
-        indices.anchor_score_indices_flush.append(&mut indice.anchor_score_indices_flush);
+    for mut indice in indices_res_2.unwrap() { //TODO ERROR HANDLING
+        indices.extend(indice);
     }
 
     indices
@@ -1137,90 +1132,96 @@ where
     let mut indices = convert_raw_path_data_to_indices(&persistence.db, path_data, tuples_to_parent_in_path, &facet_index);
     if persistence.persistence_type == persistence::PersistenceType::Persistent {
         info_time!("write indices");
-        let mut stores = vec![];
+        // let mut stores = vec![];
         // let mut boost_stores = vec![];
+        for index_data in &mut indices{
+            let mut kv_metadata = persistence::KVStoreMetaData {
+                loading_type: index_data.loading_type,
+                index_category: index_data.index_category,
+                path: index_data.path.to_string(),
+                ..Default::default()
+                // is_empty: store.is_empty(),
+                // index_type: KVStoreType::IndexIdToMultipleParentIndirect,
+                // is_1_to_n: true, //TODO FIXME ADD 1:1 Flushing index
+                // metadata: store.metadata,
+            };
 
-        for ind_index in &mut indices.indirect_indices_flush {
-            stores.push(persistence.flush_indirect_index(&mut ind_index.1, persistence::IndexCategory::KeyValue, &ind_index.0, ind_index.2)?);
+            match &mut index_data.index {
+                IndexVariants::Phrase(store) => {
+                    store.flush()?;
+                    kv_metadata.is_empty = store.is_empty();
+                    kv_metadata.metadata = store.metadata;
+                    kv_metadata.is_1_to_n = true;
+                //     kv_metadata.index_type = KVStoreType::IndexIdToMultipleParentIndirect;
+                },
+                IndexVariants::SingleValue(store) => {
+                    store.flush()?;
+                    kv_metadata.is_empty = store.is_empty();
+                    kv_metadata.metadata = store.metadata;
+                    kv_metadata.is_1_to_n = false;
+                    kv_metadata.index_type = persistence::KVStoreType::IndexIdToOneParent;
+                },
+                IndexVariants::MultiValue(store) => {
+                    store.flush()?;
+                    kv_metadata.is_empty = store.is_empty();
+                    kv_metadata.metadata = store.metadata;
+                    kv_metadata.is_1_to_n = true;
+                    kv_metadata.index_type = persistence::KVStoreType::IndexIdToMultipleParentIndirect;
+                },
+                IndexVariants::TokenToAnchorScore(store) => {
+                    store.flush()?;
+                    kv_metadata.is_empty = false;
+                    kv_metadata.metadata = store.metadata;
+                    kv_metadata.is_1_to_n = false;
+                    // kv_metadata.index_type = KVStoreType::IndexIdToMultipleParentIndirect;
+                },
+            }
+            persistence.meta_data.stores.push(kv_metadata);
         }
-        for direct_index in &mut indices.direct_indices_flush {
-            stores.push(persistence.flush_direct_index(&mut direct_index.1, &direct_index.0, direct_index.2)?);
-        }
-        for index in &mut indices.phrase_indices_flush {
-            stores.push(persistence.flush_phrase_index(&mut index.1, &index.0, index.2)?);
-        }
-        for index in &mut indices.anchor_score_indices_flush {
-            stores.push(persistence.flush_score_index_vint(&mut index.1, &index.0, LoadingType::Disk)?);
-        }
-        for index in &mut indices.boost_indices {
-            let mut voll_meta = persistence.flush_indirect_index(&mut index.1, persistence::IndexCategory::Boost, &index.0, index.2)?;
-            stores.push(voll_meta);
-        }
-        persistence.meta_data.stores.extend(stores);
+
         persistence.write_meta_data()?;
     }
 
     // load the converted indices, without writing them
     if load_persistence {
-        persistence.load_all_id_lists().unwrap(); //TODO Error handling
+        persistence.load_all_id_lists()?;
 
-        for index in indices.indirect_indices_flush {
-            let path = index.0;
-            let index = index.1;
 
-            if index.is_in_memory() {
-                //Move data to IndexIdToMultipleParentIndirect
-                persistence.indices.key_value_stores.insert(path, Box::new(index.into_im_store()));
-            } else {
-                //load data with MMap
-                let store = PointingMMAPFileReader::from_path(&get_file_path(&persistence.db, &path), index.metadata)?;
-
-                persistence.indices.key_value_stores.insert(path, Box::new(store));
-            }
-        }
-        for index in indices.direct_indices_flush {
-            let path = index.0;
-            let index = index.1;
-
-            if index.is_in_memory() {
-                //Move data to IndexIdToOneParent
-                persistence.indices.key_value_stores.insert(path, Box::new(index.into_im_store()));
-            } else {
-                //load data with MMap
-                let store = SingleArrayMMAP::<u32>::from_path(&path, index.max_value_id)?;
-                persistence.indices.key_value_stores.insert(path, Box::new(store));
-            }
-        }
-        for index in indices.phrase_indices_flush {
-            let path = index.0;
-            let index = index.1;
-
-            // if index.is_in_memory() {
-            //     //Move data to IndexIdToOneParent
-            //     persistence.indices.key_value_stores.insert(path, Box::new(index.into_im_store()));
-            // } else {
-            //     //load data with MMap
-            //     let store = SingleArrayMMAP::<u32>::from_path(&path, index.max_value_id)?;
-            //     persistence.indices.key_value_stores.insert(path, Box::new(store));
-            // }
-        }
-        for (path, index) in indices.anchor_score_indices_flush {
-            if index.is_in_memory() {
-                persistence.indices.token_to_anchor_to_score.insert(path, Box::new(index.into_im_store()));
-            } else {
-                persistence.indices.token_to_anchor_to_score.insert(path, Box::new(index.into_mmap()?));
-            }
-        }
-        for index in indices.boost_indices {
-            let path = index.0;
-            let index = index.1;
-            if index.is_in_memory() {
-                //Move data to IndexIdToMultipleParentIndirect
-                persistence.indices.boost_valueid_to_value.insert(path, Box::new(index.into_im_store()));
-            } else {
-                let store = PointingMMAPFileReader::from_path(&get_file_path(&persistence.db, &path), index.metadata)?;
-
-                persistence.indices.boost_valueid_to_value.insert(path, Box::new(store));
+        for index_data in indices{
+            let path = index_data.path;
+            match index_data.index {
+                IndexVariants::Phrase(index) => {
+                    if index.is_in_memory() {
+                        persistence.indices.phrase_pair_to_anchor.insert(path, Box::new(index.into_im_store())); //Move data
+                    } else {
+                        //load data with MMap
+                        let store = IndexIdToMultipleParentIndirectBinarySearchMMAP::from_path(&path, index.metadata)?;
+                        persistence.indices.phrase_pair_to_anchor.insert(path, Box::new(store));
+                    }
+                },
+                IndexVariants::SingleValue(index) => {
+                    if index.is_in_memory() {
+                        persistence.indices.key_value_stores.insert(path, Box::new(index.into_im_store())); //Move data
+                    } else {
+                        //load data with MMap
+                        let store = SingleArrayMMAP::<u32>::from_path(&path, index.max_value_id)?;
+                        persistence.indices.key_value_stores.insert(path, Box::new(store));
+                    }
+                },
+                IndexVariants::MultiValue(index) => {
+                    if index_data.index_category == IndexCategory::Boost {
+                        persistence.indices.boost_valueid_to_value.insert(path, index.into_store()?);
+                    }else{
+                        persistence.indices.key_value_stores.insert(path, index.into_store()?);
+                    }
+                },
+                IndexVariants::TokenToAnchorScore(index) => {
+                    if index.is_in_memory() {
+                        persistence.indices.token_to_anchor_score.insert(path, Box::new(index.into_im_store()));
+                    } else {
+                        persistence.indices.token_to_anchor_score.insert(path, Box::new(index.into_mmap()?));
+                    }
+                },
             }
         }
     }
@@ -1278,7 +1279,7 @@ pub fn add_token_values_to_tokens(persistence: &mut Persistence, data_str: &str,
     let path = concat(&path_name, ".tokenValues.boost_valid_to_value");
     let mut store = buffered_index_to_direct_index(&persistence.db, path.to_string(), buffered_index_data)?;
     let mut voll_meta = persistence.flush_direct_index(&mut store, &path, LoadingType::InMemoryUnCompressed)?;
-    voll_meta.index_category = persistence::IndexCategory::Boost;
+    voll_meta.index_category = IndexCategory::Boost;
     persistence.meta_data.stores.push(voll_meta);
     persistence.write_meta_data()?;
 
@@ -1433,6 +1434,7 @@ pub enum CreateError {
     Io(io::Error),
     InvalidJson(serde_json::Error),
     Utf8Error(std::str::Utf8Error),
+    SearchError(search::SearchError)
 }
 
 impl From<io::Error> for CreateError {
@@ -1448,5 +1450,10 @@ impl From<serde_json::Error> for CreateError {
 impl From<std::str::Utf8Error> for CreateError {
     fn from(err: std::str::Utf8Error) -> CreateError {
         CreateError::Utf8Error(err)
+    }
+}
+impl From<search::SearchError> for CreateError {
+    fn from(err: search::SearchError) -> CreateError {
+        CreateError::SearchError(err)
     }
 }

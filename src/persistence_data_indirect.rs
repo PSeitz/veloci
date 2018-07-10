@@ -10,7 +10,7 @@ use type_info::TypeInfo;
 use num;
 use num::cast::ToPrimitive;
 use std;
-use std::fs::{self, File};
+use std::fs::{File};
 use std::io;
 use std::io::Write;
 use std::marker::PhantomData;
@@ -62,8 +62,9 @@ pub struct IndexIdToMultipleParentIndirectFlushingInOrderVint {
     pub current_data_offset: u32,
     /// Already written ids_cache
     pub current_id_offset: u32,
-    pub indirect_path: String,
-    pub data_path: String,
+    pub path: String,
+    // pub indirect_path: String,
+    // pub data_path: String,
     pub metadata: IndexMetaData,
 }
 
@@ -71,7 +72,9 @@ pub struct IndexIdToMultipleParentIndirectFlushingInOrderVint {
 // use vint for indirect, use not highest bit in indirect, but the highest unused bit. Max(value_id, single data_id, which would be encoded in the valueid index)
 //
 impl IndexIdToMultipleParentIndirectFlushingInOrderVint {
-    pub fn new(indirect_path: String, data_path: String, max_value_id: u32) -> Self {
+    // pub fn new(indirect_path: String, data_path: String, max_value_id: u32) -> Self {
+    // pub fn new(path: String, max_value_id: u32) -> Self {
+    pub fn new(path: String, max_value_id: u32) -> Self {
         let mut data_cache = vec![];
         data_cache.resize(1, 0); // resize data by one, because 0 is reserved for the empty buckets
         IndexIdToMultipleParentIndirectFlushingInOrderVint {
@@ -79,8 +82,9 @@ impl IndexIdToMultipleParentIndirectFlushingInOrderVint {
             data_cache,
             current_data_offset: 0,
             current_id_offset: 0,
-            indirect_path,
-            data_path,
+            path,
+            // indirect_path,
+            // data_path,
             metadata: IndexMetaData::new(max_value_id),
         }
     }
@@ -93,6 +97,17 @@ impl IndexIdToMultipleParentIndirectFlushingInOrderVint {
         store.data = self.data_cache;
         store
     }
+
+    pub fn into_store(mut self) -> Result<Box<IndexIdToParent<Output = u32>>, search::SearchError> {
+        if self.is_in_memory() {
+            Ok(Box::new(self.into_im_store()))
+        } else {
+            self.flush()?;
+            let store = PointingMMAPFileReader::from_path(&self.path, self.metadata)?;
+            Ok(Box::new(store))
+        }
+    }
+
 
     #[inline]
     pub fn add(&mut self, id: u32, add_data: Vec<u32>) -> Result<(), io::Error> {
@@ -139,7 +154,7 @@ impl IndexIdToMultipleParentIndirectFlushingInOrderVint {
         self.current_id_offset += self.ids_cache.len() as u32;
         self.current_data_offset += self.data_cache.len() as u32;
 
-        flush_to_file_indirect(&self.indirect_path, &self.data_path, &vec_to_bytes(&self.ids_cache), &self.data_cache)?;
+        flush_to_file_indirect(&(self.path.to_string() + ".indirect"), &(self.path.to_string() + ".data"), &vec_to_bytes(&self.ids_cache), &self.data_cache)?;
 
         self.data_cache.clear();
         self.ids_cache.clear();
@@ -292,6 +307,9 @@ impl<T: IndexIdToParentData> IndexIdToParent for IndexIdToMultipleParentIndirect
     }
 }
 
+use util::open_file;
+use search;
+
 #[derive(Debug)]
 pub struct PointingMMAPFileReader<T: IndexIdToParentData> {
     pub start_pos: Mmap,
@@ -307,9 +325,9 @@ impl<T: IndexIdToParentData> PointingMMAPFileReader<T> {
         self.size
     }
 
-    pub fn from_path(path: &str, metadata: IndexMetaData) -> Result<Self, io::Error> {
-        let start_pos = unsafe { MmapOptions::new().map(&File::open(path.to_string() + ".indirect")?).unwrap() };
-        let data = unsafe { MmapOptions::new().map(&File::open(path.to_string() + ".data")?).unwrap() };
+    pub fn from_path(path: &str, metadata: IndexMetaData) -> Result<Self, search::SearchError> {
+        let start_pos = unsafe { MmapOptions::new().map(&open_file(path.to_string() + ".indirect")?).unwrap() };
+        let data = unsafe { MmapOptions::new().map(&open_file(path.to_string() + ".data")?).unwrap() };
         Ok(PointingMMAPFileReader {
             start_pos,
             data,
@@ -319,23 +337,6 @@ impl<T: IndexIdToParentData> PointingMMAPFileReader<T> {
         })
     }
 
-    pub fn new(
-        //TODO REMOVE METHOD
-        start_pos: &fs::File,
-        data: &fs::File,
-        metadata: IndexMetaData,
-    ) -> Self {
-        let size = start_pos.metadata().unwrap().len() as usize / std::mem::size_of::<T>();
-        let start_pos = unsafe { MmapOptions::new().map(&start_pos).unwrap() };
-        let data = unsafe { MmapOptions::new().map(&data).unwrap() };
-        PointingMMAPFileReader {
-            start_pos,
-            data,
-            size: size,
-            ok: PhantomData,
-            metadata
-        }
-    }
 }
 
 impl<T: IndexIdToParentData> HeapSizeOf for PointingMMAPFileReader<T> {
@@ -432,10 +433,9 @@ fn get_encoded(mut val: u32) -> Option<u32> {
 mod tests {
     use super::*;
     use persistence_data::*;
-    use std::fs::File;
 
-    fn get_test_data_1_to_n_ind(ind_path: String, data_path: String) -> IndexIdToMultipleParentIndirectFlushingInOrderVint {
-        let mut store = IndexIdToMultipleParentIndirectFlushingInOrderVint::new(ind_path, data_path, u32::MAX);
+    fn get_test_data_1_to_n_ind(path: &str) -> IndexIdToMultipleParentIndirectFlushingInOrderVint {
+        let mut store = IndexIdToMultipleParentIndirectFlushingInOrderVint::new(path.to_string(), u32::MAX);
         store.add(0, vec![5, 6]).unwrap();
         store.add(1, vec![9]).unwrap();
         store.add(2, vec![9]).unwrap();
@@ -488,14 +488,11 @@ mod tests {
         #[test]
         fn test_pointing_file_andmmap_array() {
             let dir = tempdir().unwrap();
-            let indirect_path = dir.path().join("indirect").to_str().unwrap().to_string();
-            let data_path = dir.path().join("data").to_str().unwrap().to_string();
-            let mut store = get_test_data_1_to_n_ind(indirect_path.to_string(), data_path.to_string());
+            let path = dir.path().join("testfile").to_str().unwrap().to_string();
+            let mut store = get_test_data_1_to_n_ind(&path);
             store.flush().unwrap();
 
-            let start_pos = File::open(&indirect_path).unwrap();
-            let data = File::open(&data_path).unwrap();
-            let store = PointingMMAPFileReader::new(&start_pos, &data, store.metadata);
+            let store = PointingMMAPFileReader::from_path(&path, store.metadata).unwrap();
             check_test_data_1_to_n(&store);
             check_test_data_1_to_n_iter(&store);
         }
@@ -503,11 +500,10 @@ mod tests {
         #[test]
         fn test_flushing_in_order_indirect() {
             let dir = tempdir().unwrap();
-            let indirect_path = dir.path().join("indirect").to_str().unwrap().to_string();
-            let data_path = dir.path().join("data").to_str().unwrap().to_string();
-            let store = get_test_data_1_to_n_ind("indirect_path".to_string(), "data_path".to_string()).into_im_store();
+            let path = dir.path().join("testfile").to_str().unwrap().to_string();
+            let store = get_test_data_1_to_n_ind(&path).into_im_store();
 
-            let mut ind = IndexIdToMultipleParentIndirectFlushingInOrderVint::new(indirect_path.to_string(), data_path.to_string(), u32::MAX);
+            let mut ind = IndexIdToMultipleParentIndirectFlushingInOrderVint::new(path.to_string(), u32::MAX);
 
             for key in store.get_keys() {
                 if let Some(vals) = store.get_values(key.into()) {
@@ -517,17 +513,14 @@ mod tests {
             }
             ind.flush().unwrap();
 
-            let start_pos = File::open(&indirect_path).unwrap();
-            let data = File::open(&data_path).unwrap();
-
-            let store = PointingMMAPFileReader::new(&start_pos, &data, store.metadata);
+            let store = PointingMMAPFileReader::from_path(&path, store.metadata).unwrap();
             check_test_data_1_to_n(&store);
             check_test_data_1_to_n_iter(&store);
         }
 
         #[test]
         fn test_pointing_array_index_id_to_multiple_parent_indirect() {
-            let store = get_test_data_1_to_n_ind("test_ind".to_string(), "test_data".to_string());
+            let store = get_test_data_1_to_n_ind("test_ind");
             let store = store.into_im_store();
             check_test_data_1_to_n(&store);
             check_test_data_1_to_n_iter(&store);

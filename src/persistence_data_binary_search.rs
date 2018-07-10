@@ -118,10 +118,28 @@ pub struct IndexIdToMultipleParentIndirectBinarySearch<T> {
     pub data: Vec<u8>,
     pub metadata: IndexMetaData,
 }
-impl<T: Ord + Copy> IndexIdToMultipleParentIndirectBinarySearch<T> {
+// impl<T: Ord + Copy> IndexIdToMultipleParentIndirectBinarySearch<T> {
 
+//     #[inline]
+//     pub fn get_values(&self, id: T) -> Option<Vec<u32>> {
+//         let hit = self.start_pos.binary_search_by_key(&id, |ref el| el.0);
+//         match hit {
+//             Ok(pos) => {
+//                 let data_pos = self.start_pos[pos].1;
+//                 let iter = VintArrayIterator::from_slice(&self.data[data_pos as usize..]);
+//                 let decoded_data: Vec<u32> = iter.collect();
+//                 Some(decoded_data)
+//             },
+//             Err(_) => None,
+//         }
+//     }
+// }
+
+
+impl<T: 'static + Ord + Copy + Default + std::fmt::Debug + Sync + Send> PhrasePairToAnchor for IndexIdToMultipleParentIndirectBinarySearch<T> {
+    type Input=T;
     #[inline]
-    pub fn get_values(&self, id: T) -> Option<Vec<u32>> {
+    fn get_values(&self, id: Self::Input) -> Option<Vec<u32>>{
         let hit = self.start_pos.binary_search_by_key(&id, |ref el| el.0);
         match hit {
             Ok(pos) => {
@@ -134,6 +152,8 @@ impl<T: Ord + Copy> IndexIdToMultipleParentIndirectBinarySearch<T> {
         }
     }
 }
+use util::open_file;
+use search;
 
 #[derive(Debug)]
 pub struct IndexIdToMultipleParentIndirectBinarySearchMMAP<T> {
@@ -150,10 +170,10 @@ impl<T: Ord + Copy + Default + std::fmt::Debug> HeapSizeOf for IndexIdToMultiple
 }
 impl<T: Ord + Copy + Default + std::fmt::Debug> IndexIdToMultipleParentIndirectBinarySearchMMAP<T> {
 
-    pub fn from_path<P: AsRef<Path>>(path: P, metadata: IndexMetaData) -> Result<Self, io::Error> {
+    pub fn from_path<P: AsRef<Path>>(path: P, metadata: IndexMetaData) -> Result<Self, search::SearchError> {
         let ind_file = File::open(path.as_ref().with_extension("indirect"))?;
-        let start_pos = unsafe { MmapOptions::new().map(&File::open((path.as_ref()).with_extension("indirect"))?).unwrap() };
-        let data = unsafe { MmapOptions::new().map(&File::open((path.as_ref()).with_extension("data"))?).unwrap() };
+        let start_pos = unsafe { MmapOptions::new().map(&open_file((path.as_ref()).with_extension("indirect"))?).unwrap() };
+        let data = unsafe { MmapOptions::new().map(&open_file((path.as_ref()).with_extension("data"))?).unwrap() };
         Ok(IndexIdToMultipleParentIndirectBinarySearchMMAP {
             start_pos,
             data,

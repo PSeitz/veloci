@@ -22,6 +22,9 @@ use type_info::TypeInfo;
 use memmap::Mmap;
 use memmap::MmapOptions;
 
+use util::*;
+use search;
+
 // impl_type_info_dual_templ!(IndexIdToOneParent);
 // impl_type_info_single_templ!(IndexIdToOneParentPacked);
 // impl_type_info_single_templ!(ParallelArrays);
@@ -53,6 +56,16 @@ impl IndexIdToOneParentFlushing {
         store.data = self.cache;
         store.metadata = self.metadata;
         store
+    }
+
+    pub fn into_store(mut self) -> Result<Box<IndexIdToParent<Output = u32>>, search::SearchError> {
+        if self.is_in_memory() {
+            Ok(Box::new(self.into_im_store()))
+        } else {
+            self.flush()?;
+            let store = SingleArrayMMAP::<u32>::from_path(&self.path, self.metadata.max_value_id)?;
+            Ok(Box::new(store))
+        }
     }
 
     #[inline]
@@ -374,8 +387,8 @@ impl<T: IndexIdToParentData> SingleArrayMMAPPacked<T> {
         self.size
     }
 
-    pub fn from_path(path: &str, max_value_id: u32) -> Result<Self, io::Error> {
-        let data_file = unsafe { MmapOptions::new().map(&File::open(path)?).unwrap() };
+    pub fn from_path(path: &str, max_value_id: u32) -> Result<Self, search::SearchError> {
+        let data_file = unsafe { MmapOptions::new().map(&open_file(path)?).unwrap() };
         Ok(SingleArrayMMAPPacked {
             data_file,
             size: File::open(path)?.metadata()?.len() as usize / get_bytes_required(max_value_id) as usize,
@@ -437,8 +450,8 @@ impl<T: IndexIdToParentData> SingleArrayMMAP<T> {
         self.size
     }
 
-    pub fn from_path(path: &str, max_value_id: u32) -> Result<Self, io::Error> {
-        let data_file = unsafe { MmapOptions::new().map(&File::open(path)?).unwrap() };
+    pub fn from_path(path: &str, max_value_id: u32) -> Result<Self, search::SearchError> {
+        let data_file = unsafe { MmapOptions::new().map(&open_file(path)?).unwrap() };
         Ok(SingleArrayMMAP {
             data_file,
             size: File::open(path)?.metadata()?.len() as usize / std::mem::size_of::<T>(),
