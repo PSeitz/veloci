@@ -1,5 +1,5 @@
-use persistence::*;
 use persistence::Persistence;
+use persistence::*;
 use search::add_boost;
 use search::*;
 use search::{Request, RequestBoostPart, RequestSearchPart, SearchError};

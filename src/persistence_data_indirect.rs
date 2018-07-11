@@ -10,7 +10,7 @@ use type_info::TypeInfo;
 use num;
 use num::cast::ToPrimitive;
 use std;
-use std::fs::{File};
+use std::fs::File;
 use std::io;
 use std::io::Write;
 use std::marker::PhantomData;
@@ -52,7 +52,6 @@ fn to_serialized_vint_array(add_data: Vec<u32>) -> Vec<u8> {
     }
     vint.serialize()
 }
-
 
 /// This data structure assumes that a set is only called once for a id, and ids are set in order.
 #[derive(Debug, Clone, HeapSizeOf)]
@@ -108,7 +107,6 @@ impl IndexIdToMultipleParentIndirectFlushingInOrderVint {
         }
     }
 
-
     #[inline]
     pub fn add(&mut self, id: u32, add_data: Vec<u32>) -> Result<(), io::Error> {
         self.metadata.num_values += 1;
@@ -154,7 +152,12 @@ impl IndexIdToMultipleParentIndirectFlushingInOrderVint {
         self.current_id_offset += self.ids_cache.len() as u32;
         self.current_data_offset += self.data_cache.len() as u32;
 
-        flush_to_file_indirect(&(self.path.to_string() + ".indirect"), &(self.path.to_string() + ".data"), &vec_to_bytes(&self.ids_cache), &self.data_cache)?;
+        flush_to_file_indirect(
+            &(self.path.to_string() + ".indirect"),
+            &(self.path.to_string() + ".data"),
+            &vec_to_bytes(&self.ids_cache),
+            &self.data_cache,
+        )?;
 
         self.data_cache.clear();
         self.ids_cache.clear();
@@ -174,9 +177,7 @@ pub struct IndexIdToMultipleParentIndirect<T: IndexIdToParentData> {
 }
 impl<T: IndexIdToParentData> HeapSizeOf for IndexIdToMultipleParentIndirect<T> {
     fn heap_size_of_children(&self) -> usize {
-        self.start_pos.heap_size_of_children()
-            + self.data.heap_size_of_children()
-            + self.metadata.heap_size_of_children()
+        self.start_pos.heap_size_of_children() + self.data.heap_size_of_children() + self.metadata.heap_size_of_children()
     }
 }
 
@@ -307,8 +308,8 @@ impl<T: IndexIdToParentData> IndexIdToParent for IndexIdToMultipleParentIndirect
     }
 }
 
-use util::open_file;
 use search;
+use util::open_file;
 
 #[derive(Debug)]
 pub struct PointingMMAPFileReader<T: IndexIdToParentData> {
@@ -333,10 +334,9 @@ impl<T: IndexIdToParentData> PointingMMAPFileReader<T> {
             data,
             size: File::open(path.to_string() + ".indirect")?.metadata()?.len() as usize / std::mem::size_of::<T>(),
             ok: PhantomData,
-            metadata
+            metadata,
         })
     }
-
 }
 
 impl<T: IndexIdToParentData> HeapSizeOf for PointingMMAPFileReader<T> {
@@ -362,7 +362,7 @@ impl<T: IndexIdToParentData> IndexIdToParent for PointingMMAPFileReader<T> {
             // let positions = &self.start_pos[(id * 2) as usize..=((id * 2) as usize + 1)];
             let start_index = id as usize * std::mem::size_of::<T>();
             let data_start_pos = (&self.start_pos[start_index as usize..start_index + 4]).read_u32::<LittleEndian>().unwrap(); //TODO FIX FOR ALL T
-            // let data_start_pos = self.start_pos[id as usize];
+                                                                                                                               // let data_start_pos = self.start_pos[id as usize];
             let data_start_pos_or_data = data_start_pos.to_u32().unwrap();
             if let Some(val) = get_encoded(data_start_pos_or_data) {
                 // return Some(vec![num::cast(val).unwrap()]);
@@ -403,7 +403,9 @@ fn get_u32_values_from_pointing_mmap_file_vint(id: u64, size: usize, start_pos: 
         None
     } else {
         let start_index = id as usize * std::mem::size_of::<u32>();
-        let data_start_pos = (&start_pos[start_index as usize..start_index + std::mem::size_of::<u32>()]).read_u32::<LittleEndian>().unwrap();
+        let data_start_pos = (&start_pos[start_index as usize..start_index + std::mem::size_of::<u32>()])
+            .read_u32::<LittleEndian>()
+            .unwrap();
 
         let data_start_pos_or_data = data_start_pos.to_u32().unwrap();
         if let Some(val) = get_encoded(data_start_pos_or_data) {

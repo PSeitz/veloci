@@ -1,4 +1,3 @@
-use persistence::*;
 use fnv::{FnvHashMap, FnvHashSet};
 use fst::automaton::*;
 use fst::raw::Fst;
@@ -9,6 +8,7 @@ use levenshtein_automata::{Distance, LevenshteinAutomatonBuilder, DFA};
 use ordered_float::OrderedFloat;
 use persistence;
 use persistence::Persistence;
+use persistence::*;
 use search;
 use search::*;
 use std::cmp;
@@ -451,11 +451,10 @@ fn get_term_ids_in_field(persistence: &Persistence, options: &mut RequestSearchP
             };
 
             get_text_lines(persistence, options, teh_callback)?;
-
         }
     }
 
-    if !result.hits_vec.is_empty(){
+    if !result.hits_vec.is_empty() {
         info!("{:?}\thits for {:?} \t in {:?}", result.hits_vec.len(), options.terms[0], &options.path);
     }
 

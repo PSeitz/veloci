@@ -95,7 +95,6 @@ pub(crate) trait AggregationCollector<T: IndexIdToParentData> {
     fn to_map(self: Box<Self>, top: Option<u32>) -> FnvHashMap<T, usize>;
 }
 
-
 pub(crate) fn should_prefer_vec(num_ids: u32, avg_join_size: f32, max_value_id: u32) -> bool {
     let num_inserts = (num_ids as f32 * avg_join_size) as u32;
     let vec_len = max_value_id.saturating_add(1);

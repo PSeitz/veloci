@@ -204,7 +204,7 @@ impl TokenToAnchorScore for TokenToAnchorScoreVintIM {
 
 use util::open_file;
 impl TokenToAnchorScoreVintMmap {
-    pub fn from_path(start_and_end_file: &str, data_file: &str,) -> Result<Self, search::SearchError> {
+    pub fn from_path(start_and_end_file: &str, data_file: &str) -> Result<Self, search::SearchError> {
         let start_and_end_file = unsafe { MmapOptions::new().map(&open_file(start_and_end_file)?).unwrap() };
         let data_file = unsafe { MmapOptions::new().map(&open_file(data_file)?).unwrap() };
         Ok(TokenToAnchorScoreVintMmap {

@@ -1,16 +1,16 @@
-use std::cmp::Ordering::Greater;
 use heapsize::HeapSizeOf;
+use std::cmp::Ordering::Greater;
 
 use persistence::*;
 use persistence_data_indirect::calc_avg_join_size;
 use persistence_data_indirect::flush_to_file_indirect;
 use type_info::TypeInfo;
 
-use std::path::Path;
 use std;
-use std::fs::{File};
+use std::fs::File;
 use std::io;
 use std::marker::PhantomData;
+use std::path::Path;
 use std::u32;
 
 use memmap::Mmap;
@@ -34,7 +34,7 @@ pub struct IndexIdToMultipleParentIndirectFlushingInOrderVintNoDirectEncode<T> {
     pub metadata: IndexMetaData,
 }
 
-impl<T : Default + std::fmt::Debug> IndexIdToMultipleParentIndirectFlushingInOrderVintNoDirectEncode<T> {
+impl<T: Default + std::fmt::Debug> IndexIdToMultipleParentIndirectFlushingInOrderVintNoDirectEncode<T> {
     pub fn new(indirect_path: String, data_path: String, max_value_id: u32) -> Self {
         let mut data_cache = vec![];
         data_cache.resize(1, 0); // resize data by one, because 0 is reserved for the empty buckets
@@ -111,7 +111,6 @@ fn to_serialized_vint_array(add_data: Vec<u32>) -> Vec<u8> {
     vint.serialize()
 }
 
-
 #[derive(Debug, Clone, Default, HeapSizeOf)]
 pub struct IndexIdToMultipleParentIndirectBinarySearch<T> {
     pub start_pos: Vec<(T, u32)>,
@@ -135,11 +134,11 @@ pub struct IndexIdToMultipleParentIndirectBinarySearch<T> {
 //     }
 // }
 
-
 impl<T: 'static + Ord + Copy + Default + std::fmt::Debug + Sync + Send> PhrasePairToAnchor for IndexIdToMultipleParentIndirectBinarySearch<T> {
-    type Input=T;
+    type Input = T;
+
     #[inline]
-    fn get_values(&self, id: Self::Input) -> Option<Vec<u32>>{
+    fn get_values(&self, id: Self::Input) -> Option<Vec<u32>> {
         let hit = self.start_pos.binary_search_by_key(&id, |ref el| el.0);
         match hit {
             Ok(pos) => {
@@ -147,13 +146,13 @@ impl<T: 'static + Ord + Copy + Default + std::fmt::Debug + Sync + Send> PhrasePa
                 let iter = VintArrayIterator::from_slice(&self.data[data_pos as usize..]);
                 let decoded_data: Vec<u32> = iter.collect();
                 Some(decoded_data)
-            },
+            }
             Err(_) => None,
         }
     }
 }
-use util::open_file;
 use search;
+use util::open_file;
 
 #[derive(Debug)]
 pub struct IndexIdToMultipleParentIndirectBinarySearchMMAP<T> {
@@ -169,7 +168,6 @@ impl<T: Ord + Copy + Default + std::fmt::Debug> HeapSizeOf for IndexIdToMultiple
     }
 }
 impl<T: Ord + Copy + Default + std::fmt::Debug> IndexIdToMultipleParentIndirectBinarySearchMMAP<T> {
-
     pub fn from_path<P: AsRef<Path>>(path: P, metadata: IndexMetaData) -> Result<Self, search::SearchError> {
         let ind_file = File::open(path.as_ref().with_extension("indirect"))?;
         let start_pos = unsafe { MmapOptions::new().map(&open_file((path.as_ref()).with_extension("indirect"))?).unwrap() };
@@ -179,55 +177,57 @@ impl<T: Ord + Copy + Default + std::fmt::Debug> IndexIdToMultipleParentIndirectB
             data,
             size: ind_file.metadata()?.len() as usize / std::mem::size_of::<(T, u32)>(),
             ok: PhantomData,
-            metadata
+            metadata,
         })
     }
 
-    fn get(&self, pos:usize) -> (T, u32) {
-        let mut out:(T, u32) = Default::default();
+    fn get(&self, pos: usize) -> (T, u32) {
+        let mut out: (T, u32) = Default::default();
         let byte_pos = std::mem::size_of::<(T, u32)>() * pos;
         unsafe {
-            self.start_pos[byte_pos as usize..].as_ptr().copy_to_nonoverlapping(&mut out as *mut (T, u32) as *mut u8, std::mem::size_of::<(T, u32)>());
+            self.start_pos[byte_pos as usize..]
+                .as_ptr()
+                .copy_to_nonoverlapping(&mut out as *mut (T, u32) as *mut u8, std::mem::size_of::<(T, u32)>());
         }
         out
     }
 
     #[inline]
-    fn binary_search(&self, id: T) -> Option<(T, u32)>
-        {
-            let s = self;
-            let mut size = s.size;
-            if size == 0 {
-                return None;
-            }
-            let mut base = 0usize;
-            while size > 1 {
-                let half = size / 2;
-                let mid = base + half;
-                // mid is always in [0, size), that means mid is >= 0 and < size.
-                // mid >= 0: by definition
-                // mid < size: mid = size / 2 + size / 4 + size / 8 ...
-                let cmp = s.get(mid).0.cmp(&id); //(unsafe { s.get(mid) });
-                base = if cmp == Greater { base } else { mid };
-                size -= half;
-            }
-            // base is always in [0, size) because base <= mid.
-            // let cmp = f(unsafe { s.get(base) });
-            let hit = s.get(base);
-            if id == hit.0 {
-                Some(hit)
-            }else{
-                None
-            }
+    fn binary_search(&self, id: T) -> Option<(T, u32)> {
+        let s = self;
+        let mut size = s.size;
+        if size == 0 {
+            return None;
+        }
+        let mut base = 0usize;
+        while size > 1 {
+            let half = size / 2;
+            let mid = base + half;
+            // mid is always in [0, size), that means mid is >= 0 and < size.
+            // mid >= 0: by definition
+            // mid < size: mid = size / 2 + size / 4 + size / 8 ...
+            let cmp = s.get(mid).0.cmp(&id); //(unsafe { s.get(mid) });
+            base = if cmp == Greater { base } else { mid };
+            size -= half;
+        }
+        // base is always in [0, size) because base <= mid.
+        // let cmp = f(unsafe { s.get(base) });
+        let hit = s.get(base);
+        if id == hit.0 {
+            Some(hit)
+        } else {
+            None
+        }
     }
 }
 
 impl<T: 'static + Ord + Copy + Default + std::fmt::Debug + Sync + Send> PhrasePairToAnchor for IndexIdToMultipleParentIndirectBinarySearchMMAP<T> {
-    type Input=T;
+    type Input = T;
+
     #[inline]
-    fn get_values(&self, id: Self::Input) -> Option<Vec<u32>>{
+    fn get_values(&self, id: Self::Input) -> Option<Vec<u32>> {
         let hit = self.binary_search(id);
-        hit.map(|el|{
+        hit.map(|el| {
             let data_pos = el.1;
             VintArrayIterator::from_slice(&self.data[data_pos as usize..]).collect()
         })
@@ -269,7 +269,6 @@ mod tests {
         assert_eq!(yop.get_values((5, 0)), Some(vec![80]));
         assert_eq!(yop.get_values((5, 9)), Some(vec![0]));
         assert_eq!(yop.get_values((5, 10)), Some(vec![0]));
-
     }
 
     #[test]
@@ -282,8 +281,8 @@ mod tests {
         // let yop = store.into_im_store();
         let store = IndexIdToMultipleParentIndirectBinarySearchMMAP::<(u32, u32)>::from_path(dir.path().join("yop"), store.metadata).unwrap();
         assert_eq!(store.size, 7);
-        assert_eq!(store.get(0), ((0,0), 1));
-        assert_eq!(store.get(1), ((0,1), 4));
+        assert_eq!(store.get(0), ((0, 0), 1));
+        assert_eq!(store.get(1), ((0, 1), 4));
 
         assert_eq!(store.get_values((0, 0)), Some(vec![5, 6]));
         assert_eq!(store.get_values((0, 1)), Some(vec![9]));
@@ -295,6 +294,4 @@ mod tests {
         assert_eq!(store.get_values((5, 10)), Some(vec![0]));
     }
 
-
 }
-

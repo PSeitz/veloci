@@ -22,8 +22,8 @@ use type_info::TypeInfo;
 use memmap::Mmap;
 use memmap::MmapOptions;
 
-use util::*;
 use search;
+use util::*;
 
 // impl_type_info_dual_templ!(IndexIdToOneParent);
 // impl_type_info_single_templ!(IndexIdToOneParentPacked);

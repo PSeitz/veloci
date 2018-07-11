@@ -11,12 +11,12 @@ use itertools::Itertools;
 use json_converter;
 use log;
 use persistence;
+use persistence::IndexCategory;
 use persistence::*;
 use persistence::{LoadingType, Persistence};
-use persistence::IndexCategory;
 use persistence_data::*;
-use persistence_data_indirect::*;
 use persistence_data_binary_search::*;
+use persistence_data_indirect::*;
 use persistence_score::token_to_anchor_score_vint::*;
 use rayon::prelude::*;
 use search;
@@ -25,8 +25,8 @@ use serde_json::Deserializer;
 use serde_json::{self, Value};
 use std::io::BufRead;
 use tokenizer::*;
+use util;
 use util::*;
-use util::{self};
 
 use buffered_index_writer::BufferedIndexWriter;
 use fixedbitset::FixedBitSet;
@@ -329,10 +329,7 @@ fn get_allterms_per_path<I: Iterator<Item = Result<serde_json::Value, serde_json
     let mut id_holder = json_converter::IDHolder::new();
     {
         let mut cb_text = |_anchor_id: u32, value: &str, path: &str, _parent_val_id: u32| {
-            let options: &FulltextIndexOptions = fulltext_info_for_path
-                .get(path)
-                .and_then(|el| el.options.as_ref())
-                .unwrap_or(&default_fulltext_options);
+            let options: &FulltextIndexOptions = fulltext_info_for_path.get(path).and_then(|el| el.options.as_ref()).unwrap_or(&default_fulltext_options);
 
             let mut terms = get_or_insert_prefer_get(&mut data.terms_in_path as *mut FnvHashMap<_, _>, path, &|| TermMap::default());
 
@@ -455,10 +452,7 @@ fn is_1_to_n(path: &str) -> bool {
 }
 
 // use buffered_index_writer::KeyValue;
-fn stream_iter_to_direct_index(
-    iter: impl Iterator<Item = buffered_index_writer::KeyValue<u32, u32>>,
-    target: &mut IndexIdToOneParentFlushing,
-) -> Result<(), io::Error> {
+fn stream_iter_to_direct_index(iter: impl Iterator<Item = buffered_index_writer::KeyValue<u32, u32>>, target: &mut IndexIdToOneParentFlushing) -> Result<(), io::Error> {
     for kv in iter {
         target.add(kv.key, kv.value)?;
     }
@@ -481,7 +475,6 @@ fn buffered_index_to_direct_index(db_path: &str, path: String, mut buffered_inde
 
     Ok(store)
 }
-
 
 #[derive(Debug)]
 struct PathDataIds {
@@ -543,10 +536,7 @@ where
             });
 
             let all_terms = &create_cache.term_data.terms_in_path[path];
-            let options: &FulltextIndexOptions = fulltext_info_for_path
-                .get(path)
-                .and_then(|el| el.options.as_ref())
-                .unwrap_or(&default_fulltext_options);
+            let options: &FulltextIndexOptions = fulltext_info_for_path.get(path).and_then(|el| el.options.as_ref()).unwrap_or(&default_fulltext_options);
 
             // if options.stopwords.as_ref().map(|el| el.contains(value)).unwrap_or(false) {
             //     return;
@@ -624,13 +614,7 @@ where
                     data.text_id_to_token_ids.add_all(text_info.id, &tokens_ids).unwrap();
                 }
 
-                calculate_and_add_token_score_in_doc(
-                    &mut tokens_to_anchor_id,
-                    anchor_id,
-                    current_token_pos,
-                    &mut data.token_to_anchor_id_score,
-                    false,
-                ).unwrap(); // TODO Error Handling in closure
+                calculate_and_add_token_score_in_doc(&mut tokens_to_anchor_id, anchor_id, current_token_pos, &mut data.token_to_anchor_id_score, false).unwrap(); // TODO Error Handling in closure
                 calculate_and_add_token_score_in_doc(&mut phrase_to_anchor_id, anchor_id, current_token_pos, &mut data.token_to_anchor_id_score, true).unwrap(); // TODO Error Handling in closure
                 tokens_to_anchor_id.clear();
                 phrase_to_anchor_id.clear();
@@ -748,12 +732,8 @@ fn buffered_index_to_indirect_index_multiple(
     Ok(store)
 }
 
-
 // use buffered_index_writer::KeyValue;
-fn stream_iter_to_anchor_score(
-    iter: impl Iterator<Item = buffered_index_writer::KeyValue<u32, (u32, u32)>>,
-    target: &mut TokenToAnchorScoreVintFlushing,
-) -> Result<(), io::Error> {
+fn stream_iter_to_anchor_score(iter: impl Iterator<Item = buffered_index_writer::KeyValue<u32, (u32, u32)>>, target: &mut TokenToAnchorScoreVintFlushing) -> Result<(), io::Error> {
     // use std::mem::transmute;
     use std::slice::from_raw_parts_mut;
     for (id, group) in &iter.group_by(|el| el.key) {
@@ -777,12 +757,7 @@ fn stream_iter_to_anchor_score(
 
     Ok(())
 }
-fn add_anchor_score_flush(
-    db_path: &str,
-    path: String,
-    mut buffered_index_data: BufferedIndexWriter<u32, (u32, u32)>,
-    indices: &mut IndicesFromRawData,
-) -> Result<(), io::Error> {
+fn add_anchor_score_flush(db_path: &str, path: String, mut buffered_index_data: BufferedIndexWriter<u32, (u32, u32)>, indices: &mut IndicesFromRawData) -> Result<(), io::Error> {
     let indirect_file_path = util::get_file_path(db_path, &(path.to_string() + ".indirect"));
     let data_file_path = util::get_file_path(db_path, &(path.to_string() + ".data"));
 
@@ -799,11 +774,14 @@ fn add_anchor_score_flush(
         store.flush()?;
     }
 
-    indices.push(IndexData{path, index: IndexVariants::TokenToAnchorScore(store), loading_type:LoadingType::Disk, index_category: IndexCategory::AnchorScore });
+    indices.push(IndexData {
+        path,
+        index: IndexVariants::TokenToAnchorScore(store),
+        loading_type: LoadingType::Disk,
+        index_category: IndexCategory::AnchorScore,
+    });
     Ok(())
 }
-
-
 
 // use buffered_index_writer::KeyValue;
 fn stream_iter_to_phrase_index(
@@ -837,19 +815,19 @@ fn stream_buffered_index_writer_to_phrase_index(
     }
     Ok(())
 }
-fn add_phrase_pair_flush(
-    db_path: &str,
-    path: String,
-    buffered_index_data: BufferedIndexWriter<(u32, u32), u32>,
-    indices: &mut IndicesFromRawData,
-) -> Result<(), io::Error> {
+fn add_phrase_pair_flush(db_path: &str, path: String, buffered_index_data: BufferedIndexWriter<(u32, u32), u32>, indices: &mut IndicesFromRawData) -> Result<(), io::Error> {
     let indirect_file_path = util::get_file_path(db_path, &(path.to_string() + ".indirect"));
     let data_file_path = util::get_file_path(db_path, &(path.to_string() + ".data"));
 
     let mut store = IndexIdToMultipleParentIndirectFlushingInOrderVintNoDirectEncode::<(u32, u32)>::new(indirect_file_path, data_file_path, buffered_index_data.max_value_id);
     stream_buffered_index_writer_to_phrase_index(buffered_index_data, &mut store)?;
 
-    indices.push(IndexData{path, index: IndexVariants::Phrase(store), loading_type:LoadingType::Disk, index_category: IndexCategory::Phrase});
+    indices.push(IndexData {
+        path,
+        index: IndexVariants::Phrase(store),
+        loading_type: LoadingType::Disk,
+        index_category: IndexCategory::Phrase,
+    });
     Ok(())
 }
 
@@ -858,9 +836,9 @@ type IndicesFromRawData = Vec<IndexData>;
 #[derive(Debug)]
 struct IndexData {
     path: String,
-    index:IndexVariants,
+    index: IndexVariants,
     loading_type: LoadingType,
-    index_category: IndexCategory
+    index_category: IndexCategory,
 }
 
 #[derive(Debug)]
@@ -880,20 +858,29 @@ fn convert_raw_path_data_to_indices(
     info_time!("convert_raw_path_data_to_indices");
     let mut indices = IndicesFromRawData::default();
 
-    let add_index_flush = |
-        path: String,
-        buffered_index_data: BufferedIndexWriter,
-        is_always_1_to_1: bool,
-        sort_and_dedup: bool,
-        indices: &mut IndicesFromRawData,
-        loading_type: LoadingType,
-    | -> Result<(), search::SearchError> {
+    let add_index_flush = |path: String,
+                           buffered_index_data: BufferedIndexWriter,
+                           is_always_1_to_1: bool,
+                           sort_and_dedup: bool,
+                           indices: &mut IndicesFromRawData,
+                           loading_type: LoadingType|
+     -> Result<(), search::SearchError> {
         if is_always_1_to_1 {
             let store = buffered_index_to_direct_index(db_path, path.to_string(), buffered_index_data)?;
-            indices.push(IndexData{path, index: IndexVariants::SingleValue(store), loading_type, index_category: IndexCategory::KeyValue });
+            indices.push(IndexData {
+                path,
+                index: IndexVariants::SingleValue(store),
+                loading_type,
+                index_category: IndexCategory::KeyValue,
+            });
         } else {
             let store = buffered_index_to_indirect_index_multiple(db_path, path.to_string(), buffered_index_data, sort_and_dedup)?;
-            indices.push(IndexData{path, index: IndexVariants::MultiValue(store), loading_type, index_category: IndexCategory::KeyValue });
+            indices.push(IndexData {
+                path,
+                index: IndexVariants::MultiValue(store),
+                loading_type,
+                index_category: IndexCategory::KeyValue,
+            });
         }
         Ok(())
     };
@@ -905,14 +892,7 @@ fn convert_raw_path_data_to_indices(
 
             let path = &path;
 
-            add_index_flush(
-                path.add(TOKENS_TO_TEXT_ID),
-                data.tokens_to_text_id,
-                false,
-                true,
-                &mut indices,
-                LoadingType::Disk,
-            )?;
+            add_index_flush(path.add(TOKENS_TO_TEXT_ID), data.tokens_to_text_id, false, true, &mut indices, LoadingType::Disk)?;
 
             add_anchor_score_flush(&db_path, path.add(TO_ANCHOR_ID_SCORE), data.token_to_anchor_id_score, &mut indices)?;
             add_phrase_pair_flush(&db_path, path.add(PHRASE_PAIR_TO_ANCHOR), data.phrase_pair_to_anchor, &mut indices)?;
@@ -951,14 +931,7 @@ fn convert_raw_path_data_to_indices(
                 loading_type,
             )?;
 
-            add_index_flush(
-                path.add(TEXT_ID_TO_ANCHOR),
-                data.text_id_to_anchor,
-                false,
-                true,
-                &mut indices,
-                LoadingType::Disk,
-            )?;
+            add_index_flush(path.add(TEXT_ID_TO_ANCHOR), data.text_id_to_anchor, false, true, &mut indices, LoadingType::Disk)?;
 
             if let Some(anchor_to_text_id) = data.anchor_to_text_id {
                 add_index_flush(
@@ -975,14 +948,20 @@ fn convert_raw_path_data_to_indices(
                 let boost_path = extract_field_name(path).add(BOOST_VALID_TO_VALUE);
 
                 let store = buffered_index_to_indirect_index_multiple(db_path, boost_path.to_string(), buffered_index_data, false)?;
-                indices.push(IndexData{path: boost_path.to_string(), index: IndexVariants::MultiValue(store), loading_type: LoadingType::InMemoryUnCompressed, index_category: IndexCategory::Boost });
+                indices.push(IndexData {
+                    path: boost_path.to_string(),
+                    index: IndexVariants::MultiValue(store),
+                    loading_type: LoadingType::InMemoryUnCompressed,
+                    index_category: IndexCategory::Boost,
+                });
             }
 
             Ok(indices)
         })
         .collect();
 
-    for mut indice in indices_res.unwrap() {  //TODO ERROR HANDLING
+    for mut indice in indices_res.unwrap() {
+        //TODO ERROR HANDLING
         indices.extend(indice);
     }
 
@@ -1000,20 +979,14 @@ fn convert_raw_path_data_to_indices(
                 &mut indices,
                 LoadingType::Disk,
             )?;
-            add_index_flush(
-                path.add(PARENT_TO_VALUE_ID),
-                data.parent_to_value,
-                false,
-                false,
-                &mut indices,
-                LoadingType::Disk,
-            )?;
+            add_index_flush(path.add(PARENT_TO_VALUE_ID), data.parent_to_value, false, false, &mut indices, LoadingType::Disk)?;
 
             Ok(indices)
         })
         .collect();
 
-    for mut indice in indices_res_2.unwrap() { //TODO ERROR HANDLING
+    for mut indice in indices_res_2.unwrap() {
+        //TODO ERROR HANDLING
         indices.extend(indice);
     }
 
@@ -1071,10 +1044,7 @@ where
             .par_iter_mut()
             .map(|(path, mut terms)| {
                 let mut fulltext_indices = FnvHashMap::default();
-                let options: &FulltextIndexOptions = fulltext_info_for_path
-                    .get(path)
-                    .and_then(|el| el.options.as_ref())
-                    .unwrap_or(&default_fulltext_options);
+                let options: &FulltextIndexOptions = fulltext_info_for_path.get(path).and_then(|el| el.options.as_ref()).unwrap_or(&default_fulltext_options);
                 store_full_text_info_and_set_ids(&persistence, &mut terms, &path, &options, &mut fulltext_indices)?;
                 Ok(fulltext_indices)
             })
@@ -1098,14 +1068,8 @@ where
     info_time!("create and (write) fulltext_index");
     trace!("all_terms {:?}", create_cache.term_data.terms_in_path);
 
-    let (mut path_data, tuples_to_parent_in_path) = parse_json_and_prepare_indices(
-        stream2,
-        &persistence,
-        &fulltext_info_for_path,
-        &boost_info_for_path,
-        &facet_index,
-        &mut create_cache,
-    )?;
+    let (mut path_data, tuples_to_parent_in_path) =
+        parse_json_and_prepare_indices(stream2, &persistence, &fulltext_info_for_path, &boost_info_for_path, &facet_index, &mut create_cache)?;
 
     std::mem::drop(create_cache);
 
@@ -1118,7 +1082,7 @@ where
         info_time!("write indices");
         // let mut stores = vec![];
         // let mut boost_stores = vec![];
-        for index_data in &mut indices{
+        for index_data in &mut indices {
             let mut kv_metadata = persistence::KVStoreMetaData {
                 loading_type: index_data.loading_type,
                 index_category: index_data.index_category,
@@ -1134,26 +1098,26 @@ where
                     store.flush()?;
                     kv_metadata.is_empty = store.is_empty();
                     kv_metadata.metadata = store.metadata;
-                //     kv_metadata.index_type = KVStoreType::IndexIdToMultipleParentIndirect;
-                },
+                    //     kv_metadata.index_type = KVStoreType::IndexIdToMultipleParentIndirect;
+                }
                 IndexVariants::SingleValue(store) => {
                     store.flush()?;
                     kv_metadata.is_empty = store.is_empty();
                     kv_metadata.metadata = store.metadata;
                     kv_metadata.index_type = persistence::KVStoreType::IndexIdToOneParent;
-                },
+                }
                 IndexVariants::MultiValue(store) => {
                     store.flush()?;
                     kv_metadata.is_empty = store.is_empty();
                     kv_metadata.metadata = store.metadata;
                     kv_metadata.index_type = persistence::KVStoreType::IndexIdToMultipleParentIndirect;
-                },
+                }
                 IndexVariants::TokenToAnchorScore(store) => {
                     store.flush()?;
                     kv_metadata.is_empty = false;
                     kv_metadata.metadata = store.metadata;
                     // kv_metadata.index_type = KVStoreType::IndexIdToMultipleParentIndirect;
-                },
+                }
             }
             persistence.meta_data.stores.push(kv_metadata);
         }
@@ -1165,8 +1129,7 @@ where
     if load_persistence {
         persistence.load_all_id_lists()?;
 
-
-        for index_data in indices{
+        for index_data in indices {
             let path = index_data.path;
             match index_data.index {
                 IndexVariants::Phrase(index) => {
@@ -1177,7 +1140,7 @@ where
                         let store = IndexIdToMultipleParentIndirectBinarySearchMMAP::from_path(&path, index.metadata)?;
                         persistence.indices.phrase_pair_to_anchor.insert(path, Box::new(store));
                     }
-                },
+                }
                 IndexVariants::SingleValue(index) => {
                     if index.is_in_memory() {
                         persistence.indices.key_value_stores.insert(path, Box::new(index.into_im_store())); //Move data
@@ -1186,21 +1149,21 @@ where
                         let store = SingleArrayMMAP::<u32>::from_path(&path, index.max_value_id)?;
                         persistence.indices.key_value_stores.insert(path, Box::new(store));
                     }
-                },
+                }
                 IndexVariants::MultiValue(index) => {
                     if index_data.index_category == IndexCategory::Boost {
                         persistence.indices.boost_valueid_to_value.insert(path, index.into_store()?);
-                    }else{
+                    } else {
                         persistence.indices.key_value_stores.insert(path, index.into_store()?);
                     }
-                },
+                }
                 IndexVariants::TokenToAnchorScore(index) => {
                     if index.is_in_memory() {
                         persistence.indices.token_to_anchor_score.insert(path, Box::new(index.into_im_store()));
                     } else {
                         persistence.indices.token_to_anchor_score.insert(path, Box::new(index.into_mmap()?));
                     }
-                },
+                }
             }
         }
     }
@@ -1235,7 +1198,6 @@ pub fn add_token_values_to_tokens(persistence: &mut Persistence, data_str: &str,
 
     let is_text_index = true;
     let path_name = util::get_file_path_name(&config.path, is_text_index);
-    // let mut tuples: Vec<ValIdToValue> = vec![];
     let mut buffered_index_data = BufferedIndexWriter::default();
 
     for el in data {
@@ -1255,7 +1217,7 @@ pub fn add_token_values_to_tokens(persistence: &mut Persistence, data_str: &str,
         }
     }
 
-    let path = path_name.add(TOKEN_VALUES).add(BOOST_VALID_TO_VALUE);//".tokenValues.boost_valid_to_value");
+    let path = path_name.add(TOKEN_VALUES).add(BOOST_VALID_TO_VALUE);
     let mut store = buffered_index_to_direct_index(&persistence.db, path.to_string(), buffered_index_data)?;
 
     store.flush()?;
@@ -1422,7 +1384,7 @@ pub enum CreateError {
     Io(io::Error),
     InvalidJson(serde_json::Error),
     Utf8Error(std::str::Utf8Error),
-    SearchError(search::SearchError)
+    SearchError(search::SearchError),
 }
 
 impl From<io::Error> for CreateError {

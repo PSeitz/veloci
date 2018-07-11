@@ -1,10 +1,10 @@
 use regex::Regex;
+use search;
 use std;
 use std::fs::File;
 use std::io;
 use std::io::prelude::*;
 use std::path::Path;
-use search;
 
 pub(crate) fn normalize_text(text: &str) -> String {
     lazy_static! {
@@ -25,7 +25,6 @@ pub(crate) fn normalize_text(text: &str) -> String {
 
     new_str.to_lowercase().trim().to_owned()
 }
-
 
 pub fn open_file<P: AsRef<Path>>(path: P) -> Result<File, search::SearchError> {
     Ok(File::open(path.as_ref()).map_err(|err| search::SearchError::StringError(format!("Could not open {} {:?}", path.as_ref().to_str().unwrap(), err)))?)
@@ -113,11 +112,11 @@ pub(crate) fn get_u32_from_bytes(data: &[u8], pos: usize) -> u32 {
 //     hits
 // }
 
-pub(crate) trait StringAdd{
+pub(crate) trait StringAdd {
     fn add<O: AsRef<str>>(&self, other: O) -> String;
 }
 impl<S: AsRef<str>> StringAdd for S {
-    fn add<O: AsRef<str>>(&self, other: O) -> String{
+    fn add<O: AsRef<str>>(&self, other: O) -> String {
         self.as_ref().to_string() + other.as_ref()
     }
 }

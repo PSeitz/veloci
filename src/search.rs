@@ -1469,7 +1469,6 @@ impl Error for SearchError {
     }
 }
 
-
 #[inline]
 fn join_and_get_text_for_ids(persistence: &Persistence, id: u32, prop: &str) -> Result<Option<String>, SearchError> {
     let text_value_id_opt = join_for_1_to_1(persistence, id, &prop.add(".textindex").add(PARENT_TO_VALUE_ID))?;

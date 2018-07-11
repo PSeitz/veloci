@@ -85,7 +85,7 @@ impl IndexMetaData {
     pub fn new(max_value_id: u32) -> Self {
         IndexMetaData {
             max_value_id: max_value_id,
-            .. Default::default()
+            ..Default::default()
         }
     }
 }
@@ -224,7 +224,7 @@ pub trait TokenToAnchorScore: Debug + HeapSizeOf + Sync + Send + type_info::Type
     fn get_score_iter(&self, id: u32) -> AnchorScoreIter;
 }
 
-pub trait PhrasePairToAnchor: Debug + 'static + Sync + Send{
+pub trait PhrasePairToAnchor: Debug + 'static + Sync + Send {
     type Input: Debug;
     fn get_values(&self, id: Self::Input) -> Option<Vec<u32>>;
 }
@@ -374,7 +374,7 @@ impl Persistence {
                     path.to_string(),
                     Box::new(IndexIdToOneParent::<u64, u64> {
                         data: load_index_u64(&file_path)?,
-                        metadata: IndexMetaData{
+                        metadata: IndexMetaData {
                             max_value_id: u32::MAX,
                             avg_join_size: 1.0,
                             ..Default::default()
@@ -392,7 +392,7 @@ impl Persistence {
         Ok(())
     }
 
-    fn load_types_index_to_one<T:IndexIdToParentData>(data_direct_path: &str, metadata:IndexMetaData) -> Result<Box<IndexIdToParent<Output = u32>>, search::SearchError> {
+    fn load_types_index_to_one<T: IndexIdToParentData>(data_direct_path: &str, metadata: IndexMetaData) -> Result<Box<IndexIdToParent<Output = u32>>, search::SearchError> {
         let store = IndexIdToOneParent::<u32, T> {
             data: decode_bit_packed_vals(&file_path_to_bytes(data_direct_path)?, get_bytes_required(metadata.max_value_id)),
             metadata: metadata,
@@ -416,7 +416,6 @@ impl Persistence {
             let indirect_data_path = get_file_path(&self.db, &el.path) + ".data";
             let loading_type = get_loading_type(el.loading_type)?;
             match el.index_category {
-
                 IndexCategory::Phrase => {
                     // let store: Box<PhrasePairToAnchor<Input = (u32, u32)>> = match loading_type {
                     //     LoadingType::Disk => {
@@ -430,9 +429,7 @@ impl Persistence {
                 }
                 IndexCategory::AnchorScore => {
                     let store: Box<TokenToAnchorScore> = match loading_type {
-                        LoadingType::Disk => {
-                            Box::new(TokenToAnchorScoreVintMmap::from_path(&indirect_path, &indirect_data_path)?)
-                        }
+                        LoadingType::Disk => Box::new(TokenToAnchorScoreVintMmap::from_path(&indirect_path, &indirect_data_path)?),
                         LoadingType::InMemoryUnCompressed | LoadingType::InMemory => {
                             let mut store = TokenToAnchorScoreVintIM::default();
                             store.read(&indirect_path, &indirect_data_path).unwrap();
@@ -440,7 +437,7 @@ impl Persistence {
                         }
                     };
                     self.indices.token_to_anchor_score.insert(el.path.to_string(), store);
-                },
+                }
                 IndexCategory::Boost => {
                     match el.index_type {
                         KVStoreType::IndexIdToMultipleParentIndirect => {
@@ -453,15 +450,21 @@ impl Persistence {
                             self.indices.boost_valueid_to_value.insert(el.path.to_string(), Box::new(store));
                         }
                     }
-                },
+                }
                 IndexCategory::KeyValue => {
                     info_time!("loaded key_value_store {:?}", &el.path);
                     let data_direct_path = get_file_path(&self.db, &el.path);
 
                     //Insert dummy index, to seperate between emtpy indexes and nonexisting indexes
                     if el.is_empty {
-                        let store = IndexIdToOneParent::<u32, u32> {data: vec![], metadata: el.metadata, ok: std::marker::PhantomData};
-                        self.indices.key_value_stores.insert(el.path.to_string(), Box::new(store) as Box<IndexIdToParent<Output = u32>>);
+                        let store = IndexIdToOneParent::<u32, u32> {
+                            data: vec![],
+                            metadata: el.metadata,
+                            ok: std::marker::PhantomData,
+                        };
+                        self.indices
+                            .key_value_stores
+                            .insert(el.path.to_string(), Box::new(store) as Box<IndexIdToParent<Output = u32>>);
                         continue;
                     }
 
@@ -473,12 +476,12 @@ impl Persistence {
                                     start_pos: indirect_u32,
                                     data: file_path_to_bytes(&indirect_data_path)?,
                                     cache: lru_cache::LruCache::new(0),
-                                    metadata: IndexMetaData{
+                                    metadata: IndexMetaData {
                                         max_value_id: el.metadata.max_value_id,
                                         avg_join_size: el.metadata.avg_join_size,
                                         num_values: 0,
                                         num_ids: 0,
-                                    }
+                                    },
                                 };
                                 Box::new(store) as Box<IndexIdToParent<Output = u32>>
                             }
@@ -495,7 +498,11 @@ impl Persistence {
                         },
                         LoadingType::Disk => match el.index_type {
                             KVStoreType::IndexIdToMultipleParentIndirect => {
-                                let meta = IndexMetaData{max_value_id: el.metadata.max_value_id, avg_join_size:el.metadata.avg_join_size, ..Default::default()};
+                                let meta = IndexMetaData {
+                                    max_value_id: el.metadata.max_value_id,
+                                    avg_join_size: el.metadata.avg_join_size,
+                                    ..Default::default()
+                                };
                                 let store = PointingMMAPFileReader::from_path(&get_file_path(&self.db, &el.path), meta)?;
                                 Box::new(store) as Box<IndexIdToParent<Output = u32>>
                             }
@@ -508,10 +515,8 @@ impl Persistence {
                     };
 
                     self.indices.key_value_stores.insert(el.path.to_string(), store);
-                },
-                IndexCategory::IdList => {
-
-                },
+                }
+                IndexCategory::IdList => {}
             }
         }
 
@@ -880,10 +885,7 @@ impl Persistence {
             get_readable_size(self.indices.key_value_stores.heap_size_of_children()) // get_readable_size_for_children(&self.indices.key_value_stores)
         );
         info!("indices.boost_valueid_to_value {}", get_readable_size_for_children(&self.indices.boost_valueid_to_value));
-        info!(
-            "indices.token_to_anchor_score {}",
-            get_readable_size_for_children(&self.indices.token_to_anchor_score)
-        );
+        info!("indices.token_to_anchor_score {}", get_readable_size_for_children(&self.indices.token_to_anchor_score));
         info!("indices.fst {}", get_readable_size(self.get_fst_sizes()));
         info!("------");
         let total_size = self.get_fst_sizes()
@@ -1019,7 +1021,6 @@ fn get_loading_type(loading_type: LoadingType) -> Result<LoadingType, search::Se
     }
     Ok(loading_type)
 }
-
 
 pub(crate) fn vec_to_bytes_u32(data: &[u32]) -> Vec<u8> {
     vec_to_bytes(data)
