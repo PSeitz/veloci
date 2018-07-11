@@ -7,6 +7,7 @@ use search_field::*;
 use std;
 use std::cmp::Ordering;
 use util;
+use util::StringAdd;
 
 fn get_top_facet_group<T: IndexIdToParentData>(hits: &FnvHashMap<T, usize>, top: Option<usize>) -> Vec<(T, u32)> {
     let mut groups: Vec<(T, u32)> = hits.iter().map(|ref tupl| (*tupl.0, *tupl.1 as u32)).collect();
@@ -29,13 +30,13 @@ pub fn get_facet(persistence: &Persistence, req: &FacetRequest, ids: &[u32]) -> 
     info!("facet on {:?}", steps);
 
     // one step facet special case
-    if steps.len() == 1 || persistence.has_index(&(steps.last().unwrap().to_string() + ".anchor_to_text_id")) {
+    if steps.len() == 1 || persistence.has_index(&(steps.last().unwrap().add(ANCHOR_TO_TEXT_ID))) {
         let path = if steps.len() == 1 {
-            steps.first().unwrap().to_string() + ".parentToValueId"
+            steps.first().unwrap().add(PARENT_TO_VALUE_ID)
         } else {
-            steps.last().unwrap().to_string() + ".anchor_to_text_id"
+            steps.last().unwrap().add(ANCHOR_TO_TEXT_ID)
         };
-        let kv_store = persistence.get_valueid_to_parent(&path)?;
+        let kv_store = persistence.get_valueid_to_parent(path)?;
         let hits = {
             debug_time!("facet count_values_for_ids {:?}", req.field);
             kv_store.count_values_for_ids(ids, req.top.map(|el| el as u32))
@@ -68,10 +69,10 @@ pub fn get_facet(persistence: &Persistence, req: &FacetRequest, ids: &[u32]) -> 
 }
 
 pub(crate) fn join_anchor_to_leaf(persistence: &Persistence, ids: &[u32], steps: &[String]) -> Result<Vec<u32>, SearchError> {
-    let mut next_level_ids = { join_for_n_to_m(persistence, ids, &(steps.first().unwrap().to_string() + ".parentToValueId"))? };
+    let mut next_level_ids = { join_for_n_to_m(persistence, ids, &(steps.first().unwrap().add(PARENT_TO_VALUE_ID)))? };
     for step in steps.iter().skip(1) {
         trace!("facet step {:?}", step);
-        next_level_ids = join_for_n_to_m(persistence, &next_level_ids, &(step.to_string() + ".parentToValueId"))?;
+        next_level_ids = join_for_n_to_m(persistence, &next_level_ids, &(step.add(PARENT_TO_VALUE_ID)))?;
     }
 
     Ok(next_level_ids)

@@ -11,8 +11,8 @@ use doc_loader::DocLoader;
 use fst;
 // use fst_levenshtein;
 use persistence::Persistence;
+use persistence::*;
 use util;
-use util::concat;
 use util::*;
 
 use execution_plan::*;
@@ -500,7 +500,7 @@ fn boost_text_locality(persistence: &Persistence, path: &str, search_term_to_tex
         // No boost for single term hits
         return Ok(vec![]);
     }
-    let token_to_text_id = persistence.get_valueid_to_parent(&concat(&path, ".tokens_to_text_id"))?;
+    let token_to_text_id = persistence.get_valueid_to_parent(path.add(TOKENS_TO_TEXT_ID))?;
     let mut terms_text_ids: Vec<_> = vec![];
     let mut boost_text_ids = vec![];
     {
@@ -518,7 +518,7 @@ fn boost_text_locality(persistence: &Persistence, path: &str, search_term_to_tex
             }
         }
     }
-    let text_id_to_anchor = persistence.get_valueid_to_parent(&concat(&path, ".text_id_to_anchor"))?;
+    let text_id_to_anchor = persistence.get_valueid_to_parent(path.add(TEXT_ID_TO_ANCHOR))?;
     trace_time!("text_locality_boost text_ids to anchor");
 
     boost_text_ids.sort_unstable_by_key(|el| el.0);
@@ -527,11 +527,6 @@ fn boost_text_locality(persistence: &Persistence, path: &str, search_term_to_tex
         for anchor_id in text_id_to_anchor.get_values_iter(u64::from(text_id.0)) {
             boost_anchor.push(Hit::new(anchor_id, num_hits_in_same_text as f32 * num_hits_in_same_text as f32));
         }
-        // if let Some(anchor_ids) = text_id_to_anchor.get_values(u64::from(text_id.0)) {
-        //     for anchor_id in anchor_ids {
-        //         boost_anchor.push(Hit::new(anchor_id, num_hits_in_same_text as f32 * num_hits_in_same_text as f32));
-        //     }
-        // }
     }
     boost_anchor.sort_unstable_by_key(|el| el.id);
     Ok(boost_anchor)
@@ -1323,7 +1318,7 @@ mod bench_intersect {
 #[cfg_attr(feature = "flame_it", flame)]
 pub fn add_boost(persistence: &Persistence, boost: &RequestBoostPart, hits: &mut SearchFieldResult) -> Result<(), SearchError> {
     // let key = util::boost_path(&boost.path);
-    let boost_path = boost.path.to_string() + ".boost_valid_to_value";
+    let boost_path = boost.path.to_string() + BOOST_VALID_TO_VALUE;
     let boostkv_store = persistence.get_boost(&boost_path)?;
     let boost_param = boost.param.unwrap_or(0.0);
 
@@ -1474,28 +1469,11 @@ impl Error for SearchError {
     }
 }
 
-// use util::*;
-
-// pub fn read_data_single(persistence: &Persistence, id: u32, field: String) -> Result<String, SearchError> {
-//     let steps = util::get_steps_to_anchor(&field);
-
-//     let mut data = vec![id];
-//     let mut result = json!({});
-
-//     for path in steps.iter() {
-//         result[path.clone()] = json!([]);
-//         let dat:FnvHashMap<u32, Vec<u32>> = join_for_read(persistence, data, &concat(path, ".parentToValueId"))?;
-//         data = dat.get(&id).ok_or(From::from(format!("Could not find id {:?} in  {:?} {:?}", id, path, dat)))?.clone();
-//     }
-//     let texto = get_id_text_map_for_ids(persistence, steps.last().unwrap(), &data);
-//     Ok(serde_json::to_string_pretty(&result).unwrap())
-//     // "".to_string()
-// }
 
 #[inline]
 fn join_and_get_text_for_ids(persistence: &Persistence, id: u32, prop: &str) -> Result<Option<String>, SearchError> {
-    let text_value_id_opt = join_for_1_to_1(persistence, id, &concat(&prop, ".textindex.parentToValueId"))?;
-    Ok(text_value_id_opt.map(|text_value_id| get_text_for_id(persistence, &concat(&prop, ".textindex"), text_value_id)))
+    let text_value_id_opt = join_for_1_to_1(persistence, id, &prop.add(".textindex").add(PARENT_TO_VALUE_ID))?;
+    Ok(text_value_id_opt.map(|text_value_id| get_text_for_id(persistence, &prop.add(".textindex"), text_value_id)))
 }
 
 pub fn read_data(persistence: &Persistence, id: u32, fields: &[String]) -> Result<serde_json::Value, SearchError> {
@@ -1514,7 +1492,7 @@ pub fn read_tree(persistence: &Persistence, id: u32, tree: &NodeTree) -> Result<
     match *tree {
         NodeTree::Map(ref map) => {
             for (prop, sub_tree) in map.iter() {
-                let current_path = concat(&prop, ".parentToValueId");
+                let current_path = prop.add(PARENT_TO_VALUE_ID);
                 let is_array = prop.ends_with("[]");
                 match *sub_tree {
                     NodeTree::IsLeaf => {

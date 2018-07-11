@@ -1,10 +1,11 @@
+use persistence::*;
 use persistence::Persistence;
 use search::add_boost;
 use search::*;
 use search::{Request, RequestBoostPart, RequestSearchPart, SearchError};
 use search_field;
 use util;
-use util::concat;
+use util::StringAdd;
 
 use crossbeam_channel;
 use crossbeam_channel::unbounded;
@@ -237,7 +238,7 @@ pub fn plan_creator_search_part(mut request_part: RequestSearchPart, mut request
             plans_output: rx.clone(),
             input_prev_steps: vec![field_rx],
             output_next_steps: tx.clone(),
-            path: concat(paths.last().unwrap(), ".valueIdToParent"),
+            path: paths.last().unwrap().add(VALUE_ID_TO_PARENT),
             trace_info: "term hits hit to column".to_string(),
         });
 
@@ -270,11 +271,11 @@ pub fn plan_creator_search_part(mut request_part: RequestSearchPart, mut request
                 plans_output: next_rx.clone(),
                 input_prev_steps: vec![rx.clone()],
                 output_next_steps: tx.clone(),
-                path: concat(&paths[i], ".valueIdToParent"),
+                path: paths[i].add(VALUE_ID_TO_PARENT),
                 trace_info: "Joining to anchor".to_string(),
             });
 
-            debug!("PlanCreator Step {}", concat(&paths[i], ".valueIdToParent"));
+            debug!("PlanCreator Step {}", paths[i].add(VALUE_ID_TO_PARENT));
 
             rx = next_rx;
         }

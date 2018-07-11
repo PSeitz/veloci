@@ -113,83 +113,18 @@ pub(crate) fn get_u32_from_bytes(data: &[u8], pos: usize) -> u32 {
 //     hits
 // }
 
-// pub(crate) fn boost_path(path: &str) -> (String, String) {
-//     concat_tuple(path, ".boost.subObjId", ".boost.value")
-// }
-
-// pub(crate) fn iter_json_stream<'a, F, T>(data: StreamDeserializer<'a, T, Value>, cb: &mut F)
-// where
-//     F: FnMut(&serde_json::Value),
-//     T: serde_json::de::Read<'a>,
-// {
-//     for el in data {
-//         if let Some(arr) = el.as_ref().unwrap().as_array() {
-//             for el in arr.iter() {
-//                 cb(el);
-//             }
-//         } else {
-//             cb(el.as_ref().unwrap());
-//         }
-//     }
-// }
-
-// #[test]
-// fn concatooo() {
-//     concato("nice", "cooel");
-//     concato("nice".to_string(), "cooel");
-//     let yop = "nice".to_string();
-//     concato(&yop, "cooel");
-// }
-
-// trait IntoString {
-//     fn into(&'a self) -> String;
-// }
-
-pub(crate) trait IntoString: Sized {
-    fn into_string(self) -> String;
+pub(crate) trait StringAdd{
+    fn add<O: AsRef<str>>(&self, other: O) -> String;
 }
-
-impl<'a> IntoString for &'a String {
-    fn into_string(self) -> String {
-        self.to_string()
+impl<S: AsRef<str>> StringAdd for S {
+    fn add<O: AsRef<str>>(&self, other: O) -> String{
+        self.as_ref().to_string() + other.as_ref()
     }
 }
-impl<'a, 'b> IntoString for &'a &'b String {
-    fn into_string(self) -> String {
-        self.to_string()
-    }
-}
-impl<'a> IntoString for &'a str {
-    fn into_string(self) -> String {
-        self.to_string()
-    }
-}
-impl<'a, 'b> IntoString for &'a &'b str {
-    fn into_string(self) -> String {
-        self.to_string()
-    }
-}
-impl IntoString for String {
-    fn into_string(self) -> String {
-        self
-    }
-}
-
-pub(crate) fn concat<S: IntoString + AsRef<str>>(path: S, suffix: &str) -> String {
-    path.as_ref().into_string() + suffix
-}
-
-// pub(crate) fn concat(path: &str, suffix: &str) -> String {
-//     path.to_string() + suffix
-// }
 
 pub(crate) fn get_file_path(folder: &str, path: &str) -> String {
     folder.to_string() + "/" + path
 }
-
-// pub(crate) fn concat_tuple(path: &str, suffix: &str, suffix2: &str) -> (String, String) {
-//     (concat(path, suffix), concat(path, suffix2))
-// }
 
 pub(crate) fn get_file_path_name(path_to_anchor: &str, is_text_index_part: bool) -> String {
     let suffix = if is_text_index_part { ".textindex" } else { "" };
@@ -360,8 +295,6 @@ pub fn to_node_tree(mut paths: Vec<Vec<String>>) -> NodeTree {
         } else {
             next_paths.sort_by_key(|el| el[0].clone());
             let sub_tree = if !is_leaf { to_node_tree(next_paths) } else { NodeTree::IsLeaf };
-            // let mut sub_tree = to_node_tree(next_paths);
-            // sub_tree.is_leaf = is_leaf;
             next.insert(key.to_string(), sub_tree);
         }
     }

@@ -827,7 +827,7 @@ describe! search_test {
             "levenshtein_distance": 0,
             "starts_with":true,
             "token_value": {
-                "path":"meanings.ger[].textindex.tokenValues",
+                "path":"meanings.ger[].textindex",
                 "boost_fun":"Log10",
                 "param": 1
             },

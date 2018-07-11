@@ -18,7 +18,6 @@ use serde_json;
 use fnv::FnvHashMap;
 
 use log;
-// use mayda;
 
 use fst::Map;
 // use rayon::prelude::*;
@@ -44,6 +43,18 @@ use colored::*;
 use lru_time_cache::LruCache;
 use parking_lot::RwLock;
 use std::str::FromStr;
+
+pub static TOKENS_TO_TEXT_ID: &'static str = ".tokens_to_text_id";
+pub static TEXT_ID_TO_TOKEN_IDS: &'static str = ".text_id_to_token_ids";
+pub static TO_ANCHOR_ID_SCORE: &'static str = ".to_anchor_id_score";
+pub static PHRASE_PAIR_TO_ANCHOR: &'static str = ".phrase_pair_to_anchor";
+pub static VALUE_ID_TO_PARENT: &'static str = ".value_id_to_parent";
+pub static PARENT_TO_VALUE_ID: &'static str = ".parent_to_value_id";
+pub static TEXT_ID_TO_ANCHOR: &'static str = ".text_id_to_anchor";
+pub static PARENT_TO_TEXT_ID: &'static str = ".parent_to_text_id";
+pub static ANCHOR_TO_TEXT_ID: &'static str = ".anchor_to_text_id";
+pub static BOOST_VALID_TO_VALUE: &'static str = ".boost_valid_to_value";
+pub static TOKEN_VALUES: &'static str = ".token_values";
 
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
 pub struct MetaData {
@@ -97,7 +108,6 @@ impl Default for IndexCategory {
 pub struct KVStoreMetaData {
     pub index_category: IndexCategory,
     pub path: String,
-    pub is_1_to_n: bool, // In the sense of 1:n   1key, n values
     pub index_type: KVStoreType,
     #[serde(default)]
     pub is_empty: bool,
@@ -127,38 +137,6 @@ pub struct PersistenceIndices {
 //         self.boost_valueid_to_value.extend(other.boost_valueid_to_value);
 //         self.index_64.extend(other.index_64);
 //         self.fst.extend(other.fst);
-//     }
-// }
-
-// #[derive(Debug)]
-// enum IndexVariants {
-//     INDEX(Box<IndexIdToParent<Output = u32>>),
-//     TOKEN(Box<TokenToAnchorScore>),
-// }
-// use std::iter::FromIterator;
-// impl FromIterator<(String, IndexCategory, IndexVariants)> for PersistenceIndices {
-//     fn from_iter<I: IntoIterator<Item=(String, IndexCategory, IndexVariants)>>(iter: I) -> Self {
-//         let mut c = PersistenceIndices::default();
-
-//         match IndexCategory {
-//             IndexCategory::Boost => {
-
-//             },
-//             IndexCategory::KeyValue => {
-
-//             },
-//             IndexCategory::AnchorScore => {
-
-//             },
-//             IndexCategory::IdList => {
-
-//             },
-//         }
-//         // for i in iter {
-//         //     c.add(i);
-//         // }
-
-//         c
 //     }
 // }
 
@@ -737,8 +715,8 @@ impl Persistence {
     }
 
     #[cfg_attr(feature = "flame_it", flame)]
-    pub fn get_token_to_anchor(&self, path: &str) -> Result<&TokenToAnchorScore, search::SearchError> {
-        let path = path.to_string() + ".to_anchor_id_score";
+    pub fn get_token_to_anchor<S: AsRef<str>>(&self, path: S) -> Result<&TokenToAnchorScore, search::SearchError> {
+        let path = path.as_ref().add(TO_ANCHOR_ID_SCORE);
         self.indices.token_to_anchor_score.get(&path).map(|el| el.as_ref()).ok_or_else(|| {
             let error = format!("Did not found path in indices {}", path);
             error!("{:?}", error);
@@ -747,9 +725,9 @@ impl Persistence {
     }
 
     #[cfg_attr(feature = "flame_it", flame)]
-    pub fn get_valueid_to_parent(&self, path: &str) -> Result<&IndexIdToParent<Output = u32>, search::SearchError> {
-        self.indices.key_value_stores.get(path).map(|el| el.as_ref()).ok_or_else(|| {
-            let error = format!("Did not found path in indices {:?}", path);
+    pub fn get_valueid_to_parent<S: AsRef<str>>(&self, path: S) -> Result<&IndexIdToParent<Output = u32>, search::SearchError> {
+        self.indices.key_value_stores.get(path.as_ref()).map(|el| el.as_ref()).ok_or_else(|| {
+            let error = format!("Did not found path in indices {:?}", path.as_ref());
             error!("{:?}", error);
             From::from(error)
         })
@@ -812,12 +790,6 @@ impl Persistence {
         Ok(())
     }
 
-    // #[cfg_attr(feature = "flame_it", flame)]
-    // pub fn read_data(&self, path: &str, data: &[u8]) -> Result<(), io::Error> {
-    //     File::create(&get_file_path(&self.db, path))?.write_all(data)?;
-    //     Ok(())
-    // }
-
     // fn store_fst(all_terms: &Vec<String>, path:&str) -> Result<(), fst::Error> {
     //     info_time!("store_fst");
     //     let now = Instant::now();
@@ -856,71 +828,6 @@ impl Persistence {
                 // doc_id_type: check_is_docid_type(data),
             },
         ))
-    }
-
-    pub fn flush_direct_index(&self, store: &mut IndexIdToOneParentFlushing, path: &str, loading_type: LoadingType) -> Result<(KVStoreMetaData), io::Error> {
-        store.flush()?;
-        Ok(KVStoreMetaData {
-            loading_type,
-            index_category: IndexCategory::KeyValue,
-            index_type: KVStoreType::IndexIdToOneParent,
-            is_1_to_n: false,
-            path: path.to_string(),
-            is_empty: store.is_empty(),
-            metadata: store.metadata,
-            // max_value_id: store.max_value_id,
-            // avg_join_size: store.avg_join_size,
-        })
-    }
-
-    pub fn flush_indirect_index(
-        &self,
-        store: &mut IndexIdToMultipleParentIndirectFlushingInOrderVint,
-        index_category: IndexCategory,
-        path: &str,
-        loading_type: LoadingType,
-    ) -> Result<(KVStoreMetaData), io::Error> {
-        store.flush()?;
-        Ok(KVStoreMetaData {
-            loading_type,
-            index_category: index_category,
-            index_type: KVStoreType::IndexIdToMultipleParentIndirect,
-            is_1_to_n: true, //TODO FIXME ADD 1:1 Flushing index
-            path: path.to_string(),
-            is_empty: store.is_empty(),
-            metadata: store.metadata,
-        })
-    }
-
-    pub fn flush_phrase_index(
-        &self,
-        store: &mut IndexIdToMultipleParentIndirectFlushingInOrderVintNoDirectEncode<(u32, u32)>,
-        path: &str,
-        loading_type: LoadingType,
-    ) -> Result<(KVStoreMetaData), io::Error> {
-        store.flush()?;
-        Ok(KVStoreMetaData {
-            loading_type,
-            index_category: IndexCategory::Phrase,
-            index_type: KVStoreType::IndexIdToMultipleParentIndirect,
-            is_1_to_n: true, //TODO FIXME ADD 1:1 Flushing index
-            path: path.to_string(),
-            is_empty: store.is_empty(),
-            metadata: store.metadata,
-        })
-    }
-
-    pub fn flush_score_index_vint(&self, store: &mut TokenToAnchorScoreVintFlushing, path: &str, loading_type: LoadingType) -> Result<(KVStoreMetaData), io::Error> {
-        store.flush()?;
-        Ok(KVStoreMetaData {
-            loading_type,
-            index_category: IndexCategory::AnchorScore,
-            index_type: KVStoreType::IndexIdToMultipleParentIndirect,
-            is_1_to_n: false,
-            is_empty: false, // TODO
-            path: path.to_string(),
-            metadata: store.metadata,
-        })
     }
 
     #[cfg_attr(feature = "flame_it", flame)]

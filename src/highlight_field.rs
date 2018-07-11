@@ -7,7 +7,7 @@ use std;
 use std::cmp;
 use str;
 use tokenizer::*;
-use util::concat;
+use util::StringAdd;
 
 #[allow(unused_imports)]
 use fst::{IntoStreamer, Map, MapBuilder, Set};
@@ -62,7 +62,7 @@ pub fn highlight_text(
 
 #[cfg_attr(feature = "flame_it", flame)]
 pub fn highlight_document(persistence: &Persistence, path: &str, value_id: u64, token_ids: &[u32], opt: &SnippetInfo) -> Result<Option<String>, search::SearchError> {
-    let text_id_to_token_ids = persistence.get_valueid_to_parent(&concat(path, ".text_id_to_token_ids"))?;
+    let text_id_to_token_ids = persistence.get_valueid_to_parent(path.add(TEXT_ID_TO_TOKEN_IDS))?;
     trace_time!("highlight_document id {}", value_id);
 
     let documents_token_ids: Vec<u32> = {

@@ -11,7 +11,9 @@ use itertools::Itertools;
 use json_converter;
 use log;
 use persistence;
+use persistence::*;
 use persistence::{LoadingType, Persistence};
+use persistence::IndexCategory;
 use persistence_data::*;
 use persistence_data_indirect::*;
 use persistence_data_binary_search::*;
@@ -24,11 +26,12 @@ use serde_json::{self, Value};
 use std::io::BufRead;
 use tokenizer::*;
 use util::*;
-use util::{self, concat};
-use persistence::IndexCategory;
+use util::{self};
 
 use buffered_index_writer::BufferedIndexWriter;
 use fixedbitset::FixedBitSet;
+
+use util::StringAdd;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(untagged)]
@@ -192,7 +195,7 @@ fn store_full_text_info_and_set_ids(
 fn store_fst(persistence: &Persistence, sorted_terms: &[(&str, &mut TermInfo)], path: &str) -> Result<(), fst::Error> {
     // fn store_fst(persistence: &Persistence, sorted_terms: &[(&String, &mut TermInfo)], path: &str) -> Result<(), fst::Error> {
     debug_time!("store_fst {:?}", path);
-    let wtr = persistence.get_buffered_writer(&concat(path, ".fst"))?;
+    let wtr = persistence.get_buffered_writer(&path.add(".fst"))?;
     // Create a builder that can be used to insert new key-value pairs.
     let mut build = MapBuilder::new(wtr)?;
     for (term, info) in sorted_terms.iter() {
@@ -479,90 +482,6 @@ fn buffered_index_to_direct_index(db_path: &str, path: String, mut buffered_inde
     Ok(store)
 }
 
-// use buffered_index_writer::KeyValue;
-fn stream_iter_to_indirect_index(
-    iter: impl Iterator<Item = buffered_index_writer::KeyValue<u32, u32>>,
-    target: &mut IndexIdToMultipleParentIndirectFlushingInOrderVint,
-    sort_and_dedup: bool,
-) -> Result<(), io::Error> {
-    for (id, group) in &iter.group_by(|el| el.key) {
-        let mut group: Vec<u32> = group.map(|el| el.value).collect();
-        if sort_and_dedup {
-            group.sort_unstable();
-            group.dedup();
-        }
-        target.add(id, group)?;
-    }
-
-    Ok(())
-}
-
-fn stream_buffered_index_writer_to_indirect_index(
-    mut index_writer: BufferedIndexWriter,
-    target: &mut IndexIdToMultipleParentIndirectFlushingInOrderVint,
-    sort_and_dedup: bool,
-) -> Result<(), io::Error> {
-    // flush_and_kmerge will flush elements to disk, this is unnecessary for small indices, so we check for im
-    if index_writer.is_in_memory() {
-        stream_iter_to_indirect_index(index_writer.into_iter_inmemory(), target, sort_and_dedup)?;
-    } else {
-        stream_iter_to_indirect_index(index_writer.flush_and_kmerge()?, target, sort_and_dedup)?;
-    }
-
-    //when there has been written something to disk flush the rest of the data too, so we have either all data im oder on disk
-    if !target.is_in_memory() {
-        target.flush()?;
-    }
-    Ok(())
-}
-
-
-// use buffered_index_writer::KeyValue;
-fn stream_iter_to_anchor_score(
-    iter: impl Iterator<Item = buffered_index_writer::KeyValue<u32, (u32, u32)>>,
-    target: &mut TokenToAnchorScoreVintFlushing,
-) -> Result<(), io::Error> {
-    // use std::mem::transmute;
-    use std::slice::from_raw_parts_mut;
-    for (id, group) in &iter.group_by(|el| el.key) {
-        let mut group: Vec<(u32, u32)> = group.map(|el| el.value).collect();
-        group.sort_unstable_by_key(|el| el.0);
-        // group.dedup_by_key(|el| el.0);
-        group.dedup_by(|a, b| {
-            //store only best hit
-            if a.0 == b.0 {
-                b.1 += a.1; // TODO: Check if b is always kept and a discarded in case of equality
-                true
-            } else {
-                false
-            }
-        });
-        let mut slice: &mut [u32] = unsafe {
-            &mut *(from_raw_parts_mut(group.as_mut_ptr(), group.len() * 2) as *mut [(u32, u32)] as *mut [u32]) //DANGER ZONE: THIS COULD BREAK IF THE MEMORY LAYOUT OF TUPLE CHANGES
-        };
-        target.set_scores(id, &mut slice)?;
-    }
-
-    Ok(())
-}
-
-fn stream_buffered_index_writer_to_anchor_score(
-    mut index_writer: BufferedIndexWriter<u32, (u32, u32)>,
-    target: &mut TokenToAnchorScoreVintFlushing,
-) -> Result<(), io::Error> {
-    // flush_and_kmerge will flush elements to disk, this is unnecessary for small indices, so we check for im
-    if index_writer.is_in_memory() {
-        stream_iter_to_anchor_score(index_writer.into_iter_inmemory(), target)?;
-    } else {
-        stream_iter_to_anchor_score(index_writer.flush_and_kmerge()?, target)?;
-    }
-
-    //when there has been written something to disk flush the rest of the data too, so we have either all data im oder on disk
-    if !target.is_in_memory() {
-        target.flush()?;
-    }
-    Ok(())
-}
 
 #[derive(Debug)]
 struct PathDataIds {
@@ -769,50 +688,116 @@ fn trace_indices(path_data: &mut FnvHashMap<String, PathData>) {
     for (path, data) in path_data {
         let path = &path;
 
-        trace!("{}\n{}", &concat(path, ".tokens_to_text_id"), &data.tokens_to_text_id);
-        trace!("{}\n{}", &concat(path, ".text_id_to_token_ids"), &data.text_id_to_token_ids.data);
+        trace!("{}\n{}", &path.add(TOKENS_TO_TEXT_ID), &data.tokens_to_text_id);
+        trace!("{}\n{}", &path.add(TEXT_ID_TO_TOKEN_IDS), &data.text_id_to_token_ids.data);
         // trace!(
         //     "{}\n{}",
-        //     &concat(path, ".text_id_to_token_ids"),
+        //     &path.add(TEXT_ID_TO_TOKEN_IDS),
         //     print_index_id_to_parent(&data.text_id_to_token_ids, "value_id", "token_id")
         // );
 
-        trace!("{}\n{}", &concat(path, ".valueIdToParent"), &data.text_id_to_parent);
-        trace!("{}\n{}", &concat(path, ".parent_to_text_id"), &data.parent_to_text_id);
-        trace!("{}\n{}", &concat(path, ".text_id_to_anchor"), &data.text_id_to_anchor);
+        trace!("{}\n{}", &path.add(VALUE_ID_TO_PARENT), &data.text_id_to_parent);
+        trace!("{}\n{}", &path.add(".parent_to_text_id"), &data.parent_to_text_id);
+        trace!("{}\n{}", &path.add(TEXT_ID_TO_ANCHOR), &data.text_id_to_anchor);
 
         // trace!(
         //     "{}\n{}",
-        //     &concat(path, ".text_id_to_anchor"),
+        //     &path.add(TEXT_ID_TO_ANCHOR),
         //     print_vec(&data.text_id_to_anchor, "anchor_id", "anchor_id")
         // );
     }
 }
 
+// use buffered_index_writer::KeyValue;
+fn stream_iter_to_indirect_index(
+    iter: impl Iterator<Item = buffered_index_writer::KeyValue<u32, u32>>,
+    target: &mut IndexIdToMultipleParentIndirectFlushingInOrderVint,
+    sort_and_dedup: bool,
+) -> Result<(), io::Error> {
+    for (id, group) in &iter.group_by(|el| el.key) {
+        let mut group: Vec<u32> = group.map(|el| el.value).collect();
+        if sort_and_dedup {
+            group.sort_unstable();
+            group.dedup();
+        }
+        target.add(id, group)?;
+    }
+
+    Ok(())
+}
+
 fn buffered_index_to_indirect_index_multiple(
     db_path: &str,
     path: String,
-    buffered_index_data: BufferedIndexWriter,
+    mut buffered_index_data: BufferedIndexWriter,
     sort_and_dedup: bool,
 ) -> Result<IndexIdToMultipleParentIndirectFlushingInOrderVint, search::SearchError> {
-    // let indirect_file_path = util::get_file_path(db_path, &(path.to_string() + ".indirect"));
-    // let data_file_path = util::get_file_path(db_path, &(path.to_string() + ".data"));
     let mut store = IndexIdToMultipleParentIndirectFlushingInOrderVint::new(get_file_path(db_path, &path), buffered_index_data.max_value_id);
-    stream_buffered_index_writer_to_indirect_index(buffered_index_data, &mut store, sort_and_dedup)?;
+
+    if buffered_index_data.is_in_memory() {
+        stream_iter_to_indirect_index(buffered_index_data.into_iter_inmemory(), &mut store, sort_and_dedup)?;
+    } else {
+        stream_iter_to_indirect_index(buffered_index_data.flush_and_kmerge()?, &mut store, sort_and_dedup)?;
+    }
+
+    //when there has been written something to disk flush the rest of the data too, so we have either all data im oder on disk
+    if !store.is_in_memory() {
+        store.flush()?;
+    }
+
     Ok(store)
 }
 
+
+// use buffered_index_writer::KeyValue;
+fn stream_iter_to_anchor_score(
+    iter: impl Iterator<Item = buffered_index_writer::KeyValue<u32, (u32, u32)>>,
+    target: &mut TokenToAnchorScoreVintFlushing,
+) -> Result<(), io::Error> {
+    // use std::mem::transmute;
+    use std::slice::from_raw_parts_mut;
+    for (id, group) in &iter.group_by(|el| el.key) {
+        let mut group: Vec<(u32, u32)> = group.map(|el| el.value).collect();
+        group.sort_unstable_by_key(|el| el.0);
+        // group.dedup_by_key(|el| el.0);
+        group.dedup_by(|a, b| {
+            //store only best hit
+            if a.0 == b.0 {
+                b.1 += a.1; // TODO: Check if b is always kept and a discarded in case of equality
+                true
+            } else {
+                false
+            }
+        });
+        let mut slice: &mut [u32] = unsafe {
+            &mut *(from_raw_parts_mut(group.as_mut_ptr(), group.len() * 2) as *mut [(u32, u32)] as *mut [u32]) //DANGER ZONE: THIS COULD BREAK IF THE MEMORY LAYOUT OF TUPLE CHANGES
+        };
+        target.set_scores(id, &mut slice)?;
+    }
+
+    Ok(())
+}
 fn add_anchor_score_flush(
     db_path: &str,
     path: String,
-    buffered_index_data: BufferedIndexWriter<u32, (u32, u32)>,
+    mut buffered_index_data: BufferedIndexWriter<u32, (u32, u32)>,
     indices: &mut IndicesFromRawData,
 ) -> Result<(), io::Error> {
     let indirect_file_path = util::get_file_path(db_path, &(path.to_string() + ".indirect"));
     let data_file_path = util::get_file_path(db_path, &(path.to_string() + ".data"));
 
     let mut store = TokenToAnchorScoreVintFlushing::new(indirect_file_path, data_file_path);
-    stream_buffered_index_writer_to_anchor_score(buffered_index_data, &mut store)?;
+    // stream_buffered_index_writer_to_anchor_score(buffered_index_data, &mut store)?;
+    if buffered_index_data.is_in_memory() {
+        stream_iter_to_anchor_score(buffered_index_data.into_iter_inmemory(), &mut store)?;
+    } else {
+        stream_iter_to_anchor_score(buffered_index_data.flush_and_kmerge()?, &mut store)?;
+    }
+
+    //when there has been written something to disk flush the rest of the data too, so we have either all data im oder on disk
+    if !store.is_in_memory() {
+        store.flush()?;
+    }
 
     indices.push(IndexData{path, index: IndexVariants::TokenToAnchorScore(store), loading_type:LoadingType::Disk, index_category: IndexCategory::AnchorScore });
     Ok(())
@@ -921,7 +906,7 @@ fn convert_raw_path_data_to_indices(
             let path = &path;
 
             add_index_flush(
-                concat(path, ".tokens_to_text_id"),
+                path.add(TOKENS_TO_TEXT_ID),
                 data.tokens_to_text_id,
                 false,
                 true,
@@ -929,12 +914,12 @@ fn convert_raw_path_data_to_indices(
                 LoadingType::Disk,
             )?;
 
-            add_anchor_score_flush(&db_path, concat(path, ".to_anchor_id_score"), data.token_to_anchor_id_score, &mut indices)?;
-            add_phrase_pair_flush(&db_path, concat(path, ".phrase_pair_to_anchor"), data.phrase_pair_to_anchor, &mut indices)?;
+            add_anchor_score_flush(&db_path, path.add(TO_ANCHOR_ID_SCORE), data.token_to_anchor_id_score, &mut indices)?;
+            add_phrase_pair_flush(&db_path, path.add(PHRASE_PAIR_TO_ANCHOR), data.phrase_pair_to_anchor, &mut indices)?;
 
             let sort_and_dedup = false;
             add_index_flush(
-                concat(path, ".text_id_to_token_ids"),
+                path.add(TEXT_ID_TO_TOKEN_IDS),
                 data.text_id_to_token_ids.data,
                 false,
                 sort_and_dedup,
@@ -943,7 +928,7 @@ fn convert_raw_path_data_to_indices(
             )?;
 
             add_index_flush(
-                concat(path, ".valueIdToParent"),
+                path.add(VALUE_ID_TO_PARENT),
                 data.text_id_to_parent,
                 false, // valueIdToParent relation is always 1 to 1, expect for text_ids, which can have multiple parents. Here we handle only text_ids therefore is this always false
                 sort_and_dedup,
@@ -958,7 +943,7 @@ fn convert_raw_path_data_to_indices(
             };
 
             add_index_flush(
-                concat(path, ".parentToValueId"),
+                path.add(PARENT_TO_VALUE_ID), // TODO RENAME TO PARENT_TO_TEXT_ID
                 data.parent_to_text_id,
                 true, // This is parent_to_text_id here - Every Value id hat one associated text_id -- TODO: VALIDATE
                 sort_and_dedup,
@@ -967,7 +952,7 @@ fn convert_raw_path_data_to_indices(
             )?;
 
             add_index_flush(
-                concat(path, ".text_id_to_anchor"),
+                path.add(TEXT_ID_TO_ANCHOR),
                 data.text_id_to_anchor,
                 false,
                 true,
@@ -977,20 +962,19 @@ fn convert_raw_path_data_to_indices(
 
             if let Some(anchor_to_text_id) = data.anchor_to_text_id {
                 add_index_flush(
-                    concat(path, ".anchor_to_text_id"),
+                    path.add(ANCHOR_TO_TEXT_ID),
                     anchor_to_text_id,
                     false,
                     sort_and_dedup,
                     &mut indices,
                     LoadingType::InMemoryUnCompressed,
-                ).unwrap(); //TODO Error handling
+                )?;
             }
 
             if let Some(buffered_index_data) = data.boost {
-                let boost_path = concat(&extract_field_name(path), ".boost_valid_to_value");
-                let mut store = IndexIdToMultipleParentIndirectFlushingInOrderVint::new(util::get_file_path(&db_path, &boost_path), buffered_index_data.max_value_id);
-                stream_buffered_index_writer_to_indirect_index(buffered_index_data, &mut store, false)?;
-                // indices.boost_indices.push((boost_path, store, LoadingType::InMemoryUnCompressed));
+                let boost_path = extract_field_name(path).add(BOOST_VALID_TO_VALUE);
+
+                let store = buffered_index_to_indirect_index_multiple(db_path, boost_path.to_string(), buffered_index_data, false)?;
                 indices.push(IndexData{path: boost_path.to_string(), index: IndexVariants::MultiValue(store), loading_type: LoadingType::InMemoryUnCompressed, index_category: IndexCategory::Boost });
             }
 
@@ -1009,7 +993,7 @@ fn convert_raw_path_data_to_indices(
 
             let path = &path;
             add_index_flush(
-                concat(path, ".valueIdToParent"),
+                path.add(VALUE_ID_TO_PARENT),
                 data.value_to_parent,
                 true, // valueIdToParent relation is always 1 to 1, expect for text_ids, which can have multiple parents. Here we handle all except .textindex data therefore is this always true
                 false,
@@ -1017,7 +1001,7 @@ fn convert_raw_path_data_to_indices(
                 LoadingType::Disk,
             )?;
             add_index_flush(
-                concat(path, ".parentToValueId"),
+                path.add(PARENT_TO_VALUE_ID),
                 data.parent_to_value,
                 false,
                 false,
@@ -1142,7 +1126,6 @@ where
                 ..Default::default()
                 // is_empty: store.is_empty(),
                 // index_type: KVStoreType::IndexIdToMultipleParentIndirect,
-                // is_1_to_n: true, //TODO FIXME ADD 1:1 Flushing index
                 // metadata: store.metadata,
             };
 
@@ -1151,28 +1134,24 @@ where
                     store.flush()?;
                     kv_metadata.is_empty = store.is_empty();
                     kv_metadata.metadata = store.metadata;
-                    kv_metadata.is_1_to_n = true;
                 //     kv_metadata.index_type = KVStoreType::IndexIdToMultipleParentIndirect;
                 },
                 IndexVariants::SingleValue(store) => {
                     store.flush()?;
                     kv_metadata.is_empty = store.is_empty();
                     kv_metadata.metadata = store.metadata;
-                    kv_metadata.is_1_to_n = false;
                     kv_metadata.index_type = persistence::KVStoreType::IndexIdToOneParent;
                 },
                 IndexVariants::MultiValue(store) => {
                     store.flush()?;
                     kv_metadata.is_empty = store.is_empty();
                     kv_metadata.metadata = store.metadata;
-                    kv_metadata.is_1_to_n = true;
                     kv_metadata.index_type = persistence::KVStoreType::IndexIdToMultipleParentIndirect;
                 },
                 IndexVariants::TokenToAnchorScore(store) => {
                     store.flush()?;
                     kv_metadata.is_empty = false;
                     kv_metadata.metadata = store.metadata;
-                    kv_metadata.is_1_to_n = false;
                     // kv_metadata.index_type = KVStoreType::IndexIdToMultipleParentIndirect;
                 },
             }
@@ -1232,7 +1211,7 @@ where
     //     let padding = 10;
     //     all_ids_as_str.insert(format!("{:0padding$}", pair.valid, padding = padding), TermInfo::new(pair.parent_val_id)); // COMPRESSION 50-90%
     // }
-    // store_fst(persistence, &all_ids_as_str, &concat(&path_name, ".valueIdToParent.fst")).expect("Could not store fst");
+    // store_fst(persistence, &all_ids_as_str, path_name.add(".valueIdToParent.fst")).expect("Could not store fst");
     //TEST FST AS ID MAPPER
     Ok(())
 }
@@ -1276,11 +1255,20 @@ pub fn add_token_values_to_tokens(persistence: &mut Persistence, data_str: &str,
         }
     }
 
-    let path = concat(&path_name, ".tokenValues.boost_valid_to_value");
+    let path = path_name.add(TOKEN_VALUES).add(BOOST_VALID_TO_VALUE);//".tokenValues.boost_valid_to_value");
     let mut store = buffered_index_to_direct_index(&persistence.db, path.to_string(), buffered_index_data)?;
-    let mut voll_meta = persistence.flush_direct_index(&mut store, &path, LoadingType::InMemoryUnCompressed)?;
-    voll_meta.index_category = IndexCategory::Boost;
-    persistence.meta_data.stores.push(voll_meta);
+
+    store.flush()?;
+    let kv_metadata = persistence::KVStoreMetaData {
+        loading_type: LoadingType::InMemoryUnCompressed,
+        index_category: IndexCategory::Boost,
+        path: path.to_string(),
+        is_empty: store.is_empty(),
+        metadata: store.metadata,
+        index_type: persistence::KVStoreType::IndexIdToOneParent,
+    };
+
+    persistence.meta_data.stores.push(kv_metadata);
     persistence.write_meta_data()?;
 
     //TODO FIX LOAD FOR IN_MEMORY

@@ -1,3 +1,4 @@
+use persistence::*;
 use fnv::{FnvHashMap, FnvHashSet};
 use fst::automaton::*;
 use fst::raw::Fst;
@@ -16,7 +17,7 @@ use std::iter::FusedIterator;
 use std::marker;
 use str;
 use util;
-use util::concat;
+use util::StringAdd;
 
 use half::f16;
 use rayon::prelude::*;
@@ -479,9 +480,10 @@ fn get_term_ids_in_field(persistence: &Persistence, options: &mut RequestSearchP
         result.term_text_in_field.insert(options.path.to_string(), result.terms.values().cloned().collect());
     }
 
-    if options.token_value.is_some() {
+    if let Some(ref mut token_boost) = options.token_value {
         debug!("Token Boosting: \n");
-        search::add_boost(persistence, options.token_value.as_ref().unwrap(), &mut result)?;
+        token_boost.path = token_boost.path.add(TOKEN_VALUES);
+        search::add_boost(persistence, token_boost, &mut result)?;
     }
 
     Ok(result)
@@ -628,20 +630,7 @@ fn resolve_token_to_anchor(
         }
     }
 
-    // //resolve text_ids to anchor
-    // let mut fast_field_res_ids = vec![];
-    // for id in text_ids_hit_ids {
-    //     if let Some(anchor_ids) = text_id_to_anchor.get_values(id as u64) {
-    //         let mut curr_pos = unsafe_increase_len(&mut fast_field_res_ids, anchor_ids.len());
-    //         for anchor_id in anchor_ids.into_iter().filter(|id|!should_filter(&filter, id)) {
-
-    //             fast_field_res_ids[curr_pos] = anchor_id;
-    //             curr_pos += 1;
-    //         }
-    //     }
-    // }
     res.hits_ids = fast_field_res_ids;
-    // // IDS ONLY - scores müssen draußen bleiben
 
     trace!("anchor id hits {:?}", anchor_ids_hits);
     res.hits_vec = anchor_ids_hits;
@@ -734,7 +723,7 @@ pub fn resolve_token_hits(
 
     debug_time!("{} resolve_token_hits", path);
 
-    let token_path = concat(path, ".tokens_to_text_id");
+    let token_path = path.add(TOKENS_TO_TEXT_ID);
     let token_kvdata = persistence.get_valueid_to_parent(&token_path)?;
     debug!("Checking Tokens in {:?}", &token_path);
     persistence::trace_index_id_to_parent(token_kvdata);
