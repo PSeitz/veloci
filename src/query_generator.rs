@@ -152,7 +152,6 @@ pub fn search_query(persistence: &Persistence, mut opt: SearchQueryGeneratorPara
                             terms: vec![term.to_string()],
                             boost: opt.boost_fields.get(field_name).cloned(),
                             levenshtein_distance: Some(levenshtein_distance as u32),
-                            resolve_token_to_parent_hits: Some(true),
                             ..Default::default()
                         };
                         Request {
@@ -190,7 +189,6 @@ pub fn search_query(persistence: &Persistence, mut opt: SearchQueryGeneratorPara
                             terms: vec![term.to_string()],
                             boost: opt.boost_fields.get(field_name).cloned(),
                             levenshtein_distance: Some(levenshtein_distance as u32),
-                            resolve_token_to_parent_hits: Some(true),
                             ..Default::default()
                         };
                         Request {

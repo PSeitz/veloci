@@ -43,6 +43,7 @@ fn main() {
             "single_data" => println!("{:?}", create_single_data_index()),
             // "thalia" => println!("{:?}", create_thalia_index()),
             "thalia_big" => println!("{:?}", create_thalia_index_big()),
+            "thalia_alt" => println!("{:?}", create_thalia_index_alt()),
             "thalia_shards" => println!("{:?}", create_thalia_index_shards()),
             _ => {}
         };
@@ -180,6 +181,22 @@ fn create_thalia_index_big() -> Result<(), io::Error> {
     // ).unwrap();
     // File::create("MATNR").unwrap().write_all(all_terms.join("\n").as_bytes()).unwrap();
 
+    Ok(())
+}
+
+#[allow(dead_code)]
+fn create_thalia_index_alt() -> Result<(), io::Error> {
+    start_profiler("./my-prof.profile");
+
+    search_lib::create::create_indices_from_file(
+        &mut search_lib::persistence::Persistence::create("thalia_alt".to_string()).unwrap(),
+        "ESaaS_DATA_ESA020_20180713_Z06ST_MARA_COLUMNS_1_to_5000.txt",
+        "[]",
+        None,
+        false,
+    ).unwrap();
+
+    stop_profiler();
     Ok(())
 }
 

@@ -44,17 +44,19 @@ use lru_time_cache::LruCache;
 use parking_lot::RwLock;
 use std::str::FromStr;
 
-pub static TOKENS_TO_TEXT_ID: &'static str = ".tokens_to_text_id";
-pub static TEXT_ID_TO_TOKEN_IDS: &'static str = ".text_id_to_token_ids";
-pub static TO_ANCHOR_ID_SCORE: &'static str = ".to_anchor_id_score";
-pub static PHRASE_PAIR_TO_ANCHOR: &'static str = ".phrase_pair_to_anchor";
-pub static VALUE_ID_TO_PARENT: &'static str = ".value_id_to_parent";
-pub static PARENT_TO_VALUE_ID: &'static str = ".parent_to_value_id";
-pub static TEXT_ID_TO_ANCHOR: &'static str = ".text_id_to_anchor";
-pub static PARENT_TO_TEXT_ID: &'static str = ".parent_to_text_id";
-pub static ANCHOR_TO_TEXT_ID: &'static str = ".anchor_to_text_id";
-pub static BOOST_VALID_TO_VALUE: &'static str = ".boost_valid_to_value";
-pub static TOKEN_VALUES: &'static str = ".token_values";
+pub const TOKENS_TO_TEXT_ID: &'static str = ".tokens_to_text_id";
+pub const TEXT_ID_TO_TOKEN_IDS: &'static str = ".text_id_to_token_ids";
+pub const TO_ANCHOR_ID_SCORE: &'static str = ".to_anchor_id_score";
+pub const PHRASE_PAIR_TO_ANCHOR: &'static str = ".phrase_pair_to_anchor";
+pub const VALUE_ID_TO_PARENT: &'static str = ".value_id_to_parent";
+pub const PARENT_TO_VALUE_ID: &'static str = ".parent_to_value_id";
+pub const TEXT_ID_TO_ANCHOR: &'static str = ".text_id_to_anchor";
+// pub const PARENT_TO_TEXT_ID: &'static str = ".parent_to_text_id";
+pub const ANCHOR_TO_TEXT_ID: &'static str = ".anchor_to_text_id";
+pub const BOOST_VALID_TO_VALUE: &'static str = ".boost_valid_to_value";
+pub const TOKEN_VALUES: &'static str = ".token_values";
+
+pub const TEXTINDEX: &'static str = ".textindex";
 
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
 pub struct MetaData {
@@ -417,15 +419,29 @@ impl Persistence {
             let loading_type = get_loading_type(el.loading_type)?;
             match el.index_category {
                 IndexCategory::Phrase => {
-                    // let store: Box<PhrasePairToAnchor<Input = (u32, u32)>> = match loading_type {
-                    //     LoadingType::Disk => {
-                    //         Box::new(IndexIdToMultipleParentIndirectBinarySearchMMAP::from_path(&get_file_path(&self.db, &el.path), el.metadata)?)
-                    //     }
-                    //     LoadingType::InMemoryUnCompressed | LoadingType::InMemory => {
-                    //         Box::new(IndexIdToMultipleParentIndirectBinarySearchMMAP::from_path(&get_file_path(&self.db, &el.path), el.metadata)?)
-                    //     }
-                    // };
-                    // self.indices.phrase_pair_to_anchor.insert(el.path.to_string(), store);
+
+                    //Insert dummy index, to seperate between emtpy indexes and nonexisting indexes
+                    if el.is_empty {
+                        let store = IndexIdToMultipleParentIndirectBinarySearch::<(u32, u32)> {
+                            start_pos: vec![],
+                            data: vec![],
+                            metadata: el.metadata,
+                        };
+                        self.indices
+                            .phrase_pair_to_anchor
+                            .insert(el.path.to_string(), Box::new(store) as Box<PhrasePairToAnchor<Input = (u32, u32)>>);
+                        continue;
+                    }
+
+                    let store: Box<PhrasePairToAnchor<Input = (u32, u32)>> = match loading_type {
+                        LoadingType::Disk => {
+                            Box::new(IndexIdToMultipleParentIndirectBinarySearchMMAP::from_path(&get_file_path(&self.db, &el.path), el.metadata)?)
+                        }
+                        LoadingType::InMemoryUnCompressed | LoadingType::InMemory => {
+                            Box::new(IndexIdToMultipleParentIndirectBinarySearchMMAP::from_path(&get_file_path(&self.db, &el.path), el.metadata)?)
+                        }
+                    };
+                    self.indices.phrase_pair_to_anchor.insert(el.path.to_string(), store);
                 }
                 IndexCategory::AnchorScore => {
                     let store: Box<TokenToAnchorScore> = match loading_type {
@@ -687,11 +703,6 @@ impl Persistence {
     // }
 
     #[cfg_attr(feature = "flame_it", flame)]
-    pub fn get_file_metadata_handle(&self, path: &str) -> Result<fs::Metadata, io::Error> {
-        Ok(fs::metadata(PathBuf::from(&get_file_path(&self.db, path)))?)
-    }
-
-    #[cfg_attr(feature = "flame_it", flame)]
     pub fn get_file_handle(&self, path: &str) -> Result<File, search::SearchError> {
         Ok(File::open(PathBuf::from(get_file_path(&self.db, path))).map_err(|err| search::SearchError::StringError(format!("Could not open {} {:?}", path, err)))?)
     }
@@ -707,7 +718,7 @@ impl Persistence {
             .boost_valueid_to_value
             .get(path)
             .map(|el| el.as_ref())
-            .ok_or_else(|| From::from(format!("Did not found path in indices {:?}", path)))
+            .ok_or_else(||path_not_found(path.as_ref()))
     }
 
     #[cfg_attr(feature = "flame_it", flame)]
@@ -715,27 +726,21 @@ impl Persistence {
         self.indices.key_value_stores.contains_key(path)
     }
 
-    pub fn get_file_path(&self, path: &str) -> String {
-        get_file_path(&self.db, path)
-    }
-
     #[cfg_attr(feature = "flame_it", flame)]
     pub fn get_token_to_anchor<S: AsRef<str>>(&self, path: S) -> Result<&TokenToAnchorScore, search::SearchError> {
         let path = path.as_ref().add(TO_ANCHOR_ID_SCORE);
-        self.indices.token_to_anchor_score.get(&path).map(|el| el.as_ref()).ok_or_else(|| {
-            let error = format!("Did not found path in indices {}", path);
-            error!("{:?}", error);
-            From::from(error)
-        })
+        self.indices.token_to_anchor_score.get(&path).map(|el| el.as_ref()).ok_or_else(||path_not_found(path.as_ref()))
+    }
+
+    #[cfg_attr(feature = "flame_it", flame)]
+    pub fn get_phrase_pair_to_anchor<S: AsRef<str>>(&self, path: S) -> Result<&PhrasePairToAnchor<Input=(u32, u32)>, search::SearchError> {
+        // let path = path.as_ref().add(TO_ANCHOR_ID_SCORE);
+        self.indices.phrase_pair_to_anchor.get(path.as_ref()).map(|el| el.as_ref()).ok_or_else(||path_not_found(path.as_ref()))
     }
 
     #[cfg_attr(feature = "flame_it", flame)]
     pub fn get_valueid_to_parent<S: AsRef<str>>(&self, path: S) -> Result<&IndexIdToParent<Output = u32>, search::SearchError> {
-        self.indices.key_value_stores.get(path.as_ref()).map(|el| el.as_ref()).ok_or_else(|| {
-            let error = format!("Did not found path in indices {:?}", path.as_ref());
-            error!("{:?}", error);
-            From::from(error)
-        })
+        self.indices.key_value_stores.get(path.as_ref()).map(|el| el.as_ref()).ok_or_else(||path_not_found(path.as_ref()))
     }
 
     #[cfg_attr(feature = "flame_it", flame)]
@@ -744,7 +749,7 @@ impl Persistence {
             .index_64
             .get(&(path.to_string() + ".offsets"))
             .map(|el| el.as_ref())
-            .ok_or_else(|| From::from(format!("Did not found path in indices {:?}", path)))
+            .ok_or_else(||path_not_found(path.as_ref()))
     }
 
     pub fn get_number_of_documents(&self) -> Result<usize, search::SearchError> {
@@ -930,6 +935,12 @@ impl Persistence {
     fn get_fst_sizes(&self) -> usize {
         self.indices.fst.iter().map(|(_, v)| v.as_fst().size()).sum()
     }
+}
+
+fn path_not_found(path: &str) -> search::SearchError {
+    let error = format!("Did not found path in indices {}", path);
+    error!("{:?}", error);
+    From::from(error)
 }
 
 // #[derive(Debug)]

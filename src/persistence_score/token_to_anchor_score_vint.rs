@@ -107,6 +107,15 @@ impl TokenToAnchorScoreVintFlushing {
         self.current_id_offset == 0
     }
 
+    pub fn into_store(mut self) -> Result<Box<TokenToAnchorScore>, search::SearchError> {
+        if self.is_in_memory() {
+            Ok(Box::new(self.into_im_store()))
+        } else {
+            self.flush()?;
+            Ok(Box::new(self.into_mmap()?))
+        }
+    }
+
     pub fn into_im_store(self) -> TokenToAnchorScoreVintIM {
         TokenToAnchorScoreVintIM {
             start_pos: self.ids_cache,

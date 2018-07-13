@@ -681,7 +681,7 @@ fn trace_indices(path_data: &mut FnvHashMap<String, PathData>) {
         // );
 
         trace!("{}\n{}", &path.add(VALUE_ID_TO_PARENT), &data.text_id_to_parent);
-        trace!("{}\n{}", &path.add(".parent_to_text_id"), &data.parent_to_text_id);
+        trace!("{}\n{}", &path.add(PARENT_TO_VALUE_ID), &data.parent_to_text_id);
         trace!("{}\n{}", &path.add(TEXT_ID_TO_ANCHOR), &data.text_id_to_anchor);
 
         // trace!(
@@ -923,7 +923,7 @@ fn convert_raw_path_data_to_indices(
             };
 
             add_index_flush(
-                path.add(PARENT_TO_VALUE_ID), // TODO RENAME TO PARENT_TO_TEXT_ID
+                path.add(PARENT_TO_VALUE_ID),
                 data.parent_to_text_id,
                 true, // This is parent_to_text_id here - Every Value id hat one associated text_id -- TODO: VALIDATE
                 sort_and_dedup,
@@ -1011,7 +1011,7 @@ where
     let fulltext_info_for_path: FnvHashMap<String, Fulltext> = indices_json
         .iter()
         .flat_map(|index| match *index {
-            CreateIndex::FulltextInfo(ref fulltext_info) => Some((fulltext_info.fulltext.to_string() + ".textindex", (*fulltext_info).clone())),
+            CreateIndex::FulltextInfo(ref fulltext_info) => Some((fulltext_info.fulltext.add(TEXTINDEX), (*fulltext_info).clone())),
             _ => None,
         })
         .collect();
@@ -1019,7 +1019,7 @@ where
     let boost_info_for_path: FnvHashMap<String, Boost> = indices_json
         .iter()
         .flat_map(|index| match *index {
-            CreateIndex::BoostInfo(ref boost_info) => Some((boost_info.boost.to_string() + ".textindex", (*boost_info).clone())),
+            CreateIndex::BoostInfo(ref boost_info) => Some((boost_info.boost.add(TEXTINDEX), (*boost_info).clone())),
             _ => None,
         })
         .collect();
@@ -1027,7 +1027,7 @@ where
     let facet_index: FnvHashSet<String> = indices_json
         .iter()
         .flat_map(|index| match *index {
-            CreateIndex::FacetInfo(ref el) => Some(el.facet.to_string() + ".textindex"),
+            CreateIndex::FacetInfo(ref el) => Some(el.facet.add(TEXTINDEX)),
             _ => None,
         })
         .collect();
@@ -1136,8 +1136,7 @@ where
                     if index.is_in_memory() {
                         persistence.indices.phrase_pair_to_anchor.insert(path, Box::new(index.into_im_store())); //Move data
                     } else {
-                        //load data with MMap
-                        let store = IndexIdToMultipleParentIndirectBinarySearchMMAP::from_path(&path, index.metadata)?;
+                        let store = IndexIdToMultipleParentIndirectBinarySearchMMAP::from_path(&path, index.metadata)?;//load data with MMap
                         persistence.indices.phrase_pair_to_anchor.insert(path, Box::new(store));
                     }
                 }
@@ -1145,8 +1144,7 @@ where
                     if index.is_in_memory() {
                         persistence.indices.key_value_stores.insert(path, Box::new(index.into_im_store())); //Move data
                     } else {
-                        //load data with MMap
-                        let store = SingleArrayMMAP::<u32>::from_path(&path, index.max_value_id)?;
+                        let store = SingleArrayMMAP::<u32>::from_path(&path, index.max_value_id)?;//load data with MMap
                         persistence.indices.key_value_stores.insert(path, Box::new(store));
                     }
                 }
@@ -1158,11 +1156,12 @@ where
                     }
                 }
                 IndexVariants::TokenToAnchorScore(index) => {
-                    if index.is_in_memory() {
-                        persistence.indices.token_to_anchor_score.insert(path, Box::new(index.into_im_store()));
-                    } else {
-                        persistence.indices.token_to_anchor_score.insert(path, Box::new(index.into_mmap()?));
-                    }
+                    // if index.is_in_memory() {
+                    //     persistence.indices.token_to_anchor_score.insert(path, Box::new(index.into_im_store()));
+                    // } else {
+                    //     persistence.indices.token_to_anchor_score.insert(path, Box::new(index.into_mmap()?));
+                    // }
+                    persistence.indices.token_to_anchor_score.insert(path, index.into_store()?);
                 }
             }
         }
@@ -1183,7 +1182,7 @@ struct TokenValueData {
     text: String,
     value: Option<u32>,
 }
-
+use execution_plan::PlanRequestSearchPart;
 pub fn add_token_values_to_tokens(persistence: &mut Persistence, data_str: &str, config: &str) -> Result<(), search::SearchError> {
     let data: Vec<TokenValueData> = serde_json::from_str(data_str).unwrap();
     let config: TokenValuesConfig = serde_json::from_str(config).unwrap();
@@ -1191,13 +1190,9 @@ pub fn add_token_values_to_tokens(persistence: &mut Persistence, data_str: &str,
     let mut options: search::RequestSearchPart = search::RequestSearchPart {
         path: config.path.clone(),
         levenshtein_distance: Some(0),
-        resolve_token_to_parent_hits: Some(false),
-
         ..Default::default()
     };
 
-    let is_text_index = true;
-    let path_name = util::get_file_path_name(&config.path, is_text_index);
     let mut buffered_index_data = BufferedIndexWriter::default();
 
     for el in data {
@@ -1207,17 +1202,19 @@ pub fn add_token_values_to_tokens(persistence: &mut Persistence, data_str: &str,
         options.terms = vec![el.text];
         options.terms = options.terms.iter().map(|el| util::normalize_text(el)).collect::<Vec<_>>();
 
+        let options = PlanRequestSearchPart{request:options.clone(), resolve_token_to_parent_hits: Some(false), ..Default::default()};
+
         let hits = search_field::get_hits_in_field(persistence, &options, None)?;
-        if hits.hits_vec.len() == 1 {
+        if hits.hits_scores.len() == 1 {
             // tuples.push(ValIdToValue {
-            //     valid: hits.hits_vec[0].id,
+            //     valid: hits.hits_scores[0].id,
             //     value: el.value.unwrap(),
             // });
-            buffered_index_data.add(hits.hits_vec[0].id, el.value.unwrap())?;
+            buffered_index_data.add(hits.hits_scores[0].id, el.value.unwrap())?;
         }
     }
 
-    let path = path_name.add(TOKEN_VALUES).add(BOOST_VALID_TO_VALUE);
+    let path = config.path.add(TEXTINDEX).add(TOKEN_VALUES).add(BOOST_VALID_TO_VALUE);
     let mut store = buffered_index_to_direct_index(&persistence.db, path.to_string(), buffered_index_data)?;
 
     store.flush()?;

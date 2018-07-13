@@ -715,10 +715,11 @@ describe! search_test {
             "path": "meanings.ger[]",
             "levenshtein_distance": 0,
             "starts_with":true,
-            "return_term":true
         });
         let requesto: search::RequestSearchPart = serde_json::from_str(&req.to_string()).expect("Can't parse json");
         let mut pers = &TEST_PERSISTENCE;
+        use search_lib::execution_plan::PlanRequestSearchPart;
+        let requesto = PlanRequestSearchPart{request:requesto, return_term:true, ..Default::default()};
         let results = search_field::get_hits_in_field(&mut pers, &requesto, None).unwrap();
         let mut all_terms = results.terms.values().collect::<Vec<&String>>();
         all_terms.sort();

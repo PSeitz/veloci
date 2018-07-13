@@ -1,3 +1,4 @@
+use persistence::TEXTINDEX;
 use regex::Regex;
 use search;
 use std;
@@ -125,11 +126,6 @@ pub(crate) fn get_file_path(folder: &str, path: &str) -> String {
     folder.to_string() + "/" + path
 }
 
-pub(crate) fn get_file_path_name(path_to_anchor: &str, is_text_index_part: bool) -> String {
-    let suffix = if is_text_index_part { ".textindex" } else { "" };
-    path_to_anchor.to_owned() + suffix
-}
-
 pub(crate) fn file_as_string<P: AsRef<Path> + std::fmt::Debug>(path: P) -> Result<(String), io::Error> {
     info!("Loading File {:?}", path);
     let mut file = File::open(path)?;
@@ -227,7 +223,7 @@ pub(crate) fn get_steps_to_anchor(path: &str) -> Vec<String> {
         }
     }
 
-    paths.push(path.to_string() + ".textindex"); // add path to index
+    paths.push(path.to_string() + TEXTINDEX); // add path to index
     paths
 }
 
@@ -252,7 +248,7 @@ pub(crate) fn get_all_steps_to_anchor(path: &str) -> Vec<String> {
         paths.push(joined);
     }
 
-    // paths.push(path.to_string() + ".textindex"); // add path to index
+    // paths.push(path.to_string() + TEXTINDEX); // add path to index
     paths
 }
 
