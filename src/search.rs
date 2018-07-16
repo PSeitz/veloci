@@ -33,6 +33,13 @@ use fnv;
 use persistence::*;
 use std::fmt;
 
+#[derive(Debug)]
+enum SearchOperation {
+    And,
+    Or,
+    Search
+}
+
 #[derive(Serialize, Deserialize, Default, Clone, Debug)]
 pub struct Request {
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -568,9 +575,18 @@ pub fn search(mut request: Request, persistence: &Persistence) -> Result<SearchR
 
     let mut res = {
         info_time!("search terms");
-        let plan = plan_creator(request.clone());
-        let yep = plan.get_output();
-        plan.execute_step(persistence)?;
+        let mut steps = vec![];
+        let plan = plan_creator(request.clone(), &mut steps);
+        // info!("{:?}", plan);
+        // info!("{:?}", serde_json::to_string_pretty(&plan).unwrap());
+        // let yep = plan.get_output();
+        let yep = plan.1;
+
+        // for stepso in steps.iter().rev() {
+        //     println!("YOOOP");
+        //     execute_steps(stepso.clone(), &persistence)?;
+        // }
+        plan.0.execute_step(persistence)?;
         let mut res = yep.recv()?;
         drop(yep);
         res
@@ -578,10 +594,8 @@ pub fn search(mut request: Request, persistence: &Persistence) -> Result<SearchR
 
     let mut search_result = SearchResult { ..Default::default() };
 
-    {
-        if let Some(boost_term) = request.boost_term {
-            res = apply_boost_term(persistence, res, &boost_term)?;
-        }
+    if let Some(boost_term) = request.boost_term {
+        res = apply_boost_term(persistence, res, &boost_term)?;
     }
 
     if request.text_locality {

@@ -142,10 +142,15 @@ pub fn get_test_data() -> Value {
                 }
             ],
             "meanings": {
-                "eng" : ["will", "desire", "der große karl",  "urge", "having a long torso"],
+                "eng" : ["will", "urge", "having a long torso"],
                 "ger": ["Wollen (n)", "Wille (m)", "Begeisterung (f)", "begeistern"]
             },
             "ent_seq": "1587690"
+        },
+        {
+            "meanings": {
+                "eng" : ["karl der große"],
+            }
         },
         {
             "id": 1234566,
@@ -478,7 +483,7 @@ describe! search_test {
             }
         });
         let wa = search_testo_to_doc(req).data;
-        assert_eq!(wa[0].doc["meanings"]["eng"][2], "der große karl");
+        assert_eq!(wa[0].doc["meanings"]["eng"][0], "karl der große"); // should hit karl, not karlo
     }
 
     it "should search word non tokenized'"{
@@ -931,7 +936,7 @@ describe! search_test {
 
     it "get_bytes_indexed"{
         let pers = &TEST_PERSISTENCE;
-        assert_eq!(pers.get_bytes_indexed().unwrap(), 2458);
+        assert_eq!(pers.get_bytes_indexed().unwrap(), 2472);
     }
 
     it "boost text localitaet"{
@@ -974,7 +979,7 @@ describe! search_test {
 
     it "read object only partly"{
         let pers = &TEST_PERSISTENCE;
-        let yay = search::read_data(&pers, 3, &vec!["commonness".to_string(),
+        let yay = search::read_data(&pers, 4, &vec!["commonness".to_string(),
                                                     "ent_seq".to_string(),
                                                     "meanings.ger[]".to_string(),
                                                     "kana[].text".to_string(),
@@ -1006,7 +1011,7 @@ describe! search_test {
     it "read recreate complete object with read"{
         let pers = &TEST_PERSISTENCE;
         let all_props = pers.get_all_fields();
-        let yay2 = search::read_data(&pers, 3, &all_props).unwrap();
+        let yay2 = search::read_data(&pers, 4, &all_props).unwrap();
 
         assert_eq!(yay2, json!({ //TODO FIX INTEGER TO STRING
             "id": "1234566",

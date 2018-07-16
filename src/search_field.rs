@@ -26,7 +26,7 @@ use std::ptr;
 
 use execution_plan::*;
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct SearchFieldResult {
     pub hits_scores: Vec<search::Hit>,
     pub hits_ids: Vec<TermId>,
@@ -399,10 +399,10 @@ fn get_term_ids_in_field(persistence: &Persistence, options: &mut PlanRequestSea
             };
             get_text_lines(persistence, &options.request, teh_callback_id_only)?;
         } else {
-            let teh_callback = |line: String, token_text_id: u32| {
-                // trace!("Checking {} with {}", line, term);
+            let teh_callback = |text_or_token: String, token_text_id: u32| {
+                // trace!("Checking {} with {}", text_or_token, term);
 
-                let line_lower = line.to_lowercase();
+                let line_lower = text_or_token.to_lowercase();
 
                 // In the case of levenshtein != 0 or starts_with, we want prefix_matches to have a score boost - so that "awe" scores better for awesome than aber
                 let prefix_matches = should_check_prefix_match && line_lower.starts_with(&lower_term);
@@ -435,11 +435,11 @@ fn get_term_ids_in_field(persistence: &Persistence, options: &mut PlanRequestSea
                     );
 
                 }
-                debug!("Hit: {:?}\tid: {:?} score: {:?}", &line, token_text_id, score);
+                debug!("Hit: {:?}\tid: {:?} score: {:?}", &text_or_token, token_text_id, score);
                 result.hits_scores.push(Hit::new(token_text_id, score));
 
                 if options.return_term || options.store_term_texts {
-                    result.terms.insert(token_text_id, line);
+                    result.terms.insert(token_text_id, text_or_token);
                 }
             };
 
