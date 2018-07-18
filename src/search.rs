@@ -146,6 +146,7 @@ pub struct RequestSearchPart {
 
 }
 
+//TODO: Change to faster eq maybe
 impl PartialEq for RequestSearchPart {
     fn eq(&self, other: &RequestSearchPart) -> bool {
         format!("{:?}", self) == format!("{:?}", other)
@@ -227,6 +228,13 @@ pub struct RequestBoostPart {
     pub param: Option<f32>,
     pub skip_when_score: Option<Vec<f32>>,
     pub expression: Option<String>,
+}
+
+//TODO: Change to faster eq maybe
+impl PartialEq for RequestBoostPart {
+    fn eq(&self, other: &RequestBoostPart) -> bool {
+        format!("{:?}", self) == format!("{:?}", other)
+    }
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -575,18 +583,18 @@ pub fn search(mut request: Request, persistence: &Persistence) -> Result<SearchR
 
     let mut res = {
         info_time!("search terms");
-        let mut steps = vec![];
-        let plan = plan_creator(request.clone(), &mut steps);
+        let mut plan = Plan::default();
+        let plan_result = plan_creator(request.clone(), &mut plan);
         // info!("{:?}", plan);
         // info!("{:?}", serde_json::to_string_pretty(&plan).unwrap());
         // let yep = plan.get_output();
-        let yep = plan.1;
+        let yep = plan_result.1;
 
-        // for stepso in steps.iter().rev() {
-        //     println!("YOOOP");
-        //     execute_steps(stepso.clone(), &persistence)?;
-        // }
-        plan.0.execute_step(persistence)?;
+        // execute_step_in_parrael(steps, persistence).unwrap();
+        for stepso in plan.get_ordered_steps() {
+            execute_steps(stepso.clone(), &persistence)?;
+        }
+        // plan_result.0.execute_step(persistence)?;
         let mut res = yep.recv()?;
         drop(yep);
         res

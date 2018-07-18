@@ -1,3 +1,4 @@
+#![feature(drain_filter)]
 #![feature(align_offset)]
 #![feature(ptr_offset_from)]
 #![feature(pointer_methods)]
@@ -15,6 +16,7 @@
 #![cfg_attr(feature = "flame_it", plugin(flamer))]
 #![feature(core_intrinsics)]
 
+extern crate crossbeam;
 extern crate crossbeam_channel;
 extern crate crossbeam_utils;
 

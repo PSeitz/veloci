@@ -1,3 +1,4 @@
+use std::fmt::Debug;
 use persistence::Persistence;
 use persistence::*;
 use search::add_boost;
@@ -11,9 +12,76 @@ use crossbeam_channel;
 use crossbeam_channel::unbounded;
 use search_field::*;
 
+#[derive(Debug, Clone, Copy)]
+pub struct Dependency {
+    step_index: usize,
+    depends_on: usize,
+}
+
+#[derive(Debug, Clone)]
+pub struct Plan<T: Clone + Debug> {
+    pub steps: Vec<T>,
+    dependencies: Vec<Dependency>
+}
+
+impl<T: Clone + Debug + PartialEq> Default for Plan<T> {
+    fn default() -> Plan<T> {
+        Plan { steps: vec![], dependencies: vec![] }
+    }
+}
+
+impl<T: Clone + Debug + PartialEq> Plan<T> {
+    fn add_dependency(&mut self, step:&T, depends_on: &T) {
+        let step_index = self.steps.iter().position(|el| el == step).unwrap();
+        let depends_on = self.steps.iter().position(|el| el == depends_on).unwrap();
+        self.dependencies.push(Dependency{step_index, depends_on});
+    }
+    fn add_step(&mut self, step:T) -> &mut T {
+        self.steps.push(step);
+        self.steps.last_mut().unwrap()
+        // self.steps.len() - 1
+    }
+
+    fn get_dependencies(&self, step_index: usize) -> Vec<Dependency> {
+        self.dependencies.iter().filter(|dep|dep.step_index == step_index).cloned().collect()
+    }
+
+    pub fn get_ordered_steps(&self) -> Vec<Vec<T>> {
+        let mut ordered_steps = vec![];
+        let mut remaining_steps:Vec<_> = self.steps.iter().enumerate().collect();
+
+        while !remaining_steps.is_empty() {
+            let current_remaining_steps = remaining_steps.clone();
+            let steps_with_fullfilled_dependencies: Vec<_> = remaining_steps.drain_filter(|step_with_index| {
+                let steps_dependencies = self.get_dependencies(step_with_index.0);
+                let unfulfilled_dependencies:Vec<_> = steps_dependencies.iter().filter(|dep|{
+                    current_remaining_steps.iter().any(|step_with_index| step_with_index.0 == dep.depends_on) // check if depends_on is in current_remaining_steps
+                }).collect();
+
+                unfulfilled_dependencies.is_empty()
+            }).collect();
+
+            ordered_steps.push(steps_with_fullfilled_dependencies.iter().map(|step_with_index|step_with_index.1.clone()).collect());
+        }
+
+        ordered_steps
+    }
+}
+
+#[test]
+fn test_plan() {
+    let plan = Plan::<String>{
+        steps: vec!["suche_feld".to_string(), "oder".to_string()],
+        dependencies: vec![Dependency{step_index: 1, depends_on: 0}]
+    };
+    let steps = plan.get_ordered_steps();
+    assert_eq!(steps[0], vec!["suche_feld"]);
+    assert_eq!(steps[1], vec!["oder"]);
+
+}
 
 
-#[derive(Serialize, Deserialize, Default, Clone, Debug)]
+#[derive(Serialize, Deserialize, Default, Clone, Debug, PartialEq)]
 pub struct PlanRequestSearchPart {
     pub request: RequestSearchPart,
 
@@ -47,14 +115,14 @@ pub struct PlanRequestSearchPart {
 type PlanDataSender = crossbeam_channel::Sender<SearchFieldResult>;
 type PlanDataReceiver = crossbeam_channel::Receiver<SearchFieldResult>;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct PlanStepDataChannels {
     input_prev_steps: Vec<PlanDataReceiver>,
     output_sending_to_next_steps: PlanDataSender,
     plans_output_receiver_for_next_step: PlanDataReceiver, // used in plan_creation
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum PlanStepType {
     FieldSearchToTermIds {
         req: PlanRequestSearchPart,
@@ -86,6 +154,21 @@ pub enum PlanStepType {
         channels: PlanStepDataChannels,
     },
 }
+
+// impl PartialEq for PlanStepType {
+//     fn eq(&self, other: &PlanStepType) -> bool {
+//         false
+//         // match *self {
+//         //     PlanStepType::FieldSearchAndAnchorResolve { ref channels, .. }
+//         //     | PlanStepType::FieldSearchToTermIds { ref channels, .. }
+//         //     | PlanStepType::ValueIdToParent { ref channels, .. }
+//         //     | PlanStepType::Boost { ref channels, .. }
+//         //     | PlanStepType::Union { ref channels, .. }
+//         //     | PlanStepType::Intersect { ref channels, .. }
+//         //     | PlanStepType::FromAttribute { ref channels, .. } => channels.plans_output_receiver_for_next_step.clone(),
+//         // }
+//     }
+// }
 
 // impl fmt::Debug for PlanStepType {
 //     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -208,7 +291,7 @@ impl StepExecutor for PlanStepType {
                 ..
             } => {
                 debug_time!("union total");
-                execute_steps(steps, persistence)?;
+                // execute_steps(steps, persistence)?;
                 debug_time!("union netto");
                 channels.output_sending_to_next_steps.send(union_hits_vec(get_data(channels.input_prev_steps)?))?;
                 drop(channels.output_sending_to_next_steps);
@@ -220,14 +303,14 @@ impl StepExecutor for PlanStepType {
                 ..
             } => {
                 debug_time!("intersect total");
-                execute_steps(steps, persistence)?;
+                // execute_steps(steps, persistence)?;
                 debug_time!("intersect netto");
                 channels.output_sending_to_next_steps.send(intersect_hits_vec(get_data(channels.input_prev_steps)?))?;
                 drop(channels.output_sending_to_next_steps);
                 Ok(())
             }
             PlanStepType::FromAttribute { steps, .. } => {
-                execute_steps(steps, persistence)?;
+                // execute_steps(steps, persistence)?;
                 // output_sending_to_next_steps.send(intersect_hits(input_prev_steps.iter().map(|el| el.recv().unwrap()).collect()));
                 // drop(output_sending_to_next_steps);
                 Ok(())
@@ -246,11 +329,11 @@ impl StepExecutor for PlanStepType {
 // }
 
 #[cfg_attr(feature = "flame_it", flame)]
-pub fn plan_creator(request: Request, plansteps:&mut Vec<Vec<PlanStepType>>) -> (PlanStepType, PlanDataReceiver) {
+pub fn plan_creator(request: Request, plan: &mut Plan<PlanStepType>) -> (PlanStepType, PlanDataReceiver) {
     let (tx, rx): (PlanDataSender, PlanDataReceiver) = unbounded();
 
     if let Some(or) = request.or {
-        let steps: Vec<PlanStepType> = or.iter().map(|x| plan_creator(x.clone(), plansteps).0).collect();
+        let steps: Vec<PlanStepType> = or.iter().map(|x| plan_creator(x.clone(), plan).0).collect();
         let result_channels_from_prev_steps = steps.iter().map(|el| el.get_output()).collect();
         let step = (PlanStepType::Union {
                 steps: steps.clone(),
@@ -260,11 +343,16 @@ pub fn plan_creator(request: Request, plansteps:&mut Vec<Vec<PlanStepType>>) -> 
                     plans_output_receiver_for_next_step: rx.clone(),
                 }
             }, rx);
-        plansteps.push(vec![step.0.clone()]);
-        plansteps.push(steps);
+
+        plan.add_step(step.0.clone());
+        plan.steps.extend(steps.clone());
+        for dub_step in steps {
+            plan.add_dependency(&step.0, &dub_step);
+        }
+
         step
     } else if let Some(ands) = request.and {
-        let steps: Vec<PlanStepType> = ands.iter().map(|x| plan_creator(x.clone(), plansteps).0).collect();
+        let steps: Vec<PlanStepType> = ands.iter().map(|x| plan_creator(x.clone(), plan).0).collect();
         let result_channels_from_prev_steps = steps.iter().map(|el| el.get_output()).collect();
         let step =(PlanStepType::Intersect {
                 steps: steps.clone(),
@@ -277,13 +365,18 @@ pub fn plan_creator(request: Request, plansteps:&mut Vec<Vec<PlanStepType>>) -> 
                 // output_sending_to_next_steps: tx,
                 // plans_output_receiver_for_next_step: rx,
             }, rx);
-        plansteps.push(vec![step.0.clone()]);
-        plansteps.push(steps);
+
+        plan.add_step(step.0.clone());
+        plan.steps.extend(steps.clone());
+        for dub_step in steps {
+            plan.add_dependency(&step.0, &dub_step);
+        }
+
         step
     } else if let Some(part) = request.search.clone() {
         // TODO Tokenize query according to field
         // part.terms = part.terms.iter().map(|el| util::normalize_text(el)).collect::<Vec<_>>();
-        plan_creator_search_part(part, request, plansteps)
+        plan_creator_search_part(part, request, plan)
     } else {
         //TODO HANDLE SUGGEST
         //TODO ADD ERROR
@@ -293,7 +386,7 @@ pub fn plan_creator(request: Request, plansteps:&mut Vec<Vec<PlanStepType>>) -> 
 }
 
 #[cfg_attr(feature = "flame_it", flame)]
-pub fn plan_creator_search_part(request_part: RequestSearchPart, mut request: Request, plansteps:&mut Vec<Vec<PlanStepType>>) -> (PlanStepType, PlanDataReceiver) {
+pub fn plan_creator_search_part(request_part: RequestSearchPart, mut request: Request, plan: &mut Plan<PlanStepType>) -> (PlanStepType, PlanDataReceiver) {
     let paths = util::get_steps_to_anchor(&request_part.path);
 
     let (field_tx, field_rx): (PlanDataSender, PlanDataReceiver) = unbounded();
@@ -313,7 +406,7 @@ pub fn plan_creator_search_part(request_part: RequestSearchPart, mut request: Re
                 plans_output_receiver_for_next_step: field_rx.clone(),
             }
         }, field_rx);
-        plansteps.push(vec![step.0.clone()]);
+        plan.add_step(step.0.clone());
         step
     } else {
         let mut steps = vec![];
@@ -401,7 +494,7 @@ pub fn plan_creator_search_part(request_part: RequestSearchPart, mut request: Re
                 rx = next_rx;
             }
         }
-        
+
         let step = (PlanStepType::FromAttribute {
             steps: steps.clone(),
             channels: PlanStepDataChannels{ // unused currently
@@ -411,8 +504,8 @@ pub fn plan_creator_search_part(request_part: RequestSearchPart, mut request: Re
             }
         }, rx);
 
-        steps.push(step.0.clone());
-        plansteps.push(steps);
+        // steps.push(step.0.clone());
+        plan.steps.extend(steps);
         step
     }
 
@@ -457,4 +550,22 @@ pub fn execute_steps(steps: Vec<PlanStepType>, persistence: &Persistence) -> Res
     // }
     // Ok(())
     // Ok(hits)
+}
+
+use crossbeam;
+#[cfg_attr(feature = "flame_it", flame)]
+pub fn execute_step_in_parrael(steps: Vec<PlanStepType>, persistence: &Persistence) -> Result<(), SearchError> {
+
+    crossbeam::scope(|scope| {
+        for step in steps {
+            scope.spawn(move || {
+                let res = step.execute_step(persistence);
+                if res.is_err(){
+                    panic!("{:?}", res.unwrap_err());
+                }
+            });
+        }
+    });
+
+    Ok(())
 }
