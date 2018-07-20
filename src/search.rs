@@ -594,7 +594,6 @@ pub fn search(mut request: Request, persistence: &Persistence) -> Result<SearchR
         // execute_steps(plan.steps, &persistence)?;
         // execute_step_in_parrael(steps, persistence).unwrap();
         for stepso in plan.get_ordered_steps() {
-            println!("NEXT STEPS {:?}", stepso.len());
             execute_steps(stepso, &persistence)?;
         }
         // plan_result.0.execute_step(persistence)?;
@@ -779,8 +778,11 @@ pub fn apply_boost_term(persistence: &Persistence, mut res: SearchFieldResult, b
             .map(|boost_term_req: RequestSearchPart| {
                 // boost_term_req.ids_only = true;
                 // boost_term_req.fast_field = true;
-                let boost_term_req = PlanRequestSearchPart{request:boost_term_req, ids_only: true, fast_field: true, ..Default::default()};
-                search_field::get_hits_in_field(persistence, &boost_term_req, None)
+                let boost_term_req = PlanRequestSearchPart{request:boost_term_req, ids_only: true, ..Default::default()};
+                let mut result = search_field::get_hits_in_field(persistence, &boost_term_req, None)?;
+                result = search_field::resolve_token_to_anchor(persistence, &boost_term_req.request, None, &result)?;
+                Ok(result)
+                
             })
             .collect();
         let mut data = r?;

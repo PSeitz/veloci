@@ -14,6 +14,33 @@ use crossbeam_channel;
 use crossbeam_channel::unbounded;
 use search_field::*;
 
+#[derive(Serialize, Deserialize, Default, Clone, Debug, PartialEq)]
+pub struct PlanRequestSearchPart {
+    pub request: RequestSearchPart,
+
+    #[serde(default)]
+    pub ids_only: bool,
+
+    /// Internal data used for whyfound - read and highlight fields
+    #[serde(skip_deserializing)]
+    #[serde(default)]
+    pub store_term_id_hits: bool,
+
+    /// Internal data used for whyfound - highlight in original document
+    #[serde(skip_deserializing)]
+    #[serde(default)]
+    pub store_term_texts: bool,
+
+    /// Also return the actual text
+    #[serde(skip_serializing_if = "skip_false")]
+    pub return_term: bool,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub resolve_token_to_parent_hits: Option<bool>,
+
+}
+
+
 #[derive(Debug, Clone, Copy)]
 pub struct Dependency {
     step_index: usize,
@@ -81,36 +108,6 @@ impl Plan {
     }
 }
 
-#[derive(Serialize, Deserialize, Default, Clone, Debug, PartialEq)]
-pub struct PlanRequestSearchPart {
-    pub request: RequestSearchPart,
-
-    #[serde(default)]
-    pub ids_only: bool,
-
-    /// Internal data
-    #[serde(skip_deserializing)]
-    #[serde(default)]
-    pub fast_field: bool,
-
-    /// Internal data used for whyfound - read and highlight fields
-    #[serde(skip_deserializing)]
-    #[serde(default)]
-    pub store_term_id_hits: bool,
-
-    /// Internal data used for whyfound - highlight in original document
-    #[serde(skip_deserializing)]
-    #[serde(default)]
-    pub store_term_texts: bool,
-
-    /// Also return the actual text
-    #[serde(skip_serializing_if = "skip_false")]
-    pub return_term: bool,
-
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub resolve_token_to_parent_hits: Option<bool>,
-
-}
 
 type PlanDataSender = crossbeam_channel::Sender<SearchFieldResult>;
 type PlanDataReceiver = crossbeam_channel::Receiver<SearchFieldResult>;
@@ -312,9 +309,9 @@ fn drop_channel(channels: PlanStepDataChannels) {
 }
 
 fn send_data_n_times_to_channel(n_times:u32, field_result: SearchFieldResult, channels: &PlanStepDataChannels) -> Result<(), SearchError>  {
-    let mut data = vec![field_result];
+    let mut data = vec![field_result]; //splat data to vec, first one is free
     for _ in 0..n_times - 1 {
-        let clone = data[0].clone(); //splat data to vec
+        let clone = data[0].clone();
         data.push(clone);
     }
     for el in data {
@@ -340,7 +337,7 @@ fn get_all_field_request_parts(request: &Request) -> FnvHashSet<RequestSearchPar
 #[cfg_attr(feature = "flame_it", flame)]
 pub fn plan_creator(request: Request, plan: &mut Plan) -> PlanDataReceiver {
 
-    let _field_requests = get_all_field_request_parts(&request);
+    let field_requests = get_all_field_request_parts(&request);
     plan_creator_2(request, plan, None)
 }
 
@@ -402,7 +399,7 @@ pub fn plan_creator_search_part(request_part: RequestSearchPart, mut request: Re
 
     let fast_field = request.boost.is_none() && !request_part.snippet.unwrap_or(false); // fast_field disabled for boosting or _highlighting_ currently
     let store_term_id_hits = request.why_found || request.text_locality;
-    let plan_request_part = PlanRequestSearchPart{request:request_part, store_term_id_hits, store_term_texts: request.why_found, fast_field, ..Default::default()};
+    let plan_request_part = PlanRequestSearchPart{request:request_part, store_term_id_hits, store_term_texts: request.why_found, ..Default::default()};
 
     if fast_field {
         // let step = FieldSearch {

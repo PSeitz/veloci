@@ -355,9 +355,7 @@ fn get_hits_in_field_one_term(persistence: &Persistence, options: &mut PlanReque
     debug!("{:?} hits in textindex {:?}", result.hits_scores.len(), &options.request.path);
     trace!("hits in textindex: {:?}", result.hits_scores);
 
-    if options.fast_field {
-        result = resolve_token_to_anchor(persistence, &options.request, filter, &result)?;
-    } else if options.resolve_token_to_parent_hits.unwrap_or(false) {
+    if options.resolve_token_to_parent_hits.unwrap_or(false) {
         resolve_token_hits_to_parent(persistence, &options, filter, &mut result,)?;
     }
 
@@ -725,8 +723,8 @@ pub fn resolve_token_hits_to_parent(
         path = path.add(TEXTINDEX);
     }
     let has_tokens = persistence.meta_data.fulltext_indices.get(&path).map_or(false, |fulltext_info| fulltext_info.tokenize);
-    debug!("has_tokens {:?} {:?} is_fast_field {}", path, has_tokens, options.fast_field);
-    if !has_tokens && !options.fast_field {
+    debug!("has_tokens {:?} {:?}", path, has_tokens);
+    if !has_tokens {
         return Ok(());
     }
     let add_snippets = options.request.snippet.unwrap_or(false);
