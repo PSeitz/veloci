@@ -33,6 +33,8 @@ use fnv;
 use persistence::*;
 use std::fmt;
 
+use ordered_float::OrderedFloat;
+
 #[derive(Debug)]
 enum SearchOperation {
     And,
@@ -109,7 +111,7 @@ pub struct RequestSearchPartCache {
 }
 
 
-#[derive(Serialize, Deserialize, Default, Clone, Debug)]
+#[derive(Serialize, Deserialize, Default, Clone, Debug, Hash)]
 pub struct RequestSearchPart {
     pub path: String,
     pub terms: Vec<String>, //TODO only first term used currently
@@ -127,7 +129,7 @@ pub struct RequestSearchPart {
 
     /// boosts the search part with this value
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub boost: Option<f32>,
+    pub boost: Option<OrderedFloat<f32>>,
 
     #[serde(skip_serializing_if = "Option::is_none")]
     pub top: Option<usize>,
@@ -221,12 +223,12 @@ impl Default for TermOperator {
     }
 }
 
-#[derive(Serialize, Deserialize, Default, Clone, Debug)]
+#[derive(Serialize, Deserialize, Default, Clone, Debug, Hash)]
 pub struct RequestBoostPart {
     pub path: String,
     pub boost_fun: Option<BoostFunction>,
-    pub param: Option<f32>,
-    pub skip_when_score: Option<Vec<f32>>,
+    pub param: Option<OrderedFloat<f32>>,
+    pub skip_when_score: Option<Vec<OrderedFloat<f32>>>,
     pub expression: Option<String>,
 }
 
@@ -237,7 +239,7 @@ impl PartialEq for RequestBoostPart {
     }
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug, Hash)]
 pub enum BoostFunction {
     Log10,
     Linear,
@@ -588,15 +590,16 @@ pub fn search(mut request: Request, persistence: &Persistence) -> Result<SearchR
         // info!("{:?}", plan);
         // info!("{:?}", serde_json::to_string_pretty(&plan).unwrap());
         // let yep = plan.get_output();
-        let yep = plan_result.1;
 
+        // execute_steps(plan.steps, &persistence)?;
         // execute_step_in_parrael(steps, persistence).unwrap();
         for stepso in plan.get_ordered_steps() {
-            execute_steps(stepso.clone(), &persistence)?;
+            println!("NEXT STEPS {:?}", stepso.len());
+            execute_steps(stepso, &persistence)?;
         }
         // plan_result.0.execute_step(persistence)?;
-        let mut res = yep.recv()?;
-        drop(yep);
+        let mut res = plan_result.recv()?;
+        drop(plan_result);
         res
     };
 
@@ -673,7 +676,7 @@ pub fn apply_boost_term(persistence: &Persistence, mut res: SearchFieldResult, b
             let mut boost_iter = data
                 .iter()
                 .map(|el| {
-                    let boost_val: f32 = el.request.boost.unwrap_or(2.0);
+                    let boost_val: f32 = el.request.boost.map(|el|el.into_inner()).unwrap_or(2.0);
                     el.hits_ids.iter().map(move |id| Hit::new(*id, boost_val))
                 })
                 .into_iter()
@@ -1193,7 +1196,7 @@ fn boost_intersect_hits_vec_multi(mut results: SearchFieldResult, boost: &mut Ve
     let mut boost_iter = boost
         .iter()
         .map(|el| {
-            let boost_val: f32 = el.request.boost.unwrap_or(2.0);
+            let boost_val: f32 = el.request.boost.map(|el|el.into_inner()).unwrap_or(2.0);
             el.hits_ids.iter().map(move |id| Hit::new(*id, boost_val)) //TODO create version for hits_scores
         })
         .into_iter()
@@ -1298,11 +1301,11 @@ pub fn add_boost(persistence: &Persistence, boost: &RequestBoostPart, hits: &mut
     // let key = util::boost_path(&boost.path);
     let boost_path = boost.path.to_string() + BOOST_VALID_TO_VALUE;
     let boostkv_store = persistence.get_boost(&boost_path)?;
-    let boost_param = boost.param.unwrap_or(0.0);
+    let boost_param = boost.param.map(|el|el.into_inner()).unwrap_or(0.0);
 
     let expre = boost.expression.as_ref().map(|expression| ScoreExpression::new(expression.clone()));
     let default = vec![];
-    let skip_when_score = boost.skip_when_score.as_ref().unwrap_or(&default);
+    let skip_when_score = boost.skip_when_score.as_ref().map(|vecco|vecco.iter().map(|el|el.into_inner()).collect()).unwrap_or(default);
     for hit in &mut hits.hits_scores {
         if !skip_when_score.is_empty() && skip_when_score.iter().any(|x| (*x - hit.score).abs() < 0.00001) {
             // float comparisons should usually include a error margin

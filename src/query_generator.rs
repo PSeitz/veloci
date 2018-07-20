@@ -8,6 +8,7 @@ use persistence::Persistence;
 use search::*;
 use std;
 use util::*;
+use ordered_float::OrderedFloat;
 
 fn get_default_levenshtein(term: &str, levenshtein_auto_limit: usize) -> usize {
     match term.chars().count() {
@@ -129,7 +130,7 @@ pub fn search_query(persistence: &Persistence, mut opt: SearchQueryGeneratorPara
                 .map(|field_name| RequestSearchPart {
                     path: field_name.to_string(),
                     terms: vec![boost_term.to_string()],
-                    boost: Some(*boost_value),
+                    boost: Some(OrderedFloat(*boost_value)),
                     ..Default::default()
                 })
                 .collect::<Vec<_>>()
@@ -150,7 +151,7 @@ pub fn search_query(persistence: &Persistence, mut opt: SearchQueryGeneratorPara
                         let part = RequestSearchPart {
                             path: field_name.to_string(),
                             terms: vec![term.to_string()],
-                            boost: opt.boost_fields.get(field_name).cloned(),
+                            boost: opt.boost_fields.get(field_name).map(|el|OrderedFloat(*el)),
                             levenshtein_distance: Some(levenshtein_distance as u32),
                             ..Default::default()
                         };
@@ -187,7 +188,7 @@ pub fn search_query(persistence: &Persistence, mut opt: SearchQueryGeneratorPara
                         let part = RequestSearchPart {
                             path: field_name.to_string(),
                             terms: vec![term.to_string()],
-                            boost: opt.boost_fields.get(field_name).cloned(),
+                            boost: opt.boost_fields.get(field_name).map(|el|OrderedFloat(*el)),
                             levenshtein_distance: Some(levenshtein_distance as u32),
                             ..Default::default()
                         };
