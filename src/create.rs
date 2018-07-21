@@ -1202,9 +1202,10 @@ pub fn add_token_values_to_tokens(persistence: &mut Persistence, data_str: &str,
         options.terms = vec![el.text];
         options.terms = options.terms.iter().map(|el| util::normalize_text(el)).collect::<Vec<_>>();
 
-        let options = PlanRequestSearchPart{request:options.clone(), resolve_token_to_parent_hits: Some(false), ..Default::default()};
+        let mut options = PlanRequestSearchPart{request:options.clone(), ..Default::default()};
 
-        let hits = search_field::get_hits_in_field(persistence, &options, None)?;
+        //TODO: FIXME What about multi hits  - this is a ignorecase search
+        let hits = search_field::get_term_ids_in_field(persistence, &mut options)?;
         if hits.hits_scores.len() == 1 {
             // tuples.push(ValIdToValue {
             //     valid: hits.hits_scores[0].id,

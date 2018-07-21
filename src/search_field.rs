@@ -247,9 +247,8 @@ pub fn suggest_multi(persistence: &Persistence, req: Request) -> Result<SuggestF
         .map(|mut search_part| {
             search_part.top = top;
             search_part.skip = skip;
-            // search_part.resolve_token_to_parent_hits = Some(false);
-            let search_part = PlanRequestSearchPart{request:search_part, return_term: true, resolve_token_to_parent_hits: Some(false), ..Default::default()};
-            get_hits_in_field(persistence, &search_part, None)
+            let mut search_part = PlanRequestSearchPart{request:search_part, return_term: true, ..Default::default()};
+            get_term_ids_in_field(persistence, &mut search_part)
         })
         .collect();
     info_time!("suggest to vec/sort");
@@ -272,11 +271,13 @@ pub fn suggest(persistence: &Persistence, options: &RequestSearchPart) -> Result
 pub fn highlight(persistence: &Persistence, options: &mut RequestSearchPart) -> Result<SuggestFieldResult, SearchError> {
     options.terms = options.terms.iter().map(|el| util::normalize_text(el)).collect::<Vec<_>>();
 
-    let options = PlanRequestSearchPart{request:options.clone(), resolve_token_to_parent_hits: Some(true), ..Default::default()};
+    let mut options = PlanRequestSearchPart{request:options.clone(), ..Default::default()};
 
+    let mut result = get_term_ids_in_field(persistence, &mut options)?;
+    resolve_token_hits_to_text_id(persistence, &options, None, &mut result,)?;
     Ok(get_text_score_id_from_result(
         false,
-        &[get_hits_in_field(persistence, &options, None)?],
+        &[result],
         options.request.skip,
         options.request.top,
     ))
@@ -297,70 +298,36 @@ pub fn get_anchor_for_phrases_in_field(persistence: &Persistence, path: &str, te
     Ok(result)
 }
 
-#[cfg_attr(feature = "flame_it", flame)]
-pub fn get_hits_in_field(persistence: &Persistence, options: &PlanRequestSearchPart, filter: Option<&FnvHashSet<u32>>) -> Result<SearchFieldResult, SearchError> {
-    let mut options = options.clone();
+// #[cfg_attr(feature = "flame_it", flame)]
+// pub fn get_hits_in_field(persistence: &Persistence, options: &PlanRequestSearchPart, filter: Option<&FnvHashSet<u32>>) -> Result<SearchFieldResult, SearchError> {
+//     let mut options = options.clone();
 
-    if !options.request.path.ends_with(TEXTINDEX){
-        options.request.path = options.request.path.add(TEXTINDEX);
-    }
+//     if !options.request.path.ends_with(TEXTINDEX){
+//         options.request.path = options.request.path.add(TEXTINDEX);
+//     }
 
-    if options.request.terms.len() == 1 {
-        let mut hits = get_hits_in_field_one_term(persistence, &mut options, filter)?;
-        hits.request = options.request;
-        return Ok(hits);
-    } else {
-        return Err(SearchError::StringError("multiple terms on field not supported".to_string()))
-        // let mut all_hits: FnvHashMap<String, SearchFieldResult> = FnvHashMap::default();
-        // let mut all_hits_results = vec![];
-        // for term in &options.terms {
-        //     let mut options = options.clone();
-        //     options.terms = vec![term.to_string()];
-        //     all_hits_results.push(get_term_ids_in_field(persistence, &mut options)?);
-        //     // let hits: SearchFieldResult = get_hits_in_field_one_term(persistence, &mut options, filter)?;
-        //     // all_hits.insert(term.to_string(), hits); // todo
-        // }
+//     if options.request.terms.len() == 1 {
+//         let mut hits = get_hits_in_field_one_term(persistence, &mut options, filter)?;
+//         hits.request = options.request;
+//         return Ok(hits);
+//     } else {
+//         return Err(SearchError::StringError("multiple terms on field not supported".to_string()))
+//     }
+// }
 
-        // get_boost_text_ids(persistence, &options, &all_hits_results)?;
+// #[cfg_attr(feature = "flame_it", flame)]
+// fn get_hits_in_field_one_term(persistence: &Persistence, options: &mut PlanRequestSearchPart, filter: Option<&FnvHashSet<u32>>) -> Result<SearchFieldResult, SearchError> {
+//     debug_time!("{} get_hits_in_field", &options.request.path);
 
-        // if options.fast_field {
-        //     for res in all_hits_results.iter_mut() {
-        //         *res = resolve_token_to_anchor(persistence, &options, filter, &res)?;
-        //     }
-        // } else {
-        //     // if options.resolve_token_to_parent_hits.unwrap_or(true) {
-        //     //     resolve_token_hits_to_parent(persistence, &options.path, &mut result, options, filter)?;
-        //     // }
-        // }
+//     let mut result = get_term_ids_in_field(persistence, options)?;
 
-        // match options.term_operator {
-        //     search::TermOperator::ALL => {
-        //         return Ok(search::intersect_hits_vec(all_hits_results))
-        //     },
-        //     search::TermOperator::ANY => {
-        //         return Ok(search::union_hits_vec(all_hits_results))
-        //     },
-        // }
+//     debug!("{:?} hits in textindex {:?}", result.hits_scores.len(), &options.request.path);
+//     trace!("hits in textindex: {:?}", result.hits_scores);
 
-    }
+//     // resolve_token_hits_to_text_id(persistence, &options, filter, &mut result,)?;
 
-}
-
-#[cfg_attr(feature = "flame_it", flame)]
-fn get_hits_in_field_one_term(persistence: &Persistence, options: &mut PlanRequestSearchPart, filter: Option<&FnvHashSet<u32>>) -> Result<SearchFieldResult, SearchError> {
-    debug_time!("{} get_hits_in_field", &options.request.path);
-
-    let mut result = get_term_ids_in_field(persistence, options)?;
-
-    debug!("{:?} hits in textindex {:?}", result.hits_scores.len(), &options.request.path);
-    trace!("hits in textindex: {:?}", result.hits_scores);
-
-    if options.resolve_token_to_parent_hits.unwrap_or(false) {
-        resolve_token_hits_to_parent(persistence, &options, filter, &mut result,)?;
-    }
-
-    Ok(result)
-}
+//     Ok(result)
+// }
 
 #[cfg_attr(feature = "flame_it", flame)]
 pub fn get_term_ids_in_field(persistence: &Persistence, options: &mut PlanRequestSearchPart) -> Result<SearchFieldResult, SearchError> {
@@ -712,7 +679,7 @@ fn should_filter(filter: Option<&FnvHashSet<u32>>, id: u32) -> bool {
 }
 
 #[cfg_attr(feature = "flame_it", flame)]
-pub fn resolve_token_hits_to_parent(
+pub fn resolve_token_hits_to_text_id(
     persistence: &Persistence,
     options: &PlanRequestSearchPart,
     filter: Option<&FnvHashSet<u32>>,
@@ -729,7 +696,7 @@ pub fn resolve_token_hits_to_parent(
     }
     let add_snippets = options.request.snippet.unwrap_or(false);
 
-    debug_time!("{} resolve_token_hits_to_parent", path);
+    debug_time!("{} resolve_token_hits_to_text_id", path);
 
     let token_path = path.add(TOKENS_TO_TEXT_ID);
     let token_kvdata = persistence.get_valueid_to_parent(&token_path)?;

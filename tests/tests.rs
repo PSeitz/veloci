@@ -724,8 +724,11 @@ describe! search_test {
         let requesto: search::RequestSearchPart = serde_json::from_str(&req.to_string()).expect("Can't parse json");
         let mut pers = &TEST_PERSISTENCE;
         use search_lib::execution_plan::PlanRequestSearchPart;
-        let requesto = PlanRequestSearchPart{request:requesto, return_term:true, ..Default::default()};
-        let results = search_field::get_hits_in_field(&mut pers, &requesto, None).unwrap();
+        let mut requesto = PlanRequestSearchPart{request:requesto, return_term:true, ..Default::default()};
+        // let results = search_field::get_hits_in_field(&mut pers, &requesto, None).unwrap();
+        // get_term_ids_in_field(persistence, &mut search_part)
+        let results = search_field::get_term_ids_in_field(&mut pers, &mut requesto).unwrap();
+
         let mut all_terms = results.terms.values().collect::<Vec<&String>>();
         all_terms.sort();
         // assert_eq!(all_terms, ["majestät", "majestätischer", "majestätischer anblick", "majestätisches", "majestätisches aussehen"]);
