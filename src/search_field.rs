@@ -247,7 +247,7 @@ pub fn suggest_multi(persistence: &Persistence, req: Request) -> Result<SuggestF
         .map(|mut search_part| {
             search_part.top = top;
             search_part.skip = skip;
-            let mut search_part = PlanRequestSearchPart{request:search_part, return_term: true, ..Default::default()};
+            let mut search_part = PlanRequestSearchPart{request:search_part, get_scores:true, return_term: true, ..Default::default()};
             get_term_ids_in_field(persistence, &mut search_part)
         })
         .collect();
@@ -271,10 +271,10 @@ pub fn suggest(persistence: &Persistence, options: &RequestSearchPart) -> Result
 pub fn highlight(persistence: &Persistence, options: &mut RequestSearchPart) -> Result<SuggestFieldResult, SearchError> {
     options.terms = options.terms.iter().map(|el| util::normalize_text(el)).collect::<Vec<_>>();
 
-    let mut options = PlanRequestSearchPart{request:options.clone(), ..Default::default()};
+    let mut options = PlanRequestSearchPart{request:options.clone(), get_scores:true, ..Default::default()};
 
     let mut result = get_term_ids_in_field(persistence, &mut options)?;
-    resolve_token_hits_to_text_id(persistence, &options, None, &mut result,)?;
+    resolve_token_hits_to_text_id(persistence, &options.request, None, &mut result,)?;
     Ok(get_text_score_id_from_result(
         false,
         &[result],
@@ -364,16 +364,14 @@ pub fn get_term_ids_in_field(persistence: &Persistence, options: &mut PlanReques
         // let search_term_length = &lower_term.chars.count();
         let should_check_prefix_match = options.request.starts_with.unwrap_or(false) || options.request.levenshtein_distance.unwrap_or(0) != 0;
 
-        // let exact_search = if options.request.exact.unwrap_or(false) {Some(options.request.term.to_string())} else {None};
-        if options.ids_only {
-            let teh_callback_id_only = |_line: String, token_text_id: u32| {
-                result.hits_ids.push(token_text_id);
-            };
-            get_text_lines(persistence, &options.request, teh_callback_id_only)?;
-        } else {
-            let teh_callback = |text_or_token: String, token_text_id: u32| {
-                // trace!("Checking {} with {}", text_or_token, term);
+        let teh_callback = |text_or_token: String, token_text_id: u32| {
+            // trace!("Checking {} with {}", text_or_token, term);
 
+            if options.get_ids {
+                result.hits_ids.push(token_text_id);
+            }
+
+            if options.get_scores{
                 let line_lower = text_or_token.to_lowercase();
 
                 // In the case of levenshtein != 0 or starts_with, we want prefix_matches to have a score boost - so that "awe" scores better for awesome than aber
@@ -410,13 +408,16 @@ pub fn get_term_ids_in_field(persistence: &Persistence, options: &mut PlanReques
                 debug!("Hit: {:?}\tid: {:?} score: {:?}", &text_or_token, token_text_id, score);
                 result.hits_scores.push(Hit::new(token_text_id, score));
 
-                if options.return_term || options.store_term_texts {
-                    result.terms.insert(token_text_id, text_or_token);
-                }
-            };
+            }
 
-            get_text_lines(persistence, &options.request, teh_callback)?;
-        }
+            if options.return_term || options.store_term_texts {
+                result.terms.insert(token_text_id, text_or_token);
+            }
+        };
+
+        get_text_lines(persistence, &options.request, teh_callback)?;
+
+
     }
 
     if let Some(boost_val) = options.request.boost {
@@ -681,11 +682,11 @@ fn should_filter(filter: Option<&FnvHashSet<u32>>, id: u32) -> bool {
 #[cfg_attr(feature = "flame_it", flame)]
 pub fn resolve_token_hits_to_text_id(
     persistence: &Persistence,
-    options: &PlanRequestSearchPart,
+    options: &RequestSearchPart,
     filter: Option<&FnvHashSet<u32>>,
     result: &mut SearchFieldResult,
 ) -> Result<(), search::SearchError> {
-    let mut path = options.request.path.to_string();
+    let mut path = options.path.to_string();
     if !path.ends_with(TEXTINDEX){
         path = path.add(TEXTINDEX);
     }
@@ -694,7 +695,7 @@ pub fn resolve_token_hits_to_text_id(
     if !has_tokens {
         return Ok(());
     }
-    let add_snippets = options.request.snippet.unwrap_or(false);
+    let add_snippets = options.snippet.unwrap_or(false);
 
     debug_time!("{} resolve_token_hits_to_text_id", path);
 
@@ -766,7 +767,7 @@ pub fn resolve_token_hits_to_text_id(
             result.hits_scores.push(Hit::new(parent_id, max_score));
             if add_snippets {
                 //value_id_to_token_hits.insert(parent_id, t2.map(|el| el.2).collect_vec()); //TODO maybe store hits here, in case only best x are needed
-                let snippet_config = options.request.snippet_info.as_ref().unwrap_or(&search::DEFAULT_SNIPPETINFO);
+                let snippet_config = options.snippet_info.as_ref().unwrap_or(&search::DEFAULT_SNIPPETINFO);
                 let highlighted_document = highlight_document(persistence, &path, u64::from(parent_id), &t2.map(|el| el.2).collect_vec(), snippet_config)?;
                 if let Some(highlighted_document) = highlighted_document {
                     result.highlight.insert(parent_id, highlighted_document);

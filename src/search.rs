@@ -9,7 +9,6 @@ use serde_json;
 
 use doc_loader::DocLoader;
 use fst;
-// use fst_levenshtein;
 use persistence::Persistence;
 use persistence::*;
 use util;
@@ -29,18 +28,16 @@ use search_field;
 
 use expression::ScoreExpression;
 use fnv;
-// use ordered_float::*;
-use persistence::*;
 use std::fmt;
 
 use ordered_float::OrderedFloat;
 
-#[derive(Debug)]
-enum SearchOperation {
-    And,
-    Or,
-    Search
-}
+// #[derive(Debug)]
+// enum SearchOperation {
+//     And,
+//     Or,
+//     Search
+// }
 
 #[derive(Serialize, Deserialize, Default, Clone, Debug)]
 pub struct Request {
@@ -106,9 +103,9 @@ fn default_skip() -> Option<usize> {
     None
 }
 
-pub struct RequestSearchPartCache {
-    pub automaton: Option<Box<fst::Automaton<State = Option<usize>> + Send + Sync>>,
-}
+// pub struct RequestSearchPartCache {
+//     pub automaton: Option<Box<fst::Automaton<State = Option<usize>> + Send + Sync>>,
+// }
 
 
 #[derive(Serialize, Deserialize, Default, Clone, Debug, Hash)]
@@ -144,7 +141,6 @@ pub struct RequestSearchPart {
     /// Override default SnippetInfo
     #[serde(skip_serializing_if = "Option::is_none")]
     pub snippet_info: Option<SnippetInfo>,
-
 
 }
 
@@ -776,14 +772,10 @@ pub fn apply_boost_term(persistence: &Persistence, mut res: SearchFieldResult, b
             .to_vec()
             .into_par_iter()
             .map(|boost_term_req: RequestSearchPart| {
-                // boost_term_req.ids_only = true;
-                // boost_term_req.fast_field = true;
-                let mut boost_term_req = PlanRequestSearchPart{request:boost_term_req, ids_only: true, ..Default::default()};
-                // let mut result = search_field::get_hits_in_field(persistence, &boost_term_req, None)?;
+                let mut boost_term_req = PlanRequestSearchPart{request:boost_term_req, get_ids: true, ..Default::default()};
                 let mut result = search_field::get_term_ids_in_field(persistence, &mut boost_term_req)?;
                 result = search_field::resolve_token_to_anchor(persistence, &boost_term_req.request, None, &result)?;
                 Ok(result)
-                
             })
             .collect();
         let mut data = r?;

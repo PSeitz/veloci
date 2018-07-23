@@ -705,6 +705,29 @@ describe! search_test {
         assert_eq!(hits[0].doc["commonness"], 20);
     }
 
+    it "should_or_connect_same_search"{
+        let req = json!({
+            "or":[
+                {
+                    "search": {
+                        "terms":["awesome"],
+                        "path": "field1[].text"
+                    }
+                },
+                {
+                    "search": {
+                        "terms":["awesome"],
+                        "path": "field1[].text"
+                    }
+                }
+            ]
+        });
+
+        let hits = search_testo_to_doc(req).data;
+        assert_eq!(hits[0].doc["commonness"], 551);
+        assert_eq!(hits.len(), 2);
+    }
+
     // it('should suggest', function() {
     //     return searchindex.suggest({path:'meanings.ger[]', term:'majes'}).then(res => {
     //         // console.log(JSON.stringify(res, null, 2))
