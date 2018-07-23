@@ -108,7 +108,7 @@ fn default_skip() -> Option<usize> {
 // }
 
 
-#[derive(Serialize, Deserialize, Default, Clone, Debug, Hash)]
+#[derive(Serialize, Deserialize, Default, Clone, Debug, Hash, PartialEq, Eq)]
 pub struct RequestSearchPart {
     pub path: String,
     pub terms: Vec<String>, //TODO only first term used currently
@@ -144,14 +144,6 @@ pub struct RequestSearchPart {
 
 }
 
-//TODO: Change to faster eq maybe
-impl PartialEq for RequestSearchPart {
-    fn eq(&self, other: &RequestSearchPart) -> bool {
-        format!("{:?}", self) == format!("{:?}", other)
-    }
-}
-impl Eq for RequestSearchPart {}
-
 impl PartialOrd for RequestSearchPart {
     fn partial_cmp(&self, other: &RequestSearchPart) -> Option<Ordering> {
         Some(self.cmp(other))
@@ -164,7 +156,14 @@ impl Ord for RequestSearchPart {
     }
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, Hash)]
+#[derive(Serialize, Deserialize, Default, Clone, Debug, Hash)]
+pub struct RequestPhraseBoost {
+    path: String,
+    search1: RequestSearchPart,
+    search2: RequestSearchPart,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, Hash, PartialEq, Eq)]
 pub struct SnippetInfo {
     #[serde(default = "default_num_words_around_snippet")]
     pub num_words_around_snippet: i64,
@@ -208,7 +207,7 @@ fn default_term_operator() -> TermOperator {
     TermOperator::ALL
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, Hash)]
+#[derive(Serialize, Deserialize, Clone, Debug, Hash, PartialEq, Eq)]
 pub enum TermOperator {
     ALL,
     ANY,
@@ -219,7 +218,7 @@ impl Default for TermOperator {
     }
 }
 
-#[derive(Serialize, Deserialize, Default, Clone, Debug, Hash)]
+#[derive(Serialize, Deserialize, Default, Clone, Debug, Hash, PartialEq, Eq)]
 pub struct RequestBoostPart {
     pub path: String,
     pub boost_fun: Option<BoostFunction>,
@@ -228,14 +227,7 @@ pub struct RequestBoostPart {
     pub expression: Option<String>,
 }
 
-//TODO: Change to faster eq maybe
-impl PartialEq for RequestBoostPart {
-    fn eq(&self, other: &RequestBoostPart) -> bool {
-        format!("{:?}", self) == format!("{:?}", other)
-    }
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug, Hash)]
+#[derive(Serialize, Deserialize, Clone, Debug, Hash, PartialEq, Eq)]
 pub enum BoostFunction {
     Log10,
     Linear,
