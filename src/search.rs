@@ -56,6 +56,8 @@ pub struct Request {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub facets: Option<Vec<FacetRequest>>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub phrase_boosts: Option<Vec<RequestPhraseBoost>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub select: Option<Vec<String>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(default = "default_top")]
@@ -659,7 +661,7 @@ pub fn apply_boost_term(persistence: &Persistence, mut res: SearchFieldResult, b
         if let Some(data) = persistence.term_boost_cache.read().peek(boost_term) {
             // let mut boost_iter = data.hits_ids.iter().map(|el|el.clone());
             // res = apply_boost_from_iter(res, &mut boost_iter)
-            info_time!("boost_term_cache");
+            info_time!("boost_term_from_cache");
             let mut boost_iter = data
                 .iter()
                 .map(|el| {
@@ -752,7 +754,7 @@ pub fn apply_boost_term(persistence: &Persistence, mut res: SearchFieldResult, b
 
             // }
 
-            debug_time!("boost_intersect_hits_vec_multi");
+            debug_time!("boost_hits_ids_vec_multi");
             res = apply_boost_from_iter(res, &mut boost_iter);
 
             from_cache = true;
@@ -771,7 +773,7 @@ pub fn apply_boost_term(persistence: &Persistence, mut res: SearchFieldResult, b
             })
             .collect();
         let mut data = r?;
-        res = boost_intersect_hits_vec_multi(res, &mut data);
+        res = boost_hits_ids_vec_multi(res, &mut data);
         {
             persistence.term_boost_cache.write().insert(boost_term.to_vec(), data);
         }
@@ -844,7 +846,7 @@ fn merge_term_id_texts(results: &mut Vec<SearchFieldResult>) -> FnvHashMap<Strin
 }
 
 #[cfg_attr(feature = "flame_it", flame)]
-pub fn union_hits_vec(mut or_results: Vec<SearchFieldResult>) -> SearchFieldResult {
+pub fn union_hits_score(mut or_results: Vec<SearchFieldResult>) -> SearchFieldResult {
     if or_results.len() == 0 {
         return SearchFieldResult { ..Default::default() };
     }
@@ -1033,7 +1035,7 @@ fn union_hits_vec_test() {
         },
     ];
 
-    let res = union_hits_vec(yop);
+    let res = union_hits_score(yop);
 
     assert_eq!(
         res.hits_scores,
@@ -1042,7 +1044,7 @@ fn union_hits_vec_test() {
 }
 
 #[cfg_attr(feature = "flame_it", flame)]
-pub fn intersect_hits_vec(mut and_results: Vec<SearchFieldResult>) -> SearchFieldResult {
+pub fn intersect_hits_score(mut and_results: Vec<SearchFieldResult>) -> SearchFieldResult {
     if and_results.len() == 0 {
         return SearchFieldResult { ..Default::default() };
     }
@@ -1125,7 +1127,7 @@ fn intersect_hits_vec_test() {
         },
     ];
 
-    let res = intersect_hits_vec(yop);
+    let res = intersect_hits_score(yop);
 
     assert_eq!(res.hits_scores, vec![Hit::new(0, 40.0), Hit::new(10, 50.0)]);
 }
@@ -1170,7 +1172,7 @@ fn apply_boost_from_iter(mut results: SearchFieldResult, mut boost_iter: &mut It
 }
 
 #[cfg_attr(feature = "flame_it", flame)]
-fn boost_intersect_hits_vec_multi(mut results: SearchFieldResult, boost: &mut Vec<SearchFieldResult>) -> SearchFieldResult {
+pub fn boost_hits_ids_vec_multi(mut results: SearchFieldResult, boost: &mut Vec<SearchFieldResult>) -> SearchFieldResult {
     {
         debug_time!("boost hits sort input");
         results.hits_scores.sort_unstable_by_key(|el| el.id); //TODO SORT NEEDED??
@@ -1189,7 +1191,7 @@ fn boost_intersect_hits_vec_multi(mut results: SearchFieldResult, boost: &mut Ve
         .into_iter()
         .kmerge_by(|a, b| a.id < b.id);
 
-    debug_time!("boost_intersect_hits_vec_multi");
+    debug_time!("boost_hits_ids_vec_multi");
     apply_boost_from_iter(results, &mut boost_iter)
 }
 
@@ -1210,7 +1212,7 @@ fn boost_intersect_hits_vec_test_multi() {
         },
     ];
 
-    let res = boost_intersect_hits_vec_multi(
+    let res = boost_hits_ids_vec_multi(
         SearchFieldResult {
             hits_scores: hits1,
             ..Default::default()
@@ -1250,7 +1252,7 @@ mod bench_intersect {
         let hits2: Vec<Hit> = (0..40_000).map(|i| Hit::new(i * 3 as u32, 2.2 as f32)).collect();
 
         b.iter(|| {
-            boost_intersect_hits_vec_multi(
+            boost_hits_ids_vec_multi(
                 SearchFieldResult {
                     hits_scores: hits1.clone(),
                     ..Default::default()
@@ -1280,7 +1282,7 @@ mod bench_intersect {
 //         },
 //     ];
 
-//     b.iter(|| intersect_hits_vec())
+//     b.iter(|| intersect_hits_score())
 // }
 
 #[cfg_attr(feature = "flame_it", flame)]
