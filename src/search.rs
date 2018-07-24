@@ -110,7 +110,7 @@ fn default_skip() -> Option<usize> {
 // }
 
 
-#[derive(Serialize, Deserialize, Default, Clone, Debug, Hash, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, Default, Clone, Debug, Hash, PartialEq, Eq, PartialOrd)]
 pub struct RequestSearchPart {
     pub path: String,
     pub terms: Vec<String>, //TODO only first term used currently
@@ -146,11 +146,11 @@ pub struct RequestSearchPart {
 
 }
 
-impl PartialOrd for RequestSearchPart {
-    fn partial_cmp(&self, other: &RequestSearchPart) -> Option<Ordering> {
-        Some(self.cmp(other))
-    }
-}
+// impl PartialOrd for RequestSearchPart {
+//     fn partial_cmp(&self, other: &RequestSearchPart) -> Option<Ordering> {
+//         Some(self.cmp(other))
+//     }
+// }
 
 impl Ord for RequestSearchPart {
     fn cmp(&self, other: &RequestSearchPart) -> Ordering {
@@ -158,14 +158,14 @@ impl Ord for RequestSearchPart {
     }
 }
 
-#[derive(Serialize, Deserialize, Default, Clone, Debug, Hash)]
+#[derive(Serialize, Deserialize, Default, Clone, Debug, Hash, PartialEq, Eq)]
 pub struct RequestPhraseBoost {
-    path: String,
-    search1: RequestSearchPart,
-    search2: RequestSearchPart,
+    pub path: String,
+    pub search1: RequestSearchPart,
+    pub search2: RequestSearchPart,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, Hash, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, Clone, Debug, Hash, PartialEq, Eq, PartialOrd)]
 pub struct SnippetInfo {
     #[serde(default = "default_num_words_around_snippet")]
     pub num_words_around_snippet: i64,
@@ -209,7 +209,7 @@ fn default_term_operator() -> TermOperator {
     TermOperator::ALL
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, Hash, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, Clone, Debug, Hash, PartialEq, Eq, PartialOrd)]
 pub enum TermOperator {
     ALL,
     ANY,
@@ -220,7 +220,7 @@ impl Default for TermOperator {
     }
 }
 
-#[derive(Serialize, Deserialize, Default, Clone, Debug, Hash, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, Default, Clone, Debug, Hash, PartialEq, Eq, PartialOrd)]
 pub struct RequestBoostPart {
     pub path: String,
     pub boost_fun: Option<BoostFunction>,
@@ -229,7 +229,7 @@ pub struct RequestBoostPart {
     pub expression: Option<String>,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, Hash, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, Clone, Debug, Hash, PartialEq, Eq, PartialOrd)]
 pub enum BoostFunction {
     Log10,
     Linear,

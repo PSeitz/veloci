@@ -139,12 +139,15 @@ pub fn search_query(persistence: &Persistence, mut opt: SearchQueryGeneratorPara
 
     let boost_term = if boost_terms_req.is_empty() { None } else { Some(boost_terms_req) };
 
+    let get_levenshtein = |term: &str| -> u32{
+        let levenshtein_distance = opt.levenshtein.unwrap_or_else(|| get_default_levenshtein(term, opt.levenshtein_auto_limit.unwrap_or(1)));
+        std::cmp::min(levenshtein_distance, term.chars().count() - 1) as u32
+    };
+
     let mut request = if op == "and" {
         let requests: Vec<Request> = terms
             .iter()
             .map(|term| {
-                let mut levenshtein_distance = opt.levenshtein.unwrap_or_else(|| get_default_levenshtein(term, opt.levenshtein_auto_limit.unwrap_or(1)));
-                levenshtein_distance = std::cmp::min(levenshtein_distance, term.chars().count() - 1);
                 let parts = get_all_field_names(&persistence, &opt.fields)
                     .iter()
                     .map(|field_name| {
@@ -152,7 +155,7 @@ pub fn search_query(persistence: &Persistence, mut opt: SearchQueryGeneratorPara
                             path: field_name.to_string(),
                             terms: vec![term.to_string()],
                             boost: opt.boost_fields.get(field_name).map(|el|OrderedFloat(*el)),
-                            levenshtein_distance: Some(levenshtein_distance as u32),
+                            levenshtein_distance: Some(get_levenshtein(term)),
                             ..Default::default()
                         };
                         Request {
@@ -184,12 +187,11 @@ pub fn search_query(persistence: &Persistence, mut opt: SearchQueryGeneratorPara
                 let requests: Vec<Request> = terms
                     .iter()
                     .map(|term| {
-                        let levenshtein_distance = opt.levenshtein.unwrap_or_else(|| get_default_levenshtein(term, opt.levenshtein_auto_limit.unwrap_or(1)));
                         let part = RequestSearchPart {
                             path: field_name.to_string(),
                             terms: vec![term.to_string()],
                             boost: opt.boost_fields.get(field_name).map(|el|OrderedFloat(*el)),
-                            levenshtein_distance: Some(levenshtein_distance as u32),
+                            levenshtein_distance: Some(get_levenshtein(term)),
                             ..Default::default()
                         };
                         Request {
@@ -209,6 +211,37 @@ pub fn search_query(persistence: &Persistence, mut opt: SearchQueryGeneratorPara
             ..Default::default()
         }
     };
+
+    if opt.phrase_pairs.unwrap_or(false) && terms.len() >= 2 {
+        let mut phase_boost_requests = vec![];
+        for (term_a, term_b) in terms.clone().iter().tuple_windows() {
+            // terms.push(term_a.to_string() + term_b);
+
+            phase_boost_requests.extend(get_all_field_names(&persistence, &opt.fields).iter()
+                .map(|field_name| {
+                    RequestPhraseBoost {
+                        path: field_name.to_string(),
+                        search1: RequestSearchPart {
+                            path: field_name.to_string(),
+                            terms: vec![term_a.to_string()],
+                            boost: opt.boost_fields.get(field_name).map(|el|OrderedFloat(*el)),
+                            levenshtein_distance: Some(get_levenshtein(term_a)),
+                            ..Default::default()
+                        },
+                        search2: RequestSearchPart {
+                            path: field_name.to_string(),
+                            terms: vec![term_b.to_string()],
+                            boost: opt.boost_fields.get(field_name).map(|el|OrderedFloat(*el)),
+                            levenshtein_distance: Some(get_levenshtein(term_b)),
+                            ..Default::default()
+                        }
+                    }
+                }));
+
+        }
+        request.phrase_boosts = Some(phase_boost_requests);
+    }
+
     request.top = opt.top;
     request.skip = opt.skip;
     request.facets = facets_req;

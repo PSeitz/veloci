@@ -284,8 +284,15 @@ pub fn highlight(persistence: &Persistence, options: &mut RequestSearchPart) -> 
 }
 
 #[cfg_attr(feature = "flame_it", flame)]
-pub fn get_anchor_for_search_results(persistence: &Persistence, path: &str, res1: SearchFieldResult, res2: SearchFieldResult) -> Result<(SearchFieldResult), SearchError> {
-    get_anchor_for_phrases_in_field(persistence, path, &res1.hits_ids, &res2.hits_ids)
+pub fn get_anchor_for_phrases_in_search_results(persistence: &Persistence, path: &str, res1: SearchFieldResult, res2: SearchFieldResult) -> Result<(SearchFieldResult), SearchError> {
+    let mut path = path.to_string();
+    if !path.ends_with(TEXTINDEX){
+        path = path.add(TEXTINDEX);
+    }
+    if !path.ends_with(PHRASE_PAIR_TO_ANCHOR){
+        path = path.add(PHRASE_PAIR_TO_ANCHOR);
+    }
+    get_anchor_for_phrases_in_field(persistence, &path, &res1.hits_ids, &res2.hits_ids)
 }
 
 #[cfg_attr(feature = "flame_it", flame)]
