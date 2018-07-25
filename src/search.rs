@@ -1151,7 +1151,6 @@ fn apply_boost_from_iter(mut results: SearchFieldResult, mut boost_iter: &mut It
             } else if b_hit.id == hit.id {
                 *hit_curr = b_hit.clone();
                 hit.score *= b_hit.score;
-                break;
             }
         }
     };
@@ -1181,7 +1180,7 @@ pub fn boost_hits_ids_vec_multi(mut results: SearchFieldResult, boost: &mut Vec<
             res.hits_ids.sort_unstable();
         }
     }
-    // let mut boosts =
+
     let mut boost_iter = boost
         .iter()
         .map(|el| {

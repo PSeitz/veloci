@@ -26,7 +26,7 @@ use std::ptr;
 
 use execution_plan::*;
 
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Default, Clone, Serialize, Deserialize)]
 pub struct SearchFieldResult {
     pub hits_scores: Vec<search::Hit>,
     pub hits_ids: Vec<TermId>,
