@@ -376,7 +376,7 @@ describe! search_test {
         params.search_term="urge OR いよく".to_string();
 
         let hits = search_testo_to_doco_qp(params).data;
-        assert_eq!(hits.len(), 3);
+        assert_eq!(hits.len(), 2);
         assert_eq!(hits[0].doc["ent_seq"], "1587690");
         assert_eq!(hits[0].doc["commonness"], 20);
         assert_eq!(hits[0].doc["tags"], json!(["nice".to_string()]));

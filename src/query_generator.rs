@@ -12,8 +12,8 @@ use ordered_float::OrderedFloat;
 
 fn get_default_levenshtein(term: &str, levenshtein_auto_limit: usize) -> usize {
     match term.chars().count() {
-        0..=2 => 0,
-        3..=5 => std::cmp::min(1, levenshtein_auto_limit),
+        0..=3 => 0,
+        4..=6 => std::cmp::min(1, levenshtein_auto_limit),
         _ => std::cmp::min(2, levenshtein_auto_limit),
     }
 }
