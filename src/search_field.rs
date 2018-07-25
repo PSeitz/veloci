@@ -49,7 +49,6 @@ impl SearchFieldResult {
             ptr: begin,
             end,
             term_id,
-            // field_id: field_id,
         }
     }
 

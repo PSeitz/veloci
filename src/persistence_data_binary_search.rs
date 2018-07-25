@@ -7,7 +7,6 @@ use persistence_data_indirect::flush_to_file_indirect;
 use type_info::TypeInfo;
 
 use std;
-use std::fs::File;
 use std::io;
 use std::marker::PhantomData;
 use std::path::Path;

@@ -1197,7 +1197,7 @@ pub fn boost_hits_ids_vec_multi(mut results: SearchFieldResult, boost: &mut Vec<
 #[test]
 fn boost_intersect_hits_vec_test_multi() {
     let hits1 = vec![Hit::new(10, 20.0), Hit::new(0, 20.0), Hit::new(5, 20.0), Hit::new(60, 20.0)]; // unsorted
-    let boost = vec![0, 3, 10, 70];
+    let boost = vec![0, 3, 10, 10, 70];
     let boost2 = vec![10, 60];
 
     let mut boosts = vec![
@@ -1219,7 +1219,7 @@ fn boost_intersect_hits_vec_test_multi() {
         &mut boosts,
     );
 
-    assert_eq!(res.hits_scores, vec![Hit::new(0, 40.0), Hit::new(5, 20.0), Hit::new(10, 80.0), Hit::new(60, 40.0)]);
+    assert_eq!(res.hits_scores, vec![Hit::new(0, 40.0), Hit::new(5, 20.0), Hit::new(10, 160.0), Hit::new(60, 40.0)]);
 }
 
 // #[test]

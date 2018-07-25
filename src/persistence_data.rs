@@ -37,7 +37,6 @@ pub struct IndexIdToOneParentFlushing {
     pub cache: Vec<u32>,
     pub current_id_offset: u32,
     pub path: String,
-    pub max_value_id: u32,
     pub metadata: IndexMetaData,
 }
 
@@ -45,7 +44,10 @@ impl IndexIdToOneParentFlushing {
     pub fn new(path: String, max_value_id: u32) -> IndexIdToOneParentFlushing {
         IndexIdToOneParentFlushing {
             path,
-            max_value_id,
+            metadata: IndexMetaData{
+                max_value_id,
+                ..Default::default()
+            },
             ..Default::default()
         }
     }
@@ -105,7 +107,7 @@ impl IndexIdToOneParentFlushing {
 
         let mut data = std::fs::OpenOptions::new().read(true).write(true).append(true).create(true).open(&self.path).unwrap();
 
-        let bytes_required = get_bytes_required(self.max_value_id);
+        let bytes_required = get_bytes_required(self.metadata.max_value_id);
 
         let mut bytes = vec![];
         encode_vals(&self.cache, bytes_required, &mut bytes).unwrap();
@@ -259,8 +261,6 @@ where
 pub struct IndexIdToOneParent<T: IndexIdToParentData, K: IndexIdToParentData> {
     pub data: Vec<K>,
     pub ok: PhantomData<T>,
-    // pub max_value_id: u32,
-    // pub avg_join_size: f32,
     pub metadata: IndexMetaData,
 }
 
@@ -586,7 +586,7 @@ mod tests {
                 ind.add(key as u32, *val as u32).unwrap();
                 ind.flush().unwrap();
             }
-            let store = SingleArrayMMAPPacked::<u32>::from_path(&data_path, ind.max_value_id).unwrap();
+            let store = SingleArrayMMAPPacked::<u32>::from_path(&data_path, ind.metadata.max_value_id).unwrap();
             check_test_data_1_to_1(&store);
         }
 

@@ -1144,7 +1144,7 @@ where
                     if index.is_in_memory() {
                         persistence.indices.key_value_stores.insert(path, Box::new(index.into_im_store())); //Move data
                     } else {
-                        let store = SingleArrayMMAP::<u32>::from_path(&path, index.max_value_id)?;//load data with MMap
+                        let store = SingleArrayMMAP::<u32>::from_path(&path, index.metadata.max_value_id)?;//load data with MMap
                         persistence.indices.key_value_stores.insert(path, Box::new(store));
                     }
                 }
@@ -1232,7 +1232,7 @@ pub fn add_token_values_to_tokens(persistence: &mut Persistence, data_str: &str,
     persistence.write_meta_data()?;
 
     //TODO FIX LOAD FOR IN_MEMORY
-    let store = SingleArrayMMAPPacked::<u32>::from_path(&util::get_file_path(&persistence.db, &path), store.max_value_id)?;
+    let store = SingleArrayMMAPPacked::<u32>::from_path(&util::get_file_path(&persistence.db, &path), store.metadata.max_value_id)?;
     persistence.indices.boost_valueid_to_value.insert(path.to_string(), Box::new(store));
     Ok(())
 }
