@@ -73,6 +73,16 @@ pub struct SearchQueryGeneratorParameters {
     pub phrase_pairs: Option<bool>,
 }
 
+fn get_levenshteinn(term:&str, levenshtein: Option<usize>, levenshtein_auto_limit: Option<usize>) -> u32{
+    let levenshtein_distance = levenshtein.unwrap_or_else(|| get_default_levenshtein(term, levenshtein_auto_limit.unwrap_or(1)));
+    std::cmp::min(levenshtein_distance, term.chars().count() - 1) as u32
+}
+
+fn tokenize_term(term: &str) -> Vec<String> {
+    let s = normalize_to_single_space(term);
+    s.split(' ').map(|el| el.to_string()).collect()
+}
+
 #[cfg_attr(feature = "flame_it", flame)]
 pub fn search_query(persistence: &Persistence, mut opt: SearchQueryGeneratorParameters) -> Request {
     // let req = persistence.meta_data.fulltext_indices.key
@@ -80,16 +90,13 @@ pub fn search_query(persistence: &Persistence, mut opt: SearchQueryGeneratorPara
     info_time!("generating search query");
     let terms: Vec<String> = if opt.operator.is_none() && opt.search_term.contains(" AND ") {
         opt.operator = Some("and".to_string());
-
         let mut s = opt.search_term.to_string();
         replace_all_with_space(&mut s, " AND ");
-        s = normalize_to_single_space(&s);
-        s.split(' ').map(|el| el.to_string()).collect()
+        tokenize_term(&s)
     } else {
         let mut s = opt.search_term.to_string();
         replace_all_with_space(&mut s, " OR ");
-        s = normalize_to_single_space(&s);
-        s.split(' ').map(|el| el.to_string()).collect()
+        tokenize_term(&s)
     };
 
     // let terms = opt.search_term.split(" ").map(|el|el.to_string()).collect::<Vec<&str>>();
@@ -140,8 +147,9 @@ pub fn search_query(persistence: &Persistence, mut opt: SearchQueryGeneratorPara
     let boost_term = if boost_terms_req.is_empty() { None } else { Some(boost_terms_req) };
 
     let get_levenshtein = |term: &str| -> u32{
-        let levenshtein_distance = opt.levenshtein.unwrap_or_else(|| get_default_levenshtein(term, opt.levenshtein_auto_limit.unwrap_or(1)));
-        std::cmp::min(levenshtein_distance, term.chars().count() - 1) as u32
+        get_levenshteinn(term, opt.levenshtein.clone(), opt.levenshtein_auto_limit.clone())
+        // let levenshtein_distance = opt.levenshtein.unwrap_or_else(|| get_default_levenshtein(term, opt.levenshtein_auto_limit.unwrap_or(1)));
+        // std::cmp::min(levenshtein_distance, term.chars().count() - 1) as u32
     };
 
     let mut request = if op == "and" {
@@ -213,33 +221,7 @@ pub fn search_query(persistence: &Persistence, mut opt: SearchQueryGeneratorPara
     };
 
     if opt.phrase_pairs.unwrap_or(false) && terms.len() >= 2 {
-        let mut phase_boost_requests = vec![];
-        for (term_a, term_b) in terms.clone().iter().tuple_windows() {
-            // terms.push(term_a.to_string() + term_b);
-
-            phase_boost_requests.extend(get_all_field_names(&persistence, &opt.fields).iter()
-                .map(|field_name| {
-                    RequestPhraseBoost {
-                        path: field_name.to_string(),
-                        search1: RequestSearchPart {
-                            path: field_name.to_string(),
-                            terms: vec![term_a.to_string()],
-                            boost: opt.boost_fields.get(field_name).map(|el|OrderedFloat(*el)),
-                            levenshtein_distance: Some(get_levenshtein(term_a)),
-                            ..Default::default()
-                        },
-                        search2: RequestSearchPart {
-                            path: field_name.to_string(),
-                            terms: vec![term_b.to_string()],
-                            boost: opt.boost_fields.get(field_name).map(|el|OrderedFloat(*el)),
-                            levenshtein_distance: Some(get_levenshtein(term_b)),
-                            ..Default::default()
-                        }
-                    }
-                }));
-
-        }
-        request.phrase_boosts = Some(phase_boost_requests);
+        request.phrase_boosts = Some(generate_phrase_queries_for_searchterm(persistence, &opt.fields, &terms, opt.levenshtein, opt.levenshtein_auto_limit, opt.boost_fields.clone()));
     }
 
     request.top = opt.top;
@@ -260,6 +242,35 @@ pub fn search_query(persistence: &Persistence, mut opt: SearchQueryGeneratorPara
     // }
 
     request
+}
+
+pub fn generate_phrase_queries_for_searchterm(persistence: &Persistence, fields: &Option<Vec<String>>, terms: &Vec<String>, levenshtein: Option<usize>, levenshtein_auto_limit: Option<usize>, boost_fields: HashMap<String, f32>) -> Vec<RequestPhraseBoost> {
+    let mut phase_boost_requests = vec![];
+    for (term_a, term_b) in terms.clone().iter().tuple_windows() {
+
+        phase_boost_requests.extend(get_all_field_names(&persistence, &fields).iter()
+            .map(|field_name| {
+                RequestPhraseBoost {
+                    search1: RequestSearchPart {
+                        path: field_name.to_string(),
+                        terms: vec![term_a.to_string()],
+                        boost: boost_fields.get(field_name).map(|el|OrderedFloat(*el)),
+                        levenshtein_distance: Some(get_levenshteinn(term_a, levenshtein, levenshtein_auto_limit)),
+                        ..Default::default()
+                    },
+                    search2: RequestSearchPart {
+                        path: field_name.to_string(),
+                        terms: vec![term_b.to_string()],
+                        boost: boost_fields.get(field_name).map(|el|OrderedFloat(*el)),
+                        levenshtein_distance: Some(get_levenshteinn(term_b, levenshtein, levenshtein_auto_limit)),
+                        ..Default::default()
+                    }
+                }
+            })
+        );
+    }
+
+    phase_boost_requests
 }
 
 pub fn suggest_query(

@@ -160,7 +160,7 @@ impl Ord for RequestSearchPart {
 
 #[derive(Serialize, Deserialize, Default, Clone, Debug, Hash, PartialEq, Eq)]
 pub struct RequestPhraseBoost {
-    pub path: String, //TODO REMOVE THIS, TAKE FROM REQUESTSEARCHPART
+    // pub path: String, //TODO REMOVE THIS, TAKE FROM REQUESTSEARCHPART
     pub search1: RequestSearchPart,
     pub search2: RequestSearchPart,
 }

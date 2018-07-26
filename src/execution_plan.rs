@@ -284,7 +284,8 @@ impl PlanStepTrait for PlanStepPhrasePairToAnchorId {
     fn execute_step(self: Box<Self>, persistence: &Persistence) -> Result<(), SearchError>{
         let res1 = self.channels.input_prev_steps[0].recv()?;
         let res2 = self.channels.input_prev_steps[1].recv()?;
-        let mut res = get_anchor_for_phrases_in_search_results(persistence, &self.req.path, res1, res2)?;
+        assert!(self.req.search1.path == self.req.search2.path);
+        let mut res = get_anchor_for_phrases_in_search_results(persistence, &self.req.search1.path, res1, res2)?;
         res.phrase_boost = Some(self.req.clone());
         send_result_to_channel(res, &self.channels)?;
         drop_channel(self.channels);
