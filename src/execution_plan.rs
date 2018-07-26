@@ -233,24 +233,26 @@ impl PlanStepTrait for BoostPlanStepFromBoostRequest {
 use ordered_float::OrderedFloat;
 use itertools::Itertools;
 fn sort_and_group_boosts_by_phrase_terms(mut boosts: Vec<SearchFieldResult>) -> Vec<SearchFieldResult> {
-    debug_time!("sort_and_group_boosts_by_phrase_terms");
+    info_time!("sort_and_group_boosts_by_phrase_terms");
     boosts.sort_unstable_by_key(|res|{
         let phrase_req = res.phrase_boost.as_ref().unwrap();
         (phrase_req.search1.terms[0].to_string(), phrase_req.search2.terms[0].to_string())
     });
 
     let mut new_vec = vec![];
-    for (_id, mut group) in &boosts.iter().group_by(|res|{
+    for (phrase, mut group) in &boosts.iter().group_by(|res|{
         let phrase_req = res.phrase_boost.as_ref().unwrap();
         (phrase_req.search1.terms[0].to_string(), phrase_req.search2.terms[0].to_string())
     }) {
-        let mut first = group.next().unwrap().clone();
-        for el in group {
-            first.hits_ids.extend(el.hits_ids.clone());
-        }
-        first.hits_ids.sort_unstable();
-        first.hits_ids.dedup();
-        new_vec.push(first);
+
+        debug_time!("kmerge anchors for phrase {:?}", phrase);
+        let boosts_iter:Vec<_> = group.map(|el|el.hits_ids.iter()).collect();
+        let mut mergo:Vec<u32> = boosts_iter.into_iter().kmerge().cloned().collect();
+        mergo.dedup();
+        new_vec.push(SearchFieldResult{
+            hits_ids: mergo,
+            ..Default::default()
+        });
     }
 
     new_vec
@@ -261,15 +263,14 @@ impl PlanStepTrait for BoostAnchorFromPhraseResults {
         &mut self.channels
     }
     fn execute_step(self: Box<Self>, _persistence: &Persistence) -> Result<(), SearchError>{
-        info_time!("BoostAnchorFromPhraseResults");
         let input = self.channels.input_prev_steps[0].recv()?;
-        let mut boosts = get_data(&self.channels.input_prev_steps[1..])?;
-        //Set phrase boost
+        let boosts = get_data(&self.channels.input_prev_steps[1..])?;
+
+        let mut boosts = sort_and_group_boosts_by_phrase_terms(boosts);
+        //Set boost for phrases for the next step
         for boost_res in &mut boosts {
             boost_res.request.boost = Some(OrderedFloat(5.0));
         }
-
-        let mut boosts = sort_and_group_boosts_by_phrase_terms(boosts);
 
         send_result_to_channel(boost_hits_ids_vec_multi(input, &mut boosts), &self.channels)?;
         drop_channel(self.channels);
