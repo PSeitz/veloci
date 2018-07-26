@@ -33,6 +33,7 @@ pub struct SearchFieldResult {
     pub terms: FnvHashMap<TermId, String>,
     pub highlight: FnvHashMap<TermId, String>,
     pub request: RequestSearchPart,
+    pub phrase_boost: Option<RequestPhraseBoost>,
     /// store the term id hits field->Term->Hits, used for whyfound and term_locality_boost
     pub term_id_hits_in_field: FnvHashMap<String, FnvHashMap<String, Vec<TermId>>>,
     /// store the text of the term hit field->Terms, used for whyfound
@@ -59,6 +60,7 @@ impl SearchFieldResult {
         res.terms = other.terms.clone();
         res.highlight = other.highlight.clone();
         res.request = other.request.clone();
+        res.phrase_boost = other.phrase_boost.clone();
         res.term_id_hits_in_field = other.term_id_hits_in_field.clone();
         res.term_text_in_field = other.term_text_in_field.clone();
         res

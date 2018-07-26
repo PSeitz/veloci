@@ -145,11 +145,11 @@ impl<T: IndexIdToParentData> AggregationCollector<T> for Vec<T> {
     #[inline]
     fn add(&mut self, id: T) {
         let id_usize = id.to_usize().unwrap();
-        if self.len() < id_usize + 1 {
-            // FIXME MAX ID WRONG SOMETIMES -> VEC SIZE WRONG
-            self.resize(id_usize + 1, T::zero());
+        debug_assert!(self.len() > id_usize, "max_value_id metadata wrong, therefore facet vec wrong size");
+        unsafe {
+           let elem = self.get_unchecked_mut(id_usize);
+           *elem = *elem + T::one();
         }
-        self[id_usize] = self[id_usize] + T::one();
     }
 }
 

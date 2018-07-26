@@ -30,6 +30,10 @@ pub fn get_test_data() -> Value {
         },
         {
             "tags": ["greg tagebuch", "05"]
+        },
+        {
+            "title": "greg tagebuch",
+            "tags": ["greg tagebuch", "05"]
         }
     ])
 }
@@ -215,6 +219,43 @@ describe! search_test {
         });
 
         let hits = search_testo_to_doc(req_with_multi_phrase).data;
+        assert_eq!(hits[0].doc["tags"][0], "greg tagebuch 05");
+
+    }
+    it "should prefer different phrases from same phrase multiple times"{
+        let req_with_single_phrase = json!({
+            "or":[
+                {"search": {"terms":["greg"], "path": "tags[]" }},
+                {"search": {"terms":["tagebuch"], "path": "tags[]" }},
+                {"search": {"terms":["05"], "path": "tags[]" }},
+                {"search": {"terms":["greg"], "path": "title" }},
+                {"search": {"terms":["tagebuch"], "path": "title" }},
+                {"search": {"terms":["05"], "path": "title" }}
+            ],
+            "phrase_boosts": [{
+                    "path":"tags[]",
+                    "search1":{"terms":["greg"], "path": "tags[]" },
+                    "search2":{"terms":["tagebuch"], "path": "tags[]" }
+                },
+                {
+                    "path":"title",
+                    "search1":{"terms":["greg"], "path": "title" },
+                    "search2":{"terms":["tagebuch"], "path": "title" }
+                },
+                {
+                    "path":"tags[]",
+                    "search1":{"terms":["tagebuch"], "path": "tags[]" },
+                    "search2":{"terms":["05"], "path": "tags[]" }
+                },
+                {
+                    "path":"title",
+                    "search1":{"terms":["tagebuch"], "path": "title" },
+                    "search2":{"terms":["05"], "path": "title" }
+                }
+            ]
+        });
+
+        let hits = search_testo_to_doc(req_with_single_phrase).data;
         assert_eq!(hits[0].doc["tags"][0], "greg tagebuch 05");
 
     }

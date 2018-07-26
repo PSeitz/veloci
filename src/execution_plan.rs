@@ -153,11 +153,11 @@ struct BoostPlanStepFromBoostRequest {
     channels: PlanStepDataChannels,
 }
 #[derive(Clone, Debug, PartialEq)]
-struct BoostPlanStepFromIds {
+struct BoostAnchorFromPhraseResults {
     channels: PlanStepDataChannels,
 }
 #[derive(Clone, Debug, PartialEq)]
-struct PlanStepPhraseBoost {
+struct PlanStepPhrasePairToAnchorId {
     req: RequestPhraseBoost,
     channels: PlanStepDataChannels,
 }
@@ -231,31 +231,60 @@ impl PlanStepTrait for BoostPlanStepFromBoostRequest {
 }
 
 use ordered_float::OrderedFloat;
+use itertools::Itertools;
+fn sort_and_group_boosts_by_phrase_terms(mut boosts: Vec<SearchFieldResult>) -> Vec<SearchFieldResult> {
+    debug_time!("sort_and_group_boosts_by_phrase_terms");
+    boosts.sort_unstable_by_key(|res|{
+        let phrase_req = res.phrase_boost.as_ref().unwrap();
+        (phrase_req.search1.terms[0].to_string(), phrase_req.search2.terms[0].to_string())
+    });
 
-impl PlanStepTrait for BoostPlanStepFromIds {
+    let mut new_vec = vec![];
+    for (_id, mut group) in &boosts.iter().group_by(|res|{
+        let phrase_req = res.phrase_boost.as_ref().unwrap();
+        (phrase_req.search1.terms[0].to_string(), phrase_req.search2.terms[0].to_string())
+    }) {
+        let mut first = group.next().unwrap().clone();
+        for el in group {
+            first.hits_ids.extend(el.hits_ids.clone());
+        }
+        first.hits_ids.sort_unstable();
+        first.hits_ids.dedup();
+        new_vec.push(first);
+    }
+
+    new_vec
+}
+
+impl PlanStepTrait for BoostAnchorFromPhraseResults {
     fn get_channel(&mut self) -> &mut PlanStepDataChannels{
         &mut self.channels
     }
     fn execute_step(self: Box<Self>, _persistence: &Persistence) -> Result<(), SearchError>{
+        info_time!("BoostAnchorFromPhraseResults");
         let input = self.channels.input_prev_steps[0].recv()?;
         let mut boosts = get_data(&self.channels.input_prev_steps[1..])?;
         //Set phrase boost
         for boost_res in &mut boosts {
             boost_res.request.boost = Some(OrderedFloat(5.0));
         }
+
+        let mut boosts = sort_and_group_boosts_by_phrase_terms(boosts);
+
         send_result_to_channel(boost_hits_ids_vec_multi(input, &mut boosts), &self.channels)?;
         drop_channel(self.channels);
         Ok(())
     }
 }
-impl PlanStepTrait for PlanStepPhraseBoost {
+impl PlanStepTrait for PlanStepPhrasePairToAnchorId {
     fn get_channel(&mut self) -> &mut PlanStepDataChannels{
         &mut self.channels
     }
     fn execute_step(self: Box<Self>, persistence: &Persistence) -> Result<(), SearchError>{
         let res1 = self.channels.input_prev_steps[0].recv()?;
         let res2 = self.channels.input_prev_steps[1].recv()?;
-        let res = get_anchor_for_phrases_in_search_results(persistence, &self.req.path, res1, res2)?;
+        let mut res = get_anchor_for_phrases_in_search_results(persistence, &self.req.path, res1, res2)?;
+        res.phrase_boost = Some(self.req.clone());
         send_result_to_channel(res, &self.channels)?;
         drop_channel(self.channels);
         Ok(())
@@ -378,7 +407,7 @@ pub fn plan_creator(mut request: Request, plan: &mut Plan) -> PlanDataReceiver {
             let (field_rx1, plan_id1) = get_field_search(&boost.search1);
             let (field_rx2, plan_id2) = get_field_search(&boost.search2);
 
-            let step = PlanStepPhraseBoost {
+            let step = PlanStepPhrasePairToAnchorId {
                 req: boost.clone(),
                 channels: PlanStepDataChannels{
                     num_receivers: 1,
@@ -399,7 +428,7 @@ pub fn plan_creator(mut request: Request, plan: &mut Plan) -> PlanDataReceiver {
 
         //boost all results with phrase results
         let (tx, rx): (PlanDataSender, PlanDataReceiver) = unbounded();
-        let step = BoostPlanStepFromIds {
+        let step = BoostAnchorFromPhraseResults {
             channels: PlanStepDataChannels{
                 num_receivers: 1,
                 input_prev_steps: v,
