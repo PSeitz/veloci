@@ -66,6 +66,7 @@ pub struct SearchQueryGeneratorParameters {
     pub facetlimit: Option<usize>,
     pub why_found: Option<bool>,
     pub text_locality: Option<bool>,
+    pub boost_queries: Option<Vec<RequestBoostPart>>,
     pub facets: Option<Vec<String>>,
     pub fields: Option<Vec<String>>,
     pub boost_fields: HashMap<String, f32>,

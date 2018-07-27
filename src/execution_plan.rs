@@ -505,7 +505,12 @@ fn plan_creator_2(request: &mut Request, plan: &mut Plan, parent_step_dependecy:
 }
 
 #[cfg_attr(feature = "flame_it", flame)]
-fn plan_creator_search_part(request_part: RequestSearchPart, request: &mut Request, plan: &mut Plan, parent_step_dependecy: Option<usize>, field_search_cache: &mut FnvHashMap<RequestSearchPart, (usize, PlanStepFieldSearchToTokenIds)>) -> (PlanDataReceiver, usize) {
+fn plan_creator_search_part(request_part: RequestSearchPart,
+        request: &mut Request,
+        plan: &mut Plan,
+        parent_step_dependecy: Option<usize>,
+        field_search_cache: &mut FnvHashMap<RequestSearchPart, (usize, PlanStepFieldSearchToTokenIds)>
+    ) -> (PlanDataReceiver, usize) {
     let paths = util::get_steps_to_anchor(&request_part.path);
 
     // let (mut field_tx, mut field_rx): (PlanDataSender, PlanDataReceiver) = unbounded();
