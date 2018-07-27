@@ -238,6 +238,7 @@ pub fn search_query(persistence: &Persistence, mut opt: SearchQueryGeneratorPara
     request.why_found = opt.why_found.unwrap_or(false);
     request.text_locality = opt.text_locality.unwrap_or(false);
     request.boost_term = boost_term;
+    request.boost = opt.boost_queries.clone();
 
     // Request {
     //     or: Some(parts),

@@ -113,6 +113,7 @@ struct QueryParams {
     operator: Option<String>,
     select: Option<String>,
     why_found: Option<String>,
+    boost_queries: Option<String>,
     phrase_pairs: Option<String>,
     text_locality: Option<String>,
 }
@@ -274,7 +275,7 @@ fn search_get(database: String, params: Result<QueryParams, rocket::Error>) -> R
         })
         .unwrap_or(HashMap::default());
 
-    let q_params = query_generator::SearchQueryGeneratorParameters {
+    let mut q_params = query_generator::SearchQueryGeneratorParameters {
         search_term: params.query.to_string(),
         top: params.top,
         skip: params.skip,
@@ -289,7 +290,13 @@ fn search_get(database: String, params: Result<QueryParams, rocket::Error>) -> R
         fields: fields,
         boost_fields: boost_fields,
         boost_terms: boost_terms,
+        boost_queries: None,
     };
+
+    if let Some(el) = params.boost_queries {
+        q_params.boost_queries = serde_json::from_str(&el).map_err(|_err| Custom(Status::BadRequest, "wrong format boost_queries".to_string()) )?;
+        println!("{:?}", q_params.boost_queries);
+    }
 
     let mut request = query_generator::search_query(&persistence, q_params);
 
@@ -346,7 +353,13 @@ fn search_get_shard(database: String, params: QueryParams) -> Result<SearchResul
         fields: fields,
         boost_fields: boost_fields,
         boost_terms: boost_terms,
+        boost_queries: None,
     };
+
+    //TODO enable
+    // if let Some(el) = params.boost_queries {
+    //     q_params.boost_queries = serde_json::from_str(&el).map_err(|_err| Custom(Status::BadRequest, "wrong format boost_queries".to_string()) )?;
+    // }
 
     Ok(SearchResult(shard.search_all_shards_from_qp(&q_params, &query_param_to_vec(params.select))?))
 }
@@ -551,9 +564,40 @@ fn main() {
     rocket::ignite()
         // .mount("/", routes![version, get_doc_for_id_direct, get_doc_for_id_tree, search_get, search_post, suggest_get, suggest_post, highlight_post])
         .mount("/", routes![version, delete_db, multipart_upload, get_doc_for_id_direct, get_doc_for_id_tree, search_get, search_post, suggest_get, search_get_shard, suggest_post, highlight_post, inspect_data])
+        .attach(CORS())
         .attach(Gzip)
         .launch();
 }
+
+//ENABLE CORS
+use rocket::fairing::{Fairing, Info, Kind};
+use rocket::http::{Header, Method};
+pub struct CORS();
+impl Fairing for CORS {
+    fn info(&self) -> Info {
+        Info {
+            name: "Add CORS headers to requests",
+            kind: Kind::Response
+        }
+    }
+
+    fn on_response(&self, request: &Request, response: &mut Response) {
+        if request.method() == Method::Options || response.content_type() == Some(ContentType::JSON) {
+            response.set_header(Header::new("Access-Control-Allow-Origin", "*"));
+            response.set_header(Header::new("Access-Control-Allow-Methods", "POST, GET, OPTIONS"));
+            response.set_header(Header::new("Access-Control-Allow-Headers", "Content-Type"));
+            response.set_header(Header::new("Access-Control-Allow-Credentials", "true"));
+        }
+
+        if request.method() == Method::Options {
+            response.set_header(ContentType::Plain);
+            response.set_sized_body(Cursor::new(""));
+        }
+    }
+}
+//ENABLE CORS
+
+
 
 pub struct Gzip;
 impl fairing::Fairing for Gzip {

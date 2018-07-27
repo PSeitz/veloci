@@ -406,7 +406,9 @@ pub fn plan_creator(mut request: Request, plan: &mut Plan) -> PlanDataReceiver {
         let step_id = plan.add_step(Box::new(field_search.clone())); // actually only a placeholder, will replaced with the updated field search after plan creation
         field_search_cache.insert(request_part, (step_id, field_search));
     }
-    let mut final_output = plan_creator_2(&mut request, plan, None, &mut field_search_cache);
+
+    let boost = request.boost.clone();
+    let mut final_output = plan_creator_2(&mut request, &boost.unwrap_or_else(||vec![]), plan, None, &mut field_search_cache);
 
     if let Some(phrase_boosts) = request.phrase_boosts {
         let mut phrase_outputs = vec![];
@@ -466,9 +468,19 @@ pub fn plan_creator(mut request: Request, plan: &mut Plan) -> PlanDataReceiver {
     final_output.0
 }
 
+fn merge_vec(boost: &Vec<RequestBoostPart>, opt: &Option<Vec<RequestBoostPart>>,) -> Vec<RequestBoostPart> {
+    let mut boost = boost.clone();
+    if let Some(boosto) = opt.as_ref() {
+        boost.extend_from_slice(&boosto);
+    }
+    // boost.extend_from_slice(&opt.as_ref().unwrap_or_else(||vec![]));
+    boost
+}
+
 #[cfg_attr(feature = "flame_it", flame)]
 fn plan_creator_2(
     request: &mut Request,
+    boost: &Vec<RequestBoostPart>,
     plan: &mut Plan,
     parent_step_dependecy: Option<usize>,
     field_search_cache: &mut FnvHashMap<RequestSearchPart, (usize, PlanStepFieldSearchToTokenIds)>,
@@ -485,7 +497,10 @@ fn plan_creator_2(
             },
         };
         let step_id = plan.add_step(Box::new(step.clone()));
-        let result_channels_from_prev_steps = or.iter_mut().map(|x| plan_creator_2(x, plan, Some(step_id), field_search_cache).0).collect();
+        let result_channels_from_prev_steps = or.iter_mut().map(|x| {
+            let mut boost = merge_vec(boost, &x.boost);
+            plan_creator_2(x, &mut boost, plan, Some(step_id), field_search_cache).0
+        }).collect();
         plan.get_step(step_id).get_channel().input_prev_steps = result_channels_from_prev_steps;
 
         if let Some(parent_step_dependecy) = parent_step_dependecy {
@@ -503,7 +518,10 @@ fn plan_creator_2(
             },
         };
         let step_id = plan.add_step(Box::new(step.clone()));
-        let result_channels_from_prev_steps = ands.iter_mut().map(|x| plan_creator_2(x, plan, Some(step_id), field_search_cache).0).collect();
+        let result_channels_from_prev_steps = ands.iter_mut().map(|x| {
+            let mut boost = merge_vec(boost, &x.boost);
+            plan_creator_2(x, &mut boost, plan, Some(step_id), field_search_cache).0
+        }).collect();
         plan.get_step(step_id).get_channel().input_prev_steps = result_channels_from_prev_steps;
 
         if let Some(parent_step_dependecy) = parent_step_dependecy {
@@ -514,7 +532,7 @@ fn plan_creator_2(
     } else if let Some(part) = request.search.clone() {
         // TODO Tokenize query according to field
         // part.terms = part.terms.iter().map(|el| util::normalize_text(el)).collect::<Vec<_>>();
-        plan_creator_search_part(part, request, plan, parent_step_dependecy, field_search_cache)
+        plan_creator_search_part(part, request, &mut boost.clone(), plan, parent_step_dependecy, field_search_cache)
     } else {
         //TODO HANDLE SUGGEST
         //TODO ADD ERROR
@@ -527,6 +545,7 @@ fn plan_creator_2(
 fn plan_creator_search_part(
     request_part: RequestSearchPart,
     request: &mut Request,
+    boost: &mut Vec<RequestBoostPart>,
     plan: &mut Plan,
     parent_step_dependecy: Option<usize>,
     field_search_cache: &mut FnvHashMap<RequestSearchPart, (usize, PlanStepFieldSearchToTokenIds)>,
@@ -535,7 +554,7 @@ fn plan_creator_search_part(
 
     // let (mut field_tx, mut field_rx): (PlanDataSender, PlanDataReceiver) = unbounded();
 
-    let fast_field = request.boost.is_none() && !request_part.snippet.unwrap_or(false); // fast_field disabled for boosting or _highlighting_ currently
+    let fast_field = boost.is_empty() && !request_part.snippet.unwrap_or(false); // fast_field disabled for boosting or _highlighting_ currently
     let store_term_id_hits = request.why_found || request.text_locality;
     // let plan_request_part = PlanRequestSearchPart{request:request_part, get_scores: true, store_term_id_hits, store_term_texts: request.why_found, ..Default::default()};
 
@@ -622,29 +641,27 @@ fn plan_creator_search_part(
         }));
 
         for i in (0..paths.len() - 1).rev() {
-            if request.boost.is_some() {
-                request.boost.as_mut().unwrap().retain(|boost| {
-                    let apply_boost = boost.path.starts_with(&paths[i]);
-                    if apply_boost {
-                        let (next_tx, next_rx): (PlanDataSender, PlanDataReceiver) = unbounded();
-                        tx = next_tx;
-                        add_step(Box::new(BoostPlanStepFromBoostRequest {
-                            req: boost.clone(),
-                            channels: PlanStepDataChannels {
-                                num_receivers: 1,
-                                input_prev_steps: vec![rx.clone()],
-                                output_sending_to_next_steps: tx.clone(),
-                                plans_output_receiver_for_next_step: next_rx.clone(),
-                            },
-                        }));
+            boost.retain(|boost| {
+                let apply_boost = boost.path.starts_with(&paths[i]);
+                if apply_boost {
+                    let (next_tx, next_rx): (PlanDataSender, PlanDataReceiver) = unbounded();
+                    tx = next_tx;
+                    add_step(Box::new(BoostPlanStepFromBoostRequest {
+                        req: boost.clone(),
+                        channels: PlanStepDataChannels {
+                            num_receivers: 1,
+                            input_prev_steps: vec![rx.clone()],
+                            output_sending_to_next_steps: tx.clone(),
+                            plans_output_receiver_for_next_step: next_rx.clone(),
+                        },
+                    }));
 
-                        debug!("PlanCreator Step {:?}", boost);
+                    debug!("PlanCreator Step {:?}", boost);
 
-                        rx = next_rx;
-                    }
-                    !apply_boost
-                });
-            }
+                    rx = next_rx;
+                }
+                !apply_boost
+            });
 
             let (next_tx, next_rx): (PlanDataSender, PlanDataReceiver) = unbounded();
             tx = next_tx;
@@ -666,24 +683,22 @@ fn plan_creator_search_part(
         }
 
         let mut step_id = 0;
-        if let Some(ref boosts) = request.boost {
-            // Handling boost from anchor to value - TODO FIXME Error when 1:N
-            for boost in boosts {
-                let (next_tx, next_rx): (PlanDataSender, PlanDataReceiver) = unbounded();
-                tx = next_tx;
-                let id = add_step(Box::new(BoostPlanStepFromBoostRequest {
-                    req: boost.clone(),
-                    channels: PlanStepDataChannels {
-                        num_receivers: 1,
-                        input_prev_steps: vec![rx.clone()],
-                        output_sending_to_next_steps: tx.clone(),
-                        plans_output_receiver_for_next_step: next_rx.clone(),
-                    },
-                }));
-                debug!("PlanCreator Step {:?}", boost);
-                rx = next_rx;
-                step_id = id;
-            }
+        // Handling boost from anchor to value - ignoring 1:N!
+        for boost in boost.iter().filter(|el| !el.path.contains("[]")) {
+            let (next_tx, next_rx): (PlanDataSender, PlanDataReceiver) = unbounded();
+            tx = next_tx;
+            let id = add_step(Box::new(BoostPlanStepFromBoostRequest {
+                req: boost.clone(),
+                channels: PlanStepDataChannels {
+                    num_receivers: 1,
+                    input_prev_steps: vec![rx.clone()],
+                    output_sending_to_next_steps: tx.clone(),
+                    plans_output_receiver_for_next_step: next_rx.clone(),
+                },
+            }));
+            debug!("PlanCreator Step {:?}", boost);
+            rx = next_rx;
+            step_id = id;
         }
 
         // for step in steps {
