@@ -419,7 +419,6 @@ impl Persistence {
             let loading_type = get_loading_type(el.loading_type)?;
             match el.index_category {
                 IndexCategory::Phrase => {
-
                     //Insert dummy index, to seperate between emtpy indexes and nonexisting indexes
                     if el.is_empty {
                         let store = IndexIdToMultipleParentIndirectBinarySearch::<(u32, u32)> {
@@ -434,9 +433,7 @@ impl Persistence {
                     }
 
                     let store: Box<PhrasePairToAnchor<Input = (u32, u32)>> = match loading_type {
-                        LoadingType::Disk => {
-                            Box::new(IndexIdToMultipleParentIndirectBinarySearchMMAP::from_path(&get_file_path(&self.db, &el.path), el.metadata)?)
-                        }
+                        LoadingType::Disk => Box::new(IndexIdToMultipleParentIndirectBinarySearchMMAP::from_path(&get_file_path(&self.db, &el.path), el.metadata)?),
                         LoadingType::InMemoryUnCompressed | LoadingType::InMemory => {
                             Box::new(IndexIdToMultipleParentIndirectBinarySearchMMAP::from_path(&get_file_path(&self.db, &el.path), el.metadata)?)
                         }
@@ -718,7 +715,7 @@ impl Persistence {
             .boost_valueid_to_value
             .get(path)
             .map(|el| el.as_ref())
-            .ok_or_else(||path_not_found(path.as_ref()))
+            .ok_or_else(|| path_not_found(path.as_ref()))
     }
 
     #[cfg_attr(feature = "flame_it", flame)]
@@ -729,18 +726,30 @@ impl Persistence {
     #[cfg_attr(feature = "flame_it", flame)]
     pub fn get_token_to_anchor<S: AsRef<str>>(&self, path: S) -> Result<&TokenToAnchorScore, search::SearchError> {
         let path = path.as_ref().add(TO_ANCHOR_ID_SCORE);
-        self.indices.token_to_anchor_score.get(&path).map(|el| el.as_ref()).ok_or_else(||path_not_found(path.as_ref()))
+        self.indices
+            .token_to_anchor_score
+            .get(&path)
+            .map(|el| el.as_ref())
+            .ok_or_else(|| path_not_found(path.as_ref()))
     }
 
     #[cfg_attr(feature = "flame_it", flame)]
-    pub fn get_phrase_pair_to_anchor<S: AsRef<str>>(&self, path: S) -> Result<&PhrasePairToAnchor<Input=(u32, u32)>, search::SearchError> {
+    pub fn get_phrase_pair_to_anchor<S: AsRef<str>>(&self, path: S) -> Result<&PhrasePairToAnchor<Input = (u32, u32)>, search::SearchError> {
         // let path = path.as_ref().add(TO_ANCHOR_ID_SCORE);
-        self.indices.phrase_pair_to_anchor.get(path.as_ref()).map(|el| el.as_ref()).ok_or_else(||path_not_found(path.as_ref()))
+        self.indices
+            .phrase_pair_to_anchor
+            .get(path.as_ref())
+            .map(|el| el.as_ref())
+            .ok_or_else(|| path_not_found(path.as_ref()))
     }
 
     #[cfg_attr(feature = "flame_it", flame)]
     pub fn get_valueid_to_parent<S: AsRef<str>>(&self, path: S) -> Result<&IndexIdToParent<Output = u32>, search::SearchError> {
-        self.indices.key_value_stores.get(path.as_ref()).map(|el| el.as_ref()).ok_or_else(||path_not_found(path.as_ref()))
+        self.indices
+            .key_value_stores
+            .get(path.as_ref())
+            .map(|el| el.as_ref())
+            .ok_or_else(|| path_not_found(path.as_ref()))
     }
 
     #[cfg_attr(feature = "flame_it", flame)]
@@ -749,7 +758,7 @@ impl Persistence {
             .index_64
             .get(&(path.to_string() + ".offsets"))
             .map(|el| el.as_ref())
-            .ok_or_else(||path_not_found(path.as_ref()))
+            .ok_or_else(|| path_not_found(path.as_ref()))
     }
 
     pub fn get_number_of_documents(&self) -> Result<usize, search::SearchError> {

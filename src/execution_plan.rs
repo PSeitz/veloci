@@ -1,10 +1,10 @@
-use std::fmt::Debug;
 use persistence::Persistence;
 use persistence::*;
 use search::add_boost;
 use search::*;
 use search::{Request, RequestBoostPart, RequestSearchPart, SearchError};
 use search_field;
+use std::fmt::Debug;
 use util;
 use util::StringAdd;
 
@@ -37,7 +37,6 @@ pub struct PlanRequestSearchPart {
     /// Also return the actual text
     #[serde(skip_serializing_if = "skip_false")]
     pub return_term: bool,
-
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -49,30 +48,32 @@ pub struct Dependency {
 #[derive(Debug)]
 pub struct Plan {
     pub steps: Vec<Box<dyn PlanStepTrait>>,
-    dependencies: Vec<Dependency>
+    dependencies: Vec<Dependency>,
 }
 
 impl Default for Plan {
     fn default() -> Plan {
-        Plan { steps: vec![], dependencies: vec![] }
+        Plan {
+            steps: vec![],
+            dependencies: vec![],
+        }
     }
 }
 
 impl Plan {
-
-    fn add_dependency(&mut self, step_index:usize, depends_on: usize) {
-        self.dependencies.push(Dependency{step_index, depends_on});
+    fn add_dependency(&mut self, step_index: usize, depends_on: usize) {
+        self.dependencies.push(Dependency { step_index, depends_on });
     }
 
     /// return the position in the array, which can be used as an id
-    fn add_step(&mut self, step:Box<dyn PlanStepTrait>) -> usize {
+    fn add_step(&mut self, step: Box<dyn PlanStepTrait>) -> usize {
         self.steps.push(step);
         // self.steps.last_mut().unwrap()
         self.steps.len() - 1
     }
 
     /// return the position in the array, which can be used as an id
-    fn get_step(&mut self, step_id:usize) -> &mut Box<dyn PlanStepTrait> {
+    fn get_step(&mut self, step_id: usize) -> &mut Box<dyn PlanStepTrait> {
         &mut self.steps[step_id]
     }
 
@@ -82,24 +83,29 @@ impl Plan {
 
     pub fn get_ordered_steps(self) -> Vec<Vec<Box<dyn PlanStepTrait>>> {
         let mut ordered_steps = vec![];
-        let mut remaining_steps:Vec<_> = self.steps.into_iter().enumerate().collect();
+        let mut remaining_steps: Vec<_> = self.steps.into_iter().enumerate().collect();
 
         let dep = self.dependencies;
 
         while !remaining_steps.is_empty() {
-            let current_remaining_step_ids:Vec<_> = remaining_steps.iter().map(|el|el.0).collect();
-            let steps_with_fullfilled_dependencies: Vec<_> = remaining_steps.drain_filter(|step_with_index| {
-                // let steps_dependencies = self.get_dependencies(step_with_index.0);
-                let steps_dependencies:Vec<Dependency> = dep.iter().filter(|dep|dep.step_index == step_with_index.0).cloned().collect();
-                let unfulfilled_dependencies:Vec<_> = steps_dependencies.iter().filter(|dep|{
-                    current_remaining_step_ids.iter().any(|step_id| *step_id == dep.depends_on) // check if depends_on is in current_remaining_step_ids
-                }).collect();
+            let current_remaining_step_ids: Vec<_> = remaining_steps.iter().map(|el| el.0).collect();
+            let steps_with_fullfilled_dependencies: Vec<_> = remaining_steps
+                .drain_filter(|step_with_index| {
+                    // let steps_dependencies = self.get_dependencies(step_with_index.0);
+                    let steps_dependencies: Vec<Dependency> = dep.iter().filter(|dep| dep.step_index == step_with_index.0).cloned().collect();
+                    let unfulfilled_dependencies: Vec<_> = steps_dependencies
+                        .iter()
+                        .filter(|dep| {
+                            current_remaining_step_ids.iter().any(|step_id| *step_id == dep.depends_on) // check if depends_on is in current_remaining_step_ids
+                        })
+                        .collect();
 
-                unfulfilled_dependencies.is_empty()
-            }).collect();
+                    unfulfilled_dependencies.is_empty()
+                })
+                .collect();
 
             // ordered_steps.push(steps_with_fullfilled_dependencies.iter().map(|step_with_index|*step_with_index.1.clone()).collect());
-            let vecco: Vec<_> = steps_with_fullfilled_dependencies.into_iter().map(|step_with_index|step_with_index.1).collect();
+            let vecco: Vec<_> = steps_with_fullfilled_dependencies.into_iter().map(|step_with_index| step_with_index.1).collect();
             ordered_steps.push(vecco);
         }
 
@@ -107,19 +113,18 @@ impl Plan {
     }
 }
 
-
 type PlanDataSender = crossbeam_channel::Sender<SearchFieldResult>;
 type PlanDataReceiver = crossbeam_channel::Receiver<SearchFieldResult>;
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct PlanStepDataChannels{
+pub struct PlanStepDataChannels {
     input_prev_steps: Vec<PlanDataReceiver>,
     output_sending_to_next_steps: PlanDataSender,
     num_receivers: u32,
     plans_output_receiver_for_next_step: PlanDataReceiver, // used in plan_creation
 }
 
-pub trait PlanStepTrait: Debug + Sync + Send{
+pub trait PlanStepTrait: Debug + Sync + Send {
     fn get_channel(&mut self) -> &mut PlanStepDataChannels;
     // fn get_output(&self) -> PlanDataReceiver;
     fn execute_step(self: Box<Self>, persistence: &Persistence) -> Result<(), SearchError>;
@@ -171,10 +176,11 @@ struct Intersect {
 }
 
 impl PlanStepTrait for PlanStepFieldSearchToTokenIds {
-    fn get_channel(&mut self) -> &mut PlanStepDataChannels{
+    fn get_channel(&mut self) -> &mut PlanStepDataChannels {
         &mut self.channels
     }
-    fn execute_step(mut self: Box<Self>, persistence: &Persistence) -> Result<(), SearchError>{
+
+    fn execute_step(mut self: Box<Self>, persistence: &Persistence) -> Result<(), SearchError> {
         let field_result = search_field::get_term_ids_in_field(persistence, &mut self.req)?;
         send_result_to_channel(field_result, &self.channels)?;
         drop_channel(self.channels);
@@ -183,10 +189,11 @@ impl PlanStepTrait for PlanStepFieldSearchToTokenIds {
 }
 
 impl PlanStepTrait for ResolveTokenIdToAnchor {
-    fn get_channel(&mut self) -> &mut PlanStepDataChannels{
+    fn get_channel(&mut self) -> &mut PlanStepDataChannels {
         &mut self.channels
     }
-    fn execute_step(self: Box<Self>, persistence: &Persistence) -> Result<(), SearchError>{
+
+    fn execute_step(self: Box<Self>, persistence: &Persistence) -> Result<(), SearchError> {
         let field_result = resolve_token_to_anchor(persistence, &self.request, None, &self.channels.input_prev_steps[0].recv()?)?;
         send_result_to_channel(field_result, &self.channels)?;
         drop_channel(self.channels);
@@ -194,10 +201,11 @@ impl PlanStepTrait for ResolveTokenIdToAnchor {
     }
 }
 impl PlanStepTrait for ResolveTokenIdToTextId {
-    fn get_channel(&mut self) -> &mut PlanStepDataChannels{
+    fn get_channel(&mut self) -> &mut PlanStepDataChannels {
         &mut self.channels
     }
-    fn execute_step(self: Box<Self>, persistence: &Persistence) -> Result<(), SearchError>{
+
+    fn execute_step(self: Box<Self>, persistence: &Persistence) -> Result<(), SearchError> {
         let mut field_result = self.channels.input_prev_steps[0].recv()?;
         resolve_token_hits_to_text_id(persistence, &self.request, None, &mut field_result)?;
         send_result_to_channel(field_result, &self.channels)?;
@@ -207,21 +215,26 @@ impl PlanStepTrait for ResolveTokenIdToTextId {
 }
 
 impl PlanStepTrait for ValueIdToParent {
-    fn get_channel(&mut self) -> &mut PlanStepDataChannels{
+    fn get_channel(&mut self) -> &mut PlanStepDataChannels {
         &mut self.channels
     }
-    fn execute_step(self: Box<Self>, persistence: &Persistence) -> Result<(), SearchError>{
-        send_result_to_channel(join_to_parent_with_score(persistence, &self.channels.input_prev_steps[0].recv()?, &self.path, &self.trace_info)?, &self.channels)?;
+
+    fn execute_step(self: Box<Self>, persistence: &Persistence) -> Result<(), SearchError> {
+        send_result_to_channel(
+            join_to_parent_with_score(persistence, &self.channels.input_prev_steps[0].recv()?, &self.path, &self.trace_info)?,
+            &self.channels,
+        )?;
         drop_channel(self.channels);
         Ok(())
     }
 }
 
 impl PlanStepTrait for BoostPlanStepFromBoostRequest {
-    fn get_channel(&mut self) -> &mut PlanStepDataChannels{
+    fn get_channel(&mut self) -> &mut PlanStepDataChannels {
         &mut self.channels
     }
-    fn execute_step(self: Box<Self>, persistence: &Persistence) -> Result<(), SearchError>{
+
+    fn execute_step(self: Box<Self>, persistence: &Persistence) -> Result<(), SearchError> {
         let mut input = self.channels.input_prev_steps[0].recv()?;
         add_boost(persistence, &self.req, &mut input)?; //TODO Wrap
         send_result_to_channel(input, &self.channels)?;
@@ -230,26 +243,25 @@ impl PlanStepTrait for BoostPlanStepFromBoostRequest {
     }
 }
 
-use ordered_float::OrderedFloat;
 use itertools::Itertools;
+use ordered_float::OrderedFloat;
 fn sort_and_group_boosts_by_phrase_terms(mut boosts: Vec<SearchFieldResult>) -> Vec<SearchFieldResult> {
     info_time!("sort_and_group_boosts_by_phrase_terms");
-    boosts.sort_unstable_by_key(|res|{
+    boosts.sort_unstable_by_key(|res| {
         let phrase_req = res.phrase_boost.as_ref().unwrap();
         (phrase_req.search1.terms[0].to_string(), phrase_req.search2.terms[0].to_string())
     });
 
     let mut new_vec = vec![];
-    for (phrase, mut group) in &boosts.iter().group_by(|res|{
+    for (phrase, mut group) in &boosts.iter().group_by(|res| {
         let phrase_req = res.phrase_boost.as_ref().unwrap();
         (phrase_req.search1.terms[0].to_string(), phrase_req.search2.terms[0].to_string())
     }) {
-
         debug_time!("kmerge anchors for phrase {:?}", phrase);
-        let boosts_iter:Vec<_> = group.map(|el|el.hits_ids.iter()).collect();
-        let mut mergo:Vec<u32> = boosts_iter.into_iter().kmerge().cloned().collect();
+        let boosts_iter: Vec<_> = group.map(|el| el.hits_ids.iter()).collect();
+        let mut mergo: Vec<u32> = boosts_iter.into_iter().kmerge().cloned().collect();
         mergo.dedup();
-        new_vec.push(SearchFieldResult{
+        new_vec.push(SearchFieldResult {
             hits_ids: mergo,
             ..Default::default()
         });
@@ -259,10 +271,11 @@ fn sort_and_group_boosts_by_phrase_terms(mut boosts: Vec<SearchFieldResult>) -> 
 }
 
 impl PlanStepTrait for BoostAnchorFromPhraseResults {
-    fn get_channel(&mut self) -> &mut PlanStepDataChannels{
+    fn get_channel(&mut self) -> &mut PlanStepDataChannels {
         &mut self.channels
     }
-    fn execute_step(self: Box<Self>, _persistence: &Persistence) -> Result<(), SearchError>{
+
+    fn execute_step(self: Box<Self>, _persistence: &Persistence) -> Result<(), SearchError> {
         let input = self.channels.input_prev_steps[0].recv()?;
         let boosts = get_data(&self.channels.input_prev_steps[1..])?;
 
@@ -278,10 +291,11 @@ impl PlanStepTrait for BoostAnchorFromPhraseResults {
     }
 }
 impl PlanStepTrait for PlanStepPhrasePairToAnchorId {
-    fn get_channel(&mut self) -> &mut PlanStepDataChannels{
+    fn get_channel(&mut self) -> &mut PlanStepDataChannels {
         &mut self.channels
     }
-    fn execute_step(self: Box<Self>, persistence: &Persistence) -> Result<(), SearchError>{
+
+    fn execute_step(self: Box<Self>, persistence: &Persistence) -> Result<(), SearchError> {
         let res1 = self.channels.input_prev_steps[0].recv()?;
         let res2 = self.channels.input_prev_steps[1].recv()?;
         assert!(self.req.search1.path == self.req.search2.path);
@@ -294,10 +308,11 @@ impl PlanStepTrait for PlanStepPhrasePairToAnchorId {
 }
 
 impl PlanStepTrait for Union {
-    fn get_channel(&mut self) -> &mut PlanStepDataChannels{
+    fn get_channel(&mut self) -> &mut PlanStepDataChannels {
         &mut self.channels
     }
-    fn execute_step(self: Box<Self>, _persistence: &Persistence) -> Result<(), SearchError>{
+
+    fn execute_step(self: Box<Self>, _persistence: &Persistence) -> Result<(), SearchError> {
         send_result_to_channel(union_hits_score(get_data(&self.channels.clone().input_prev_steps)?), &self.channels)?;
         drop(self.channels.output_sending_to_next_steps);
         Ok(())
@@ -305,10 +320,11 @@ impl PlanStepTrait for Union {
 }
 
 impl PlanStepTrait for Intersect {
-    fn get_channel(&mut self) -> &mut PlanStepDataChannels{
+    fn get_channel(&mut self) -> &mut PlanStepDataChannels {
         &mut self.channels
     }
-    fn execute_step(self: Box<Self>, _persistence: &Persistence) -> Result<(), SearchError>{
+
+    fn execute_step(self: Box<Self>, _persistence: &Persistence) -> Result<(), SearchError> {
         send_result_to_channel(intersect_hits_score(get_data(&self.channels.clone().input_prev_steps)?), &self.channels)?;
         drop(self.channels.output_sending_to_next_steps);
         Ok(())
@@ -336,7 +352,7 @@ fn drop_channel(channels: PlanStepDataChannels) {
     }
 }
 
-fn send_result_to_channel(field_result: SearchFieldResult, channels: &PlanStepDataChannels) -> Result<(), SearchError>  {
+fn send_result_to_channel(field_result: SearchFieldResult, channels: &PlanStepDataChannels) -> Result<(), SearchError> {
     let mut data = vec![field_result]; //splat data to vec, first one is free
     for _ in 0..channels.num_receivers - 1 {
         let clone = data[0].clone();
@@ -348,21 +364,17 @@ fn send_result_to_channel(field_result: SearchFieldResult, channels: &PlanStepDa
     Ok(())
 }
 
-use fnv::FnvHashSet;
 use fnv::FnvHashMap;
+use fnv::FnvHashSet;
 fn get_all_field_request_parts(request: &Request) -> FnvHashSet<RequestSearchPart> {
-    let mut map:FnvHashSet<RequestSearchPart> = FnvHashSet::default();
+    let mut map: FnvHashSet<RequestSearchPart> = FnvHashSet::default();
 
     if let Some(phrase_boosts) = request.phrase_boosts.as_ref() {
-        map.extend(phrase_boosts.iter().map(|el|{
-            vec![el.search1.clone(), el.search2.clone()]
-        }).flat_map(|map|map.into_iter()));
+        map.extend(phrase_boosts.iter().map(|el| vec![el.search1.clone(), el.search2.clone()]).flat_map(|map| map.into_iter()));
     }
 
     if let Some(and_or) = request.and.as_ref().or(request.or.as_ref()) {
-        map.extend(and_or.iter().map(|el|{
-            get_all_field_request_parts(el)
-        }).flat_map(|map|map.into_iter()));
+        map.extend(and_or.iter().map(|el| get_all_field_request_parts(el)).flat_map(|map| map.into_iter()));
     }
     if let Some(search) = request.search.clone() {
         map.extend([search].into_iter().cloned());
@@ -373,20 +385,23 @@ fn get_all_field_request_parts(request: &Request) -> FnvHashSet<RequestSearchPar
 
 #[cfg_attr(feature = "flame_it", flame)]
 pub fn plan_creator(mut request: Request, plan: &mut Plan) -> PlanDataReceiver {
-
     let field_requests = get_all_field_request_parts(&request);
     let mut field_search_cache = FnvHashMap::default();
     for request_part in field_requests {
         let (tx, rx): (PlanDataSender, PlanDataReceiver) = unbounded();
-        let plan_request_part = PlanRequestSearchPart{request:request_part.clone(), get_scores: true, ..Default::default()};
+        let plan_request_part = PlanRequestSearchPart {
+            request: request_part.clone(),
+            get_scores: true,
+            ..Default::default()
+        };
         let field_search = PlanStepFieldSearchToTokenIds {
             req: plan_request_part.clone(),
-            channels: PlanStepDataChannels{
+            channels: PlanStepDataChannels {
                 num_receivers: 0,
                 input_prev_steps: vec![],
                 output_sending_to_next_steps: tx,
                 plans_output_receiver_for_next_step: rx,
-            }
+            },
         };
         let step_id = plan.add_step(Box::new(field_search.clone())); // actually only a placeholder, will replaced with the updated field search after plan creation
         field_search_cache.insert(request_part, (step_id, field_search));
@@ -398,7 +413,7 @@ pub fn plan_creator(mut request: Request, plan: &mut Plan) -> PlanDataReceiver {
         for boost in phrase_boosts {
             let (tx, rx): (PlanDataSender, PlanDataReceiver) = unbounded();
 
-            let mut get_field_search = |req: &RequestSearchPart| ->  (PlanDataReceiver, usize){
+            let mut get_field_search = |req: &RequestSearchPart| -> (PlanDataReceiver, usize) {
                 let field_search1 = field_search_cache.get_mut(req).unwrap();
                 field_search1.1.req.get_ids = true;
                 field_search1.1.channels.num_receivers += 1;
@@ -411,12 +426,12 @@ pub fn plan_creator(mut request: Request, plan: &mut Plan) -> PlanDataReceiver {
 
             let step = PlanStepPhrasePairToAnchorId {
                 req: boost.clone(),
-                channels: PlanStepDataChannels{
+                channels: PlanStepDataChannels {
                     num_receivers: 1,
                     input_prev_steps: vec![field_rx1, field_rx2],
                     output_sending_to_next_steps: tx,
                     plans_output_receiver_for_next_step: rx.clone(),
-                }
+                },
             };
             phrase_outputs.push(rx);
             let id_step = plan.add_step(Box::new(step.clone()));
@@ -431,12 +446,12 @@ pub fn plan_creator(mut request: Request, plan: &mut Plan) -> PlanDataReceiver {
         //boost all results with phrase results
         let (tx, rx): (PlanDataSender, PlanDataReceiver) = unbounded();
         let step = BoostAnchorFromPhraseResults {
-            channels: PlanStepDataChannels{
+            channels: PlanStepDataChannels {
                 num_receivers: 1,
                 input_prev_steps: v,
                 output_sending_to_next_steps: tx,
                 plans_output_receiver_for_next_step: rx.clone(),
-            }
+            },
         };
         let id_step = plan.add_step(Box::new(step.clone()));
         plan.add_dependency(id_step, final_output.1);
@@ -449,21 +464,25 @@ pub fn plan_creator(mut request: Request, plan: &mut Plan) -> PlanDataReceiver {
     }
 
     final_output.0
-
 }
 
 #[cfg_attr(feature = "flame_it", flame)]
-fn plan_creator_2(request: &mut Request, plan: &mut Plan, parent_step_dependecy: Option<usize>, field_search_cache: &mut FnvHashMap<RequestSearchPart, (usize, PlanStepFieldSearchToTokenIds)>) -> (PlanDataReceiver, usize) {
+fn plan_creator_2(
+    request: &mut Request,
+    plan: &mut Plan,
+    parent_step_dependecy: Option<usize>,
+    field_search_cache: &mut FnvHashMap<RequestSearchPart, (usize, PlanStepFieldSearchToTokenIds)>,
+) -> (PlanDataReceiver, usize) {
     let (tx, rx): (PlanDataSender, PlanDataReceiver) = unbounded();
 
     if let Some(ref mut or) = request.or {
         let mut step = Union {
-            channels: PlanStepDataChannels{
+            channels: PlanStepDataChannels {
                 num_receivers: 1,
                 input_prev_steps: vec![],
                 output_sending_to_next_steps: tx,
                 plans_output_receiver_for_next_step: rx.clone(),
-            }
+            },
         };
         let step_id = plan.add_step(Box::new(step.clone()));
         let result_channels_from_prev_steps = or.iter_mut().map(|x| plan_creator_2(x, plan, Some(step_id), field_search_cache).0).collect();
@@ -476,12 +495,12 @@ fn plan_creator_2(request: &mut Request, plan: &mut Plan, parent_step_dependecy:
         (rx, step_id)
     } else if let Some(ref mut ands) = request.and {
         let mut step = Intersect {
-            channels: PlanStepDataChannels{
+            channels: PlanStepDataChannels {
                 num_receivers: 1,
                 input_prev_steps: vec![],
                 output_sending_to_next_steps: tx,
                 plans_output_receiver_for_next_step: rx.clone(),
-            }
+            },
         };
         let step_id = plan.add_step(Box::new(step.clone()));
         let result_channels_from_prev_steps = ands.iter_mut().map(|x| plan_creator_2(x, plan, Some(step_id), field_search_cache).0).collect();
@@ -505,12 +524,13 @@ fn plan_creator_2(request: &mut Request, plan: &mut Plan, parent_step_dependecy:
 }
 
 #[cfg_attr(feature = "flame_it", flame)]
-fn plan_creator_search_part(request_part: RequestSearchPart,
-        request: &mut Request,
-        plan: &mut Plan,
-        parent_step_dependecy: Option<usize>,
-        field_search_cache: &mut FnvHashMap<RequestSearchPart, (usize, PlanStepFieldSearchToTokenIds)>
-    ) -> (PlanDataReceiver, usize) {
+fn plan_creator_search_part(
+    request_part: RequestSearchPart,
+    request: &mut Request,
+    plan: &mut Plan,
+    parent_step_dependecy: Option<usize>,
+    field_search_cache: &mut FnvHashMap<RequestSearchPart, (usize, PlanStepFieldSearchToTokenIds)>,
+) -> (PlanDataReceiver, usize) {
     let paths = util::get_steps_to_anchor(&request_part.path);
 
     // let (mut field_tx, mut field_rx): (PlanDataSender, PlanDataReceiver) = unbounded();
@@ -518,7 +538,6 @@ fn plan_creator_search_part(request_part: RequestSearchPart,
     let fast_field = request.boost.is_none() && !request_part.snippet.unwrap_or(false); // fast_field disabled for boosting or _highlighting_ currently
     let store_term_id_hits = request.why_found || request.text_locality;
     // let plan_request_part = PlanRequestSearchPart{request:request_part, get_scores: true, store_term_id_hits, store_term_texts: request.why_found, ..Default::default()};
-
 
     let id = field_search_cache.get_mut(&request_part).unwrap().0;
     let field_search_step = &mut field_search_cache.get_mut(&request_part).unwrap().1;
@@ -529,7 +548,6 @@ fn plan_creator_search_part(request_part: RequestSearchPart,
     // let field_tx = field_search_step.channels.output_sending_to_next_steps.clone();
 
     if fast_field {
-
         // let field_search_step = PlanStepFieldSearchToTokenIds {
         //     req: plan_request_part.clone(),
         //     channels: PlanStepDataChannels{
@@ -543,12 +561,12 @@ fn plan_creator_search_part(request_part: RequestSearchPart,
         // let id = plan.add_step(Box::new(field_search_step));
         let step = ResolveTokenIdToAnchor {
             request: request_part.clone(),
-            channels: PlanStepDataChannels{
+            channels: PlanStepDataChannels {
                 num_receivers: 1,
                 input_prev_steps: vec![field_rx],
                 output_sending_to_next_steps: next_field_tx,
                 plans_output_receiver_for_next_step: next_field_rx.clone(),
-            }
+            },
         };
         let id1 = plan.add_step(Box::new(step.clone()));
         plan.add_dependency(id1, id);
@@ -560,8 +578,7 @@ fn plan_creator_search_part(request_part: RequestSearchPart,
 
         (next_field_rx, id1)
     } else {
-
-        let mut add_step = |step: Box<dyn PlanStepTrait>| -> usize{
+        let mut add_step = |step: Box<dyn PlanStepTrait>| -> usize {
             let step_id = plan.add_step(step);
             if let Some(parent_step_dependecy) = parent_step_dependecy {
                 plan.add_dependency(parent_step_dependecy, step_id);
@@ -583,12 +600,12 @@ fn plan_creator_search_part(request_part: RequestSearchPart,
         let (next_field_tx, next_field_rx): (PlanDataSender, PlanDataReceiver) = unbounded();
         add_step(Box::new(ResolveTokenIdToTextId {
             request: request_part.clone(),
-            channels: PlanStepDataChannels{
+            channels: PlanStepDataChannels {
                 num_receivers: 1,
                 input_prev_steps: vec![field_rx],
                 output_sending_to_next_steps: next_field_tx,
                 plans_output_receiver_for_next_step: next_field_rx.clone(),
-            }
+            },
         }));
 
         let (mut tx, mut rx): (PlanDataSender, PlanDataReceiver) = unbounded();
@@ -596,12 +613,12 @@ fn plan_creator_search_part(request_part: RequestSearchPart,
         add_step(Box::new(ValueIdToParent {
             path: paths.last().unwrap().add(VALUE_ID_TO_PARENT),
             trace_info: "term hits hit to column".to_string(),
-            channels: PlanStepDataChannels{
+            channels: PlanStepDataChannels {
                 num_receivers: 1,
                 input_prev_steps: vec![next_field_rx.clone()],
                 output_sending_to_next_steps: tx.clone(),
                 plans_output_receiver_for_next_step: rx.clone(),
-            }
+            },
         }));
 
         for i in (0..paths.len() - 1).rev() {
@@ -613,12 +630,12 @@ fn plan_creator_search_part(request_part: RequestSearchPart,
                         tx = next_tx;
                         add_step(Box::new(BoostPlanStepFromBoostRequest {
                             req: boost.clone(),
-                            channels: PlanStepDataChannels{
+                            channels: PlanStepDataChannels {
                                 num_receivers: 1,
                                 input_prev_steps: vec![rx.clone()],
                                 output_sending_to_next_steps: tx.clone(),
                                 plans_output_receiver_for_next_step: next_rx.clone(),
-                            }
+                            },
                         }));
 
                         debug!("PlanCreator Step {:?}", boost);
@@ -635,12 +652,12 @@ fn plan_creator_search_part(request_part: RequestSearchPart,
             add_step(Box::new(ValueIdToParent {
                 path: paths[i].add(VALUE_ID_TO_PARENT),
                 trace_info: "Joining to anchor".to_string(),
-                channels: PlanStepDataChannels{
+                channels: PlanStepDataChannels {
                     num_receivers: 1,
                     input_prev_steps: vec![rx.clone()],
                     output_sending_to_next_steps: tx.clone(),
                     plans_output_receiver_for_next_step: next_rx.clone(),
-                }
+                },
             }));
 
             debug!("PlanCreator Step {}", paths[i].add(VALUE_ID_TO_PARENT));
@@ -656,12 +673,12 @@ fn plan_creator_search_part(request_part: RequestSearchPart,
                 tx = next_tx;
                 let id = add_step(Box::new(BoostPlanStepFromBoostRequest {
                     req: boost.clone(),
-                    channels: PlanStepDataChannels{
+                    channels: PlanStepDataChannels {
                         num_receivers: 1,
                         input_prev_steps: vec![rx.clone()],
                         output_sending_to_next_steps: tx.clone(),
                         plans_output_receiver_for_next_step: next_rx.clone(),
-                    }
+                    },
                 }));
                 debug!("PlanCreator Step {:?}", boost);
                 rx = next_rx;
@@ -678,7 +695,6 @@ fn plan_creator_search_part(request_part: RequestSearchPart,
 
         (rx, step_id)
     }
-
 }
 
 use rayon::prelude::*;
@@ -723,7 +739,7 @@ use rayon::prelude::*;
 
 #[cfg_attr(feature = "flame_it", flame)]
 pub fn execute_steps(steps: Vec<Box<dyn PlanStepTrait>>, persistence: &Persistence) -> Result<(), SearchError> {
-    let r: Result<Vec<_>, SearchError> = steps.into_par_iter().map(|step:Box<dyn PlanStepTrait>| step.execute_step(persistence)).collect();
+    let r: Result<Vec<_>, SearchError> = steps.into_par_iter().map(|step: Box<dyn PlanStepTrait>| step.execute_step(persistence)).collect();
 
     if r.is_err() {
         Err(r.unwrap_err())

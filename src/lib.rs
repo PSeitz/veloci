@@ -101,7 +101,6 @@ extern crate fixedbitset;
 extern crate lru_cache;
 // extern crate fst_levenshtein;
 
-
 #[macro_use]
 pub mod util;
 mod profiler;

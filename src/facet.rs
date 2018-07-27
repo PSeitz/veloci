@@ -147,8 +147,8 @@ impl<T: IndexIdToParentData> AggregationCollector<T> for Vec<T> {
         let id_usize = id.to_usize().unwrap();
         debug_assert!(self.len() > id_usize, "max_value_id metadata wrong, therefore facet vec wrong size");
         unsafe {
-           let elem = self.get_unchecked_mut(id_usize);
-           *elem = *elem + T::one();
+            let elem = self.get_unchecked_mut(id_usize);
+            *elem = *elem + T::one();
         }
     }
 }

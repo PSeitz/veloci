@@ -1136,7 +1136,7 @@ where
                     if index.is_in_memory() {
                         persistence.indices.phrase_pair_to_anchor.insert(path, Box::new(index.into_im_store())); //Move data
                     } else {
-                        let store = IndexIdToMultipleParentIndirectBinarySearchMMAP::from_path(&path, index.metadata)?;//load data with MMap
+                        let store = IndexIdToMultipleParentIndirectBinarySearchMMAP::from_path(&path, index.metadata)?; //load data with MMap
                         persistence.indices.phrase_pair_to_anchor.insert(path, Box::new(store));
                     }
                 }
@@ -1144,7 +1144,7 @@ where
                     if index.is_in_memory() {
                         persistence.indices.key_value_stores.insert(path, Box::new(index.into_im_store())); //Move data
                     } else {
-                        let store = SingleArrayMMAP::<u32>::from_path(&path, index.metadata.max_value_id)?;//load data with MMap
+                        let store = SingleArrayMMAP::<u32>::from_path(&path, index.metadata.max_value_id)?; //load data with MMap
                         persistence.indices.key_value_stores.insert(path, Box::new(store));
                     }
                 }
@@ -1202,7 +1202,11 @@ pub fn add_token_values_to_tokens(persistence: &mut Persistence, data_str: &str,
         options.terms = vec![el.text];
         options.terms = options.terms.iter().map(|el| util::normalize_text(el)).collect::<Vec<_>>();
 
-        let mut options = PlanRequestSearchPart{request:options.clone(), get_scores:true, ..Default::default()};
+        let mut options = PlanRequestSearchPart {
+            request: options.clone(),
+            get_scores: true,
+            ..Default::default()
+        };
 
         //TODO: FIXME What about multi hits  - this is a ignorecase search
         let hits = search_field::get_term_ids_in_field(persistence, &mut options)?;

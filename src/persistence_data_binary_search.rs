@@ -168,8 +168,8 @@ impl<T: Ord + Copy + Default + std::fmt::Debug> HeapSizeOf for IndexIdToMultiple
 }
 impl<T: Ord + Copy + Default + std::fmt::Debug> IndexIdToMultipleParentIndirectBinarySearchMMAP<T> {
     pub fn from_path<P: AsRef<Path>>(path: P, metadata: IndexMetaData) -> Result<Self, search::SearchError> {
-        let ind_file = open_file(path.as_ref().to_str().unwrap().to_string() + ".indirect" )?;
-        let data_file = open_file(path.as_ref().to_str().unwrap().to_string() + ".data" )?;
+        let ind_file = open_file(path.as_ref().to_str().unwrap().to_string() + ".indirect")?;
+        let data_file = open_file(path.as_ref().to_str().unwrap().to_string() + ".data")?;
 
         let start_pos = unsafe { MmapOptions::new().map(&ind_file).unwrap() };
         let data = unsafe { MmapOptions::new().map(&data_file).unwrap() };

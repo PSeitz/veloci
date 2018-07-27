@@ -44,7 +44,7 @@ impl IndexIdToOneParentFlushing {
     pub fn new(path: String, max_value_id: u32) -> IndexIdToOneParentFlushing {
         IndexIdToOneParentFlushing {
             path,
-            metadata: IndexMetaData{
+            metadata: IndexMetaData {
                 max_value_id,
                 ..Default::default()
             },

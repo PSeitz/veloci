@@ -109,7 +109,6 @@ fn default_skip() -> Option<usize> {
 //     pub automaton: Option<Box<fst::Automaton<State = Option<usize>> + Send + Sync>>,
 // }
 
-
 #[derive(Serialize, Deserialize, Default, Clone, Debug, Hash, PartialEq, Eq, PartialOrd)]
 pub struct RequestSearchPart {
     pub path: String,
@@ -143,7 +142,6 @@ pub struct RequestSearchPart {
     /// Override default SnippetInfo
     #[serde(skip_serializing_if = "Option::is_none")]
     pub snippet_info: Option<SnippetInfo>,
-
 }
 
 // impl PartialOrd for RequestSearchPart {
@@ -665,7 +663,7 @@ pub fn apply_boost_term(persistence: &Persistence, mut res: SearchFieldResult, b
             let mut boost_iter = data
                 .iter()
                 .map(|el| {
-                    let boost_val: f32 = el.request.boost.map(|el|el.into_inner()).unwrap_or(2.0);
+                    let boost_val: f32 = el.request.boost.map(|el| el.into_inner()).unwrap_or(2.0);
                     el.hits_ids.iter().map(move |id| Hit::new(*id, boost_val))
                 })
                 .into_iter()
@@ -766,7 +764,11 @@ pub fn apply_boost_term(persistence: &Persistence, mut res: SearchFieldResult, b
             .to_vec()
             .into_par_iter()
             .map(|boost_term_req: RequestSearchPart| {
-                let mut boost_term_req = PlanRequestSearchPart{request:boost_term_req, get_ids: true, ..Default::default()};
+                let mut boost_term_req = PlanRequestSearchPart {
+                    request: boost_term_req,
+                    get_ids: true,
+                    ..Default::default()
+                };
                 let mut result = search_field::get_term_ids_in_field(persistence, &mut boost_term_req)?;
                 result = search_field::resolve_token_to_anchor(persistence, &boost_term_req.request, None, &result)?;
                 Ok(result)
@@ -1184,7 +1186,7 @@ pub fn boost_hits_ids_vec_multi(mut results: SearchFieldResult, boost: &mut Vec<
     let mut boost_iter = boost
         .iter()
         .map(|el| {
-            let boost_val: f32 = el.request.boost.map(|el|el.into_inner()).unwrap_or(2.0);
+            let boost_val: f32 = el.request.boost.map(|el| el.into_inner()).unwrap_or(2.0);
             el.hits_ids.iter().map(move |id| Hit::new(*id, boost_val)) //TODO create version for hits_scores
         })
         .into_iter()
@@ -1289,11 +1291,15 @@ pub fn add_boost(persistence: &Persistence, boost: &RequestBoostPart, hits: &mut
     // let key = util::boost_path(&boost.path);
     let boost_path = boost.path.to_string() + BOOST_VALID_TO_VALUE;
     let boostkv_store = persistence.get_boost(&boost_path)?;
-    let boost_param = boost.param.map(|el|el.into_inner()).unwrap_or(0.0);
+    let boost_param = boost.param.map(|el| el.into_inner()).unwrap_or(0.0);
 
     let expre = boost.expression.as_ref().map(|expression| ScoreExpression::new(expression.clone()));
     let default = vec![];
-    let skip_when_score = boost.skip_when_score.as_ref().map(|vecco|vecco.iter().map(|el|el.into_inner()).collect()).unwrap_or(default);
+    let skip_when_score = boost
+        .skip_when_score
+        .as_ref()
+        .map(|vecco| vecco.iter().map(|el| el.into_inner()).collect())
+        .unwrap_or(default);
     for hit in &mut hits.hits_scores {
         if !skip_when_score.is_empty() && skip_when_score.iter().any(|x| (*x - hit.score).abs() < 0.00001) {
             // float comparisons should usually include a error margin

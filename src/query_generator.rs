@@ -4,11 +4,11 @@ use std::{f32, str};
 use itertools::Itertools;
 use regex::Regex;
 
+use ordered_float::OrderedFloat;
 use persistence::Persistence;
 use search::*;
 use std;
 use util::*;
-use ordered_float::OrderedFloat;
 
 fn get_default_levenshtein(term: &str, levenshtein_auto_limit: usize) -> usize {
     match term.chars().count() {
@@ -74,7 +74,7 @@ pub struct SearchQueryGeneratorParameters {
     pub phrase_pairs: Option<bool>,
 }
 
-fn get_levenshteinn(term:&str, levenshtein: Option<usize>, levenshtein_auto_limit: Option<usize>) -> u32{
+fn get_levenshteinn(term: &str, levenshtein: Option<usize>, levenshtein_auto_limit: Option<usize>) -> u32 {
     let levenshtein_distance = levenshtein.unwrap_or_else(|| get_default_levenshtein(term, levenshtein_auto_limit.unwrap_or(1)));
     std::cmp::min(levenshtein_distance, term.chars().count() - 1) as u32
 }
@@ -147,7 +147,7 @@ pub fn search_query(persistence: &Persistence, mut opt: SearchQueryGeneratorPara
 
     let boost_term = if boost_terms_req.is_empty() { None } else { Some(boost_terms_req) };
 
-    let get_levenshtein = |term: &str| -> u32{
+    let get_levenshtein = |term: &str| -> u32 {
         get_levenshteinn(term, opt.levenshtein.clone(), opt.levenshtein_auto_limit.clone())
         // let levenshtein_distance = opt.levenshtein.unwrap_or_else(|| get_default_levenshtein(term, opt.levenshtein_auto_limit.unwrap_or(1)));
         // std::cmp::min(levenshtein_distance, term.chars().count() - 1) as u32
@@ -163,7 +163,7 @@ pub fn search_query(persistence: &Persistence, mut opt: SearchQueryGeneratorPara
                         let part = RequestSearchPart {
                             path: field_name.to_string(),
                             terms: vec![term.to_string()],
-                            boost: opt.boost_fields.get(field_name).map(|el|OrderedFloat(*el)),
+                            boost: opt.boost_fields.get(field_name).map(|el| OrderedFloat(*el)),
                             levenshtein_distance: Some(get_levenshtein(term)),
                             ..Default::default()
                         };
@@ -199,7 +199,7 @@ pub fn search_query(persistence: &Persistence, mut opt: SearchQueryGeneratorPara
                         let part = RequestSearchPart {
                             path: field_name.to_string(),
                             terms: vec![term.to_string()],
-                            boost: opt.boost_fields.get(field_name).map(|el|OrderedFloat(*el)),
+                            boost: opt.boost_fields.get(field_name).map(|el| OrderedFloat(*el)),
                             levenshtein_distance: Some(get_levenshtein(term)),
                             ..Default::default()
                         };
@@ -222,7 +222,14 @@ pub fn search_query(persistence: &Persistence, mut opt: SearchQueryGeneratorPara
     };
 
     if opt.phrase_pairs.unwrap_or(false) && terms.len() >= 2 {
-        request.phrase_boosts = Some(generate_phrase_queries_for_searchterm(persistence, &opt.fields, &terms, opt.levenshtein, opt.levenshtein_auto_limit, opt.boost_fields.clone()));
+        request.phrase_boosts = Some(generate_phrase_queries_for_searchterm(
+            persistence,
+            &opt.fields,
+            &terms,
+            opt.levenshtein,
+            opt.levenshtein_auto_limit,
+            opt.boost_fields.clone(),
+        ));
     }
 
     request.top = opt.top;
@@ -245,30 +252,32 @@ pub fn search_query(persistence: &Persistence, mut opt: SearchQueryGeneratorPara
     request
 }
 
-pub fn generate_phrase_queries_for_searchterm(persistence: &Persistence, fields: &Option<Vec<String>>, terms: &Vec<String>, levenshtein: Option<usize>, levenshtein_auto_limit: Option<usize>, boost_fields: HashMap<String, f32>) -> Vec<RequestPhraseBoost> {
+pub fn generate_phrase_queries_for_searchterm(
+    persistence: &Persistence,
+    fields: &Option<Vec<String>>,
+    terms: &Vec<String>,
+    levenshtein: Option<usize>,
+    levenshtein_auto_limit: Option<usize>,
+    boost_fields: HashMap<String, f32>,
+) -> Vec<RequestPhraseBoost> {
     let mut phase_boost_requests = vec![];
     for (term_a, term_b) in terms.clone().iter().tuple_windows() {
-
-        phase_boost_requests.extend(get_all_field_names(&persistence, &fields).iter()
-            .map(|field_name| {
-                RequestPhraseBoost {
-                    search1: RequestSearchPart {
-                        path: field_name.to_string(),
-                        terms: vec![term_a.to_string()],
-                        boost: boost_fields.get(field_name).map(|el|OrderedFloat(*el)),
-                        levenshtein_distance: Some(get_levenshteinn(term_a, levenshtein, levenshtein_auto_limit)),
-                        ..Default::default()
-                    },
-                    search2: RequestSearchPart {
-                        path: field_name.to_string(),
-                        terms: vec![term_b.to_string()],
-                        boost: boost_fields.get(field_name).map(|el|OrderedFloat(*el)),
-                        levenshtein_distance: Some(get_levenshteinn(term_b, levenshtein, levenshtein_auto_limit)),
-                        ..Default::default()
-                    }
-                }
-            })
-        );
+        phase_boost_requests.extend(get_all_field_names(&persistence, &fields).iter().map(|field_name| RequestPhraseBoost {
+            search1: RequestSearchPart {
+                path: field_name.to_string(),
+                terms: vec![term_a.to_string()],
+                boost: boost_fields.get(field_name).map(|el| OrderedFloat(*el)),
+                levenshtein_distance: Some(get_levenshteinn(term_a, levenshtein, levenshtein_auto_limit)),
+                ..Default::default()
+            },
+            search2: RequestSearchPart {
+                path: field_name.to_string(),
+                terms: vec![term_b.to_string()],
+                boost: boost_fields.get(field_name).map(|el| OrderedFloat(*el)),
+                levenshtein_distance: Some(get_levenshteinn(term_b, levenshtein, levenshtein_auto_limit)),
+                ..Default::default()
+            },
+        }));
     }
 
     phase_boost_requests

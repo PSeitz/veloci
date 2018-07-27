@@ -11,10 +11,10 @@ extern crate serde_json;
 
 use search_lib::create;
 use search_lib::persistence;
+use search_lib::query_generator;
 use search_lib::search;
 use search_lib::trace;
 use serde_json::Value;
-use search_lib::query_generator;
 
 pub fn get_test_data() -> Value {
     json!([
@@ -41,14 +41,14 @@ pub fn get_test_data() -> Value {
 static TEST_FOLDER: &str = "mochaTest_phrase";
 
 lazy_static! {
-    static ref TEST_PERSISTENCE:persistence::Persistence = {
+    static ref TEST_PERSISTENCE: persistence::Persistence = {
         trace::enable_log();
         let indices = r#"[{ "fulltext":"title", "options":{"tokenize":true} } ] "#;
         let mut persistence = persistence::Persistence::create(TEST_FOLDER.to_string()).unwrap();
 
         let data = get_test_data();
         if let Some(arr) = data.as_array() {
-            let docs_line_separated = arr.iter().fold(String::with_capacity(100), |acc, el| acc + &el.to_string()+"\n");
+            let docs_line_separated = arr.iter().fold(String::with_capacity(100), |acc, el| acc + &el.to_string() + "\n");
             println!("{:?}", create::create_indices_from_str(&mut persistence, &docs_line_separated, indices, None, false));
         }
 

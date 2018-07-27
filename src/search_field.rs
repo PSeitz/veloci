@@ -248,7 +248,12 @@ pub fn suggest_multi(persistence: &Persistence, req: Request) -> Result<SuggestF
         .map(|mut search_part| {
             search_part.top = top;
             search_part.skip = skip;
-            let mut search_part = PlanRequestSearchPart{request:search_part, get_scores:true, return_term: true, ..Default::default()};
+            let mut search_part = PlanRequestSearchPart {
+                request: search_part,
+                get_scores: true,
+                return_term: true,
+                ..Default::default()
+            };
             get_term_ids_in_field(persistence, &mut search_part)
         })
         .collect();
@@ -272,25 +277,29 @@ pub fn suggest(persistence: &Persistence, options: &RequestSearchPart) -> Result
 pub fn highlight(persistence: &Persistence, options: &mut RequestSearchPart) -> Result<SuggestFieldResult, SearchError> {
     options.terms = options.terms.iter().map(|el| util::normalize_text(el)).collect::<Vec<_>>();
 
-    let mut options = PlanRequestSearchPart{request:options.clone(), get_scores:true, ..Default::default()};
+    let mut options = PlanRequestSearchPart {
+        request: options.clone(),
+        get_scores: true,
+        ..Default::default()
+    };
 
     let mut result = get_term_ids_in_field(persistence, &mut options)?;
-    resolve_token_hits_to_text_id(persistence, &options.request, None, &mut result,)?;
-    Ok(get_text_score_id_from_result(
-        false,
-        &[result],
-        options.request.skip,
-        options.request.top,
-    ))
+    resolve_token_hits_to_text_id(persistence, &options.request, None, &mut result)?;
+    Ok(get_text_score_id_from_result(false, &[result], options.request.skip, options.request.top))
 }
 
 #[cfg_attr(feature = "flame_it", flame)]
-pub fn get_anchor_for_phrases_in_search_results(persistence: &Persistence, path: &str, res1: SearchFieldResult, res2: SearchFieldResult) -> Result<(SearchFieldResult), SearchError> {
+pub fn get_anchor_for_phrases_in_search_results(
+    persistence: &Persistence,
+    path: &str,
+    res1: SearchFieldResult,
+    res2: SearchFieldResult,
+) -> Result<(SearchFieldResult), SearchError> {
     let mut path = path.to_string();
-    if !path.ends_with(TEXTINDEX){
+    if !path.ends_with(TEXTINDEX) {
         path = path.add(TEXTINDEX);
     }
-    if !path.ends_with(PHRASE_PAIR_TO_ANCHOR){
+    if !path.ends_with(PHRASE_PAIR_TO_ANCHOR) {
         path = path.add(PHRASE_PAIR_TO_ANCHOR);
     }
     get_anchor_for_phrases_in_field(persistence, &path, &res1.hits_ids, &res2.hits_ids)
@@ -344,7 +353,7 @@ pub fn get_anchor_for_phrases_in_field(persistence: &Persistence, path: &str, te
 
 #[cfg_attr(feature = "flame_it", flame)]
 pub fn get_term_ids_in_field(persistence: &Persistence, options: &mut PlanRequestSearchPart) -> Result<SearchFieldResult, SearchError> {
-    if !options.request.path.ends_with(TEXTINDEX){
+    if !options.request.path.ends_with(TEXTINDEX) {
         options.request.path = options.request.path.add(TEXTINDEX);
     }
     let mut result = SearchFieldResult::default();
@@ -384,7 +393,7 @@ pub fn get_term_ids_in_field(persistence: &Persistence, options: &mut PlanReques
                 result.hits_ids.push(token_text_id);
             }
 
-            if options.get_scores{
+            if options.get_scores {
                 let line_lower = text_or_token.to_lowercase();
 
                 // In the case of levenshtein != 0 or starts_with, we want prefix_matches to have a score boost - so that "awe" scores better for awesome than aber
@@ -416,11 +425,9 @@ pub fn get_term_ids_in_field(persistence: &Persistence, options: &mut PlanReques
                         &|a, b| b.score.partial_cmp(&a.score).unwrap_or(Ordering::Equal),
                         &mut |the_worst: &Hit| worst_score = the_worst.score,
                     );
-
                 }
                 debug!("Hit: {:?}\tid: {:?} score: {:?}", &text_or_token, token_text_id, score);
                 result.hits_scores.push(Hit::new(token_text_id, score));
-
             }
 
             if options.return_term || options.store_term_texts {
@@ -429,8 +436,6 @@ pub fn get_term_ids_in_field(persistence: &Persistence, options: &mut PlanReques
         };
 
         get_text_lines(persistence, &options.request, teh_callback)?;
-
-
     }
 
     if let Some(boost_val) = options.request.boost {
@@ -479,7 +484,7 @@ pub fn resolve_token_to_anchor(
     result: &SearchFieldResult,
 ) -> Result<SearchFieldResult, SearchError> {
     let mut options = options.clone();
-    if !options.path.ends_with(TEXTINDEX){
+    if !options.path.ends_with(TEXTINDEX) {
         options.path = options.path.add(TEXTINDEX);
     }
 
@@ -700,7 +705,7 @@ pub fn resolve_token_hits_to_text_id(
     result: &mut SearchFieldResult,
 ) -> Result<(), search::SearchError> {
     let mut path = options.path.to_string();
-    if !path.ends_with(TEXTINDEX){
+    if !path.ends_with(TEXTINDEX) {
         path = path.add(TEXTINDEX);
     }
     let has_tokens = persistence.meta_data.fulltext_indices.get(&path).map_or(false, |fulltext_info| fulltext_info.tokenize);
