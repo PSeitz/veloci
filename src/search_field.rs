@@ -186,7 +186,7 @@ where
         .ok_or_else(|| SearchError::StringError(format!("fst not found loaded in indices {} ", options.path)))?;
     let lev = {
         trace_time!("{} LevenshteinIC create", &options.path);
-        let lev_automaton_builder = LevenshteinAutomatonBuilder::new(options.levenshtein_distance.unwrap_or(0) as u8, true);
+        let lev_automaton_builder = LevenshteinAutomatonBuilder::new(options.levenshtein_distance.unwrap_or(0) as u8, options.ignore_case.unwrap_or(true));
         lev_automaton_builder.build_dfa(&options.terms[0], true)
         // LevenshteinIC::new(&options.terms[0], options.levenshtein_distance.unwrap_or(0))?
     };
@@ -240,14 +240,16 @@ fn get_text_score_id_from_result(suggest_text: bool, results: &[SearchFieldResul
 pub fn suggest_multi(persistence: &Persistence, req: Request) -> Result<SuggestFieldResult, SearchError> {
     info_time!("suggest time");
     let search_parts: Vec<RequestSearchPart> = req.suggest.ok_or_else(|| SearchError::StringError("only suggest allowed in suggest function".to_string()))?;
-    // let mut search_results = vec![];
+
     let top = req.top;
     let skip = req.skip;
     let search_results: Result<Vec<_>, SearchError> = search_parts
         .into_par_iter()
         .map(|mut search_part| {
-            search_part.top = top;
-            search_part.skip = skip;
+            if search_part.token_value.is_none() { //Apply top skip directly if there is no token_boosting, which alters the result afterwards.
+                search_part.top = top;
+                search_part.skip = skip;
+            }
             let mut search_part = PlanRequestSearchPart {
                 request: search_part,
                 get_scores: true,
@@ -818,7 +820,12 @@ fn distance_dfa(lower_hit: &str, dfa: &DFA, lower_term: &str) -> u8 {
         Distance::AtLeast(_) => distance(lower_hit, lower_term),
     }
 }
+
+//TODO: This method can't compare string larger than u8 length
 fn distance(s1: &str, s2: &str) -> u8 {
+    if s1.len() >= 255 || s2.len() >= 255 {
+        return 255;
+    }
     let len_s1 = s1.chars().count();
 
     let mut column: Vec<u8> = Vec::with_capacity(len_s1 + 1);

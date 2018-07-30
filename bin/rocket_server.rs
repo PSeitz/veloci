@@ -5,6 +5,7 @@
 
 extern crate rocket;
 extern crate rocket_contrib;
+extern crate rocket_cors;
 
 extern crate chashmap;
 extern crate env_logger;
@@ -28,11 +29,13 @@ extern crate measure_time;
 extern crate search_lib;
 extern crate multipart;
 
+use rocket::http::Method;
 use rocket::fairing;
 use rocket::response::{self, Responder, Response};
 use rocket::Request;
 
 use rocket_contrib::{Json, Value};
+use rocket_cors::{AllowedOrigins, AllowedHeaders};
 
 use multipart::server::Multipart;
 use multipart::server::save::Entries;
@@ -458,7 +461,7 @@ fn process_entries(entries: Entries) -> Result<(String, Option<String>), search:
         search_lib::create::convert_any_json_data_to_line_delimited(data_reader, &mut data)?;
         return Ok((unsafe{String::from_utf8_unchecked(data)}, Some(config)));
     }
-    
+
     let mut data:Vec<u8> = vec![];
     let data_reader = entries.fields
             .get(&"data".to_string())
@@ -507,10 +510,11 @@ fn delete_db(database: String) -> Result<String, search::SearchError> {
 }
 
 #[post("/<database>/suggest", format = "application/json", data = "<request>")]
-fn suggest_post(database: String, request: Json<search::Request>) -> Result<SuggestResult, search::SearchError> {
-    ensure_database(&database)?;
+fn suggest_post(database: String, request: Json<search::Request>) -> Json<Value> {
+    ensure_database(&database).unwrap();
     let persistence = PERSISTENCES.get(&database).unwrap();
-    excute_suggest(&persistence, request.0, false)
+    let hits = search_field::suggest_multi(&persistence, request.0).unwrap();
+    Json(serde_json::from_str(&serde_json::to_string(&hits).unwrap()).unwrap())
 }
 
 #[get("/<database>/inspect/<path>/<id>")]
@@ -560,43 +564,23 @@ fn main() {
     // for preload_db in std::env::args().skip(1) {
     //     ensure_shard(&preload_db).unwrap();
     // }
+
+    let cors_options = rocket_cors::Cors {
+        allowed_origins: AllowedOrigins::all(),
+        allowed_methods: vec![Method::Get, Method::Post].into_iter().map(From::from).collect(),
+        allowed_headers: AllowedHeaders::all(),
+        allow_credentials: true,
+        ..Default::default()
+    };
+
     println!("Starting Server...");
     rocket::ignite()
         // .mount("/", routes![version, get_doc_for_id_direct, get_doc_for_id_tree, search_get, search_post, suggest_get, suggest_post, highlight_post])
         .mount("/", routes![version, delete_db, multipart_upload, get_doc_for_id_direct, get_doc_for_id_tree, search_get, search_post, suggest_get, search_get_shard, suggest_post, highlight_post, inspect_data])
-        .attach(CORS())
         .attach(Gzip)
+        .attach(cors_options)
         .launch();
 }
-
-//ENABLE CORS
-use rocket::fairing::{Fairing, Info, Kind};
-use rocket::http::{Header, Method};
-pub struct CORS();
-impl Fairing for CORS {
-    fn info(&self) -> Info {
-        Info {
-            name: "Add CORS headers to requests",
-            kind: Kind::Response
-        }
-    }
-
-    fn on_response(&self, request: &Request, response: &mut Response) {
-        if request.method() == Method::Options || response.content_type() == Some(ContentType::JSON) {
-            response.set_header(Header::new("Access-Control-Allow-Origin", "*"));
-            response.set_header(Header::new("Access-Control-Allow-Methods", "POST, GET, OPTIONS"));
-            response.set_header(Header::new("Access-Control-Allow-Headers", "Content-Type"));
-            response.set_header(Header::new("Access-Control-Allow-Credentials", "true"));
-        }
-
-        if request.method() == Method::Options {
-            response.set_header(ContentType::Plain);
-            response.set_sized_body(Cursor::new(""));
-        }
-    }
-}
-//ENABLE CORS
-
 
 
 pub struct Gzip;

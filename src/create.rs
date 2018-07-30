@@ -1200,6 +1200,9 @@ pub fn add_token_values_to_tokens(persistence: &mut Persistence, data_str: &str,
             continue;
         }
         options.terms = vec![el.text];
+        options.ignore_case = Some(false);
+
+        //TODO One request, per term
         options.terms = options.terms.iter().map(|el| util::normalize_text(el)).collect::<Vec<_>>();
 
         let mut options = PlanRequestSearchPart {
@@ -1210,7 +1213,7 @@ pub fn add_token_values_to_tokens(persistence: &mut Persistence, data_str: &str,
 
         //TODO: FIXME What about multi hits  - this is a ignorecase search
         let hits = search_field::get_term_ids_in_field(persistence, &mut options)?;
-        if hits.hits_scores.len() == 1 {
+        if hits.hits_scores.len() >= 1 {
             // tuples.push(ValIdToValue {
             //     valid: hits.hits_scores[0].id,
             //     value: el.value.unwrap(),

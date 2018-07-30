@@ -135,6 +135,10 @@ pub struct RequestSearchPart {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub skip: Option<usize>,
 
+    /// default is true
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ignore_case: Option<bool>,
+
     /// return the snippet hit
     #[serde(skip_serializing_if = "Option::is_none")]
     pub snippet: Option<bool>,
