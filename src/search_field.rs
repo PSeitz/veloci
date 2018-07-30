@@ -141,7 +141,7 @@ pub type Score = f32;
 // }
 fn get_default_score_for_distance(distance: u8, prefix_matches: bool) -> f32 {
     if prefix_matches {
-        2.0 / ((f32::from(distance) + 1.0).log2() + 0.2)
+        2.0 / ((f32::from(distance) + 1.0).log2() + 0.2) + 5.
     } else {
         2.0 / (f32::from(distance) + 0.2)
     }
@@ -234,7 +234,23 @@ fn get_text_score_id_from_result(suggest_text: bool, results: &[SearchFieldResul
                 .collect::<SuggestFieldResult>()
         })
         .collect::<SuggestFieldResult>();
-    suggest_result.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(Ordering::Equal));
+
+    //Merge same text
+    if suggest_text {
+        suggest_result.sort_unstable_by_key(|a| a.0.to_lowercase());
+        suggest_result.dedup_by(|a, b| {
+            if a.0.to_lowercase() == b.0.to_lowercase() {
+                if a.1 > b.1{
+                    b.1 = a.1;
+                }
+                true
+            } else {
+                false
+            }
+        });
+    }
+
+    suggest_result.sort_unstable_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(Ordering::Equal));
     search::apply_top_skip(&suggest_result, skip, top)
 }
 pub fn suggest_multi(persistence: &Persistence, req: Request) -> Result<SuggestFieldResult, SearchError> {

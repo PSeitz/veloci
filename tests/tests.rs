@@ -122,7 +122,7 @@ pub fn get_test_data() -> Value {
                 }
             ],
             "meanings": {
-                "eng" : ["karlo","dignity", "majestic appearance", "will test"],
+                "eng" : ["karlo","dignity", "majestic appearance", "will testo"],
                 "ger": ["majestätischer Anblick (m)", "majestätisches Aussehen (n)", "Majestät (f)"]
             },
             "ent_seq": "1587680"
@@ -847,8 +847,8 @@ describe! search_test {
         let requesto: search::Request = serde_json::from_str(&req.to_string()).expect("Can't parse json");
         let mut pers = &TEST_PERSISTENCE;
         let results = search_field::suggest_multi(&mut pers, requesto).unwrap();
-        // assert_eq!(results.iter().map(|el| el.0.clone()).collect::<Vec<String>>(), ["will", "wille", "will test"]);
-        assert_eq!(results.iter().map(|el| el.0.clone()).collect::<Vec<String>>(), ["will", "Wille", "Wille (m)", "will test"]);
+        // assert_eq!(results.iter().map(|el| el.0.clone()).collect::<Vec<String>>(), ["will", "wille", "will testo"]);
+        assert_eq!(results.iter().map(|el| el.0.clone()).collect::<Vec<String>>(), ["will", "Wille", "Wille (m)", "will testo"]);
     }
 
 
@@ -962,7 +962,7 @@ describe! search_test {
 
     it "get_bytes_indexed"{
         let pers = &TEST_PERSISTENCE;
-        assert_eq!(pers.get_bytes_indexed().unwrap(), 2472);
+        assert_eq!(pers.get_bytes_indexed().unwrap(), 2473);
     }
 
     it "boost text localitaet"{
@@ -1110,7 +1110,7 @@ describe! search_test {
 //     let small_test_json:&str = r#"[
 //         {
 //             "meanings": {
-//                 "eng" : ["dignity", "majestic appearance", "will test"],
+//                 "eng" : ["dignity", "majestic appearance", "will testo"],
 //                 "ger": ["majestätischer Anblick (m)", "stopword", "majestätisches Aussehen (n)", "Majestät (f)"]
 //             },
 //             "ent_seq": "1587680"
