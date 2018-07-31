@@ -257,15 +257,15 @@ pub fn suggest_multi(persistence: &Persistence, req: Request) -> Result<SuggestF
     info_time!("suggest time");
     let search_parts: Vec<RequestSearchPart> = req.suggest.ok_or_else(|| SearchError::StringError("only suggest allowed in suggest function".to_string()))?;
 
-    let top = req.top;
-    let skip = req.skip;
+    // let top = req.top;
+    // let skip = req.skip;
     let search_results: Result<Vec<_>, SearchError> = search_parts
         .into_par_iter()
         .map(|mut search_part| {
-            if search_part.token_value.is_none() { //Apply top skip directly if there is no token_boosting, which alters the result afterwards.
-                search_part.top = top;
-                search_part.skip = skip;
-            }
+            // if search_part.token_value.is_none() { //Apply top skip directly if there is no token_boosting, which alters the result afterwards.
+            //     search_part.top = top;
+            //     search_part.skip = skip;
+            // }
             let mut search_part = PlanRequestSearchPart {
                 request: search_part,
                 get_scores: true,
@@ -839,6 +839,7 @@ fn distance_dfa(lower_hit: &str, dfa: &DFA, lower_term: &str) -> u8 {
 
 //TODO: This method can't compare string larger than u8 length
 fn distance(s1: &str, s2: &str) -> u8 {
+    trace_time!("distance {:?} {:?}", s1, s2);
     if s1.len() >= 255 || s2.len() >= 255 {
         return 255;
     }

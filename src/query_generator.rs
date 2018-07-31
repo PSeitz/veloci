@@ -10,10 +10,18 @@ use search::*;
 use std;
 use util::*;
 
+// fn get_default_levenshtein(term: &str, levenshtein_auto_limit: usize) -> usize {
+//     match term.chars().count() {
+//         0..=3 => 0,
+//         4..=6 => std::cmp::min(1, levenshtein_auto_limit),
+//         _ => std::cmp::min(2, levenshtein_auto_limit),
+//     }
+// }
+
 fn get_default_levenshtein(term: &str, levenshtein_auto_limit: usize) -> usize {
     match term.chars().count() {
-        0..=3 => 0,
-        4..=6 => std::cmp::min(1, levenshtein_auto_limit),
+        0..=2 => 0,
+        3..=5 => std::cmp::min(1, levenshtein_auto_limit),
         _ => std::cmp::min(2, levenshtein_auto_limit),
     }
 }
@@ -304,7 +312,8 @@ pub fn suggest_query(
         .iter()
         .map(|field_name| {
             let levenshtein_distance = levenshtein.unwrap_or_else(|| get_default_levenshtein(request, levenshtein_auto_limit.unwrap_or(1)));
-            let starts_with = if request.chars().count() <= 3 { None } else { Some(true) };
+            // let starts_with = if request.chars().count() <= 3 { None } else { Some(true) };
+            let starts_with = Some(true);
             RequestSearchPart {
                 path: field_name.to_string(),
                 terms: vec![request.to_string()],

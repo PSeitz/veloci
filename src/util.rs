@@ -58,6 +58,10 @@ pub fn open_file<P: AsRef<Path>>(path: P) -> Result<File, search::SearchError> {
 pub(crate) fn set_bit_at(input: &mut u32, n: u8) {
     *input |= 1 << n
 }
+#[inline]
+pub(crate) fn is_bit_set_at(input: u32, n: u8) -> bool {
+    input & (1 << n) != 0
+}
 
 const ONLY_HIGH_BIT_SET: u32 = (1 << 31);
 const ALL_BITS_BUT_HIGHEST_SET: u32 = (1 << 31) - 1;

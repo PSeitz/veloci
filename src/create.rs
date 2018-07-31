@@ -64,28 +64,39 @@ pub struct TokenValuesConfig {
     path: String,
 }
 
-#[derive(Serialize, Deserialize, Debug, Default, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct FulltextIndexOptions {
     pub tokenize: bool,
-    pub add_normal_values: Option<bool>,
     pub stopwords: Option<FnvHashSet<String>>,
+    #[serde(default = "default_text_length_store")]
+    pub do_not_store_text_longer_than: u32
 }
-
-impl FulltextIndexOptions {
-    #[allow(dead_code)]
-    fn new_without_tokenize() -> FulltextIndexOptions {
+fn default_text_length_store() -> u32 {
+    32
+}
+impl Default for FulltextIndexOptions {
+    fn default() -> FulltextIndexOptions {
         FulltextIndexOptions {
             tokenize: true,
             stopwords: None,
-            add_normal_values: Some(true),
+            do_not_store_text_longer_than: default_text_length_store()
         }
     }
+}
+
+impl FulltextIndexOptions {
+    // #[allow(dead_code)]
+    // fn new_without_tokenize() -> FulltextIndexOptions {
+    //     FulltextIndexOptions {
+    //         tokenize: true,
+    //         stopwords: None,
+    //     }
+    // }
 
     fn new_with_tokenize() -> FulltextIndexOptions {
         FulltextIndexOptions {
             tokenize: true,
-            stopwords: None,
-            add_normal_values: Some(true),
+            ..Default::default()
         }
     }
 }
@@ -186,20 +197,22 @@ fn store_full_text_info_and_set_ids(
         term_and_info.1.id = i as u32;
     }
 
-    store_fst(persistence, &term_and_mut_val, &path).expect("Could not store fst");
+    store_fst(persistence, &term_and_mut_val, &path, options.do_not_store_text_longer_than).expect("Could not store fst");
     fulltext_indices.insert(path.to_string(), options.clone());
 
     Ok(())
 }
 
-fn store_fst(persistence: &Persistence, sorted_terms: &[(&str, &mut TermInfo)], path: &str) -> Result<(), fst::Error> {
+fn store_fst(persistence: &Persistence, sorted_terms: &[(&str, &mut TermInfo)], path: &str, ignore_text_longer_than: u32) -> Result<(), fst::Error> {
     // fn store_fst(persistence: &Persistence, sorted_terms: &[(&String, &mut TermInfo)], path: &str) -> Result<(), fst::Error> {
     debug_time!("store_fst {:?}", path);
     let wtr = persistence.get_buffered_writer(&path.add(".fst"))?;
     // Create a builder that can be used to insert new key-value pairs.
     let mut build = MapBuilder::new(wtr)?;
     for (term, info) in sorted_terms.iter() {
-        build.insert(term, u64::from(info.id)).expect("could not insert into fst");
+        if (term.len() as u32) <= ignore_text_longer_than{
+            build.insert(term, u64::from(info.id)).expect("could not insert into fst");
+        }
     }
 
     build.finish()?;
@@ -1211,7 +1224,6 @@ pub fn add_token_values_to_tokens(persistence: &mut Persistence, data_str: &str,
             ..Default::default()
         };
 
-        //TODO: FIXME What about multi hits  - this is a ignorecase search
         let hits = search_field::get_term_ids_in_field(persistence, &mut options)?;
         if hits.hits_scores.len() >= 1 {
             // tuples.push(ValIdToValue {
