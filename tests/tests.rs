@@ -801,6 +801,22 @@ describe! search_test {
         assert_eq!(results.iter().map(|el| el.0.clone()).collect::<Vec<String>>(), ["Prolog:\nthis is a <b>story</b> of a guy who went ... "]);
     }
 
+    it "should select on long text"{
+
+        let req = json!({
+            "search": {
+                "terms":["story"],
+                "path": "mylongtext"
+            },
+            "select": ["mylongtext"]
+        });
+
+        let hits = search_testo_to_doc(req).data;
+        assert_eq!(hits.len(), 1);
+        assert_eq!(hits[0].doc["mylongtext"], json!("Prolog:\nthis is a story of a guy who went out to rule the world, but then died. the end".to_string()));
+
+    }
+
     it "should highlight on sub_level field"{
         let req = json!({
             "terms":["story"],

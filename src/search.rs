@@ -1471,8 +1471,27 @@ impl Error for SearchError {
 
 #[inline]
 fn join_and_get_text_for_ids(persistence: &Persistence, id: u32, prop: &str) -> Result<Option<String>, SearchError> {
-    let text_value_id_opt = join_for_1_to_1(persistence, id, &prop.add(TEXTINDEX).add(PARENT_TO_VALUE_ID))?;
-    Ok(text_value_id_opt.map(|text_value_id| get_text_for_id(persistence, &prop.add(TEXTINDEX), text_value_id)))
+    let field_name = prop.add(TEXTINDEX);
+    let text_value_id_opt = join_for_1_to_1(persistence, id, &field_name.add(PARENT_TO_VALUE_ID))?;
+    if let Some(text_value_id) = text_value_id_opt {
+        let text = if text_value_id >= persistence.meta_data.fulltext_indices.get(&field_name).unwrap().num_text_ids as u32{
+            let text_id_to_token_ids = persistence.get_valueid_to_parent(field_name.add(TEXT_ID_TO_TOKEN_IDS))?;
+            let vals = text_id_to_token_ids.get_values(text_value_id as u64);
+            if let Some(vals) = vals {
+                vals.iter().map(|token_id|get_text_for_id(persistence, &field_name, *token_id)).collect::<Vec<_>>().concat()
+            }else{
+                return Err(SearchError::StringError(format!("Missing text_id {:?} in index {:?}, therefore could not load text", text_value_id, field_name.add(TEXT_ID_TO_TOKEN_IDS))))
+            }
+
+        }else{
+            get_text_for_id(persistence, &field_name, text_value_id)
+        };
+
+        Ok(Some(text))
+    }else{
+        Ok(None)
+    }
+
 }
 
 pub fn read_data(persistence: &Persistence, id: u32, fields: &[String]) -> Result<serde_json::Value, SearchError> {

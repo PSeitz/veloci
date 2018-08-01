@@ -65,7 +65,8 @@ pub struct MetaData {
     // pub key_value_stores: Vec<KVStoreMetaData>,
     // pub anchor_score_stores: Vec<KVStoreMetaData>,
     // pub boost_stores: Vec<KVStoreMetaData>,
-    pub fulltext_indices: FnvHashMap<String, create::FulltextIndexOptions>,
+    // pub text_index_metadata: TextIndexMetaData,
+    pub fulltext_indices: FnvHashMap<String, TextIndexMetaData>,
 }
 
 impl MetaData {
@@ -73,6 +74,13 @@ impl MetaData {
         let json = util::file_as_string(&(folder.to_string() + "/metaData.json"))?;
         Ok(serde_json::from_str(&json)?)
     }
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, Default)]
+pub struct TextIndexMetaData {
+    pub num_text_ids: usize,
+    pub num_long_text_ids: usize,
+    pub options: create::FulltextIndexOptions
 }
 
 #[derive(Serialize, Deserialize, Debug, Default, Clone, Copy, HeapSizeOf, PartialEq)]

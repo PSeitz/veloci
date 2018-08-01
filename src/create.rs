@@ -69,9 +69,9 @@ pub struct FulltextIndexOptions {
     pub tokenize: bool,
     pub stopwords: Option<FnvHashSet<String>>,
     #[serde(default = "default_text_length_store")]
-    pub do_not_store_text_longer_than: u32
+    pub do_not_store_text_longer_than: usize
 }
-fn default_text_length_store() -> u32 {
+fn default_text_length_store() -> usize {
     32
 }
 impl Default for FulltextIndexOptions {
@@ -106,7 +106,7 @@ pub struct BoostIndexOptions {
     boost_type: String, // type:
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone, Copy)]
 pub(crate) struct TermInfo {
     pub(crate) id: u32,
     pub(crate) num_occurences: u32,
@@ -168,12 +168,24 @@ pub(crate) struct TokenToAnchorScore {
 //             .join("")
 // }
 
+fn set_ids(all_terms: &mut TermMap, offset:u32) -> Vec<(&str, &mut TermInfo)> {
+    let mut term_and_mut_val: Vec<(&str, &mut TermInfo)> = all_terms.iter_mut().collect();
+    // let mut term_and_mut_val: Vec<(&String, &mut TermInfo)> = all_terms.iter_mut().collect();
+    term_and_mut_val.sort_unstable_by_key(|el| el.0);
+
+    for (i, term_and_info) in term_and_mut_val.iter_mut().enumerate() {
+        term_and_info.1.id = i as u32 + offset;
+    }
+
+    term_and_mut_val
+}
+
 fn store_full_text_info_and_set_ids(
     persistence: &Persistence,
-    all_terms: &mut TermMap,
+    terms_data: &mut TermDataInPath,
     path: &str,
     options: &FulltextIndexOptions,
-    fulltext_indices: &mut FnvHashMap<String, FulltextIndexOptions>,
+    fulltext_indices: &mut TextIndexMetaData,
 ) -> Result<(), io::Error> {
     debug_time!("store_fst strings and string offsets {:?}", path);
 
@@ -184,33 +196,31 @@ fn store_full_text_info_and_set_ids(
     // );
 
     if log_enabled!(log::Level::Trace) {
-        let mut all_text: Vec<_> = all_terms.keys().collect();
+        let mut all_text: Vec<_> = terms_data.terms.keys().collect();
         all_text.sort_unstable();
 
         trace!("{:?} Terms: {:?}", path, all_text);
     }
-    let mut term_and_mut_val: Vec<(&str, &mut TermInfo)> = all_terms.iter_mut().collect();
-    // let mut term_and_mut_val: Vec<(&String, &mut TermInfo)> = all_terms.iter_mut().collect();
-    term_and_mut_val.sort_unstable_by_key(|el| el.0);
+    fulltext_indices.num_text_ids = terms_data.terms.len();
+    fulltext_indices.num_long_text_ids = terms_data.long_terms.len();
 
-    for (i, term_and_info) in term_and_mut_val.iter_mut().enumerate() {
-        term_and_info.1.id = i as u32;
-    }
+    let term_and_mut_val = set_ids(&mut terms_data.terms, 0);
+    set_ids(&mut terms_data.long_terms, fulltext_indices.num_text_ids as u32);
 
     store_fst(persistence, &term_and_mut_val, &path, options.do_not_store_text_longer_than).expect("Could not store fst");
-    fulltext_indices.insert(path.to_string(), options.clone());
+    // fulltext_indices.insert(path.to_string(), options.clone());
 
     Ok(())
 }
 
-fn store_fst(persistence: &Persistence, sorted_terms: &[(&str, &mut TermInfo)], path: &str, ignore_text_longer_than: u32) -> Result<(), fst::Error> {
+fn store_fst(persistence: &Persistence, sorted_terms: &[(&str, &mut TermInfo)], path: &str, ignore_text_longer_than: usize) -> Result<(), fst::Error> {
     // fn store_fst(persistence: &Persistence, sorted_terms: &[(&String, &mut TermInfo)], path: &str) -> Result<(), fst::Error> {
     debug_time!("store_fst {:?}", path);
     let wtr = persistence.get_buffered_writer(&path.add(".fst"))?;
     // Create a builder that can be used to insert new key-value pairs.
     let mut build = MapBuilder::new(wtr)?;
     for (term, info) in sorted_terms.iter() {
-        if (term.len() as u32) <= ignore_text_longer_than{
+        if term.len() <= ignore_text_longer_than{
             build.insert(term, u64::from(info.id)).expect("could not insert into fst");
         }
     }
@@ -234,13 +244,18 @@ fn add_count_text(terms: &mut TermMap, text: &str) {
 }
 
 #[inline]
-fn add_text<T: Tokenizer>(text: &str, terms: &mut TermMap, options: &FulltextIndexOptions, tokenizer: &T, _prev_phrase_token: &mut Vec<u8>) {
+fn add_text<T: Tokenizer>(text: &str, term_data: &mut TermDataInPath, options: &FulltextIndexOptions, tokenizer: &T, _prev_phrase_token: &mut Vec<u8>) {
     trace!("text: {:?}", text);
     // if options.stopwords.as_ref().map(|el| el.contains(text)).unwrap_or(false) {
     //     return;
     // }
 
-    add_count_text(terms, text);
+    if term_data.do_not_store_text_longer_than < text.len(){
+        // term_data.id_counter_for_large_texts += 1;
+        add_count_text(&mut term_data.long_terms, text); //TODO handle no tokens case
+    }else{
+        add_count_text(&mut term_data.terms, text); //TODO handle no tokens case
+    }
 
     if options.tokenize && tokenizer.has_tokens(&text) {
         // let mut prev_phrase_token:Vec<u8> = vec![];
@@ -250,11 +265,11 @@ fn add_text<T: Tokenizer>(text: &str, terms: &mut TermMap, options: &FulltextInd
             // }
             // if !prev_phrase_token.is_empty() && !is_seperator {
             //     prev_phrase_token.extend(token.as_bytes());
-            //     add_count_text(terms, unsafe { std::str::from_utf8_unchecked(&prev_phrase_token) });
+            //     add_count_text(term_data.terms, unsafe { std::str::from_utf8_unchecked(&prev_phrase_token) });
             // }
             // prev_phrase_token.clear();
             // prev_phrase_token.extend(token.as_bytes());
-            add_count_text(terms, token);
+            add_count_text(&mut term_data.terms, token);
         });
     }
 }
@@ -318,12 +333,21 @@ pub struct CreateCache {
     term_data: AllTermsAndDocumentBuilder,
 }
 
+
+#[derive(Debug, Default)]
+struct TermDataInPath {
+    terms: TermMap,
+    long_terms: TermMap,
+    do_not_store_text_longer_than: usize,
+    // id_counter_for_large_texts: u32
+}
+
 #[derive(Debug, Default)]
 pub struct AllTermsAndDocumentBuilder {
     offsets: Vec<u64>,
     current_offset: usize,
     id_holder: json_converter::IDHolder,
-    terms_in_path: FnvHashMap<String, TermMap>,
+    terms_in_path: FnvHashMap<String, TermDataInPath>,
 }
 
 fn get_allterms_per_path<I: Iterator<Item = Result<serde_json::Value, serde_json::Error>>>(
@@ -344,9 +368,9 @@ fn get_allterms_per_path<I: Iterator<Item = Result<serde_json::Value, serde_json
         let mut cb_text = |_anchor_id: u32, value: &str, path: &str, _parent_val_id: u32| {
             let options: &FulltextIndexOptions = fulltext_info_for_path.get(path).and_then(|el| el.options.as_ref()).unwrap_or(&default_fulltext_options);
 
-            let mut terms = get_or_insert_prefer_get(&mut data.terms_in_path as *mut FnvHashMap<_, _>, path, &|| TermMap::default());
+            let mut terms_data = get_or_insert_prefer_get(&mut data.terms_in_path as *mut FnvHashMap<_, _>, path, &|| TermDataInPath{do_not_store_text_longer_than:options.do_not_store_text_longer_than, ..Default::default()});
 
-            add_text(value, &mut terms, &options, &tokenizer, &mut prev_phrase_token);
+            add_text(value, &mut terms_data, &options, &tokenizer, &mut prev_phrase_token);
         };
         let mut callback_ids = |_anchor_id: u32, _path: &str, _value_id: u32, _parent_val_id: u32| {};
 
@@ -354,7 +378,7 @@ fn get_allterms_per_path<I: Iterator<Item = Result<serde_json::Value, serde_json
     }
 
     for map in data.terms_in_path.values_mut() {
-        map.shrink_to_fit();
+        map.terms.shrink_to_fit();
     }
 
     std::mem::swap(&mut data.id_holder, &mut id_holder);
@@ -520,7 +544,7 @@ where
 
         let mut tokens_ids = Vec::with_capacity(5);
         let mut tokens_to_anchor_id = Vec::with_capacity(10);
-        let mut phrase_to_anchor_id = Vec::with_capacity(10);
+        // let mut phrase_to_anchor_id = Vec::with_capacity(10);
         // let mut prev_phrase_token:Vec<u8> = vec![];
 
         let mut cb_text = |anchor_id: u32, value: &str, path: &str, parent_val_id: u32| {
@@ -548,14 +572,26 @@ where
                 }
             });
 
-            let all_terms = &create_cache.term_data.terms_in_path[path];
+            let all_terms = create_cache.term_data.terms_in_path.get_mut(path).unwrap();
             let options: &FulltextIndexOptions = fulltext_info_for_path.get(path).and_then(|el| el.options.as_ref()).unwrap_or(&default_fulltext_options);
 
             // if options.stopwords.as_ref().map(|el| el.contains(value)).unwrap_or(false) {
             //     return;
             // }
 
-            let text_info = all_terms.get(value).expect("did not found term");
+            let text_info = if all_terms.do_not_store_text_longer_than < value.len(){
+                *all_terms.long_terms.get(value).expect("did not found term")
+                // let info = TermInfo {
+                //     id: all_terms.id_counter_for_large_texts,
+                //     num_occurences: 1,
+                // };
+                // all_terms.id_counter_for_large_texts += 1;
+                // info
+            }else{
+                *all_terms.terms.get(value).expect("did not found term")
+            };
+
+            // let text_info = all_terms.get(value).expect("did not found term");
 
             data.text_id_to_parent.add(text_info.id, parent_val_id).unwrap(); // TODO Error Handling in closure
             data.parent_to_text_id.add(parent_val_id, text_info.id).unwrap(); // TODO Error Handling in closure
@@ -587,7 +623,7 @@ where
                     //     return; //TODO FIXEME BUG return here also prevents proper recreation of text with tokens
                     // }
 
-                    let token_info = all_terms.get(token).expect("did not found token");
+                    let token_info = all_terms.terms.get(token).expect("did not found token");
                     trace!("Adding to tokens_ids {:?} : {:?}", token, token_info);
 
                     if !text_ids_to_token_ids_already_stored {
@@ -628,9 +664,9 @@ where
                 }
 
                 calculate_and_add_token_score_in_doc(&mut tokens_to_anchor_id, anchor_id, current_token_pos, &mut data.token_to_anchor_id_score, false).unwrap(); // TODO Error Handling in closure
-                calculate_and_add_token_score_in_doc(&mut phrase_to_anchor_id, anchor_id, current_token_pos, &mut data.token_to_anchor_id_score, true).unwrap(); // TODO Error Handling in closure
+                // calculate_and_add_token_score_in_doc(&mut phrase_to_anchor_id, anchor_id, current_token_pos, &mut data.token_to_anchor_id_score, true).unwrap(); // TODO Error Handling in closure
                 tokens_to_anchor_id.clear();
-                phrase_to_anchor_id.clear();
+                // phrase_to_anchor_id.clear();
                 tokens_ids.clear();
             }
         };
@@ -1051,20 +1087,24 @@ where
     let default_fulltext_options = FulltextIndexOptions::new_with_tokenize();
     {
         info_time!("set term ids and write fst");
-        let reso: Result<Vec<_>, io::Error> = create_cache
+        let reso: Result<FnvHashMap<String, TextIndexMetaData>, io::Error> = create_cache
             .term_data
             .terms_in_path
             .par_iter_mut()
-            .map(|(path, mut terms)| {
-                let mut fulltext_indices = FnvHashMap::default();
+            .map(|(path, mut terms_data)| {
+                // let mut fulltext_indices = FnvHashMap::default();
+                let mut fulltext_index_metadata = TextIndexMetaData::default();
                 let options: &FulltextIndexOptions = fulltext_info_for_path.get(path).and_then(|el| el.options.as_ref()).unwrap_or(&default_fulltext_options);
-                store_full_text_info_and_set_ids(&persistence, &mut terms, &path, &options, &mut fulltext_indices)?;
-                Ok(fulltext_indices)
+                fulltext_index_metadata.options = options.clone();
+                store_full_text_info_and_set_ids(&persistence, &mut terms_data, &path, &options, &mut fulltext_index_metadata)?;
+                // Ok(fulltext_indices)
+                Ok((path.to_string(), fulltext_index_metadata))
             })
             .collect();
-        for fulltext_indices in reso? {
-            persistence.meta_data.fulltext_indices.extend(fulltext_indices);
-        }
+        persistence.meta_data.fulltext_indices = reso?;
+        // for fulltext_indices in reso? {
+        //     persistence.meta_data.fulltext_indices.extend(fulltext_indices);
+        // }
         persistence.load_all_fst().unwrap(); //TODO error handling
 
         // info!(

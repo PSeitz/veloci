@@ -726,7 +726,7 @@ pub fn resolve_token_hits_to_text_id(
     if !path.ends_with(TEXTINDEX) {
         path = path.add(TEXTINDEX);
     }
-    let has_tokens = persistence.meta_data.fulltext_indices.get(&path).map_or(false, |fulltext_info| fulltext_info.tokenize);
+    let has_tokens = persistence.meta_data.fulltext_indices.get(&path).map_or(false, |fulltext_info| fulltext_info.options.tokenize);
     debug!("has_tokens {:?} {:?}", path, has_tokens);
     if !has_tokens {
         return Ok(());
