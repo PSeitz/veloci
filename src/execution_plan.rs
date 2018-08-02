@@ -234,7 +234,7 @@ impl PlanStepTrait for BoostPlanStepFromBoostRequest {
 
     fn execute_step(self: Box<Self>, persistence: &Persistence) -> Result<(), SearchError> {
         let mut input = self.channels.input_prev_steps[0].recv()?;
-        add_boost(persistence, &self.req, &mut input)?; //TODO Wrap
+        add_boost(persistence, &self.req, &mut input)?;
         send_result_to_channel(input, &self.channels)?;
         drop_channel(self.channels);
         Ok(())
@@ -606,17 +606,6 @@ fn plan_creator_search_part(
             }
             step_id
         };
-
-        // TODO ADD STEP DEPENDENCIES??
-        // steps.push(Box::new(PlanStepFieldSearchToTokenIds {
-        //     req: plan_request_part.clone(),
-        //     channels: PlanStepDataChannels{
-        //         num_receivers: 1,
-        //         input_prev_steps: vec![],
-        //         output_sending_to_next_steps: field_tx,
-        //         plans_output_receiver_for_next_step: field_rx.clone(),
-        //     }
-        // }));
 
         let (next_field_tx, next_field_rx): (PlanDataSender, PlanDataReceiver) = unbounded();
         add_step(Box::new(ResolveTokenIdToTextId {

@@ -252,9 +252,9 @@ fn add_text<T: Tokenizer>(text: &str, term_data: &mut TermDataInPath, options: &
 
     if term_data.do_not_store_text_longer_than < text.len() {
         // term_data.id_counter_for_large_texts += 1;
-        add_count_text(&mut term_data.long_terms, text); //TODO handle no tokens case
+        add_count_text(&mut term_data.long_terms, text); //TODO handle no tokens case or else the text can't be reconstructed
     } else {
-        add_count_text(&mut term_data.terms, text); //TODO handle no tokens case
+        add_count_text(&mut term_data.terms, text); //TODO handle no tokens case or else the text can't be reconstructed
     }
 
     if options.tokenize && tokenizer.has_tokens(&text) {
@@ -968,7 +968,7 @@ fn convert_raw_path_data_to_indices(
             add_index_flush(
                 path.add(PARENT_TO_VALUE_ID),
                 data.parent_to_text_id,
-                true, // This is parent_to_text_id here - Every Value id hat one associated text_id -- TODO: VALIDATE
+                true, // This is parent_to_text_id here - Every Value id hat one associated text_id
                 sort_and_dedup,
                 &mut indices,
                 loading_type,
@@ -1189,7 +1189,7 @@ where
                     if index.is_in_memory() {
                         persistence.indices.key_value_stores.insert(path, Box::new(index.into_im_store())); //Move data
                     } else {
-                        let store = SingleArrayMMAP::<u32>::from_path(&path, index.metadata.max_value_id)?; //load data with MMap
+                        let store = SingleArrayMMAP::<u32>::from_path(&path, index.metadata)?; //load data with MMap
                         persistence.indices.key_value_stores.insert(path, Box::new(store));
                     }
                 }
@@ -1280,7 +1280,7 @@ pub fn add_token_values_to_tokens(persistence: &mut Persistence, data_str: &str,
     persistence.write_meta_data()?;
 
     //TODO FIX LOAD FOR IN_MEMORY
-    let store = SingleArrayMMAPPacked::<u32>::from_path(&util::get_file_path(&persistence.db, &path), store.metadata.max_value_id)?;
+    let store = SingleArrayMMAPPacked::<u32>::from_path(&util::get_file_path(&persistence.db, &path), store.metadata)?;
     persistence.indices.boost_valueid_to_value.insert(path.to_string(), Box::new(store));
     Ok(())
 }

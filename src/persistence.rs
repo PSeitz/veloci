@@ -166,14 +166,6 @@ pub struct Persistence {
     pub term_boost_cache: RwLock<LruCache<Vec<RequestSearchPart>, Vec<search_field::SearchFieldResult>>>,
 }
 
-// //TODO Only tmp
-// fn default_max_value_id() -> u32 {
-//     std::u32::MAX
-// }
-// fn default_avg_join() -> f32 {
-//     1000.0
-// }
-
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq)]
 pub enum LoadingType {
     InMemory,
@@ -397,7 +389,7 @@ impl Persistence {
                 );
             }
             LoadingType::Disk => {
-                let store = SingleArrayMMAP::<u64>::from_path(&get_file_path(&self.db, path), u32::MAX)?;
+                let store = SingleArrayMMAP::<u64>::from_path(&get_file_path(&self.db, path), IndexMetaData::default())?; //TODO METADATA WRONG
                 self.indices.index_64.insert(path.to_string(), Box::new(store));
             }
         }
@@ -470,7 +462,7 @@ impl Persistence {
                             self.indices.boost_valueid_to_value.insert(el.path.to_string(), Box::new(store));
                         }
                         KVStoreType::IndexIdToOneParent => {
-                            let store = SingleArrayMMAPPacked::<u32>::from_path(&get_file_path(&self.db, &el.path), el.metadata.max_value_id)?;
+                            let store = SingleArrayMMAPPacked::<u32>::from_path(&get_file_path(&self.db, &el.path), el.metadata)?;
                             self.indices.boost_valueid_to_value.insert(el.path.to_string(), Box::new(store));
                         }
                     }
@@ -531,7 +523,7 @@ impl Persistence {
                                 Box::new(store) as Box<IndexIdToParent<Output = u32>>
                             }
                             KVStoreType::IndexIdToOneParent => {
-                                let store = SingleArrayMMAPPacked::<u32>::from_path(&data_direct_path, el.metadata.max_value_id)?;
+                                let store = SingleArrayMMAPPacked::<u32>::from_path(&data_direct_path, el.metadata)?;
 
                                 Box::new(store) as Box<IndexIdToParent<Output = u32>>
                             }
@@ -985,7 +977,7 @@ fn path_not_found(path: &str) -> search::SearchError {
 
 //     pub fn get_text_for_id(&mut self, pos: usize, offsets: &IndexIdToParent<Output = u64>) -> String {
 //         self.load_text(pos as u64, offsets);
-//         str::from_utf8(&self.buffer).unwrap().to_string() // TODO maybe avoid clone
+//         str::from_utf8(&self.buffer).unwrap().to_string()
 //     }
 
 //     fn new(path: &str, file: File) -> Self {

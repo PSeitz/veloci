@@ -10,9 +10,11 @@ use util;
 use util::StringAdd;
 
 fn get_top_facet_group<T: IndexIdToParentData>(hits: &FnvHashMap<T, usize>, top: Option<usize>) -> Vec<(T, u32)> {
-    let mut groups: Vec<(T, u32)> = hits.iter().map(|ref tupl| (*tupl.0, *tupl.1 as u32)).collect();
+    let groups: Vec<(T, u32)> = hits.iter().map(|ref tupl| (*tupl.0, *tupl.1 as u32)).collect();
+    sort_and_apply_top_skip_group(groups, top)
+}
 
-    //TODO MERGECODE with below
+fn sort_and_apply_top_skip_group<T: IndexIdToParentData>(mut groups: Vec<(T, u32)>, top: Option<usize>) -> Vec<(T, u32)> {
     groups.sort_unstable_by(|a, b| b.1.cmp(&a.1));
     groups = apply_top_skip(&groups, None, top);
     groups
@@ -22,7 +24,8 @@ fn get_groups_with_text(persistence: &Persistence, groups: &[(u32, u32)], field:
     groups.iter().map(|el| (get_text_for_id(persistence, field, el.0), el.1 as usize)).collect()
 }
 
-//TODO Check ignorecase, check duplicates in facet data
+// TODO Check ignorecase, check duplicates in facet data
+// For ignorecase, we probably need a term_ids -> lower case term id mapping index - read all texts annd aggregate may be too slow
 pub fn get_facet(persistence: &Persistence, req: &FacetRequest, ids: &[u32]) -> Result<Vec<(String, usize)>, SearchError> {
     info_time!("facets in field {:?}", req.field);
     trace!("get_facet for ids {:?}", ids);
@@ -60,8 +63,7 @@ pub fn get_facet(persistence: &Persistence, req: &FacetRequest, ids: &[u32]) -> 
         for (key, group) in &next_level_ids.into_iter().group_by(|el| *el) {
             groups.push((key, group.count() as u32));
         }
-        groups.sort_unstable_by(|a, b| b.1.cmp(&a.1));
-        groups = apply_top_skip(&groups, None, req.top);
+        groups = sort_and_apply_top_skip_group(groups, req.top);
     }
     let groups_with_text = get_groups_with_text(persistence, &groups, steps.last().unwrap());
     debug!("{:?}", groups_with_text);

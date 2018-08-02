@@ -359,21 +359,16 @@ impl<T: IndexIdToParentData> IndexIdToParent for PointingMMAPFileReader<T> {
                 iter: Box::new(VintArrayIterator::from_slice(&[])),
             }
         } else {
-            // let positions = &self.start_pos[(id * 2) as usize..=((id * 2) as usize + 1)];
             let start_index = id as usize * std::mem::size_of::<T>();
-            let data_start_pos = (&self.start_pos[start_index as usize..start_index + 4]).read_u32::<LittleEndian>().unwrap(); //TODO FIX FOR ALL T
-                                                                                                                               // let data_start_pos = self.start_pos[id as usize];
+            let data_start_pos = (&self.start_pos[start_index as usize..start_index + 4]).read_u32::<LittleEndian>().unwrap();
             let data_start_pos_or_data = data_start_pos.to_u32().unwrap();
             if let Some(val) = get_encoded(data_start_pos_or_data) {
-                // return Some(vec![num::cast(val).unwrap()]);
-                // return VintArrayIterator::from_slice(&[5]);
                 return VintArrayIteratorOpt {
                     single_value: val as i64,
                     iter: Box::new(VintArrayIterator::from_slice(&[])),
                 };
             }
             if data_start_pos_or_data == EMPTY_BUCKET {
-                // return VintArrayIterator::from_slice(&[]);
                 return VintArrayIteratorOpt {
                     single_value: -2,
                     iter: Box::new(VintArrayIterator::from_slice(&[])),

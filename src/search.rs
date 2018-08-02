@@ -147,7 +147,6 @@ impl Ord for RequestSearchPart {
 
 #[derive(Serialize, Deserialize, Default, Clone, Debug, Hash, PartialEq, Eq)]
 pub struct RequestPhraseBoost {
-    // pub path: String, //TODO REMOVE THIS, TAKE FROM REQUESTSEARCHPART
     pub search1: RequestSearchPart,
     pub search2: RequestSearchPart,
 }
@@ -272,7 +271,6 @@ impl Hit {
 
 // #[cfg_attr(feature = "flame_it", flame)]
 // fn hits_to_sorted_array(hits: FnvHashMap<u32, f32>) -> Vec<Hit> {
-//     //TODO add top n sort
 //     debug_time!("hits_to_sorted_array");
 //     let mut res: Vec<Hit> = hits.iter().map(|(id, score)| Hit { id: *id, score: *score }).collect();
 //     res.sort_unstable_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(Ordering::Equal)); //TODO Add sort by id when equal
@@ -391,7 +389,6 @@ fn get_why_found(
         }
 
         for anchor_id in anchor_ids {
-            //debug_time!(format!("highlight anchor_id {:?}", anchor_id)); // TODO flip loops and trace time per anchor
             let ids = facet::join_anchor_to_leaf(persistence, &[*anchor_id], &paths)?;
 
             for value_id in ids {
@@ -421,34 +418,12 @@ fn boost_text_locality_all(persistence: &Persistence, term_id_hits_in_field: &mu
         .collect();
 
     info_time!("collect sort_boost");
-    if r.is_err() {
-        return Err(r.unwrap_err());
-    } else {
-        let boosts = r.unwrap();
-        // for boost in boosts {
-        //     boost_anchor.extend(boost.iter().cloned());
-        // }
-
-        let mergo = boosts.into_iter().kmerge_by(|a, b| a.id < b.id);
-        for (mut id, mut group) in &mergo.into_iter().group_by(|el| el.id) {
-            let best_score = group.map(|el| el.score).max_by(|a, b| b.partial_cmp(&a).unwrap_or(Ordering::Equal)).unwrap();
-            boost_anchor.push(Hit::new(id, best_score));
-        }
+    let boosts = r?;
+    let mergo = boosts.into_iter().kmerge_by(|a, b| a.id < b.id);
+    for (mut id, mut group) in &mergo.into_iter().group_by(|el| el.id) {
+        let best_score = group.map(|el| el.score).max_by(|a, b| b.partial_cmp(&a).unwrap_or(Ordering::Equal)).unwrap();
+        boost_anchor.push(Hit::new(id, best_score));
     }
-
-    // info_time!("sort_boost");
-    // boost_anchor.sort_unstable_by_key(|el| el.id); //TODO GROUP BY MAX instead sort dedup
-
-    // boost_anchor.dedup_by( |a, b|{
-    //     if a.id == b.id{
-    //         if a.score > b.score {
-    //             b.score = a.score; //TODO ADD TEST, KEEP ONLY BESTE SCORE VOMG RANK HER
-    //         }
-    //         true
-    //     }else{
-    //         false
-    //     }
-    // });
 
     Ok(boost_anchor)
 }
@@ -844,56 +819,6 @@ pub fn union_hits_score(mut or_results: Vec<SearchFieldResult>) -> SearchFieldRe
     let len_total: usize = or_results.iter().map(|el| el.hits_scores.len()).sum();
     let sum_other_len = len_total as f32 - longest_len;
 
-    // if longest_len as f32 * 0.05 > sum_other_len{ // TODO check best value
-    //     let mut union_hits = or_results.swap_remove(index_longest).hits_scores;
-
-    //INSERT SUPER SLOW
-    // {
-    //     debug_time!("union hits sort input".to_string());
-    //     for res in or_results.iter_mut() {
-    //         res.hits_scores.sort_unstable_by_key(|el| el.id);
-    //         //TODO ALSO DEDUP???
-    //     }
-    // }
-
-    // let iterators:Vec<_> = or_results.iter().map(|el| el.hits_scores.iter()).collect();
-    // let mergo = iterators.into_iter().kmerge_by(|a, b| a.id < b.id);
-    // debug_time!("union hits kmerge".to_string());
-
-    // for (mut id, mut group) in &mergo.into_iter().group_by(|el| el.id)
-    // {
-    //     let sum_score = group.map(|a| a.score).sum(); // TODO same term = MAX, different terms = SUM
-    //     let mkay = union_hits.binary_search_by_key(&id, |&a| a.id);
-    //     match mkay {
-    //         Ok(pos) => {
-    //             union_hits[pos].score += sum_score;
-    //         },
-    //         Err(pos) => {
-    //             union_hits.insert(pos, Hit::new(id,sum_score))
-    //         },
-    //     }
-    // }
-
-    //     {
-    //         debug_time!("union hits append ".to_string());
-    //         for mut res in or_results {
-    //             union_hits.append(&mut res.hits_scores);
-    //         }
-    //     }
-
-    //     debug_time!("union hits sort and dedup ".to_string());
-    //     union_hits.sort_unstable_by_key(|el| el.id);
-    //     let prev = union_hits.len();
-    //     union_hits.dedup_by_key(|el| el.id); // TODO FixMe Score
-
-    //     debug!("union hits merged from {} to {} hits", prev, union_hits.len() );
-
-    //     SearchFieldResult {
-    //         hits_scores: union_hits,
-    //         ..Default::default()
-    //     }
-    // }else{
-
     {
         debug_time!("union hits sort input");
         for res in &mut or_results {
@@ -938,10 +863,6 @@ pub fn union_hits_score(mut or_results: Vec<SearchFieldResult>) -> SearchFieldRe
 
     debug_time!("union hits kmerge");
 
-    // for (mut id, mut group) in &mergo.into_iter().group_by(|el| el.0.id) {
-    //     let sum_score = group.map(|a| a.0.score).sum(); // TODO same term = MAX, different terms = SUM
-    //     union_hits.push(Hit::new(id, sum_score));
-    // }
     let mut max_scores_per_term: Vec<f32> = vec![];
     max_scores_per_term.resize(terms.len(), 0.0);
     // let mut field_id_hits = 0;
@@ -1133,15 +1054,6 @@ fn intersect_hits_vec_test() {
 
     assert_eq!(res.hits_scores, vec![Hit::new(0, 40.0), Hit::new(10, 50.0)]);
 }
-
-// #[cfg_attr(feature = "flame_it", flame)]
-// fn boost_intersect_hits_vec(mut results: SearchFieldResult, mut boost: SearchFieldResult) -> SearchFieldResult {
-//     results.hits_scores.sort_unstable_by_key(|el| el.id); //TODO SORT NEEDED??
-//     boost.hits_scores.sort_unstable_by_key(|el| el.id); //TODO SORT NEEDED??
-
-//     let mut boost_iter = boost.hits_scores.into_iter();
-//     apply_boost_from_iter(results, &mut boost_iter) // TODO FIXME
-// }
 
 fn apply_boost_from_iter(mut results: SearchFieldResult, mut boost_iter: &mut Iterator<Item = Hit>) -> SearchFieldResult {
     let move_boost = |hit: &mut Hit, hit_curr: &mut Hit, boost_iter: &mut Iterator<Item = Hit>| {

@@ -26,10 +26,6 @@ pub fn highlight_text(
     set: &FnvHashSet<String>,
     opt: &SnippetInfo,
 ) -> Option<String> {
-    // let mut tokens_sorted:Vec<String> = tokens.iter().map(|el|el.to_string()).collect();
-    // tokens_sorted.sort_unstable();
-    // let set = Set::from_iter(tokens_sorted).unwrap(); //TODO MOVE IT
-
     let mut contains_any_token = false;
     let mut highlighted = String::with_capacity(text.len() + 10);
 

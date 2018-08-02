@@ -65,7 +65,7 @@ impl IndexIdToOneParentFlushing {
             Ok(Box::new(self.into_im_store()))
         } else {
             self.flush()?;
-            let store = SingleArrayMMAP::<u32>::from_path(&self.path, self.metadata.max_value_id)?;
+            let store = SingleArrayMMAP::<u32>::from_path(&self.path, self.metadata)?;
             Ok(Box::new(store))
         }
     }
@@ -378,8 +378,8 @@ where
 #[derive(Debug)]
 pub struct SingleArrayMMAPPacked<T: IndexIdToParentData> {
     pub data_file: Mmap,
-    pub size: usize, //TODO PLS FIX avg_join_size
-    pub max_value_id: u32,
+    pub size: usize,
+    pub metadata: IndexMetaData,
     pub ok: PhantomData<T>,
     pub bytes_required: BytesRequired,
 }
@@ -389,14 +389,14 @@ impl<T: IndexIdToParentData> SingleArrayMMAPPacked<T> {
         self.size
     }
 
-    pub fn from_path(path: &str, max_value_id: u32) -> Result<Self, search::SearchError> {
+    pub fn from_path(path: &str, metadata: IndexMetaData) -> Result<Self, search::SearchError> {
         let data_file = unsafe { MmapOptions::new().map(&open_file(path)?).unwrap() };
         Ok(SingleArrayMMAPPacked {
             data_file,
-            size: File::open(path)?.metadata()?.len() as usize / get_bytes_required(max_value_id) as usize,
-            max_value_id,
+            size: File::open(path)?.metadata()?.len() as usize / get_bytes_required(metadata.max_value_id) as usize,
+            metadata,
             ok: PhantomData,
-            bytes_required: get_bytes_required(max_value_id),
+            bytes_required: get_bytes_required(metadata.max_value_id),
         })
     }
 }
@@ -441,8 +441,8 @@ impl<T: IndexIdToParentData> IndexIdToParent for SingleArrayMMAPPacked<T> {
 #[derive(Debug)]
 pub struct SingleArrayMMAP<T: IndexIdToParentData> {
     pub data_file: Mmap,
-    pub size: usize, //TODO PLS FIX add avg_join_size
-    pub max_value_id: u32,
+    pub size: usize,
+    pub metadata: IndexMetaData,
     pub ok: PhantomData<T>,
 }
 
@@ -452,12 +452,12 @@ impl<T: IndexIdToParentData> SingleArrayMMAP<T> {
         self.size
     }
 
-    pub fn from_path(path: &str, max_value_id: u32) -> Result<Self, search::SearchError> {
+    pub fn from_path(path: &str, metadata: IndexMetaData) -> Result<Self, search::SearchError> {
         let data_file = unsafe { MmapOptions::new().map(&open_file(path)?).unwrap() };
         Ok(SingleArrayMMAP {
             data_file,
             size: File::open(path)?.metadata()?.len() as usize / std::mem::size_of::<T>(),
-            max_value_id,
+            metadata,
             ok: PhantomData,
         })
     }
@@ -588,7 +588,7 @@ mod tests {
                 ind.add(key as u32, *val as u32).unwrap();
                 ind.flush().unwrap();
             }
-            let store = SingleArrayMMAPPacked::<u32>::from_path(&data_path, ind.metadata.max_value_id).unwrap();
+            let store = SingleArrayMMAPPacked::<u32>::from_path(&data_path, ind.metadata).unwrap();
             check_test_data_1_to_1(&store);
         }
 

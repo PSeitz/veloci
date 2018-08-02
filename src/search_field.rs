@@ -549,7 +549,7 @@ pub fn resolve_token_to_anchor(
     //                 if should_filter(&filter, el.id) {
     //                     continue;
     //                 }
-    //                 let final_score = hit.score * (el.score.to_f32() / 100.0); // TODO ADD LIMIT FOR TOP X
+    //                 let final_score = hit.score * (el.score.to_f32() / 100.0);
     //                 token_hits[curr_pos] = search::Hit::new(el.id, final_score);
     //                 curr_pos += 1;
     //             }
@@ -598,7 +598,7 @@ pub fn resolve_token_to_anchor(
     //     debug_time!("{} sort and merge fast_field", &options.path);
     //     anchor_hits.sort_unstable_by(|a, b| b.id.partial_cmp(&a.id).unwrap_or(Ordering::Equal));
     //     for (text_id, group) in &anchor_hits.iter().group_by(|el| el.id) {
-    //         merged_fast_field_res.push(search::Hit::new(text_id, group.map(|el| el.score).sum())) //Todo FixMe Perofrmance avoid copy inplace group by
+    //         merged_fast_field_res.push(search::Hit::new(text_id, group.map(|el| el.score).sum()))
     //     }
     //     anchor_hits = merged_fast_field_res;
     // }
@@ -609,7 +609,7 @@ pub fn resolve_token_to_anchor(
         debug_time!("{} fast_field  dedup only", &options.path);
         anchor_ids_hits.dedup_by(|a, b| {
             if a.id == b.id {
-                b.score += a.score; // TODO: Check if b is always kept and a discarded in case of equality
+                b.score += a.score; //a will be discarded, store in b
                 true
             } else {
                 false
@@ -753,7 +753,6 @@ pub fn resolve_token_hits_to_text_id(
                     }
 
                     token_hits.push((token_parentval_id, hit.score, hit.id)); //TODO ADD ANCHOR_SCORE IN THIS SEARCH
-
                 }
             }
         }
