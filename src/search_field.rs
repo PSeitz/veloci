@@ -274,7 +274,7 @@ pub fn suggest_multi(persistence: &Persistence, req: Request) -> Result<SuggestF
             get_term_ids_in_field(persistence, &mut search_part)
         })
         .collect();
-    info_time!("suggest to vec/sort");
+    info_time!("suggest text_id result to vec/sort");
     Ok(get_text_score_id_from_result(true, &search_results?, req.skip, req.top))
 }
 
