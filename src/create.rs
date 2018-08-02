@@ -616,9 +616,6 @@ where
                 let mut prev_token: Option<u32> = None;
 
                 tokenizer.get_tokens(value, &mut |token: &str, is_seperator: bool| {
-                    // if options.stopwords.as_ref().map(|el| el.contains(token)).unwrap_or(false) {
-                    //     return; //TODO FIXEME BUG return here also prevents proper recreation of text with tokens
-                    // }
 
                     let token_info = all_terms.terms.get(token).expect("did not found token");
                     trace!("Adding to tokens_ids {:?} : {:?}", token, token_info);
@@ -787,11 +784,10 @@ fn stream_iter_to_anchor_score(iter: impl Iterator<Item = buffered_index_writer:
     for (id, group) in &iter.group_by(|el| el.key) {
         let mut group: Vec<(u32, u32)> = group.map(|el| el.value).collect();
         group.sort_unstable_by_key(|el| el.0);
-        // group.dedup_by_key(|el| el.0);
         group.dedup_by(|a, b| {
             //store only best hit
             if a.0 == b.0 {
-                b.1 += a.1; // TODO: Check if b is always kept and a discarded in case of equality
+                b.1 += a.1; // a is the latter and gets removed, so add to b
                 true
             } else {
                 false
@@ -902,7 +898,7 @@ fn convert_raw_path_data_to_indices(
     path_data: FnvHashMap<String, PathData>,
     tuples_to_parent_in_path: FnvHashMap<String, PathDataIds>,
     facet_index: &FnvHashSet<String>,
-) -> IndicesFromRawData {
+) -> Result<IndicesFromRawData, SearchError> {
     info_time!("convert_raw_path_data_to_indices");
     let mut indices = IndicesFromRawData::default();
 
@@ -1008,8 +1004,7 @@ fn convert_raw_path_data_to_indices(
         })
         .collect();
 
-    for mut indice in indices_res.unwrap() {
-        //TODO ERROR HANDLING
+    for mut indice in indices_res? {
         indices.extend(indice);
     }
 
@@ -1033,12 +1028,11 @@ fn convert_raw_path_data_to_indices(
         })
         .collect();
 
-    for mut indice in indices_res_2.unwrap() {
-        //TODO ERROR HANDLING
+    for mut indice in indices_res_2? {
         indices.extend(indice);
     }
 
-    indices
+    Ok(indices)
 }
 
 pub fn create_fulltext_index<I, J, K, S: AsRef<str>>(
@@ -1104,7 +1098,7 @@ where
         // for fulltext_indices in reso? {
         //     persistence.meta_data.fulltext_indices.extend(fulltext_indices);
         // }
-        persistence.load_all_fst().unwrap(); //TODO error handling
+        persistence.load_all_fst()?;
 
         // info!(
         //     "All text memory {}",
@@ -1129,7 +1123,7 @@ where
         trace_indices(&mut path_data);
     }
 
-    let mut indices = convert_raw_path_data_to_indices(&persistence.db, path_data, tuples_to_parent_in_path, &facet_index);
+    let mut indices = convert_raw_path_data_to_indices(&persistence.db, path_data, tuples_to_parent_in_path, &facet_index)?;
     if persistence.persistence_type == persistence::PersistenceType::Persistent {
         info_time!("write indices");
         // let mut stores = vec![];
@@ -1253,9 +1247,6 @@ pub fn add_token_values_to_tokens(persistence: &mut Persistence, data_str: &str,
         }
         options.terms = vec![el.text];
         options.ignore_case = Some(false);
-
-        //TODO One request, per term
-        options.terms = options.terms.iter().map(|el| util::normalize_text(el)).collect::<Vec<_>>();
 
         let mut options = PlanRequestSearchPart {
             request: options.clone(),
@@ -1382,8 +1373,6 @@ pub fn create_indices_from_str(
     create_cache: Option<CreateCache>,
     load_persistence: bool,
 ) -> Result<(CreateCache), CreateError> {
-    // let stream1 = Deserializer::from_str(&data_str).into_iter::<Value>(); //TODO Performance: Use custom line break deserializer to get string and json at the same time
-    // let stream2 = Deserializer::from_str(&data_str).into_iter::<Value>();
 
     let stream1 = data_str.lines().map(|line| serde_json::from_str(&line));
     let stream2 = data_str.lines().map(|line| serde_json::from_str(&line));
