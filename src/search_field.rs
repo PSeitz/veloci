@@ -615,7 +615,6 @@ pub fn resolve_token_to_anchor(
                 false
             }
         });
-        // anchor_ids_hits.dedup_by_key(|b| b.id); // TODO FixMe Score
     }
 
     // IDS ONLY - scores müssen draußen bleiben - This is used for boosting
@@ -755,20 +754,6 @@ pub fn resolve_token_hits_to_text_id(
 
                     token_hits.push((token_parentval_id, hit.score, hit.id)); //TODO ADD ANCHOR_SCORE IN THIS SEARCH
 
-                    // if let Some(offsets) = text_offsets.get_mutliple_value(token_parentval_id as usize..=token_parentval_id as usize + 1) {
-                    //     // TODO replace with different scoring algorithm, not just length
-                    //     let parent_text_length = offsets[1] - offsets[0];
-                    //     let adjusted_score = hit.score * (token_text_length as f32 / parent_text_length as f32);
-                    //     trace!(
-                    //         "value_id {:?} parent_l {:?}, token_l {:?} score {:?} to adjusted_score {:?}",
-                    //         token_parentval_id,
-                    //         parent_text_length,
-                    //         token_text_length,
-                    //         hit.score,
-                    //         adjusted_score
-                    //     );
-                    //     token_hits.push((token_parentval_id, adjusted_score, hit.id));
-                    // }
                 }
             }
         }
