@@ -42,16 +42,18 @@ mod bencho {
         b.iter(|| {
             // let texts = vec![];
             // texts.reserve(5000);
-            let mut cb_text = |_anchor_id: u32, _value: &str, _path: &str, _parent_val_id: u32| {
+            let mut cb_text = |_anchor_id: u32, _value: &str, _path: &str, _parent_val_id: u32| -> Result<(), ()>{
                 // println!("TEXT: path {} value {} parent_val_id {}",path, value, parent_val_id);
+                Ok(())
             };
-            let mut callback_ids = |_anchor_id: u32, _path: &str, _val_id: u32, _parent_val_id: u32| {
+            let mut callback_ids = |_anchor_id: u32, _path: &str, _val_id: u32, _parent_val_id: u32| -> Result<(), ()>{
                 // println!("IDS: path {} val_id {} parent_val_id {}",path, val_id, parent_val_id);
+                Ok(())
             };
 
             // let stream = Deserializer::from_str(&json_string_line_seperatred).into_iter::<Value>();
             let stream = json_string_line_seperatred.lines().map(|line| serde_json::from_str(&line));
-            for_each_element(stream, &mut id_holder, &mut cb_text, &mut callback_ids);
+            for_each_element(stream, &mut id_holder, &mut cb_text, &mut callback_ids).unwrap();
         })
     }
 

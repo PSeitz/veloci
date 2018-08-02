@@ -1,6 +1,6 @@
 use std::cmp::Ordering;
 use std::io;
-use std::{self, cmp, f32, str};
+use std::{self, cmp, str, f32};
 
 use fnv::FnvHashMap;
 use fnv::FnvHashSet;
@@ -41,24 +41,15 @@ use ordered_float::OrderedFloat;
 
 #[derive(Serialize, Deserialize, Default, Clone, Debug)]
 pub struct Request {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub or: Option<Vec<Request>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub and: Option<Vec<Request>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub search: Option<RequestSearchPart>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub suggest: Option<Vec<RequestSearchPart>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub boost: Option<Vec<RequestBoostPart>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub boost_term: Option<Vec<RequestSearchPart>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub facets: Option<Vec<FacetRequest>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub phrase_boosts: Option<Vec<RequestPhraseBoost>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub select: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub or: Option<Vec<Request>>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub and: Option<Vec<Request>>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub search: Option<RequestSearchPart>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub suggest: Option<Vec<RequestSearchPart>>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub boost: Option<Vec<RequestBoostPart>>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub boost_term: Option<Vec<RequestSearchPart>>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub facets: Option<Vec<FacetRequest>>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub phrase_boosts: Option<Vec<RequestPhraseBoost>>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub select: Option<Vec<String>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(default = "default_top")]
     pub top: Option<usize>,
@@ -112,28 +103,22 @@ fn default_skip() -> Option<usize> {
 #[derive(Serialize, Deserialize, Default, Clone, Debug, Hash, PartialEq, Eq, PartialOrd)]
 pub struct RequestSearchPart {
     pub path: String,
-    pub terms: Vec<String>, //TODO only first term used currently
-    #[serde(default = "default_term_operator")]
-    pub term_operator: TermOperator, //TODO unused currently
+    pub terms: Vec<String>,                                                      //TODO only first term used currently
+    #[serde(default = "default_term_operator")] pub term_operator: TermOperator, //TODO unused currently
 
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub levenshtein_distance: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub levenshtein_distance: Option<u32>,
 
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub starts_with: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub starts_with: Option<bool>,
 
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub token_value: Option<RequestBoostPart>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub token_value: Option<RequestBoostPart>,
 
     /// boosts the search part with this value
     #[serde(skip_serializing_if = "Option::is_none")]
     pub boost: Option<OrderedFloat<f32>>,
 
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub top: Option<usize>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub top: Option<usize>,
 
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub skip: Option<usize>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub skip: Option<usize>,
 
     /// default is true
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -169,16 +154,11 @@ pub struct RequestPhraseBoost {
 
 #[derive(Serialize, Deserialize, Clone, Debug, Hash, PartialEq, Eq, PartialOrd)]
 pub struct SnippetInfo {
-    #[serde(default = "default_num_words_around_snippet")]
-    pub num_words_around_snippet: i64,
-    #[serde(default = "default_snippet_start")]
-    pub snippet_start_tag: String,
-    #[serde(default = "default_snippet_end")]
-    pub snippet_end_tag: String,
-    #[serde(default = "default_snippet_connector")]
-    pub snippet_connector: String,
-    #[serde(default = "default_max_snippets")]
-    pub max_snippets: u32,
+    #[serde(default = "default_num_words_around_snippet")] pub num_words_around_snippet: i64,
+    #[serde(default = "default_snippet_start")] pub snippet_start_tag: String,
+    #[serde(default = "default_snippet_end")] pub snippet_end_tag: String,
+    #[serde(default = "default_snippet_connector")] pub snippet_connector: String,
+    #[serde(default = "default_max_snippets")] pub max_snippets: u32,
 }
 
 fn default_num_words_around_snippet() -> i64 {
@@ -249,20 +229,16 @@ pub struct SearchResult {
     pub num_hits: u64,
     pub data: Vec<Hit>,
     pub ids: Vec<u32>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub facets: Option<FnvHashMap<String, Vec<(String, usize)>>>,
-    #[serde(skip_serializing_if = "FnvHashMap::is_empty")]
-    pub why_found_info: FnvHashMap<u32, FnvHashMap<String, Vec<String>>>,
-    #[serde(skip_serializing_if = "FnvHashMap::is_empty")]
-    pub why_found_terms: FnvHashMap<String, Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub facets: Option<FnvHashMap<String, Vec<(String, usize)>>>,
+    #[serde(skip_serializing_if = "FnvHashMap::is_empty")] pub why_found_info: FnvHashMap<u32, FnvHashMap<String, Vec<String>>>,
+    #[serde(skip_serializing_if = "FnvHashMap::is_empty")] pub why_found_terms: FnvHashMap<String, Vec<String>>,
 }
 
 #[derive(Serialize, Deserialize, Default, Clone, Debug)]
 pub struct SearchResultWithDoc {
     pub num_hits: u64,
     pub data: Vec<DocWithHit>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub facets: Option<FnvHashMap<String, Vec<(String, usize)>>>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub facets: Option<FnvHashMap<String, Vec<(String, usize)>>>,
 }
 
 impl SearchResultWithDoc {
@@ -279,8 +255,7 @@ impl SearchResultWithDoc {
 pub struct DocWithHit {
     pub doc: serde_json::Value,
     pub hit: Hit,
-    #[serde(skip_serializing_if = "FnvHashMap::is_empty")]
-    pub why_found: FnvHashMap<String, Vec<String>>,
+    #[serde(skip_serializing_if = "FnvHashMap::is_empty")] pub why_found: FnvHashMap<String, Vec<String>>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
@@ -319,7 +294,7 @@ fn highlight_on_original_document(doc: &str, why_found_terms: &FnvHashMap<String
     let mut id_holder = json_converter::IDHolder::new();
 
     {
-        let mut cb_text = |_anchor_id: u32, value: &str, path: &str, _parent_val_id: u32| {
+        let mut cb_text = |_anchor_id: u32, value: &str, path: &str, _parent_val_id: u32| -> Result<(), SearchError> {
             if let Some(terms) = why_found_terms.get(path) {
                 if let Some(highlighted) = highlight_field::highlight_text(value, &terms, &DEFAULT_SNIPPETINFO) {
                     let field_name = extract_field_name(path); // extract_field_name removes .textindex
@@ -327,9 +302,10 @@ fn highlight_on_original_document(doc: &str, why_found_terms: &FnvHashMap<String
                     jepp.push(highlighted);
                 }
             }
+            Ok(())
         };
 
-        let mut callback_ids = |_anchor_id: u32, _path: &str, _value_id: u32, _parent_val_id: u32| {};
+        let mut callback_ids = |_anchor_id: u32, _path: &str, _value_id: u32, _parent_val_id: u32| -> Result<(), SearchError>  { Ok(())};
 
         json_converter::for_each_element(stream, &mut id_holder, &mut cb_text, &mut callback_ids);
     }
@@ -664,8 +640,7 @@ pub fn apply_boost_term(persistence: &Persistence, mut res: SearchFieldResult, b
             // let mut boost_iter = data.hits_ids.iter().map(|el|el.clone());
             // res = apply_boost_from_iter(res, &mut boost_iter)
             info_time!("boost_term_from_cache");
-            let mut boost_iter = data
-                .iter()
+            let mut boost_iter = data.iter()
                 .map(|el| {
                     let boost_val: f32 = el.request.boost.map(|el| el.into_inner()).unwrap_or(2.0);
                     el.hits_ids.iter().map(move |id| Hit::new(*id, boost_val))
@@ -967,7 +942,7 @@ pub fn union_hits_score(mut or_results: Vec<SearchFieldResult>) -> SearchFieldRe
     //     let sum_score = group.map(|a| a.0.score).sum(); // TODO same term = MAX, different terms = SUM
     //     union_hits.push(Hit::new(id, sum_score));
     // }
-    let mut max_scores_per_term:Vec<f32> = vec![];
+    let mut max_scores_per_term: Vec<f32> = vec![];
     max_scores_per_term.resize(terms.len(), 0.0);
     // let mut field_id_hits = 0;
     for (mut id, mut group) in &mergo.into_iter().group_by(|el| el.id) {
@@ -1001,7 +976,7 @@ pub fn union_hits_score(mut or_results: Vec<SearchFieldResult>) -> SearchFieldRe
         // if num_hits != 1 {
         // let num_distinct_terms = term_id_hits.count_ones() as f32;
         // let num_distinct_terms = term_id_hits.count_ones() as f32;
-        let num_distinct_terms = max_scores_per_term.iter().filter(|el|*el>=&0.00001).count() as f32;
+        let num_distinct_terms = max_scores_per_term.iter().filter(|el| *el >= &0.00001).count() as f32;
         // sum_score = sum_score * num_distinct_terms * num_distinct_terms;
 
         let sum_over_distinct = max_scores_per_term.iter().sum::<f32>() as f32 * num_distinct_terms * num_distinct_terms;
@@ -1283,10 +1258,12 @@ mod bench_intersect {
                     hits_scores: hits1.clone(),
                     ..Default::default()
                 },
-                &mut vec![SearchFieldResult {
-                    hits_scores: hits2.clone(),
-                    ..Default::default()
-                }],
+                &mut vec![
+                    SearchFieldResult {
+                        hits_scores: hits2.clone(),
+                        ..Default::default()
+                    },
+                ],
             )
         })
     }
@@ -1474,24 +1451,29 @@ fn join_and_get_text_for_ids(persistence: &Persistence, id: u32, prop: &str) -> 
     let field_name = prop.add(TEXTINDEX);
     let text_value_id_opt = join_for_1_to_1(persistence, id, &field_name.add(PARENT_TO_VALUE_ID))?;
     if let Some(text_value_id) = text_value_id_opt {
-        let text = if text_value_id >= persistence.meta_data.fulltext_indices.get(&field_name).unwrap().num_text_ids as u32{
+        let text = if text_value_id >= persistence.meta_data.fulltext_indices.get(&field_name).unwrap().num_text_ids as u32 {
             let text_id_to_token_ids = persistence.get_valueid_to_parent(field_name.add(TEXT_ID_TO_TOKEN_IDS))?;
             let vals = text_id_to_token_ids.get_values(text_value_id as u64);
             if let Some(vals) = vals {
-                vals.iter().map(|token_id|get_text_for_id(persistence, &field_name, *token_id)).collect::<Vec<_>>().concat()
-            }else{
-                return Err(SearchError::StringError(format!("Missing text_id {:?} in index {:?}, therefore could not load text", text_value_id, field_name.add(TEXT_ID_TO_TOKEN_IDS))))
+                vals.iter()
+                    .map(|token_id| get_text_for_id(persistence, &field_name, *token_id))
+                    .collect::<Vec<_>>()
+                    .concat()
+            } else {
+                return Err(SearchError::StringError(format!(
+                    "Missing text_id {:?} in index {:?}, therefore could not load text",
+                    text_value_id,
+                    field_name.add(TEXT_ID_TO_TOKEN_IDS)
+                )));
             }
-
-        }else{
+        } else {
             get_text_for_id(persistence, &field_name, text_value_id)
         };
 
         Ok(Some(text))
-    }else{
+    } else {
         Ok(None)
     }
-
 }
 
 pub fn read_data(persistence: &Persistence, id: u32, fields: &[String]) -> Result<serde_json::Value, SearchError> {

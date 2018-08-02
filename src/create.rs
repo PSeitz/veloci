@@ -20,6 +20,7 @@ use persistence_data_indirect::*;
 use persistence_score::token_to_anchor_score_vint::*;
 use rayon::prelude::*;
 use search;
+use search::SearchError;
 use search_field;
 use serde_json::Deserializer;
 use serde_json::{self, Value};
@@ -68,8 +69,7 @@ pub struct TokenValuesConfig {
 pub struct FulltextIndexOptions {
     pub tokenize: bool,
     pub stopwords: Option<FnvHashSet<String>>,
-    #[serde(default = "default_text_length_store")]
-    pub do_not_store_text_longer_than: usize
+    #[serde(default = "default_text_length_store")] pub do_not_store_text_longer_than: usize,
 }
 fn default_text_length_store() -> usize {
     32
@@ -79,7 +79,7 @@ impl Default for FulltextIndexOptions {
         FulltextIndexOptions {
             tokenize: true,
             stopwords: None,
-            do_not_store_text_longer_than: default_text_length_store()
+            do_not_store_text_longer_than: default_text_length_store(),
         }
     }
 }
@@ -168,7 +168,7 @@ pub(crate) struct TokenToAnchorScore {
 //             .join("")
 // }
 
-fn set_ids(all_terms: &mut TermMap, offset:u32) -> Vec<(&str, &mut TermInfo)> {
+fn set_ids(all_terms: &mut TermMap, offset: u32) -> Vec<(&str, &mut TermInfo)> {
     let mut term_and_mut_val: Vec<(&str, &mut TermInfo)> = all_terms.iter_mut().collect();
     // let mut term_and_mut_val: Vec<(&String, &mut TermInfo)> = all_terms.iter_mut().collect();
     term_and_mut_val.sort_unstable_by_key(|el| el.0);
@@ -220,7 +220,7 @@ fn store_fst(persistence: &Persistence, sorted_terms: &[(&str, &mut TermInfo)], 
     // Create a builder that can be used to insert new key-value pairs.
     let mut build = MapBuilder::new(wtr)?;
     for (term, info) in sorted_terms.iter() {
-        if term.len() <= ignore_text_longer_than{
+        if term.len() <= ignore_text_longer_than {
             build.insert(term, u64::from(info.id)).expect("could not insert into fst");
         }
     }
@@ -250,10 +250,10 @@ fn add_text<T: Tokenizer>(text: &str, term_data: &mut TermDataInPath, options: &
     //     return;
     // }
 
-    if term_data.do_not_store_text_longer_than < text.len(){
+    if term_data.do_not_store_text_longer_than < text.len() {
         // term_data.id_counter_for_large_texts += 1;
         add_count_text(&mut term_data.long_terms, text); //TODO handle no tokens case
-    }else{
+    } else {
         add_count_text(&mut term_data.terms, text); //TODO handle no tokens case
     }
 
@@ -333,7 +333,6 @@ pub struct CreateCache {
     term_data: AllTermsAndDocumentBuilder,
 }
 
-
 #[derive(Debug, Default)]
 struct TermDataInPath {
     terms: TermMap,
@@ -365,16 +364,20 @@ fn get_allterms_per_path<I: Iterator<Item = Result<serde_json::Value, serde_json
 
     let mut id_holder = json_converter::IDHolder::new();
     {
-        let mut cb_text = |_anchor_id: u32, value: &str, path: &str, _parent_val_id: u32| {
+        let mut cb_text = |_anchor_id: u32, value: &str, path: &str, _parent_val_id: u32| -> Result<(), io::Error>  {
             let options: &FulltextIndexOptions = fulltext_info_for_path.get(path).and_then(|el| el.options.as_ref()).unwrap_or(&default_fulltext_options);
 
-            let mut terms_data = get_or_insert_prefer_get(&mut data.terms_in_path as *mut FnvHashMap<_, _>, path, &|| TermDataInPath{do_not_store_text_longer_than:options.do_not_store_text_longer_than, ..Default::default()});
+            let mut terms_data = get_or_insert_prefer_get(&mut data.terms_in_path as *mut FnvHashMap<_, _>, path, &|| TermDataInPath {
+                do_not_store_text_longer_than: options.do_not_store_text_longer_than,
+                ..Default::default()
+            });
 
             add_text(value, &mut terms_data, &options, &tokenizer, &mut prev_phrase_token);
+            Ok(())
         };
-        let mut callback_ids = |_anchor_id: u32, _path: &str, _value_id: u32, _parent_val_id: u32| {};
+        let mut callback_ids = |_anchor_id: u32, _path: &str, _value_id: u32, _parent_val_id: u32| -> Result<(), io::Error>  {Ok(())};
 
-        json_converter::for_each_element(stream, &mut id_holder, &mut cb_text, &mut callback_ids);
+        json_converter::for_each_element(stream, &mut id_holder, &mut cb_text, &mut callback_ids)?;
     }
 
     for map in data.terms_in_path.values_mut() {
@@ -547,7 +550,7 @@ where
         // let mut phrase_to_anchor_id = Vec::with_capacity(10);
         // let mut prev_phrase_token:Vec<u8> = vec![];
 
-        let mut cb_text = |anchor_id: u32, value: &str, path: &str, parent_val_id: u32| {
+        let mut cb_text = |anchor_id: u32, value: &str, path: &str, parent_val_id: u32| -> Result<(), io::Error>  {
             let data = get_or_insert_prefer_get(&mut path_data as *mut FnvHashMap<_, _>, path, &|| {
                 let boost_info_data = if boost_info_for_path.contains_key(path) {
                     Some(BufferedIndexWriter::new_for_sorted_id_insertion())
@@ -579,26 +582,20 @@ where
             //     return;
             // }
 
-            let text_info = if all_terms.do_not_store_text_longer_than < value.len(){
+            let text_info = if all_terms.do_not_store_text_longer_than < value.len() {
                 *all_terms.long_terms.get(value).expect("did not found term")
-                // let info = TermInfo {
-                //     id: all_terms.id_counter_for_large_texts,
-                //     num_occurences: 1,
-                // };
-                // all_terms.id_counter_for_large_texts += 1;
-                // info
-            }else{
+            } else {
                 *all_terms.terms.get(value).expect("did not found term")
             };
 
             // let text_info = all_terms.get(value).expect("did not found term");
 
-            data.text_id_to_parent.add(text_info.id, parent_val_id).unwrap(); // TODO Error Handling in closure
-            data.parent_to_text_id.add(parent_val_id, text_info.id).unwrap(); // TODO Error Handling in closure
+            data.text_id_to_parent.add(text_info.id, parent_val_id)?;
+            data.parent_to_text_id.add(parent_val_id, text_info.id)?;
 
-            data.text_id_to_anchor.add(text_info.id, anchor_id).unwrap(); // TODO Error Handling in closure
+            data.text_id_to_anchor.add(text_info.id, anchor_id)?;
             if let Some(el) = data.anchor_to_text_id.as_mut() {
-                el.add(anchor_id, text_info.id).unwrap(); // TODO Error Handling in closure
+                el.add(anchor_id, text_info.id)?;
             }
             if let Some(el) = data.boost.as_mut() {
                 // if options.boost_type == "int" {
@@ -609,7 +606,7 @@ where
 
             let score = calculate_token_score_for_entry(0, text_info.num_occurences, true);
 
-            data.token_to_anchor_id_score.add(text_info.id, (anchor_id, score)).unwrap(); // TODO Error Handling in closure
+            data.token_to_anchor_id_score.add(text_info.id, (anchor_id, score))?;
 
             if options.tokenize && tokenizer.has_tokens(value) {
                 let mut current_token_pos = 0;
@@ -663,25 +660,27 @@ where
                     data.text_id_to_token_ids.add_all(text_info.id, &tokens_ids).unwrap();
                 }
 
-                calculate_and_add_token_score_in_doc(&mut tokens_to_anchor_id, anchor_id, current_token_pos, &mut data.token_to_anchor_id_score, false).unwrap(); // TODO Error Handling in closure
-                // calculate_and_add_token_score_in_doc(&mut phrase_to_anchor_id, anchor_id, current_token_pos, &mut data.token_to_anchor_id_score, true).unwrap(); // TODO Error Handling in closure
+                calculate_and_add_token_score_in_doc(&mut tokens_to_anchor_id, anchor_id, current_token_pos, &mut data.token_to_anchor_id_score, false)?;
+                                                                                                                                                                  // calculate_and_add_token_score_in_doc(&mut phrase_to_anchor_id, anchor_id, current_token_pos, &mut data.token_to_anchor_id_score, true)?;
                 tokens_to_anchor_id.clear();
                 // phrase_to_anchor_id.clear();
                 tokens_ids.clear();
             }
+            Ok(())
         };
 
-        let mut callback_ids = |_anchor_id: u32, path: &str, value_id: u32, parent_val_id: u32| {
+        let mut callback_ids = |_anchor_id: u32, path: &str, value_id: u32, parent_val_id: u32| -> Result<(), io::Error>  {
             let tuples = get_or_insert_prefer_get(&mut tuples_to_parent_in_path as *mut FnvHashMap<_, _>, path, &|| PathDataIds {
                 value_to_parent: BufferedIndexWriter::new_for_sorted_id_insertion(),
                 parent_to_value: BufferedIndexWriter::new_for_sorted_id_insertion(),
             });
 
-            tuples.value_to_parent.add(value_id, parent_val_id).unwrap(); // TODO Error Handling in closure
-            tuples.parent_to_value.add(parent_val_id, value_id).unwrap(); // TODO Error Handling in closure
+            tuples.value_to_parent.add(value_id, parent_val_id)?;
+            tuples.parent_to_value.add(parent_val_id, value_id)?;
+            Ok(())
         };
 
-        json_converter::for_each_element(stream1, &mut id_holder, &mut cb_text, &mut callback_ids);
+        json_converter::for_each_element(stream1, &mut id_holder, &mut cb_text, &mut callback_ids)?;
     }
 
     std::mem::swap(&mut create_cache.term_data.id_holder, &mut id_holder);

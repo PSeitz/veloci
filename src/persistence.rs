@@ -80,7 +80,7 @@ impl MetaData {
 pub struct TextIndexMetaData {
     pub num_text_ids: usize,
     pub num_long_text_ids: usize,
-    pub options: create::FulltextIndexOptions
+    pub options: create::FulltextIndexOptions,
 }
 
 #[derive(Serialize, Deserialize, Debug, Default, Clone, Copy, HeapSizeOf, PartialEq)]
@@ -119,8 +119,7 @@ pub struct KVStoreMetaData {
     pub index_category: IndexCategory,
     pub path: String,
     pub index_type: KVStoreType,
-    #[serde(default)]
-    pub is_empty: bool,
+    #[serde(default)] pub is_empty: bool,
     pub loading_type: LoadingType,
     pub metadata: IndexMetaData,
     // pub max_value_id: u32,  // max value on the "right" side key -> value, key -> value ..
@@ -228,7 +227,11 @@ pub enum IDDataType {
 }
 
 pub trait IndexIdToParentData: Integer + Clone + num::NumCast + HeapSizeOf + Debug + Sync + Send + Copy + ToPrimitive + std::iter::Step + std::hash::Hash + 'static {}
-impl<T> IndexIdToParentData for T where T: Integer + Clone + num::NumCast + HeapSizeOf + Debug + Sync + Send + Copy + ToPrimitive + std::iter::Step + std::hash::Hash + 'static {}
+impl<T> IndexIdToParentData for T
+where
+    T: Integer + Clone + num::NumCast + HeapSizeOf + Debug + Sync + Send + Copy + ToPrimitive + std::iter::Step + std::hash::Hash + 'static,
+{
+}
 
 pub trait TokenToAnchorScore: Debug + HeapSizeOf + Sync + Send + type_info::TypeInfo {
     fn get_score_iter(&self, id: u32) -> AnchorScoreIter;
@@ -910,11 +913,8 @@ impl Persistence {
         info!("indices.token_to_anchor_score {}", get_readable_size_for_children(&self.indices.token_to_anchor_score));
         info!("indices.fst {}", get_readable_size(self.get_fst_sizes()));
         info!("------");
-        let total_size = self.get_fst_sizes()
-            + self.indices.key_value_stores.heap_size_of_children()
-            + self.indices.index_64.heap_size_of_children()
-            + self.indices.boost_valueid_to_value.heap_size_of_children()
-            + self.indices.token_to_anchor_score.heap_size_of_children();
+        let total_size = self.get_fst_sizes() + self.indices.key_value_stores.heap_size_of_children() + self.indices.index_64.heap_size_of_children()
+            + self.indices.boost_valueid_to_value.heap_size_of_children() + self.indices.token_to_anchor_score.heap_size_of_children();
 
         info!("totale size {}", get_readable_size(total_size));
 
@@ -1029,8 +1029,7 @@ fn path_not_found(path: &str) -> search::SearchError {
 
 fn load_type_from_env() -> Result<Option<LoadingType>, search::SearchError> {
     if let Some(val) = env::var_os("LoadingType") {
-        let conv_env = val
-            .clone()
+        let conv_env = val.clone()
             .into_string()
             .map_err(|_err| search::SearchError::StringError(format!("Could not convert LoadingType environment variable to utf-8: {:?}", val)))?;
         let loading_type = LoadingType::from_str(&conv_env)

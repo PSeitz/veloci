@@ -28,14 +28,15 @@ pub fn convert_to_string(value: &Value) -> Cow<str> {
 
 
 #[inline]
-pub fn for_each_element<ID: IDProvider, F, F2, I: Iterator<Item = Result<serde_json::Value, serde_json::Error>>>(
+pub fn for_each_element<T, E, ID: IDProvider, F, F2, I: Iterator<Item = Result<serde_json::Value, serde_json::Error>>>(
     data: I,
     id_provider: &mut ID,
     cb_text: &mut F,
     cb_ids: &mut F2,
-) where
-    F: FnMut(u32, &str, &str, u32),
-    F2: FnMut(u32, &str, u32, u32),
+) -> Result<(), E>
+where
+    F: FnMut(u32, &str, &str, u32) -> Result<T, E>,
+    F2: FnMut(u32, &str, u32, u32) -> Result<T, E>,
 {
     let mut path = String::with_capacity(25);
 
@@ -44,10 +45,11 @@ pub fn for_each_element<ID: IDProvider, F, F2, I: Iterator<Item = Result<serde_j
         for_each_elemento(el.as_ref().unwrap(), root_id, id_provider, root_id, &mut path, "", cb_text, cb_ids);
         path.clear();
     }
+    Ok(())
 }
 
 
-pub fn for_each_elemento<ID: IDProvider, F, F2>(
+pub fn for_each_elemento<T, E, ID: IDProvider, F, F2>(
     data: &Value,
     anchor_id: u32,
     id_provider: &mut ID,
@@ -56,9 +58,10 @@ pub fn for_each_elemento<ID: IDProvider, F, F2>(
     current_el_name: &str,
     cb_text: &mut F,
     cb_ids: &mut F2,
-) where
-    F: FnMut(u32, &str, &str, u32),
-    F2: FnMut(u32, &str, u32, u32),
+) -> Result<(), E>
+where
+    F: FnMut(u32, &str, &str, u32) -> Result<T, E>,
+    F2: FnMut(u32, &str, u32, u32) -> Result<T, E>,
 {
     if let Some(arr) = data.as_array() {
         let delimiter: &'static str = if current_path.is_empty() || current_path.ends_with('.') { "" } else { "." };
@@ -68,7 +71,7 @@ pub fn for_each_elemento<ID: IDProvider, F, F2>(
         let prev_len = current_path.len();
         for el in arr {
             let id = id_provider.get_id(&current_path);
-            cb_ids(anchor_id, &current_path, id, parent_id);
+            cb_ids(anchor_id, &current_path, id, parent_id)?;
             for_each_elemento(el, anchor_id, id_provider, id, current_path, "", cb_text, cb_ids);
             unsafe {
                 current_path.as_mut_vec().truncate(prev_len);
@@ -88,8 +91,9 @@ pub fn for_each_elemento<ID: IDProvider, F, F2>(
     } else if !data.is_null() {
         current_path.push_str(current_el_name);
         current_path.push_str(".textindex");
-        cb_text(anchor_id, convert_to_string(&data).as_ref(), &current_path, parent_id);
+        cb_text(anchor_id, convert_to_string(&data).as_ref(), &current_path, parent_id)?;
     }
+    Ok(())
 }
 
 // use std::collections::BTreeMap;

@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use std::{f32, str};
+use std::{str, f32};
 
 use itertools::Itertools;
 use regex::Regex;
@@ -128,8 +128,7 @@ pub fn search_query(persistence: &Persistence, mut opt: SearchQueryGeneratorPara
             .collect()
     });
 
-    let boost_terms_req: Vec<RequestSearchPart> = opt
-        .boost_terms
+    let boost_terms_req: Vec<RequestSearchPart> = opt.boost_terms
         .iter()
         .flat_map(|(boost_term, boost_value): (&String, &f32)| {
             let mut boost_term = boost_term.to_string();

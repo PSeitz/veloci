@@ -275,7 +275,9 @@ impl<T: IndexIdToParentData, K: IndexIdToParentData> IndexIdToParent for IndexId
 
     #[inline]
     fn count_values_for_ids(&self, ids: &[u32], top: Option<u32>) -> FnvHashMap<T, usize> {
-        count_values_for_ids(ids, top, self.metadata.avg_join_size, self.metadata.max_value_id, |id: u64| self.get_value(id))
+        count_values_for_ids(ids, top, self.metadata.avg_join_size, self.metadata.max_value_id, |id: u64| {
+            self.get_value(id)
+        })
     }
 
     fn get_keys(&self) -> Vec<T> {

@@ -240,7 +240,7 @@ fn get_text_score_id_from_result(suggest_text: bool, results: &[SearchFieldResul
         suggest_result.sort_unstable_by_key(|a| a.0.to_lowercase());
         suggest_result.dedup_by(|a, b| {
             if a.0.to_lowercase() == b.0.to_lowercase() {
-                if a.1 > b.1{
+                if a.1 > b.1 {
                     b.1 = a.1;
                 }
                 true
@@ -261,7 +261,7 @@ pub fn suggest_multi(persistence: &Persistence, req: Request) -> Result<SuggestF
     // let skip = req.skip;
     let search_results: Result<Vec<_>, SearchError> = search_parts
         .into_par_iter()
-        .map(|mut search_part| {
+        .map(|search_part| {
             // if search_part.token_value.is_none() { //Apply top skip directly if there is no token_boosting, which alters the result afterwards.
             //     search_part.top = top;
             //     search_part.skip = skip;
@@ -726,7 +726,11 @@ pub fn resolve_token_hits_to_text_id(
     if !path.ends_with(TEXTINDEX) {
         path = path.add(TEXTINDEX);
     }
-    let has_tokens = persistence.meta_data.fulltext_indices.get(&path).map_or(false, |fulltext_info| fulltext_info.options.tokenize);
+    let has_tokens = persistence
+        .meta_data
+        .fulltext_indices
+        .get(&path)
+        .map_or(false, |fulltext_info| fulltext_info.options.tokenize);
     debug!("has_tokens {:?} {:?}", path, has_tokens);
     if !has_tokens {
         return Ok(());
