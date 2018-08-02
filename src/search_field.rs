@@ -53,7 +53,6 @@ impl SearchFieldResult {
         }
     }
 
-    // TODO AVOID COPY
     //Creates a new result, while keeping metadata for original hits
     pub(crate) fn new_from(other: &SearchFieldResult) -> Self {
         let mut res = SearchFieldResult::default();
@@ -385,16 +384,10 @@ pub fn get_term_ids_in_field(persistence: &Persistence, options: &mut PlanReques
     trace!("Will Check distance {:?}", options.request.levenshtein_distance.unwrap_or(0) != 0);
     trace!("Will Check starts_with {:?}", options.request.starts_with);
 
-    //TODO Move to topn struct
     // let mut vec_hits: Vec<(u32, f32)> = vec![];
     let limit_result = options.request.top.is_some();
     let mut worst_score = std::f32::MIN;
-    let top_n_search = if limit_result {
-        (options.request.top.unwrap() + options.request.skip.unwrap_or(0)) as u32
-    } else {
-        std::u32::MAX
-    };
-    //TODO Move to topnstruct
+    let top_n_search = (options.request.top.unwrap_or(10) + options.request.skip.unwrap_or(0)) as u32;
 
     {
         debug_time!("{} find token ids", &options.request.path);
@@ -417,7 +410,6 @@ pub fn get_term_ids_in_field(persistence: &Persistence, options: &mut PlanReques
                 // In the case of levenshtein != 0 or starts_with, we want prefix_matches to have a score boost - so that "awe" scores better for awesome than aber
                 let prefix_matches = should_check_prefix_match && line_lower.starts_with(&lower_term);
 
-                //TODO: find term for multitoken
                 let score = get_default_score_for_distance(distance_dfa(&line_lower, &dfa, &lower_term), prefix_matches);
                 // if let Some(boost_val) = options.request.boost {
                 //     score *= boost_val
@@ -475,7 +467,7 @@ pub fn get_term_ids_in_field(persistence: &Persistence, options: &mut PlanReques
     // Store token_id hit for why_found or text locality
     if options.store_term_id_hits && !result.hits_scores.is_empty() {
         let mut map = FnvHashMap::default();
-        map.insert(options.request.terms[0].clone(), result.hits_scores.iter().map(|el| el.id).collect()); // TODO Avoid copy? just store Hit?
+        map.insert(options.request.terms[0].clone(), result.hits_scores.iter().map(|el| el.id).collect());
         result.term_id_hits_in_field.insert(options.request.path.to_string(), map);
     }
 
@@ -520,7 +512,7 @@ pub fn resolve_token_to_anchor(
                 if should_filter(filter, el.id) {
                     continue;
                 }
-                let final_score = hit.score * (el.score.to_f32() / 100.0); // TODO ADD LIMIT FOR TOP X
+                let final_score = hit.score * (el.score.to_f32() / 100.0);
                 anchor_ids_hits.push(search::Hit::new(el.id, final_score));
             }
         }

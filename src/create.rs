@@ -364,7 +364,7 @@ fn get_allterms_per_path<I: Iterator<Item = Result<serde_json::Value, serde_json
 
     let mut id_holder = json_converter::IDHolder::new();
     {
-        let mut cb_text = |_anchor_id: u32, value: &str, path: &str, _parent_val_id: u32| -> Result<(), io::Error>  {
+        let mut cb_text = |_anchor_id: u32, value: &str, path: &str, _parent_val_id: u32| -> Result<(), io::Error> {
             let options: &FulltextIndexOptions = fulltext_info_for_path.get(path).and_then(|el| el.options.as_ref()).unwrap_or(&default_fulltext_options);
 
             let mut terms_data = get_or_insert_prefer_get(&mut data.terms_in_path as *mut FnvHashMap<_, _>, path, &|| TermDataInPath {
@@ -375,7 +375,7 @@ fn get_allterms_per_path<I: Iterator<Item = Result<serde_json::Value, serde_json
             add_text(value, &mut terms_data, &options, &tokenizer, &mut prev_phrase_token);
             Ok(())
         };
-        let mut callback_ids = |_anchor_id: u32, _path: &str, _value_id: u32, _parent_val_id: u32| -> Result<(), io::Error>  {Ok(())};
+        let mut callback_ids = |_anchor_id: u32, _path: &str, _value_id: u32, _parent_val_id: u32| -> Result<(), io::Error> { Ok(()) };
 
         json_converter::for_each_element(stream, &mut id_holder, &mut cb_text, &mut callback_ids)?;
     }
@@ -550,7 +550,7 @@ where
         // let mut phrase_to_anchor_id = Vec::with_capacity(10);
         // let mut prev_phrase_token:Vec<u8> = vec![];
 
-        let mut cb_text = |anchor_id: u32, value: &str, path: &str, parent_val_id: u32| -> Result<(), io::Error>  {
+        let mut cb_text = |anchor_id: u32, value: &str, path: &str, parent_val_id: u32| -> Result<(), io::Error> {
             let data = get_or_insert_prefer_get(&mut path_data as *mut FnvHashMap<_, _>, path, &|| {
                 let boost_info_data = if boost_info_for_path.contains_key(path) {
                     Some(BufferedIndexWriter::new_for_sorted_id_insertion())
@@ -616,7 +616,6 @@ where
                 let mut prev_token: Option<u32> = None;
 
                 tokenizer.get_tokens(value, &mut |token: &str, is_seperator: bool| {
-
                     let token_info = all_terms.terms.get(token).expect("did not found token");
                     trace!("Adding to tokens_ids {:?} : {:?}", token, token_info);
 
@@ -658,7 +657,7 @@ where
                 }
 
                 calculate_and_add_token_score_in_doc(&mut tokens_to_anchor_id, anchor_id, current_token_pos, &mut data.token_to_anchor_id_score, false)?;
-                                                                                                                                                                  // calculate_and_add_token_score_in_doc(&mut phrase_to_anchor_id, anchor_id, current_token_pos, &mut data.token_to_anchor_id_score, true)?;
+                // calculate_and_add_token_score_in_doc(&mut phrase_to_anchor_id, anchor_id, current_token_pos, &mut data.token_to_anchor_id_score, true)?;
                 tokens_to_anchor_id.clear();
                 // phrase_to_anchor_id.clear();
                 tokens_ids.clear();
@@ -666,7 +665,7 @@ where
             Ok(())
         };
 
-        let mut callback_ids = |_anchor_id: u32, path: &str, value_id: u32, parent_val_id: u32| -> Result<(), io::Error>  {
+        let mut callback_ids = |_anchor_id: u32, path: &str, value_id: u32, parent_val_id: u32| -> Result<(), io::Error> {
             let tuples = get_or_insert_prefer_get(&mut tuples_to_parent_in_path as *mut FnvHashMap<_, _>, path, &|| PathDataIds {
                 value_to_parent: BufferedIndexWriter::new_for_sorted_id_insertion(),
                 parent_to_value: BufferedIndexWriter::new_for_sorted_id_insertion(),
@@ -1373,7 +1372,6 @@ pub fn create_indices_from_str(
     create_cache: Option<CreateCache>,
     load_persistence: bool,
 ) -> Result<(CreateCache), CreateError> {
-
     let stream1 = data_str.lines().map(|line| serde_json::from_str(&line));
     let stream2 = data_str.lines().map(|line| serde_json::from_str(&line));
 
