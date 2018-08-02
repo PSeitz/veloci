@@ -26,23 +26,23 @@ extern crate lazy_static;
 extern crate log;
 #[macro_use]
 extern crate measure_time;
-extern crate search_lib;
 extern crate multipart;
+extern crate search_lib;
 
-use rocket::http::Method;
 use rocket::fairing;
+use rocket::http::Method;
 use rocket::response::{self, Responder, Response};
 use rocket::Request;
 
 use rocket_contrib::{Json, Value};
-use rocket_cors::{AllowedOrigins, AllowedHeaders};
+use rocket_cors::{AllowedHeaders, AllowedOrigins};
 
-use multipart::server::Multipart;
 use multipart::server::save::Entries;
 use multipart::server::save::SaveResult::*;
+use multipart::server::Multipart;
 
-use rocket::Data;
 use rocket::http::{ContentType, Status};
+use rocket::Data;
 // use rocket::response::Stream;
 use rocket::response::status::Custom;
 
@@ -242,12 +242,7 @@ fn get_doc_for_id_direct(database: String, id: u32) -> Json<Value> {
 
 #[get("/<database>/search?<params>")]
 fn search_get(database: String, params: Result<QueryParams, rocket::Error>) -> Result<SearchResult, Custom<String>> {
-    let params = params.map_err(|err|{
-        Custom(
-            Status::BadRequest,
-            format!("{:?}", err)
-        )
-    })?;
+    let params = params.map_err(|err| Custom(Status::BadRequest, format!("{:?}", err)))?;
     ensure_database(&database).map_err(search_error_to_rocket_error)?;
     let persistence = PERSISTENCES.get(&database).unwrap();
 
@@ -269,10 +264,7 @@ fn search_get(database: String, params: Result<QueryParams, rocket::Error>) -> R
             mkay.into_iter()
                 .map(|el| {
                     let field_n_boost = el.split("->").collect::<Vec<&str>>();
-                    (
-                        field_n_boost[0].to_string(),
-                        field_n_boost.get(1).map(|el| el.parse::<f32>().unwrap()).unwrap_or(2.0),
-                    )
+                    (field_n_boost[0].to_string(), field_n_boost.get(1).map(|el| el.parse::<f32>().unwrap()).unwrap_or(2.0))
                 })
                 .collect()
         })
@@ -297,7 +289,7 @@ fn search_get(database: String, params: Result<QueryParams, rocket::Error>) -> R
     };
 
     if let Some(el) = params.boost_queries {
-        q_params.boost_queries = serde_json::from_str(&el).map_err(|_err| Custom(Status::BadRequest, "wrong format boost_queries".to_string()) )?;
+        q_params.boost_queries = serde_json::from_str(&el).map_err(|_err| Custom(Status::BadRequest, "wrong format boost_queries".to_string()))?;
         println!("{:?}", q_params.boost_queries);
     }
 
@@ -332,10 +324,7 @@ fn search_get_shard(database: String, params: QueryParams) -> Result<SearchResul
             mkay.into_iter()
                 .map(|el| {
                     let field_n_boost = el.split("->").collect::<Vec<&str>>();
-                    (
-                        field_n_boost[0].to_string(),
-                        field_n_boost.get(1).map(|el| el.parse::<f32>().unwrap()).unwrap_or(2.0),
-                    )
+                    (field_n_boost[0].to_string(), field_n_boost.get(1).map(|el| el.parse::<f32>().unwrap()).unwrap_or(2.0))
                 })
                 .collect()
         })
@@ -375,21 +364,15 @@ fn multipart_upload(database: String, cont_type: &ContentType, data: Data) -> Re
     // this and the next check can be implemented as a request guard but it seems like just
     // more boilerplate than necessary
     if !cont_type.is_form_data() {
-        return Err(Custom(
-            Status::BadRequest,
-            "Content-Type not multipart/form-data".into()
-        ));
+        return Err(Custom(Status::BadRequest, "Content-Type not multipart/form-data".into()));
     }
 
-    let (_, boundary) = cont_type.params().find(|&(k, _)| k == "boundary").ok_or_else(
-            || Custom(
-                Status::BadRequest,
-                "`Content-Type: multipart/form-data` boundary param not provided".into()
-            )
-        )?;
+    let (_, boundary) = cont_type
+        .params()
+        .find(|&(k, _)| k == "boundary")
+        .ok_or_else(|| Custom(Status::BadRequest, "`Content-Type: multipart/form-data` boundary param not provided".into()))?;
 
-    let resp = process_upload(boundary, data)
-        .map_err(search_error_to_rocket_error)?;
+    let resp = process_upload(boundary, data).map_err(search_error_to_rocket_error)?;
 
     search_lib::create::create_indices_from_str(
         &mut search_lib::persistence::Persistence::create(database.to_string()).unwrap(),
@@ -402,16 +385,9 @@ fn multipart_upload(database: String, cont_type: &ContentType, data: Data) -> Re
 }
 
 fn search_error_to_rocket_error(err: search::SearchError) -> Custom<String> {
-     match err {
-        search::SearchError::StringError(msg) => {
-            Custom(Status::BadRequest, msg)
-        },
-        _ => {
-            Custom(
-                Status::InternalServerError,
-                format!("SearchError: {:?}", err)
-            )
-        },
+    match err {
+        search::SearchError::StringError(msg) => Custom(Status::BadRequest, msg),
+        _ => Custom(Status::InternalServerError, format!("SearchError: {:?}", err)),
     }
 }
 
@@ -431,7 +407,7 @@ fn process_upload(boundary: &str, data: Data) -> Result<(String, Option<String>)
             // }
 
             process_entries(partial.entries)
-        },
+        }
         Error(e) => return Err(search_lib::search::SearchError::Io(e)),
     }
 
@@ -443,50 +419,50 @@ use std::io::prelude::*;
 fn process_entries(entries: Entries) -> Result<(String, Option<String>), search::SearchError> {
     if entries.fields_count() == 2 {
         let mut config = String::new();
-        entries.fields
+        entries
+            .fields
             .get(&"config".to_string())
-            .ok_or_else(|| {
-                search::SearchError::StringError(format!("expecting content field, but got {:?}", entries.fields.keys().collect::<Vec<_>>()))
-            })?
-            [0].data.readable()?
+            .ok_or_else(|| search::SearchError::StringError(format!("expecting content field, but got {:?}", entries.fields.keys().collect::<Vec<_>>())))?[0]
+            .data
+            .readable()?
             .read_to_string(&mut config)?;
 
-        let data_reader = entries.fields
+        let data_reader = entries
+            .fields
             .get(&"data".to_string())
-            .ok_or_else(|| {
-                search::SearchError::StringError(format!("expecting data field, but got {:?}", entries.fields.keys().collect::<Vec<_>>()))
-            })?[0].data.readable()?;
+            .ok_or_else(|| search::SearchError::StringError(format!("expecting data field, but got {:?}", entries.fields.keys().collect::<Vec<_>>())))?[0]
+            .data
+            .readable()?;
 
-        let mut data:Vec<u8> = vec![];
+        let mut data: Vec<u8> = vec![];
         search_lib::create::convert_any_json_data_to_line_delimited(data_reader, &mut data)?;
-        return Ok((unsafe{String::from_utf8_unchecked(data)}, Some(config)));
+        return Ok((unsafe { String::from_utf8_unchecked(data) }, Some(config)));
     }
 
-    let mut data:Vec<u8> = vec![];
-    let data_reader = entries.fields
-            .get(&"data".to_string())
-            .ok_or_else(|| {
-                search::SearchError::StringError(format!("expecting data field, but got {:?}", entries.fields.keys().collect::<Vec<_>>()))
-            })?[0].data.readable()?;
+    let mut data: Vec<u8> = vec![];
+    let data_reader = entries
+        .fields
+        .get(&"data".to_string())
+        .ok_or_else(|| search::SearchError::StringError(format!("expecting data field, but got {:?}", entries.fields.keys().collect::<Vec<_>>())))?[0]
+        .data
+        .readable()?;
     search_lib::create::convert_any_json_data_to_line_delimited(data_reader, &mut data)?;
-    Ok((unsafe{String::from_utf8_unchecked(data)}, None))
+    Ok((unsafe { String::from_utf8_unchecked(data) }, None))
 }
 
-
-
-#[post("/<database>",  data = "<data>")]
+#[post("/<database>", data = "<data>")]
 fn create_db(database: String, data: rocket::data::Data) -> Result<String, search::SearchError> {
-
-    if PERSISTENCES.contains_key(&database) {  //TODO @BUG @FixMe ERROR OWASP
+    if PERSISTENCES.contains_key(&database) {
+        //TODO @BUG @FixMe ERROR OWASP
         PERSISTENCES.remove(&database);
     }
 
-    let mut out:Vec<u8> = vec![];
+    let mut out: Vec<u8> = vec![];
     search_lib::create::convert_any_json_data_to_line_delimited(data.open(), &mut out).unwrap();
 
     search_lib::create::create_indices_from_str(
         &mut search_lib::persistence::Persistence::create(database).unwrap(),
-        unsafe{std::str::from_utf8_unchecked(&out)},
+        unsafe { std::str::from_utf8_unchecked(&out) },
         "[]",
         None,
         false,
@@ -581,7 +557,6 @@ fn main() {
         .attach(cors_options)
         .launch();
 }
-
 
 pub struct Gzip;
 impl fairing::Fairing for Gzip {
