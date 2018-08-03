@@ -32,13 +32,43 @@ use std::fmt;
 
 use ordered_float::OrderedFloat;
 
-// #[derive(Debug)]
-// enum SearchOperation {
-//     And,
-//     Or,
-//     Search
-// }
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub enum SearchOperation {
+    And(Vec<SearchOperation>),
+    Or(Vec<SearchOperation>),
+    Search(RequestSearchPart)
+}
 
+impl Default for SearchOperation {
+    fn default() -> SearchOperation {
+        SearchOperation::Search(Default::default())
+    }
+}
+
+#[derive(Serialize, Deserialize, Default, Clone, Debug)]
+pub struct RequestNew {
+    pub search: SearchOperation,
+    #[serde(skip_serializing_if = "Option::is_none")] pub suggest: Option<Vec<RequestSearchPart>>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub boost: Option<Vec<RequestBoostPart>>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub boost_term: Option<Vec<RequestSearchPart>>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub facets: Option<Vec<FacetRequest>>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub phrase_boosts: Option<Vec<RequestPhraseBoost>>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub select: Option<Vec<String>>,
+    /// filter does not affect the score, it just filters the result
+    #[serde(skip_serializing_if = "Option::is_none")] pub filter: Option<Vec<Request>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default = "default_top")]
+    pub top: Option<usize>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default = "default_skip")]
+    pub skip: Option<usize>,
+    #[serde(skip_serializing_if = "skip_false")]
+    #[serde(default)]
+    pub why_found: bool,
+    #[serde(skip_serializing_if = "skip_false")]
+    #[serde(default)]
+    pub text_locality: bool,
+}
 #[derive(Serialize, Deserialize, Default, Clone, Debug)]
 pub struct Request {
     #[serde(skip_serializing_if = "Option::is_none")] pub or: Option<Vec<Request>>,
@@ -50,6 +80,8 @@ pub struct Request {
     #[serde(skip_serializing_if = "Option::is_none")] pub facets: Option<Vec<FacetRequest>>,
     #[serde(skip_serializing_if = "Option::is_none")] pub phrase_boosts: Option<Vec<RequestPhraseBoost>>,
     #[serde(skip_serializing_if = "Option::is_none")] pub select: Option<Vec<String>>,
+    /// filter does not affect the score, it just filters the result
+    #[serde(skip_serializing_if = "Option::is_none")] pub filter: Option<Vec<Request>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(default = "default_top")]
     pub top: Option<usize>,
