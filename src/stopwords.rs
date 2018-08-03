@@ -2,17 +2,20 @@
 use fnv::FnvHashMap;
 use fnv::FnvHashSet;
 
+static EN: &'static str = include_str!("../stopword_lists/en");
+static DE: &'static str = include_str!("../stopword_lists/de");
+
 lazy_static! {
     static ref STOPWORDS: FnvHashMap<&'static str, FnvHashSet<String>> = {
         let mut m = FnvHashMap::default();
-        m.insert("en", hashset_from_stop_word_list(include_str!("../stopword_lists/en")));
-        m.insert("de", hashset_from_stop_word_list(include_str!("../stopword_lists/de")));
+        m.insert("en", hashset_from_stop_word_list(EN));
+        m.insert("de", hashset_from_stop_word_list(DE));
         m
     };
 }
 
 fn hashset_from_stop_word_list(text:&str) -> FnvHashSet<String> {
-    text.lines().map(|el|el.to_string()).collect()
+    text.lines().map(|el|el.to_lowercase()).collect()
 }
 
 pub fn is_stopword(language: &str, text:&str) -> bool {
