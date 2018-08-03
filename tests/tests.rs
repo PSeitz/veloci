@@ -392,6 +392,28 @@ describe! search_test {
         assert_eq!(hits[0].doc["commonness"], 20);
         assert_eq!(hits[0].doc["tags"], json!(["nice".to_string()]));
     }
+    it "simple_search querygenerator and emtpy stopword list"{
+        let mut params = query_generator::SearchQueryGeneratorParameters::default();
+        params.stopword_lists = Some(vec![]);
+        params.search_term="urge AND いよく".to_string();
+
+        let hits = search_testo_to_doco_qp(params).data;
+        assert_eq!(hits.len(), 1);
+        assert_eq!(hits[0].doc["ent_seq"], "1587690");
+        assert_eq!(hits[0].doc["commonness"], 20);
+        assert_eq!(hits[0].doc["tags"], json!(["nice".to_string()]));
+    }
+    it "simple_search querygenerator and stopword list"{
+        let mut params = query_generator::SearchQueryGeneratorParameters::default();
+        params.stopword_lists = Some(vec!["en".to_string()]);
+        params.search_term="urge AND いよく".to_string();
+
+        let hits = search_testo_to_doco_qp(params).data;
+        assert_eq!(hits.len(), 1);
+        assert_eq!(hits[0].doc["ent_seq"], "1587690");
+        assert_eq!(hits[0].doc["commonness"], 20);
+        assert_eq!(hits[0].doc["tags"], json!(["nice".to_string()]));
+    }
     it "simple_search querygenerator and no hit"{
         let mut params = query_generator::SearchQueryGeneratorParameters::default();
         params.search_term="urge AND いよく AND awesome".to_string();
@@ -846,7 +868,8 @@ describe! search_test {
         let mut pers = &TEST_PERSISTENCE;
         let results = search_field::suggest(&mut pers, &requesto).unwrap();
         // assert_eq!(results.iter().map(|el| el.0.clone()).collect::<Vec<String>>(), ["majestät", "majestätischer", "majestätisches", "majestätischer anblick", "majestätisches aussehen"]);
-        assert_eq!(results.iter().map(|el| el.0.clone()).collect::<Vec<String>>(), ["Majestät", "Majestät (f)", "majestätischer", "majestätisches", "majestätischer Anblick (m)", "majestätisches Aussehen (n)"]);
+        // assert_eq!(results.iter().map(|el| el.0.clone()).collect::<Vec<String>>(), ["Majestät", "Majestät (f)", "majestätischer", "majestätisches", "majestätischer Anblick (m)", "majestätisches Aussehen (n)"]);
+        assert_eq!(results.iter().map(|el| el.0.clone()).collect::<Vec<String>>(), ["majestät", "majestät (f)", "majestätisches", "majestätischer", "majestätischer anblick (m)", "majestätisches aussehen (n)"]);
     }
 
     it "multi real suggest with score"{
@@ -864,7 +887,8 @@ describe! search_test {
         let mut pers = &TEST_PERSISTENCE;
         let results = search_field::suggest_multi(&mut pers, requesto).unwrap();
         // assert_eq!(results.iter().map(|el| el.0.clone()).collect::<Vec<String>>(), ["will", "wille", "will testo"]);
-        assert_eq!(results.iter().map(|el| el.0.clone()).collect::<Vec<String>>(), ["will", "Wille", "Wille (m)", "will testo"]);
+        // assert_eq!(results.iter().map(|el| el.0.clone()).collect::<Vec<String>>(), ["will", "Wille", "Wille (m)", "will testo"]);
+        assert_eq!(results.iter().map(|el| el.0.clone()).collect::<Vec<String>>(), ["will", "wille", "wille (m)", "will testo"]);
     }
 
 
@@ -886,7 +910,8 @@ describe! search_test {
         let mut pers = &TEST_PERSISTENCE;
         let results = search_field::suggest(&mut pers, &requesto).unwrap();
         // assert_eq!(results.iter().map(|el| el.0.clone()).collect::<Vec<String>>(), ["begeisterung", "begeistern"]);
-        assert_eq!(results.iter().map(|el| el.0.clone()).collect::<Vec<String>>(), ["Begeisterung", "begeistern", "Begeisterung (f)"]);
+        // assert_eq!(results.iter().map(|el| el.0.clone()).collect::<Vec<String>>(), ["Begeisterung", "begeistern", "Begeisterung (f)"]);
+        assert_eq!(results.iter().map(|el| el.0.clone()).collect::<Vec<String>>(), ["begeisterung", "begeistern", "begeisterung (f)"]);
     }
 
     // it "should or connect the checks"{

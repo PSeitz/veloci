@@ -236,9 +236,12 @@ fn get_text_score_id_from_result(suggest_text: bool, results: &[SearchFieldResul
 
     //Merge same text
     if suggest_text {
-        suggest_result.sort_unstable_by_key(|a| a.0.to_lowercase());
+        info_time!("sort_first");
+        // suggest_result.sort_unstable_by_key(|a| &a.0);
+        suggest_result.sort_unstable_by(|a, b| b.0.partial_cmp(&a.0).unwrap_or(Ordering::Equal));
+        // suggest_result.sort_unstable_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(Ordering::Equal));
         suggest_result.dedup_by(|a, b| {
-            if a.0.to_lowercase() == b.0.to_lowercase() {
+            if a.0 == b.0 {
                 if a.1 > b.1 {
                     b.1 = a.1;
                 }
@@ -247,6 +250,17 @@ fn get_text_score_id_from_result(suggest_text: bool, results: &[SearchFieldResul
                 false
             }
         });
+        // suggest_result.sort_unstable_by_key(|a| a.0.to_lowercase());
+        // suggest_result.dedup_by(|a, b| {
+        //     if a.0.to_lowercase() == b.0.to_lowercase() {
+        //         if a.1 > b.1 {
+        //             b.1 = a.1;
+        //         }
+        //         true
+        //     } else {
+        //         false
+        //     }
+        // });
     }
 
     suggest_result.sort_unstable_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(Ordering::Equal));
@@ -269,6 +283,7 @@ pub fn suggest_multi(persistence: &Persistence, req: Request) -> Result<SuggestF
                 request: search_part,
                 get_scores: true,
                 return_term: true,
+                return_term_lowercase: true,
                 ..Default::default()
             };
             get_term_ids_in_field(persistence, &mut search_part)
@@ -441,7 +456,11 @@ pub fn get_term_ids_in_field(persistence: &Persistence, options: &mut PlanReques
             }
 
             if options.return_term || options.store_term_texts {
-                result.terms.insert(token_text_id, text_or_token);
+                if options.return_term_lowercase {
+                    result.terms.insert(token_text_id, text_or_token.to_lowercase());
+                }else{
+                    result.terms.insert(token_text_id, text_or_token);
+                }
             }
         };
 

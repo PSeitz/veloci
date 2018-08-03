@@ -103,6 +103,7 @@ extern crate lru_cache;
 
 #[macro_use]
 pub mod util;
+pub mod stopwords;
 mod profiler;
 #[macro_use]
 pub mod type_info;

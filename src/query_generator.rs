@@ -7,6 +7,7 @@ use regex::Regex;
 use ordered_float::OrderedFloat;
 use persistence::Persistence;
 use search::*;
+use stopwords;
 use std;
 use util::*;
 
@@ -76,6 +77,7 @@ pub struct SearchQueryGeneratorParameters {
     pub text_locality: Option<bool>,
     pub boost_queries: Option<Vec<RequestBoostPart>>,
     pub facets: Option<Vec<String>>,
+    pub stopword_lists: Option<Vec<String>>,
     pub fields: Option<Vec<String>>,
     pub boost_fields: HashMap<String, f32>,
     pub boost_terms: HashMap<String, f32>,
@@ -163,6 +165,13 @@ pub fn search_query(persistence: &Persistence, mut opt: SearchQueryGeneratorPara
     let mut request = if op == "and" {
         let requests: Vec<Request> = terms
             .iter()
+            .filter(|term| {
+                if let Some(languages) = opt.stopword_lists.as_ref() {
+                    !languages.iter().any(|lang| stopwords::is_stopword(lang, &term.to_lowercase()))
+                }else{
+                    true
+                }
+            })
             .map(|term| {
                 let parts = get_all_field_names(&persistence, &opt.fields)
                     .iter()
@@ -202,6 +211,13 @@ pub fn search_query(persistence: &Persistence, mut opt: SearchQueryGeneratorPara
             .flat_map(|field_name| {
                 let requests: Vec<Request> = terms
                     .iter()
+                    .filter(|term| {
+                        if let Some(languages) = opt.stopword_lists.as_ref() {
+                            !languages.iter().any(|lang| stopwords::is_stopword(lang, &term.to_lowercase()))
+                        }else {
+                            true
+                        }
+                    })
                     .map(|term| {
                         let part = RequestSearchPart {
                             path: field_name.to_string(),

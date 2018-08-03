@@ -32,9 +32,14 @@ pub struct PlanRequestSearchPart {
     #[serde(default)]
     pub store_term_texts: bool,
 
+    //TODO MOVE TO RequestSearchPart?
     /// Also return the actual text
     #[serde(skip_serializing_if = "skip_false")]
     pub return_term: bool,
+
+    //TODO MOVE TO RequestSearchPart?
+    #[serde(skip_serializing_if = "skip_false")]
+    pub return_term_lowercase: bool,
 }
 
 #[derive(Debug, Clone, Copy)]

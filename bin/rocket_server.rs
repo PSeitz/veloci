@@ -110,6 +110,7 @@ struct QueryParams {
     levenshtein_auto_limit: Option<usize>,
     fields: Option<String>,
     facets: Option<String>,
+    stopword_lists: Option<String>,
     facetlimit: Option<usize>,
     boost_fields: Option<String>,
     boost_terms: Option<String>,
@@ -247,6 +248,7 @@ fn search_get(database: String, params: Result<QueryParams, rocket::Error>) -> R
     let persistence = PERSISTENCES.get(&database).unwrap();
 
     let facets: Option<Vec<String>> = query_param_to_vec(params.facets);
+    let stopword_lists: Option<Vec<String>> = query_param_to_vec(params.stopword_lists);
     let fields: Option<Vec<String>> = query_param_to_vec(params.fields);
     let boost_fields: HashMap<String, f32> = query_param_to_vec(params.boost_fields)
         .map(|mkay| {
@@ -282,6 +284,7 @@ fn search_get(database: String, params: Result<QueryParams, rocket::Error>) -> R
         phrase_pairs: params.phrase_pairs.map(|el| el.to_lowercase() == "true"),
         text_locality: params.text_locality.map(|el| el.to_lowercase() == "true"),
         facets: facets,
+        stopword_lists,
         fields: fields,
         boost_fields: boost_fields,
         boost_terms: boost_terms,
@@ -307,6 +310,7 @@ fn search_get_shard(database: String, params: QueryParams) -> Result<SearchResul
     let shard = SHARDS.get(&database).unwrap();
 
     let facets: Option<Vec<String>> = query_param_to_vec(params.facets);
+    let stopword_lists: Option<Vec<String>> = query_param_to_vec(params.stopword_lists);
     let fields: Option<Vec<String>> = query_param_to_vec(params.fields);
     let boost_fields: HashMap<String, f32> = query_param_to_vec(params.boost_fields)
         .map(|mkay| {
@@ -343,6 +347,7 @@ fn search_get_shard(database: String, params: QueryParams) -> Result<SearchResul
         text_locality: params.text_locality.map(|el| el.to_lowercase() == "true"),
         facets: facets,
         fields: fields,
+        stopword_lists,
         boost_fields: boost_fields,
         boost_terms: boost_terms,
         boost_queries: None,
