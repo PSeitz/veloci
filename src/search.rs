@@ -1262,7 +1262,7 @@ pub fn add_boost(persistence: &Persistence, boost: &RequestBoostPart, hits: &mut
             match boost.boost_fun {
                 Some(BoostFunction::Log10) => {
                     let prev_score = *score;
-                    *score += (boost_value as f32 + boost_param).log10(); // @Temporary // @Hack // @Cleanup // @FixMe
+                    *score += (boost_value as f32 + boost_param).log10();
                     trace!(
                         "boosting value_id {:?} score {:?} with token_value {:?} boost_value {:?} to {:?}",
                         *value_id,
@@ -1273,7 +1273,7 @@ pub fn add_boost(persistence: &Persistence, boost: &RequestBoostPart, hits: &mut
                     );
                 }
                 Some(BoostFunction::Linear) => {
-                    *score *= boost_value as f32 + boost_param; // @Temporary // @Hack // @Cleanup // @FixMe
+                    *score *= (boost_value as f32 + boost_param);
                 }
                 Some(BoostFunction::Add) => {
                     trace!(
