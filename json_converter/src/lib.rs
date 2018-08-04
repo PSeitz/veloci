@@ -4,8 +4,8 @@
 #[macro_use]
 extern crate serde_json;
 extern crate fnv;
-extern crate rayon;
-extern crate test;
+// extern crate rayon;
+// extern crate test;
 
 use fnv::FnvHashMap;
 use serde_json::Value;
@@ -42,7 +42,7 @@ where
 
     for el in data {
         let root_id = id_provider.get_id("");
-        for_each_elemento(el.as_ref().unwrap(), root_id, id_provider, root_id, &mut path, "", cb_text, cb_ids);
+        for_each_elemento(el.as_ref().unwrap(), root_id, id_provider, root_id, &mut path, "", cb_text, cb_ids)?;
         path.clear();
     }
     Ok(())

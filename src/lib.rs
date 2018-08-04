@@ -43,7 +43,7 @@ extern crate fst;
 
 extern crate rayon;
 extern crate regex;
-extern crate uuid;
+// extern crate uuid;
 
 #[macro_use]
 #[allow(unused_imports)]
@@ -63,7 +63,7 @@ extern crate parking_lot;
 #[macro_use]
 extern crate prettytable;
 
-extern crate bincode;
+// extern crate bincode;
 extern crate levenshtein_automata;
 // extern crate snap;
 
@@ -96,7 +96,7 @@ extern crate term_hashmap;
 // extern crate sled;
 // extern crate lz4;
 // extern crate utf8_ranges;
-extern crate btree;
+// extern crate btree;
 extern crate fixedbitset;
 extern crate lru_cache;
 // extern crate fst_levenshtein;

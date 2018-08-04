@@ -17,10 +17,10 @@ name = "bench_persistence"
 path = "benches/bench_persistence.rs"
 
 [dependencies]
-bincode = "1.0.0"
+# bincode = "1.0.0"
 byteorder = "1.2.1"
 chashmap = "2.2.0"
-chrono = "0.4"
+# chrono = "0.4"
 colored = "1.4"
 cpuprofiler = "0.0.3"
 crossbeam = "0.3.2"
@@ -50,11 +50,14 @@ serde = "1.0.1"
 serde_derive = "1.0.1"
 serde_json = "1.0.0"
 
-[dependencies.btree]
-git = "https://github.com/wspeirs/btree"
+# [dependencies.btree]
+# git = "https://github.com/wspeirs/btree"
 
 [dependencies.buffered_index_writer]
 path = "buffered_index_writer"
+
+[dependencies.json_converter]
+path = "json_converter"
 
 [dependencies.flame]
 optional = true
@@ -67,9 +70,6 @@ version = "0.2.0"
 [dependencies.half]
 features = ["use-intrinsics", "serialize", "std"]
 version = "1.1.0"
-
-[dependencies.json_converter]
-path = "json_converter"
 
 [dependencies.levenshtein_automata]
 features = ["fst_automaton"]
@@ -86,9 +86,9 @@ version = "0.5"
 [dependencies.term_hashmap]
 git = "https://github.com/PSeitz/rust_string_hashmap"
 
-[dependencies.uuid]
-features = ["v4"]
-version = "0.6"
+# [dependencies.uuid]
+# features = ["v4"]
+# version = "0.6"
 
 [dependencies.vint]
 git = "https://github.com/PSeitz/rust_vint"
@@ -111,6 +111,7 @@ flame_it = ["flame", "flamer"]
 [lib]
 name = "search_lib"
 path = "src/lib.rs"
+
 [profile.release]
 codegen-units = 1
 debug = true

@@ -1,7 +1,7 @@
 extern crate itertools;
 extern crate memmap;
 extern crate tempfile;
-extern crate byteorder;
+// extern crate byteorder;
 
 use std::fmt::Display;
 use itertools::Itertools;
