@@ -8,7 +8,7 @@ extern crate rocket_contrib;
 extern crate rocket_cors;
 
 extern crate chashmap;
-extern crate env_logger;
+// extern crate env_logger;
 extern crate fnv;
 extern crate serde;
 #[macro_use]
