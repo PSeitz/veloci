@@ -28,6 +28,7 @@ use execution_plan::*;
 
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
 pub struct SearchFieldResult {
+    pub explain: FnvHashMap<u32, Vec<String>>,
     pub hits_scores: Vec<search::Hit>,
     pub hits_ids: Vec<TermId>,
     pub terms: FnvHashMap<TermId, String>,
@@ -453,6 +454,9 @@ pub fn get_term_ids_in_field(persistence: &Persistence, options: &mut PlanReques
                 }
                 debug!("Hit: {:?}\tid: {:?} score: {:?}", &text_or_token, token_text_id, score);
                 result.hits_scores.push(Hit::new(token_text_id, score));
+                if options.request.explain {
+                    result.explain.insert(token_text_id, vec![format!("levenshtein score {:?}", score)]);
+                }
             }
 
             if options.return_term || options.store_term_texts {
@@ -532,95 +536,13 @@ pub fn resolve_token_to_anchor(
                     continue;
                 }
                 let final_score = hit.score * (el.score.to_f32() / 100.0);
+                res.explain.insert(el.id, vec![format!("term score {:?} * anchor score {:?} to {:?}", hit.score, el.score.to_f32() / 100.0, final_score)]);
                 anchor_ids_hits.push(search::Hit::new(el.id, final_score));
             }
         }
 
         debug!("{} found {:?} token in {:?} anchor_ids", &options.path, result.hits_scores.len(), anchor_ids_hits.len());
     }
-
-    // {
-    //     debug_time!("{} tokens.to_anchor_id_score", &options.path);
-    //     let iterators:Vec<_> = result.hits_scores.iter().map(|hit|{
-    //         let iter = token_to_anchor_score.get_score_iter(hit.id);
-    //         anchor_ids_hits.reserve(iter.size_hint().1.unwrap());
-    //         iter.map(move |el|{
-    //             let final_score = hit.score * (el.score.to_f32() / 100.0);
-    //             search::Hit::new(el.id, final_score)
-    //         })
-    //     }).collect();
-    //     let mergo = iterators.into_iter().kmerge_by(|a, b| a.id < b.id);
-    //     for (mut id, mut group) in &mergo.into_iter().group_by(|el| el.id) {
-    //         let score = group.map(|el|el.score).sum();
-    //         anchor_ids_hits.push(search::Hit::new(id, score));
-    //     }
-    // }
-    // {
-    //     let mut all_hits = vec![];
-    //     debug_time!("{} tokens.to_anchor_id_score", &options.path);
-    //     for hit in &result.hits_scores {
-    //         if let Some(text_id_score) = token_to_anchor_score.get_scores(hit.id) {
-    //             // trace_time!("{} adding anchor hits for id {:?}", &options.path, hit.id);
-    //             // let mut curr_pos = unsafe_increase_len(&mut anchor_ids_hits, text_id_score.len());
-    //             let mut token_hits = vec![];
-    //             let mut curr_pos = unsafe_increase_len(&mut token_hits, text_id_score.len());
-    //             for el in text_id_score {
-    //                 if should_filter(&filter, el.id) {
-    //                     continue;
-    //                 }
-    //                 let final_score = hit.score * (el.score.to_f32() / 100.0);
-    //                 token_hits[curr_pos] = search::Hit::new(el.id, final_score);
-    //                 curr_pos += 1;
-    //             }
-    //             all_hits.push(token_hits)
-    //         }
-    //     }
-    //     debug!("{} found {:?} token in {:?} anchor_ids", &options.path, result.hits_scores.len(), anchor_ids_hits.len() );
-
-    //     debug_time!("{} KMERGO ", &options.path);
-
-    //     let iterators: Vec<_> = all_hits
-    //     .iter()
-    //     .map(|res|res.iter())
-    //     .collect();
-
-    //     let mergo = iterators.into_iter().kmerge_by(|a, b| a.id < b.id);
-    //     for (mut id, mut group) in &mergo.into_iter().group_by(|el| el.id) {
-    //         let score = group.map(|el|el.score).sum();
-    //         anchor_ids_hits.push(search::Hit::new(id, score));
-    //     }
-
-    // }
-
-    // { //TEEEEEEEEEEEEEEEEEEEEEEEEEST
-    //     let mut the_bits = FixedBitSet::with_capacity(7000);
-    //     info_time!("{} WAAAA BITS SETZEN WAAA", &options.path);
-    //     for hit in &result.hits_scores {
-    //         // iterate over token hits
-    //         if let Some(text_id_score) = token_kvdata.get_values(hit.id as u64) {
-    //             //trace_time!("{} adding anchor hits for id {:?}", &options.path, hit.id);
-    //             for (text_id, _) in text_id_score.iter().tuples() {
-    //                 let yep = *text_id as usize;
-    //                 if the_bits.len() <= yep + 1{
-    //                     the_bits.grow(yep + 1);
-    //                 }
-    //                 the_bits.insert(yep);
-    //             }
-    //         }
-    //     }
-    // }
-
-    // debug!("found {:?} text_ids in {:?} anchors", anchor_ids_hits.len(), anchor_hits.len());
-    // {
-    //     //Collect hits from same anchor and sum boost
-    //     let mut merged_fast_field_res = vec![];
-    //     debug_time!("{} sort and merge fast_field", &options.path);
-    //     anchor_hits.sort_unstable_by(|a, b| b.id.partial_cmp(&a.id).unwrap_or(Ordering::Equal));
-    //     for (text_id, group) in &anchor_hits.iter().group_by(|el| el.id) {
-    //         merged_fast_field_res.push(search::Hit::new(text_id, group.map(|el| el.score).sum()))
-    //     }
-    //     anchor_hits = merged_fast_field_res;
-    // }
 
     {
         debug_time!("{} fast_field sort and dedup sum", &options.path);
@@ -800,6 +722,10 @@ pub fn resolve_token_hits_to_text_id(
             let max_score = t1.max_by_key(|el| OrderedFloat(el.1.abs())).unwrap().1;
 
             result.hits_scores.push(Hit::new(parent_id, max_score));
+
+            if options.explain {
+                result.explain.insert(parent_id, vec![format!("max_score from token_hits score {:?}", max_score)]);
+            }
             if add_snippets {
                 //value_id_to_token_hits.insert(parent_id, t2.map(|el| el.2).collect_vec()); //TODO maybe store hits here, in case only best x are needed
                 let snippet_config = options.snippet_info.as_ref().unwrap_or(&search::DEFAULT_SNIPPETINFO);

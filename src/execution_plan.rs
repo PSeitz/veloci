@@ -369,49 +369,59 @@ fn send_result_to_channel(field_result: SearchFieldResult, channels: &PlanStepDa
 
 use fnv::FnvHashMap;
 use fnv::FnvHashSet;
-fn get_all_field_request_parts(request: &Request) -> FnvHashSet<RequestSearchPart> {
-    let mut map: FnvHashSet<RequestSearchPart> = FnvHashSet::default();
-
-    if let Some(phrase_boosts) = request.phrase_boosts.as_ref() {
-        map.extend(phrase_boosts.iter().map(|el| vec![el.search1.clone(), el.search2.clone()]).flat_map(|map| map.into_iter()));
+fn get_all_field_request_parts_and_propagate_settings<'a>(header_request: Request, request: &'a mut Request, map: &mut FnvHashSet<&'a mut RequestSearchPart>) {
+    if let Some(phrase_boosts) = request.phrase_boosts.as_mut() {
+        for el in phrase_boosts {
+            //propagate explain
+            el.search1.explain = header_request.explain;
+            el.search2.explain = header_request.explain;
+            map.insert(&mut el.search1);
+            map.insert(&mut el.search2);
+        }
     }
 
-    if let Some(and_or) = request.and.as_ref().or(request.or.as_ref()) {
-        map.extend(and_or.iter().map(|el| get_all_field_request_parts(el)).flat_map(|map| map.into_iter()));
+    if let Some(and_or) = request.and.as_mut().or(request.or.as_mut()) {
+        for el in and_or {
+            get_all_field_request_parts_and_propagate_settings(header_request.clone(), el, map);
+        }
     }
-    if let Some(search) = request.search.clone() {
-        map.extend([search].into_iter().cloned());
+    if let Some(search) = request.search.as_mut() {
+        //propagate explain
+        search.explain = header_request.explain;
+        map.insert(search);
     }
-
-    map
 }
 
 #[cfg_attr(feature = "flame_it", flame)]
 pub fn plan_creator(mut request: Request, plan: &mut Plan) -> PlanDataReceiver {
-    let field_requests = get_all_field_request_parts(&request);
     let mut field_search_cache = FnvHashMap::default();
-    for request_part in field_requests {
-        let (tx, rx): (PlanDataSender, PlanDataReceiver) = unbounded();
-        let plan_request_part = PlanRequestSearchPart {
-            request: request_part.clone(),
-            get_scores: true,
-            ..Default::default()
-        };
-        let field_search = PlanStepFieldSearchToTokenIds {
-            req: plan_request_part.clone(),
-            channels: PlanStepDataChannels {
-                num_receivers: 0,
-                input_prev_steps: vec![],
-                output_sending_to_next_steps: tx,
-                plans_output_receiver_for_next_step: rx,
-            },
-        };
-        let step_id = plan.add_step(Box::new(field_search.clone())); // actually only a placeholder, will replaced with the updated field search after plan creation
-        field_search_cache.insert(request_part, (step_id, field_search));
+
+    {
+        let mut field_requests = FnvHashSet::default();
+        get_all_field_request_parts_and_propagate_settings(request.clone(), &mut request, &mut field_requests);
+        for request_part in field_requests {
+            let (tx, rx): (PlanDataSender, PlanDataReceiver) = unbounded();
+            let plan_request_part = PlanRequestSearchPart {
+                request: request_part.clone(),
+                get_scores: true,
+                ..Default::default()
+            };
+            let field_search = PlanStepFieldSearchToTokenIds {
+                req: plan_request_part.clone(),
+                channels: PlanStepDataChannels {
+                    num_receivers: 0,
+                    input_prev_steps: vec![],
+                    output_sending_to_next_steps: tx,
+                    plans_output_receiver_for_next_step: rx,
+                },
+            };
+            let step_id = plan.add_step(Box::new(field_search.clone())); // actually only a placeholder, will replaced with the updated field search after plan creation
+            field_search_cache.insert(request_part.clone(), (step_id, field_search));
+        }
     }
 
     let boost = request.boost.clone();
-    let mut final_output = plan_creator_2(&mut request, &boost.unwrap_or_else(|| vec![]), plan, None, &mut field_search_cache);
+    let mut final_output = plan_creator_2(&request.clone(), &mut request, &boost.unwrap_or_else(|| vec![]), plan, None, &mut field_search_cache);
 
     if let Some(phrase_boosts) = request.phrase_boosts {
         let mut phrase_outputs = vec![];
@@ -482,6 +492,7 @@ fn merge_vec(boost: &Vec<RequestBoostPart>, opt: &Option<Vec<RequestBoostPart>>)
 
 #[cfg_attr(feature = "flame_it", flame)]
 fn plan_creator_2(
+    request_header: &Request,
     request: &mut Request,
     boost: &Vec<RequestBoostPart>,
     plan: &mut Plan,
@@ -489,7 +500,7 @@ fn plan_creator_2(
     field_search_cache: &mut FnvHashMap<RequestSearchPart, (usize, PlanStepFieldSearchToTokenIds)>,
 ) -> (PlanDataReceiver, usize) {
     let (tx, rx): (PlanDataSender, PlanDataReceiver) = unbounded();
-
+    request.explain = request_header.explain;
     if let Some(ref mut or) = request.or {
         let mut step = Union {
             channels: PlanStepDataChannels {
@@ -502,8 +513,9 @@ fn plan_creator_2(
         let step_id = plan.add_step(Box::new(step.clone()));
         let result_channels_from_prev_steps = or.iter_mut()
             .map(|x| {
+                x.explain = request_header.explain;
                 let mut boost = merge_vec(boost, &x.boost);
-                plan_creator_2(x, &mut boost, plan, Some(step_id), field_search_cache).0
+                plan_creator_2(request_header, x, &mut boost, plan, Some(step_id), field_search_cache).0
             })
             .collect();
         plan.get_step(step_id).get_channel().input_prev_steps = result_channels_from_prev_steps;
@@ -525,8 +537,9 @@ fn plan_creator_2(
         let step_id = plan.add_step(Box::new(step.clone()));
         let result_channels_from_prev_steps = ands.iter_mut()
             .map(|x| {
+                x.explain = request_header.explain;
                 let mut boost = merge_vec(boost, &x.boost);
-                plan_creator_2(x, &mut boost, plan, Some(step_id), field_search_cache).0
+                plan_creator_2(request_header, x, &mut boost, plan, Some(step_id), field_search_cache).0
             })
             .collect();
         plan.get_step(step_id).get_channel().input_prev_steps = result_channels_from_prev_steps;
@@ -539,7 +552,7 @@ fn plan_creator_2(
     } else if let Some(part) = request.search.clone() {
         // TODO Tokenize query according to field
         // part.terms = part.terms.iter().map(|el| util::normalize_text(el)).collect::<Vec<_>>();
-        plan_creator_search_part(part, request, &mut boost.clone(), plan, parent_step_dependecy, field_search_cache)
+        plan_creator_search_part(request_header, part, request, &mut boost.clone(), plan, parent_step_dependecy, field_search_cache)
     } else {
         //TODO HANDLE SUGGEST
         //TODO ADD ERROR
@@ -550,7 +563,8 @@ fn plan_creator_2(
 
 #[cfg_attr(feature = "flame_it", flame)]
 fn plan_creator_search_part(
-    request_part: RequestSearchPart,
+    _request_header: &Request,
+    mut request_part: RequestSearchPart,
     request: &mut Request,
     boost: &mut Vec<RequestBoostPart>,
     plan: &mut Plan,
@@ -558,9 +572,7 @@ fn plan_creator_search_part(
     field_search_cache: &mut FnvHashMap<RequestSearchPart, (usize, PlanStepFieldSearchToTokenIds)>,
 ) -> (PlanDataReceiver, usize) {
     let paths = util::get_steps_to_anchor(&request_part.path);
-
     // let (mut field_tx, mut field_rx): (PlanDataSender, PlanDataReceiver) = unbounded();
-
     let fast_field = boost.is_empty() && !request_part.snippet.unwrap_or(false); // fast_field disabled for boosting or _highlighting_ currently
     let store_term_id_hits = request.why_found || request.text_locality;
     // let plan_request_part = PlanRequestSearchPart{request:request_part, get_scores: true, store_term_id_hits, store_term_texts: request.why_found, ..Default::default()};
@@ -574,17 +586,7 @@ fn plan_creator_search_part(
     // let field_tx = field_search_step.channels.output_sending_to_next_steps.clone();
 
     if fast_field {
-        // let field_search_step = PlanStepFieldSearchToTokenIds {
-        //     req: plan_request_part.clone(),
-        //     channels: PlanStepDataChannels{
-        //         num_receivers: 1,
-        //         input_prev_steps: vec![],
-        //         output_sending_to_next_steps: field_tx,
-        //         plans_output_receiver_for_next_step: field_rx.clone(),
-        //     }
-        // };
         let (next_field_tx, next_field_rx): (PlanDataSender, PlanDataReceiver) = unbounded();
-        // let id = plan.add_step(Box::new(field_search_step));
         let step = ResolveTokenIdToAnchor {
             request: request_part.clone(),
             channels: PlanStepDataChannels {

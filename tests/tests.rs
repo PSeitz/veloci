@@ -25,6 +25,7 @@ fn search_testo_to_doc(req: Value) -> search::SearchResultWithDoc {
 fn search_testo_to_doco_qp(qp: query_generator::SearchQueryGeneratorParameters) -> search::SearchResultWithDoc {
     let pers = &TEST_PERSISTENCE;
     let requesto = query_generator::search_query(&pers, qp);
+    // println!("{}", serde_json::to_string_pretty(&requesto).unwrap());
     search::to_search_result(&pers, search_testo_to_hitso(requesto.clone()).expect("search error"), &requesto.select)
 }
 
@@ -315,6 +316,77 @@ describe! search_test {
         assert_eq!(hits[0].doc["ent_seq"], "1587690");
         assert_eq!(hits[0].doc["commonness"], 20);
         assert_eq!(hits[0].doc["tags"], json!(["nice".to_string()]));
+    }
+
+    it "simple_search explained"{
+        let req = json!({
+            "search": {
+                "terms":["urge"],
+                "path": "meanings.eng[]",
+                "explain":true
+            }
+        });
+
+        let hits = search_testo_to_doc(req).data;
+        assert_eq!(hits.len(), 1);
+        assert_eq!(hits[0].doc["ent_seq"], "1587690");
+        assert_eq!(hits[0].doc["commonness"], 20);
+        assert_eq!(hits[0].doc["tags"], json!(["nice".to_string()]));
+        assert_eq!(hits[0].explain, Some(vec!["term score 10.0 * anchor score 3.84 to 38.399998".to_string()]));
+    }
+
+    it "or_query_explained"{
+
+        let req = json!({
+            "or":[
+                {"search": {
+                    "terms":["majestät"],
+                    "path": "meanings.ger[]"
+                }},
+                {"search": {
+                    "terms":["urge"],
+                    "path": "meanings.eng[]"
+                }}
+            ],
+            "explain":true
+        });
+
+        let hits = search_testo_to_doc(req).data;
+        println!("{:?}", hits);
+        assert_eq!(hits.len(), 2);
+        assert_eq!(hits[0].doc["ent_seq"], "1587690");
+        assert_eq!(hits[0].explain, Some(vec!["or sum_over_distinct_terms 38.40625".to_string(), "term score 10.0 * anchor score 3.84 to 38.399998".to_string()]));
+
+    }
+
+    it "simple_search_querygenerator_explained"{
+        let mut params = query_generator::SearchQueryGeneratorParameters::default();
+        params.explain = Some(true);
+        params.search_term = "urge".to_string();
+
+        let hits = search_testo_to_doco_qp(params).data;
+        println!("{:?}", hits);
+        assert_eq!(hits.len(), 1);
+        assert_eq!(hits[0].doc["ent_seq"], "1587690");
+        assert_eq!(hits[0].doc["commonness"], 20);
+        assert_eq!(hits[0].doc["tags"], json!(["nice".to_string()]));
+        assert_eq!(hits[0].explain, Some(vec!["or sum_over_distinct_terms 57.59375".to_string(), "term score 15.0 * anchor score 3.84 to 57.6".to_string()]));
+    }
+
+    it "simple_search_querygenerator_OR_connect_explained"{
+        let mut params = query_generator::SearchQueryGeneratorParameters::default();
+        params.explain = Some(true);
+        params.search_term = "urge OR いよく".to_string();
+
+        let hits = search_testo_to_doco_qp(params).data;
+        println!("{:?}", hits);
+        assert_eq!(hits.len(), 3);
+        assert_eq!(hits[0].doc["ent_seq"], "1587690");
+        assert_eq!(hits[0].doc["commonness"], 20);
+        assert_eq!(hits[0].doc["tags"], json!(["nice".to_string()]));
+        // assert_eq!(hits[0].explain, Some(vec!["or sum_over_distinct_terms 452.375".to_string(), "term score 15.0 * anchor score 3.7 to 55.5".to_string(), "term score 15.0 * anchor score 3.84 to 57.6".to_string()]));
+        assert_eq!(hits[0].explain, Some(vec!["or sum_over_distinct_terms 113.09375".to_string(), "num_distinct_terms boost 4.0 to 452.375".to_string(), "term score 15.0 * anchor score 3.7 to 55.5".to_string(), "term score 15.0 * anchor score 3.84 to 57.6".to_string()]));
+
     }
 
     it "test_float"{

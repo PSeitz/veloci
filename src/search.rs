@@ -45,30 +45,30 @@ impl Default for SearchOperation {
     }
 }
 
-#[derive(Serialize, Deserialize, Default, Clone, Debug)]
-pub struct RequestNew {
-    pub search: SearchOperation,
-    #[serde(skip_serializing_if = "Option::is_none")] pub suggest: Option<Vec<RequestSearchPart>>,
-    #[serde(skip_serializing_if = "Option::is_none")] pub boost: Option<Vec<RequestBoostPart>>,
-    #[serde(skip_serializing_if = "Option::is_none")] pub boost_term: Option<Vec<RequestSearchPart>>,
-    #[serde(skip_serializing_if = "Option::is_none")] pub facets: Option<Vec<FacetRequest>>,
-    #[serde(skip_serializing_if = "Option::is_none")] pub phrase_boosts: Option<Vec<RequestPhraseBoost>>,
-    #[serde(skip_serializing_if = "Option::is_none")] pub select: Option<Vec<String>>,
-    /// filter does not affect the score, it just filters the result
-    #[serde(skip_serializing_if = "Option::is_none")] pub filter: Option<Vec<Request>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    #[serde(default = "default_top")]
-    pub top: Option<usize>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    #[serde(default = "default_skip")]
-    pub skip: Option<usize>,
-    #[serde(skip_serializing_if = "skip_false")]
-    #[serde(default)]
-    pub why_found: bool,
-    #[serde(skip_serializing_if = "skip_false")]
-    #[serde(default)]
-    pub text_locality: bool,
-}
+// #[derive(Serialize, Deserialize, Default, Clone, Debug)]
+// pub struct RequestNew {
+//     pub search: SearchOperation,
+//     #[serde(skip_serializing_if = "Option::is_none")] pub suggest: Option<Vec<RequestSearchPart>>,
+//     #[serde(skip_serializing_if = "Option::is_none")] pub boost: Option<Vec<RequestBoostPart>>,
+//     #[serde(skip_serializing_if = "Option::is_none")] pub boost_term: Option<Vec<RequestSearchPart>>,
+//     #[serde(skip_serializing_if = "Option::is_none")] pub facets: Option<Vec<FacetRequest>>,
+//     #[serde(skip_serializing_if = "Option::is_none")] pub phrase_boosts: Option<Vec<RequestPhraseBoost>>,
+//     #[serde(skip_serializing_if = "Option::is_none")] pub select: Option<Vec<String>>,
+//     /// filter does not affect the score, it just filters the result
+//     #[serde(skip_serializing_if = "Option::is_none")] pub filter: Option<Vec<Request>>,
+//     #[serde(skip_serializing_if = "Option::is_none")]
+//     #[serde(default = "default_top")]
+//     pub top: Option<usize>,
+//     #[serde(skip_serializing_if = "Option::is_none")]
+//     #[serde(default = "default_skip")]
+//     pub skip: Option<usize>,
+//     #[serde(skip_serializing_if = "skip_false")]
+//     #[serde(default)]
+//     pub why_found: bool,
+//     #[serde(skip_serializing_if = "skip_false")]
+//     #[serde(default)]
+//     pub text_locality: bool,
+// }
 #[derive(Serialize, Deserialize, Default, Clone, Debug)]
 pub struct Request {
     #[serde(skip_serializing_if = "Option::is_none")] pub or: Option<Vec<Request>>,
@@ -94,6 +94,9 @@ pub struct Request {
     #[serde(skip_serializing_if = "skip_false")]
     #[serde(default)]
     pub text_locality: bool,
+    #[serde(skip_serializing_if = "skip_false")]
+    #[serde(default)]
+    pub explain: bool,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -137,6 +140,8 @@ pub struct RequestSearchPart {
     pub path: String,
     pub terms: Vec<String>,                                                      //TODO only first term used currently
     #[serde(default = "default_term_operator")] pub term_operator: TermOperator, //TODO unused currently
+
+    #[serde(default)] pub explain: bool,
 
     #[serde(skip_serializing_if = "Option::is_none")] pub levenshtein_distance: Option<u32>,
 
@@ -261,6 +266,7 @@ pub struct SearchResult {
     pub data: Vec<Hit>,
     pub ids: Vec<u32>,
     #[serde(skip_serializing_if = "Option::is_none")] pub facets: Option<FnvHashMap<String, Vec<(String, usize)>>>,
+    #[serde(skip_serializing_if = "FnvHashMap::is_empty")] pub explain: FnvHashMap<u32, Vec<String>>,
     #[serde(skip_serializing_if = "FnvHashMap::is_empty")] pub why_found_info: FnvHashMap<u32, FnvHashMap<String, Vec<String>>>,
     #[serde(skip_serializing_if = "FnvHashMap::is_empty")] pub why_found_terms: FnvHashMap<String, Vec<String>>,
 }
@@ -286,6 +292,7 @@ impl SearchResultWithDoc {
 pub struct DocWithHit {
     pub doc: serde_json::Value,
     pub hit: Hit,
+    #[serde(skip_serializing_if = "Option::is_none")] pub explain: Option<Vec<String>>,
     #[serde(skip_serializing_if = "FnvHashMap::is_empty")] pub why_found: FnvHashMap<String, Vec<String>>,
 }
 
@@ -362,6 +369,7 @@ pub fn to_documents(persistence: &Persistence, hits: &[Hit], select: &Option<Vec
                 return DocWithHit {
                     doc: read_data(persistence, hit.id, &select).unwrap(), // TODO validate fields
                     hit: hit.clone(),
+                    explain: result.explain.get(&hit.id).cloned(),
                     why_found: result.why_found_info.get(&hit.id).cloned().unwrap_or_default(),
                 };
             } else {
@@ -371,6 +379,7 @@ pub fn to_documents(persistence: &Persistence, hits: &[Hit], select: &Option<Vec
                 return DocWithHit {
                     doc: serde_json::from_str(&doc_str).unwrap(),
                     hit: hit.clone(),
+                    explain: result.explain.get(&hit.id).cloned(),
                     why_found: ayse,
                 };
             };
@@ -578,6 +587,7 @@ pub fn search(mut request: Request, persistence: &Persistence) -> Result<SearchR
     };
 
     let mut search_result = SearchResult { ..Default::default() };
+    search_result.explain = res.explain.clone();
 
     if let Some(boost_term) = request.boost_term {
         res = apply_boost_term(persistence, res, &boost_term)?;
@@ -664,20 +674,6 @@ pub fn apply_boost_term(persistence: &Persistence, mut res: SearchFieldResult, b
             //     .into_iter().kmerge_by(|a, b| a.id < b.id).collect();
 
             //     {
-            //         info_time!("binary search boost");
-            //         let mut last_pos = 0;
-            //         for hit in res.hits_scores.iter_mut(){
-            //             match boost_iter_data[last_pos ..].binary_search_by_key(&hit.id, |&hit| hit.id) {
-            //                 Ok(boost_hit) => {
-            //                     hit.score *= boost_iter_data[boost_hit].score;
-            //                     last_pos =boost_hit;
-            //                 },
-            //                 Err(pos) => { last_pos = pos;},
-            //             }
-            //         }
-            //     }
-
-            //     {
             //         let mut direct_data:Vec<f32> = vec![];
             //         for hit in boost_iter_data.iter() {
             //             if direct_data.len() <= hit.id as usize {
@@ -712,22 +708,6 @@ pub fn apply_boost_term(persistence: &Persistence, mut res: SearchFieldResult, b
             //             }
             //         }
             //     }
-
-            //     // { // Hashmap ist doof
-            //     //     let mut boost_iter_data:FnvHashMap<u32, f32> = data.iter()
-            //     //     .map(|el| {
-            //     //         let boost_val:f32 = el.request.boost.unwrap_or(2.0).clone();
-            //     //         el.hits_ids.iter().map(move|id| Hit::new(*id, boost_val ))
-            //     //     })
-            //     //     .into_iter().kmerge_by(|a, b| a.id < b.id).map(|hit| (hit.id, hit.score)).collect();
-
-            //     //     info_time!("hashmap boost");
-            //     //     for hit in res.hits_scores.iter_mut(){
-            //     //         if let Some(boost_hit) = boost_iter_data.get(&hit.id) {
-            //     //             hit.score *= boost_hit;
-            //     //         }
-            //     //     }
-            //     // }
 
             //     {
             //         info_time!("merge search boost");
@@ -855,9 +835,11 @@ pub fn union_hits_score(mut or_results: Vec<SearchFieldResult>) -> SearchFieldRe
         debug_time!("union hits sort input");
         for res in &mut or_results {
             res.hits_scores.sort_unstable_by_key(|el| el.id);
-            //TODO ALSO DEDUP???
+            //TODO ALSO DEDUP??? - Results from field are deduped search_field.rs:551 dedup_by
         }
     }
+
+    let explain = or_results[0].request.explain;
 
     let mut terms = or_results.iter().map(|res| res.request.terms[0].to_string()).collect::<Vec<_>>();
     terms.sort();
@@ -868,90 +850,108 @@ pub fn union_hits_score(mut or_results: Vec<SearchFieldResult>) -> SearchFieldRe
     fields.dedup();
     info!("or connect search terms {:?}", terms);
 
-    let iterators: Vec<_> = or_results
-        .iter()
-        .map(|res| {
-            let term_id = terms.iter().position(|ref x| x == &&res.request.terms[0]).unwrap() as u8;
-            let field_id = fields.iter().position(|ref x| x == &&res.request.path).unwrap() as u8;
-            // res.hits_scores.iter().map(move |el| (el.hit, f16::from_f32(el.score), term_id, field_id))
-
-            res.iter(term_id, field_id)
-
-            // res.hits_scores.iter().map(move |hit| MiniHit {
-            //     id: hit.id,
-            //     score: f16::from_f32(hit.score),
-            //     term_id: term_id,
-            //     field_id: field_id,
-            // })
-        })
-        .collect();
-
     let mut union_hits = Vec::with_capacity(longest_len as usize + sum_other_len as usize / 2);
-    // let mergo = iterators.into_iter().kmerge_by(|a, b| a.1.id < b.1.id);
-    let mergo = iterators.into_iter().kmerge_by(|a, b| a.id < b.id);
+    let mut explain_hits = FnvHashMap::default();
+    {
+        let iterators: Vec<_> = or_results
+            .iter()
+            .map(|res| {
+                let term_id = terms.iter().position(|ref x| x == &&res.request.terms[0]).unwrap() as u8;
+                let field_id = fields.iter().position(|ref x| x == &&res.request.path).unwrap() as u8;
+                // res.hits_scores.iter().map(move |el| (el.hit, f16::from_f32(el.score), term_id, field_id))
 
-    // let mergo = kmerge_by::kmerge_by(iterators.into_iter(), |a, b| a.id < b.id);
-    // let mergo = kmerge_by::kmerge_by(iterators.into_iter(), |a, b| a.id < b.id);
+                res.iter(term_id, field_id)
 
-    debug_time!("union hits kmerge");
+                // res.hits_scores.iter().map(move |hit| MiniHit {
+                //     id: hit.id,
+                //     score: f16::from_f32(hit.score),
+                //     term_id: term_id,
+                //     field_id: field_id,
+                // })
+            })
+            .collect();
 
-    let mut max_scores_per_term: Vec<f32> = vec![];
-    max_scores_per_term.resize(terms.len(), 0.0);
-    // let mut field_id_hits = 0;
-    for (mut id, mut group) in &mergo.into_iter().group_by(|el| el.id) {
-        // max_scores_per_term.clear();
-        for el in &mut max_scores_per_term {
-            *el = 0.;
+        // let mergo = iterators.into_iter().kmerge_by(|a, b| a.1.id < b.1.id);
+        let mergo = iterators.into_iter().kmerge_by(|a, b| a.id < b.id);
+
+        // let mergo = kmerge_by::kmerge_by(iterators.into_iter(), |a, b| a.id < b.id);
+        // let mergo = kmerge_by::kmerge_by(iterators.into_iter(), |a, b| a.id < b.id);
+
+        debug_time!("union hits kmerge");
+
+
+        let mut max_scores_per_term: Vec<f32> = vec![];
+        max_scores_per_term.resize(terms.len(), 0.0);
+        // let mut field_id_hits = 0;
+        for (mut id, mut group) in &mergo.into_iter().group_by(|el| el.id) {
+            //reset scores to 0
+            for el in &mut max_scores_per_term {
+                *el = 0.;
+            }
+            for el in group {
+                max_scores_per_term[el.term_id as usize] = max_scores_per_term[el.term_id as usize].max(el.score.to_f32());
+            }
+
+            // let num_distinct_terms = term_id_hits.count_ones() as f32;
+            let num_distinct_terms = max_scores_per_term.iter().filter(|el| *el >= &0.00001).count() as f32;
+            // sum_score = sum_score * num_distinct_terms * num_distinct_terms;
+
+            let sum_over_distinct_with_distinct_term_boost = max_scores_per_term.iter().sum::<f32>() as f32 * num_distinct_terms * num_distinct_terms;
+            union_hits.push(Hit::new(id, sum_over_distinct_with_distinct_term_boost));
+            if explain {
+                let explain = explain_hits.entry(id).or_insert_with(||vec![]);
+                explain.push(format!("or sum_over_distinct_terms {:?}", max_scores_per_term.iter().sum::<f32>() as f32));
+                if num_distinct_terms > 1. {
+                    explain.push(format!("num_distinct_terms boost {:?} to {:?}", num_distinct_terms * num_distinct_terms, sum_over_distinct_with_distinct_term_boost));
+                }
+            }
+
         }
-        // let mut term_id_hits = 0;
-        // let mut sum_score = 0.;
-        // let mut sum_over_distinct: f32 = 0.;
-        // let mut num_hits:u8 = 0;
-        for el in group {
-            // num_hits +=1;
-            // set_bit_at(&mut field_id_hits, el.field_id);
-            max_scores_per_term[el.term_id as usize] = max_scores_per_term[el.term_id as usize].max(el.score.to_f32());
-            // if is_bit_set_at(term_id_hits, el.term_id) {
-            //     sum_over_distinct = sum_over_distinct.max(el.score.to_f32());
-            // }else{
-            //     set_bit_at(&mut term_id_hits, el.term_id);
-            //     sum_over_distinct = sum_over_distinct.max(el.score.to_f32());
-            // }
-            // sum_score += el.score.to_f32();
-
-            // sum_over_distinct = sum_over_distinct.max(el.score.to_f32());
-        }
-
-        // if num_hits <= 3{
-        //     continue;
-        // }
-
-        // if num_hits != 1 {
-        // let num_distinct_terms = term_id_hits.count_ones() as f32;
-        // let num_distinct_terms = term_id_hits.count_ones() as f32;
-        let num_distinct_terms = max_scores_per_term.iter().filter(|el| *el >= &0.00001).count() as f32;
-        // sum_score = sum_score * num_distinct_terms * num_distinct_terms;
-
-        let sum_over_distinct = max_scores_per_term.iter().sum::<f32>() as f32 * num_distinct_terms * num_distinct_terms;
-        // sum_over_distinct = sum_over_distinct * num_distinct_terms * num_distinct_terms;
-        // };
-        //let num_distinct_terms = term_id_hits.count_ones() as f32;
-        // let num_fields = field_id_hits.count_ones() as f32;
-        // let field_locality_boost = num_hits as f32 / num_fields;
-        // sum_score = sum_score * num_distinct_terms * num_distinct_terms * field_locality_boost;
-
-        // let mut sum_score = group.map(|a| a.score).sum();
-        // union_hits.push(Hit::new(id, sum_score));
-        union_hits.push(Hit::new(id, sum_over_distinct));
-        // term_id_hits = 0;
-        // field_id_hits = 0;
     }
+
+    if explain {
+        for hit in union_hits.iter() {
+            for res in or_results.iter() {
+                if let Some(exp) = res.explain.get(&hit.id) {
+                    let explain = explain_hits.entry(hit.id).or_insert_with(||vec![]);
+                    explain.extend_from_slice(exp);
+                }
+            }
+        }
+    }
+
+    // if explain {
+    //     let iterators: Vec<_> = or_results
+    //     .iter()
+    //     .map(|res| {
+    //         let term_id = terms.iter().position(|ref x| x == &&res.request.terms[0]).unwrap() as u8;
+    //         let field_id = fields.iter().position(|ref x| x == &&res.request.path).unwrap() as u8;
+    //         res.iter(term_id, field_id)
+    //     })
+    //     .collect();
+    //     let mergo = iterators.into_iter().kmerge_by(|a, b| a.id < b.id);
+    //     for (mut id, mut group) in &mergo.into_iter().group_by(|el| el.id) {
+    //         //reset scores to 0
+    //         for el in &mut max_scores_per_term {*el = 0.; }
+    //         let explain = explain_hits.entry(id).or_insert_with(||vec![]);
+    //         for el in group {
+    //             max_scores_per_term[el.term_id as usize] = max_scores_per_term[el.term_id as usize].max(el.score.to_f32());
+    //             // explain.push(format!("{:?}:{:?}", id, el.score.to_f32()));
+    //         }
+
+    //         let num_distinct_terms = max_scores_per_term.iter().filter(|el| *el >= &0.00001).count() as f32;
+    //         let sum_over_distinct = max_scores_per_term.iter().sum::<f32>() as f32 * num_distinct_terms * num_distinct_terms;
+    //         explain.push(format!("sum_over_distinct_terms {:?}", sum_over_distinct));
+
+    //     }
+    // }
 
     // debug!("union hits merged from {} to {} hits", prev, union_hits.len() );
     SearchFieldResult {
         term_id_hits_in_field,
         term_text_in_field,
         hits_scores: union_hits,
+        explain: explain_hits,
         ..Default::default()
     }
     // }

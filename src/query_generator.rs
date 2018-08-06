@@ -82,6 +82,7 @@ pub struct SearchQueryGeneratorParameters {
     pub boost_fields: HashMap<String, f32>,
     pub boost_terms: HashMap<String, f32>,
     pub phrase_pairs: Option<bool>,
+    pub explain: Option<bool>,
 }
 
 fn get_levenshteinn(term: &str, levenshtein: Option<usize>, levenshtein_auto_limit: Option<usize>) -> u32 {
@@ -262,7 +263,7 @@ pub fn search_query(persistence: &Persistence, mut opt: SearchQueryGeneratorPara
     request.text_locality = opt.text_locality.unwrap_or(false);
     request.boost_term = boost_term;
     request.boost = opt.boost_queries.clone();
-
+    request.explain = opt.explain.unwrap_or(false);
     // Request {
     //     or: Some(parts),
     //     top: opt.top,
