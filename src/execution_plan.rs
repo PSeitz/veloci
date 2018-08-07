@@ -281,7 +281,6 @@ impl PlanStepTrait for BoostAnchorFromPhraseResults {
     fn execute_step(self: Box<Self>, _persistence: &Persistence) -> Result<(), SearchError> {
         let input = self.channels.input_prev_steps[0].recv()?;
         let boosts = get_data(&self.channels.input_prev_steps[1..])?;
-
         let mut boosts = sort_and_group_boosts_by_phrase_terms(boosts);
         //Set boost for phrases for the next step
         for boost_res in &mut boosts {
@@ -373,8 +372,8 @@ fn get_all_field_request_parts_and_propagate_settings<'a>(header_request: Reques
     if let Some(phrase_boosts) = request.phrase_boosts.as_mut() {
         for el in phrase_boosts {
             //propagate explain
-            el.search1.explain = header_request.explain;
-            el.search2.explain = header_request.explain;
+            el.search1.explain |= header_request.explain;
+            el.search2.explain |= header_request.explain;
             map.insert(&mut el.search1);
             map.insert(&mut el.search2);
         }
@@ -387,7 +386,7 @@ fn get_all_field_request_parts_and_propagate_settings<'a>(header_request: Reques
     }
     if let Some(search) = request.search.as_mut() {
         //propagate explain
-        search.explain = header_request.explain;
+        search.explain |= header_request.explain;
         map.insert(search);
     }
 }
@@ -454,16 +453,16 @@ pub fn plan_creator(mut request: Request, plan: &mut Plan) -> PlanDataReceiver {
             plan.add_dependency(id_step, plan_id2);
         }
 
-        let mut v = Vec::new();
-        v.push(final_output.0);
-        v.extend_from_slice(&phrase_outputs[..]);
+        //first is search result channel, rest are boost results
+        let mut vecco = vec![final_output.0];
+        vecco.extend_from_slice(&phrase_outputs[..]);
 
         //boost all results with phrase results
         let (tx, rx): (PlanDataSender, PlanDataReceiver) = unbounded();
         let step = BoostAnchorFromPhraseResults {
             channels: PlanStepDataChannels {
                 num_receivers: 1,
-                input_prev_steps: v,
+                input_prev_steps: vecco,
                 output_sending_to_next_steps: tx,
                 plans_output_receiver_for_next_step: rx.clone(),
             },
@@ -500,7 +499,7 @@ fn plan_creator_2(
     field_search_cache: &mut FnvHashMap<RequestSearchPart, (usize, PlanStepFieldSearchToTokenIds)>,
 ) -> (PlanDataReceiver, usize) {
     let (tx, rx): (PlanDataSender, PlanDataReceiver) = unbounded();
-    request.explain = request_header.explain;
+    request.explain |= request_header.explain;
     if let Some(ref mut or) = request.or {
         let mut step = Union {
             channels: PlanStepDataChannels {

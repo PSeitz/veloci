@@ -300,6 +300,10 @@ fn test_json_request() {
     assert_eq!(requesto.search.unwrap().levenshtein_distance, Some(1));
 }
 
+fn to_vec(data: &[&'static str]) -> Vec<String>{
+    data.iter().map(|el|el.to_string()).collect()
+}
+
 describe! search_test {
 
 
@@ -332,7 +336,7 @@ describe! search_test {
         assert_eq!(hits[0].doc["ent_seq"], "1587690");
         assert_eq!(hits[0].doc["commonness"], 20);
         assert_eq!(hits[0].doc["tags"], json!(["nice".to_string()]));
-        assert_eq!(hits[0].explain, Some(vec!["term score 10.0 * anchor score 3.84 to 38.399998".to_string()]));
+        assert_eq!(hits[0].explain, Some(to_vec(&["term score 10.0 * anchor score 3.68 to 36.8", "levenshtein score 10.0 for urge"])));
     }
 
     it "or_query_explained"{
@@ -352,10 +356,9 @@ describe! search_test {
         });
 
         let hits = search_testo_to_doc(req).data;
-        println!("{:?}", hits);
         assert_eq!(hits.len(), 2);
         assert_eq!(hits[0].doc["ent_seq"], "1587690");
-        assert_eq!(hits[0].explain, Some(vec!["or sum_over_distinct_terms 38.40625".to_string(), "term score 10.0 * anchor score 3.84 to 38.399998".to_string()]));
+        assert_eq!(hits[0].explain, Some(to_vec(&["or sum_over_distinct_terms 36.8125", "term score 10.0 * anchor score 3.68 to 36.8", "levenshtein score 10.0 for urge"])));
 
     }
 
@@ -365,12 +368,11 @@ describe! search_test {
         params.search_term = "urge".to_string();
 
         let hits = search_testo_to_doco_qp(params).data;
-        println!("{:?}", hits);
         assert_eq!(hits.len(), 1);
         assert_eq!(hits[0].doc["ent_seq"], "1587690");
         assert_eq!(hits[0].doc["commonness"], 20);
         assert_eq!(hits[0].doc["tags"], json!(["nice".to_string()]));
-        assert_eq!(hits[0].explain, Some(vec!["or sum_over_distinct_terms 57.59375".to_string(), "term score 15.0 * anchor score 3.84 to 57.6".to_string()]));
+        assert_eq!(hits[0].explain, Some(to_vec(&["or sum_over_distinct_terms 36.8125", "term score 10.0 * anchor score 3.68 to 36.8", "levenshtein score 10.0 for urge"])));
     }
 
     it "simple_search_querygenerator_OR_connect_explained"{
@@ -379,13 +381,12 @@ describe! search_test {
         params.search_term = "urge OR いよく".to_string();
 
         let hits = search_testo_to_doco_qp(params).data;
-        println!("{:?}", hits);
         assert_eq!(hits.len(), 3);
         assert_eq!(hits[0].doc["ent_seq"], "1587690");
         assert_eq!(hits[0].doc["commonness"], 20);
         assert_eq!(hits[0].doc["tags"], json!(["nice".to_string()]));
         // assert_eq!(hits[0].explain, Some(vec!["or sum_over_distinct_terms 452.375".to_string(), "term score 15.0 * anchor score 3.7 to 55.5".to_string(), "term score 15.0 * anchor score 3.84 to 57.6".to_string()]));
-        assert_eq!(hits[0].explain, Some(vec!["or sum_over_distinct_terms 113.09375".to_string(), "num_distinct_terms boost 4.0 to 452.375".to_string(), "term score 15.0 * anchor score 3.7 to 55.5".to_string(), "term score 15.0 * anchor score 3.84 to 57.6".to_string()]));
+        assert_eq!(hits[0].explain, Some(to_vec(&["or sum_over_distinct_terms 72.3125", "num_distinct_terms boost 4.0 to 289.25", "term score 10.0 * anchor score 3.55 to 35.5", "levenshtein score 10.0 for いよく", "term score 10.0 * anchor score 3.68 to 36.8", "levenshtein score 10.0 for urge"])));
 
     }
 
@@ -567,16 +568,18 @@ describe! search_test {
         assert_eq!(wa[0].doc["meanings"]["eng"][0], "will");
     }
 
-    it "should prefer exact tokenmatches to fuzzy text hits'"{
+    it "should_prefer_exact_tokenmatches_to_fuzzy_text_hits'"{
 
         let req = json!({
             "search": {
                 "terms":["karl"],
                 "path": "meanings.eng[]",
                 "levenshtein_distance": 1
-            }
+            },
+            "explain":true
         });
         let wa = search_testo_to_doc(req).data;
+        println!("{}", serde_json::to_string_pretty(&wa).unwrap());
         assert_eq!(wa[0].doc["meanings"]["eng"][0], "karl der große"); // should hit karl, not karlo
     }
 
@@ -1078,20 +1081,21 @@ describe! search_test {
         assert_eq!(pers.get_bytes_indexed().unwrap(), 2473);
     }
 
-    it "boost text localitaet"{
+    it "boost_text_localitaet"{
         let req = json!({
             "or":[
                 {"search": {"terms":["text"],      "path": "meanings.ger[]"}, "text_locality": true},
                 {"search": {"terms":["localität"], "path": "meanings.ger[]"}, "text_locality": true},
             ],
-            "text_locality": true
+            "text_locality": true,
+            "explain": true
         });
 
         let hits = search_testo_to_doc(req).data;
         assert_eq!(hits[0].doc["meanings"]["ger"][0], "text localität");
     }
 
-    it "search and get facet with facet index"{
+    it "search_and_get_facet_with_facet_index"{
         let req = json!({
             "search": {"terms":["will"], "path": "meanings.eng[]"},
             "facets": [{"field":"tags[]"}, {"field":"commonness"}]

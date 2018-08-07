@@ -29,6 +29,7 @@ use search_field;
 use expression::ScoreExpression;
 use fnv;
 use std::fmt;
+use std::mem;
 
 use ordered_float::OrderedFloat;
 
@@ -500,7 +501,7 @@ fn boost_text_locality(persistence: &Persistence, path: &str, search_term_to_tex
     for text_id in boost_text_ids {
         let num_hits_in_same_text = text_id.1;
         for anchor_id in text_id_to_anchor.get_values_iter(u64::from(text_id.0)) {
-            boost_anchor.push(Hit::new(anchor_id, num_hits_in_same_text as f32 * num_hits_in_same_text as f32));
+            boost_anchor.push(Hit::new(anchor_id, 2. * num_hits_in_same_text as f32 * num_hits_in_same_text as f32));
         }
     }
     boost_anchor.sort_unstable_by_key(|el| el.id);
@@ -920,41 +921,15 @@ pub fn union_hits_score(mut or_results: Vec<SearchFieldResult>) -> SearchFieldRe
         }
     }
 
-    // if explain {
-    //     let iterators: Vec<_> = or_results
-    //     .iter()
-    //     .map(|res| {
-    //         let term_id = terms.iter().position(|ref x| x == &&res.request.terms[0]).unwrap() as u8;
-    //         let field_id = fields.iter().position(|ref x| x == &&res.request.path).unwrap() as u8;
-    //         res.iter(term_id, field_id)
-    //     })
-    //     .collect();
-    //     let mergo = iterators.into_iter().kmerge_by(|a, b| a.id < b.id);
-    //     for (mut id, mut group) in &mergo.into_iter().group_by(|el| el.id) {
-    //         //reset scores to 0
-    //         for el in &mut max_scores_per_term {*el = 0.; }
-    //         let explain = explain_hits.entry(id).or_insert_with(||vec![]);
-    //         for el in group {
-    //             max_scores_per_term[el.term_id as usize] = max_scores_per_term[el.term_id as usize].max(el.score.to_f32());
-    //             // explain.push(format!("{:?}:{:?}", id, el.score.to_f32()));
-    //         }
-
-    //         let num_distinct_terms = max_scores_per_term.iter().filter(|el| *el >= &0.00001).count() as f32;
-    //         let sum_over_distinct = max_scores_per_term.iter().sum::<f32>() as f32 * num_distinct_terms * num_distinct_terms;
-    //         explain.push(format!("sum_over_distinct_terms {:?}", sum_over_distinct));
-
-    //     }
-    // }
-
-    // debug!("union hits merged from {} to {} hits", prev, union_hits.len() );
     SearchFieldResult {
         term_id_hits_in_field,
         term_text_in_field,
         hits_scores: union_hits,
         explain: explain_hits,
+        request: or_results[0].request.clone(), // set this to transport fields like explain
         ..Default::default()
     }
-    // }
+
 }
 
 #[derive(Debug, Clone)]
@@ -1007,6 +982,9 @@ pub fn intersect_hits_score(mut and_results: Vec<SearchFieldResult>) -> SearchFi
         let res = and_results.swap_remove(0);
         return res;
     }
+
+
+    let should_explain = and_results[0].request.explain;
     let term_id_hits_in_field = { merge_term_id_hits(&mut and_results) };
     let term_text_in_field = { merge_term_id_texts(&mut and_results) };
 
@@ -1019,48 +997,62 @@ pub fn intersect_hits_score(mut and_results: Vec<SearchFieldResult>) -> SearchFi
 
     // let mut iterators = &and_results.iter().map(|el| el.hits_scores.iter()).collect::<Vec<_>>();
 
-    let mut iterators_and_current = and_results
-        .iter_mut()
-        .map(|el| {
-            let mut iterator = el.hits_scores.iter();
-            let current = iterator.next();
-            (iterator, current)
-        })
-        .filter(|el| el.1.is_some())
-        .map(|el| (el.0, el.1.unwrap()))
-        .collect::<Vec<_>>();
-
     let mut intersected_hits = Vec::with_capacity(shortest_result.len());
-    for current_el in &mut shortest_result {
-        let current_id = current_el.id;
-        let current_score = current_el.score;
+    {
+        let mut iterators_and_current = and_results
+            .iter_mut()
+            .map(|el| {
+                let mut iterator = el.hits_scores.iter();
+                let current = iterator.next();
+                (iterator, current)
+            })
+            .filter(|el| el.1.is_some())
+            .map(|el| (el.0, el.1.unwrap()))
+            .collect::<Vec<_>>();
 
-        if iterators_and_current.iter_mut().all(|ref mut iter_n_current| {
-            if (iter_n_current.1).id == current_id {
-                return true;
-            }
-            let iter = &mut iter_n_current.0;
-            while let Some(el) = iter.next() {
-                let id = el.id;
-                iter_n_current.1 = el;
-                if id > current_id {
-                    return false;
-                }
-                if id == current_id {
+        for current_el in &mut shortest_result {
+            let current_id = current_el.id;
+            let current_score = current_el.score;
+
+            if iterators_and_current.iter_mut().all(|ref mut iter_n_current| {
+                if (iter_n_current.1).id == current_id {
                     return true;
                 }
+                let iter = &mut iter_n_current.0;
+                while let Some(el) = iter.next() {
+                    let id = el.id;
+                    iter_n_current.1 = el;
+                    if id > current_id {
+                        return false;
+                    }
+                    if id == current_id {
+                        return true;
+                    }
+                }
+                false
+            }) {
+                let mut score = iterators_and_current.iter().map(|el| (el.1).score).sum();
+                score += current_score; //TODO SCORE Max oder Sum FOR AND
+                intersected_hits.push(Hit::new(current_id, score));
             }
-            false
-        }) {
-            let mut score = iterators_and_current.iter().map(|el| (el.1).score).sum();
-            score += current_score; //TODO SCORE Max oder Sum FOR AND
-            intersected_hits.push(Hit::new(current_id, score));
+        }
+    }
+    let mut explain_hits = FnvHashMap::default();
+    if should_explain {
+        for hit in intersected_hits.iter() {
+            for res in and_results.iter() {
+                if let Some(exp) = res.explain.get(&hit.id) {
+                    let explain = explain_hits.entry(hit.id).or_insert_with(||vec![]);
+                    explain.extend_from_slice(exp);
+                }
+            }
         }
     }
     // all_results
     SearchFieldResult {
         term_id_hits_in_field,
         term_text_in_field,
+        explain:explain_hits,
         hits_scores: intersected_hits,
         ..Default::default()
     }
@@ -1088,31 +1080,41 @@ fn intersect_hits_vec_test() {
 }
 
 fn apply_boost_from_iter(mut results: SearchFieldResult, mut boost_iter: &mut Iterator<Item = Hit>) -> SearchFieldResult {
-    let move_boost = |hit: &mut Hit, hit_curr: &mut Hit, boost_iter: &mut Iterator<Item = Hit>| {
-        //Forward the boost iterator and look for matches
-        for b_hit in boost_iter {
-            if b_hit.id > hit.id {
-                *hit_curr = b_hit.clone(); //TODO LOW maybe change data pointed to by hit_curr
-                break;
-            } else if b_hit.id == hit.id {
-                *hit_curr = b_hit.clone();
-                hit.score *= b_hit.score;
+    let mut explain = FnvHashMap::default();
+    mem::swap(&mut explain, &mut results.explain);
+    let should_explain = results.request.explain;
+    {
+        let mut move_boost = |hit: &mut Hit, hit_curr: &mut Hit, boost_iter: &mut Iterator<Item = Hit>| {
+            //Forward the boost iterator and look for matches
+            for b_hit in boost_iter {
+                if b_hit.id > hit.id {
+                    *hit_curr = b_hit.clone();
+                    break;
+                } else if b_hit.id == hit.id {
+                    *hit_curr = b_hit.clone();
+                    hit.score *= b_hit.score;
+                    if should_explain {
+                        let data = explain.entry(hit.id).or_insert_with(|| vec![]);
+                        data.push(format!("boost {:?}", b_hit.score));
+                    }
+                }
             }
-        }
-    };
+        };
 
-    if let Some(yep) = boost_iter.next() {
-        let mut hit_curr = yep;
-        for mut hit in &mut results.hits_scores {
-            if hit_curr.id < hit.id {
-                move_boost(&mut hit, &mut hit_curr, &mut boost_iter);
-            } else if hit_curr.id == hit.id {
-                hit.score *= hit_curr.score;
-                move_boost(&mut hit, &mut hit_curr, &mut boost_iter); // Possible multi boosts [id:0->2, id:0->4 ...]
+        if let Some(yep) = boost_iter.next() {
+            let mut hit_curr = yep;
+            for mut hit in &mut results.hits_scores {
+                if hit_curr.id < hit.id {
+                    move_boost(&mut hit, &mut hit_curr, &mut boost_iter);
+                } else if hit_curr.id == hit.id {
+                    hit.score *= hit_curr.score;
+                    move_boost(&mut hit, &mut hit_curr, &mut boost_iter); // Possible multi boosts [id:0->2, id:0->4 ...]
+                }
             }
         }
     }
 
+    mem::swap(&mut explain, &mut results.explain);
     results
 }
 

@@ -138,6 +138,16 @@ describe! search_test {
         assert_eq!(hits[0].doc["title"], "die erbin");
     }
 
+    it "should_and_boost_phrase_query_generator_and_explain"{
+        let mut params = query_generator::SearchQueryGeneratorParameters::default();
+        params.search_term="die erbin".to_string();
+        params.phrase_pairs = Some(true);
+        params.explain = Some(true);
+        let hits = search_testo_to_doco_qp(params).data;
+        println!("{:?}", hits);
+        assert_eq!(hits[0].doc["title"], "die erbin");
+    }
+
     it "should and boost phrase OR query generator"{
         let mut params = query_generator::SearchQueryGeneratorParameters::default();
         params.search_term="die erbin".to_string();

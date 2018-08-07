@@ -293,9 +293,8 @@ where
 fn calculate_and_add_token_score_in_doc(
     tokens_to_anchor_id: &mut Vec<ValIdPairToken>,
     anchor_id: u32,
-    _num_tokens_in_text: u32,
+    num_tokens_in_text: u32,
     index: &mut BufferedIndexWriter<u32, (u32, u32)>,
-    is_phrase: bool,
 ) -> Result<(), io::Error> {
     // Sort by tokenid, token_pos
     tokens_to_anchor_id.sort_unstable_by(|a, b| {
@@ -311,21 +310,19 @@ fn calculate_and_add_token_score_in_doc(
         let first = group.next().unwrap();
         let best_pos = first.token_pos;
         let num_occurences = first.num_occurences;
-
-        let mut score = calculate_token_score_for_entry(best_pos, num_occurences, false);
-        if is_phrase {
-            score *= 2;
-        }
+        let mut score = calculate_token_score_for_entry(best_pos, num_occurences, num_tokens_in_text, false);
         index.add(first.token_or_text_id, (anchor_id, score))?;
     }
     Ok(())
 }
 
 #[inline]
-fn calculate_token_score_for_entry(token_best_pos: u32, num_occurences: u32, is_exact: bool) -> u32 {
-    let mut score = if is_exact { 400 } else { 2000 / (token_best_pos + 10) };
-    score = (score as f32 / (num_occurences as f32 + 10.).log10()) as u32; //+10 so log() is bigger than 1
-    score
+fn calculate_token_score_for_entry(token_best_pos: u32, num_occurences: u32, num_tokens_in_text: u32, is_exact: bool) -> u32 {
+    let score = if is_exact { 400 } else { 2000 / (token_best_pos + 10) } as f32;
+    let mut score = score / (num_occurences as f32 + 10.).log10(); //+10 so log() is bigger than 1
+    let text_length_modifier = ((num_tokens_in_text + 10) as f32).log10();
+    score /= text_length_modifier;
+    score as u32
 }
 
 #[derive(Debug, Default)]
@@ -604,7 +601,7 @@ where
             }
             trace!("Found id {:?} for {:?}", text_info, value);
 
-            let score = calculate_token_score_for_entry(0, text_info.num_occurences, true);
+            let score = calculate_token_score_for_entry(0, text_info.num_occurences, 1, true);
 
             data.token_to_anchor_id_score.add(text_info.id, (anchor_id, score))?;
 
@@ -656,7 +653,7 @@ where
                     data.text_id_to_token_ids.add_all(text_info.id, &tokens_ids).unwrap();
                 }
 
-                calculate_and_add_token_score_in_doc(&mut tokens_to_anchor_id, anchor_id, current_token_pos, &mut data.token_to_anchor_id_score, false)?;
+                calculate_and_add_token_score_in_doc(&mut tokens_to_anchor_id, anchor_id, current_token_pos, &mut data.token_to_anchor_id_score)?;
                 // calculate_and_add_token_score_in_doc(&mut phrase_to_anchor_id, anchor_id, current_token_pos, &mut data.token_to_anchor_id_score, true)?;
                 tokens_to_anchor_id.clear();
                 // phrase_to_anchor_id.clear();

@@ -141,7 +141,7 @@ pub type Score = f32;
 // }
 fn get_default_score_for_distance(distance: u8, prefix_matches: bool) -> f32 {
     if prefix_matches {
-        2.0 / ((f32::from(distance) + 1.0).log2() + 0.2) + 5.
+        2.0 / ((f32::from(distance) + 1.0).log2() + 0.2)
     } else {
         2.0 / (f32::from(distance) + 0.2)
     }
@@ -455,7 +455,7 @@ pub fn get_term_ids_in_field(persistence: &Persistence, options: &mut PlanReques
                 debug!("Hit: {:?}\tid: {:?} score: {:?}", &text_or_token, token_text_id, score);
                 result.hits_scores.push(Hit::new(token_text_id, score));
                 if options.request.explain {
-                    result.explain.insert(token_text_id, vec![format!("levenshtein score {:?}", score)]);
+                    result.explain.insert(token_text_id, vec![format!("levenshtein score {:?} for {}", score, text_or_token)]);
                 }
             }
 
@@ -536,7 +536,13 @@ pub fn resolve_token_to_anchor(
                     continue;
                 }
                 let final_score = hit.score * (el.score.to_f32() / 100.0);
-                res.explain.insert(el.id, vec![format!("term score {:?} * anchor score {:?} to {:?}", hit.score, el.score.to_f32() / 100.0, final_score)]);
+                if options.explain {
+                    let vecco = res.explain.entry(el.id).or_insert_with(||vec![]);
+                    vecco.push(format!("term score {:?} * anchor score {:?} to {:?}", hit.score, el.score.to_f32() / 100.0, final_score));
+                    if let Some(exp) = result.explain.get(&hit.id) {
+                        vecco.extend_from_slice(exp);
+                    }
+                }
                 anchor_ids_hits.push(search::Hit::new(el.id, final_score));
             }
         }
@@ -692,7 +698,6 @@ pub fn resolve_token_hits_to_text_id(
                     if should_filter(filter, token_parentval_id) {
                         continue;
                     }
-
                     token_hits.push((token_parentval_id, hit.score, hit.id)); //TODO ADD ANCHOR_SCORE IN THIS SEARCH
                 }
             }
