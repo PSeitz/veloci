@@ -28,7 +28,7 @@ use execution_plan::*;
 
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
 pub struct SearchFieldResult {
-    pub explain: FnvHashMap<u32, Vec<String>>,
+    pub explain: FnvHashMap<u32, Vec<Explain>>,
     pub hits_scores: Vec<search::Hit>,
     pub hits_ids: Vec<TermId>,
     pub terms: FnvHashMap<TermId, String>,
@@ -39,6 +39,16 @@ pub struct SearchFieldResult {
     pub term_id_hits_in_field: FnvHashMap<String, FnvHashMap<String, Vec<TermId>>>,
     /// store the text of the term hit field->Terms, used for whyfound
     pub term_text_in_field: FnvHashMap<String, Vec<String>>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub enum Explain {
+    Boost(f32),
+    MaxTokenToTextId(f32),
+    TermToAnchor{term_score:f32, anchor_score:f32, final_score:f32, term_id:u32},
+    LevenshteinScore{score:f32, text_or_token_id:String, term_id:u32},
+    OrSumOverDistinctTerms(f32),
+    NumDistintTermsBoost{distinct_boost:u32, new_score:u32},
 }
 
 impl SearchFieldResult {
@@ -455,7 +465,8 @@ pub fn get_term_ids_in_field(persistence: &Persistence, options: &mut PlanReques
                 debug!("Hit: {:?}\tid: {:?} score: {:?}", &text_or_token, token_text_id, score);
                 result.hits_scores.push(Hit::new(token_text_id, score));
                 if options.request.explain {
-                    result.explain.insert(token_text_id, vec![format!("levenshtein score {:?} for {}", score, text_or_token)]);
+                    // result.explain.insert(token_text_id, vec![format!("levenshtein score {:?} for {}", score, text_or_token)]);
+                    result.explain.insert(token_text_id, vec![Explain::LevenshteinScore{score:score, term_id:token_text_id, text_or_token_id: text_or_token.clone()}]);
                 }
             }
 
@@ -538,7 +549,8 @@ pub fn resolve_token_to_anchor(
                 let final_score = hit.score * (el.score.to_f32() / 100.0);
                 if options.explain {
                     let vecco = res.explain.entry(el.id).or_insert_with(||vec![]);
-                    vecco.push(format!("term score {:?} * anchor score {:?} to {:?}", hit.score, el.score.to_f32() / 100.0, final_score));
+                    // vecco.push(format!("term score {:?} * anchor score {:?} to {:?}", hit.score, el.score.to_f32() / 100.0, final_score));
+                    vecco.push(Explain::TermToAnchor{term_id:hit.id, term_score:hit.score, anchor_score:el.score.to_f32() / 100.0, final_score});
                     if let Some(exp) = result.explain.get(&hit.id) {
                         vecco.extend_from_slice(exp);
                     }
@@ -556,7 +568,9 @@ pub fn resolve_token_to_anchor(
         debug_time!("{} fast_field  dedup only", &options.path);
         anchor_ids_hits.dedup_by(|a, b| {
             if a.id == b.id {
-                b.score += a.score; //a will be discarded, store in b
+                if a.score > b.score {
+                    b.score = a.score; //a will be discarded, store max
+                }
                 true
             } else {
                 false
@@ -729,7 +743,8 @@ pub fn resolve_token_hits_to_text_id(
             result.hits_scores.push(Hit::new(parent_id, max_score));
 
             if options.explain {
-                result.explain.insert(parent_id, vec![format!("max_score from token_hits score {:?}", max_score)]);
+                // result.explain.insert(parent_id, vec![format!("max_score from token_hits score {:?}", max_score)]);
+                result.explain.insert(parent_id, vec![Explain::MaxTokenToTextId(max_score)]);
             }
             if add_snippets {
                 //value_id_to_token_hits.insert(parent_id, t2.map(|el| el.2).collect_vec()); //TODO maybe store hits here, in case only best x are needed

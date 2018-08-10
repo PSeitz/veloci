@@ -119,6 +119,7 @@ struct QueryParams {
     why_found: Option<String>,
     boost_queries: Option<String>,
     phrase_pairs: Option<String>,
+    explain: Option<String>,
     text_locality: Option<String>,
 }
 
@@ -288,6 +289,7 @@ fn search_get(database: String, params: Result<QueryParams, rocket::Error>) -> R
         fields: fields,
         boost_fields: boost_fields,
         boost_terms: boost_terms,
+        explain: params.explain.map(|el| el.to_lowercase() == "true"),
         boost_queries: None,
     };
 
@@ -350,6 +352,7 @@ fn search_get_shard(database: String, params: QueryParams) -> Result<SearchResul
         stopword_lists,
         boost_fields: boost_fields,
         boost_terms: boost_terms,
+        explain: params.explain.map(|el| el.to_lowercase() == "true"),
         boost_queries: None,
     };
 

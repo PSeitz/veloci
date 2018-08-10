@@ -267,7 +267,7 @@ pub struct SearchResult {
     pub data: Vec<Hit>,
     pub ids: Vec<u32>,
     #[serde(skip_serializing_if = "Option::is_none")] pub facets: Option<FnvHashMap<String, Vec<(String, usize)>>>,
-    #[serde(skip_serializing_if = "FnvHashMap::is_empty")] pub explain: FnvHashMap<u32, Vec<String>>,
+    #[serde(skip_serializing_if = "FnvHashMap::is_empty")] pub explain: FnvHashMap<u32, Vec<Explain>>,
     #[serde(skip_serializing_if = "FnvHashMap::is_empty")] pub why_found_info: FnvHashMap<u32, FnvHashMap<String, Vec<String>>>,
     #[serde(skip_serializing_if = "FnvHashMap::is_empty")] pub why_found_terms: FnvHashMap<String, Vec<String>>,
 }
@@ -293,7 +293,7 @@ impl SearchResultWithDoc {
 pub struct DocWithHit {
     pub doc: serde_json::Value,
     pub hit: Hit,
-    #[serde(skip_serializing_if = "Option::is_none")] pub explain: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub explain: Option<Vec<Explain>>,
     #[serde(skip_serializing_if = "FnvHashMap::is_empty")] pub why_found: FnvHashMap<String, Vec<String>>,
 }
 
@@ -901,9 +901,11 @@ pub fn union_hits_score(mut or_results: Vec<SearchFieldResult>) -> SearchFieldRe
             union_hits.push(Hit::new(id, sum_over_distinct_with_distinct_term_boost));
             if explain {
                 let explain = explain_hits.entry(id).or_insert_with(||vec![]);
-                explain.push(format!("or sum_over_distinct_terms {:?}", max_scores_per_term.iter().sum::<f32>() as f32));
+                // explain.push(format!("or sum_over_distinct_terms {:?}", max_scores_per_term.iter().sum::<f32>() as f32));
+                explain.push(Explain::OrSumOverDistinctTerms(max_scores_per_term.iter().sum::<f32>() as f32) );
                 if num_distinct_terms > 1. {
-                    explain.push(format!("num_distinct_terms boost {:?} to {:?}", num_distinct_terms * num_distinct_terms, sum_over_distinct_with_distinct_term_boost));
+                    // explain.push(format!("num_distinct_terms boost {:?} to {:?}", num_distinct_terms * num_distinct_terms, sum_over_distinct_with_distinct_term_boost));
+                    // explain.push(Explain::NumDistinctTermsBoost{distinct_boost:num_distinct_terms * num_distinct_terms, new_score:sum_over_distinct_with_distinct_term_boost});
                 }
             }
 
@@ -1095,7 +1097,8 @@ fn apply_boost_from_iter(mut results: SearchFieldResult, mut boost_iter: &mut It
                     hit.score *= b_hit.score;
                     if should_explain {
                         let data = explain.entry(hit.id).or_insert_with(|| vec![]);
-                        data.push(format!("boost {:?}", b_hit.score));
+                        // data.push(format!("boost {:?}", b_hit.score));
+                        data.push(Explain::Boost(b_hit.score));
                     }
                 }
             }
