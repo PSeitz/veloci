@@ -1,15 +1,9 @@
 #![feature(drain_filter)]
 #![feature(align_offset)]
 #![feature(ptr_offset_from)]
-#![feature(pointer_methods)]
-#![feature(entry_and_modify)]
-#![feature(iterator_step_by)]
 #![feature(step_trait)]
 #![feature(specialization)]
-#![feature(inclusive_range)]
-#![feature(inclusive_range_methods)]
 #![feature(test)]
-#![feature(placement_in_syntax)]
 #![feature(box_syntax, box_patterns)]
 #![cfg_attr(feature = "unstable", feature(alloc, heap_api, repr_simd))]
 #![cfg_attr(feature = "flame_it", feature(plugin, custom_attribute))]
@@ -81,25 +75,14 @@ extern crate ordered_float;
 
 extern crate colored;
 
-// #[cfg(feature = "mayda")]
-// extern crate mayda;
-
 extern crate half;
 #[macro_use]
 extern crate lazy_static;
 
 extern crate chrono;
 extern crate term_hashmap;
-// extern crate time;
-// extern crate bit_set;
-// extern crate bit_vec;
-// extern crate sled;
-// extern crate lz4;
-// extern crate utf8_ranges;
-// extern crate btree;
 extern crate fixedbitset;
 extern crate lru_cache;
-// extern crate fst_levenshtein;
 
 #[macro_use]
 pub mod util;
