@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use std::{str, f32};
+use std::{f32, str};
 
 use itertools::Itertools;
 use regex::Regex;
@@ -7,8 +7,8 @@ use regex::Regex;
 use ordered_float::OrderedFloat;
 use persistence::Persistence;
 use search::*;
-use stopwords;
 use std;
+use stopwords;
 use util::*;
 
 // fn get_default_levenshtein(term: &str, levenshtein_auto_limit: usize) -> usize {
@@ -39,8 +39,7 @@ fn get_all_field_names(persistence: &Persistence, fields: &Option<Vec<String>>) 
                 return filter.contains(el);
             }
             true
-        })
-        .collect()
+        }).collect()
 }
 
 fn normalize_to_single_space(text: &str) -> String {
@@ -128,11 +127,11 @@ pub fn search_query(persistence: &Persistence, mut opt: SearchQueryGeneratorPara
             .map(|f| FacetRequest {
                 field: f.to_string(),
                 top: opt.facetlimit,
-            })
-            .collect()
+            }).collect()
     });
 
-    let boost_terms_req: Vec<RequestSearchPart> = opt.boost_terms
+    let boost_terms_req: Vec<RequestSearchPart> = opt
+        .boost_terms
         .iter()
         .flat_map(|(boost_term, boost_value): (&String, &f32)| {
             let mut boost_term = boost_term.to_string();
@@ -151,10 +150,8 @@ pub fn search_query(persistence: &Persistence, mut opt: SearchQueryGeneratorPara
                     terms: vec![boost_term.to_string()],
                     boost: Some(OrderedFloat(*boost_value)),
                     ..Default::default()
-                })
-                .collect::<Vec<_>>()
-        })
-        .collect();
+                }).collect::<Vec<_>>()
+        }).collect();
 
     let boost_term = if boost_terms_req.is_empty() { None } else { Some(boost_terms_req) };
 
@@ -170,11 +167,10 @@ pub fn search_query(persistence: &Persistence, mut opt: SearchQueryGeneratorPara
             .filter(|term| {
                 if let Some(languages) = opt.stopword_lists.as_ref() {
                     !languages.iter().any(|lang| stopwords::is_stopword(lang, &term.to_lowercase()))
-                }else{
+                } else {
                     true
                 }
-            })
-            .map(|term| {
+            }).map(|term| {
                 let parts = get_all_field_names(&persistence, &opt.fields)
                     .iter()
                     .map(|field_name| {
@@ -191,8 +187,7 @@ pub fn search_query(persistence: &Persistence, mut opt: SearchQueryGeneratorPara
                             text_locality: opt.text_locality.unwrap_or(false),
                             ..Default::default()
                         }
-                    })
-                    .collect();
+                    }).collect();
 
                 Request {
                     or: Some(parts), // or over fields
@@ -200,8 +195,7 @@ pub fn search_query(persistence: &Persistence, mut opt: SearchQueryGeneratorPara
                     text_locality: opt.text_locality.unwrap_or(false),
                     ..Default::default()
                 }
-            })
-            .collect();
+            }).collect();
 
         Request {
             and: Some(requests), // and for terms
@@ -216,11 +210,10 @@ pub fn search_query(persistence: &Persistence, mut opt: SearchQueryGeneratorPara
                     .filter(|term| {
                         if let Some(languages) = opt.stopword_lists.as_ref() {
                             !languages.iter().any(|lang| stopwords::is_stopword(lang, &term.to_lowercase()))
-                        }else {
+                        } else {
                             true
                         }
-                    })
-                    .map(|term| {
+                    }).map(|term| {
                         let part = RequestSearchPart {
                             path: field_name.to_string(),
                             terms: vec![term.to_string()],
@@ -234,12 +227,10 @@ pub fn search_query(persistence: &Persistence, mut opt: SearchQueryGeneratorPara
                             text_locality: opt.text_locality.unwrap_or(false),
                             ..Default::default()
                         }
-                    })
-                    .collect();
+                    }).collect();
 
                 requests
-            })
-            .collect();
+            }).collect();
         Request {
             or: Some(parts),
             ..Default::default()
@@ -258,8 +249,16 @@ pub fn search_query(persistence: &Persistence, mut opt: SearchQueryGeneratorPara
     }
 
     if let Some(filters) = opt.filter.as_ref() {
-        let requests:Vec<_> = filters.iter().map(|part|Request{search:Some(part.clone()), ..Default::default()}).collect();
-        request.filter = Some(Box::new(Request{or: Some(requests), ..Default::default()}));
+        let requests: Vec<_> = filters
+            .iter()
+            .map(|part| Request {
+                search: Some(part.clone()),
+                ..Default::default()
+            }).collect();
+        request.filter = Some(Box::new(Request {
+            or: Some(requests),
+            ..Default::default()
+        }));
     }
 
     request.top = opt.top;
@@ -345,8 +344,7 @@ pub fn suggest_query(
                 skip,
                 ..Default::default()
             }
-        })
-        .collect();
+        }).collect();
 
     Request {
         suggest: Some(requests),

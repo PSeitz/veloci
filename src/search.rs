@@ -1,6 +1,6 @@
 use std::cmp::Ordering;
 use std::io;
-use std::{self, cmp, str, f32};
+use std::{self, cmp, f32, str};
 
 use fnv::FnvHashMap;
 use fnv::FnvHashSet;
@@ -37,7 +37,7 @@ use ordered_float::OrderedFloat;
 pub enum SearchOperation {
     And(Vec<SearchOperation>),
     Or(Vec<SearchOperation>),
-    Search(RequestSearchPart)
+    Search(RequestSearchPart),
 }
 
 impl Default for SearchOperation {
@@ -72,17 +72,27 @@ impl Default for SearchOperation {
 // }
 #[derive(Serialize, Deserialize, Default, Clone, Debug)]
 pub struct Request {
-    #[serde(skip_serializing_if = "Option::is_none")] pub or: Option<Vec<Request>>,
-    #[serde(skip_serializing_if = "Option::is_none")] pub and: Option<Vec<Request>>,
-    #[serde(skip_serializing_if = "Option::is_none")] pub search: Option<RequestSearchPart>,
-    #[serde(skip_serializing_if = "Option::is_none")] pub suggest: Option<Vec<RequestSearchPart>>,
-    #[serde(skip_serializing_if = "Option::is_none")] pub boost: Option<Vec<RequestBoostPart>>,
-    #[serde(skip_serializing_if = "Option::is_none")] pub boost_term: Option<Vec<RequestSearchPart>>,
-    #[serde(skip_serializing_if = "Option::is_none")] pub facets: Option<Vec<FacetRequest>>,
-    #[serde(skip_serializing_if = "Option::is_none")] pub phrase_boosts: Option<Vec<RequestPhraseBoost>>,
-    #[serde(skip_serializing_if = "Option::is_none")] pub select: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub or: Option<Vec<Request>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub and: Option<Vec<Request>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub search: Option<RequestSearchPart>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub suggest: Option<Vec<RequestSearchPart>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub boost: Option<Vec<RequestBoostPart>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub boost_term: Option<Vec<RequestSearchPart>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub facets: Option<Vec<FacetRequest>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub phrase_boosts: Option<Vec<RequestPhraseBoost>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub select: Option<Vec<String>>,
     /// filter does not affect the score, it just filters the result
-    #[serde(skip_serializing_if = "Option::is_none")] pub filter: Option<Box<Request>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub filter: Option<Box<Request>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(default = "default_top")]
     pub top: Option<usize>,
@@ -139,24 +149,31 @@ fn default_skip() -> Option<usize> {
 #[derive(Serialize, Deserialize, Default, Clone, Debug, Hash, PartialEq, Eq, PartialOrd)]
 pub struct RequestSearchPart {
     pub path: String,
-    pub terms: Vec<String>,                                                      //TODO only first term used currently
-    #[serde(default = "default_term_operator")] pub term_operator: TermOperator, //TODO unused currently
+    pub terms: Vec<String>, //TODO only first term used currently
+    #[serde(default = "default_term_operator")]
+    pub term_operator: TermOperator, //TODO unused currently
 
-    #[serde(default)] pub explain: bool,
+    #[serde(default)]
+    pub explain: bool,
 
-    #[serde(skip_serializing_if = "Option::is_none")] pub levenshtein_distance: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub levenshtein_distance: Option<u32>,
 
-    #[serde(skip_serializing_if = "Option::is_none")] pub starts_with: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub starts_with: Option<bool>,
 
-    #[serde(skip_serializing_if = "Option::is_none")] pub token_value: Option<RequestBoostPart>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub token_value: Option<RequestBoostPart>,
 
     /// boosts the search part with this value
     #[serde(skip_serializing_if = "Option::is_none")]
     pub boost: Option<OrderedFloat<f32>>,
 
-    #[serde(skip_serializing_if = "Option::is_none")] pub top: Option<usize>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub top: Option<usize>,
 
-    #[serde(skip_serializing_if = "Option::is_none")] pub skip: Option<usize>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub skip: Option<usize>,
 
     /// default is true
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -191,11 +208,16 @@ pub struct RequestPhraseBoost {
 
 #[derive(Serialize, Deserialize, Clone, Debug, Hash, PartialEq, Eq, PartialOrd)]
 pub struct SnippetInfo {
-    #[serde(default = "default_num_words_around_snippet")] pub num_words_around_snippet: i64,
-    #[serde(default = "default_snippet_start")] pub snippet_start_tag: String,
-    #[serde(default = "default_snippet_end")] pub snippet_end_tag: String,
-    #[serde(default = "default_snippet_connector")] pub snippet_connector: String,
-    #[serde(default = "default_max_snippets")] pub max_snippets: u32,
+    #[serde(default = "default_num_words_around_snippet")]
+    pub num_words_around_snippet: i64,
+    #[serde(default = "default_snippet_start")]
+    pub snippet_start_tag: String,
+    #[serde(default = "default_snippet_end")]
+    pub snippet_end_tag: String,
+    #[serde(default = "default_snippet_connector")]
+    pub snippet_connector: String,
+    #[serde(default = "default_max_snippets")]
+    pub max_snippets: u32,
 }
 
 fn default_num_words_around_snippet() -> i64 {
@@ -266,17 +288,22 @@ pub struct SearchResult {
     pub num_hits: u64,
     pub data: Vec<Hit>,
     pub ids: Vec<u32>,
-    #[serde(skip_serializing_if = "Option::is_none")] pub facets: Option<FnvHashMap<String, Vec<(String, usize)>>>,
-    #[serde(skip_serializing_if = "FnvHashMap::is_empty")] pub explain: FnvHashMap<u32, Vec<Explain>>,
-    #[serde(skip_serializing_if = "FnvHashMap::is_empty")] pub why_found_info: FnvHashMap<u32, FnvHashMap<String, Vec<String>>>,
-    #[serde(skip_serializing_if = "FnvHashMap::is_empty")] pub why_found_terms: FnvHashMap<String, Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub facets: Option<FnvHashMap<String, Vec<(String, usize)>>>,
+    #[serde(skip_serializing_if = "FnvHashMap::is_empty")]
+    pub explain: FnvHashMap<u32, Vec<Explain>>,
+    #[serde(skip_serializing_if = "FnvHashMap::is_empty")]
+    pub why_found_info: FnvHashMap<u32, FnvHashMap<String, Vec<String>>>,
+    #[serde(skip_serializing_if = "FnvHashMap::is_empty")]
+    pub why_found_terms: FnvHashMap<String, Vec<String>>,
 }
 
 #[derive(Serialize, Deserialize, Default, Clone, Debug)]
 pub struct SearchResultWithDoc {
     pub num_hits: u64,
     pub data: Vec<DocWithHit>,
-    #[serde(skip_serializing_if = "Option::is_none")] pub facets: Option<FnvHashMap<String, Vec<(String, usize)>>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub facets: Option<FnvHashMap<String, Vec<(String, usize)>>>,
 }
 
 impl SearchResultWithDoc {
@@ -293,8 +320,10 @@ impl SearchResultWithDoc {
 pub struct DocWithHit {
     pub doc: serde_json::Value,
     pub hit: Hit,
-    #[serde(skip_serializing_if = "Option::is_none")] pub explain: Option<Vec<Explain>>,
-    #[serde(skip_serializing_if = "FnvHashMap::is_empty")] pub why_found: FnvHashMap<String, Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub explain: Option<Vec<Explain>>,
+    #[serde(skip_serializing_if = "FnvHashMap::is_empty")]
+    pub why_found: FnvHashMap<String, Vec<String>>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
@@ -360,8 +389,7 @@ pub fn to_documents(persistence: &Persistence, hits: &[Hit], select: &Option<Vec
             .map(|(path, terms)| {
                 let tokens_set: FnvHashSet<String> = terms.iter().map(|el| el.to_string()).collect();
                 (path.to_string(), tokens_set)
-            })
-            .collect()
+            }).collect()
     };
 
     hits.iter()
@@ -384,8 +412,7 @@ pub fn to_documents(persistence: &Persistence, hits: &[Hit], select: &Option<Vec
                     why_found: ayse,
                 };
             };
-        })
-        .collect::<Vec<_>>()
+        }).collect::<Vec<_>>()
 }
 
 #[cfg_attr(feature = "flame_it", flame)]
@@ -658,12 +685,12 @@ pub fn apply_boost_term(persistence: &Persistence, mut res: SearchFieldResult, b
             // let mut boost_iter = data.hits_ids.iter().map(|el|el.clone());
             // res = apply_boost_from_iter(res, &mut boost_iter)
             info_time!("boost_term_from_cache");
-            let mut boost_iter = data.iter()
+            let mut boost_iter = data
+                .iter()
                 .map(|el| {
                     let boost_val: f32 = el.request.boost.map(|el| el.into_inner()).unwrap_or(2.0);
                     el.hits_ids.iter().map(move |id| Hit::new(*id, boost_val))
-                })
-                .into_iter()
+                }).into_iter()
                 .kmerge_by(|a, b| a.id < b.id);
 
             // {
@@ -739,8 +766,7 @@ pub fn apply_boost_term(persistence: &Persistence, mut res: SearchFieldResult, b
                 let mut result = search_field::get_term_ids_in_field(persistence, &mut boost_term_req)?;
                 result = search_field::resolve_token_to_anchor(persistence, &boost_term_req.request, None, &result)?;
                 Ok(result)
-            })
-            .collect();
+            }).collect();
         let mut data = r?;
         res = boost_hits_ids_vec_multi(res, &mut data);
         {
@@ -869,8 +895,7 @@ pub fn union_hits_score(mut or_results: Vec<SearchFieldResult>) -> SearchFieldRe
                 //     term_id: term_id,
                 //     field_id: field_id,
                 // })
-            })
-            .collect();
+            }).collect();
 
         // let mergo = iterators.into_iter().kmerge_by(|a, b| a.1.id < b.1.id);
         let mergo = iterators.into_iter().kmerge_by(|a, b| a.id < b.id);
@@ -879,7 +904,6 @@ pub fn union_hits_score(mut or_results: Vec<SearchFieldResult>) -> SearchFieldRe
         // let mergo = kmerge_by::kmerge_by(iterators.into_iter(), |a, b| a.id < b.id);
 
         debug_time!("union hits kmerge");
-
 
         let mut max_scores_per_term: Vec<f32> = vec![];
         max_scores_per_term.resize(terms.len(), 0.0);
@@ -900,15 +924,14 @@ pub fn union_hits_score(mut or_results: Vec<SearchFieldResult>) -> SearchFieldRe
             let sum_over_distinct_with_distinct_term_boost = max_scores_per_term.iter().sum::<f32>() as f32 * num_distinct_terms * num_distinct_terms;
             union_hits.push(Hit::new(id, sum_over_distinct_with_distinct_term_boost));
             if explain {
-                let explain = explain_hits.entry(id).or_insert_with(||vec![]);
+                let explain = explain_hits.entry(id).or_insert_with(|| vec![]);
                 // explain.push(format!("or sum_over_distinct_terms {:?}", max_scores_per_term.iter().sum::<f32>() as f32));
-                explain.push(Explain::OrSumOverDistinctTerms(max_scores_per_term.iter().sum::<f32>() as f32) );
+                explain.push(Explain::OrSumOverDistinctTerms(max_scores_per_term.iter().sum::<f32>() as f32));
                 if num_distinct_terms > 1. {
                     // explain.push(format!("num_distinct_terms boost {:?} to {:?}", num_distinct_terms * num_distinct_terms, sum_over_distinct_with_distinct_term_boost));
                     // explain.push(Explain::NumDistinctTermsBoost{distinct_boost:num_distinct_terms * num_distinct_terms, new_score:sum_over_distinct_with_distinct_term_boost});
                 }
             }
-
         }
     }
 
@@ -916,7 +939,7 @@ pub fn union_hits_score(mut or_results: Vec<SearchFieldResult>) -> SearchFieldRe
         for hit in union_hits.iter() {
             for res in or_results.iter() {
                 if let Some(exp) = res.explain.get(&hit.id) {
-                    let explain = explain_hits.entry(hit.id).or_insert_with(||vec![]);
+                    let explain = explain_hits.entry(hit.id).or_insert_with(|| vec![]);
                     explain.extend_from_slice(exp);
                 }
             }
@@ -931,7 +954,6 @@ pub fn union_hits_score(mut or_results: Vec<SearchFieldResult>) -> SearchFieldRe
         request: or_results[0].request.clone(), // set this to transport fields like explain
         ..Default::default()
     }
-
 }
 
 #[cfg_attr(feature = "flame_it", flame)]
@@ -959,7 +981,7 @@ pub fn union_hits_ids(mut or_results: Vec<SearchFieldResult>) -> SearchFieldResu
 
     let mut union_hits = Vec::with_capacity(longest_len as usize + sum_other_len as usize / 2);
     {
-        let mergo = or_results.iter().map(|res|res.hits_ids.iter()).into_iter().kmerge();
+        let mergo = or_results.iter().map(|res| res.hits_ids.iter()).into_iter().kmerge();
         debug_time!("filter union hits kmerge");
         for (mut id, mut _group) in &mergo.into_iter().group_by(|el| *el) {
             union_hits.push(*id);
@@ -971,18 +993,24 @@ pub fn union_hits_ids(mut or_results: Vec<SearchFieldResult>) -> SearchFieldResu
         request: or_results[0].request.clone(), // set this to transport fields like explain
         ..Default::default()
     }
-
 }
-
 
 #[test]
 fn union_hits_vec_test() {
     let hits1 = vec![10, 0, 5]; // unsorted
     let hits2 = vec![0, 3, 10, 20];
 
-    let res = union_hits_ids(vec![SearchFieldResult{hits_ids:hits1, ..Default::default()}, SearchFieldResult{hits_ids:hits2, ..Default::default()}]);
+    let res = union_hits_ids(vec![
+        SearchFieldResult {
+            hits_ids: hits1,
+            ..Default::default()
+        },
+        SearchFieldResult {
+            hits_ids: hits2,
+            ..Default::default()
+        },
+    ]);
     assert_eq!(res.hits_ids, vec![0, 3, 5, 10, 20]);
-
 }
 
 #[derive(Debug, Clone)]
@@ -1034,17 +1062,15 @@ pub fn intersect_score_hits_with_ids(mut score_results: SearchFieldResult, mut i
 
     let mut id_iter = id_hits.hits_ids.iter();
     if let Some(first) = id_iter.next() {
-        let mut current:u32 = *first;
+        let mut current: u32 = *first;
         score_results.hits_scores.retain(|ref hit| {
             while current < hit.id {
                 current = *id_iter.next().unwrap_or_else(|| &u32::MAX);
             }
             hit.id == current
         });
-
     }
     score_results
-
 }
 
 #[test]
@@ -1052,10 +1078,15 @@ fn test_intersect_score_hits_with_ids() {
     let hits1 = vec![Hit::new(10, 20.0), Hit::new(0, 20.0), Hit::new(5, 20.0)]; // unsorted
     let hits2 = vec![0, 10];
 
-
     let res = intersect_score_hits_with_ids(
-        SearchFieldResult {hits_scores: hits1, ..Default::default() },
-        SearchFieldResult {hits_ids: hits2, ..Default::default() }
+        SearchFieldResult {
+            hits_scores: hits1,
+            ..Default::default()
+        },
+        SearchFieldResult {
+            hits_ids: hits2,
+            ..Default::default()
+        },
     );
 
     assert_eq!(res.hits_scores, vec![Hit::new(0, 20.0), Hit::new(10, 20.0)]);
@@ -1070,7 +1101,6 @@ pub fn intersect_hits_score(mut and_results: Vec<SearchFieldResult>) -> SearchFi
         let res = and_results.swap_remove(0);
         return res;
     }
-
 
     let should_explain = and_results[0].request.explain;
     let term_id_hits_in_field = { merge_term_id_hits(&mut and_results) };
@@ -1093,8 +1123,7 @@ pub fn intersect_hits_score(mut and_results: Vec<SearchFieldResult>) -> SearchFi
                 let mut iterator = el.hits_scores.iter();
                 let current = iterator.next();
                 (iterator, current)
-            })
-            .filter(|el| el.1.is_some())
+            }).filter(|el| el.1.is_some())
             .map(|el| (el.0, el.1.unwrap()))
             .collect::<Vec<_>>();
 
@@ -1130,7 +1159,7 @@ pub fn intersect_hits_score(mut and_results: Vec<SearchFieldResult>) -> SearchFi
         for hit in intersected_hits.iter() {
             for res in and_results.iter() {
                 if let Some(exp) = res.explain.get(&hit.id) {
-                    let explain = explain_hits.entry(hit.id).or_insert_with(||vec![]);
+                    let explain = explain_hits.entry(hit.id).or_insert_with(|| vec![]);
                     explain.extend_from_slice(exp);
                 }
             }
@@ -1140,7 +1169,7 @@ pub fn intersect_hits_score(mut and_results: Vec<SearchFieldResult>) -> SearchFi
     SearchFieldResult {
         term_id_hits_in_field,
         term_text_in_field,
-        explain:explain_hits,
+        explain: explain_hits,
         hits_scores: intersected_hits,
         ..Default::default()
     }
@@ -1173,13 +1202,11 @@ pub fn intersect_hits_ids(mut and_results: Vec<SearchFieldResult>) -> SearchFiel
                 let mut iterator = el.hits_ids.iter();
                 let current = iterator.next();
                 (iterator, current)
-            })
-            .filter(|el| el.1.is_some())
+            }).filter(|el| el.1.is_some())
             .map(|el| (el.0, el.1.unwrap()))
             .collect::<Vec<_>>();
 
         for current_id in &mut shortest_result {
-
             if iterators_and_current.iter_mut().all(|ref mut iter_n_current| {
                 if (iter_n_current.1) == current_id {
                     return true;
@@ -1305,8 +1332,7 @@ pub fn boost_hits_ids_vec_multi(mut results: SearchFieldResult, boost: &mut Vec<
         .map(|el| {
             let boost_val: f32 = el.request.boost.map(|el| el.into_inner()).unwrap_or(2.0);
             el.hits_ids.iter().map(move |id| Hit::new(*id, boost_val)) //TODO create version for hits_scores
-        })
-        .into_iter()
+        }).into_iter()
         .kmerge_by(|a, b| a.id < b.id);
 
     debug_time!("boost_hits_ids_vec_multi");
@@ -1375,12 +1401,10 @@ mod bench_intersect {
                     hits_scores: hits1.clone(),
                     ..Default::default()
                 },
-                &mut vec![
-                    SearchFieldResult {
-                        hits_scores: hits2.clone(),
-                        ..Default::default()
-                    },
-                ],
+                &mut vec![SearchFieldResult {
+                    hits_scores: hits2.clone(),
+                    ..Default::default()
+                }],
             )
         })
     }

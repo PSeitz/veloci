@@ -45,10 +45,22 @@ pub struct SearchFieldResult {
 pub enum Explain {
     Boost(f32),
     MaxTokenToTextId(f32),
-    TermToAnchor{term_score:f32, anchor_score:f32, final_score:f32, term_id:u32},
-    LevenshteinScore{score:f32, text_or_token_id:String, term_id:u32},
+    TermToAnchor {
+        term_score: f32,
+        anchor_score: f32,
+        final_score: f32,
+        term_id: u32,
+    },
+    LevenshteinScore {
+        score: f32,
+        text_or_token_id: String,
+        term_id: u32,
+    },
     OrSumOverDistinctTerms(f32),
-    NumDistintTermsBoost{distinct_boost:u32, new_score:u32},
+    NumDistintTermsBoost {
+        distinct_boost: u32,
+        new_score: u32,
+    },
 }
 
 impl SearchFieldResult {
@@ -242,8 +254,7 @@ fn get_text_score_id_from_result(suggest_text: bool, results: &[SearchFieldResul
                     (term.to_string(), term_n_score.score, term_n_score.id)
                 })
                 .collect::<SuggestFieldResult>()
-        })
-        .collect::<SuggestFieldResult>();
+        }).collect::<SuggestFieldResult>();
 
     //Merge same text
     if suggest_text {
@@ -265,7 +276,9 @@ fn get_text_score_id_from_result(suggest_text: bool, results: &[SearchFieldResul
 }
 pub fn suggest_multi(persistence: &Persistence, req: Request) -> Result<SuggestFieldResult, SearchError> {
     info_time!("suggest time");
-    let search_parts: Vec<RequestSearchPart> = req.suggest.ok_or_else(|| SearchError::StringError("only suggest allowed in suggest function".to_string()))?;
+    let search_parts: Vec<RequestSearchPart> = req
+        .suggest
+        .ok_or_else(|| SearchError::StringError("only suggest allowed in suggest function".to_string()))?;
 
     // let top = req.top;
     // let skip = req.skip;
@@ -284,8 +297,7 @@ pub fn suggest_multi(persistence: &Persistence, req: Request) -> Result<SuggestF
                 ..Default::default()
             };
             get_term_ids_in_field(persistence, &mut search_part)
-        })
-        .collect();
+        }).collect();
     info_time!("suggest text_id result to vec/sort");
     Ok(get_text_score_id_from_result(true, &search_results?, req.skip, req.top))
 }
@@ -452,14 +464,21 @@ pub fn get_term_ids_in_field(persistence: &Persistence, options: &mut PlanReques
                 result.hits_scores.push(Hit::new(token_text_id, score));
                 if options.request.explain {
                     // result.explain.insert(token_text_id, vec![format!("levenshtein score {:?} for {}", score, text_or_token)]);
-                    result.explain.insert(token_text_id, vec![Explain::LevenshteinScore{score:score, term_id:token_text_id, text_or_token_id: text_or_token.clone()}]);
+                    result.explain.insert(
+                        token_text_id,
+                        vec![Explain::LevenshteinScore {
+                            score: score,
+                            term_id: token_text_id,
+                            text_or_token_id: text_or_token.clone(),
+                        }],
+                    );
                 }
             }
 
             if options.return_term || options.store_term_texts {
                 if options.return_term_lowercase {
                     result.terms.insert(token_text_id, text_or_token.to_lowercase());
-                }else{
+                } else {
                     result.terms.insert(token_text_id, text_or_token);
                 }
             }
@@ -537,9 +556,14 @@ pub fn resolve_token_to_anchor(
                 }
                 let final_score = hit.score * (el.score.to_f32() / 100.0);
                 if options.explain {
-                    let vecco = res.explain.entry(el.id).or_insert_with(||vec![]);
+                    let vecco = res.explain.entry(el.id).or_insert_with(|| vec![]);
                     // vecco.push(format!("term score {:?} * anchor score {:?} to {:?}", hit.score, el.score.to_f32() / 100.0, final_score));
-                    vecco.push(Explain::TermToAnchor{term_id:hit.id, term_score:hit.score, anchor_score:el.score.to_f32() / 100.0, final_score});
+                    vecco.push(Explain::TermToAnchor {
+                        term_id: hit.id,
+                        term_score: hit.score,
+                        anchor_score: el.score.to_f32() / 100.0,
+                        final_score,
+                    });
                     if let Some(exp) = result.explain.get(&hit.id) {
                         vecco.extend_from_slice(exp);
                     }
@@ -551,7 +575,6 @@ pub fn resolve_token_to_anchor(
         if !result.hits_scores.is_empty() {
             debug!("{} found {:?} token in {:?} anchor_ids", &options.path, result.hits_scores.len(), anchor_ids_hits.len());
         }
-
     }
 
     {
@@ -585,7 +608,6 @@ pub fn resolve_token_to_anchor(
                 }
             }
         }
-        
     }
 
     res.hits_ids = fast_field_res_ids;
@@ -637,8 +659,7 @@ pub fn get_id_text_map_for_ids(persistence: &Persistence, path: &str, ids: &[u32
             let mut bytes = vec![];
             ord_to_term(map.as_fst(), u64::from(*id), &mut bytes);
             (*id, str::from_utf8(&bytes).unwrap().to_string())
-        })
-        .collect()
+        }).collect()
 }
 
 // #[cfg_attr(feature="flame_it", flame)]

@@ -146,8 +146,7 @@ pub fn highlight_document(persistence: &Persistence, path: &str, value_id: u64, 
                     snippet_part_acc + &id_to_text[token_id]
                 }
             })
-        })
-        .take(opt.max_snippets as usize)
+        }).take(opt.max_snippets as usize)
         .intersperse(opt.snippet_connector.to_string())
         .fold(String::with_capacity(estimated_snippet_size as usize), |snippet, snippet_part| snippet + &snippet_part);
 

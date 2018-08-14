@@ -117,8 +117,7 @@ fn main() {
                     } else {
                         4
                     }
-                })
-                .sum::<usize>();
+                }).sum::<usize>();
 
             // println!("total_comp {:?}", total_comp);
             // println!("increases {:?}", increases.len());
@@ -139,8 +138,7 @@ fn main() {
                     } else {
                         4
                     }
-                })
-                .sum::<usize>();
+                }).sum::<usize>();
             total_comp_enc_score += sum_comp_enc_score;
             total_comp_enc_score -= most_occurences;
 
@@ -162,8 +160,7 @@ fn main() {
                         } else {
                             4
                         }
-                    })
-                    .sum::<usize>();
+                    }).sum::<usize>();
                 total_comp_enc_score_three -= occurences;
             } else {
                 //not enough values, take single encoded

@@ -308,8 +308,8 @@ fn test_json_request() {
     assert_eq!(requesto.search.unwrap().levenshtein_distance, Some(1));
 }
 
-fn to_vec(data: &[&'static str]) -> Vec<String>{
-    data.iter().map(|el|el.to_string()).collect()
+fn to_vec(data: &[&'static str]) -> Vec<String> {
+    data.iter().map(|el| el.to_string()).collect()
 }
 
 describe! search_test {

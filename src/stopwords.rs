@@ -1,4 +1,3 @@
-
 use fnv::FnvHashMap;
 use fnv::FnvHashSet;
 
@@ -14,11 +13,11 @@ lazy_static! {
     };
 }
 
-fn hashset_from_stop_word_list(text:&str) -> FnvHashSet<String> {
-    text.lines().map(|el|el.to_lowercase()).collect()
+fn hashset_from_stop_word_list(text: &str) -> FnvHashSet<String> {
+    text.lines().map(|el| el.to_lowercase()).collect()
 }
 
-pub fn is_stopword(language: &str, text:&str) -> bool {
+pub fn is_stopword(language: &str, text: &str) -> bool {
     STOPWORDS.get(language).unwrap().contains(text)
 }
 

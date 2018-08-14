@@ -69,7 +69,8 @@ pub struct TokenValuesConfig {
 pub struct FulltextIndexOptions {
     pub tokenize: bool,
     pub stopwords: Option<FnvHashSet<String>>,
-    #[serde(default = "default_text_length_store")] pub do_not_store_text_longer_than: usize,
+    #[serde(default = "default_text_length_store")]
+    pub do_not_store_text_longer_than: usize,
 }
 fn default_text_length_store() -> usize {
     32
@@ -1000,8 +1001,7 @@ fn convert_raw_path_data_to_indices(
             }
 
             Ok(indices)
-        })
-        .collect();
+        }).collect();
 
     for mut indice in indices_res? {
         indices.extend(indice);
@@ -1024,8 +1024,7 @@ fn convert_raw_path_data_to_indices(
             add_index_flush(path.add(PARENT_TO_VALUE_ID), data.parent_to_value, false, false, &mut indices, LoadingType::Disk)?;
 
             Ok(indices)
-        })
-        .collect();
+        }).collect();
 
     for mut indice in indices_res_2? {
         indices.extend(indice);
@@ -1054,24 +1053,21 @@ where
         .flat_map(|index| match *index {
             CreateIndex::FulltextInfo(ref fulltext_info) => Some((fulltext_info.fulltext.add(TEXTINDEX), (*fulltext_info).clone())),
             _ => None,
-        })
-        .collect();
+        }).collect();
 
     let boost_info_for_path: FnvHashMap<String, Boost> = indices_json
         .iter()
         .flat_map(|index| match *index {
             CreateIndex::BoostInfo(ref boost_info) => Some((boost_info.boost.add(TEXTINDEX), (*boost_info).clone())),
             _ => None,
-        })
-        .collect();
+        }).collect();
 
     let facet_index: FnvHashSet<String> = indices_json
         .iter()
         .flat_map(|index| match *index {
             CreateIndex::FacetInfo(ref el) => Some(el.facet.add(TEXTINDEX)),
             _ => None,
-        })
-        .collect();
+        }).collect();
 
     write_docs(&mut persistence, &mut create_cache, stream3)?;
     get_allterms_per_path(stream1, &fulltext_info_for_path, &mut create_cache.term_data)?;
@@ -1091,8 +1087,7 @@ where
                 store_full_text_info_and_set_ids(&persistence, &mut terms_data, &path, &options, &mut fulltext_index_metadata)?;
                 // Ok(fulltext_indices)
                 Ok((path.to_string(), fulltext_index_metadata))
-            })
-            .collect();
+            }).collect();
         persistence.meta_data.fulltext_indices = reso?;
         // for fulltext_indices in reso? {
         //     persistence.meta_data.fulltext_indices.extend(fulltext_indices);

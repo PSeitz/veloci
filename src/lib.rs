@@ -80,14 +80,14 @@ extern crate half;
 extern crate lazy_static;
 
 extern crate chrono;
-extern crate term_hashmap;
 extern crate fixedbitset;
 extern crate lru_cache;
+extern crate term_hashmap;
 
 #[macro_use]
 pub mod util;
-pub mod stopwords;
 mod profiler;
+pub mod stopwords;
 #[macro_use]
 pub mod type_info;
 pub mod create;
