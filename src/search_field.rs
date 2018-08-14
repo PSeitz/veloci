@@ -548,13 +548,16 @@ pub fn resolve_token_to_anchor(
             }
         }
 
-        debug!("{} found {:?} token in {:?} anchor_ids", &options.path, result.hits_scores.len(), anchor_ids_hits.len());
+        if !result.hits_scores.is_empty() {
+            debug!("{} found {:?} token in {:?} anchor_ids", &options.path, result.hits_scores.len(), anchor_ids_hits.len());
+        }
+
     }
 
     {
-        debug_time!("{} fast_field sort and dedup sum", &options.path);
+        trace_time!("{} fast_field sort and dedup sum", &options.path);
         anchor_ids_hits.sort_unstable_by_key(|a| a.id);
-        debug_time!("{} fast_field  dedup only", &options.path);
+        trace_time!("{} fast_field  dedup only", &options.path);
         anchor_ids_hits.dedup_by(|a, b| {
             if a.id == b.id {
                 if a.score > b.score {
@@ -570,15 +573,19 @@ pub fn resolve_token_to_anchor(
     // IDS ONLY - scores müssen draußen bleiben - This is used for boosting
     let mut fast_field_res_ids = vec![];
     {
-        for id in &result.hits_ids {
-            debug_time!("{} added anchor ids for id {:?}", &options.path, id);
-            let mut iter = token_to_anchor_score.get_score_iter(*id);
-            fast_field_res_ids.reserve(iter.size_hint().1.unwrap() / 2);
-            for el in iter {
-                //TODO ENABLE should_filter(&filter, el.id) ?
-                fast_field_res_ids.push(el.id);
+        if !result.hits_ids.is_empty() {
+            debug_time!("{} tokens to anchor_id", &options.path);
+            for id in &result.hits_ids {
+                // debug_time!("{} added anchor ids for id {:?}", &options.path, id);
+                let mut iter = token_to_anchor_score.get_score_iter(*id);
+                fast_field_res_ids.reserve(iter.size_hint().1.unwrap() / 2);
+                for el in iter {
+                    //TODO ENABLE should_filter(&filter, el.id) ?
+                    fast_field_res_ids.push(el.id);
+                }
             }
         }
+        
     }
 
     res.hits_ids = fast_field_res_ids;

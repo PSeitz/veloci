@@ -17,6 +17,11 @@ use crossbeam_channel;
 use crossbeam_channel::unbounded;
 use search_field::*;
 
+type PlanDataSender = crossbeam_channel::Sender<SearchFieldResult>;
+type PlanDataReceiver = crossbeam_channel::Receiver<SearchFieldResult>;
+type FieldRequestCache = FnvHashMap<RequestSearchPart, (usize, PlanStepFieldSearchToTokenIds)>;
+type PlanStepReceiverAndId = (PlanDataReceiver, usize);
+
 #[derive(Serialize, Deserialize, Default, Clone, Debug, PartialEq)]
 pub struct PlanRequestSearchPart {
     pub request: RequestSearchPart,
@@ -51,7 +56,6 @@ pub struct Dependency {
     depends_on: usize,
 }
 
-type PlanStepReceiverAndId = (PlanDataReceiver, usize);
 #[derive(Debug)]
 pub struct Plan {
     pub steps: Vec<Box<PlanStepTrait>>,
@@ -119,9 +123,6 @@ impl Plan {
         ordered_steps
     }
 }
-
-type PlanDataSender = crossbeam_channel::Sender<SearchFieldResult>;
-type PlanDataReceiver = crossbeam_channel::Receiver<SearchFieldResult>;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct PlanStepDataChannels {
@@ -422,8 +423,6 @@ fn get_all_field_request_parts_and_propagate_settings<'a>(header_request: Reques
         map.insert(search);
     }
 }
-
-type FieldRequestCache = FnvHashMap<RequestSearchPart, (usize, PlanStepFieldSearchToTokenIds)>;
 
 fn collect_all_field_request_into_cache(
     request: &mut Request,
