@@ -4,7 +4,7 @@
 #![feature(step_trait)]
 #![feature(specialization)]
 #![feature(test)]
-#![feature(box_syntax, box_patterns)]
+// #![feature(box_syntax, box_patterns)]
 #![cfg_attr(feature = "unstable", feature(alloc, heap_api, repr_simd))]
 #![cfg_attr(feature = "flame_it", feature(plugin, custom_attribute))]
 #![cfg_attr(feature = "flame_it", plugin(flamer))]

@@ -1,4 +1,4 @@
-#![feature(plugin, decl_macro, custom_derive)]
+#![feature(decl_macro, custom_derive)]
 #![plugin(rocket_codegen)]
 #![feature(plugin, custom_attribute)]
 #![feature(type_ascription)]
@@ -121,6 +121,7 @@ struct QueryParams {
     phrase_pairs: Option<String>,
     explain: Option<String>,
     text_locality: Option<String>,
+    filter:Option<String>,
 }
 
 // struct MyParam {
@@ -262,6 +263,21 @@ fn search_get(database: String, params: Result<QueryParams, rocket::Error>) -> R
         })
         .unwrap_or(HashMap::default());
 
+    let filter_queries = query_param_to_vec(params.filter).map(|mkay| {
+            mkay.into_iter()
+                .map(|el| {
+                    let field_n_term = el.split(":").collect::<Vec<&str>>();
+                    let field = field_n_term[0].to_string();
+                    let term = field_n_term[1].to_string();
+                    search::RequestSearchPart{
+                        path:field,
+                        terms: vec![term],
+                        ..Default::default()
+                    }
+                })
+                .collect::<Vec<_>>()
+        });
+
     let boost_terms: HashMap<String, f32> = query_param_to_vec(params.boost_terms)
         .map(|mkay| {
             mkay.into_iter()
@@ -291,6 +307,7 @@ fn search_get(database: String, params: Result<QueryParams, rocket::Error>) -> R
         boost_terms: boost_terms,
         explain: params.explain.map(|el| el.to_lowercase() == "true"),
         boost_queries: None,
+        filter:filter_queries,
     };
 
     if let Some(el) = params.boost_queries {
@@ -325,6 +342,21 @@ fn search_get_shard(database: String, params: QueryParams) -> Result<SearchResul
         })
         .unwrap_or(HashMap::default());
 
+    let filter_queries = query_param_to_vec(params.filter).map(|mkay| {
+            mkay.into_iter()
+                .map(|el| {
+                    let field_n_term = el.split(":").collect::<Vec<&str>>();
+                    let field = field_n_term[0].to_string();
+                    let term = field_n_term[1].to_string();
+                    search::RequestSearchPart{
+                        path:field,
+                        terms: vec![term],
+                        ..Default::default()
+                    }
+                })
+                .collect::<Vec<_>>()
+        });
+
     let boost_terms: HashMap<String, f32> = query_param_to_vec(params.boost_terms)
         .map(|mkay| {
             mkay.into_iter()
@@ -354,6 +386,7 @@ fn search_get_shard(database: String, params: QueryParams) -> Result<SearchResul
         boost_terms: boost_terms,
         explain: params.explain.map(|el| el.to_lowercase() == "true"),
         boost_queries: None,
+        filter: filter_queries,
     };
 
     //TODO enable

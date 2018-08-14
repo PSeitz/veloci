@@ -719,7 +719,56 @@ describe! search_test {
         });
 
         let hits = search_testo_to_doc(req).data;
+        assert_eq!(hits[0].doc["ent_seq"], "1587690");
         assert_eq!(hits.len(), 2);
+    }
+
+    it "OR_connect_hits_with_filter"{
+        let req = json!({
+            "or":[
+                {"search": {
+                    "terms":["majestät"],
+                    "path": "meanings.ger[]"
+                }},
+                {"search": {
+                    "terms":["urge"],
+                    "path": "meanings.eng[]"
+                }}
+            ],
+            "filter":{
+                "search": {
+                    "terms":["1587690"],
+                    "path": "ent_seq"
+                }
+            }
+        });
+
+        let hits = search_testo_to_doc(req).data;
+        assert_eq!(hits.len(), 1);
+    }
+
+    it "OR_connect_hits_with_filter_reuse_query"{
+        let req = json!({
+            "or":[
+                {"search": {
+                    "terms":["majestät"],
+                    "path": "meanings.ger[]"
+                }},
+                {"search": {
+                    "terms":["urge"],
+                    "path": "meanings.eng[]"
+                }}
+            ],
+            "filter":{
+                "search": {
+                    "terms":["urge"],
+                    "path": "meanings.eng[]"
+                }
+            }
+        });
+
+        let hits = search_testo_to_doc(req).data;
+        assert_eq!(hits.len(), 1);
     }
 
     it "should find 2 values from token"{

@@ -359,8 +359,10 @@ impl PlanStepTrait for IntersectScoresWithIds {
     }
 
     fn execute_step(self: Box<Self>, _persistence: &Persistence) -> Result<(), SearchError> {
+        info_time!("IntersectScoresWithIds");
         let scores_res = self.channels.input_prev_steps[0].recv()?;
         let ids_res = self.channels.input_prev_steps[1].recv()?;
+
         let res = intersect_score_hits_with_ids(scores_res, ids_res);
         send_result_to_channel(res, &self.channels)?;
         drop(self.channels.output_sending_to_next_steps);
@@ -376,11 +378,6 @@ fn get_data(input_prev_steps: &[PlanDataReceiver]) -> Result<Vec<SearchFieldResu
     }
     Ok(dat)
 }
-// fn drop_inputs(inputs: &Vec<PlanDataReceiver>) {
-//     for el in channels.input_prev_steps {
-//         drop(el);
-//     }
-// }
 
 fn drop_channel(channels: PlanStepDataChannels) {
     drop(channels.output_sending_to_next_steps);
@@ -490,7 +487,7 @@ pub fn plan_creator(mut request: Request, plan: &mut Plan) -> PlanDataReceiver {
         let step = IntersectScoresWithIds{
             channels: PlanStepDataChannels {
                 num_receivers: 1,
-                input_prev_steps: vec![filter_data_output.0, final_output.0],
+                input_prev_steps: vec![final_output.0, filter_data_output.0],
                 output_sending_to_next_steps: tx,
                 plans_output_receiver_for_next_step: rx.clone(),
             }
@@ -508,7 +505,7 @@ pub fn plan_creator(mut request: Request, plan: &mut Plan) -> PlanDataReceiver {
             plan);
     }
 
-    //update the field search steps
+    //update the field search steps in the plan from the field_search_cache
     for (_k, v) in field_search_cache.drain() {
         plan.steps[v.0] = Box::new(v.1);
     }

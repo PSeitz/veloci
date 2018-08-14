@@ -83,6 +83,7 @@ pub struct SearchQueryGeneratorParameters {
     pub boost_terms: HashMap<String, f32>,
     pub phrase_pairs: Option<bool>,
     pub explain: Option<bool>,
+    pub filter: Option<Vec<RequestSearchPart>>,
 }
 
 fn get_levenshteinn(term: &str, levenshtein: Option<usize>, levenshtein_auto_limit: Option<usize>) -> u32 {
@@ -135,7 +136,7 @@ pub fn search_query(persistence: &Persistence, mut opt: SearchQueryGeneratorPara
         .iter()
         .flat_map(|(boost_term, boost_value): (&String, &f32)| {
             let mut boost_term = boost_term.to_string();
-            let filter: Option<Vec<String>> = if boost_term.contains(':') {
+            let field_filter: Option<Vec<String>> = if boost_term.contains(':') {
                 let mut parts: Vec<String> = boost_term.split(':').map(|el| el.to_string()).collect();
                 boost_term = parts.remove(1);
                 Some(parts)
@@ -143,7 +144,7 @@ pub fn search_query(persistence: &Persistence, mut opt: SearchQueryGeneratorPara
                 None
             };
 
-            get_all_field_names(&persistence, &filter)
+            get_all_field_names(&persistence, &field_filter)
                 .iter()
                 .map(|field_name| RequestSearchPart {
                     path: field_name.to_string(),
@@ -254,6 +255,11 @@ pub fn search_query(persistence: &Persistence, mut opt: SearchQueryGeneratorPara
             opt.levenshtein_auto_limit,
             opt.boost_fields.clone(),
         ));
+    }
+
+    if let Some(filters) = opt.filter.as_ref() {
+        let requests:Vec<_> = filters.iter().map(|part|Request{search:Some(part.clone()), ..Default::default()}).collect();
+        request.filter = Some(Box::new(Request{or: Some(requests), ..Default::default()}));
     }
 
     request.top = opt.top;
