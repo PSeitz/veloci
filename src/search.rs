@@ -82,7 +82,7 @@ pub struct Request {
     #[serde(skip_serializing_if = "Option::is_none")] pub phrase_boosts: Option<Vec<RequestPhraseBoost>>,
     #[serde(skip_serializing_if = "Option::is_none")] pub select: Option<Vec<String>>,
     /// filter does not affect the score, it just filters the result
-    #[serde(skip_serializing_if = "Option::is_none")] pub filter: Option<Vec<Request>>,
+    #[serde(skip_serializing_if = "Option::is_none")] pub filter: Option<Box<Request>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(default = "default_top")]
     pub top: Option<usize>,
@@ -934,6 +934,57 @@ pub fn union_hits_score(mut or_results: Vec<SearchFieldResult>) -> SearchFieldRe
 
 }
 
+#[cfg_attr(feature = "flame_it", flame)]
+pub fn union_hits_ids(mut or_results: Vec<SearchFieldResult>) -> SearchFieldResult {
+    if or_results.len() == 0 {
+        return SearchFieldResult { ..Default::default() };
+    }
+    if or_results.len() == 1 {
+        let res = or_results.swap_remove(0);
+        return res;
+    }
+
+    let index_longest: usize = get_longest_result(&or_results.iter().map(|el| el.hits_ids.iter()).collect::<Vec<_>>());
+
+    let longest_len = or_results[index_longest].hits_ids.len() as f32;
+    let len_total: usize = or_results.iter().map(|el| el.hits_ids.len()).sum();
+    let sum_other_len = len_total as f32 - longest_len;
+
+    {
+        debug_time!("filter union hits sort input");
+        for res in &mut or_results {
+            res.hits_ids.sort_unstable();
+        }
+    }
+
+    let mut union_hits = Vec::with_capacity(longest_len as usize + sum_other_len as usize / 2);
+    {
+        let mergo = or_results.iter().map(|res|res.hits_ids.iter()).into_iter().kmerge();
+        debug_time!("filter union hits kmerge");
+        for (mut id, mut _group) in &mergo.into_iter().group_by(|el| *el) {
+            union_hits.push(*id);
+        }
+    }
+
+    SearchFieldResult {
+        hits_ids: union_hits,
+        request: or_results[0].request.clone(), // set this to transport fields like explain
+        ..Default::default()
+    }
+
+}
+
+
+#[test]
+fn union_hits_vec_test() {
+    let hits1 = vec![10, 0, 5]; // unsorted
+    let hits2 = vec![0, 3, 10, 20];
+
+    let res = union_hits_ids(vec![SearchFieldResult{hits_ids:hits1, ..Default::default()}, SearchFieldResult{hits_ids:hits2, ..Default::default()}]);
+    assert_eq!(res.hits_ids, vec![0, 3, 5, 10, 20]);
+
+}
+
 #[derive(Debug, Clone)]
 pub struct MiniHit {
     pub id: u32,
@@ -974,6 +1025,41 @@ pub struct MiniHit {
 //         vec![Hit::new(0, 80.0), Hit::new(3, 20.0), Hit::new(5, 20.0), Hit::new(10, 120.0), Hit::new(20, 30.0)] //max_score
 //     );
 // }
+use std::u32;
+
+#[cfg_attr(feature = "flame_it", flame)]
+pub fn intersect_score_hits_with_ids(mut score_results: SearchFieldResult, mut id_hits: SearchFieldResult) -> SearchFieldResult {
+    score_results.hits_scores.sort_unstable_by_key(|el| el.id);
+    id_hits.hits_ids.sort_unstable();
+
+    let mut id_iter = id_hits.hits_ids.iter();
+    if let Some(first) = id_iter.next() {
+        let mut current:u32 = *first;
+        score_results.hits_scores.retain(|ref hit| {
+            while current < hit.id {
+                current = *id_iter.next().unwrap_or_else(|| &u32::MAX);
+            }
+            hit.id == current
+        });
+
+    }
+    score_results
+
+}
+
+#[test]
+fn test_intersect_score_hits_with_ids() {
+    let hits1 = vec![Hit::new(10, 20.0), Hit::new(0, 20.0), Hit::new(5, 20.0)]; // unsorted
+    let hits2 = vec![0, 10];
+
+
+    let res = intersect_score_hits_with_ids(
+        SearchFieldResult {hits_scores: hits1, ..Default::default() },
+        SearchFieldResult {hits_ids: hits2, ..Default::default() }
+    );
+
+    assert_eq!(res.hits_scores, vec![Hit::new(0, 20.0), Hit::new(10, 20.0)]);
+}
 
 #[cfg_attr(feature = "flame_it", flame)]
 pub fn intersect_hits_score(mut and_results: Vec<SearchFieldResult>) -> SearchFieldResult {
@@ -1060,8 +1146,90 @@ pub fn intersect_hits_score(mut and_results: Vec<SearchFieldResult>) -> SearchFi
     }
 }
 
+#[cfg_attr(feature = "flame_it", flame)]
+pub fn intersect_hits_ids(mut and_results: Vec<SearchFieldResult>) -> SearchFieldResult {
+    if and_results.len() == 0 {
+        return SearchFieldResult { ..Default::default() };
+    }
+    if and_results.len() == 1 {
+        let res = and_results.swap_remove(0);
+        return res;
+    }
+
+    let index_shortest = get_shortest_result(&and_results.iter().map(|el| el.hits_ids.iter()).collect::<Vec<_>>());
+
+    for res in &mut and_results {
+        res.hits_ids.sort_unstable(); //TODO ALSO DEDUP???
+    }
+    let mut shortest_result = and_results.swap_remove(index_shortest).hits_ids;
+
+    // let mut iterators = &and_results.iter().map(|el| el.hits_ids.iter()).collect::<Vec<_>>();
+
+    let mut intersected_hits = Vec::with_capacity(shortest_result.len());
+    {
+        let mut iterators_and_current = and_results
+            .iter_mut()
+            .map(|el| {
+                let mut iterator = el.hits_ids.iter();
+                let current = iterator.next();
+                (iterator, current)
+            })
+            .filter(|el| el.1.is_some())
+            .map(|el| (el.0, el.1.unwrap()))
+            .collect::<Vec<_>>();
+
+        for current_id in &mut shortest_result {
+
+            if iterators_and_current.iter_mut().all(|ref mut iter_n_current| {
+                if (iter_n_current.1) == current_id {
+                    return true;
+                }
+                let iter = &mut iter_n_current.0;
+                while let Some(id) = iter.next() {
+                    iter_n_current.1 = id;
+                    if id > current_id {
+                        return false;
+                    }
+                    if id == current_id {
+                        return true;
+                    }
+                }
+                false
+            }) {
+                intersected_hits.push(*current_id);
+            }
+        }
+    }
+    // all_results
+    SearchFieldResult {
+        hits_ids: intersected_hits,
+        ..Default::default()
+    }
+}
+
 #[test]
-fn intersect_hits_vec_test() {
+fn intersect_hits_ids_test() {
+    let hits1 = vec![10, 0, 5]; // unsorted
+    let hits2 = vec![0, 3, 10, 20];
+
+    let yop = vec![
+        SearchFieldResult {
+            hits_ids: hits1,
+            ..Default::default()
+        },
+        SearchFieldResult {
+            hits_ids: hits2,
+            ..Default::default()
+        },
+    ];
+
+    let res = intersect_hits_ids(yop);
+
+    assert_eq!(res.hits_ids, vec![0, 10]);
+}
+
+#[test]
+fn intersect_hits_scores_test() {
     let hits1 = vec![Hit::new(10, 20.0), Hit::new(0, 20.0), Hit::new(5, 20.0)]; // unsorted
     let hits2 = vec![Hit::new(0, 20.0), Hit::new(3, 20.0), Hit::new(10, 30.0), Hit::new(20, 30.0)];
 
