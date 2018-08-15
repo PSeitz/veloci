@@ -17,59 +17,55 @@ name = "bench_persistence"
 path = "benches/bench_persistence.rs"
 
 [dependencies]
-# bincode = "1.0.0"
-byteorder = "1.2.1"
+byteorder = "1.2.4"
 chashmap = "2.2.0"
-chrono = "0.4"
-colored = "1.4"
+chrono = "0.4.5"
+colored = "1.6.1"
 cpuprofiler = "0.0.3"
-crossbeam = "0.3.2"
-crossbeam-channel = "0.1.2"
-crossbeam-utils = "0.2.1"
-dump = "0.1"
-env_logger = "0.3"
+crossbeam = "0.4.1"
+crossbeam-channel = "0.2.4"
+crossbeam-utils = "0.5.0"
+dump = "0.1.1"
+env_logger = "0.5.12"
 fixedbitset = "0.1.9"
-flate2 = "1.0"
+flate2 = "1.0.2"
 flexi_logger = "0.6"
-fnv = "1.0.3"
-fst = "0.3"
-heapsize = "0.4.1"
+fnv = "1.0.6"
+fst = "0.3.0"
+heapsize = "0.4.2"
 heapsize_derive = "0.1.4"
-itertools = "0.7.3"
-lazy_static = "1.0.0"
-log = "0.4"
+itertools = "0.7.8"
+lazy_static = "1.1.0"
+log = "0.4.3"
 lru-cache = "0.1.1"
 lru_time_cache = "0.8.0"
 measure_time = "0.6.0"
 memmap = "0.6.2"
-num = "0.1"
-prettytable-rs = "^0.6"
+num = "0.2.0"
+prettytable-rs = "0.7.0"
 rayon = "1.0.2"
-regex = "0.2"
-serde = "1.0.1"
-serde_derive = "1.0.1"
-serde_json = "1.0.0"
-
-# [dependencies.btree]
-# git = "https://github.com/wspeirs/btree"
+regex = "1.0.2"
+serde = "1.0.71"
+serde_derive = "1.0.71"
+serde_json = "1.0.26"
 
 [dependencies.buffered_index_writer]
 path = "buffered_index_writer"
 
-[dependencies.json_converter]
-path = "json_converter"
-
 [dependencies.flame]
 optional = true
-version = "0.2.0"
+version = "0.2.2"
 
 [dependencies.flamer]
 optional = true
-version = "0.2.0"
+version = "0.2.5"
 
 [dependencies.half]
 features = ["use-intrinsics", "serialize", "std"]
-version = "1.1.0"
+version = "1.1.2"
+
+[dependencies.json_converter]
+path = "json_converter"
 
 [dependencies.levenshtein_automata]
 features = ["fst_automaton"]
@@ -81,24 +77,20 @@ version = "0.5.0"
 
 [dependencies.parking_lot]
 features = ["nightly"]
-version = "0.5"
+version = "0.6.3"
 
 [dependencies.term_hashmap]
 git = "https://github.com/PSeitz/rust_string_hashmap"
-
-# [dependencies.uuid]
-# features = ["v4"]
-# version = "0.6"
 
 [dependencies.vint]
 git = "https://github.com/PSeitz/rust_vint"
 
 [dev-dependencies]
-criterion = "0.2.3"
-env_logger = "0.3"
-pretty_assertions = "0.1.2"
-rand = "0.4"
-tempfile = "3"
+criterion = "0.2.4"
+env_logger = "0.5.12"
+pretty_assertions = "0.5.1"
+rand = "0.5.5"
+tempfile = "3.0.3"
 
 [dev-dependencies.stainless]
 git = "https://github.com/PSeitz/stainless"
@@ -111,7 +103,6 @@ flame_it = ["flame", "flamer"]
 [lib]
 name = "search_lib"
 path = "src/lib.rs"
-
 [profile.release]
 codegen-units = 1
 debug = true

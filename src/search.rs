@@ -609,7 +609,7 @@ pub fn search(mut request: Request, persistence: &Persistence) -> Result<SearchR
             execute_steps(stepso, &persistence)?;
         }
         // plan_result.0.execute_step(persistence)?;
-        let mut res = plan_result.recv()?;
+        let mut res = plan_result.recv().unwrap();
         drop(plan_result);
         res
     };
@@ -1470,7 +1470,7 @@ pub fn add_boost(persistence: &Persistence, boost: &RequestBoostPart, hits: &mut
                     );
                 }
                 Some(BoostFunction::Linear) => {
-                    *score *= (boost_value as f32 + boost_param);
+                    *score *= boost_value as f32 + boost_param;
                 }
                 Some(BoostFunction::Add) => {
                     trace!(
@@ -1509,9 +1509,6 @@ pub enum SearchError {
     Utf8Error(std::str::Utf8Error),
     FstError(fst::Error),
     // FstLevenShtein(fst_levenshtein::Error),
-    CrossBeamError(crossbeam_channel::SendError<std::collections::HashMap<u32, f32, std::hash::BuildHasherDefault<fnv::FnvHasher>>>),
-    CrossBeamError2(Box<crossbeam_channel::SendError<SearchFieldResult>>),
-    CrossBeamErrorReceive(crossbeam_channel::RecvError),
     TooManyStates,
 }
 // Automatic Conversion
@@ -1540,21 +1537,6 @@ impl From<fst::Error> for SearchError {
 //         SearchError::FstLevenShtein(err)
 //     }
 // }
-impl From<crossbeam_channel::SendError<std::collections::HashMap<u32, f32, std::hash::BuildHasherDefault<fnv::FnvHasher>>>> for SearchError {
-    fn from(err: crossbeam_channel::SendError<std::collections::HashMap<u32, f32, std::hash::BuildHasherDefault<fnv::FnvHasher>>>) -> SearchError {
-        SearchError::CrossBeamError(err)
-    }
-}
-impl From<crossbeam_channel::SendError<SearchFieldResult>> for SearchError {
-    fn from(err: crossbeam_channel::SendError<SearchFieldResult>) -> SearchError {
-        SearchError::CrossBeamError2(Box::new(err))
-    }
-}
-impl From<crossbeam_channel::RecvError> for SearchError {
-    fn from(err: crossbeam_channel::RecvError) -> SearchError {
-        SearchError::CrossBeamErrorReceive(err)
-    }
-}
 
 impl From<String> for SearchError {
     fn from(err: String) -> SearchError {

@@ -208,7 +208,7 @@ impl PlanStepTrait for ResolveTokenIdToAnchor {
     }
 
     fn execute_step(self: Box<Self>, persistence: &Persistence) -> Result<(), SearchError> {
-        let field_result = resolve_token_to_anchor(persistence, &self.request, None, &self.channels.input_prev_steps[0].recv()?)?;
+        let field_result = resolve_token_to_anchor(persistence, &self.request, None, &self.channels.input_prev_steps[0].recv().unwrap())?;
         send_result_to_channel(field_result, &self.channels)?;
         drop_channel(self.channels);
         Ok(())
@@ -220,7 +220,7 @@ impl PlanStepTrait for ResolveTokenIdToTextId {
     }
 
     fn execute_step(self: Box<Self>, persistence: &Persistence) -> Result<(), SearchError> {
-        let mut field_result = self.channels.input_prev_steps[0].recv()?;
+        let mut field_result = self.channels.input_prev_steps[0].recv().unwrap();
         resolve_token_hits_to_text_id(persistence, &self.request, None, &mut field_result)?;
         send_result_to_channel(field_result, &self.channels)?;
         drop_channel(self.channels);
@@ -235,7 +235,7 @@ impl PlanStepTrait for ValueIdToParent {
 
     fn execute_step(self: Box<Self>, persistence: &Persistence) -> Result<(), SearchError> {
         send_result_to_channel(
-            join_to_parent_with_score(persistence, &self.channels.input_prev_steps[0].recv()?, &self.path, &self.trace_info)?,
+            join_to_parent_with_score(persistence, &self.channels.input_prev_steps[0].recv().unwrap(), &self.path, &self.trace_info)?,
             &self.channels,
         )?;
         drop_channel(self.channels);
@@ -249,7 +249,7 @@ impl PlanStepTrait for BoostPlanStepFromBoostRequest {
     }
 
     fn execute_step(self: Box<Self>, persistence: &Persistence) -> Result<(), SearchError> {
-        let mut input = self.channels.input_prev_steps[0].recv()?;
+        let mut input = self.channels.input_prev_steps[0].recv().unwrap();
         add_boost(persistence, &self.req, &mut input)?;
         send_result_to_channel(input, &self.channels)?;
         drop_channel(self.channels);
@@ -290,7 +290,7 @@ impl PlanStepTrait for BoostAnchorFromPhraseResults {
     }
 
     fn execute_step(self: Box<Self>, _persistence: &Persistence) -> Result<(), SearchError> {
-        let input = self.channels.input_prev_steps[0].recv()?;
+        let input = self.channels.input_prev_steps[0].recv().unwrap();
         let boosts = get_data(&self.channels.input_prev_steps[1..])?;
         let mut boosts = sort_and_group_boosts_by_phrase_terms(boosts);
         //Set boost for phrases for the next step
@@ -309,8 +309,8 @@ impl PlanStepTrait for PlanStepPhrasePairToAnchorId {
     }
 
     fn execute_step(self: Box<Self>, persistence: &Persistence) -> Result<(), SearchError> {
-        let res1 = self.channels.input_prev_steps[0].recv()?;
-        let res2 = self.channels.input_prev_steps[1].recv()?;
+        let res1 = self.channels.input_prev_steps[0].recv().unwrap();
+        let res2 = self.channels.input_prev_steps[1].recv().unwrap();
         assert!(self.req.search1.path == self.req.search2.path);
         let mut res = get_anchor_for_phrases_in_search_results(persistence, &self.req.search1.path, res1, res2)?;
         res.phrase_boost = Some(self.req.clone());
@@ -361,8 +361,8 @@ impl PlanStepTrait for IntersectScoresWithIds {
 
     fn execute_step(self: Box<Self>, _persistence: &Persistence) -> Result<(), SearchError> {
         info_time!("IntersectScoresWithIds");
-        let scores_res = self.channels.input_prev_steps[0].recv()?;
-        let ids_res = self.channels.input_prev_steps[1].recv()?;
+        let scores_res = self.channels.input_prev_steps[0].recv().unwrap();
+        let ids_res = self.channels.input_prev_steps[1].recv().unwrap();
 
         let res = intersect_score_hits_with_ids(scores_res, ids_res);
         send_result_to_channel(res, &self.channels)?;
@@ -374,7 +374,7 @@ impl PlanStepTrait for IntersectScoresWithIds {
 fn get_data(input_prev_steps: &[PlanDataReceiver]) -> Result<Vec<SearchFieldResult>, SearchError> {
     let mut dat = vec![];
     for el in input_prev_steps {
-        dat.push(el.recv()?);
+        dat.push(el.recv().unwrap());
         drop(el);
     }
     Ok(dat)
@@ -394,7 +394,7 @@ fn send_result_to_channel(field_result: SearchFieldResult, channels: &PlanStepDa
         data.push(clone);
     }
     for el in data {
-        channels.output_sending_to_next_steps.send(el)?;
+        channels.output_sending_to_next_steps.send(el);
     }
     Ok(())
 }
