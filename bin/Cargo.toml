@@ -9,37 +9,35 @@ path = "rocket_server.rs"
 
 [dependencies]
 chashmap = "2.2.0"
-flate2 = "1.0"
-fnv = "1.0.3"
-lazy_static = "1.0.0"
-log = "0.4"
-measure_time = "0.5"
-# multipart = "0.14.2"
-rocket = "0.3"
-rocket_codegen = "0.3"
-rocket_contrib = "0.3"
+flate2 = "1.0.2"
+fnv = "1.0.6"
+lazy_static = "1.1.0"
+log = "0.4.3"
+measure_time = "0.6.0"
+rocket = "0.3.15"
+rocket_codegen = "0.3.15"
+rocket_contrib = "0.3.15"
 rocket_cors = "0.3.0"
-serde = "1.0.1"
-serde_derive = "1.0.1"
-serde_json = "1.0.0"
+serde = "1.0.71"
+serde_derive = "1.0.71"
+serde_json = "1.0.26"
 
 [dependencies.multipart]
 features = ["rocket", "rocket_codegen"]
-version = "0.14.2"
+version = "0.15.2"
 
 [dependencies.native_search]
 path = "../"
 
 [dependencies.uuid]
 features = ["v4"]
-version = "0.6"
+version = "0.6.5"
 
 [dev-dependencies]
-criterion = "0.2.3"
-pretty_assertions = "0.1.2"
-rand = "0.4"
-tempfile = "3"
-
+criterion = "0.2.4"
+pretty_assertions = "0.5.1"
+rand = "0.5.5"
+tempfile = "3.0.3"
 [profile.release]
 codegen-units = 1
 debug = true

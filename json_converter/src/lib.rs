@@ -1,10 +1,5 @@
-#![feature(plugin, custom_attribute)]
-#![feature(test)]
-#![feature(entry_and_modify)]
-#[macro_use]
 extern crate serde_json;
 extern crate fnv;
-// extern crate rayon;
 // extern crate test;
 
 use fnv::FnvHashMap;
@@ -13,7 +8,7 @@ use std::borrow::Cow;
 use std::str;
 // use rayon::prelude::*;
 
-pub mod bench;
+// pub mod bench;
 
 #[inline]
 pub fn convert_to_string(value: &Value) -> Cow<str> {
@@ -72,7 +67,7 @@ where
         for el in arr {
             let id = id_provider.get_id(&current_path);
             cb_ids(anchor_id, &current_path, id, parent_id)?;
-            for_each_elemento(el, anchor_id, id_provider, id, current_path, "", cb_text, cb_ids);
+            for_each_elemento(el, anchor_id, id_provider, id, current_path, "", cb_text, cb_ids)?;
             unsafe {
                 current_path.as_mut_vec().truncate(prev_len);
             }
@@ -83,7 +78,7 @@ where
         current_path.push_str(current_el_name);
         let prev_len = current_path.len();
         for (key, ref value) in obj.iter() {
-            for_each_elemento(value, anchor_id, id_provider, parent_id, &mut current_path, key, cb_text, cb_ids);
+            for_each_elemento(value, anchor_id, id_provider, parent_id, &mut current_path, key, cb_text, cb_ids)?;
             unsafe {
                 current_path.as_mut_vec().truncate(prev_len);
             }
