@@ -80,7 +80,7 @@ extern crate lazy_static;
 
 extern crate chrono;
 extern crate fixedbitset;
-extern crate lru_cache;
+// extern crate lru_cache;
 extern crate term_hashmap;
 
 #[macro_use]

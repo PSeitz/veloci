@@ -2,7 +2,6 @@
 #![cfg_attr(test, plugin(stainless))]
 #![recursion_limit = "128"]
 
-extern crate env_logger;
 #[macro_use]
 extern crate lazy_static;
 extern crate search_lib;

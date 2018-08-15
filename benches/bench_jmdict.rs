@@ -41,7 +41,6 @@ fn load_persistence_disk() -> persistence::Persistence {
 
 #[cfg(test)]
 mod bench_jmdict {
-    extern crate env_logger;
     extern crate rand;
 
     // fn search_testo_to_doc(req: Value) -> Result<Vec<search::DocWithHit>, search::SearchError> {

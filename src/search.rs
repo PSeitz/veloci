@@ -19,7 +19,6 @@ use search_field::*;
 
 use json_converter;
 
-use crossbeam_channel;
 use half::f16;
 use rayon::prelude::*;
 
@@ -27,7 +26,6 @@ use highlight_field;
 use search_field;
 
 use expression::ScoreExpression;
-use fnv;
 use std::fmt;
 use std::mem;
 
@@ -598,17 +596,17 @@ pub fn search(mut request: Request, persistence: &Persistence) -> Result<SearchR
     let mut res = {
         info_time!("search terms");
         let mut plan = Plan::default();
-        let plan_result = plan_creator(request.clone(), &mut plan);
+        plan_creator(request.clone(), &mut plan);
         // info!("{:?}", plan);
         // info!("{:?}", serde_json::to_string_pretty(&plan).unwrap());
         // let yep = plan.get_output();
 
         // execute_steps(plan.steps, &persistence)?;
         // execute_step_in_parrael(steps, persistence).unwrap();
+        let plan_result = plan.plan_result.as_ref().unwrap().clone();
         for stepso in plan.get_ordered_steps() {
             execute_steps(stepso, &persistence)?;
         }
-        // plan_result.0.execute_step(persistence)?;
         let mut res = plan_result.recv().unwrap();
         drop(plan_result);
         res

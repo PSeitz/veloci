@@ -1,5 +1,5 @@
 use heapsize::HeapSizeOf;
-use lru_cache::LruCache;
+use lru_time_cache::LruCache;
 use util::*;
 
 use byteorder::{LittleEndian, ReadBytesExt};
@@ -15,7 +15,7 @@ use std::io;
 use std::io::Write;
 use std::marker::PhantomData;
 use std::u32;
-
+use std::fmt;
 use facet::*;
 
 use fnv::FnvHashMap;
@@ -168,7 +168,7 @@ impl IndexIdToMultipleParentIndirectFlushingInOrderVint {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct IndexIdToMultipleParentIndirect<T: IndexIdToParentData> {
     pub start_pos: Vec<T>,
     pub cache: LruCache<Vec<T>, u32>,
@@ -181,13 +181,19 @@ impl<T: IndexIdToParentData> HeapSizeOf for IndexIdToMultipleParentIndirect<T> {
     }
 }
 
+impl<T: IndexIdToParentData> fmt::Debug for IndexIdToMultipleParentIndirect<T> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "IndexIdToMultipleParentIndirect {{ start_pos: {:?}, data: {:?} }}", self.start_pos, self.data)
+    }
+}
+
 impl<T: IndexIdToParentData> Default for IndexIdToMultipleParentIndirect<T> {
     fn default() -> IndexIdToMultipleParentIndirect<T> {
         let mut data = vec![];
         data.resize(1, 1); // resize data by one, because 0 is reserved for the empty buckets
         IndexIdToMultipleParentIndirect {
             start_pos: vec![],
-            cache: LruCache::new(250),
+            cache: LruCache::with_capacity(250),
             data,
             metadata: IndexMetaData::new(0),
         }

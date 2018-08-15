@@ -1,4 +1,3 @@
-extern crate env_logger;
 extern crate flexi_logger;
 extern crate fst;
 extern crate half;
@@ -18,7 +17,6 @@ use search_lib::persistence;
 use fnv::FnvHashMap;
 
 fn main() {
-    // env_logger::init().unwrap();
     search_lib::trace::enable_log();
     let persistence = persistence::Persistence::load("thalia".to_string()).unwrap();
 

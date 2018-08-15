@@ -12,7 +12,7 @@ use vint::vint::VintArrayIterator;
 use num::cast::ToPrimitive;
 use num::{self, Integer};
 
-use lru_cache;
+// use lru_cache;
 use serde_json;
 
 use fnv::FnvHashMap;
@@ -488,7 +488,7 @@ impl Persistence {
                                 let store = IndexIdToMultipleParentIndirect {
                                     start_pos: indirect_u32,
                                     data: file_path_to_bytes(&indirect_data_path)?,
-                                    cache: lru_cache::LruCache::new(0),
+                                    cache: LruCache::with_capacity(0),
                                     metadata: IndexMetaData {
                                         max_value_id: el.metadata.max_value_id,
                                         avg_join_size: el.metadata.avg_join_size,

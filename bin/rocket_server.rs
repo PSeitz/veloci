@@ -8,7 +8,6 @@ extern crate rocket_contrib;
 extern crate rocket_cors;
 
 extern crate chashmap;
-// extern crate env_logger;
 extern crate fnv;
 extern crate serde;
 #[macro_use]
@@ -272,6 +271,7 @@ fn search_get(database: String, params: Result<QueryParams, rocket::Error>) -> R
                     search::RequestSearchPart{
                         path:field,
                         terms: vec![term],
+                        ignore_case: Some(false),
                         ..Default::default()
                     }
                 })

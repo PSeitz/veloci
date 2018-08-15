@@ -10,7 +10,6 @@ version = "0.1.0"
 
 [dependencies]
 # byteorder = "1.2.3"
-# env_logger = "0.5.10"
 itertools = "0.7.8"
 # log = "0.4.1"
 memmap = "0.6.2"

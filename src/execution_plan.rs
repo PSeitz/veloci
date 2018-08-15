@@ -62,6 +62,7 @@ pub struct Dependency {
 pub struct Plan {
     pub steps: Vec<Box<PlanStepTrait>>,
     dependencies: Vec<Dependency>,
+    pub plan_result: Option<PlanDataReceiver>,
 }
 
 impl Default for Plan {
@@ -69,6 +70,7 @@ impl Default for Plan {
         Plan {
             steps: vec![],
             dependencies: vec![],
+            plan_result: None,
         }
     }
 }
@@ -456,7 +458,7 @@ fn collect_all_field_request_into_cache(request: &mut Request, field_search_cach
 }
 
 #[cfg_attr(feature = "flame_it", flame)]
-pub fn plan_creator(mut request: Request, plan: &mut Plan) -> PlanDataReceiver {
+pub fn plan_creator(mut request: Request, plan: &mut Plan) {
     let request_header = request.clone();
     let mut field_search_cache = FnvHashMap::default();
     collect_all_field_request_into_cache(&mut request, &mut field_search_cache, plan, false);
@@ -496,8 +498,8 @@ pub fn plan_creator(mut request: Request, plan: &mut Plan) -> PlanDataReceiver {
     for (_k, v) in field_search_cache.drain() {
         plan.steps[v.0] = Box::new(v.1);
     }
-
-    final_output.0
+    plan.plan_result = Some(final_output.0);
+    // final_output.0
 }
 
 fn add_phrase_boost_plan_steps(

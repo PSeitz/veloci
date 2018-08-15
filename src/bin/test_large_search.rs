@@ -2,7 +2,6 @@
 #[macro_use]
 extern crate log;
 
-extern crate env_logger;
 extern crate flexi_logger;
 extern crate fst;
 // extern crate fst_levenshtein;

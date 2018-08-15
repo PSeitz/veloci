@@ -4,7 +4,6 @@ extern crate itertools;
 extern crate log;
 #[macro_use]
 extern crate measure_time;
-extern crate env_logger;
 
 extern crate buffered_index_writer;
 extern crate tempfile;
@@ -16,7 +15,6 @@ use std::io::BufWriter;
 use tempfile::tempfile;
 
 fn main() {
-    env_logger::init();
     test_vec();
     test_vec_buffwriter();
     test_vec_parrallel();

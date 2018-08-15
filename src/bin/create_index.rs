@@ -2,7 +2,6 @@
 #[macro_use]
 extern crate log;
 
-extern crate env_logger;
 extern crate flexi_logger;
 extern crate fst;
 // extern crate fst_levenshtein;
@@ -30,7 +29,6 @@ use std::str;
 use rayon::prelude::*;
 
 fn main() {
-    // env_logger::init().unwrap();
     search_lib::trace::enable_log();
     std::env::args().nth(1).expect("require command line parameter");
 
