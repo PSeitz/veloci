@@ -6,7 +6,6 @@
 extern crate lazy_static;
 extern crate search_lib;
 
-extern crate env_logger;
 #[macro_use]
 extern crate serde_json;
 
