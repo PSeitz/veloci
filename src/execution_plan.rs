@@ -132,35 +132,47 @@ impl Plan {
 #[derive(Debug, Clone, PartialEq)]
 pub struct PlanStepDataChannels {
     input_prev_steps: Vec<PlanDataReceiver>,
-    output_sending_to_next_steps: PlanDataSender,
-    // output_sending_to_next_steps_as_filter: Option<PlanDataFilterSender>,
+    sender_to_next_steps: PlanDataSender,
     filter_receiver: Option<PlanDataFilterReceiver>,
     num_receivers: u32,
-    plans_output_receiver_for_next_step: PlanDataReceiver, // used in plan_creation
+    receiver_for_next_step: PlanDataReceiver, // used in plan_creation
 }
 
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct FilterChannel {
     // input_prev_steps: Vec<PlanDataReceiver>,
-    // output_sending_to_next_steps: PlanDataSender,
+    // sender_to_next_steps: PlanDataSender,
     filter_sender: Option<PlanDataFilterSender>,
     filter_receiver: Option<PlanDataFilterReceiver>,
     num_receivers: u32,
-    // plans_output_receiver_for_next_step: PlanDataReceiver, // used in plan_creation
 }
 
 impl PlanStepDataChannels {
-    fn create_channel(
+    fn create_channel_from(
         num_receivers: u32,
-        output_sending_to_next_steps: PlanDataSender,
-        plans_output_receiver_for_next_step: PlanDataReceiver,
+        sender_to_next_steps: PlanDataSender,
+        receiver_for_next_step: PlanDataReceiver,
         input_prev_steps: Vec<PlanDataReceiver>,
     ) ->  Self {
         PlanStepDataChannels {
             num_receivers,
             input_prev_steps,
-            output_sending_to_next_steps,
-            plans_output_receiver_for_next_step,
+            sender_to_next_steps,
+            receiver_for_next_step,
+            // output_sending_to_next_steps_as_filter: None,
+            filter_receiver: None,
+        }
+    }
+    fn open_channel(
+        num_receivers: u32,
+        input_prev_steps: Vec<PlanDataReceiver>,
+    ) ->  Self {
+        let (tx, rx): (PlanDataSender, PlanDataReceiver) = unbounded();
+        PlanStepDataChannels {
+            num_receivers,
+            input_prev_steps,
+            sender_to_next_steps: tx,
+            receiver_for_next_step: rx,
             // output_sending_to_next_steps_as_filter: None,
             filter_receiver: None,
         }
@@ -368,7 +380,7 @@ impl PlanStepTrait for Union {
         };
         send_result_to_channel(res, &self.channel)?;
         // send_result_to_channel(union_hits_score(get_data(&self.channel.clone().input_prev_steps)?), &self.channel)?;
-        drop(self.channel.output_sending_to_next_steps);
+        drop(self.channel.sender_to_next_steps);
         Ok(())
     }
 }
@@ -385,7 +397,7 @@ impl PlanStepTrait for Intersect {
             intersect_hits_score(get_data(&self.channel.clone().input_prev_steps)?)
         };
         send_result_to_channel(res, &self.channel)?;
-        drop(self.channel.output_sending_to_next_steps);
+        drop(self.channel.sender_to_next_steps);
         Ok(())
     }
 }
@@ -401,7 +413,7 @@ impl PlanStepTrait for IntersectScoresWithIds {
 
         let res = intersect_score_hits_with_ids(scores_res, ids_res);
         send_result_to_channel(res, &self.channel)?;
-        drop(self.channel.output_sending_to_next_steps);
+        drop(self.channel.sender_to_next_steps);
         Ok(())
     }
 }
@@ -416,7 +428,7 @@ fn get_data(input_prev_steps: &[PlanDataReceiver]) -> Result<Vec<SearchFieldResu
 }
 
 fn drop_channel(channel: PlanStepDataChannels) {
-    drop(channel.output_sending_to_next_steps);
+    drop(channel.sender_to_next_steps);
     for el in channel.input_prev_steps {
         drop(el);
     }
@@ -429,7 +441,7 @@ fn send_result_to_channel(field_result: SearchFieldResult, channel: &PlanStepDat
         data.push(clone);
     }
     for el in data {
-        channel.output_sending_to_next_steps.send(el);
+        channel.sender_to_next_steps.send(el);
     }
     Ok(())
 }
@@ -469,7 +481,6 @@ fn collect_all_field_request_into_cache(request: &mut Request, field_search_cach
             field_search.req.get_scores |= !ids_only;
             continue; // else doesn't work because field_search borrow scope expands else
         }
-        let (tx, rx): (PlanDataSender, PlanDataReceiver) = unbounded();
         let mut plan_request_part = PlanRequestSearchPart {
             request: request_part.clone(),
             get_scores: !ids_only,
@@ -478,7 +489,7 @@ fn collect_all_field_request_into_cache(request: &mut Request, field_search_cach
         };
         let field_search = PlanStepFieldSearchToTokenIds {
             req: plan_request_part,
-            channel: PlanStepDataChannels::create_channel(0, tx, rx, vec![]),
+            channel: PlanStepDataChannels::open_channel(0, vec![]),
         };
         let step_id = plan.add_step(Box::new(field_search.clone())); // this is actually only a placeholder in the plan, will replaced with the data from the field_search_cache after plan creation
 
@@ -501,11 +512,10 @@ pub fn plan_creator(mut request: Request, plan: &mut Plan) {
 
     let boost = request.boost.clone();
     let mut final_output = plan_creator_2(false, &request_header, &request, &boost.unwrap_or_else(|| vec![]), plan, None, &mut field_search_cache);
-    // let final_output = final_output.plans_output_receiver_for_next_step;
+    // let final_output = final_output.receiver_for_next_step;
     // Add intersect step the search result with the filter
     if let Some(filter_data_output) = filter_data_output {
-        let (tx, rx): (PlanDataSender, PlanDataReceiver) = unbounded();
-        let mut channel = PlanStepDataChannels::create_channel(1, tx, rx.clone(), vec![final_output.0.plans_output_receiver_for_next_step, filter_data_output.0.plans_output_receiver_for_next_step]);
+        let mut channel = PlanStepDataChannels::open_channel(1, vec![final_output.0.receiver_for_next_step, filter_data_output.0.receiver_for_next_step]);
         let mut step = IntersectScoresWithIds {
             channel: channel.clone()
         };
@@ -524,7 +534,7 @@ pub fn plan_creator(mut request: Request, plan: &mut Plan) {
     for (_k, v) in field_search_cache.drain() {
         plan.steps[v.0] = Box::new(v.1);
     }
-    plan.plan_result = Some(final_output.0.plans_output_receiver_for_next_step);
+    plan.plan_result = Some(final_output.0.receiver_for_next_step);
     // final_output.0
 }
 
@@ -542,7 +552,7 @@ fn add_phrase_boost_plan_steps(
             let field_search1 = field_search_cache.get_mut(req).unwrap();
             field_search1.1.req.get_ids = true;
             field_search1.1.channel.num_receivers += 1;
-            let field_rx = field_search1.1.channel.plans_output_receiver_for_next_step.clone();
+            let field_rx = field_search1.1.channel.receiver_for_next_step.clone();
             (field_rx, field_search1.0)
         };
 
@@ -551,7 +561,7 @@ fn add_phrase_boost_plan_steps(
 
         let step = PlanStepPhrasePairToAnchorId {
             req: boost.clone(),
-            channel: PlanStepDataChannels::create_channel(1, tx, rx.clone(), vec![field_rx1, field_rx2]),
+            channel: PlanStepDataChannels::create_channel_from(1, tx, rx.clone(), vec![field_rx1, field_rx2]),
         };
 
         phrase_outputs.push(rx);
@@ -561,12 +571,11 @@ fn add_phrase_boost_plan_steps(
     }
 
     //first is search result channel, rest are boost results
-    let mut vecco = vec![search_output.0.plans_output_receiver_for_next_step];
+    let mut vecco = vec![search_output.0.receiver_for_next_step];
     vecco.extend_from_slice(&phrase_outputs[..]);
 
     //boost all results with phrase results
-    let (tx, rx): (PlanDataSender, PlanDataReceiver) = unbounded();
-    let channel = PlanStepDataChannels::create_channel(1, tx, rx.clone(), vecco);
+    let channel = PlanStepDataChannels::open_channel(1, vecco);
     let step = BoostAnchorFromPhraseResults {
         channel: channel.clone()
     };
@@ -593,10 +602,9 @@ fn plan_creator_2(
     parent_step_dependecy: Option<usize>,
     field_search_cache: &mut FieldRequestCache,
 ) -> PlanStepReceiverAndId {
-    let (tx, rx): (PlanDataSender, PlanDataReceiver) = unbounded();
     // request.explain |= request_header.explain;
     if let Some(or) = request.or.as_ref() {
-        let channel = PlanStepDataChannels::create_channel(1, tx, rx.clone(), vec![]);
+        let channel = PlanStepDataChannels::open_channel(1, vec![]);
         let mut step = Union {
             ids_only: is_filter,
             channel: channel.clone(),
@@ -607,7 +615,7 @@ fn plan_creator_2(
             .map(|x| {
                 // x.explain = request_header.explain;
                 let mut boost = merge_vec(boost, &x.boost);
-                plan_creator_2(is_filter, request_header, x, &mut boost, plan, Some(step_id), field_search_cache).0.plans_output_receiver_for_next_step
+                plan_creator_2(is_filter, request_header, x, &mut boost, plan, Some(step_id), field_search_cache).0.receiver_for_next_step
             }).collect();
         plan.get_step(step_id).get_channel().input_prev_steps = result_channels_from_prev_steps;
 
@@ -617,7 +625,7 @@ fn plan_creator_2(
 
         (channel, step_id)
     } else if let Some(ands) = request.and.as_ref() {
-        let channel = PlanStepDataChannels::create_channel(1, tx, rx.clone(), vec![]);
+        let channel = PlanStepDataChannels::open_channel(1, vec![]);
         let mut step = Intersect {
             ids_only: is_filter,
             channel: channel.clone(),
@@ -628,7 +636,7 @@ fn plan_creator_2(
             .map(|x| {
                 // x.explain = request_header.explain;
                 let mut boost = merge_vec(boost, &x.boost);
-                plan_creator_2(is_filter, request_header, x, &mut boost, plan, Some(step_id), field_search_cache).0.plans_output_receiver_for_next_step
+                plan_creator_2(is_filter, request_header, x, &mut boost, plan, Some(step_id), field_search_cache).0.receiver_for_next_step
             }).collect();
         plan.get_step(step_id).get_channel().input_prev_steps = result_channels_from_prev_steps;
 
@@ -680,12 +688,11 @@ fn plan_creator_search_part(
     field_search_step.req.store_term_texts |= request.why_found;
     field_search_step.req.store_term_id_hits |= store_term_id_hits;
     field_search_step.channel.num_receivers += 1;
-    let field_rx = field_search_step.channel.plans_output_receiver_for_next_step.clone();
-    // let field_tx = field_search_step.channel.output_sending_to_next_steps.clone();
+    let field_rx = field_search_step.channel.receiver_for_next_step.clone();
+    // let field_tx = field_search_step.channel.sender_to_next_steps.clone();
 
     if fast_field {
-        let (next_field_tx, next_field_rx): (PlanDataSender, PlanDataReceiver) = unbounded();
-        let channel = PlanStepDataChannels::create_channel(1, next_field_tx, next_field_rx.clone(), vec![field_rx]);
+        let channel = PlanStepDataChannels::open_channel(1, vec![field_rx]);
         let step = ResolveTokenIdToAnchor {
             request: request_part.clone(),
             channel: channel.clone(),
@@ -708,14 +715,14 @@ fn plan_creator_search_part(
             step_id
         };
 
-        let (next_field_tx, next_field_rx): (PlanDataSender, PlanDataReceiver) = unbounded();
+        let channel = PlanStepDataChannels::open_channel(1, vec![field_rx]);
         add_step(Box::new(ResolveTokenIdToTextId {
             request: request_part.clone(),
-            channel: PlanStepDataChannels::create_channel(1, next_field_tx, next_field_rx.clone(), vec![field_rx]),
+            channel: channel.clone(),
         }));
 
         let (mut tx, mut rx): (PlanDataSender, PlanDataReceiver) = unbounded();
-        let mut channel = PlanStepDataChannels::create_channel(1, tx.clone(), rx.clone(), vec![next_field_rx.clone()]);
+        let mut channel = PlanStepDataChannels::create_channel_from(1, tx.clone(), rx.clone(), vec![channel.receiver_for_next_step.clone()]);
         add_step(Box::new(ValueIdToParent {
             path: paths.last().unwrap().add(VALUE_ID_TO_PARENT),
             trace_info: "term hits hit to column".to_string(),
@@ -728,7 +735,7 @@ fn plan_creator_search_part(
                 if apply_boost {
                     let (next_tx, next_rx): (PlanDataSender, PlanDataReceiver) = unbounded();
                     tx = next_tx;
-                    channel = PlanStepDataChannels::create_channel(1, tx.clone(), next_rx.clone(), vec![rx.clone()]);
+                    channel = PlanStepDataChannels::create_channel_from(1, tx.clone(), next_rx.clone(), vec![rx.clone()]);
                     add_step(Box::new(BoostPlanStepFromBoostRequest {
                         req: boost.clone(),
                         channel: channel.clone(),
@@ -743,7 +750,7 @@ fn plan_creator_search_part(
 
             let (next_tx, next_rx): (PlanDataSender, PlanDataReceiver) = unbounded();
             tx = next_tx;
-            channel = PlanStepDataChannels::create_channel(1, tx.clone(), next_rx.clone(), vec![rx.clone()]);
+            channel = PlanStepDataChannels::create_channel_from(1, tx.clone(), next_rx.clone(), vec![rx.clone()]);
             add_step(Box::new(ValueIdToParent {
                 path: paths[i].add(VALUE_ID_TO_PARENT),
                 trace_info: "Joining to anchor".to_string(),
@@ -761,7 +768,7 @@ fn plan_creator_search_part(
         for boost in boost.iter().filter(|el| !el.path.contains("[]")) {
             let (next_tx, next_rx): (PlanDataSender, PlanDataReceiver) = unbounded();
             tx = next_tx;
-            channel = PlanStepDataChannels::create_channel(1, tx.clone(), next_rx.clone(), vec![rx.clone()]);
+            channel = PlanStepDataChannels::create_channel_from(1, tx.clone(), next_rx.clone(), vec![rx.clone()]);
             let id = add_step(Box::new(BoostPlanStepFromBoostRequest {
                 req: boost.clone(),
                 channel: channel.clone(),
