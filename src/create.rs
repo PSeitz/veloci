@@ -64,13 +64,23 @@ pub struct Boost {
 pub struct TokenValuesConfig {
     path: String,
 }
-
+#[derive(Serialize, Deserialize, Debug, Clone, Copy)]
+#[serde(rename_all = "lowercase")]
+pub enum TokenizerStrategy {
+    Simple,
+    Jp,
+}
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct FulltextIndexOptions {
     pub tokenize: bool,
+    #[serde(default = "default_tokenizer")]
+    pub tokenizer: TokenizerStrategy,
     pub stopwords: Option<FnvHashSet<String>>,
     #[serde(default = "default_text_length_store")]
     pub do_not_store_text_longer_than: usize,
+}
+fn default_tokenizer() -> TokenizerStrategy {
+    TokenizerStrategy::Simple
 }
 fn default_text_length_store() -> usize {
     32
@@ -80,6 +90,7 @@ impl Default for FulltextIndexOptions {
         FulltextIndexOptions {
             tokenize: true,
             stopwords: None,
+            tokenizer:TokenizerStrategy::Simple,
             do_not_store_text_longer_than: default_text_length_store(),
         }
     }
