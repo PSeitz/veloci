@@ -234,6 +234,7 @@ pub(crate) fn get_steps_to_anchor(path: &str) -> Vec<String> {
 #[allow(unused_macros)]
 macro_rules! print_json {
     ($e:expr) => {
+        use serde_json;
         println!("{}", serde_json::to_string(&$e).unwrap());
     };
 }

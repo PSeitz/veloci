@@ -532,7 +532,8 @@ pub fn get_term_ids_in_field(persistence: &Persistence, options: &mut PlanReques
 pub fn resolve_token_to_anchor(
     persistence: &Persistence,
     options: &RequestSearchPart,
-    filter: Option<&FnvHashSet<u32>>,
+    filter: Option<FnvHashSet<u32>>,
+    // filter: Arc<SearchFieldResult>,
     result: &SearchFieldResult,
 ) -> Result<SearchFieldResult, SearchError> {
     let mut options = options.clone();
@@ -551,7 +552,7 @@ pub fn resolve_token_to_anchor(
             let mut iter = token_to_anchor_score.get_score_iter(hit.id);
             anchor_ids_hits.reserve(iter.size_hint().1.unwrap());
             for el in iter {
-                if should_filter(filter, el.id) {
+                if should_filter(&filter, el.id) {
                     continue;
                 }
                 let final_score = hit.score * (el.score.to_f32() / 100.0);
@@ -680,15 +681,15 @@ pub fn get_id_text_map_for_ids(persistence: &Persistence, path: &str, ids: &[u32
 // }
 
 #[inline]
-fn should_filter(filter: Option<&FnvHashSet<u32>>, id: u32) -> bool {
-    filter.map(|filter| filter.contains(&id)).unwrap_or(false)
+fn should_filter(filter: &Option<FnvHashSet<u32>>, id: u32) -> bool {
+    filter.as_ref().map(|filter| !filter.contains(&id)).unwrap_or(false)
 }
 
 #[cfg_attr(feature = "flame_it", flame)]
 pub fn resolve_token_hits_to_text_id(
     persistence: &Persistence,
     options: &RequestSearchPart,
-    filter: Option<&FnvHashSet<u32>>,
+    filter: Option<FnvHashSet<u32>>,
     result: &mut SearchFieldResult,
 ) -> Result<(), search::SearchError> {
     let mut path = options.path.to_string();
@@ -726,7 +727,7 @@ pub fn resolve_token_hits_to_text_id(
 
                 token_hits.reserve(parent_ids_for_token.len());
                 for token_parentval_id in parent_ids_for_token {
-                    if should_filter(filter, token_parentval_id) {
+                    if should_filter(&filter, token_parentval_id) {
                         continue;
                     }
                     token_hits.push((token_parentval_id, hit.score, hit.id)); //TODO ADD ANCHOR_SCORE IN THIS SEARCH

@@ -722,6 +722,24 @@ describe! search_test {
         assert_eq!(hits.len(), 2);
     }
 
+    it "simple_search_and_connect_hits_with_filter"{
+        let req = json!({
+            "search": {
+                "terms":["urge"],
+                "path": "meanings.eng[]"
+            },
+            "filter":{
+                "search": {
+                    "terms":["1587690"],
+                    "path": "ent_seq"
+                }
+            }
+        });
+
+        let hits = search_testo_to_doc(req).data;
+        assert_eq!(hits.len(), 1);
+    }
+
     it "OR_connect_hits_with_filter"{
         let req = json!({
             "or":[
@@ -781,7 +799,8 @@ describe! search_test {
         let hits = search_testo_to_doc(req).data;
         assert_eq!(hits.len(), 2);
     }
-    it "should search and boosto"{
+
+    it "should_search_and_boosto"{
         let req = json!({
             "search": {
                 "terms":["意慾"],
