@@ -1,0 +1,34 @@
+use std::str::FromStr;
+use ast::{Ast};
+
+grammar;
+
+pub Expr: Box<Ast> = { // (1)
+    <e:Expr> "OR" <f:Factor> => Box::new(Ast::Or(e, f)), // (2)
+    Factor,
+};
+
+// ExprOp: Opcode = { // (3)
+//     "+" => Opcode::Add,
+//     "-" => Opcode::Sub,
+// };
+
+Factor: Box<Ast> = {
+    <f:Factor> "AND" <t:Termo> => Box::new(Ast::And(f, t)),
+    Termo,
+};
+
+// FactorOp: Opcode = {
+//     "*" => Opcode::Mul,
+//     "/" => Opcode::Div,
+// };
+
+Termo: Box<Ast> = {
+    <n:Term> => Box::new(Ast::Filter(n.to_string())),
+    "(" <Expr> ")"
+};
+
+Term: &'input str = {
+    r"\w+" => <>
+};
+

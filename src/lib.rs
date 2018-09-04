@@ -84,6 +84,9 @@ extern crate fixedbitset;
 extern crate term_hashmap;
 
 #[macro_use]
+extern crate nom;
+
+#[macro_use]
 pub mod util;
 mod profiler;
 pub mod stopwords;
