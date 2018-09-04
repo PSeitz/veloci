@@ -1,3 +1,4 @@
+use search::FilterResult;
 use persistence::Persistence;
 use std::sync::Arc;
 use persistence::*;
@@ -20,8 +21,10 @@ use search_field::*;
 
 type PlanDataSender = crossbeam_channel::Sender<SearchFieldResult>;
 type PlanDataReceiver = crossbeam_channel::Receiver<SearchFieldResult>;
-type PlanDataFilterSender = crossbeam_channel::Sender<Arc<SearchFieldResult>>;
-type PlanDataFilterReceiver = crossbeam_channel::Receiver<Arc<SearchFieldResult>>;
+// type PlanDataFilterSender = crossbeam_channel::Sender<Arc<SearchFieldResult>>;
+// type PlanDataFilterReceiver = crossbeam_channel::Receiver<Arc<SearchFieldResult>>;
+type PlanDataFilterSender = crossbeam_channel::Sender<Arc<FilterResult>>;
+type PlanDataFilterReceiver = crossbeam_channel::Receiver<Arc<FilterResult>>;
 type FieldRequestCache = FnvHashMap<RequestSearchPart, (usize, PlanStepFieldSearchToTokenIds)>;
 type PlanStepId = usize;
 
@@ -103,7 +106,6 @@ impl Plan {
         let mut ordered_steps = vec![];
         let mut remaining_steps: Vec<_> = self.steps.into_iter().enumerate().collect();
         let dep = self.dependencies;
-        print_json!(dep);
         while !remaining_steps.is_empty() {
             let current_remaining_step_ids: Vec<_> = remaining_steps.iter().map(|el| el.0).collect();
             let steps_with_fullfilled_dependencies: Vec<_> = remaining_steps
@@ -120,8 +122,7 @@ impl Plan {
                 }).collect();
 
             if steps_with_fullfilled_dependencies.is_empty() {
-                println!("{:?}", remaining_steps);
-                panic!("ise empty");
+                panic!("invalid plan created");
             }
             // ordered_steps.push(steps_with_fullfilled_dependencies.iter().map(|step_with_index|*step_with_index.1.clone()).collect());
             let vecco: Vec<_> = steps_with_fullfilled_dependencies.into_iter().map(|step_with_index| step_with_index.1).collect();
@@ -288,10 +289,7 @@ impl PlanStepTrait for ResolveTokenIdToAnchor {
         let res = self.channel.input_prev_steps[0].recv().unwrap();
         let filter_res = if let Some(ref filter_receiver) = self.channel.filter_receiver {
             let search_field_result = filter_receiver.recv().unwrap();
-            // info_time!("convert_filter");
-            let yo:FnvHashSet<u32> = search_field_result.hits_ids.iter().cloned().collect();
-            Some(yo)
-            // None
+            Some(search_field_result)
         }else{
             None
         };
@@ -480,7 +478,9 @@ fn drop_channel(channel: PlanStepDataChannels) {
 fn send_result_to_channel(field_result: SearchFieldResult, channel: &PlanStepDataChannels) -> Result<(), SearchError> {
     //Send SearchFieldResult as Filter
     if let Some(ref filter_channel) = channel.filter_channel {
-        let res = Arc::new(field_result.clone());
+        debug_time!("convert filter");
+        let res = Arc::new(FilterResult::from_result(&field_result.hits_ids));
+        // let res = Arc::new(field_result.clone());
         for _ in 0..filter_channel.num_receivers {
             filter_channel.filter_sender.send(Arc::clone(&res));
         }

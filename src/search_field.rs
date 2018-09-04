@@ -1,3 +1,4 @@
+use std::sync::Arc;
 use fnv::{FnvHashMap, FnvHashSet};
 use fst::automaton::*;
 use fst::raw::Fst;
@@ -532,8 +533,8 @@ pub fn get_term_ids_in_field(persistence: &Persistence, options: &mut PlanReques
 pub fn resolve_token_to_anchor(
     persistence: &Persistence,
     options: &RequestSearchPart,
-    filter: Option<FnvHashSet<u32>>,
-    // filter: Arc<SearchFieldResult>,
+    // filter: Option<FnvHashSet<u32>>,
+    filter: Option<Arc<FilterResult>>,
     result: &SearchFieldResult,
 ) -> Result<SearchFieldResult, SearchError> {
     let mut options = options.clone();
@@ -681,8 +682,13 @@ pub fn get_id_text_map_for_ids(persistence: &Persistence, path: &str, ids: &[u32
 // }
 
 #[inline]
-fn should_filter(filter: &Option<FnvHashSet<u32>>, id: u32) -> bool {
-    filter.as_ref().map(|filter| !filter.contains(&id)).unwrap_or(false)
+fn should_filter(filter: &Option<Arc<FilterResult>>, id: u32) -> bool {
+    filter.as_ref().map(|filter| {
+        match **filter {
+            FilterResult::Vec(_) => false,
+            FilterResult::Set(ref filter) => !filter.contains(&id),
+        }
+    }).unwrap_or(false)
 }
 
 #[cfg_attr(feature = "flame_it", flame)]
@@ -727,9 +733,9 @@ pub fn resolve_token_hits_to_text_id(
 
                 token_hits.reserve(parent_ids_for_token.len());
                 for token_parentval_id in parent_ids_for_token {
-                    if should_filter(&filter, token_parentval_id) {
-                        continue;
-                    }
+                    // if should_filter(&filter, token_parentval_id) {
+                    //     continue;
+                    // }
                     token_hits.push((token_parentval_id, hit.score, hit.id)); //TODO ADD ANCHOR_SCORE IN THIS SEARCH
                 }
             }

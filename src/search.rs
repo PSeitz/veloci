@@ -296,6 +296,33 @@ pub struct SearchResult {
     pub why_found_terms: FnvHashMap<String, Vec<String>>,
 }
 
+// #[derive(Serialize, Deserialize, Default, Clone, Debug)]
+// pub struct FilterResult {
+//     pub hits_vec: Vec<TermId>,
+//     pub hits_ids: FnvHashSet<TermId>,
+// }
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub enum FilterResult {
+    Vec(Vec<TermId>),
+    Set(FnvHashSet<TermId>),
+}
+
+impl FilterResult {
+    pub fn from_result(res: &Vec<TermId>) -> FilterResult {
+        if res.len() > 100_000 {
+            FilterResult::Vec(res.clone())
+        }else{
+            let mut filter = FnvHashSet::with_capacity_and_hasher(100_000, Default::default());
+            for id in res {
+                filter.insert(*id);
+            }
+            FilterResult::Set(filter)
+            // FilterResult::Set(res.iter().collect())
+        }
+    }
+}
+
 #[derive(Serialize, Deserialize, Default, Clone, Debug)]
 pub struct SearchResultWithDoc {
     pub num_hits: u64,
