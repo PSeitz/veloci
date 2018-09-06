@@ -26,10 +26,23 @@ impl UserFilter {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum Operator {
+    Or,
+    And,
+}
+impl Operator {
+    fn to_string(&self) -> &'static str {
+        match self {
+            Operator::Or => " OR ",
+            Operator::And => " AND "
+        }
+    }
+}
+
 #[derive(Clone)]
 pub enum UserAST {
-    And(Vec<UserAST>),
-    Or(Vec<UserAST>),
+    Clause(Operator, Vec<UserAST>),
     Leaf(Box<UserFilter>),
 }
 
@@ -47,11 +60,8 @@ fn debug_print_clause(formatter: &mut fmt::Formatter, asts: &[UserAST], clause: 
 impl fmt::Debug for UserAST {
     fn fmt(&self, formatter: &mut fmt::Formatter) -> Result<(), fmt::Error> {
         match *self {
-            UserAST::Or(ref asts) => {
-                debug_print_clause(formatter, asts, " OR ")
-            }
-            UserAST::And(ref asts) => {
-                debug_print_clause(formatter, asts, " AND ")
+            UserAST::Clause(ref op, ref asts) => {
+                debug_print_clause(formatter, asts, op.to_string())
             }
             UserAST::Leaf(ref subquery) => write!(formatter, "{:?}", subquery),
         }
@@ -140,7 +150,7 @@ parser! {
                 if sub_asts.len() == 1 {
                     sub_asts[0].clone()
                 }else{
-                    UserAST::Or(sub_asts)
+                    UserAST::Clause(Operator::Or, sub_asts)
                 }
             });
 
@@ -148,12 +158,6 @@ parser! {
         .or(try(multi_literals))
         .or(user_literal())
     }
-}
-
-#[derive(Debug)]
-enum Operator {
-    Or,
-    And,
 }
 
 parser! {
@@ -168,6 +172,18 @@ parser! {
     }
 }
 
+macro_rules! combine_if_same_op {
+    ($ast:expr,$opa:expr, $other:expr) => (
+        if let UserAST::Clause(op, ref queries) = $ast {
+            if op == $opa {
+                let mut queries = queries.clone();
+                queries.push($other);
+                return UserAST::Clause(op, queries);
+            }
+        }
+    );
+}
+
 parser! {
     pub fn parse_to_ast[I]()(I) -> UserAST
     where [I: Stream<Item = char>]
@@ -178,31 +194,9 @@ parser! {
                     leaf(),
                     parse_operator().map(|op: Operator|
                         move |left: UserAST, right: UserAST| {
-                            match op {
-                                Operator::And => {
-                                    if let UserAST::And(mut queries) = left {
-                                        queries.push(right);
-                                        return UserAST::And(queries);
-                                    }
-                                    if let UserAST::And(mut queries) = right {
-                                        queries.push(left);
-                                        return UserAST::And(queries);
-                                    }
-                                    return UserAST::And(vec![left, right]);
-                                }
-                                Operator::Or => {
-                                    if let UserAST::Or(mut queries) = left {
-                                        queries.push(right);
-                                        return UserAST::Or(queries);
-                                    }
-                                    if let UserAST::Or(mut queries) = right {
-                                        queries.push(left);
-                                        return UserAST::Or(queries);
-                                    }
-                                    return UserAST::Or(vec![left, right]);
-                                    // return UserAST::Or(vec![left, right]);
-                                }
-                            }
+                            combine_if_same_op!(left, op, right);
+                            combine_if_same_op!(right, op, left);
+                            return UserAST::Clause(op, vec![left, right]);
                         }
                     )
                 )
