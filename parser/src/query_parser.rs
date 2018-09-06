@@ -5,6 +5,7 @@ use combine::*;
 use std::fmt;
 // use user_input_ast::*;
 
+#[derive(Clone)]
 pub struct UserFilter {
     pub field_name: Option<String>,
     pub phrase: String,
@@ -25,6 +26,7 @@ impl UserFilter {
     }
 }
 
+#[derive(Clone)]
 pub enum UserAST {
     And(Vec<UserAST>),
     Or(Vec<UserAST>),
@@ -131,17 +133,16 @@ parser! {
 
 
 parser! {
-    fn skip_spaces[I]()(I) -> ()
-    where [I: Stream<Item = char>] {
-        skip_many1(space())
-    }
-}
-
-parser! {
     fn leaf[I]()(I) -> UserAST
     where [I: Stream<Item = char>] {
         let multi_literals = sep_by(user_literal(), space())
-            .map(|sub_asts: Vec<UserAST>| UserAST::Or(sub_asts));
+            .map(|sub_asts: Vec<UserAST>| {
+                if sub_asts.len() == 1 {
+                    sub_asts[0].clone()
+                }else{
+                    UserAST::Or(sub_asts)
+                }
+            });
 
         (char('('), parse_to_ast(), char(')')).map(|(_, expr, _)| expr)
         .or(try(multi_literals))
@@ -149,6 +150,7 @@ parser! {
     }
 }
 
+#[derive(Debug)]
 enum Operator {
     Or,
     And,
@@ -178,10 +180,27 @@ parser! {
                         move |left: UserAST, right: UserAST| {
                             match op {
                                 Operator::And => {
+                                    if let UserAST::And(mut queries) = left {
+                                        queries.push(right);
+                                        return UserAST::And(queries);
+                                    }
+                                    if let UserAST::And(mut queries) = right {
+                                        queries.push(left);
+                                        return UserAST::And(queries);
+                                    }
                                     return UserAST::And(vec![left, right]);
                                 }
                                 Operator::Or => {
+                                    if let UserAST::Or(mut queries) = left {
+                                        queries.push(right);
+                                        return UserAST::Or(queries);
+                                    }
+                                    if let UserAST::Or(mut queries) = right {
+                                        queries.push(left);
+                                        return UserAST::Or(queries);
+                                    }
                                     return UserAST::Or(vec![left, right]);
+                                    // return UserAST::Or(vec![left, right]);
                                 }
                             }
                         }
@@ -205,32 +224,42 @@ mod test {
 
     #[test]
     fn test_multi_spaces() {
-        test_parse_query_to_ast_helper("a AND b       AND c", "((\"a\" AND \"b\") AND (\"c\"))");
+        test_parse_query_to_ast_helper("a AND b", "(\"a\" AND \"b\")");
+    }
+
+    #[test]
+    fn test_multi_and_to_flat() {
+        test_parse_query_to_ast_helper("a AND b AND c", "(\"a\" AND \"b\" AND \"c\")");
+    }
+
+    #[test]
+    fn test_multi_or_to_flat() {
+        test_parse_query_to_ast_helper("a OR b OR c", "(\"a\" OR \"b\" OR \"c\")");
     }
 
     #[test]
     fn test_precedence_by_parentheses() {
-        test_parse_query_to_ast_helper("(a AND b) OR c", "((\"a\" AND (\"b\")) OR (\"c\"))");
-        test_parse_query_to_ast_helper("c OR (a AND b)", "(\"c\" OR (\"a\" AND (\"b\")))");
+        test_parse_query_to_ast_helper("(a AND b) OR c", "((\"a\" AND \"b\") OR \"c\")");
+        test_parse_query_to_ast_helper("c OR (a AND b)", "(\"c\" OR (\"a\" AND \"b\"))");
     }
 
     #[test]
     fn test_parse_query() {
-        test_parse_query_to_ast_helper("a AND b", "(\"a\" AND (\"b\"))");
-        test_parse_query_to_ast_helper("a:b", "(a:\"b\")");
-        test_parse_query_to_ast_helper("a:b OR c", "(a:\"b\" OR (\"c\"))");
-        test_parse_query_to_ast_helper("a", "(\"a\")");
-        test_parse_query_to_ast_helper("食べる AND b", "(\"食べる\" AND (\"b\"))");
+        test_parse_query_to_ast_helper("a AND b", "(\"a\" AND \"b\")");
+        test_parse_query_to_ast_helper("a:b", "a:\"b\"");
+        test_parse_query_to_ast_helper("a:b OR c", "(a:\"b\" OR \"c\")");
+        test_parse_query_to_ast_helper("a", "\"a\"");
+        test_parse_query_to_ast_helper("食べる AND b", "(\"食べる\" AND \"b\")");
 
         //no precendence yet
-        test_parse_query_to_ast_helper("a OR b AND c", "((\"a\" OR \"b\") AND (\"c\"))");
+        test_parse_query_to_ast_helper("a OR b AND c", "((\"a\" OR \"b\") AND \"c\")");
     }
 
 
     #[test]
     fn test_parse_multi_literals() {
         test_parse_query_to_ast_helper("a b", "(\"a\" OR \"b\")");
-        test_parse_query_to_ast_helper("\"a b\"", "(\"a b\")");
+        test_parse_query_to_ast_helper("\"a b\"", "\"a b\"");
         test_parse_query_to_ast_helper("feld:10 b", "(feld:\"10\" OR \"b\")");
     }
 

@@ -6,7 +6,7 @@ extern crate combine;
 #[macro_use]
 extern crate lalrpop_util;
 
-mod query_parser;
+pub mod query_parser;
 
 #[cfg(test)]
 mod tests {
