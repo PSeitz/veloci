@@ -51,6 +51,9 @@ serde_json = "1.0.26"
 [dependencies.buffered_index_writer]
 path = "buffered_index_writer"
 
+[dependencies.parser]
+path = "parser"
+
 [dependencies.flame]
 optional = true
 version = "0.2.2"

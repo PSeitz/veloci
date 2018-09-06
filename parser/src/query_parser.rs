@@ -206,6 +206,12 @@ parser! {
     }
 }
 
+pub use combine::error::StringStreamError;
+
+pub fn parse(query: &str) -> Result<(UserAST, &str), StringStreamError> {
+    parse_to_ast().parse(query)
+}
+
 #[cfg(test)]
 mod test {
 

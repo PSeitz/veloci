@@ -19,49 +19,7 @@ use util::*;
 //     }
 // }
 
-fn get_default_levenshtein(term: &str, levenshtein_auto_limit: usize) -> usize {
-    match term.chars().count() {
-        0..=2 => 0,
-        3..=5 => std::cmp::min(1, levenshtein_auto_limit),
-        _ => std::cmp::min(2, levenshtein_auto_limit),
-    }
-}
 
-fn get_all_field_names(persistence: &Persistence, fields: &Option<Vec<String>>) -> Vec<String> {
-    // TODO ADD WARNING IF fields filter all
-    persistence
-        .meta_data
-        .fulltext_indices
-        .keys()
-        .map(|field| extract_field_name(field))
-        .filter(|el| {
-            if let Some(ref filter) = *fields {
-                return filter.contains(el);
-            }
-            true
-        }).collect()
-}
-
-fn normalize_to_single_space(text: &str) -> String {
-    lazy_static! {
-        static ref REGEXES:Vec<Regex> = vec![
-            Regex::new(r"\s\s+").unwrap() // replace tabs, newlines, double spaces with single spaces
-        ];
-
-    }
-    let mut new_str = text.to_owned();
-    for tupl in REGEXES.iter() {
-        new_str = tupl.replace_all(&new_str, " ").into_owned();
-    }
-
-    new_str.trim().to_owned()
-}
-
-fn replace_all_with_space(s: &mut String, remove: &str) {
-    while let Some(pos) = s.find(remove) {
-        s.replace_range(pos..pos + remove.len(), " ");
-    }
-}
 
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
 pub struct SearchQueryGeneratorParameters {
@@ -85,21 +43,44 @@ pub struct SearchQueryGeneratorParameters {
     pub filter: Option<Vec<RequestSearchPart>>,
 }
 
+fn get_default_levenshtein(term: &str, levenshtein_auto_limit: usize) -> usize {
+    match term.chars().count() {
+        0..=2 => 0,
+        3..=5 => std::cmp::min(1, levenshtein_auto_limit),
+        _ => std::cmp::min(2, levenshtein_auto_limit),
+    }
+}
+
+fn get_all_field_names(persistence: &Persistence, fields: &Option<Vec<String>>) -> Vec<String> {
+    // TODO ADD WARNING IF fields filter all
+    persistence
+        .meta_data
+        .fulltext_indices
+        .keys()
+        .map(|field| extract_field_name(field))
+        .filter(|el| {
+            if let Some(ref filter) = *fields {
+                return filter.contains(el);
+            }
+            true
+        }).collect()
+}
+
 fn get_levenshteinn(term: &str, levenshtein: Option<usize>, levenshtein_auto_limit: Option<usize>) -> u32 {
     let levenshtein_distance = levenshtein.unwrap_or_else(|| get_default_levenshtein(term, levenshtein_auto_limit.unwrap_or(1)));
     std::cmp::min(levenshtein_distance, term.chars().count() - 1) as u32
 }
 
-fn tokenize_term(term: &str) -> Vec<String> {
-    let s = normalize_to_single_space(term);
-    s.split(' ').map(|el| el.to_string()).collect()
-}
-
+use parser;
 #[cfg_attr(feature = "flame_it", flame)]
 pub fn search_query(persistence: &Persistence, mut opt: SearchQueryGeneratorParameters) -> Request {
     // let req = persistence.meta_data.fulltext_indices.key
     opt.facetlimit = opt.facetlimit.or(Some(5));
     info_time!("generating search query");
+
+    let query =  parser::query_parser::parse(&opt.search_term).unwrap().0;
+    // parser::query_parser(opt.search_term.to_string())
+
     let terms: Vec<String> = if opt.operator.is_none() && opt.search_term.contains(" AND ") {
         opt.operator = Some("and".to_string());
         let mut s = opt.search_term.to_string();
@@ -281,6 +262,32 @@ pub fn search_query(persistence: &Persistence, mut opt: SearchQueryGeneratorPara
 
     request
 }
+
+fn replace_all_with_space(s: &mut String, remove: &str) {
+    while let Some(pos) = s.find(remove) {
+        s.replace_range(pos..pos + remove.len(), " ");
+    }
+}
+fn normalize_to_single_space(text: &str) -> String {
+    lazy_static! {
+        static ref REGEXES:Vec<Regex> = vec![
+            Regex::new(r"\s\s+").unwrap() // replace tabs, newlines, double spaces with single spaces
+        ];
+
+    }
+    let mut new_str = text.to_owned();
+    for tupl in REGEXES.iter() {
+        new_str = tupl.replace_all(&new_str, " ").into_owned();
+    }
+
+    new_str.trim().to_owned()
+}
+
+fn tokenize_term(term: &str) -> Vec<String> {
+    let s = normalize_to_single_space(term);
+    s.split(' ').map(|el| el.to_string()).collect()
+}
+
 
 pub fn generate_phrase_queries_for_searchterm(
     persistence: &Persistence,
