@@ -120,7 +120,7 @@ parser! {
 parser! {
     fn word[I]()(I) -> String
     where [I: Stream<Item = char>] {
-        many1(satisfy(|c: char| c.is_alphanumeric()))
+        many1(satisfy(|c: char| !c.is_whitespace() && c != '(' && c != ')' ))
             .and_then(|s: String| {
                 match s.as_str() {
                     "OR" => Err(StreamErrorFor::<I>::unexpected_static_message("OR")),
@@ -263,6 +263,11 @@ mod test {
     #[test]
     fn test_multi_spaces() {
         test_parse_query_to_ast_helper("a AND b", "(\"a\" AND \"b\")");
+    }
+
+    #[test]
+    fn test_special_chars() {
+        test_parse_query_to_ast_helper("die drei ???", "(\"die\" OR \"drei\" OR \"???\")");
     }
 
     #[test]

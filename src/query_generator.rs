@@ -120,6 +120,17 @@ fn query_to_request(query: &str, all_fields:&[String], opt: &SearchQueryGenerato
     query_ast = expand_fields_in_query_ast(query_ast, all_fields);
     query_ast_to_request(query_ast.simplify(), opt)
 }
+
+use test;
+#[bench]
+fn bench_query_to_request(b: &mut test::Bencher) {
+
+    let fields = vec!["Title".to_string(), "Author".to_string(), "Author1".to_string(), "Author2".to_string(), "Author3".to_string(), "Author4".to_string(), "Author5".to_string(), "Author6".to_string(), "Author7".to_string(), "Author8".to_string(), "Author9".to_string(), "Author10".to_string(), "Author11".to_string(), "Author12".to_string(), "Author13".to_string()];
+    b.iter(|| 
+        query_to_request("die drei fragezeigen und das unicorn", &fields, &SearchQueryGeneratorParameters::default())
+    )
+}
+
 fn query_ast_to_request(ast: UserAST, opt: &SearchQueryGeneratorParameters) -> Request {
     match ast {
         UserAST::Clause(op, subqueries) => {

@@ -1,5 +1,3 @@
-#![feature(collection_placement)]
-#![feature(placement_in_syntax)]
 #![feature(test)]
 
 // #[macro_use]
