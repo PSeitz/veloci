@@ -53,11 +53,11 @@ fn get_default_levenshtein(term: &str, levenshtein_auto_limit: usize) -> usize {
 
 fn get_all_field_names(persistence: &Persistence, fields: &Option<Vec<String>>) -> Vec<String> {
     // TODO ADD WARNING IF fields filter all
-    persistence
-        .meta_data
-        .fulltext_indices
-        .keys()
-        .map(|field| extract_field_name(field))
+    persistence.meta_data.get_all_fields().into_iter()
+        // .meta_data
+        // .fulltext_indices
+        // .keys()
+        // .map(|field| extract_field_name(field))
         .filter(|el| {
             if let Some(ref filter) = *fields {
                 return filter.contains(el);
@@ -71,6 +71,99 @@ fn get_levenshteinn(term: &str, levenshtein: Option<usize>, levenshtein_auto_lim
     std::cmp::min(levenshtein_distance, term.chars().count() - 1) as u32
 }
 
+
+
+use parser::query_parser::UserAST;
+use parser::query_parser::Operator;
+use parser::query_parser::UserFilter;
+fn expand_fields_in_query_ast(ast: UserAST, all_fields:&[String]) -> UserAST {
+    
+    match ast {
+        UserAST::Clause(op, subqueries) => {
+            let subqueries = subqueries.into_iter().map(|ast|{
+                expand_fields_in_query_ast(ast, all_fields)
+            }).collect();
+            UserAST::Clause(op, subqueries)
+        },
+        UserAST::Leaf(filter) => {
+            if filter.field_name.is_some() {
+                UserAST::Leaf(filter) // TODO check if field exists
+            }else{
+                let field_queries = all_fields.into_iter().map(|field_name|{
+                    let filter_with_field = UserFilter {
+                        field_name: Some(field_name.to_string()),
+                        phrase: filter.phrase.to_string(),
+                    };
+                    UserAST::Leaf(Box::new(filter_with_field))
+                }).collect();
+                UserAST::Clause(Operator::Or, field_queries)
+            }
+        },
+    }
+}
+
+
+#[test]
+fn test_field_expand() {
+    let fields = vec!["Title".to_string(), "Author".to_string()];
+    let ast = UserAST::Leaf(Box::new( UserFilter {field_name: None, phrase: "Fred".to_string(), }));
+    let expanded_ast = expand_fields_in_query_ast(ast, &fields);
+    assert_eq!(format!("{:?}", expanded_ast), "(Title:\"Fred\" OR Author:\"Fred\")");
+
+    let ast = UserAST::Leaf(Box::new( UserFilter {field_name: Some("Title".to_string()), phrase: "Fred".to_string(), }));
+    let expanded_ast = expand_fields_in_query_ast(ast, &fields);
+    assert_eq!(format!("{:?}", expanded_ast), "Title:\"Fred\"");
+}
+
+fn query_to_request(query: &str, all_fields:&[String], opt: &SearchQueryGeneratorParameters) -> Request {
+    let mut query_ast =  parser::query_parser::parse(query).unwrap().0;
+    query_ast = expand_fields_in_query_ast(query_ast, all_fields);
+    query_ast_to_request(query_ast.simplify(), opt)
+}
+fn query_ast_to_request(ast: UserAST, opt: &SearchQueryGeneratorParameters) -> Request {
+    match ast {
+        UserAST::Clause(op, subqueries) => {
+            let subqueries = subqueries.into_iter().map(|ast|{
+                query_ast_to_request(ast, opt)
+            }).collect();
+            match op {
+                Operator::And => {
+                    Request {
+                        and: Some(subqueries),
+                        ..Default::default()
+                    }
+                },
+                Operator::Or => {
+                    Request {
+                        or: Some(subqueries),
+                        ..Default::default()
+                    }
+                },
+            }
+        },
+        UserAST::Leaf(filter) => {
+            let field_name = filter.field_name.as_ref().unwrap();
+            let term =  &filter.phrase;
+            let part = RequestSearchPart {
+                boost: opt.boost_fields.get(field_name).map(|el| OrderedFloat(*el)),
+                levenshtein_distance: Some(get_levenshteinn(term, opt.levenshtein.clone(), opt.levenshtein_auto_limit.clone())),
+                path: field_name.to_string(),
+                terms: vec![term.to_string()],
+                ..Default::default()
+            };
+            Request {
+                search: Some(part),
+                why_found: opt.why_found.unwrap_or(false),
+                text_locality: opt.text_locality.unwrap_or(false),
+                ..Default::default()
+            }
+
+        },
+    }
+
+}
+
+
 use parser;
 #[cfg_attr(feature = "flame_it", flame)]
 pub fn search_query(persistence: &Persistence, mut opt: SearchQueryGeneratorParameters) -> Request {
@@ -78,7 +171,6 @@ pub fn search_query(persistence: &Persistence, mut opt: SearchQueryGeneratorPara
     opt.facetlimit = opt.facetlimit.or(Some(5));
     info_time!("generating search query");
 
-    let query =  parser::query_parser::parse(&opt.search_term).unwrap().0;
     // parser::query_parser(opt.search_term.to_string())
 
     let terms: Vec<String> = if opt.operator.is_none() && opt.search_term.contains(" AND ") {
@@ -111,6 +203,8 @@ pub fn search_query(persistence: &Persistence, mut opt: SearchQueryGeneratorPara
             }).collect()
     });
 
+    let all_fields = persistence.meta_data.get_all_fields();
+
     let boost_terms_req: Vec<RequestSearchPart> = opt
         .boost_terms
         .iter()
@@ -136,87 +230,88 @@ pub fn search_query(persistence: &Persistence, mut opt: SearchQueryGeneratorPara
 
     let boost_term = if boost_terms_req.is_empty() { None } else { Some(boost_terms_req) };
 
-    let get_levenshtein = |term: &str| -> u32 {
-        get_levenshteinn(term, opt.levenshtein.clone(), opt.levenshtein_auto_limit.clone())
-        // let levenshtein_distance = opt.levenshtein.unwrap_or_else(|| get_default_levenshtein(term, opt.levenshtein_auto_limit.unwrap_or(1)));
-        // std::cmp::min(levenshtein_distance, term.chars().count() - 1) as u32
-    };
+    // let get_levenshtein = |term: &str| -> u32 {
+    //     get_levenshteinn(term, opt.levenshtein.clone(), opt.levenshtein_auto_limit.clone())
+    //     // let levenshtein_distance = opt.levenshtein.unwrap_or_else(|| get_default_levenshtein(term, opt.levenshtein_auto_limit.unwrap_or(1)));
+    //     // std::cmp::min(levenshtein_distance, term.chars().count() - 1) as u32
+    // };
 
-    let mut request = if op == "and" {
-        let requests: Vec<Request> = terms
-            .iter()
-            .filter(|term| {
-                if let Some(languages) = opt.stopword_lists.as_ref() {
-                    !languages.iter().any(|lang| stopwords::is_stopword(lang, &term.to_lowercase()))
-                } else {
-                    true
-                }
-            }).map(|term| {
-                let parts = get_all_field_names(&persistence, &opt.fields)
-                    .iter()
-                    .map(|field_name| {
-                        let part = RequestSearchPart {
-                            path: field_name.to_string(),
-                            terms: vec![term.to_string()],
-                            boost: opt.boost_fields.get(field_name).map(|el| OrderedFloat(*el)),
-                            levenshtein_distance: Some(get_levenshtein(term)),
-                            ..Default::default()
-                        };
-                        Request {
-                            search: Some(part),
-                            why_found: opt.why_found.unwrap_or(false),
-                            text_locality: opt.text_locality.unwrap_or(false),
-                            ..Default::default()
-                        }
-                    }).collect();
+    let mut request = query_to_request(&opt.search_term, &all_fields, &opt);
+    // let mut request = if op == "and" {
+    //     let requests: Vec<Request> = terms
+    //         .iter()
+    //         .filter(|term| {
+    //             if let Some(languages) = opt.stopword_lists.as_ref() {
+    //                 !languages.iter().any(|lang| stopwords::is_stopword(lang, &term.to_lowercase()))
+    //             } else {
+    //                 true
+    //             }
+    //         }).map(|term| {
+    //             let parts = get_all_field_names(&persistence, &opt.fields)
+    //                 .iter()
+    //                 .map(|field_name| {
+    //                     let part = RequestSearchPart {
+    //                         path: field_name.to_string(),
+    //                         terms: vec![term.to_string()],
+    //                         boost: opt.boost_fields.get(field_name).map(|el| OrderedFloat(*el)),
+    //                         levenshtein_distance: Some(get_levenshtein(term)),
+    //                         ..Default::default()
+    //                     };
+    //                     Request {
+    //                         search: Some(part),
+    //                         why_found: opt.why_found.unwrap_or(false),
+    //                         text_locality: opt.text_locality.unwrap_or(false),
+    //                         ..Default::default()
+    //                     }
+    //                 }).collect();
 
-                Request {
-                    or: Some(parts), // or over fields
-                    why_found: opt.why_found.unwrap_or(false),
-                    text_locality: opt.text_locality.unwrap_or(false),
-                    ..Default::default()
-                }
-            }).collect();
+    //             Request {
+    //                 or: Some(parts), // or over fields
+    //                 why_found: opt.why_found.unwrap_or(false),
+    //                 text_locality: opt.text_locality.unwrap_or(false),
+    //                 ..Default::default()
+    //             }
+    //         }).collect();
 
-        Request {
-            and: Some(requests), // and for terms
-            ..Default::default()
-        }
-    } else {
-        let parts: Vec<Request> = get_all_field_names(&persistence, &opt.fields)
-            .iter()
-            .flat_map(|field_name| {
-                let requests: Vec<Request> = terms
-                    .iter()
-                    .filter(|term| {
-                        if let Some(languages) = opt.stopword_lists.as_ref() {
-                            !languages.iter().any(|lang| stopwords::is_stopword(lang, &term.to_lowercase()))
-                        } else {
-                            true
-                        }
-                    }).map(|term| {
-                        let part = RequestSearchPart {
-                            path: field_name.to_string(),
-                            terms: vec![term.to_string()],
-                            boost: opt.boost_fields.get(field_name).map(|el| OrderedFloat(*el)),
-                            levenshtein_distance: Some(get_levenshtein(term)),
-                            ..Default::default()
-                        };
-                        Request {
-                            search: Some(part),
-                            why_found: opt.why_found.unwrap_or(false),
-                            text_locality: opt.text_locality.unwrap_or(false),
-                            ..Default::default()
-                        }
-                    }).collect();
+    //     Request {
+    //         and: Some(requests), // and for terms
+    //         ..Default::default()
+    //     }
+    // } else {
+    //     let parts: Vec<Request> = get_all_field_names(&persistence, &opt.fields)
+    //         .iter()
+    //         .flat_map(|field_name| {
+    //             let requests: Vec<Request> = terms
+    //                 .iter()
+    //                 .filter(|term| {
+    //                     if let Some(languages) = opt.stopword_lists.as_ref() {
+    //                         !languages.iter().any(|lang| stopwords::is_stopword(lang, &term.to_lowercase()))
+    //                     } else {
+    //                         true
+    //                     }
+    //                 }).map(|term| {
+    //                     let part = RequestSearchPart {
+    //                         path: field_name.to_string(),
+    //                         terms: vec![term.to_string()],
+    //                         boost: opt.boost_fields.get(field_name).map(|el| OrderedFloat(*el)),
+    //                         levenshtein_distance: Some(get_levenshtein(term)),
+    //                         ..Default::default()
+    //                     };
+    //                     Request {
+    //                         search: Some(part),
+    //                         why_found: opt.why_found.unwrap_or(false),
+    //                         text_locality: opt.text_locality.unwrap_or(false),
+    //                         ..Default::default()
+    //                     }
+    //                 }).collect();
 
-                requests
-            }).collect();
-        Request {
-            or: Some(parts),
-            ..Default::default()
-        }
-    };
+    //             requests
+    //         }).collect();
+    //     Request {
+    //         or: Some(parts),
+    //         ..Default::default()
+    //     }
+    // };
 
     if opt.phrase_pairs.unwrap_or(false) && terms.len() >= 2 {
         request.phrase_boosts = Some(generate_phrase_queries_for_searchterm(

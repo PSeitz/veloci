@@ -1243,7 +1243,7 @@ describe! search_test {
 
     it "read recreate complete object with read"{
         let pers = &TEST_PERSISTENCE;
-        let all_props = pers.get_all_fields();
+        let all_props = pers.meta_data.get_all_fields();
         let yay2 = search::read_data(&pers, 4, &all_props).unwrap();
 
         assert_eq!(yay2, json!({ //TODO FIX INTEGER TO STRING

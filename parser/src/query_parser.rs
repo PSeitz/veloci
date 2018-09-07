@@ -46,6 +46,44 @@ pub enum UserAST {
     Leaf(Box<UserFilter>),
 }
 
+impl UserAST {
+    pub fn simplify(self) -> Self {
+        match self {
+            UserAST::Clause(op, mut queries) => {
+                if queries.len() == 1 {
+                    return queries.pop().unwrap().simplify();
+                }
+                let mut new_queries = vec![];
+                for mut query in queries {
+                    match query {
+                        UserAST::Clause(sub_op, ref mut sub_queries) => {
+                            if op == sub_op {
+                                new_queries.extend(sub_queries.drain(..));
+                                continue;
+                            }
+                        }
+                        _ => {},
+                    }
+                    new_queries.push(query);
+                }
+                UserAST::Clause(op, new_queries.into_iter().map(|query|query.simplify()).collect())
+            },
+            _ => self
+        }
+    }
+}
+
+#[test]
+fn test_simplify() {
+
+    let leaf = UserAST::Leaf(Box::new(UserFilter{field_name:None, phrase:"test".to_string()}));
+    let ast = UserAST::Clause(Operator::Or, vec![UserAST::Clause(Operator::Or, vec![leaf])]);
+
+    assert_eq!(format!("{:?}", ast), "((\"test\"))");
+    assert_eq!(format!("{:?}", ast.simplify()), "\"test\"");
+    
+}
+
 fn debug_print_clause(formatter: &mut fmt::Formatter, asts: &[UserAST], clause: &str) -> Result<(), fmt::Error> {
     write!(formatter, "(")?;
     write!(formatter, "{:?}", &asts[0])?;
@@ -146,9 +184,9 @@ parser! {
     fn leaf[I]()(I) -> UserAST
     where [I: Stream<Item = char>] {
         let multi_literals = sep_by(user_literal(), space())
-            .map(|sub_asts: Vec<UserAST>| {
+            .map(|mut sub_asts: Vec<UserAST>| {
                 if sub_asts.len() == 1 {
-                    sub_asts[0].clone()
+                    sub_asts.pop().unwrap()
                 }else{
                     UserAST::Clause(Operator::Or, sub_asts)
                 }

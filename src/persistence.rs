@@ -74,6 +74,9 @@ impl MetaData {
         let json = util::file_as_string(&(folder.to_string() + "/metaData.json"))?;
         Ok(serde_json::from_str(&json)?)
     }
+    pub fn get_all_fields(&self) -> Vec<String> {
+        self.fulltext_indices.keys().map(|el| util::extract_field_name(el)).collect()
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
@@ -160,6 +163,7 @@ pub enum PersistenceType {
 pub struct Persistence {
     pub db: String, // folder
     pub meta_data: MetaData,
+    // pub all_fields : Vec<String>,
     pub persistence_type: PersistenceType,
     pub indices: PersistenceIndices,
     pub lru_cache: HashMap<String, LruCache<RequestSearchPart, SearchResult>>,
@@ -935,10 +939,6 @@ impl Persistence {
         }
 
         info!("{}", table);
-    }
-
-    pub fn get_all_fields(&self) -> Vec<String> {
-        self.meta_data.fulltext_indices.keys().map(|el| util::extract_field_name(el)).collect()
     }
 
     fn get_fst_sizes(&self) -> usize {
