@@ -21,7 +21,7 @@ impl fmt::Debug for UserFilter {
 }
 
 impl UserFilter {
-    pub fn to_ast(self) -> UserAST {
+    pub fn into_ast(self) -> UserAST {
         UserAST::Leaf(Box::new(self))
     }
 }
@@ -35,7 +35,7 @@ impl Operator {
     fn to_string(&self) -> &'static str {
         match self {
             Operator::Or => " OR ",
-            Operator::And => " AND "
+            Operator::And => " AND ",
         }
     }
 }
@@ -55,33 +55,31 @@ impl UserAST {
                 }
                 let mut new_queries = vec![];
                 for mut query in queries {
-                    match query {
-                        UserAST::Clause(sub_op, ref mut sub_queries) => {
-                            if op == sub_op {
-                                new_queries.extend(sub_queries.drain(..));
-                                continue;
-                            }
+                    if let UserAST::Clause(sub_op, ref mut sub_queries) = query {
+                        if op == sub_op {
+                            new_queries.extend(sub_queries.drain(..));
+                            continue;
                         }
-                        _ => {},
                     }
                     new_queries.push(query);
                 }
-                UserAST::Clause(op, new_queries.into_iter().map(|query|query.simplify()).collect())
-            },
-            _ => self
+                UserAST::Clause(op, new_queries.into_iter().map(|query| query.simplify()).collect())
+            }
+            _ => self,
         }
     }
 }
 
 #[test]
 fn test_simplify() {
-
-    let leaf = UserAST::Leaf(Box::new(UserFilter{field_name:None, phrase:"test".to_string()}));
+    let leaf = UserAST::Leaf(Box::new(UserFilter {
+        field_name: None,
+        phrase: "test".to_string(),
+    }));
     let ast = UserAST::Clause(Operator::Or, vec![UserAST::Clause(Operator::Or, vec![leaf])]);
 
     assert_eq!(format!("{:?}", ast), "((\"test\"))");
     assert_eq!(format!("{:?}", ast.simplify()), "\"test\"");
-    
 }
 
 fn debug_print_clause(formatter: &mut fmt::Formatter, asts: &[UserAST], clause: &str) -> Result<(), fmt::Error> {
@@ -98,14 +96,11 @@ fn debug_print_clause(formatter: &mut fmt::Formatter, asts: &[UserAST], clause: 
 impl fmt::Debug for UserAST {
     fn fmt(&self, formatter: &mut fmt::Formatter) -> Result<(), fmt::Error> {
         match *self {
-            UserAST::Clause(ref op, ref asts) => {
-                debug_print_clause(formatter, asts, op.to_string())
-            }
+            UserAST::Clause(ref op, ref asts) => debug_print_clause(formatter, asts, op.to_string()),
             UserAST::Leaf(ref subquery) => write!(formatter, "{:?}", subquery),
         }
     }
 }
-
 
 parser! {
     fn field[I]()(I) -> String
@@ -146,7 +141,7 @@ parser! {
 //     UserFilter {
 //         field_name: None,
 //         phrase: phrase.to_string(),
-//     }.to_ast()
+//     }.into_ast()
 // }
 
 parser! {
@@ -166,11 +161,11 @@ parser! {
             (field(), char(':'), term_val()).map(|(field_name, _, phrase)| UserFilter {
                 field_name: Some(field_name),
                 phrase,
-            }.to_ast());
+            }.into_ast());
         let term_no_field = term_val().map(|phrase| UserFilter {
             field_name: None,
             phrase,
-        }.to_ast());
+        }.into_ast());
         // try(term_with_field)
         //     .or(try(multi_words))
         //     .or(term_no_field)
@@ -178,7 +173,6 @@ parser! {
             .or(term_no_field)
     }
 }
-
 
 parser! {
     fn leaf[I]()(I) -> UserAST
@@ -240,7 +234,6 @@ parser! {
                 )
             )
         )
-
     }
 }
 
@@ -297,7 +290,6 @@ mod test {
         //no precendence yet
         test_parse_query_to_ast_helper("a OR b AND c", "((\"a\" OR \"b\") AND \"c\")");
     }
-
 
     #[test]
     fn test_parse_multi_literals() {
