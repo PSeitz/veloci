@@ -218,7 +218,7 @@ fn search_post(database: String, request: Json<search::Request>) -> Result<Searc
 #[get("/<database>/_idtree/<id>")]
 fn get_doc_for_id_tree(database: String, id: u32) -> Json<Value> {
     let persistence = PERSISTENCES.get(&database).unwrap();
-    let all_fields = persistence.get_all_fields();
+    let all_fields = persistence.meta_data.get_all_fields();
     let tree = search::get_read_tree_from_fields(&persistence, &all_fields);
 
     Json(search::read_tree(&persistence, id, &tree).unwrap())
@@ -262,21 +262,21 @@ fn search_get(database: String, params: Result<QueryParams, rocket::Error>) -> R
         })
         .unwrap_or(HashMap::default());
 
-    let filter_queries = query_param_to_vec(params.filter).map(|mkay| {
-            mkay.into_iter()
-                .map(|el| {
-                    let field_n_term = el.split(":").collect::<Vec<&str>>();
-                    let field = field_n_term[0].to_string();
-                    let term = field_n_term[1].to_string();
-                    search::RequestSearchPart{
-                        path:field,
-                        terms: vec![term],
-                        ignore_case: Some(false),
-                        ..Default::default()
-                    }
-                })
-                .collect::<Vec<_>>()
-        });
+    // let filter_queries = query_param_to_vec(params.filter).map(|mkay| {
+    //         mkay.into_iter()
+    //             .map(|el| {
+    //                 let field_n_term = el.split(":").collect::<Vec<&str>>();
+    //                 let field = field_n_term[0].to_string();
+    //                 let term = field_n_term[1].to_string();
+    //                 search::RequestSearchPart{
+    //                     path:field,
+    //                     terms: vec![term],
+    //                     ignore_case: Some(false),
+    //                     ..Default::default()
+    //                 }
+    //             })
+    //             .collect::<Vec<_>>()
+    //     });
 
     let boost_terms: HashMap<String, f32> = query_param_to_vec(params.boost_terms)
         .map(|mkay| {
@@ -307,7 +307,7 @@ fn search_get(database: String, params: Result<QueryParams, rocket::Error>) -> R
         boost_terms: boost_terms,
         explain: params.explain.map(|el| el.to_lowercase() == "true"),
         boost_queries: None,
-        filter:filter_queries,
+        filter:params.filter,
     };
 
     if let Some(el) = params.boost_queries {
@@ -342,20 +342,20 @@ fn search_get_shard(database: String, params: QueryParams) -> Result<SearchResul
         })
         .unwrap_or(HashMap::default());
 
-    let filter_queries = query_param_to_vec(params.filter).map(|mkay| {
-            mkay.into_iter()
-                .map(|el| {
-                    let field_n_term = el.split(":").collect::<Vec<&str>>();
-                    let field = field_n_term[0].to_string();
-                    let term = field_n_term[1].to_string();
-                    search::RequestSearchPart{
-                        path:field,
-                        terms: vec![term],
-                        ..Default::default()
-                    }
-                })
-                .collect::<Vec<_>>()
-        });
+    // let filter_queries = query_param_to_vec(params.filter).map(|mkay| {
+    //         mkay.into_iter()
+    //             .map(|el| {
+    //                 let field_n_term = el.split(":").collect::<Vec<&str>>();
+    //                 let field = field_n_term[0].to_string();
+    //                 let term = field_n_term[1].to_string();
+    //                 search::RequestSearchPart{
+    //                     path:field,
+    //                     terms: vec![term],
+    //                     ..Default::default()
+    //                 }
+    //             })
+    //             .collect::<Vec<_>>()
+    //     });
 
     let boost_terms: HashMap<String, f32> = query_param_to_vec(params.boost_terms)
         .map(|mkay| {
@@ -386,7 +386,7 @@ fn search_get_shard(database: String, params: QueryParams) -> Result<SearchResul
         boost_terms: boost_terms,
         explain: params.explain.map(|el| el.to_lowercase() == "true"),
         boost_queries: None,
-        filter: filter_queries,
+        filter: params.filter,
     };
 
     //TODO enable

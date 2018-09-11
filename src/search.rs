@@ -148,8 +148,8 @@ fn default_skip() -> Option<usize> {
 pub struct RequestSearchPart {
     pub path: String,
     pub terms: Vec<String>, //TODO only first term used currently
-    #[serde(default = "default_term_operator")]
-    pub term_operator: TermOperator, //TODO unused currently
+    // #[serde(default = "default_term_operator")]
+    // pub term_operator: TermOperator, //TODO unused currently
 
     #[serde(default)]
     pub explain: bool,
@@ -244,20 +244,20 @@ lazy_static! {
     };
 }
 
-fn default_term_operator() -> TermOperator {
-    TermOperator::ALL
-}
+// fn default_term_operator() -> TermOperator {
+//     TermOperator::ALL
+// }
 
-#[derive(Serialize, Deserialize, Clone, Debug, Hash, PartialEq, Eq, PartialOrd)]
-pub enum TermOperator {
-    ALL,
-    ANY,
-}
-impl Default for TermOperator {
-    fn default() -> TermOperator {
-        default_term_operator()
-    }
-}
+// #[derive(Serialize, Deserialize, Clone, Debug, Hash, PartialEq, Eq, PartialOrd)]
+// pub enum TermOperator {
+//     ALL,
+//     ANY,
+// }
+// impl Default for TermOperator {
+//     fn default() -> TermOperator {
+//         default_term_operator()
+//     }
+// }
 
 #[derive(Serialize, Deserialize, Default, Clone, Debug, Hash, PartialEq, Eq, PartialOrd)]
 pub struct RequestBoostPart {
@@ -908,7 +908,7 @@ pub fn union_hits_score(mut or_results: Vec<SearchFieldResult>) -> SearchFieldRe
         let iterators: Vec<_> = or_results
             .iter()
             .map(|res| {
-                let term_id = terms.iter().position(|ref x| x == &&res.request.terms[0]).unwrap() as u8;
+                let term_id = terms.iter().position(|ref x| x == &&res.request.terms[0]).unwrap() as u8; //TODO This could be term ids for AND search results
                 let field_id = fields.iter().position(|ref x| x == &&res.request.path).unwrap() as u8;
                 // res.hits_scores.iter().map(move |el| (el.hit, f16::from_f32(el.score), term_id, field_id))
 
@@ -1196,6 +1196,7 @@ pub fn intersect_hits_score(mut and_results: Vec<SearchFieldResult>) -> SearchFi
         term_text_in_field,
         explain: explain_hits,
         hits_scores: intersected_hits,
+        request: and_results[0].request.clone(), // set this to transport fields like explain TODO FIX - ALL AND TERMS should be reflected
         ..Default::default()
     }
 }

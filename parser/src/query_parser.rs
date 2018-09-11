@@ -9,13 +9,21 @@ use std::fmt;
 pub struct UserFilter {
     pub field_name: Option<String>,
     pub phrase: String,
+    pub levenshtein: Option<u8>
 }
 
 impl fmt::Debug for UserFilter {
     fn fmt(&self, formatter: &mut fmt::Formatter) -> Result<(), fmt::Error> {
-        match self.field_name {
-            Some(ref field_name) => write!(formatter, "{}:\"{}\"", field_name, self.phrase),
-            None => write!(formatter, "\"{}\"", self.phrase),
+        if let Some(levenshtein) = self.levenshtein {
+            match self.field_name {
+                Some(ref field_name) => write!(formatter, "{}:\"{}\"~{:?}", field_name, self.phrase, levenshtein),
+                None => write!(formatter, "\"{}\"~{:?}", self.phrase, levenshtein),
+            }
+        }else{
+            match self.field_name {
+                Some(ref field_name) => write!(formatter, "{}:\"{}\"", field_name, self.phrase),
+                None => write!(formatter, "\"{}\"", self.phrase),
+            }
         }
     }
 }
@@ -75,6 +83,7 @@ fn test_simplify() {
     let leaf = UserAST::Leaf(Box::new(UserFilter {
         field_name: None,
         phrase: "test".to_string(),
+        levenshtein: None
     }));
     let ast = UserAST::Clause(Operator::Or, vec![UserAST::Clause(Operator::Or, vec![leaf])]);
 
@@ -115,7 +124,7 @@ parser! {
 parser! {
     fn word[I]()(I) -> String
     where [I: Stream<Item = char>] {
-        many1(satisfy(|c: char| !c.is_whitespace() && c != '(' && c != ')' ))
+        many1(satisfy(|c: char| !c.is_whitespace() && c != '(' && c != ')' && c != '~' ))
             .and_then(|s: String| {
                 match s.as_str() {
                     "OR" => Err(StreamErrorFor::<I>::unexpected_static_message("OR")),
@@ -157,19 +166,35 @@ parser! {
             let phrase = (char('"'), many1(satisfy(|c| c != '"')), char('"')).map(|(_, s, _)| s);
             phrase.or(word())
         };
+        let term_with_field_and_levenshtein =
+            (field(), char(':'), term_val(), char('~'), digit()).map(|(field_name, _, phrase, _, digit)| UserFilter {
+                field_name: Some(field_name),
+                phrase,
+                levenshtein: Some(digit.to_string().parse::<u8>().unwrap())
+            }.into_ast());
         let term_with_field =
             (field(), char(':'), term_val()).map(|(field_name, _, phrase)| UserFilter {
                 field_name: Some(field_name),
                 phrase,
+                levenshtein: None
+            }.into_ast());
+        let term_no_field_and_levenshtein =
+            (term_val(), char('~'), digit()).map(|(phrase, _, digit)| UserFilter {
+                field_name: None,
+                phrase,
+                levenshtein: Some(digit.to_string().parse::<u8>().unwrap())
             }.into_ast());
         let term_no_field = term_val().map(|phrase| UserFilter {
             field_name: None,
             phrase,
+            levenshtein: None
         }.into_ast());
         // try(term_with_field)
         //     .or(try(multi_words))
         //     .or(term_no_field)
-        try(term_with_field)
+        try(term_with_field_and_levenshtein)
+            .or(try(term_no_field_and_levenshtein))
+            .or(try(term_with_field))
             .or(term_no_field)
     }
 }
@@ -296,6 +321,11 @@ mod test {
         test_parse_query_to_ast_helper("a b", "(\"a\" OR \"b\")");
         test_parse_query_to_ast_helper("\"a b\"", "\"a b\"");
         test_parse_query_to_ast_helper("feld:10 b", "(feld:\"10\" OR \"b\")");
+    }
+
+    #[test]
+    fn test_parse_levenshtein() {
+        test_parse_query_to_ast_helper("buch~2", "\"buch\"~2");
     }
 
 }

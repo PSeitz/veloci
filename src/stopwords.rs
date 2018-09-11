@@ -17,8 +17,10 @@ fn hashset_from_stop_word_list(text: &str) -> FnvHashSet<String> {
     text.lines().map(|el| el.to_lowercase()).collect()
 }
 
+//TODO: EROR HANDLING
 pub fn is_stopword(language: &str, text: &str) -> bool {
-    STOPWORDS.get(language).unwrap().contains(text)
+    let language = language.to_lowercase();
+    STOPWORDS.get(&language as &str).unwrap().contains(text)
 }
 
 #[test]
