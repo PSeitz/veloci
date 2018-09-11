@@ -150,7 +150,6 @@ pub struct RequestSearchPart {
     pub terms: Vec<String>, //TODO only first term used currently
     // #[serde(default = "default_term_operator")]
     // pub term_operator: TermOperator, //TODO unused currently
-
     #[serde(default)]
     pub explain: bool,
 
@@ -312,7 +311,7 @@ impl FilterResult {
     pub fn from_result(res: &Vec<TermId>) -> FilterResult {
         if res.len() > 100_000 {
             FilterResult::Vec(res.clone())
-        }else{
+        } else {
             let mut filter = FnvHashSet::with_capacity_and_hasher(100_000, Default::default());
             for id in res {
                 filter.insert(*id);

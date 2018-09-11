@@ -69,9 +69,9 @@ extern crate measure_time;
 extern crate byteorder;
 
 extern crate buffered_index_writer;
-extern crate parser;
 extern crate json_converter;
 extern crate ordered_float;
+extern crate parser;
 
 extern crate colored;
 

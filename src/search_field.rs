@@ -1,4 +1,3 @@
-use std::sync::Arc;
 use fnv::{FnvHashMap, FnvHashSet};
 use fst::automaton::*;
 use fst::raw::Fst;
@@ -16,6 +15,7 @@ use std::cmp;
 use std::cmp::Ordering;
 use std::iter::FusedIterator;
 use std::marker;
+use std::sync::Arc;
 use str;
 use util;
 use util::StringAdd;
@@ -245,16 +245,12 @@ fn get_text_score_id_from_result(suggest_text: bool, results: &[SearchFieldResul
     let mut suggest_result = results
         .iter()
         .flat_map(|res| {
-            res.hits_scores.iter()// @Performance add only "top" elements ?
+            res.hits_scores
+                .iter() // @Performance add only "top" elements ?
                 .map(|term_n_score| {
-                    let term = if suggest_text{
-                        &res.terms[&term_n_score.id]
-                    }else{
-                        &res.highlight[&term_n_score.id]
-                    };
+                    let term = if suggest_text { &res.terms[&term_n_score.id] } else { &res.highlight[&term_n_score.id] };
                     (term.to_string(), term_n_score.score, term_n_score.id)
-                })
-                .collect::<SuggestFieldResult>()
+                }).collect::<SuggestFieldResult>()
         }).collect::<SuggestFieldResult>();
 
     //Merge same text
@@ -683,12 +679,12 @@ pub fn get_id_text_map_for_ids(persistence: &Persistence, path: &str, ids: &[u32
 
 #[inline]
 fn should_filter(filter: &Option<Arc<FilterResult>>, id: u32) -> bool {
-    filter.as_ref().map(|filter| {
-        match **filter {
+    filter
+        .as_ref()
+        .map(|filter| match **filter {
             FilterResult::Vec(_) => false,
             FilterResult::Set(ref filter) => !filter.contains(&id),
-        }
-    }).unwrap_or(false)
+        }).unwrap_or(false)
 }
 
 #[cfg_attr(feature = "flame_it", flame)]

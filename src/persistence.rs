@@ -74,6 +74,7 @@ impl MetaData {
         let json = util::file_as_string(&(folder.to_string() + "/metaData.json"))?;
         Ok(serde_json::from_str(&json)?)
     }
+
     pub fn get_all_fields(&self) -> Vec<String> {
         self.fulltext_indices.keys().map(|el| util::extract_field_name(el)).collect()
     }

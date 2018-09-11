@@ -7,16 +7,16 @@ use byteorder::{LittleEndian, ReadBytesExt};
 use persistence::*;
 use type_info::TypeInfo;
 
+use facet::*;
 use num;
 use num::cast::ToPrimitive;
 use std;
+use std::fmt;
 use std::fs::File;
 use std::io;
 use std::io::Write;
 use std::marker::PhantomData;
 use std::u32;
-use std::fmt;
-use facet::*;
 
 use fnv::FnvHashMap;
 use itertools::Itertools;

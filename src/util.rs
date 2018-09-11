@@ -199,10 +199,10 @@ pub(crate) fn vec_with_size_uninitialized<T>(size: usize) -> Vec<T> {
 #[inline]
 pub(crate) fn extract_field_name(field: &str) -> String {
     field
-    .chars()
-    .take(field.chars().count() - 10) //remove .textindex
-    .into_iter()
-    .collect()
+        .chars()
+        .take(field.chars().count() - 10) //remove .textindex
+        .into_iter()
+        .collect()
 }
 
 pub(crate) fn extract_prop_name(path: &str) -> &str {

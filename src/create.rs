@@ -90,7 +90,7 @@ impl Default for FulltextIndexOptions {
         FulltextIndexOptions {
             tokenize: true,
             stopwords: None,
-            tokenizer:TokenizerStrategy::Simple,
+            tokenizer: TokenizerStrategy::Simple,
             do_not_store_text_longer_than: default_text_length_store(),
         }
     }
