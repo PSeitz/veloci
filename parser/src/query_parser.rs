@@ -287,7 +287,6 @@ mod test {
     fn test_special_chars() {
         test_parse_query_to_ast_helper("die drei ???", "(\"die\" OR \"drei\" OR \"???\")");
         test_parse_query_to_ast_helper("a+", "\"a+\"");
-        test_parse_query_to_ast_helper("once upon a time in the west+", "\"a+\"");
     }
 
     #[test]
