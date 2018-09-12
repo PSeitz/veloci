@@ -419,7 +419,7 @@ pub fn get_term_ids_in_field(persistence: &Persistence, options: &mut PlanReques
         let should_check_prefix_match = options.request.starts_with.unwrap_or(false) || options.request.levenshtein_distance.unwrap_or(0) != 0;
 
         let teh_callback = |text_or_token: String, token_text_id: u32| {
-            // trace!("Checking {} with {}", text_or_token, term);
+            trace!("Checking {} with {}", text_or_token, text_or_token);
 
             if options.get_ids {
                 result.hits_ids.push(token_text_id);
@@ -595,15 +595,25 @@ pub fn resolve_token_to_anchor(
     let mut fast_field_res_ids = vec![];
     {
         if !result.hits_ids.is_empty() {
+
+            //TODO FIXME Important Note: In the Filter Case we currently only resolve TEXT_IDS to anchor. No Filter are possible on tokens. Fixme: Conflicts with token based boosting
+            let text_id_to_anchor = persistence.get_valueid_to_parent(&options.path.add(TEXT_ID_TO_ANCHOR))?;
+
             debug_time!("{} tokens to anchor_id", &options.path);
             for id in &result.hits_ids {
-                // debug_time!("{} added anchor ids for id {:?}", &options.path, id);
-                let mut iter = token_to_anchor_score.get_score_iter(*id);
-                fast_field_res_ids.reserve(iter.size_hint().1.unwrap() / 2);
-                for el in iter {
-                    //TODO ENABLE should_filter(&filter, el.id) ?
-                    fast_field_res_ids.push(el.id);
+                let mut iter = text_id_to_anchor.get_values_iter(u64::from(*id));
+                fast_field_res_ids.reserve(iter.size_hint().1.unwrap());
+                for anchor_id in iter {
+                    //TODO ENABLE should_filter(&filter, anchor_id) ?
+                    fast_field_res_ids.push(anchor_id);
                 }
+
+                // let mut iter = token_to_anchor_score.get_score_iter(*id);
+                // fast_field_res_ids.reserve(iter.size_hint().1.unwrap() / 2);
+                // for el in iter {
+                //     //TODO ENABLE should_filter(&filter, el.id) ?
+                //     fast_field_res_ids.push(el.id);
+                // }
             }
         }
     }
