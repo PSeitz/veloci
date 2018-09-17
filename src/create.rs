@@ -214,10 +214,10 @@ fn store_full_text_info_and_set_ids(
         trace!("{:?} Terms: {:?}", path, all_text);
     }
     fulltext_indices.num_text_ids = terms_data.terms.len();
-    fulltext_indices.num_long_text_ids = terms_data.long_terms.len();
+    // fulltext_indices.num_long_text_ids = terms_data.long_terms.len();
 
     let term_and_mut_val = set_ids(&mut terms_data.terms, 0);
-    set_ids(&mut terms_data.long_terms, fulltext_indices.num_text_ids as u32);
+    // set_ids(&mut terms_data.long_terms, fulltext_indices.num_text_ids as u32);
 
     store_fst(persistence, &term_and_mut_val, &path, options.do_not_store_text_longer_than).expect("Could not store fst");
     // fulltext_indices.insert(path.to_string(), options.clone());
@@ -264,7 +264,7 @@ fn add_text<T: Tokenizer>(text: &str, term_data: &mut TermDataInPath, options: &
 
     if term_data.do_not_store_text_longer_than < text.len() {
         // term_data.id_counter_for_large_texts += 1;
-        add_count_text(&mut term_data.long_terms, text); //TODO handle no tokens case or else the text can't be reconstructed
+        // add_count_text(&mut term_data.long_terms, text); //TODO handle no tokens case or else the text can't be reconstructed
     } else {
         add_count_text(&mut term_data.terms, text); //TODO handle no tokens case or else the text can't be reconstructed
     }
@@ -348,9 +348,9 @@ pub struct CreateCache {
 #[derive(Debug, Default)]
 struct TermDataInPath {
     terms: TermMap,
-    long_terms: TermMap,
+    // long_terms: TermMap,
     do_not_store_text_longer_than: usize,
-    // id_counter_for_large_texts: u32
+    id_counter_for_large_texts: u32
 }
 
 #[derive(Debug, Default)]
@@ -595,7 +595,12 @@ where
             // }
 
             let text_info = if all_terms.do_not_store_text_longer_than < value.len() {
-                *all_terms.long_terms.get(value).expect("did not found term")
+                // *all_terms.long_terms.get(value).expect("did not found term")
+                all_terms.id_counter_for_large_texts+=1;
+                TermInfo {
+                    id: all_terms.terms.len() as u32 + 1 + all_terms.id_counter_for_large_texts,
+                    num_occurences: 1,
+                }
             } else {
                 *all_terms.terms.get(value).expect("did not found term")
             };
