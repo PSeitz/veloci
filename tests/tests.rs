@@ -48,22 +48,38 @@ lazy_static! {
     static ref TEST_PERSISTENCE: persistence::Persistence = {
         trace::enable_log();
 
+        // let indices = r#"
+        // [
+        //     { "facet":"tags[]"},
+        //     { "facet":"commonness"},
+        //     { "boost":"commonness" , "options":{"boost_type":"int"}},
+        //     { "fulltext":"ent_seq" },
+        //     { "boost":"field1[].rank" , "options":{"boost_type":"int"}},
+        //     { "fulltext":"field1[].text" },
+        //     { "fulltext":"kanji[].text" },
+        //     { "fulltext":"meanings.ger[]", "options":{"tokenize":true, "stopwords": ["stopword"]} },
+        //     { "fulltext":"meanings.eng[]", "options":{"tokenize":true} },
+        //     { "fulltext":"nofulltext", "options":{"tokenize":false} },
+        //     { "fulltext":"address[].line[]", "options":{"tokenize":true} },
+        //     { "boost":"kanji[].commonness" , "options":{"boost_type":"int"}},
+        //     { "boost":"kana[].commonness", "options":{"boost_type":"int"} }
+        // ]
+        // "#;
+
         let indices = r#"
-        [
-            { "facet":"tags[]"},
-            { "facet":"commonness"},
-            { "boost":"commonness" , "options":{"boost_type":"int"}},
-            { "fulltext":"ent_seq" },
-            { "boost":"field1[].rank" , "options":{"boost_type":"int"}},
-            { "fulltext":"field1[].text" },
-            { "fulltext":"kanji[].text" },
-            { "fulltext":"meanings.ger[]", "options":{"tokenize":true, "stopwords": ["stopword"]} },
-            { "fulltext":"meanings.eng[]", "options":{"tokenize":true} },
-            { "fulltext":"nofulltext", "options":{"tokenize":false} },
-            { "fulltext":"address[].line[]", "options":{"tokenize":true} },
-            { "boost":"kanji[].commonness" , "options":{"boost_type":"int"}},
-            { "boost":"kana[].commonness", "options":{"boost_type":"int"} }
-        ]
+        {
+            "tags[]":{"facet":true},
+            "commonness":{"facet":true, "boost":{"boost_type":"int"}},
+            "ent_seq": {"fulltext":{"tokenize":true}},
+            "field1[].rank": {"boost":{"boost_type":"int"}},
+            "field1[].text": {"fulltext":{"tokenize":true}},
+            "kanji[].text": {"fulltext":{"tokenize":true}},
+            "meanings.ger[]": {"fulltext":{"tokenize":true}, "stopwords": ["stopword"]},
+            "meanings.eng[]": {"fulltext":{"tokenize":true}},
+            "nofulltext": {"fulltext":{"tokenize":false}},
+            "kanji[].commonness": {"boost":{"boost_type":"int"}},
+            "kana[].commonness": {"boost":{"boost_type":"int"}}
+        }
         "#;
 
         let data = get_test_data();
@@ -1266,8 +1282,10 @@ describe! search_test {
 
     it "facet"{
         let pers = &TEST_PERSISTENCE;
-        let yep = facet::get_facet(&pers, &search::FacetRequest{field:"tags[]".to_string(), top:Some(10)}, &vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14]);
-        assert_eq!(yep.unwrap(), vec![("nice".to_string(), 8), ("cool".to_string(), 8), ("awesome".to_string(), 1), ("coolo".to_string(), 1), ("Eis".to_string(), 1)] );
+        let mut yep = facet::get_facet(&pers, &search::FacetRequest{field:"tags[]".to_string(), top:Some(10)}, &vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14]).unwrap();
+        // yep.sort_by_key(|yo|format!("{:?}{:?}", yo.1 , yo.0));
+        yep.sort_by(|a, b| format!("{:?}{:?}", b.1 , b.0).cmp(&format!("{:?}{:?}", a.1 , a.0)));
+        assert_eq!(yep, vec![("nice".to_string(), 8), ("cool".to_string(), 8), ("coolo".to_string(), 1), ("awesome".to_string(), 1), ("Eis".to_string(), 1)] );
     }
 
     //MUTLI TERMS

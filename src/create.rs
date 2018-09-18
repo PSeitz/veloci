@@ -34,6 +34,59 @@ use fixedbitset::FixedBitSet;
 
 use util::StringAdd;
 
+// type FieldsConfig = FnvHashMap<String, FieldConfig>;
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct FieldsConfig(FnvHashMap<String, FieldConfig>);
+
+impl FieldsConfig {
+    fn get(&self, path:&str) -> Option<&FieldConfig> {
+        if path.ends_with(".textindex"){
+            // self.0.get(str::from_utf8_unchecked(&path[..path.len()-7]))
+            self.0.get(&path[..path.len()-7])
+        }else{
+            self.0.get(path)
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct FieldConfig {
+    #[serde(default = "facet_default")]
+    pub facet: bool,
+    pub fulltext: Option<FulltextIndexOptions>,
+    pub indices: Option<Vec<IndexCreationType>>,
+    pub boost: Option<BoostIndexOptions>
+}
+fn facet_default() -> bool {
+    false
+}
+
+#[test]
+fn test_field_config_from_json() {
+    let json = r#"{
+        "MATNR" : {
+           "facet":true,
+           "fulltext" : {"tokenize":true},
+           "indices": ["TokensToTextID", "TokenToAnchorIDScore", "PhrasePairToAnchor", "TextIDToTokenIds", "TextIDToParent", "ParentToTextID", "TextIDToAnchor", "AnchorToTextID"]
+        },
+        "ISMTITLE"     : {"fulltext": {"tokenize":true}  },
+        "ISMORIGTITLE" : {"fulltext": {"tokenize":true}  },
+        "ISMSUBTITLE1" : {"fulltext": {"tokenize":true}  },
+        "ISMSUBTITLE2" : {"fulltext": {"tokenize":true}  },
+        "ISMSUBTITLE3" : {"fulltext": {"tokenize":true}  },
+        "ISMARTIST"    : {"fulltext": {"tokenize":true}  },
+        "ISMLANGUAGES" : {"fulltext": {"tokenize":false} },
+        "ISMPUBLDATE"  : {"fulltext": {"tokenize":false} },
+        "EAN11"        : {"fulltext": {"tokenize":false} },
+        "ISMORIDCODE"  : {"fulltext": {"tokenize":false} }
+    }"#;
+    let data: FieldsConfig = serde_json::from_str(json).unwrap();
+    assert_eq!(data.get("MATNR").unwrap().facet, true);
+    assert_eq!(data.get("ISMORIDCODE").unwrap().fulltext.as_ref().unwrap().tokenize, false);
+}
+
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(untagged)]
 pub enum CreateIndex {
@@ -364,7 +417,7 @@ pub struct AllTermsAndDocumentBuilder {
 fn get_allterms_per_path<I: Iterator<Item = Result<serde_json::Value, serde_json::Error>>>(
     stream: I,
     // persistence: &mut Persistence,
-    fulltext_info_for_path: &FnvHashMap<String, Fulltext>,
+    fulltext_info_for_path: &FieldsConfig,
     data: &mut AllTermsAndDocumentBuilder,
 ) -> Result<(), io::Error> {
     info_time!("get_allterms_per_path");
@@ -377,7 +430,7 @@ fn get_allterms_per_path<I: Iterator<Item = Result<serde_json::Value, serde_json
     let mut id_holder = json_converter::IDHolder::new();
     {
         let mut cb_text = |_anchor_id: u32, value: &str, path: &str, _parent_val_id: u32| -> Result<(), io::Error> {
-            let options: &FulltextIndexOptions = fulltext_info_for_path.get(path).and_then(|el| el.options.as_ref()).unwrap_or(&default_fulltext_options);
+            let options: &FulltextIndexOptions = fulltext_info_for_path.get(path).and_then(|el| el.fulltext.as_ref()).unwrap_or(&default_fulltext_options);
 
             let mut terms_data = get_or_insert_prefer_get(&mut data.terms_in_path as *mut FnvHashMap<_, _>, path, &|| TermDataInPath {
                 do_not_store_text_longer_than: options.do_not_store_text_longer_than,
@@ -482,6 +535,18 @@ impl BufferedTextIdToTokenIdsData {
     }
 }
 
+#[derive(Debug, Serialize, Deserialize, Clone, Copy)]
+pub enum IndexCreationType {
+    TokensToTextID,
+    TokenToAnchorIDScore,
+    PhrasePairToAnchor,
+    TextIDToTokenIds,
+    TextIDToParent,
+    ParentToTextID,
+    TextIDToAnchor,
+    AnchorToTextID,
+}
+
 #[derive(Debug, Default)]
 struct PathData {
     tokens_to_text_id: BufferedIndexWriter,
@@ -537,9 +602,10 @@ struct PathDataIds {
 fn parse_json_and_prepare_indices<I>(
     stream1: I,
     _persistence: &Persistence,
-    fulltext_info_for_path: &FnvHashMap<String, Fulltext>,
-    boost_info_for_path: &FnvHashMap<String, Boost>,
-    facet_index: &FnvHashSet<String>,
+    field_config: &FieldsConfig,
+    // fulltext_info_for_path: &FnvHashMap<String, Fulltext>,
+    // boost_info_for_path: &FnvHashMap<String, Boost>,
+    // facet_index: &FnvHashSet<String>,
     create_cache: &mut CreateCache,
 ) -> Result<(FnvHashMap<String, PathData>, FnvHashMap<String, PathDataIds>), io::Error>
 where
@@ -564,12 +630,12 @@ where
 
         let mut cb_text = |anchor_id: u32, value: &str, path: &str, parent_val_id: u32| -> Result<(), io::Error> {
             let data = get_or_insert_prefer_get(&mut path_data as *mut FnvHashMap<_, _>, path, &|| {
-                let boost_info_data = if boost_info_for_path.contains_key(path) {
+                let boost_info_data = if field_config.get(path).map(|el|el.boost.is_some()).unwrap_or(false) {
                     Some(BufferedIndexWriter::new_for_sorted_id_insertion())
                 } else {
                     None
                 };
-                let anchor_to_text_id = if facet_index.contains(path) && is_1_to_n(path) {
+                let anchor_to_text_id = if field_config.get(path).map(|el|el.facet).unwrap_or(false) && is_1_to_n(path) {
                     //Create facet index only for 1:N
                     // anchor_id is monotonically increasing, hint buffered index writer, it's already sorted
                     Some(BufferedIndexWriter::new_for_sorted_id_insertion())
@@ -588,11 +654,8 @@ where
             });
 
             let all_terms = create_cache.term_data.terms_in_path.get_mut(path).unwrap();
-            let options: &FulltextIndexOptions = fulltext_info_for_path.get(path).and_then(|el| el.options.as_ref()).unwrap_or(&default_fulltext_options);
+            let options: &FulltextIndexOptions = field_config.get(path).and_then(|el| el.fulltext.as_ref()).unwrap_or(&default_fulltext_options);
 
-            // if options.stopwords.as_ref().map(|el| el.contains(value)).unwrap_or(false) {
-            //     return;
-            // }
 
             let text_info = if all_terms.do_not_store_text_longer_than < value.len() {
                 // *all_terms.long_terms.get(value).expect("did not found term")
@@ -604,8 +667,6 @@ where
             } else {
                 *all_terms.terms.get(value).expect("did not found term")
             };
-
-            // let text_info = all_terms.get(value).expect("did not found term");
 
             data.text_id_to_parent.add(text_info.id, parent_val_id)?;
             data.parent_to_text_id.add(parent_val_id, text_info.id)?;
@@ -913,7 +974,8 @@ fn convert_raw_path_data_to_indices(
     db_path: &str,
     path_data: FnvHashMap<String, PathData>,
     tuples_to_parent_in_path: FnvHashMap<String, PathDataIds>,
-    facet_index: &FnvHashSet<String>,
+    indices_json: &FieldsConfig,
+    // facet_index: &FnvHashSet<String>,
 ) -> Result<IndicesFromRawData, SearchError> {
     info_time!("convert_raw_path_data_to_indices");
     let mut indices = IndicesFromRawData::default();
@@ -976,7 +1038,7 @@ fn convert_raw_path_data_to_indices(
                 LoadingType::Disk,
             )?;
 
-            let loading_type = if facet_index.contains(&path.to_string()) && !is_1_to_n(path) {
+            let loading_type = if indices_json.get(path).map(|el|el.facet).unwrap_or(false) && !is_1_to_n(path) {
                 LoadingType::InMemoryUnCompressed
             } else {
                 LoadingType::Disk
@@ -1054,7 +1116,8 @@ pub fn create_fulltext_index<I, J, K, S: AsRef<str>>(
     stream2: J,
     stream3: K,
     mut persistence: &mut Persistence,
-    indices_json: &[CreateIndex],
+    // indices_json: &[CreateIndex],
+    indices_json: &FieldsConfig,
     _create_cache: &mut CreateCache,
     load_persistence: bool,
 ) -> Result<(), CreateError>
@@ -1064,29 +1127,29 @@ where
     K: Iterator<Item = S>,
 {
     let mut create_cache = CreateCache::default();
-    let fulltext_info_for_path: FnvHashMap<String, Fulltext> = indices_json
-        .iter()
-        .flat_map(|index| match *index {
-            CreateIndex::FulltextInfo(ref fulltext_info) => Some((fulltext_info.fulltext.add(TEXTINDEX), (*fulltext_info).clone())),
-            _ => None,
-        }).collect();
+    // let fulltext_info_for_path: FnvHashMap<String, Fulltext> = indices_json
+    //     .iter()
+    //     .flat_map(|index| match *index {
+    //         CreateIndex::FulltextInfo(ref fulltext_info) => Some((fulltext_info.fulltext.add(TEXTINDEX), (*fulltext_info).clone())),
+    //         _ => None,
+    //     }).collect();
 
-    let boost_info_for_path: FnvHashMap<String, Boost> = indices_json
-        .iter()
-        .flat_map(|index| match *index {
-            CreateIndex::BoostInfo(ref boost_info) => Some((boost_info.boost.add(TEXTINDEX), (*boost_info).clone())),
-            _ => None,
-        }).collect();
+    // let boost_info_for_path: FnvHashMap<String, Boost> = indices_json
+    //     .iter()
+    //     .flat_map(|index| match *index {
+    //         CreateIndex::BoostInfo(ref boost_info) => Some((boost_info.boost.add(TEXTINDEX), (*boost_info).clone())),
+    //         _ => None,
+    //     }).collect();
 
-    let facet_index: FnvHashSet<String> = indices_json
-        .iter()
-        .flat_map(|index| match *index {
-            CreateIndex::FacetInfo(ref el) => Some(el.facet.add(TEXTINDEX)),
-            _ => None,
-        }).collect();
+    // let facet_index: FnvHashSet<String> = indices_json
+    //     .iter()
+    //     .flat_map(|index| match *index {
+    //         CreateIndex::FacetInfo(ref el) => Some(el.facet.add(TEXTINDEX)),
+    //         _ => None,
+    //     }).collect();
 
     write_docs(&mut persistence, &mut create_cache, stream3)?;
-    get_allterms_per_path(stream1, &fulltext_info_for_path, &mut create_cache.term_data)?;
+    get_allterms_per_path(stream1, &indices_json, &mut create_cache.term_data)?;
 
     let default_fulltext_options = FulltextIndexOptions::new_with_tokenize();
     {
@@ -1098,7 +1161,7 @@ where
             .map(|(path, mut terms_data)| {
                 // let mut fulltext_indices = FnvHashMap::default();
                 let mut fulltext_index_metadata = TextIndexMetaData::default();
-                let options: &FulltextIndexOptions = fulltext_info_for_path.get(path).and_then(|el| el.options.as_ref()).unwrap_or(&default_fulltext_options);
+                let options: &FulltextIndexOptions = indices_json.get(path).and_then(|el| el.fulltext.as_ref()).unwrap_or(&default_fulltext_options);
                 fulltext_index_metadata.options = options.clone();
                 store_full_text_info_and_set_ids(&persistence, &mut terms_data, &path, &options, &mut fulltext_index_metadata)?;
                 // Ok(fulltext_indices)
@@ -1125,7 +1188,8 @@ where
     trace!("all_terms {:?}", create_cache.term_data.terms_in_path);
 
     let (mut path_data, tuples_to_parent_in_path) =
-        parse_json_and_prepare_indices(stream2, &persistence, &fulltext_info_for_path, &boost_info_for_path, &facet_index, &mut create_cache)?;
+        parse_json_and_prepare_indices(stream2, &persistence, &indices_json, &mut create_cache)?;
+        // parse_json_and_prepare_indices(stream2, &persistence, &fulltext_info_for_path, &boost_info_for_path, &facet_index, &mut create_cache)?;
 
     std::mem::drop(create_cache);
 
@@ -1133,7 +1197,7 @@ where
         trace_indices(&mut path_data);
     }
 
-    let mut indices = convert_raw_path_data_to_indices(&persistence.db, path_data, tuples_to_parent_in_path, &facet_index)?;
+    let mut indices = convert_raw_path_data_to_indices(&persistence.db, path_data, tuples_to_parent_in_path, &indices_json)?;
     if persistence.persistence_type == persistence::PersistenceType::Persistent {
         info_time!("write indices");
         // let mut stores = vec![];
@@ -1424,7 +1488,8 @@ where
 {
     info_time!("total time create_indices for {:?}", persistence.db);
 
-    let indices_json: Vec<CreateIndex> = serde_json::from_str(indices).unwrap();
+    // let indices_json: Vec<CreateIndex> = serde_json::from_str(indices).unwrap();
+    let indices_json: FieldsConfig = serde_json::from_str(indices).unwrap();
     let mut create_cache = create_cache.unwrap_or_else(CreateCache::default);
     create_fulltext_index(stream1, stream2, stream3, &mut persistence, &indices_json, &mut create_cache, load_persistence)?;
 

@@ -20,9 +20,7 @@ lazy_static! {
     static ref TEST_PERSISTENCE:persistence::Persistence = {
         // Start up a test.
         let indices = r#"
-        [
-            { "facet":"tags[]"}
-        ]
+        { "tags[]":{"facet":true}}
         "#;
 
         let mut data:Vec<u8> = vec![];
@@ -103,7 +101,7 @@ describe! test_large {
 
         let hits = search_testo_to_doc(req);
         let facets = hits.facets.unwrap();
-        assert_eq!(facets.get("tags[]").unwrap(), &vec![("nice".to_string(), 300), ("cool".to_string(), 300)] );
+        assert_eq!(facets.get("tags[]").unwrap(), &vec![("cool".to_string(), 300), ("nice".to_string(), 300)] );
     }
 
 }

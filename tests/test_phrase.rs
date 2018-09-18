@@ -42,7 +42,8 @@ static TEST_FOLDER: &str = "mochaTest_phrase";
 lazy_static! {
     static ref TEST_PERSISTENCE: persistence::Persistence = {
         trace::enable_log();
-        let indices = r#"[{ "fulltext":"title", "options":{"tokenize":true} } ] "#;
+        // let indices = r#"[{ "fulltext":"title", "options":{"tokenize":true} } ] "#;
+        let indices = r#"{ "title":{"fulltext":{"tokenize":true} }} "#;
         let mut persistence = persistence::Persistence::create(TEST_FOLDER.to_string()).unwrap();
 
         let data = get_test_data();

@@ -58,7 +58,7 @@ lazy_static! {
 
         let mut out: Vec<u8> = vec![];
         search_lib::create::convert_any_json_data_to_line_delimited(data.to_string().as_bytes(), &mut out).unwrap();
-        println!("{:?}", create::create_indices_from_str(&mut pers, std::str::from_utf8(&out).unwrap(), "[]", None, true));
+        println!("{:?}", create::create_indices_from_str(&mut pers, std::str::from_utf8(&out).unwrap(), "{}", None, true));
 
         if persistence_type == persistence::PersistenceType::Persistent {
             pers = persistence::Persistence::load(TEST_FOLDER.to_string()).expect("Could not load persistence");
