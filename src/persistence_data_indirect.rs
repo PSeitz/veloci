@@ -123,9 +123,13 @@ impl IndexIdToMultipleParentIndirectFlushingInOrderVint {
             set_high_bit(&mut val); // encode directly, much wow, much compression, gg memory consumption
             self.ids_cache[id_pos] = val;
         } else {
-            self.ids_cache[id_pos] = self.current_data_offset + self.data_cache.len() as u32;
-
-            self.data_cache.extend(to_serialized_vint_array(add_data));
+            if let Some(pos_in_data) = (self.current_data_offset as usize + self.data_cache.len()).to_u32() {
+                self.ids_cache[id_pos] = pos_in_data;
+                self.data_cache.extend(to_serialized_vint_array(add_data));
+            }else{
+                //Handle Overflow
+                panic!("Too much data, can't adress with u32");
+            }
         }
 
         if self.ids_cache.len() * std::mem::size_of::<u32>() + self.data_cache.len() >= 4_000_000 {

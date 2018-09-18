@@ -1173,14 +1173,14 @@ where
         // }
         persistence.load_all_fst()?;
 
-        // info!(
-        //     "All text memory {}",
-        //     persistence::get_readable_size(create_cache.term_data.terms_in_path.iter().map(|el| el.1.memory_footprint()).sum())
-        // );
-        // info!(
-        //     "All raw text data memory {}",
-        //     persistence::get_readable_size(create_cache.term_data.terms_in_path.iter().map(|el| el.1.total_size_of_text_data()).sum())
-        // );
+        info!(
+            "All text memory {}",
+            persistence::get_readable_size(create_cache.term_data.terms_in_path.iter().map(|el| el.1.terms.memory_footprint() + el.1.long_terms.memory_footprint()).sum())
+        );
+        info!(
+            "All raw text data memory {}",
+            persistence::get_readable_size(create_cache.term_data.terms_in_path.iter().map(|el| el.1.terms.total_size_of_text_data() + el.1.long_terms.memory_footprint()).sum())
+        );
     }
 
     // check_similarity(&data.terms_in_path);
