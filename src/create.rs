@@ -315,7 +315,7 @@ fn add_count_text(terms: &mut TermMap, text: &str) {
 }
 
 #[inline]
-fn add_text<T: Tokenizer>(text: &str, term_data: &mut TermDataInPath, options: &FulltextIndexOptions, tokenizer: &T, _prev_phrase_token: &mut Vec<u8>) {
+fn add_text<T: Tokenizer>(text: &str, term_data: &mut TermDataInPath, options: &FulltextIndexOptions, tokenizer: &T) {
     trace!("text: {:?}", text);
     // if options.stopwords.as_ref().map(|el| el.contains(text)).unwrap_or(false) {
     //     return;
@@ -431,7 +431,6 @@ fn get_allterms_per_path<I: Iterator<Item = Result<serde_json::Value, serde_json
     let tokenizer = SimpleTokenizerCharsIterateGroupTokens {};
     let default_fulltext_options = FulltextIndexOptions::new_with_tokenize();
 
-    let mut prev_phrase_token: Vec<u8> = vec![];
 
     let mut id_holder = json_converter::IDHolder::new();
     {
@@ -443,7 +442,7 @@ fn get_allterms_per_path<I: Iterator<Item = Result<serde_json::Value, serde_json
                 ..Default::default()
             });
 
-            add_text(value, &mut terms_data, &options, &tokenizer, &mut prev_phrase_token);
+            add_text(value, &mut terms_data, &options, &tokenizer);
             Ok(())
         };
         let mut callback_ids = |_anchor_id: u32, _path: &str, _value_id: u32, _parent_val_id: u32| -> Result<(), io::Error> { Ok(()) };
