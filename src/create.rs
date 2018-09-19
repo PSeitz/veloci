@@ -42,8 +42,7 @@ pub struct FieldsConfig(FnvHashMap<String, FieldConfig>);
 impl FieldsConfig {
     fn get(&self, path:&str) -> Option<&FieldConfig> {
         if path.ends_with(".textindex"){
-            // self.0.get(str::from_utf8_unchecked(&path[..path.len()-7]))
-            self.0.get(&path[..path.len()-7])
+            self.0.get(&path[..path.len()-10])
         }else{
             self.0.get(path)
         }
@@ -1175,11 +1174,12 @@ where
 
         info!(
             "All text memory {}",
-            persistence::get_readable_size(create_cache.term_data.terms_in_path.iter().map(|el| el.1.terms.memory_footprint() + el.1.long_terms.memory_footprint()).sum())
+            // persistence::get_readable_size(create_cache.term_data.terms_in_path.iter().map(|el| el.1.terms.memory_footprint() + el.1.long_terms.memory_footprint()).sum())
+            persistence::get_readable_size(create_cache.term_data.terms_in_path.iter().map(|el| el.1.terms.memory_footprint()).sum())
         );
         info!(
             "All raw text data memory {}",
-            persistence::get_readable_size(create_cache.term_data.terms_in_path.iter().map(|el| el.1.terms.total_size_of_text_data() + el.1.long_terms.memory_footprint()).sum())
+            persistence::get_readable_size(create_cache.term_data.terms_in_path.iter().map(|el| el.1.terms.total_size_of_text_data()).sum())
         );
     }
 
