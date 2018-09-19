@@ -37,8 +37,15 @@ use util::StringAdd;
 // type FieldsConfig = FnvHashMap<String, FieldConfig>;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct FieldsConfig(FnvHashMap<String, FieldConfig>);
+pub struct CreateIndexConfig{
+    fields_config: FnvHashMap<String, FieldConfig>,
+    #[serde(default)]
+    /// This can be used e.g. for documents, when only why found or snippets are used
+    do_not_store_document: bool
+}
 
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct FieldsConfig(FnvHashMap<String, FieldConfig>);
 impl FieldsConfig {
     fn get(&self, path:&str) -> Option<&FieldConfig> {
         if path.ends_with(".textindex"){
@@ -51,13 +58,13 @@ impl FieldsConfig {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct FieldConfig {
-    #[serde(default = "facet_default")]
+    #[serde(default)]
     pub facet: bool,
     pub fulltext: Option<FulltextIndexOptions>,
     pub disable_indices: Option<FnvHashSet<IndexCreationType>>,
     pub boost: Option<BoostIndexOptions>
 }
-fn facet_default() -> bool {
+fn false_bool() -> bool {
     false
 }
 impl FieldConfig {
@@ -73,7 +80,7 @@ fn test_field_config_from_json() {
         "MATNR" : {
            "facet":true,
            "fulltext" : {"tokenize":true},
-           "disable_indices": ["TokensToTextID", "TokenToAnchorIDScore", "PhrasePairToAnchor", "TextIDToTokenIds", "TextIDToParent", "ParentToTextID", "TextIDToAnchor", "AnchorToTextID"]
+           "disable_indices": ["TokensToTextID", "TokenToAnchorIDScore", "PhrasePairToAnchor", "TextIDToTokenIds", "TextIDToParent", "ParentToTextID", "TextIDToAnchor"]
         },
         "ISMTITLE"     : {"fulltext": {"tokenize":true}  },
         "ISMORIGTITLE" : {"fulltext": {"tokenize":true}  },
