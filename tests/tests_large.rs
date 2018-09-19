@@ -101,7 +101,9 @@ describe! test_large {
 
         let hits = search_testo_to_doc(req);
         let facets = hits.facets.unwrap();
-        assert_eq!(facets.get("tags[]").unwrap(), &vec![("cool".to_string(), 300), ("nice".to_string(), 300)] );
+        let mut yep = facets.get("tags[]").unwrap().clone();
+        yep.sort_by(|a, b| format!("{:?}{:?}", b.1 , b.0).cmp(&format!("{:?}{:?}", a.1 , a.0)));
+        assert_eq!(yep, vec![("nice".to_string(), 300), ("cool".to_string(), 300)] );
     }
 
 }
