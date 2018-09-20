@@ -563,8 +563,8 @@ pub enum IndexCreationType {
 struct PathData {
     tokens_to_text_id: Option<BufferedIndexWriter>,
     token_to_anchor_id_score: BufferedIndexWriter<u32, (u32, u32)>,
-    phrase_pair_to_anchor: BufferedIndexWriter<(u32, u32), u32>, // phrase_pair
-    text_id_to_token_ids: BufferedTextIdToTokenIdsData,
+    phrase_pair_to_anchor: Option<BufferedIndexWriter<(u32, u32), u32>>, // phrase_pair
+    text_id_to_token_ids: Option<BufferedTextIdToTokenIdsData>,
     text_id_to_parent: Option<BufferedIndexWriter>,
 
     parent_to_text_id: BufferedIndexWriter, //Used to recreate objects, keep oder
@@ -675,6 +675,16 @@ where
                 } else {
                     None
                 };
+                let phrase_pair_to_anchor = if field_config.is_index_enabled(IndexCreationType::PhrasePairToAnchor) {
+                    Some(BufferedIndexWriter::new_unstable_sorted())
+                } else {
+                    None
+                };
+                let text_id_to_token_ids = if field_config.is_index_enabled(IndexCreationType::TextIDToTokenIds) {
+                    Some(BufferedTextIdToTokenIdsData::default())
+                } else {
+                    None
+                };
 
                 PathData {
                     anchor_to_text_id,
@@ -685,6 +695,8 @@ where
                     tokens_to_text_id,
                     text_id_to_parent,
                     text_id_to_anchor,
+                    phrase_pair_to_anchor,
+                    text_id_to_token_ids,
                     fulltext_options: field_config.fulltext.clone().unwrap_or(default_fulltext_options.clone()),
                     ..Default::default()
                 }
@@ -730,7 +742,7 @@ where
             if data.fulltext_options.tokenize && tokenizer.has_tokens(value) {
                 let mut current_token_pos = 0;
 
-                let text_ids_to_token_ids_already_stored = data.text_id_to_token_ids.contains(text_info.id);
+                let text_ids_to_token_ids_already_stored = data.text_id_to_token_ids.as_ref().map(|el|el.contains(text_info.id)).unwrap_or(false);
 
                 let mut prev_token: Option<u32> = None;
 
@@ -755,10 +767,12 @@ where
                     current_token_pos += 1;
 
                     if !is_seperator {
-                        if let Some(prev_token) = prev_token {
-                            data.phrase_pair_to_anchor.add((prev_token, token_info.id as u32), anchor_id).unwrap(); // TODO Error Handling in closure
+                        if let Some(el) = data.phrase_pair_to_anchor.as_mut() {
+                            if let Some(prev_token) = prev_token {
+                                el.add((prev_token, token_info.id as u32), anchor_id).unwrap(); // TODO Error Handling in closure
+                            }
+                            prev_token = Some(token_info.id as u32);
                         }
-                        prev_token = Some(token_info.id as u32);
                     }
 
                     // phrase
@@ -777,7 +791,10 @@ where
 
                 if !text_ids_to_token_ids_already_stored {
                     trace!("Adding for {:?} {:?} token_ids {:?}", value, text_info.id, tokens_ids);
-                    data.text_id_to_token_ids.add_all(text_info.id, &tokens_ids).unwrap();
+                    if let Some(el) = data.text_id_to_token_ids.as_mut() {
+                        el.add_all(text_info.id, &tokens_ids).unwrap();
+                    }
+
                 }
 
                 calculate_and_add_token_score_in_doc(&mut tokens_to_anchor_id, anchor_id, current_token_pos, &mut data.token_to_anchor_id_score)?;
@@ -843,7 +860,13 @@ fn trace_indices(path_data: &mut FnvHashMap<String, PathData>) {
         if let Some(el) = data.tokens_to_text_id.as_ref() {
             trace!("{}\n{}", &path.add(TOKENS_TO_TEXT_ID), &el);
         }
-        trace!("{}\n{}", &path.add(TEXT_ID_TO_TOKEN_IDS), &data.text_id_to_token_ids.data);
+        // if let Some(el) = data.text_id_to_token_ids.as_ref() {
+        //     trace!(
+        //         "{}\n{}",
+        //         &path.add(TEXT_ID_TO_TOKEN_IDS),
+        //         print_index_id_to_parent(&el, "value_id", "token_id")
+        //     );
+        // }
         // trace!(
         //     "{}\n{}",
         //     &path.add(TEXT_ID_TO_TOKEN_IDS),
@@ -1073,17 +1096,21 @@ fn convert_raw_path_data_to_indices(
             }
 
             add_anchor_score_flush(&db_path, path.add(TO_ANCHOR_ID_SCORE), data.token_to_anchor_id_score, &mut indices)?;
-            add_phrase_pair_flush(&db_path, path.add(PHRASE_PAIR_TO_ANCHOR), data.phrase_pair_to_anchor, &mut indices)?;
+            if let Some(phrase_pair_to_anchor) = data.phrase_pair_to_anchor {
+                add_phrase_pair_flush(&db_path, path.add(PHRASE_PAIR_TO_ANCHOR), phrase_pair_to_anchor, &mut indices)?;
+            }
 
             let sort_and_dedup = false;
-            add_index_flush(
-                path.add(TEXT_ID_TO_TOKEN_IDS),
-                data.text_id_to_token_ids.data,
-                false,
-                sort_and_dedup,
-                &mut indices,
-                LoadingType::Disk,
-            )?;
+            if let Some(text_id_to_token_ids) = data.text_id_to_token_ids {
+                add_index_flush(
+                    path.add(TEXT_ID_TO_TOKEN_IDS),
+                    text_id_to_token_ids.data,
+                    false,
+                    sort_and_dedup,
+                    &mut indices,
+                    LoadingType::Disk,
+                )?;
+            }
 
             if let Some(text_id_to_parent) = data.text_id_to_parent {
                 add_index_flush(
