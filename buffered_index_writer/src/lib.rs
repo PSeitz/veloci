@@ -21,6 +21,14 @@ use std::io::BufWriter;
 use std::ptr::copy_nonoverlapping;
 use std::marker::PhantomData;
 
+pub trait Serialize {
+    fn serialize(&self, sink: &mut Vec<u8>) -> u32;
+}
+use std::iter::Iterator;
+pub trait Deserialize {
+    fn serialize<T: Iterator<Item=u8>>(source: &mut T) -> Self;
+}
+
 pub trait GetValue {
     fn get_value(&self) -> u32;
 }
@@ -170,15 +178,16 @@ impl<K: PartialOrd + Ord + Default + Copy, T:GetValue + Default + Clone + Copy> 
 
         //Maximum speed, Maximum unsafe
         use std::slice;
-        unsafe {
+        let serialized_len = unsafe {
             let slice =
                 slice::from_raw_parts(self.cache.as_ptr() as *const u8, self.cache.len() * mem::size_of::<KeyValue<K, T>>());
             data_file.write_all(&slice)?;
-        }
+            slice.len()
+        };
 
         self.parts.push(Part {
             offset: prev_part.offset + prev_part.len,
-            len: self.cache.len() as u32,
+            len: serialized_len as u32,
         });
         self.cache.clear();
         Ok(())
@@ -202,8 +211,8 @@ impl<K: PartialOrd + Ord + Default + Copy, T:GetValue + Default + Clone + Copy> 
             for part in &self.parts {
                 let mmap = unsafe {
                     MmapOptions::new()
-                        .offset(part.offset as usize * mem::size_of::<KeyValue<K,T>>())
-                        .len(part.len as usize * mem::size_of::<KeyValue<K,T>>())
+                        .offset(part.offset as usize)
+                        .len(part.len as usize)
                         .map(&file)?
                 };
                 vecco.push(MMapIter::<K, T>::new(mmap));
