@@ -64,9 +64,6 @@ pub struct FieldConfig {
     pub disable_indices: Option<FnvHashSet<IndexCreationType>>,
     pub boost: Option<BoostIndexOptions>
 }
-fn false_bool() -> bool {
-    false
-}
 impl FieldConfig {
     fn is_index_enabled(&self, index: IndexCreationType) -> bool {
         // false

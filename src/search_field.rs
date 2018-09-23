@@ -701,7 +701,7 @@ fn should_filter(filter: &Option<Arc<FilterResult>>, id: u32) -> bool {
 pub fn resolve_token_hits_to_text_id(
     persistence: &Persistence,
     options: &RequestSearchPart,
-    filter: Option<FnvHashSet<u32>>,
+    _filter: Option<FnvHashSet<u32>>,
     result: &mut SearchFieldResult,
 ) -> Result<(), search::SearchError> {
     let mut path = options.path.to_string();
@@ -739,7 +739,7 @@ pub fn resolve_token_hits_to_text_id(
 
                 token_hits.reserve(parent_ids_for_token.len());
                 for token_parentval_id in parent_ids_for_token {
-                    // if should_filter(&filter, token_parentval_id) {
+                    // if should_filter(&_filter, token_parentval_id) {
                     //     continue;
                     // }
                     token_hits.push((token_parentval_id, hit.score, hit.id)); //TODO ADD ANCHOR_SCORE IN THIS SEARCH

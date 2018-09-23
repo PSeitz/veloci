@@ -1,4 +1,4 @@
-
+extern crate vint;
 extern crate serde;
 
 // The serde_derive crate provides the macros for #[derive(Serialize)] and
