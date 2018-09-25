@@ -11,6 +11,7 @@ extern crate serde;
 // mod de;
 mod error;
 mod ser;
+mod de;
 
 // pub use de::{from_str, Deserializer};
 pub use self::error::{Error, Result};
