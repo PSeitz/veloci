@@ -21,7 +21,8 @@ pub enum Error {
     // Deserialize impl for a struct may return an error because a required
     // field is missing.
     Message(String),
-
+    DeserializeAnyNotSupported,
+    SequenceMustHaveLength,
     // Zero or more variants that can be created directly by the Serializer and
     // Deserializer without going through `ser::Error` and `de::Error`. These
     // are specific to the format, in this case JSON.
@@ -52,6 +53,8 @@ impl std::error::Error for Error {
             Error::Message(ref msg) => msg,
             Error::Eof => "unexpected end of input",
             Error::Io(_) => "io error",
+            Error::DeserializeAnyNotSupported => "deserialize any not supported",
+            Error::SequenceMustHaveLength => "SequenceMustHaveLength",
             /* and so forth */
         }
     }

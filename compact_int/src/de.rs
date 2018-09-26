@@ -1,17 +1,16 @@
 // use config::Options;
 use std::io::Read;
 
-// use self::read::BincodeRead;
+// use self::read::CompactRead;
 use byteorder::ReadBytesExt;
 // use internal::SizeLimit;
 use serde;
 use serde::de::Error as DeError;
 use serde::de::IntoDeserializer;
-use {Error, Result};
+use super::error::{Error, Result};
 use byteorder::LittleEndian;
-use error::Result;
 use std::io;
-
+use vint::vint::*;
 
 /// A Deserializer that reads bytes from a buffer.
 ///
@@ -30,7 +29,7 @@ pub(crate) struct Deserializer<R> {
     reader: R,
 }
 
-impl<'de, R: BincodeRead<'de>> Deserializer<R> {
+impl<'de, R: CompactRead<'de>> Deserializer<R> {
     /// Creates a new Deserializer with a given `Read`er and a size_limit.
     pub(crate) fn new(r: R) -> Deserializer<R> {
         Deserializer {
@@ -38,7 +37,7 @@ impl<'de, R: BincodeRead<'de>> Deserializer<R> {
         }
     }
 
-    fn read_bytes(&mut self, count: u64) -> Result<()> {
+    fn read_bytes(&mut self, _count: u64) -> Result<()> {
         unimplemented!()
         // self.options.limit().add(count)
     }
@@ -49,7 +48,7 @@ impl<'de, R: BincodeRead<'de>> Deserializer<R> {
     }
 
     fn read_vec(&mut self) -> Result<Vec<u8>> {
-        let len: usize = try!(serde::Deserialize::deserialize(&mut *self));
+        let len: usize = serde::Deserialize::deserialize(&mut *self)?;
         self.read_bytes(len as u64)?;
         self.reader.get_byte_buffer(len)
     }
@@ -67,8 +66,8 @@ macro_rules! impl_nums {
         fn $dser_method<V>(self, visitor: V) -> Result<V::Value>
             where V: serde::de::Visitor<'de>,
         {
-            try!(self.read_type::<$ty>());
-            let value = try!(self.reader.$reader_method::<LittleEndian>());
+            self.read_type::<$ty>()?;
+            let value = self.reader.$reader_method::<LittleEndian>()?;
             visitor.$visitor_method(value)
         }
     }
@@ -76,7 +75,7 @@ macro_rules! impl_nums {
 
 impl<'de, 'a, R> serde::Deserializer<'de> for &'a mut Deserializer<R>
 where
-    R: BincodeRead<'de>
+    R: CompactRead<'de>
 {
     type Error = Error;
 
@@ -85,10 +84,10 @@ where
     where
         V: serde::de::Visitor<'de>,
     {
-        Err(Box::new(Error::DeserializeAnyNotSupported))
+        Err(Error::DeserializeAnyNotSupported)
     }
 
-    fn deserialize_bool<V>(self, visitor: V) -> Result<V::Value>
+    fn deserialize_bool<V>(self, _visitor: V) -> Result<V::Value>
     where
         V: serde::de::Visitor<'de>,
     {
@@ -96,8 +95,8 @@ where
     }
 
     impl_nums!(u16, deserialize_u16, visit_u16, read_u16);
-    impl_nums!(u32, deserialize_u32, visit_u32, read_u32);
-    impl_nums!(u64, deserialize_u64, visit_u64, read_u64);
+    // impl_nums!(u32, deserialize_u32, visit_u32, read_u32);
+    // impl_nums!(u64, deserialize_u64, visit_u64, read_u64);
     impl_nums!(i16, deserialize_i16, visit_i16, read_i16);
     impl_nums!(i32, deserialize_i32, visit_i32, read_i32);
     impl_nums!(i64, deserialize_i64, visit_i64, read_i64);
@@ -105,13 +104,33 @@ where
     impl_nums!(f64, deserialize_f64, visit_f64, read_f64);
 
 
+    //TODO FIXME
+    #[inline]
+    fn deserialize_u64<V>(self, visitor: V) -> Result<V::Value>
+    where
+        V: serde::de::Visitor<'de>,
+    {
+        // self.read_type::<u64>()?;
+        visitor.visit_u64(decode_from_reader(&mut self.reader).ok_or_else(||Error::Eof)? as u64)
+    }
+    #[inline]
+    fn deserialize_u32<V>(self, visitor: V) -> Result<V::Value>
+    where
+        V: serde::de::Visitor<'de>,
+    {
+        // self.read_type::<u32>()?;
+        visitor.visit_u32(decode_from_reader(&mut self.reader).ok_or_else(||Error::Eof)?)
+        // visitor.visit_u32(decode_from_reader_and_count(&mut self.reader).ok_or_else(||Error::Eof)?)
+    }
+
     #[inline]
     fn deserialize_u8<V>(self, visitor: V) -> Result<V::Value>
     where
         V: serde::de::Visitor<'de>,
     {
-        try!(self.read_type::<u8>());
-        visitor.visit_u8(try!(self.reader.read_u8()))
+        unimplemented!()
+        // try!(self.read_type::<u8>());
+        // visitor.visit_u8(try!(self.reader.read_u8()))
     }
 
     #[inline]
@@ -119,8 +138,7 @@ where
     where
         V: serde::de::Visitor<'de>,
     {
-        try!(self.read_type::<i8>());
-        visitor.visit_i8(try!(self.reader.read_i8()))
+        unimplemented!()
     }
 
     fn deserialize_unit<V>(self, visitor: V) -> Result<V::Value>
@@ -130,14 +148,14 @@ where
         visitor.visit_unit()
     }
 
-    fn deserialize_char<V>(self, visitor: V) -> Result<V::Value>
+    fn deserialize_char<V>(self, _visitor: V) -> Result<V::Value>
     where
         V: serde::de::Visitor<'de>,
     {
         unimplemented!()
     }
 
-    fn deserialize_str<V>(self, visitor: V) -> Result<V::Value>
+    fn deserialize_str<V>(self, _visitor: V) -> Result<V::Value>
     where
         V: serde::de::Visitor<'de>,
     {
@@ -151,23 +169,26 @@ where
     where
         V: serde::de::Visitor<'de>,
     {
-        visitor.visit_string(try!(self.read_string()))
+        unimplemented!()
+        // visitor.visit_string(try!(self.read_string()))
     }
 
     fn deserialize_bytes<V>(self, visitor: V) -> Result<V::Value>
     where
         V: serde::de::Visitor<'de>,
     {
-        let len: usize = try!(serde::Deserialize::deserialize(&mut *self));
-        try!(self.read_bytes(len as u64));
-        self.reader.forward_read_bytes(len, visitor)
+        unimplemented!()
+        // let len: usize = try!(serde::Deserialize::deserialize(&mut *self));
+        // try!(self.read_bytes(len as u64));
+        // self.reader.forward_read_bytes(len, visitor)
     }
 
     fn deserialize_byte_buf<V>(self, visitor: V) -> Result<V::Value>
     where
         V: serde::de::Visitor<'de>,
     {
-        visitor.visit_byte_buf(try!(self.read_vec()))
+        unimplemented!()
+        // visitor.visit_byte_buf(try!(self.read_vec()))
     }
 
     fn deserialize_enum<V>(
@@ -181,7 +202,7 @@ where
     {
         impl<'de, 'a, R: 'a> serde::de::EnumAccess<'de> for &'a mut Deserializer<R>
         where
-            R: BincodeRead<'de>
+            R: CompactRead<'de>
         {
             type Error = Error;
             type Variant = Self;
@@ -190,9 +211,9 @@ where
             where
                 V: serde::de::DeserializeSeed<'de>,
             {
-                let idx: u32 = try!(serde::de::Deserialize::deserialize(&mut *self));
+                let idx: u32 = serde::de::Deserialize::deserialize(&mut *self)?;
                 let val: Result<_> = seed.deserialize(idx.into_deserializer());
-                Ok((try!(val), self))
+                Ok((val?, self))
             }
         }
 
@@ -208,7 +229,7 @@ where
             len: usize,
         }
 
-        impl<'de, 'a, 'b: 'a, R: BincodeRead<'de> + 'b> serde::de::SeqAccess<'de>
+        impl<'de, 'a, 'b: 'a, R: CompactRead<'de> + 'b> serde::de::SeqAccess<'de>
             for Access<'a, R>
         {
             type Error = Error;
@@ -219,10 +240,10 @@ where
             {
                 if self.len > 0 {
                     self.len -= 1;
-                    let value = try!(serde::de::DeserializeSeed::deserialize(
+                    let value = serde::de::DeserializeSeed::deserialize(
                         seed,
                         &mut *self.deserializer,
-                    ));
+                    )?;
                     Ok(Some(value))
                 } else {
                     Ok(None)
@@ -240,7 +261,7 @@ where
         })
     }
 
-    fn deserialize_option<V>(self, visitor: V) -> Result<V::Value>
+    fn deserialize_option<V>(self, _visitor: V) -> Result<V::Value>
     where
         V: serde::de::Visitor<'de>,
     {
@@ -257,7 +278,9 @@ where
     where
         V: serde::de::Visitor<'de>,
     {
-        let len = try!(serde::Deserialize::deserialize(&mut *self));
+        let len = serde::Deserialize::deserialize(&mut *self)?;
+
+        // let len = visitor.visit_u32(decode_from_reader(&mut self.reader).ok_or_else(||Error::Eof)?).unwrap();
 
         self.deserialize_tuple(len, visitor)
     }
@@ -271,7 +294,7 @@ where
             len: usize,
         }
 
-        impl<'de, 'a, 'b: 'a, R: BincodeRead<'de> + 'b> serde::de::MapAccess<'de>
+        impl<'de, 'a, 'b: 'a, R: CompactRead<'de> + 'b> serde::de::MapAccess<'de>
             for Access<'a, R>
         {
             type Error = Error;
@@ -282,10 +305,10 @@ where
             {
                 if self.len > 0 {
                     self.len -= 1;
-                    let key = try!(serde::de::DeserializeSeed::deserialize(
+                    let key = serde::de::DeserializeSeed::deserialize(
                         seed,
                         &mut *self.deserializer,
-                    ));
+                    )?;
                     Ok(Some(key))
                 } else {
                     Ok(None)
@@ -296,10 +319,10 @@ where
             where
                 V: serde::de::DeserializeSeed<'de>,
             {
-                let value = try!(serde::de::DeserializeSeed::deserialize(
+                let value = serde::de::DeserializeSeed::deserialize(
                     seed,
                     &mut *self.deserializer,
-                ));
+                )?;
                 Ok(value)
             }
 
@@ -308,7 +331,7 @@ where
             }
         }
 
-        let len = try!(serde::Deserialize::deserialize(&mut *self));
+        let len = serde::Deserialize::deserialize(&mut *self)?;
 
         visitor.visit_map(Access {
             deserializer: self,
@@ -332,7 +355,7 @@ where
     where
         V: serde::de::Visitor<'de>,
     {
-        let message = "Bincode does not support Deserializer::deserialize_identifier";
+        let message = "CompactCode does not support Deserializer::deserialize_identifier";
         Err(Error::custom(message))
     }
 
@@ -366,7 +389,7 @@ where
     where
         V: serde::de::Visitor<'de>,
     {
-        let message = "Bincode does not support Deserializer::deserialize_ignored_any";
+        let message = "CompactCode does not support Deserializer::deserialize_ignored_any";
         Err(Error::custom(message))
     }
 
@@ -377,7 +400,7 @@ where
 
 impl<'de, 'a, R> serde::de::VariantAccess<'de> for &'a mut Deserializer<R>
 where
-    R: BincodeRead<'de>
+    R: CompactRead<'de>
 {
     type Error = Error;
 
@@ -441,11 +464,11 @@ fn utf8_char_width(b: u8) -> usize {
 
 
 
-/// An optional Read trait for advanced Bincode usage.
+/// An optional Read trait for advanced CompactCode usage.
 ///
-/// It is highly recommended to use bincode with `io::Read` or `&[u8]` before
-/// implementing a custom `BincodeRead`.
-pub trait BincodeRead<'storage>: io::Read {
+/// It is highly recommended to use CompactCode with `io::Read` or `&[u8]` before
+/// implementing a custom `CompactRead`.
+pub trait CompactRead<'storage>: io::Read {
     // /// Forwards reading `length` bytes of a string on to the serde reader.
     // fn forward_read_str<V>(&mut self, length: usize, visitor: V) -> Result<V::Value>
     // where
@@ -460,14 +483,14 @@ pub trait BincodeRead<'storage>: io::Read {
         V: serde::de::Visitor<'storage>;
 }
 
-/// A BincodeRead implementation for byte slices
+/// A CompactRead implementation for byte slices
 /// NOT A PART OF THE STABLE PUBLIC API
 #[doc(hidden)]
 pub struct SliceReader<'storage> {
     slice: &'storage [u8],
 }
 
-/// A BincodeRead implementation for io::Readers
+/// A CompactRead implementation for io::Readers
 /// NOT A PART OF THE STABLE PUBLIC API
 #[doc(hidden)]
 pub struct IoReader<R> {
@@ -516,15 +539,15 @@ impl<R: io::Read> io::Read for IoReader<R> {
 
 impl<'storage> SliceReader<'storage> {
     #[inline(always)]
-    fn unexpected_eof() -> Box<::ErrorKind> {
-        return Box::new(::ErrorKind::Io(io::Error::new(
+    fn unexpected_eof() -> Error {
+        return Error::Io(io::Error::new(
             io::ErrorKind::UnexpectedEof,
             "",
-        )));
+        ));
     }
 }
 
-impl<'storage> BincodeRead<'storage> for SliceReader<'storage> {
+impl<'storage> CompactRead<'storage> for SliceReader<'storage> {
     // #[inline(always)]
     // fn forward_read_str<V>(&mut self, length: usize, visitor: V) -> Result<V::Value>
     // where
@@ -589,7 +612,7 @@ where
     }
 }
 
-impl<R> BincodeRead<'static> for IoReader<R>
+impl<R> CompactRead<'static> for IoReader<R>
 where
     R: io::Read,
 {

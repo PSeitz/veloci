@@ -59,29 +59,27 @@ fn main() {
 }
 
 static TAHLIA_INDICES: &str = r#"
-[
-    { "facet": "ISMLANGUAGES" },
-    { "facet": "ISMARTIST" },
-    { "facet": "GENRE" },
-    { "facet": "VERLAG[]" },
-    { "fulltext":"ISMTITLE",     "options":{"tokenize":true}  },
-    { "fulltext":"ISMORIGTITLE", "options":{"tokenize":true}  },
-    { "fulltext":"ISMSUBTITLE1", "options":{"tokenize":true}  },
-    { "fulltext":"ISMSUBTITLE2", "options":{"tokenize":true}  },
-    { "fulltext":"ISMSUBTITLE3", "options":{"tokenize":true}  },
-    { "fulltext":"ISMARTIST",    "options":{"tokenize":true}  },
-    { "fulltext":"ISMMEDIATYPE", "options":{"tokenize":false} },
-    { "fulltext":"MEINS",        "options":{"tokenize":false} },
-    { "fulltext":"MTART",        "options":{"tokenize":false} },
-    { "fulltext":"MATNR",        "options":{"tokenize":false} },
-    { "fulltext":"ZZSW2_KEY",    "options":{"tokenize":false} },
-    { "fulltext":"ZZONLINE_KAT", "options":{"tokenize":false} },
-    { "fulltext":"ZZMYINFOARTNR","options":{"tokenize":false} },
-    { "fulltext":"ISMLANGUAGES", "options":{"tokenize":false} },
-    { "fulltext":"ISMPUBLDATE",  "options":{"tokenize":false} },
-    { "fulltext":"EAN11",        "options":{"tokenize":false} },
-    { "fulltext":"ISMORIDCODE",  "options":{"tokenize":false} }
-]
+{
+    "GENRE":        { "facet":true  },
+    "VERLAG[]":     { "facet":true  },
+    "ISMTITLE":     { "fulltext":{"tokenize":true}  },
+    "ISMORIGTITLE": { "fulltext":{"tokenize":true}  },
+    "ISMSUBTITLE1": { "fulltext":{"tokenize":true}  },
+    "ISMSUBTITLE2": { "fulltext":{"tokenize":true}  },
+    "ISMSUBTITLE3": { "fulltext":{"tokenize":true}  },
+    "ISMARTIST":    { "fulltext":{"tokenize":true}, "facet":true  },
+    "ISMMEDIATYPE": { "fulltext":{"tokenize":false} },
+    "MEINS":        { "fulltext":{"tokenize":false} },
+    "MTART":        { "fulltext":{"tokenize":false} },
+    "MATNR":        { "fulltext":{"tokenize":false} },
+    "ZZSW2_KEY":    { "fulltext":{"tokenize":false} },
+    "ZZONLINE_KAT": { "fulltext":{"tokenize":false} },
+    "ZZMYINFOARTNR":{ "fulltext":{"tokenize":false} },
+    "ISMLANGUAGES": { "fulltext":{"tokenize":false}, "facet":true },
+    "ISMPUBLDATE":  { "fulltext":{"tokenize":false} },
+    "EAN11":        { "fulltext":{"tokenize":false} },
+    "ISMORIDCODE":  { "fulltext":{"tokenize":false} }
+}
 "#;
 
 // static TAHLIA_INDICES_NEW_CONCEPT: &str = r#"

@@ -1,7 +1,6 @@
-cargo-features = ["edition"]
-
 [package]
 authors = ["Pascal Seitz <pascal.seitz@gmail.com>"]
+cargo-features = ["edition"]
 edition = "2018"
 name = "compact_int"
 version = "0.1.0"
@@ -10,4 +9,8 @@ byteorder = "1.2.6"
 serde = "1.0.79"
 
 [dependencies.vint]
-git = "https://github.com/PSeitz/rust_vint"
+# git = "https://github.com/PSeitz/rust_vint"
+path = "../../rust_vint"
+
+[dev-dependencies]
+serde_derive = "1.0.79"

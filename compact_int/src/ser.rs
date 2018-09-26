@@ -158,12 +158,14 @@ impl<'a, W: Write> serde::Serializer for &'a mut Serializer<W> {
         unimplemented!()
     }
 
-    fn serialize_seq(self, _len: Option<usize>) -> Result<Self::SerializeSeq> {
-        unimplemented!()
+    fn serialize_seq(self, len: Option<usize>) -> Result<Self::SerializeSeq> {
+        let len = len.ok_or(Error::SequenceMustHaveLength)?;
+        self.serialize_u32(len as u32)?;
+        Ok(self)
     }
 
     fn serialize_tuple(self, _len: usize) -> Result<Self::SerializeTuple> {
-        unimplemented!()
+        Ok(self)
     }
 
     fn serialize_tuple_struct(
@@ -189,7 +191,9 @@ impl<'a, W: Write> serde::Serializer for &'a mut Serializer<W> {
     }
 
     fn serialize_struct(self, _name: &'static str, _len: usize) -> Result<Self::SerializeStruct> {
-        unimplemented!()
+        // Ok(Self::SerializeStruct { ser: self })
+        Ok(self)
+        // unimplemented!()
     }
 
     fn serialize_struct_variant(
@@ -261,16 +265,16 @@ impl<'a, W: Write> serde::ser::SerializeSeq for &'a mut Serializer<W> {
     type Error = Error;
 
     // Serialize a single element of the sequence.
-    fn serialize_element<T>(&mut self, _value: &T) -> Result<()>
+    fn serialize_element<T>(&mut self, value: &T) -> Result<()>
     where
         T: ?Sized + serde::ser::Serialize,
     {
-        unimplemented!()
+        value.serialize(&mut **self)
     }
 
     // Close the sequence.
     fn end(self) -> Result<()> {
-        unimplemented!()
+        Ok(())
     }
 }
 
@@ -279,15 +283,15 @@ impl<'a, W: Write> ser::SerializeTuple for &'a mut Serializer<W> {
     type Ok = ();
     type Error = Error;
 
-    fn serialize_element<T>(&mut self, _value: &T) -> Result<()>
+    fn serialize_element<T>(&mut self, value: &T) -> Result<()>
     where
         T: ?Sized + Serialize,
     {
-        unimplemented!()
+        value.serialize(&mut **self)
     }
 
     fn end(self) -> Result<()> {
-        unimplemented!()
+        Ok(())
     }
 }
 
@@ -296,15 +300,15 @@ impl<'a, W: Write> ser::SerializeTupleStruct for &'a mut Serializer<W> {
     type Ok = ();
     type Error = Error;
 
-    fn serialize_field<T>(&mut self, _value: &T) -> Result<()>
+    fn serialize_field<T>(&mut self, value: &T) -> Result<()>
     where
         T: ?Sized + Serialize,
     {
-        unimplemented!()
+        value.serialize(&mut **self)
     }
 
     fn end(self) -> Result<()> {
-        unimplemented!()
+        Ok(())
     }
 }
 
@@ -321,15 +325,15 @@ impl<'a, W: Write> ser::SerializeTupleVariant for &'a mut Serializer<W> {
     type Ok = ();
     type Error = Error;
 
-    fn serialize_field<T>(&mut self, _value: &T) -> Result<()>
+    fn serialize_field<T>(&mut self, value: &T) -> Result<()>
     where
         T: ?Sized + Serialize,
     {
-        unimplemented!()
+        value.serialize(&mut **self)
     }
 
     fn end(self) -> Result<()> {
-        unimplemented!()
+        Ok(())
     }
 }
 
@@ -381,15 +385,15 @@ impl<'a, W: Write> ser::SerializeStruct for &'a mut Serializer<W> {
     type Ok = ();
     type Error = Error;
 
-    fn serialize_field<T>(&mut self, _key: &'static str, _value: &T) -> Result<()>
+    fn serialize_field<T>(&mut self, _key: &'static str, value: &T) -> Result<()>
     where
         T: ?Sized + Serialize,
     {
-        unimplemented!()
+        value.serialize(&mut **self)
     }
 
     fn end(self) -> Result<()> {
-        unimplemented!()
+        Ok(())
     }
 }
 
@@ -399,15 +403,15 @@ impl<'a, W: Write> ser::SerializeStructVariant for &'a mut Serializer<W> {
     type Ok = ();
     type Error = Error;
 
-    fn serialize_field<T>(&mut self, _key: &'static str, _value: &T) -> Result<()>
+    fn serialize_field<T>(&mut self, _key: &'static str, value: &T) -> Result<()>
     where
         T: ?Sized + Serialize,
     {
-        unimplemented!()
+        value.serialize(&mut **self)
     }
 
     fn end(self) -> Result<()> {
-        unimplemented!()
+        Ok(())
     }
 }
 

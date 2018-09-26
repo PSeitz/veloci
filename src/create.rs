@@ -657,21 +657,17 @@ where
                     None
                 };
 
-                let tokens_to_text_id = if field_config.is_index_enabled(IndexCreationType::TokensToTextID) {
-                    Some(BufferedIndexWriter::new_unstable_sorted())
-                } else {
-                    None
+                let get_buffered_if_enabled = |val: IndexCreationType| -> Option<BufferedIndexWriter> {
+                    if field_config.is_index_enabled(val) {
+                        Some(BufferedIndexWriter::new_unstable_sorted())
+                    } else {
+                        None
+                    }
                 };
-                let text_id_to_parent = if field_config.is_index_enabled(IndexCreationType::TextIDToParent) {
-                    Some(BufferedIndexWriter::new_unstable_sorted())
-                } else {
-                    None
-                };
-                let text_id_to_anchor = if field_config.is_index_enabled(IndexCreationType::TextIDToAnchor) {
-                    Some(BufferedIndexWriter::new_unstable_sorted())
-                } else {
-                    None
-                };
+
+                let tokens_to_text_id = get_buffered_if_enabled(IndexCreationType::TokensToTextID);
+                let text_id_to_parent = get_buffered_if_enabled(IndexCreationType::TextIDToParent);
+                let text_id_to_anchor = get_buffered_if_enabled(IndexCreationType::TextIDToAnchor);
                 let phrase_pair_to_anchor = if field_config.is_index_enabled(IndexCreationType::PhrasePairToAnchor) {
                     Some(BufferedIndexWriter::new_unstable_sorted())
                 } else {

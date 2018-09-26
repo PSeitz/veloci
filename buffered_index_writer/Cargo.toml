@@ -2,18 +2,18 @@
 authors = ["Pascal Seitz <pascal.seitz@gmail.com>"]
 name = "buffered_index_writer"
 version = "0.1.0"
-
-# TODO Move to subfolder, for dev-dependency
-# [[bin]]
-# name = "bench"
-# path = "bench.rs"
-
 [dependencies]
-# byteorder = "1.2.3"
 itertools = "0.7.8"
-# log = "0.4.1"
 memmap = "0.6.2"
+serde = "1.0.79"
+serde_derive = "1.0.79"
 tempfile = "3.0.2"
+
+[dependencies.compact_int]
+path = "../compact_int"
+
+[dev-dependencies]
+measure_time = "0.6"
 
 [profile.release]
 codegen-units = 1
@@ -21,6 +21,3 @@ debug = false
 lto = true
 opt-level = 3
 panic = "unwind"
-
-[dev-dependencies]
-measure_time = "0.6"

@@ -1,13 +1,20 @@
 extern crate itertools;
+extern crate compact_int;
 extern crate memmap;
 extern crate tempfile;
+extern crate serde;
+#[macro_use]
+extern crate serde_derive;
 // extern crate byteorder;
 
+use serde::de::DeserializeOwned;
+use serde::Serialize;
 use std::fmt::Display;
 use itertools::Itertools;
 use memmap::MmapOptions;
 use memmap::Mmap;
 
+// use compact_int::VintArrayIterator;
 use std::fmt;
 use std::cmp::PartialOrd;
 use std::cmp::Ord;
@@ -21,13 +28,13 @@ use std::io::BufWriter;
 use std::ptr::copy_nonoverlapping;
 use std::marker::PhantomData;
 
-pub trait Serialize {
-    fn serialize(&self, sink: &mut Vec<u8>) -> u32;
-}
-use std::iter::Iterator;
-pub trait Deserialize {
-    fn serialize<T: Iterator<Item=u8>>(source: &mut T) -> Self;
-}
+// pub trait Serialize {
+//     fn serialize(&self, sink: &mut Vec<u8>) -> u32;
+// }
+// use std::iter::Iterator;
+// pub trait Deserialize {
+//     fn serialize<T: Iterator<Item=u8>>(source: &mut T) -> Self;
+// }
 
 pub trait GetValue {
     fn get_value(&self) -> u32;
@@ -47,7 +54,7 @@ impl GetValue for (u32,u32) {
     }
 }
 
-#[derive(Debug, Default, PartialEq, Eq, Clone)]
+#[derive(Debug, Default, PartialEq, Eq, Clone, Serialize, Deserialize)]
 pub struct KeyValue<K: PartialOrd + Ord + Default + Copy, T:GetValue> {
     pub key: K,
     pub value: T,
@@ -81,13 +88,13 @@ pub struct BufferedIndexWriter<K:PartialOrd + Ord + Default + Copy = u32, T:GetV
     temp_file_mmap: Option<Mmap>,
 }
 
-impl<K: PartialOrd + Ord + Default + Copy, T:GetValue + Default + Clone + Copy + > Default for BufferedIndexWriter<K, T> {
+impl<K: PartialOrd + Ord + Default + Copy + Serialize + DeserializeOwned, T:GetValue + Default + Clone + Copy + Serialize + DeserializeOwned> Default for BufferedIndexWriter<K, T> {
     fn default() -> BufferedIndexWriter<K, T> {
         BufferedIndexWriter::new_unstable_sorted()
     }
 }
 
-impl<K: PartialOrd + Ord + Default + Copy, T:GetValue + Default + Clone + Copy> BufferedIndexWriter<K,T> {
+impl<K: PartialOrd + Ord + Default + Copy + Serialize + DeserializeOwned, T:GetValue + Default + Clone + Copy + Serialize + DeserializeOwned> BufferedIndexWriter<K,T> {
     pub fn new_with_opt(stable_sort: bool, ids_are_sorted: bool) -> Self {
         BufferedIndexWriter {
             cache: vec![],
@@ -177,13 +184,20 @@ impl<K: PartialOrd + Ord + Default + Copy, T:GetValue + Default + Clone + Copy> 
 
 
         //Maximum speed, Maximum unsafe
-        use std::slice;
-        let serialized_len = unsafe {
-            let slice =
-                slice::from_raw_parts(self.cache.as_ptr() as *const u8, self.cache.len() * mem::size_of::<KeyValue<K, T>>());
-            data_file.write_all(&slice)?;
-            slice.len()
-        };
+        // use std::slice;
+        // let serialized_len = unsafe {
+        //     let slice =
+        //         slice::from_raw_parts(self.cache.as_ptr() as *const u8, self.cache.len() * mem::size_of::<KeyValue<K, T>>());
+        //     data_file.write_all(&slice)?;
+        //     slice.len()
+        // };
+
+        let mut sink = vec![];
+        for value in self.cache.iter() {
+            compact_int::serialize_into(&mut sink, value).unwrap(); // TODO
+        }
+        let serialized_len = sink.len();
+        data_file.write_all(&sink)?;
 
         self.parts.push(Part {
             offset: prev_part.offset + prev_part.len,
@@ -352,55 +366,73 @@ fn read_pair_very_raw_p<K:PartialOrd + Ord + Default + Copy, T:GetValue + Defaul
 
 // impl<'a, T:GetValue + Default>  FusedIterator for MMapIterRef<'a, T> {}
 
-
+use std::io::Cursor;
 #[derive(Debug)]
 pub struct MMapIter<K: PartialOrd + Ord + Default + Copy, T:GetValue> {
-    mmap: memmap::Mmap,
+    // mmap: memmap::Mmap,
+    mmap_cursor: Cursor<Mmap>,
     pos: u32,
+    finished: bool,
     phantom: PhantomData<T>,
     menace: PhantomData<K>,
 }
 
 impl<K: PartialOrd + Ord + Default + Copy,T:GetValue> MMapIter<K,T> {
     fn new(mmap: memmap::Mmap) -> Self {
-        MMapIter { mmap, pos: 0, phantom:PhantomData, menace:PhantomData }
+        let mmap_cursor = Cursor::new(mmap);
+        MMapIter { mmap_cursor, finished:false, pos: 0, phantom:PhantomData, menace:PhantomData }
     }
 }
 
-impl<K: PartialOrd + Ord + Default + Copy,T:GetValue + Default> Iterator for MMapIter<K,T> {
+impl<K: PartialOrd + Ord + Default + Copy + DeserializeOwned,T:GetValue + Default + DeserializeOwned> Iterator for MMapIter<K,T> {
     type Item = KeyValue<K,T>;
 
     #[inline]
     fn next(&mut self) -> Option<KeyValue<K,T>> {
-        if self.mmap.len() <= self.pos as usize {
-            return None;
+        if self.finished {
+            None
+        }else{
+            // let pair = ;
+            if let Ok(pair) = compact_int::deserialize_from::<_, KeyValue<K,T>>(&mut self.mmap_cursor) {
+                Some(pair)
+            }else{
+                self.finished = true;
+                None
+            }
         }
-        let pair = read_pair_very_raw_p((&self.mmap[self.pos as usize..]).as_ptr());
-        self.pos += mem::size_of::<KeyValue<K,T>>() as u32;
-        Some(pair)
+
+
+        // if self.mmap.len() <= self.pos as usize {
+        //     return None;
+        // }
+
+        // self.pos += iter.pos as u32;
+        // // let pair = read_pair_very_raw_p((&self.mmap[self.pos as usize..]).as_ptr());
+        // // self.pos += mem::size_of::<KeyValue<K,T>>() as u32;
+        // Some(pair)
     }
-    #[inline]
-    fn size_hint(&self) -> (usize, Option<usize>) {
-        let remaining_els = (self.mmap.len() as u32 - self.pos) / mem::size_of::<KeyValue<K,T>>() as u32;
-        (remaining_els as usize, Some(remaining_els as usize))
-    }
+    // #[inline]
+    // fn size_hint(&self) -> (usize, Option<usize>) {
+    //     let remaining_els = (self.mmap.len() as u32 - self.pos) / mem::size_of::<KeyValue<K,T>>() as u32;
+    //     (remaining_els as usize, Some(remaining_els as usize))
+    // }
 }
 
-impl<K: PartialOrd + Ord + Default + Copy,T:GetValue + Default>  ExactSizeIterator for MMapIter<K,T> {
-    #[inline]
-    fn len(&self) -> usize {
-        let remaining_els = (self.mmap.len() as u32 - self.pos) / mem::size_of::<KeyValue<K,T>>() as u32;
-        remaining_els as usize
-    }
-}
+// impl<K: PartialOrd + Ord + Default + Copy,T:GetValue + Default>  ExactSizeIterator for MMapIter<K,T> {
+//     #[inline]
+//     fn len(&self) -> usize {
+//         let remaining_els = (self.mmap.len() as u32 - self.pos) / mem::size_of::<KeyValue<K,T>>() as u32;
+//         remaining_els as usize
+//     }
+// }
 
-impl<K: PartialOrd + Ord + Default + Copy,T:GetValue + Default>  FusedIterator for MMapIter<K,T> {}
+impl<K: PartialOrd + Ord + Default + DeserializeOwned + Copy,T:GetValue + Default + DeserializeOwned>  FusedIterator for MMapIter<K,T> {}
 
 #[test]
 fn test_buffered_index_writer() {
     let mut ind = BufferedIndexWriter::default();
 
-    ind.add(2, 2).unwrap();
+    ind.add(2_u32, 2).unwrap();
     ind.flush().unwrap();
 
     let mut iters = ind.multi_iter().unwrap();
@@ -427,14 +459,14 @@ fn test_buffered_index_writer() {
     assert_eq!(mergo.next(), Some(KeyValue{key:4, value:4}));
 
     let mut ind = BufferedIndexWriter::default();
-    ind.add_all(2, &vec![2, 2000]).unwrap();
+    ind.add_all(2_u32, &vec![2, 2000]).unwrap();
     ind.flush().unwrap();
     let mut iters = ind.multi_iter().unwrap();
     assert_eq!(iters[0].next(), Some(KeyValue{key:2, value:2}));
     assert_eq!(iters[0].next(), Some(KeyValue{key:2, value:2000}));
 
     let mut ind = BufferedIndexWriter::default();
-    ind.add_all(2, &vec![2, 2000]).unwrap();
+    ind.add_all(2_u32, &vec![2, 2000]).unwrap();
     let mut iter = ind.into_iter_inmemory();
     assert_eq!(iter.next(), Some(KeyValue{key:2, value:2}));
     assert_eq!(iter.next(), Some(KeyValue{key:2, value:2000}));
