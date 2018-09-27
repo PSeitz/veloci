@@ -59,10 +59,12 @@ where
     F2: FnMut(u32, &str, u32, u32) -> Result<T, E>,
 {
     if let Some(arr) = data.as_array() {
-        let delimiter: &'static str = if current_path.is_empty() || current_path.ends_with('.') { "" } else { "." };
-        current_path.push_str(delimiter);
+        if !(current_path.is_empty() || current_path.ends_with('.')) { 
+            current_path.push('.');
+        }
         current_path.push_str(current_el_name);
-        current_path.push_str("[]");
+        current_path.push('[');
+        current_path.push(']');
         let prev_len = current_path.len();
         for el in arr {
             let id = id_provider.get_id(&current_path);
@@ -73,8 +75,9 @@ where
             }
         }
     } else if let Some(obj) = data.as_object() {
-        let delimiter: &'static str = if current_path.is_empty() || current_path.ends_with('.') { "" } else { "." };
-        current_path.push_str(delimiter);
+        if !(current_path.is_empty() || current_path.ends_with('.')) { 
+            current_path.push('.');
+        }
         current_path.push_str(current_el_name);
         let prev_len = current_path.len();
         for (key, ref value) in obj.iter() {

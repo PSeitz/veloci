@@ -5,12 +5,17 @@ version = "0.1.0"
 [dependencies]
 itertools = "0.7.8"
 memmap = "0.6.2"
+rayon = "1.0.2"
 serde = "1.0.79"
 serde_derive = "1.0.79"
 tempfile = "3.0.2"
 
 [dependencies.compact_int]
 path = "../compact_int"
+
+
+[dependencies.vint]
+git = "https://github.com/PSeitz/rust_vint"
 
 [dev-dependencies]
 measure_time = "0.6"

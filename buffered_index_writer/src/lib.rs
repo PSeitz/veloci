@@ -3,6 +3,8 @@ extern crate compact_int;
 extern crate memmap;
 extern crate tempfile;
 extern crate serde;
+extern crate rayon;
+extern crate vint;
 #[macro_use]
 extern crate serde_derive;
 // extern crate byteorder;
@@ -13,6 +15,7 @@ use std::fmt::Display;
 use itertools::Itertools;
 use memmap::MmapOptions;
 use memmap::Mmap;
+use vint::vint::*;
 
 // use compact_int::VintArrayIterator;
 use std::fmt;
@@ -27,13 +30,15 @@ use std::io::prelude::*;
 use std::io::BufWriter;
 use std::ptr::copy_nonoverlapping;
 use std::marker::PhantomData;
+use rayon::prelude::*;
 
-// pub trait Serialize {
-//     fn serialize(&self, sink: &mut Vec<u8>) -> u32;
-// }
+pub trait SerializeInto {
+    fn serialize_into(&self, sink: &mut Vec<u8>);
+}
 // use std::iter::Iterator;
-// pub trait Deserialize {
-//     fn serialize<T: Iterator<Item=u8>>(source: &mut T) -> Self;
+// pub trait DeserializeFrom {
+//     fn deserialize<T: Iterator<Item=u8>>(source: &mut T) -> Self;
+//     fn deserialize(source: &[u8]) -> (Self, num_consumed);
 // }
 
 pub trait GetValue {
@@ -55,11 +60,23 @@ impl GetValue for (u32,u32) {
 }
 
 #[derive(Debug, Default, PartialEq, Eq, Clone, Serialize, Deserialize)]
-pub struct KeyValue<K: PartialOrd + Ord + Default + Copy, T:GetValue> {
+pub struct KeyValue<K: PartialOrd + Ord + Default + Copy, T:GetValue + SerializeInto> {
     pub key: K,
     pub value: T,
 }
 
+impl SerializeInto for u32 {
+    fn serialize_into(&self, sink: &mut Vec<u8>){
+        // encode_varint_into(sink, *self);
+    }
+}
+
+impl SerializeInto for (u32, u32) {
+    fn serialize_into(&self, sink: &mut Vec<u8>){
+        // encode_varint_into(sink, self.0);
+        // encode_varint_into(sink, self.1);
+    }
+}
 
 #[derive(Debug, Clone)]
 struct Part {
@@ -72,7 +89,7 @@ struct Part {
 /// Order is not guaranteed to be kept the same for same ids -> insert (0, 1)..(0,2)   --> Output could be (0,2),(0,1) with BufferedIndexWriter::default()
 /// stable_sort with add_all fn keeps insertion order
 ///
-pub struct BufferedIndexWriter<K:PartialOrd + Ord + Default + Copy = u32, T:GetValue = u32> {
+pub struct BufferedIndexWriter<K:PartialOrd + Ord + Default + Copy = u32, T:GetValue + SerializeInto = u32> {
     pub cache: Vec<KeyValue<K, T>>,
     pub temp_file: Option<File>,
     pub max_value_id: u32,
@@ -88,13 +105,13 @@ pub struct BufferedIndexWriter<K:PartialOrd + Ord + Default + Copy = u32, T:GetV
     temp_file_mmap: Option<Mmap>,
 }
 
-impl<K: PartialOrd + Ord + Default + Copy + Serialize + DeserializeOwned, T:GetValue + Default + Clone + Copy + Serialize + DeserializeOwned> Default for BufferedIndexWriter<K, T> {
+impl<K: PartialOrd + Ord + Default + Copy + Serialize + DeserializeOwned + Send + Sync, T:GetValue + Default + Clone + Copy + Serialize + DeserializeOwned + Send + Sync + SerializeInto> Default for BufferedIndexWriter<K, T> {
     fn default() -> BufferedIndexWriter<K, T> {
         BufferedIndexWriter::new_unstable_sorted()
     }
 }
 
-impl<K: PartialOrd + Ord + Default + Copy + Serialize + DeserializeOwned, T:GetValue + Default + Clone + Copy + Serialize + DeserializeOwned> BufferedIndexWriter<K,T> {
+impl<K: PartialOrd + Ord + Default + Copy + Serialize + DeserializeOwned + Send + Sync, T:GetValue + Default + Clone + Copy + Serialize + DeserializeOwned + Send + Sync + SerializeInto> BufferedIndexWriter<K,T> {
     pub fn new_with_opt(stable_sort: bool, ids_are_sorted: bool) -> Self {
         BufferedIndexWriter {
             cache: vec![],
@@ -168,6 +185,7 @@ impl<K: PartialOrd + Ord + Default + Copy + Serialize + DeserializeOwned, T:GetV
         Ok(())
     }
 
+
     pub fn flush(&mut self) -> Result<(), io::Error> {
         if self.cache.is_empty() {
             return Ok(());
@@ -192,10 +210,21 @@ impl<K: PartialOrd + Ord + Default + Copy + Serialize + DeserializeOwned, T:GetV
         //     slice.len()
         // };
 
-        let mut sink = vec![];
-        for value in self.cache.iter() {
-            compact_int::serialize_into(&mut sink, value).unwrap(); // TODO
-        }
+        let sink =
+        self.cache
+        .par_iter()
+        .fold(|| vec![],
+                |mut sink: Vec<u8>, value:&KeyValue<K, T>| { compact_int::serialize_into(&mut sink, value).unwrap(); sink })
+        .reduce(|| vec![],
+                |mut sink_all: Vec<u8>, sink: Vec<u8>| { sink_all.extend_from_slice(&sink); sink_all });
+
+
+        // let mut sink = vec![];
+        // for value in self.cache.iter() {
+        //     compact_int::serialize_into(&mut sink, value).unwrap(); // TODO
+        // }
+
+
         let serialized_len = sink.len();
         data_file.write_all(&sink)?;
 
@@ -300,7 +329,7 @@ impl<K: PartialOrd + Ord + Default + Copy + Serialize + DeserializeOwned, T:GetV
 
 
 
-impl<K: Display + PartialOrd + Ord + Default + Copy, T:GetValue + Default> fmt::Display for BufferedIndexWriter<K, T> {
+impl<K: Display + PartialOrd + Ord + Default + Copy, T:GetValue + Default + SerializeInto> fmt::Display for BufferedIndexWriter<K, T> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         for el in &self.cache{
             writeln!(f, "{}\t{}", el.key, el.value.get_value())?;
@@ -313,7 +342,7 @@ impl<K: Display + PartialOrd + Ord + Default + Copy, T:GetValue + Default> fmt::
 
 #[inline]
 // Maximum speed, Maximum unsafe
-fn read_pair_very_raw_p<K:PartialOrd + Ord + Default + Copy, T:GetValue + Default>(p: *const u8) -> KeyValue<K,T> {
+fn read_pair_very_raw_p<K:PartialOrd + Ord + Default + Copy, T:GetValue + Default + SerializeInto>(p: *const u8) -> KeyValue<K,T> {
     // let mut out: (u32, u32) = (0, 0);
     let mut out: KeyValue<K, T> = KeyValue::default();
     unsafe {
@@ -384,7 +413,7 @@ impl<K: PartialOrd + Ord + Default + Copy,T:GetValue> MMapIter<K,T> {
     }
 }
 
-impl<K: PartialOrd + Ord + Default + Copy + DeserializeOwned,T:GetValue + Default + DeserializeOwned> Iterator for MMapIter<K,T> {
+impl<K: PartialOrd + Ord + Default + Copy + DeserializeOwned,T:GetValue + Default + DeserializeOwned + SerializeInto> Iterator for MMapIter<K,T> {
     type Item = KeyValue<K,T>;
 
     #[inline]
@@ -426,7 +455,7 @@ impl<K: PartialOrd + Ord + Default + Copy + DeserializeOwned,T:GetValue + Defaul
 //     }
 // }
 
-impl<K: PartialOrd + Ord + Default + DeserializeOwned + Copy,T:GetValue + Default + DeserializeOwned>  FusedIterator for MMapIter<K,T> {}
+impl<K: PartialOrd + Ord + Default + DeserializeOwned + Copy,T:GetValue + Default + DeserializeOwned + SerializeInto>  FusedIterator for MMapIter<K,T> {}
 
 #[test]
 fn test_buffered_index_writer() {

@@ -1,5 +1,6 @@
 use std::fs::File;
 use std::io;
+use std::io::BufReader;
 use std::io::Write;
 use std::{self, str};
 
@@ -34,6 +35,9 @@ use fixedbitset::FixedBitSet;
 
 use util::StringAdd;
 
+use term_hashmap;
+type TermMap = term_hashmap::HashMap<TermInfo>;
+
 // type FieldsConfig = FnvHashMap<String, FieldConfig>;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -54,6 +58,24 @@ impl FieldsConfig {
             self.0.get(path)
         }
     }
+
+
+    fn features_to_indices(&mut self) -> Result<(), CreateError>{
+        for (key, val) in self.0.iter_mut() {
+
+            if val.features.is_some() && val.disabled_features.is_some(){
+                return Err(CreateError::InvalidConfig(format!("features and disabled_features are not allowed at the same time in field{:?}", key )));
+            }
+
+            if let Some(features) = val.features.clone().or_else(||val.disabled_features.as_ref().map(|disabled_features|Features::invert(disabled_features))) {
+                let disabled = Features::features_to_disabled_indices(&features);
+                let mut existing = val.disabled_indices.as_ref().map(|el|el.clone()).unwrap_or_else(||FnvHashSet::default());
+                existing.extend(disabled);
+                val.disabled_indices = Some(existing);
+            }
+        }
+        Ok(())
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -61,13 +83,15 @@ pub struct FieldConfig {
     #[serde(default)]
     pub facet: bool,
     pub fulltext: Option<FulltextIndexOptions>,
-    pub disable_indices: Option<FnvHashSet<IndexCreationType>>,
+    pub disabled_indices: Option<FnvHashSet<IndexCreationType>>,
+    pub features: Option<FnvHashSet<Features>>,
+    pub disabled_features: Option<FnvHashSet<Features>>,
     pub boost: Option<BoostIndexOptions>
 }
 impl FieldConfig {
     fn is_index_enabled(&self, index: IndexCreationType) -> bool {
         // false
-        self.disable_indices.as_ref().map(|el|!el.contains(&index)).unwrap_or(true)
+        self.disabled_indices.as_ref().map(|el|!el.contains(&index)).unwrap_or(true)
     }
 }
 
@@ -77,10 +101,10 @@ fn test_field_config_from_json() {
         "MATNR" : {
            "facet":true,
            "fulltext" : {"tokenize":true},
-           "disable_indices": ["TokensToTextID", "TokenToAnchorIDScore", "PhrasePairToAnchor", "TextIDToTokenIds", "TextIDToParent", "ParentToTextID", "TextIDToAnchor"]
+           "disabled_indices": ["TokensToTextID", "TokenToAnchorIDScore", "PhrasePairToAnchor", "TextIDToTokenIds", "TextIDToParent", "ParentToTextID", "TextIDToAnchor"]
         },
-        "ISMTITLE"     : {"fulltext": {"tokenize":true}  },
-        "ISMORIGTITLE" : {"fulltext": {"tokenize":true}  },
+        "ISMTITLE"     : {"fulltext": {"tokenize":true}, "features":["Search"]  },
+        "ISMORIGTITLE" : {"fulltext": {"tokenize":true}, "disabled_features":["Search"]  },
         "ISMSUBTITLE1" : {"fulltext": {"tokenize":true}  },
         "ISMSUBTITLE2" : {"fulltext": {"tokenize":true}  },
         "ISMSUBTITLE3" : {"fulltext": {"tokenize":true}  },
@@ -90,9 +114,12 @@ fn test_field_config_from_json() {
         "EAN11"        : {"fulltext": {"tokenize":false} },
         "ISMORIDCODE"  : {"fulltext": {"tokenize":false} }
     }"#;
-    let data: FieldsConfig = serde_json::from_str(json).unwrap();
+    let mut data: FieldsConfig = serde_json::from_str(json).unwrap();
+    data.features_to_indices();
     assert_eq!(data.get("MATNR").unwrap().facet, true);
     assert_eq!(data.get("MATNR").unwrap().is_index_enabled(IndexCreationType::TokensToTextID), false);
+    assert_eq!(data.get("ISMTITLE").unwrap().is_index_enabled(IndexCreationType::TokenToAnchorIDScore), true);
+    assert_eq!(data.get("ISMTITLE").unwrap().is_index_enabled(IndexCreationType::TokensToTextID), false);
     assert_eq!(data.get("ISMORIDCODE").unwrap().fulltext.as_ref().unwrap().tokenize, false);
 }
 
@@ -305,49 +332,9 @@ fn store_fst(persistence: &Persistence, sorted_terms: &[(&str, &mut TermInfo)], 
     Ok(())
 }
 
-use term_hashmap;
-type TermMap = term_hashmap::HashMap<TermInfo>;
+
 // type TermMap = FnvHashMap<String, TermInfo>;
 
-#[inline]
-fn add_count_text(terms: &mut TermMap, text: &str) {
-    let stat = terms.get_or_insert(text, || TermInfo::default());
-    stat.num_occurences += 1;
-
-    // let stat = get_or_insert_prefer_get(terms as *mut FnvHashMap<_, _>, text, &|| TermInfo::default());
-    // stat.num_occurences += 1;
-}
-
-#[inline]
-fn add_text<T: Tokenizer>(text: &str, term_data: &mut TermDataInPath, options: &FulltextIndexOptions, tokenizer: &T) {
-    trace!("text: {:?}", text);
-    // if options.stopwords.as_ref().map(|el| el.contains(text)).unwrap_or(false) {
-    //     return;
-    // }
-
-    if term_data.do_not_store_text_longer_than < text.len() {
-        // term_data.id_counter_for_large_texts += 1;
-        // add_count_text(&mut term_data.long_terms, text); //TODO handle no tokens case or else the text can't be reconstructed
-    } else {
-        add_count_text(&mut term_data.terms, text); //TODO handle no tokens case or else the text can't be reconstructed
-    }
-
-    if options.tokenize && tokenizer.has_tokens(&text) {
-        // let mut prev_phrase_token:Vec<u8> = vec![];
-        tokenizer.get_tokens(&text, &mut |token: &str, _is_seperator: bool| {
-            // if options.stopwords.as_ref().map(|el| el.contains(token)).unwrap_or(false) {
-            //     return;
-            // }
-            // if !prev_phrase_token.is_empty() && !is_seperator {
-            //     prev_phrase_token.extend(token.as_bytes());
-            //     add_count_text(term_data.terms, unsafe { std::str::from_utf8_unchecked(&prev_phrase_token) });
-            // }
-            // prev_phrase_token.clear();
-            // prev_phrase_token.extend(token.as_bytes());
-            add_count_text(&mut term_data.terms, token);
-        });
-    }
-}
 
 #[inline]
 // *mut FnvHashMap here or the borrow checker will complain, because the return apparently expands the scope of the mutable ownership to the complete function(?)
@@ -411,6 +398,7 @@ pub struct CreateCache {
 #[derive(Debug, Default)]
 struct TermDataInPath {
     terms: TermMap,
+    // terms_cache: Vec<String>,
     // long_terms: TermMap,
     do_not_store_text_longer_than: usize,
     id_counter_for_large_texts: u32
@@ -422,6 +410,46 @@ pub struct AllTermsAndDocumentBuilder {
     current_offset: usize,
     id_holder: json_converter::IDHolder,
     terms_in_path: FnvHashMap<String, TermDataInPath>,
+}
+
+#[inline]
+fn add_count_text(terms: &mut TermMap, text: &str) {
+    let stat = terms.get_or_insert(text, || TermInfo::default());
+    stat.num_occurences += 1;
+
+    // let stat = get_or_insert_prefer_get(terms as *mut FnvHashMap<_, _>, text, &|| TermInfo::default());
+    // stat.num_occurences += 1;
+}
+
+#[inline]
+fn add_text<T: Tokenizer>(text: &str, term_data: &mut TermDataInPath, options: &FulltextIndexOptions, tokenizer: &T) {
+    trace!("text: {:?}", text);
+    // if options.stopwords.as_ref().map(|el| el.contains(text)).unwrap_or(false) {
+    //     return;
+    // }
+
+    if term_data.do_not_store_text_longer_than < text.len() {
+        // term_data.id_counter_for_large_texts += 1;
+        // add_count_text(&mut term_data.long_terms, text); //TODO handle no tokens case or else the text can't be reconstructed
+    } else {
+        add_count_text(&mut term_data.terms, text); //TODO handle no tokens case or else the text can't be reconstructed
+    }
+
+    if options.tokenize && tokenizer.has_tokens(&text) {
+        // let mut prev_phrase_token:Vec<u8> = vec![];
+        tokenizer.get_tokens(&text, &mut |token: &str, _is_seperator: bool| {
+            // if options.stopwords.as_ref().map(|el| el.contains(token)).unwrap_or(false) {
+            //     return;
+            // }
+            // if !prev_phrase_token.is_empty() && !is_seperator {
+            //     prev_phrase_token.extend(token.as_bytes());
+            //     add_count_text(term_data.terms, unsafe { std::str::from_utf8_unchecked(&prev_phrase_token) });
+            // }
+            // prev_phrase_token.clear();
+            // prev_phrase_token.extend(token.as_bytes());
+            add_count_text(&mut term_data.terms, token);
+        });
+    }
 }
 
 fn get_allterms_per_path<I: Iterator<Item = Result<serde_json::Value, serde_json::Error>>>(
@@ -545,6 +573,54 @@ impl BufferedTextIdToTokenIdsData {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, Copy, Eq, PartialEq, Hash)]
+pub enum Features {
+    BoostTextLocality,
+    BoostingFieldData,
+    Search,
+    Filters,
+    Facets,
+    Select,
+    WhyFound,
+    Highlight,
+    PhraseBoost
+}
+
+impl Features {
+
+    fn invert(features: &FnvHashSet<Features>) -> FnvHashSet<Features>{
+        let all_features:&[Features] = &[Features::BoostTextLocality, Features::BoostingFieldData, Features::Search, Features::Filters, Features::Facets, Features::Select, Features::WhyFound, Features::Highlight, Features::PhraseBoost];
+
+        all_features.into_iter().filter(|feature|{
+            features.contains(&feature)
+        }).cloned().collect()
+
+    }
+    fn features_to_disabled_indices(features: &FnvHashSet<Features>) -> FnvHashSet<IndexCreationType>{
+        let mut hashset = FnvHashSet::default();
+
+        let add_if_features_not_used = |f:&[Features], index_type:IndexCreationType, hashset: &mut FnvHashSet<IndexCreationType> |{
+            for feature in f {
+                if features.contains(feature) {
+                    return;
+                }
+            }
+            hashset.insert(index_type);
+        };
+
+        add_if_features_not_used(&[Features::BoostTextLocality, Features::Highlight, Features::BoostingFieldData], IndexCreationType::TokensToTextID, &mut hashset );
+        add_if_features_not_used(&[Features::Search], IndexCreationType::TokenToAnchorIDScore, &mut hashset );
+        add_if_features_not_used(&[Features::PhraseBoost], IndexCreationType::PhrasePairToAnchor, &mut hashset );
+        add_if_features_not_used(&[Features::Select, Features::WhyFound], IndexCreationType::TextIDToTokenIds, &mut hashset );
+        add_if_features_not_used(&[Features::BoostingFieldData], IndexCreationType::TextIDToParent, &mut hashset );
+        add_if_features_not_used(&[Features::Facets, Features::Select], IndexCreationType::ParentToTextID, &mut hashset ); //TODO can be diabled if facets is on non root element
+        add_if_features_not_used(&[Features::BoostTextLocality, Features::Select], IndexCreationType::TextIDToAnchor, &mut hashset );
+
+        hashset
+
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, Copy, Eq, PartialEq, Hash)]
 pub enum IndexCreationType {
     TokensToTextID, // Used by boost_text_locality, highlighting(why?), queries with boost indices on fields (slow search path)
     TokenToAnchorIDScore, //normal search
@@ -626,8 +702,10 @@ where
     let default_fulltext_options = FulltextIndexOptions::new_with_tokenize();
     let default_field_config = FieldConfig {
         facet: false,
+        features: None,
+        disabled_features: None,
         fulltext: Some(default_fulltext_options.clone()),
-        disable_indices: None,
+        disabled_indices: None,
         boost: None
     };
 
@@ -1420,51 +1498,113 @@ pub fn add_token_values_to_tokens(persistence: &mut Persistence, data_str: &str,
     Ok(())
 }
 
-// trait FastLinesTrait<T> {
-//     fn fast_lines(self) -> FastLinesJson<Self>
-//     where
-//         Self: Sized,
-//     {
-//         FastLinesJson { reader: self, cache: vec![] }
-//     }
-// }
+trait FastLinesTrait<T> {
+    fn fast_lines(self) -> FastLinesJson<Self>
+    where
+        Self: Sized,
+    {
+        FastLinesJson { reader: self,  prepared_jsons: vec![] }
+    }
+}
 
-// impl<T> FastLinesTrait<T> for BufReader<T> {
-//     fn fast_lines(self) -> FastLinesJson<Self>
-//     where
-//         Self: Sized,
-//     {
-//         FastLinesJson { reader: self, cache: vec![] }
-//     }
-// }
+impl<T> FastLinesTrait<T> for BufReader<T> {
+    fn fast_lines(self) -> FastLinesJson<Self>
+    where
+        Self: Sized,
+    {
+        FastLinesJson { reader: self, prepared_jsons: vec![] }
+    }
+}
+#[derive(Debug)]
+struct FastLinesJson<T> {
+    reader: T,
+    // cache: Vec<u8>,
+    prepared_jsons: Vec<Result<serde_json::Value, serde_json::Error>>
+}
+impl<T: BufRead> FastLinesJson<T> {
+    #[inline]
+    fn load_lines_into_cache(&mut self){
+        let mut lines = vec![];
+        for _ in 0..1000 {
+            if let Some(line) = self.load_line() {
+                lines.push(line);
+            }else{
+                break;
+            }
+        }
 
-// #[derive(Debug)]
-// struct FastLinesJson<T> {
-//     reader: T,
-//     cache: Vec<u8>,
-// }
 
-// impl<B: BufRead> Iterator for FastLinesJson<B> {
-//     type Item = Result<serde_json::Value, serde_json::Error>;
+        self.prepared_jsons = lines.par_iter()
+        .map(|line| serde_json::from_str(line))
+        // .map(|c: &char| format!("{}", c))
+        // .reduce(|| self.prepared_jsons,
+        //     |mut a: &mut Vec<Result<serde_json::Value, serde_json::Error>>, b: Result<serde_json::Value, serde_json::Error>| { a.push(b); a });
+        .fold(|| vec![],
+                |mut sink: Vec<Result<serde_json::Value, serde_json::Error>>, value:Result<serde_json::Value, serde_json::Error>| { sink.push(value); sink })
+        .reduce(|| vec![],
+                |mut sink_all: Vec<Result<serde_json::Value, serde_json::Error>>, mut sink: Vec<Result<serde_json::Value, serde_json::Error>>| {
+                    for el in sink.drain(..) {
+                        sink_all.push(el);
+                    }
+                    sink_all
+                });
 
-//     fn next(&mut self) -> Option<Result<serde_json::Value, serde_json::Error>> {
-//         self.cache.clear();
-//         match self.reader.read_until(b'\n', &mut self.cache) {
-//             Ok(0) => None,
-//             Ok(_n) => {
-//                 if self.cache.ends_with(b"\n") {
-//                     self.cache.pop();
-//                     if self.cache.ends_with(b"\r") {
-//                         self.cache.pop();
-//                     }
-//                 }
-//                 let json = serde_json::from_str(unsafe { std::str::from_utf8_unchecked(&self.cache) });
-//                 Some(json)
-//             }
-//             Err(_e) => None,
-//         }
-//     }
-// }
+        // let lines:Vec<String> = (0..200).flat_map(|_|self.load_line()).collect();
+        // self.prepared_jsons =  lines.par_iter().map(|line| serde_json::from_str(line)).collect();
+    }
+    #[inline]
+    fn load_line(&mut self) -> Option<String>{
+        let mut cache = vec![];
+        match self.reader.read_until(b'\n', &mut cache) {
+            Ok(0) => None,
+            Ok(_n) => {
+                if cache.ends_with(b"\n") {
+                    cache.pop();
+                    if cache.ends_with(b"\r") {
+                        cache.pop();
+                    }
+                }
+                Some(unsafe { String::from_utf8_unchecked(cache) })
+            }
+            Err(_e) => None,
+        }
+    }
+}
+
+impl<B: BufRead> Iterator for FastLinesJson<B> {
+    type Item = Result<serde_json::Value, serde_json::Error>;
+
+    #[inline(always)]
+    fn next(&mut self) -> Option<Result<serde_json::Value, serde_json::Error>> {
+        if let Some(next) = self.prepared_jsons.pop() {
+            Some(next)
+        }else{
+            self.load_lines_into_cache();
+            if let Some(next) = self.prepared_jsons.pop() {
+                Some(next)
+            }else{
+                None
+            }
+        }
+    }
+    // fn next(&mut self) -> Option<Result<serde_json::Value, serde_json::Error>> {
+    //     self.cache.clear();
+    //     match self.reader.read_until(b'\n', &mut self.cache) {
+    //         Ok(0) => None,
+    //         Ok(_n) => {
+    //             if self.cache.ends_with(b"\n") {
+    //                 self.cache.pop();
+    //                 if self.cache.ends_with(b"\r") {
+    //                     self.cache.pop();
+    //                 }
+    //             }
+    //             let json = serde_json::from_str(unsafe { std::str::from_utf8_unchecked(&self.cache) });
+    //             Some(json)
+    //         }
+    //         Err(_e) => None,
+    //     }
+    // }
+}
 
 pub fn convert_any_json_data_to_line_delimited<I: std::io::Read, O: std::io::Write>(input: I, out: &mut O) -> Result<(), io::Error> {
     let stream = Deserializer::from_reader(input).into_iter::<Value>();
@@ -1549,7 +1689,8 @@ where
     info_time!("total time create_indices for {:?}", persistence.db);
 
     // let indices_json: Vec<CreateIndex> = serde_json::from_str(indices).unwrap();
-    let indices_json: FieldsConfig = serde_json::from_str(indices).unwrap();
+    let mut indices_json: FieldsConfig = serde_json::from_str(indices).unwrap();
+    indices_json.features_to_indices()?;
     let mut create_cache = create_cache.unwrap_or_else(CreateCache::default);
     create_fulltext_index(stream1, stream2, stream3, &mut persistence, &indices_json, &mut create_cache, load_persistence)?;
 
@@ -1561,6 +1702,7 @@ where
 #[derive(Debug)]
 pub enum CreateError {
     Io(io::Error),
+    InvalidConfig(String),
     InvalidJson(serde_json::Error),
     Utf8Error(std::str::Utf8Error),
     SearchError(search::SearchError),
