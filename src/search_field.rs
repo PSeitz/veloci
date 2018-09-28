@@ -812,7 +812,7 @@ fn distance_dfa(lower_hit: &str, dfa: &DFA, lower_term: &str) -> u8 {
     }
 }
 
-//TODO: This method can't compare string larger than u8 length
+//TODO: FIXME This method can't compare string larger than u8 length
 fn distance(s1: &str, s2: &str) -> u8 {
     trace_time!("distance {:?} {:?}", s1, s2);
     if s1.len() >= 255 || s2.len() >= 255 {

@@ -5,7 +5,8 @@ use serde;
 
 use byteorder::WriteBytesExt;
 use byteorder::LittleEndian;
-use vint::vint::*;
+use vint::vint::encode_varint_into_writer;
+// use vint::vint::*;
 // use super::internal::SizeLimit;
 use super::error::{Error, Result};
 // use config::Options;
@@ -37,7 +38,7 @@ use std::io::BufWriter;
 #[test]
 fn testo() {
     let yop = BufWriter::new(File::create("yop").unwrap());
-    to_writer(yop, &50_u32);
+    to_writer(yop, &50_u32).unwrap();
     // yop
 }
 

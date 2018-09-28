@@ -269,33 +269,22 @@ fn create_jmdict_index_shards() -> Result<(), io::Error> {
 }
 
 const JMDICT_INDICES: &str = r#"
-    [
-    {
-        "boost": "commonness",
-        "options": { "boost_type": "int" }
-    },
-    { "fulltext": "kanji[].text", "options":{"tokenize":false} },
-    { "fulltext": "kanji[].conjugated[].form", "options":{"tokenize":false} },
-    { "fulltext": "kana[].text" , "options":{"tokenize":false} },
-    { "fulltext": "kana[].conjugated[].form" , "options":{"tokenize":false} },
-    { "fulltext": "kana[].romaji" , "options":{"tokenize":true} },
-    { "fulltext": "meanings.ger[].text", "options": { "tokenize": true } },
-    { "fulltext": "meanings.eng[]", "options": { "tokenize": true } },
-    { "fulltext": "pos", "options": { "tokenize": false } },
-    {
-        "boost": "meanings.ger[].rank",
-        "options": { "boost_type": "int" }
-    },
-    {
-        "boost": "kanji[].commonness",
-        "options": { "boost_type": "int" }
-    },
-    {
-        "boost": "kana[].commonness",
-        "options": { "boost_type": "int" }
-    }
-    ]
-    "#;
+{
+
+    "commonness":               { "boost":{ "boost_type": "int" }},
+    "meanings.ger[].rank":      { "boost":{ "boost_type": "int" }},
+    "kanji[].commonness":       { "boost":{ "boost_type": "int" }},
+    "kana[].commonness":        { "boost":{ "boost_type": "int" }},
+    "kanji[].text":             { "fulltext":{"tokenize":false} },
+    "kanji[].conjugated[].form":{ "fulltext":{"tokenize":false} },
+    "kana[].text" :             { "fulltext":{"tokenize":false} },
+    "kana[].conjugated[].form" :{ "fulltext":{"tokenize":false} },
+    "kana[].romaji" :           { "fulltext":{"tokenize":true} },
+    "meanings.ger[].text":      { "fulltext":{"tokenize":true} },
+    "meanings.eng[]":           { "fulltext":{"tokenize":true} },
+    "pos":                      { "fulltext":{"tokenize":false} }
+}
+"#;
 
 #[allow(dead_code)]
 fn create_jmdict_index() -> Result<(), io::Error> {

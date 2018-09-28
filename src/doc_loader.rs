@@ -22,10 +22,11 @@ impl DocLoader {
         };
 
         let mut f = persistence.get_file_handle("data")?;
-        let mut buffer: Vec<u8> = Vec::with_capacity((end - start) as usize);
-        unsafe {
-            buffer.set_len(end - start);
-        }
+        let mut buffer: Vec<u8> = vec![0;(end - start) as usize];
+        // let mut buffer: Vec<u8> = Vec::with_capacity((end - start) as usize);
+        // unsafe {
+        //     buffer.set_len(end - start);
+        // }
 
         f.seek(SeekFrom::Start(start as u64))?;
         f.read_exact(&mut buffer)?;

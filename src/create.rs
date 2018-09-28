@@ -51,16 +51,41 @@ pub struct CreateIndexConfig{
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct FieldsConfig(FnvHashMap<String, FieldConfig>);
 impl FieldsConfig {
-    fn get(&self, path:&str) -> Option<&FieldConfig> {
-        if path.ends_with(".textindex"){
+    // fn get(&self, path:&str) -> Option<&FieldConfig> {
+    //     if path.ends_with(".textindex"){
+    //         self.0.get(&path[..path.len()-10])
+    //     }else{
+    //         self.0.get(path)
+    //     }
+    // }
+    fn get(&self, path:&str) -> &FieldConfig {
+        let el = if path.ends_with(".textindex"){
             self.0.get(&path[..path.len()-10])
         }else{
             self.0.get(path)
+        };
+        if let Some(el) = el {
+            el
+        }else{
+            self.0.get("*GLOBAL*").unwrap()
         }
+        // el.or_else(||self.0.get("*GLOBAL*").unwrap())
     }
 
 
     fn features_to_indices(&mut self) -> Result<(), CreateError>{
+        if self.0.get("*GLOBAL*").is_none() {
+            let default_fulltext_options = FulltextIndexOptions::new_with_tokenize();
+            let default_field_config = FieldConfig {
+                facet: false,
+                features: None,
+                disabled_features: None,
+                fulltext: Some(default_fulltext_options.clone()),
+                disabled_indices: None,
+                boost: None
+            };
+            self.0.insert("*GLOBAL*".to_string(), default_field_config);
+        }
         for (key, val) in self.0.iter_mut() {
 
             if val.features.is_some() && val.disabled_features.is_some(){
@@ -74,6 +99,8 @@ impl FieldsConfig {
                 val.disabled_indices = Some(existing);
             }
         }
+
+
         Ok(())
     }
 }
@@ -116,11 +143,11 @@ fn test_field_config_from_json() {
     }"#;
     let mut data: FieldsConfig = serde_json::from_str(json).unwrap();
     data.features_to_indices();
-    assert_eq!(data.get("MATNR").unwrap().facet, true);
-    assert_eq!(data.get("MATNR").unwrap().is_index_enabled(IndexCreationType::TokensToTextID), false);
-    assert_eq!(data.get("ISMTITLE").unwrap().is_index_enabled(IndexCreationType::TokenToAnchorIDScore), true);
-    assert_eq!(data.get("ISMTITLE").unwrap().is_index_enabled(IndexCreationType::TokensToTextID), false);
-    assert_eq!(data.get("ISMORIDCODE").unwrap().fulltext.as_ref().unwrap().tokenize, false);
+    assert_eq!(data.get("MATNR").facet, true);
+    assert_eq!(data.get("MATNR").is_index_enabled(IndexCreationType::TokensToTextID), false);
+    assert_eq!(data.get("ISMTITLE").is_index_enabled(IndexCreationType::TokenToAnchorIDScore), true);
+    assert_eq!(data.get("ISMTITLE").is_index_enabled(IndexCreationType::TokensToTextID), false);
+    assert_eq!(data.get("ISMORIDCODE").fulltext.as_ref().unwrap().tokenize, false);
 }
 
 
@@ -467,7 +494,7 @@ fn get_allterms_per_path<I: Iterator<Item = Result<serde_json::Value, serde_json
     let mut id_holder = json_converter::IDHolder::new();
     {
         let mut cb_text = |_anchor_id: u32, value: &str, path: &str, _parent_val_id: u32| -> Result<(), io::Error> {
-            let options: &FulltextIndexOptions = fulltext_info_for_path.get(path).and_then(|el| el.fulltext.as_ref()).unwrap_or(&default_fulltext_options);
+            let options: &FulltextIndexOptions = fulltext_info_for_path.get(path).fulltext.as_ref().unwrap_or(&default_fulltext_options);
 
             let mut terms_data = get_or_insert_prefer_get(&mut data.terms_in_path as *mut FnvHashMap<_, _>, path, &|| TermDataInPath {
                 do_not_store_text_longer_than: options.do_not_store_text_longer_than,
@@ -609,6 +636,10 @@ impl Features {
 
         add_if_features_not_used(&[Features::BoostTextLocality, Features::Highlight, Features::BoostingFieldData], IndexCreationType::TokensToTextID, &mut hashset );
         add_if_features_not_used(&[Features::Search], IndexCreationType::TokenToAnchorIDScore, &mut hashset );
+
+        add_if_features_not_used(&[Features::Select, Features::Facets], IndexCreationType::ParentToValueID, &mut hashset );
+        add_if_features_not_used(&[Features::BoostingFieldData], IndexCreationType::ValueIDToParent, &mut hashset );
+
         add_if_features_not_used(&[Features::PhraseBoost], IndexCreationType::PhrasePairToAnchor, &mut hashset );
         add_if_features_not_used(&[Features::Select, Features::WhyFound], IndexCreationType::TextIDToTokenIds, &mut hashset );
         add_if_features_not_used(&[Features::BoostingFieldData], IndexCreationType::TextIDToParent, &mut hashset );
@@ -628,6 +659,8 @@ pub enum IndexCreationType {
     TextIDToTokenIds, // highlight document(why_found, when select), select
     TextIDToParent, // queries with boost indices on fields (slow search path)
     ParentToTextID, // facets on root, facets on sublevel with no special direct index, select
+    ParentToValueID, // select
+    ValueIDToParent, // select
     TextIDToAnchor, // Boost text locality, exact filters like facets
     // AnchorToTextID, // 1:n facets
 }
@@ -635,12 +668,12 @@ pub enum IndexCreationType {
 #[derive(Debug, Default)]
 struct PathData {
     tokens_to_text_id: Option<BufferedIndexWriter>,
-    token_to_anchor_id_score: BufferedIndexWriter<u32, (u32, u32)>,
+    token_to_anchor_id_score: Option<BufferedIndexWriter<u32, (u32, u32)>>,
     phrase_pair_to_anchor: Option<BufferedIndexWriter<(u32, u32), u32>>, // phrase_pair
     text_id_to_token_ids: Option<BufferedTextIdToTokenIdsData>,
     text_id_to_parent: Option<BufferedIndexWriter>,
 
-    parent_to_text_id: BufferedIndexWriter, //Used to recreate objects, keep oder
+    parent_to_text_id: Option<BufferedIndexWriter>, //Used to recreate objects, keep oder
     text_id_to_anchor: Option<BufferedIndexWriter>,
     anchor_to_text_id: Option<BufferedIndexWriter>,
     // boost: Option<Vec<ValIdToValue>>,
@@ -681,8 +714,8 @@ fn buffered_index_to_direct_index(db_path: &str, path: String, mut buffered_inde
 
 #[derive(Debug)]
 struct PathDataIds {
-    value_to_parent: BufferedIndexWriter,
-    parent_to_value: BufferedIndexWriter,
+    value_to_parent: Option<BufferedIndexWriter>,
+    parent_to_value: Option<BufferedIndexWriter>,
 }
 
 fn parse_json_and_prepare_indices<I>(
@@ -700,14 +733,14 @@ where
     let mut tuples_to_parent_in_path: FnvHashMap<String, PathDataIds> = FnvHashMap::default();
 
     let default_fulltext_options = FulltextIndexOptions::new_with_tokenize();
-    let default_field_config = FieldConfig {
-        facet: false,
-        features: None,
-        disabled_features: None,
-        fulltext: Some(default_fulltext_options.clone()),
-        disabled_indices: None,
-        boost: None
-    };
+    // let default_field_config = FieldConfig {
+    //     facet: false,
+    //     features: None,
+    //     disabled_features: None,
+    //     fulltext: Some(default_fulltext_options.clone()),
+    //     disabled_indices: None,
+    //     boost: None
+    // };
 
     let tokenizer = SimpleTokenizerCharsIterateGroupTokens {};
 
@@ -721,7 +754,7 @@ where
 
         let mut cb_text = |anchor_id: u32, value: &str, path: &str, parent_val_id: u32| -> Result<(), io::Error> {
             let data = get_or_insert_prefer_get(&mut path_data as *mut FnvHashMap<_, _>, path, &|| {
-                let field_config = fields_config.get(path).unwrap_or_else(||&default_field_config);
+                let field_config = fields_config.get(path);
                 let boost_info_data = if field_config.boost.is_some() {
                     Some(BufferedIndexWriter::new_for_sorted_id_insertion())
                 } else {
@@ -756,13 +789,24 @@ where
                 } else {
                     None
                 };
+                let parent_to_text_id = if field_config.is_index_enabled(IndexCreationType::ParentToTextID) {
+                    Some(BufferedIndexWriter::new_for_sorted_id_insertion())
+                } else {
+                    None
+                };
+
+                let token_to_anchor_id_score = if field_config.is_index_enabled(IndexCreationType::TokenToAnchorIDScore) {
+                    Some(BufferedIndexWriter::<u32, (u32, u32)>::new_unstable_sorted())
+                } else {
+                    None
+                };
 
                 PathData {
                     anchor_to_text_id,
                     boost: boost_info_data,
                     // parent_id is monotonically increasing, hint buffered index writer, it's already sorted
-                    parent_to_text_id: BufferedIndexWriter::new_for_sorted_id_insertion(),
-                    token_to_anchor_id_score: BufferedIndexWriter::<u32, (u32, u32)>::new_unstable_sorted(),
+                    parent_to_text_id,
+                    token_to_anchor_id_score,
                     tokens_to_text_id,
                     text_id_to_parent,
                     text_id_to_anchor,
@@ -790,7 +834,10 @@ where
             if let Some(el) = data.text_id_to_parent.as_mut() {
                 el.add(text_info.id, parent_val_id)?;
             }
-            data.parent_to_text_id.add(parent_val_id, text_info.id)?;
+
+            if let Some(el) = data.parent_to_text_id.as_mut() {
+                el.add(parent_val_id, text_info.id)?;
+            }
 
             if let Some(el) = data.text_id_to_anchor.as_mut() {
                 el.add(text_info.id, anchor_id)?;
@@ -808,7 +855,9 @@ where
 
             let score = calculate_token_score_for_entry(0, text_info.num_occurences, 1, true);
 
-            data.token_to_anchor_id_score.add(text_info.id, (anchor_id, score))?;
+            if let Some(el) = data.token_to_anchor_id_score.as_mut() {
+                el.add(text_info.id, (anchor_id, score))?;
+            }
 
             if data.fulltext_options.tokenize && tokenizer.has_tokens(value) {
                 let mut current_token_pos = 0;
@@ -868,7 +917,9 @@ where
 
                 }
 
-                calculate_and_add_token_score_in_doc(&mut tokens_to_anchor_id, anchor_id, current_token_pos, &mut data.token_to_anchor_id_score)?;
+                if let Some(el) = data.token_to_anchor_id_score.as_mut() {
+                    calculate_and_add_token_score_in_doc(&mut tokens_to_anchor_id, anchor_id, current_token_pos, el)?;
+                }
                 // calculate_and_add_token_score_in_doc(&mut phrase_to_anchor_id, anchor_id, current_token_pos, &mut data.token_to_anchor_id_score, true)?;
                 tokens_to_anchor_id.clear();
                 // phrase_to_anchor_id.clear();
@@ -878,13 +929,31 @@ where
         };
 
         let mut callback_ids = |_anchor_id: u32, path: &str, value_id: u32, parent_val_id: u32| -> Result<(), io::Error> {
-            let tuples = get_or_insert_prefer_get(&mut tuples_to_parent_in_path as *mut FnvHashMap<_, _>, path, &|| PathDataIds {
-                value_to_parent: BufferedIndexWriter::new_for_sorted_id_insertion(),
-                parent_to_value: BufferedIndexWriter::new_for_sorted_id_insertion(),
-            });
-
-            tuples.value_to_parent.add(value_id, parent_val_id)?;
-            tuples.parent_to_value.add(parent_val_id, value_id)?;
+            let tuples = get_or_insert_prefer_get(&mut tuples_to_parent_in_path as *mut FnvHashMap<_, _>, path, &||
+                {
+                    let field_config = fields_config.get(path);
+                    //TODO ALL SUB LEVELS ARE NOT HANDLED (not every supath hat it's own config yet) ONLY THE LEAFES BEFORE .TEXTINDEX
+                    let value_to_parent = if field_config.is_index_enabled(IndexCreationType::ValueIDToParent) {
+                        Some(BufferedIndexWriter::new_for_sorted_id_insertion())
+                    } else {
+                        None
+                    };
+                    let parent_to_value = if field_config.is_index_enabled(IndexCreationType::ParentToValueID) {
+                        Some(BufferedIndexWriter::new_for_sorted_id_insertion())
+                    } else {
+                        None
+                    };
+                    PathDataIds {value_to_parent, parent_to_value }
+                }
+            );
+            if let Some(el) = tuples.value_to_parent.as_mut() {
+                el.add(value_id, parent_val_id)?;
+            }
+            if let Some(el) = tuples.parent_to_value.as_mut() {
+                el.add(parent_val_id, value_id)?;
+            }
+            // tuples.value_to_parent.add(value_id, parent_val_id)?;
+            // tuples.parent_to_value.add(parent_val_id, value_id)?;
             Ok(())
         };
 
@@ -948,7 +1017,10 @@ fn trace_indices(path_data: &mut FnvHashMap<String, PathData>) {
             trace!("{}\n{}", &path.add(VALUE_ID_TO_PARENT), &el);
         }
         // trace!("{}\n{}", &path.add(VALUE_ID_TO_PARENT), &data.text_id_to_parent);
-        trace!("{}\n{}", &path.add(PARENT_TO_VALUE_ID), &data.parent_to_text_id);
+        // trace!("{}\n{}", &path.add(PARENT_TO_VALUE_ID), &data.parent_to_text_id);
+        if let Some(el) = data.parent_to_text_id.as_ref() {
+            trace!("{}\n{}", &path.add(PARENT_TO_VALUE_ID), &el);
+        }
         if let Some(el) = data.text_id_to_anchor.as_ref() {
             trace!("{}\n{}", &path.add(TEXT_ID_TO_ANCHOR), &el);
         }
@@ -1166,7 +1238,10 @@ fn convert_raw_path_data_to_indices(
                 add_index_flush(path.add(TOKENS_TO_TEXT_ID), tokens_to_text_id, false, true, &mut indices, LoadingType::Disk)?;
             }
 
-            add_anchor_score_flush(&db_path, path.add(TO_ANCHOR_ID_SCORE), data.token_to_anchor_id_score, &mut indices)?;
+            if let Some(token_to_anchor_id_score) = data.token_to_anchor_id_score {
+                add_anchor_score_flush(&db_path, path.add(TO_ANCHOR_ID_SCORE), token_to_anchor_id_score, &mut indices)?;
+            }
+
             if let Some(phrase_pair_to_anchor) = data.phrase_pair_to_anchor {
                 add_phrase_pair_flush(&db_path, path.add(PHRASE_PAIR_TO_ANCHOR), phrase_pair_to_anchor, &mut indices)?;
             }
@@ -1194,20 +1269,22 @@ fn convert_raw_path_data_to_indices(
                 )?;
             }
 
-            let loading_type = if indices_json.get(path).map(|el|el.facet).unwrap_or(false) && !is_1_to_n(path) {
+            let loading_type = if indices_json.get(path).facet && !is_1_to_n(path) {
                 LoadingType::InMemoryUnCompressed
             } else {
                 LoadingType::Disk
             };
 
-            add_index_flush(
-                path.add(PARENT_TO_VALUE_ID),
-                data.parent_to_text_id,
-                true, // This is parent_to_text_id here - Every Value id hat one associated text_id
-                sort_and_dedup,
-                &mut indices,
-                loading_type,
-            )?;
+            if let Some(parent_to_text_id) = data.parent_to_text_id {
+                add_index_flush(
+                    path.add(PARENT_TO_VALUE_ID),
+                    parent_to_text_id,
+                    true, // This is parent_to_text_id here - Every Value id hat one associated text_id
+                    sort_and_dedup,
+                    &mut indices,
+                    loading_type,
+                )?;
+            }
 
             if let Some(text_id_to_anchor) = data.text_id_to_anchor {
                 add_index_flush(path.add(TEXT_ID_TO_ANCHOR), text_id_to_anchor, false, true, &mut indices, LoadingType::Disk)?;
@@ -1249,15 +1326,21 @@ fn convert_raw_path_data_to_indices(
             let mut indices = IndicesFromRawData::default();
 
             let path = &path;
-            add_index_flush(
-                path.add(VALUE_ID_TO_PARENT),
-                data.value_to_parent,
-                true, // valueIdToParent relation is always 1 to 1, expect for text_ids, which can have multiple parents. Here we handle all except .textindex data therefore is this always true
-                false,
-                &mut indices,
-                LoadingType::Disk,
-            )?;
-            add_index_flush(path.add(PARENT_TO_VALUE_ID), data.parent_to_value, false, false, &mut indices, LoadingType::Disk)?;
+
+
+            if let Some(value_to_parent) = data.value_to_parent {
+                add_index_flush(
+                    path.add(VALUE_ID_TO_PARENT),
+                    value_to_parent,
+                    true, // valueIdToParent relation is always 1 to 1, expect for text_ids, which can have multiple parents. Here we handle all except .textindex data therefore is this always true
+                    false,
+                    &mut indices,
+                    LoadingType::Disk,
+                )?;
+            }
+            if let Some(parent_to_value) = data.parent_to_value {
+                add_index_flush(path.add(PARENT_TO_VALUE_ID), parent_to_value, false, false, &mut indices, LoadingType::Disk)?;
+            }
 
             Ok(indices)
         }).collect();
@@ -1299,7 +1382,7 @@ where
             .map(|(path, mut terms_data)| {
                 // let mut fulltext_indices = FnvHashMap::default();
                 let mut fulltext_index_metadata = TextIndexMetaData::default();
-                let options: &FulltextIndexOptions = indices_json.get(path).and_then(|el| el.fulltext.as_ref()).unwrap_or(&default_fulltext_options);
+                let options: &FulltextIndexOptions = indices_json.get(path).fulltext.as_ref().unwrap_or_else(||&default_fulltext_options);
                 fulltext_index_metadata.options = options.clone();
                 store_full_text_info_and_set_ids(&persistence, &mut terms_data, &path, &options, &mut fulltext_index_metadata)?;
                 // Ok(fulltext_indices)
