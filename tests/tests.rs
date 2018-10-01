@@ -1185,7 +1185,7 @@ describe! search_test {
 
     it "get_bytes_indexed"{
         let pers = &TEST_PERSISTENCE;
-        assert_eq!(pers.get_bytes_indexed().unwrap(), 2570);
+        assert_eq!(pers.get_bytes_indexed(), 2555);
     }
 
     it "boost_text_localitaet"{

@@ -1,5 +1,4 @@
 #![recursion_limit = "128"]
-#[macro_use]
 extern crate log;
 
 extern crate flexi_logger;

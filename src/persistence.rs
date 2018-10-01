@@ -62,6 +62,7 @@ pub const TEXTINDEX: &'static str = ".textindex";
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
 pub struct MetaData {
     pub num_docs: u64,
+    pub bytes_indexed: u64,
     pub stores: Vec<KVStoreMetaData>,
     pub id_lists: FnvHashMap<String, IDList>,
     // pub key_value_stores: Vec<KVStoreMetaData>,
@@ -783,10 +784,11 @@ impl Persistence {
         self.meta_data.num_docs
     }
 
-    pub fn get_bytes_indexed(&self) -> Result<usize, search::SearchError> {
-        let offsets = self.get_offsets("data")?;
-        let last_id = offsets.get_num_keys() - 1;
-        Ok(offsets.get_value(last_id as u64).unwrap() as usize) //the last offset marks the end and not a document
+    pub fn get_bytes_indexed(&self) -> u64 {
+        self.meta_data.bytes_indexed
+        // let offsets = self.get_offsets("data")?;
+        // let last_id = offsets.get_num_keys() - 1;
+        // Ok(offsets.get_value(last_id as u64).unwrap() as usize) //the last offset marks the end and not a document
     }
 
     // #[cfg_attr(feature = "flame_it", flame)]
@@ -1072,9 +1074,9 @@ fn get_loading_type(loading_type: LoadingType) -> Result<LoadingType, search::Se
     Ok(loading_type)
 }
 
-pub(crate) fn vec_to_bytes_u32(data: &[u32]) -> Vec<u8> {
-    vec_to_bytes(data)
-}
+// pub(crate) fn vec_to_bytes_u32(data: &[u32]) -> Vec<u8> {
+//     vec_to_bytes(data)
+// }
 
 //TODO Only LittleEndian supported currently
 pub(crate) fn vec_to_bytes<T>(data: &[T]) -> Vec<u8> {

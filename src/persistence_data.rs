@@ -605,48 +605,40 @@ mod tests {
 
     mod test_indirect {
         use super::*;
-        use rand::distributions::{IndependentSample, Range};
-
+        use rand::Rng;
         pub(crate) fn bench_fnvhashmap_group_by(num_entries: u32, max_val: u32) -> FnvHashMap<u32, u32> {
             let mut hits: FnvHashMap<u32, u32> = FnvHashMap::default();
             hits.reserve(num_entries as usize);
             let mut rng = rand::thread_rng();
-            let between = Range::new(0, max_val);
             for _x in 0..num_entries {
-                let stat = hits.entry(between.ind_sample(&mut rng)).or_insert(0);
+                let stat = hits.entry(rng.gen_range(0, max_val)).or_insert(0);
                 *stat += 1;
             }
             hits
         }
 
         pub(crate) fn bench_vec_group_by_direct(num_entries: u32, max_val: u32, hits: &mut Vec<u32>) -> &mut Vec<u32> {
-            // let mut hits:Vec<u32> = vec![];
             hits.resize(max_val as usize + 1, 0);
             let mut rng = rand::thread_rng();
-            let between = Range::new(0, max_val);
             for _x in 0..num_entries {
-                hits[between.ind_sample(&mut rng) as usize] += 1;
+                hits[rng.gen_range(0, max_val as usize)] += 1;
             }
             hits
         }
         pub(crate) fn bench_vec_group_by_direct_u8(num_entries: u32, max_val: u32, hits: &mut Vec<u8>) -> &mut Vec<u8> {
-            // let mut hits:Vec<u32> = vec![];
             hits.resize(max_val as usize + 1, 0);
             let mut rng = rand::thread_rng();
-            let between = Range::new(0, max_val);
             for _x in 0..num_entries {
-                hits[between.ind_sample(&mut rng) as usize] += 1;
+                hits[rng.gen_range(0, max_val as usize)] += 1;
             }
             hits
         }
 
         pub(crate) fn bench_vec_group_by_flex(num_entries: u32, max_val: u32) -> Vec<u32> {
             let mut hits: Vec<u32> = vec![];
-            // hits.resize(max_val as usize + 1, 0);
             let mut rng = rand::thread_rng();
-            let between = Range::new(0, max_val);
             for _x in 0..num_entries {
-                let id = between.ind_sample(&mut rng) as usize;
+                let id = rng.gen_range(0, max_val as usize);
                 if hits.len() <= id {
                     hits.resize(id + 1, 0);
                 }

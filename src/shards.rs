@@ -140,12 +140,12 @@ impl Shards {
             let mut invalid_shards = vec![];
             let mut new_shards = vec![];
             {
-                self.shards.sort_unstable_by_key(|shard| shard.persistence.get_bytes_indexed().unwrap());
-                // for (_, group) in &self.shards.iter().group_by(|shard| (shard.persistence.get_bytes_indexed().unwrap() / 10_000_000)) {
+                self.shards.sort_unstable_by_key(|shard| shard.persistence.get_bytes_indexed());
+                // for (_, group) in &self.shards.iter().group_by(|shard| (shard.persistence.get_bytes_indexed() / 10_000_000)) {
                 for (_, group) in &self
                     .shards
                     .iter()
-                    .group_by(|shard| (shard.persistence.get_bytes_indexed().unwrap() as f32).log10().round() as u32)
+                    .group_by(|shard| (shard.persistence.get_bytes_indexed() as f32).log10().round() as u32)
                 {
                     let mut shard_group: Vec<&Shard> = group.collect();
                     if shard_group.len() == 1 {

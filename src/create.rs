@@ -141,7 +141,7 @@ fn test_field_config_from_json() {
         "ISMORIDCODE"  : {"fulltext": {"tokenize":false} }
     }"#;
     let mut data: FieldsConfig = serde_json::from_str(json).unwrap();
-    data.features_to_indices();
+    data.features_to_indices().unwrap();
     assert_eq!(data.get("MATNR").facet, true);
     assert_eq!(data.get("MATNR").is_index_enabled(IndexCreationType::TokensToTextID), false);
     assert_eq!(data.get("ISMTITLE").is_index_enabled(IndexCreationType::TokenToAnchorIDScore), true);
@@ -984,6 +984,7 @@ where
     };
     persistence.write_data_offset(slice, &doc_store.offsets, &"data.offsets")?;
     persistence.meta_data.num_docs = doc_store.curr_id.into();
+    persistence.meta_data.bytes_indexed = doc_store.bytes_indexed;
     // let mut offsets = vec![];
     // let mut current_offset = create_cache.term_data.current_offset;
     // for doc in stream3 {
@@ -1086,9 +1087,11 @@ fn buffered_index_to_indirect_index_multiple(
 
     Ok(store)
 }
-
+use num;
+use num::Integer;
+use std::ops;
 // use buffered_index_writer::KeyValue;
-fn stream_iter_to_anchor_score(iter: impl Iterator<Item = buffered_index_writer::KeyValue<u32, (u32, u32)>>, target: &mut TokenToAnchorScoreVintFlushing<u32>) -> Result<(), io::Error> {
+fn stream_iter_to_anchor_score<T: Integer + num::NumCast + Clone + Copy + ops::AddAssign + ops::Add + num::Zero>(iter: impl Iterator<Item = buffered_index_writer::KeyValue<u32, (u32, u32)>>, target: &mut TokenToAnchorScoreVintFlushing<T>) -> Result<(), io::Error> {
     // use std::mem::transmute;
     use std::slice::from_raw_parts_mut;
     for (id, group) in &iter.group_by(|el| el.key) {

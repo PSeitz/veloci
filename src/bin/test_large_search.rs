@@ -37,7 +37,7 @@ fn load_persistence_disk() -> persistence::Persistence {
         data += &object;
     }
     let mut pers = persistence::Persistence::create_type(TEST_FOLDER.to_string(), persistence::PersistenceType::Persistent).unwrap();
-    println!("{:?}", create::create_indices_from_str(&mut pers, &data, "[]", None, true));
+    println!("{:?}", create::create_indices_from_str(&mut pers, &data, "{}", None, true));
 
     // env::set_var("LoadingType", "Disk");
     // persistence::Persistence::load(TEST_FOLDER.to_string()).expect("Could not load persistence")
