@@ -13,10 +13,6 @@ tempfile = "3.0.2"
 [dependencies.compact_int]
 path = "../compact_int"
 
-
-[dependencies.vint]
-git = "https://github.com/PSeitz/rust_vint"
-
 [dev-dependencies]
 measure_time = "0.6"
 

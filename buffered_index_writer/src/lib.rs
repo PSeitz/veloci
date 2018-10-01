@@ -4,7 +4,7 @@ extern crate memmap;
 extern crate tempfile;
 extern crate serde;
 extern crate rayon;
-extern crate vint;
+// extern crate vint;
 #[macro_use]
 extern crate serde_derive;
 // extern crate byteorder;
@@ -15,7 +15,7 @@ use std::fmt::Display;
 use itertools::Itertools;
 use memmap::MmapOptions;
 use memmap::Mmap;
-use vint::vint::*;
+// use vint::vint::*;
 
 // use compact_int::VintArrayIterator;
 use std::fmt;
@@ -28,7 +28,7 @@ use std::iter::FusedIterator;
 use std::mem;
 use std::io::prelude::*;
 use std::io::BufWriter;
-use std::ptr::copy_nonoverlapping;
+// use std::ptr::copy_nonoverlapping;
 use std::marker::PhantomData;
 use rayon::prelude::*;
 
@@ -66,13 +66,13 @@ pub struct KeyValue<K: PartialOrd + Ord + Default + Copy, T:GetValue + Serialize
 }
 
 impl SerializeInto for u32 {
-    fn serialize_into(&self, sink: &mut Vec<u8>){
+    fn serialize_into(&self, _sink: &mut Vec<u8>){
         // encode_varint_into(sink, *self);
     }
 }
 
 impl SerializeInto for (u32, u32) {
-    fn serialize_into(&self, sink: &mut Vec<u8>){
+    fn serialize_into(&self, _sink: &mut Vec<u8>){
         // encode_varint_into(sink, self.0);
         // encode_varint_into(sink, self.1);
     }
@@ -94,6 +94,7 @@ pub struct BufferedIndexWriter<K:PartialOrd + Ord + Default + Copy = u32, T:GetV
     pub temp_file: Option<File>,
     pub max_value_id: u32,
     pub num_values: u32,
+    pub bytes_written: u64,
     /// keep order of values
     stable_sort: bool,
     /// Ids are already sorted inserted, so there is no need to sort them
@@ -122,6 +123,7 @@ impl<K: PartialOrd + Ord + Default + Copy + Serialize + DeserializeOwned + Send 
             stable_sort,
             ids_are_sorted,
             last_id: None,
+            bytes_written: 0,
             flush_threshold: 4_000_000,
             parts: vec![],
         }
@@ -227,6 +229,8 @@ impl<K: PartialOrd + Ord + Default + Copy + Serialize + DeserializeOwned + Send 
 
         let serialized_len = sink.len();
         data_file.write_all(&sink)?;
+
+        self.bytes_written += serialized_len as u64;
 
         self.parts.push(Part {
             offset: prev_part.offset + prev_part.len,
@@ -340,16 +344,16 @@ impl<K: Display + PartialOrd + Ord + Default + Copy, T:GetValue + Default + Seri
 
 
 
-#[inline]
-// Maximum speed, Maximum unsafe
-fn read_pair_very_raw_p<K:PartialOrd + Ord + Default + Copy, T:GetValue + Default + SerializeInto>(p: *const u8) -> KeyValue<K,T> {
-    // let mut out: (u32, u32) = (0, 0);
-    let mut out: KeyValue<K, T> = KeyValue::default();
-    unsafe {
-        copy_nonoverlapping(p, &mut out as *mut KeyValue<K, T> as *mut u8, mem::size_of::<KeyValue<K, T>>());
-    }
-    out
-}
+// #[inline]
+// // Maximum speed, Maximum unsafe
+// fn read_pair_very_raw_p<K:PartialOrd + Ord + Default + Copy, T:GetValue + Default + SerializeInto>(p: *const u8) -> KeyValue<K,T> {
+//     // let mut out: (u32, u32) = (0, 0);
+//     let mut out: KeyValue<K, T> = KeyValue::default();
+//     unsafe {
+//         copy_nonoverlapping(p, &mut out as *mut KeyValue<K, T> as *mut u8, mem::size_of::<KeyValue<K, T>>());
+//     }
+//     out
+// }
 
 // #[derive(Debug)]
 // pub struct MMapIterRef<'a, T:GetValue> {

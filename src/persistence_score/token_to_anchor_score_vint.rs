@@ -10,6 +10,9 @@ use std::io;
 use std::iter::FusedIterator;
 
 use persistence_data_indirect;
+use num::Integer;
+use num;
+use std::ops;
 
 impl_type_info!(TokenToAnchorScoreVintIM, TokenToAnchorScoreVintMmap);
 
@@ -32,11 +35,11 @@ pub struct TokenToAnchorScoreVintMmap {
 /// Datastructure to cache and flush changes to file
 ///
 #[derive(Serialize, Deserialize, Debug, Clone, HeapSizeOf)]
-pub struct TokenToAnchorScoreVintFlushing {
-    pub ids_cache: Vec<u32>,
+pub struct TokenToAnchorScoreVintFlushing<T: Integer + num::NumCast + Clone + Copy + ops::AddAssign + ops::Add + num::Zero> {
+    pub id_to_data_pos: Vec<T>,
     pub data_cache: Vec<u8>,
-    pub current_data_offset: u32,
-    /// Already written ids_cache
+    pub current_data_offset: T,
+    /// Already written id_to_data_pos
     pub current_id_offset: u32,
     pub indirect_path: String,
     pub data_path: String,
@@ -57,20 +60,20 @@ fn get_serialized_most_common_encoded(data: &mut [u32]) -> Vec<u8> {
     vint.serialize()
 }
 
-impl Default for TokenToAnchorScoreVintFlushing {
-    fn default() -> TokenToAnchorScoreVintFlushing {
+impl<T: Integer + num::NumCast + Clone + Copy + ops::AddAssign + ops::Add + num::Zero> Default for TokenToAnchorScoreVintFlushing<T> {
+    fn default() -> TokenToAnchorScoreVintFlushing<T> {
         TokenToAnchorScoreVintFlushing::new("".to_string(), "".to_string())
     }
 }
 
-impl TokenToAnchorScoreVintFlushing {
+impl<T: Integer + num::NumCast + Clone + Copy + ops::AddAssign + ops::Add + num::Zero> TokenToAnchorScoreVintFlushing<T> {
     pub fn new(indirect_path: String, data_path: String) -> Self {
         let mut data_cache = vec![];
         data_cache.resize(1, 0); // resize data by one, because 0 is reserved for the empty buckets
         TokenToAnchorScoreVintFlushing {
-            ids_cache: vec![],
+            id_to_data_pos: vec![],
             data_cache,
-            current_data_offset: 0,
+            current_data_offset: T::zero(),
             current_id_offset: 0,
             indirect_path,
             data_path,
@@ -81,19 +84,19 @@ impl TokenToAnchorScoreVintFlushing {
     pub fn set_scores(&mut self, id: u32, mut add_data: &mut [u32]) -> Result<(), io::Error> {
         let id_pos = (id - self.current_id_offset) as usize;
 
-        if self.ids_cache.len() <= id_pos {
+        if self.id_to_data_pos.len() <= id_pos {
             //TODO this could become very big, check memory consumption upfront, and flush directly to disk, when a resize would step over a certain threshold @Memory
-            self.ids_cache.resize(id_pos + 1, EMPTY_BUCKET);
+            self.id_to_data_pos.resize(id_pos + 1, num::cast(EMPTY_BUCKET).unwrap());
         }
 
         self.metadata.num_values += add_data.len() as u32 / 2;
         self.metadata.num_ids += 1;
-        self.ids_cache[id_pos] = self.current_data_offset + self.data_cache.len() as u32;
+        // self.id_to_data_pos[id_pos] = self.current_data_offset + self.data_cache.len() as u32;
 
-        self.ids_cache[id_pos] = self.current_data_offset + self.data_cache.len() as u32;
+        self.id_to_data_pos[id_pos] = self.current_data_offset + num::cast(self.data_cache.len()).unwrap();
         self.data_cache.extend(get_serialized_most_common_encoded(&mut add_data));
 
-        if self.ids_cache.len() + self.data_cache.len() >= 1_000_000 {
+        if self.id_to_data_pos.len() + self.data_cache.len() >= 1_000_000 {
             self.flush()?;
         }
         Ok(())
@@ -115,7 +118,7 @@ impl TokenToAnchorScoreVintFlushing {
 
     pub fn into_im_store(self) -> TokenToAnchorScoreVintIM {
         TokenToAnchorScoreVintIM {
-            start_pos: self.ids_cache,
+            start_pos: self.id_to_data_pos.iter().map(|el|num::cast(*el).unwrap()).collect(), //TODO
             data: self.data_cache,
         }
     }
@@ -127,17 +130,24 @@ impl TokenToAnchorScoreVintFlushing {
 
     #[inline]
     pub fn flush(&mut self) -> Result<(), io::Error> {
-        if self.ids_cache.is_empty() {
+        if self.id_to_data_pos.is_empty() {
             return Ok(());
         }
 
-        self.current_id_offset += self.ids_cache.len() as u32;
-        self.current_data_offset += self.data_cache.len() as u32;
+        self.current_id_offset += self.id_to_data_pos.len() as u32;
+        self.current_data_offset += num::cast(self.data_cache.len()).unwrap();
 
-        persistence_data_indirect::flush_to_file_indirect(&self.indirect_path, &self.data_path, &vec_to_bytes_u32(&self.ids_cache), &self.data_cache)?;
+        use std::slice;
+        use std::mem;
+        let id_to_data_pos_bytes = unsafe {
+            slice::from_raw_parts(self.id_to_data_pos.as_ptr() as *const u8, self.id_to_data_pos.len() * mem::size_of::<T>())
+        };
+
+        // persistence_data_indirect::flush_to_file_indirect(&self.indirect_path, &self.data_path, &vec_to_bytes_u32(&self.id_to_data_pos), &self.data_cache)?;
+        persistence_data_indirect::flush_to_file_indirect(&self.indirect_path, &self.data_path, id_to_data_pos_bytes, &self.data_cache)?;
 
         self.data_cache.clear();
-        self.ids_cache.clear();
+        self.id_to_data_pos.clear();
 
         self.metadata.avg_join_size = persistence_data_indirect::calc_avg_join_size(self.metadata.num_values, self.metadata.num_ids);
 
@@ -244,7 +254,7 @@ impl TokenToAnchorScore for TokenToAnchorScoreVintMmap {
 fn test_token_to_anchor_score_vint() {
     use tempfile::tempdir;
 
-    let mut store = TokenToAnchorScoreVintFlushing::default();
+    let mut store = TokenToAnchorScoreVintFlushing::<u32>::default();
 
     store.set_scores(1, &mut vec![1, 1]).unwrap();
     let store = store.into_im_store();
@@ -252,7 +262,7 @@ fn test_token_to_anchor_score_vint() {
     assert_eq!(store.get_score_iter(1).collect::<Vec<_>>(), vec![AnchorScore::new(1, f16::from_f32(1.0))]);
     assert_eq!(store.get_score_iter(2).collect::<Vec<_>>(), vec![]);
 
-    let mut store = TokenToAnchorScoreVintFlushing::default();
+    let mut store = TokenToAnchorScoreVintFlushing::<u32>::default();
     store.set_scores(5, &mut vec![1, 1, 2, 3]).unwrap();
     let store = store.into_im_store();
     assert_eq!(store.get_score_iter(4).collect::<Vec<_>>(), vec![]);
@@ -266,7 +276,7 @@ fn test_token_to_anchor_score_vint() {
     let data = dir.path().join("TokenToAnchorScoreVintTestData").to_str().unwrap().to_string();
     let indirect = dir.path().join("TokenToAnchorScoreVintTestIndirect").to_str().unwrap().to_string();
 
-    let mut store = TokenToAnchorScoreVintFlushing::new(indirect, data);
+    let mut store = TokenToAnchorScoreVintFlushing::<u32>::new(indirect, data);
     store.set_scores(1, &mut vec![1, 1]).unwrap();
     store.flush().unwrap();
     store.set_scores(5, &mut vec![1, 1, 2, 3]).unwrap();

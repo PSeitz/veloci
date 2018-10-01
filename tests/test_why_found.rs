@@ -71,7 +71,7 @@ describe! search_test {
 
     it "get_number_of_docs"{
         let pers = &TEST_PERSISTENCE;
-        assert_eq!(pers.get_number_of_documents().unwrap(), 4);
+        assert_eq!(pers.get_number_of_documents(), 4);
     }
 
     it "should add why found terms highlight tokens and also text_ids"{

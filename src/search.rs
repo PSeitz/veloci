@@ -7,7 +7,7 @@ use fnv::FnvHashSet;
 use itertools::Itertools;
 use serde_json;
 
-use doc_store::DocLoader;
+// use doc_store::DocLoader;
 use fst;
 use persistence::Persistence;
 use persistence::*;
@@ -403,6 +403,8 @@ fn highlight_on_original_document(doc: &str, why_found_terms: &FnvHashMap<String
     highlighted_texts
 }
 
+use other_doc_store::DocLoader;
+
 // @FixMe Tests should use to_search_result
 #[cfg_attr(feature = "flame_it", flame)]
 pub fn to_documents(persistence: &Persistence, hits: &[Hit], select: &Option<Vec<String>>, result: &SearchResult) -> Vec<DocWithHit> {
@@ -426,10 +428,10 @@ pub fn to_documents(persistence: &Persistence, hits: &[Hit], select: &Option<Vec
                     why_found: result.why_found_info.get(&hit.id).cloned().unwrap_or_default(),
                 };
             } else {
-                // let offsets = persistence.indices.doc_offsets.as_ref().unwrap();
-                // let f = persistence.get_file_handle("data").unwrap(); // TODO No unwrapo
-                // let doc_str = DocLoader::get_doc(f, offsets, hit.id as usize).unwrap(); // TODO No unwrapo
-                let doc_str = DocLoader::get_doc(persistence, hit.id as usize).unwrap(); // TODO No unwrapo
+                let offsets = persistence.indices.doc_offsets.as_ref().unwrap();
+                let f = persistence.get_file_handle("data").unwrap(); // TODO No unwrapo
+                let doc_str = DocLoader::get_doc(f, offsets, hit.id as usize).unwrap(); // TODO No unwrapo
+                // let doc_str = DocLoader::get_doc(persistence, hit.id as usize).unwrap(); // TODO No unwrapo
                 let ayse = highlight_on_original_document(&doc_str, &tokens_set);
 
                 return DocWithHit {

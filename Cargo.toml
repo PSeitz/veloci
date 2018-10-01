@@ -20,6 +20,7 @@ path = "benches/bench_persistence.rs"
 byteorder = "1.2.4"
 chashmap = "2.2.0"
 chrono = "0.4.5"
+clap = "2.32.0"
 colored = "1.6.1"
 cpuprofiler = "0.0.3"
 crossbeam = "0.4.1"
@@ -50,6 +51,9 @@ serde_json = "1.0.26"
 
 [dependencies.buffered_index_writer]
 path = "buffered_index_writer"
+
+[dependencies.doc_store]
+path = "doc_store"
 
 [dependencies.flame]
 optional = true

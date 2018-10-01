@@ -1,7 +1,6 @@
 use std::fs::File;
 use std::io;
 use std::io::BufReader;
-use std::io::Write;
 use std::{self, str};
 
 use buffered_index_writer;
@@ -434,7 +433,7 @@ struct TermDataInPath {
 #[derive(Debug, Default)]
 pub struct AllTermsAndDocumentBuilder {
     offsets: Vec<u64>,
-    current_offset: usize,
+    current_offset: u64,
     id_holder: json_converter::IDHolder,
     terms_in_path: FnvHashMap<String, TermDataInPath>,
 }
@@ -964,31 +963,45 @@ where
 
     Ok((path_data, tuples_to_parent_in_path))
 }
-
+use other_doc_store::DocWriter;
+use std::mem;
 fn write_docs<K, S: AsRef<str>>(persistence: &mut Persistence, create_cache: &mut CreateCache, stream3: K) -> Result<(), CreateError>
 where
     K: Iterator<Item = S>,
 {
     info_time!("write_docs");
     let mut file_out = persistence.get_buffered_writer("data")?;
-    let mut offsets = vec![];
-    let mut current_offset = create_cache.term_data.current_offset;
+
+    let mut doc_store = DocWriter::new(create_cache.term_data.current_offset);
     for doc in stream3 {
-        file_out.write_all(&doc.as_ref().as_bytes()).unwrap();
-        file_out.write_all(b"\n").unwrap();
-        offsets.push(current_offset as u64 + persistence::VALUE_OFFSET as u64); // +1 because 0 is reserved for EMPTY_BUCKET
-        current_offset += doc.as_ref().len();
-        current_offset += 1; //
+        doc_store.add_doc(doc.as_ref(), &mut file_out)?;
     }
-    offsets.push(current_offset as u64 + persistence::VALUE_OFFSET as u64);
-    create_cache.term_data.offsets.extend(offsets);
-    create_cache.term_data.current_offset = current_offset;
-    let (id_list_path, id_list_meta_data) = persistence.write_offset(
-        &persistence::vec_to_bytes_u64(&create_cache.term_data.offsets),
-        &create_cache.term_data.offsets,
-        &"data.offsets",
-    )?;
-    persistence.meta_data.id_lists.insert(id_list_path, id_list_meta_data);
+    doc_store.finish(&mut file_out)?;
+    create_cache.term_data.current_offset = doc_store.current_offset;
+    use std::slice;
+    let slice = unsafe {
+        slice::from_raw_parts(doc_store.offsets.as_ptr() as *const u8, doc_store.offsets.len() * mem::size_of::<(u32, u64)>())
+    };
+    persistence.write_data_offset(slice, &doc_store.offsets, &"data.offsets")?;
+    persistence.meta_data.num_docs = doc_store.curr_id.into();
+    // let mut offsets = vec![];
+    // let mut current_offset = create_cache.term_data.current_offset;
+    // for doc in stream3 {
+    //     file_out.write_all(&doc.as_ref().as_bytes()).unwrap();
+    //     file_out.write_all(b"\n").unwrap();
+    //     offsets.push(current_offset as u64 + persistence::VALUE_OFFSET as u64); // +1 because 0 is reserved for EMPTY_BUCKET
+    //     current_offset += doc.as_ref().len() as u64;
+    //     current_offset += 1; //
+    // }
+    // offsets.push(current_offset as u64 + persistence::VALUE_OFFSET as u64);
+    // create_cache.term_data.offsets.extend(offsets);
+    // create_cache.term_data.current_offset = current_offset;
+    // let (id_list_path, id_list_meta_data) = persistence.write_offset(
+    //     &persistence::vec_to_bytes_u64(&create_cache.term_data.offsets),
+    //     &create_cache.term_data.offsets,
+    //     &"data.offsets",
+    // )?;
+    // persistence.meta_data.id_lists.insert(id_list_path, id_list_meta_data);
     Ok(())
 }
 
@@ -1075,7 +1088,7 @@ fn buffered_index_to_indirect_index_multiple(
 }
 
 // use buffered_index_writer::KeyValue;
-fn stream_iter_to_anchor_score(iter: impl Iterator<Item = buffered_index_writer::KeyValue<u32, (u32, u32)>>, target: &mut TokenToAnchorScoreVintFlushing) -> Result<(), io::Error> {
+fn stream_iter_to_anchor_score(iter: impl Iterator<Item = buffered_index_writer::KeyValue<u32, (u32, u32)>>, target: &mut TokenToAnchorScoreVintFlushing<u32>) -> Result<(), io::Error> {
     // use std::mem::transmute;
     use std::slice::from_raw_parts_mut;
     for (id, group) in &iter.group_by(|el| el.key) {
@@ -1187,7 +1200,7 @@ enum IndexVariants {
     Phrase(IndexIdToMultipleParentIndirectFlushingInOrderVintNoDirectEncode<(u32, u32)>),
     SingleValue(IndexIdToOneParentFlushing),
     MultiValue(IndexIdToMultipleParentIndirectFlushingInOrderVint),
-    TokenToAnchorScore(TokenToAnchorScoreVintFlushing),
+    TokenToAnchorScore(TokenToAnchorScoreVintFlushing<u32>),
 }
 
 fn convert_raw_path_data_to_indices(

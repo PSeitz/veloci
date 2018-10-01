@@ -83,8 +83,7 @@ extern crate chrono;
 extern crate fixedbitset;
 // extern crate lru_cache;
 extern crate term_hashmap;
-
-extern crate lz4;
+extern crate doc_store as other_doc_store;
 
 
 #[macro_use]
@@ -114,6 +113,7 @@ pub mod trace;
 #[cfg(test)]
 extern crate chashmap;
 
+#[cfg(test)]
 extern crate test;
 
 #[cfg(test)]

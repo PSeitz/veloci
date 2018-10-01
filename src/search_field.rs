@@ -90,6 +90,7 @@ impl SearchFieldResult {
     }
 }
 
+#[cfg(test)]
 use test;
 #[bench]
 fn bench_search_field_iterator(b: &mut test::Bencher) {

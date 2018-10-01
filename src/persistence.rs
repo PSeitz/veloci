@@ -61,6 +61,7 @@ pub const TEXTINDEX: &'static str = ".textindex";
 
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
 pub struct MetaData {
+    pub num_docs: u64,
     pub stores: Vec<KVStoreMetaData>,
     pub id_lists: FnvHashMap<String, IDList>,
     // pub key_value_stores: Vec<KVStoreMetaData>,
@@ -773,8 +774,13 @@ impl Persistence {
             .ok_or_else(|| path_not_found(path.as_ref()))
     }
 
-    pub fn get_number_of_documents(&self) -> Result<usize, search::SearchError> {
-        Ok(self.get_offsets("data")?.get_num_keys() - 1) //the last offset marks the end and not a document
+    // pub fn get_number_of_documents(&self) -> Result<usize, search::SearchError> {
+    //     self.meta_data.num_docs
+    //     Ok(self.get_offsets("data")?.get_num_keys() - 1) //the last offset marks the end and not a document
+    // }
+
+    pub fn get_number_of_documents(&self) -> u64 {
+        self.meta_data.num_docs
     }
 
     pub fn get_bytes_indexed(&self) -> Result<usize, search::SearchError> {
@@ -1081,12 +1087,12 @@ pub(crate) fn vec_to_bytes<T>(data: &[T]) -> Vec<u8> {
     out_dat
 }
 
-pub(crate) fn vec_to_bytes_u64(data: &[u64]) -> Vec<u8> {
-    // let mut wtr: Vec<u8> = vec_with_size_uninitialized(data.len() * std::mem::size_of::<u64>());
-    // LittleEndian::write_u64_into(data, &mut wtr);
-    // wtr
-    vec_to_bytes(data)
-}
+// pub(crate) fn vec_to_bytes_u64(data: &[u64]) -> Vec<u8> {
+//     // let mut wtr: Vec<u8> = vec_with_size_uninitialized(data.len() * std::mem::size_of::<u64>());
+//     // LittleEndian::write_u64_into(data, &mut wtr);
+//     // wtr
+//     vec_to_bytes(data)
+// }
 
 pub(crate) fn bytes_to_vec_u32(data: &[u8]) -> Vec<u32> {
     bytes_to_vec::<u32>(&data)
