@@ -1087,11 +1087,8 @@ fn buffered_index_to_indirect_index_multiple(
 
     Ok(store)
 }
-use num;
-use num::Integer;
-use std::ops;
 // use buffered_index_writer::KeyValue;
-fn stream_iter_to_anchor_score<T: Integer + num::NumCast + Clone + Copy + ops::AddAssign + ops::Add + num::Zero>(iter: impl Iterator<Item = buffered_index_writer::KeyValue<u32, (u32, u32)>>, target: &mut TokenToAnchorScoreVintFlushing<T>) -> Result<(), io::Error> {
+fn stream_iter_to_anchor_score<T: AnchorScoreDataSize>(iter: impl Iterator<Item = buffered_index_writer::KeyValue<u32, (u32, u32)>>, target: &mut TokenToAnchorScoreVintFlushing<T>) -> Result<(), io::Error> {
     // use std::mem::transmute;
     use std::slice::from_raw_parts_mut;
     for (id, group) in &iter.group_by(|el| el.key) {
@@ -1114,6 +1111,7 @@ fn stream_iter_to_anchor_score<T: Integer + num::NumCast + Clone + Copy + ops::A
 
     Ok(())
 }
+
 fn add_anchor_score_flush(db_path: &str, path: String, mut buffered_index_data: BufferedIndexWriter<u32, (u32, u32)>, indices: &mut IndicesFromRawData) -> Result<(), io::Error> {
     let indirect_file_path = util::get_file_path(db_path, &(path.to_string() + ".indirect"));
     let data_file_path = util::get_file_path(db_path, &(path.to_string() + ".data"));

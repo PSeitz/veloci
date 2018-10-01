@@ -6,17 +6,24 @@ use vint::vint_encode_most_common::*;
 use itertools::Itertools;
 use search;
 use std;
+use std::mem;
 use std::io;
 use std::iter::FusedIterator;
+use std::marker::PhantomData;
 
 use persistence_data_indirect;
-use num::Integer;
 use num;
 use std::ops;
 
-impl_type_info!(TokenToAnchorScoreVintIM, TokenToAnchorScoreVintMmap);
+// impl_type_info_single_templ!(TokenToAnchorScoreVintMmap);
+impl_type_info!(TokenToAnchorScoreVintIM);
 
 const EMPTY_BUCKET: u32 = 0;
+const EMPTY_BUCKET_USIZE: usize = 0;
+
+pub trait AnchorScoreDataSize: IndexIdToParentData + ops::AddAssign + ops::Add + num::Zero {}
+impl<T> AnchorScoreDataSize for T where T: IndexIdToParentData + ops::AddAssign + ops::Add + num::Zero {}
+
 
 #[derive(Serialize, Deserialize, Debug, Clone, Default, HeapSizeOf)]
 pub struct TokenToAnchorScoreVintIM {
@@ -25,17 +32,24 @@ pub struct TokenToAnchorScoreVintIM {
 }
 
 #[derive(Debug)]
-pub struct TokenToAnchorScoreVintMmap {
+pub struct TokenToAnchorScoreVintMmap<T> {
     pub start_pos: Mmap,
     pub data: Mmap,
     pub max_value_id: u32,
+    pub ok: PhantomData<T>,
+}
+
+impl<T: AnchorScoreDataSize> TypeInfo for TokenToAnchorScoreVintMmap<T> {
+    fn type_name(&self) -> String {
+        unsafe { std::intrinsics::type_name::<Self>().to_string() }
+    }
 }
 
 ///
 /// Datastructure to cache and flush changes to file
 ///
 #[derive(Serialize, Deserialize, Debug, Clone, HeapSizeOf)]
-pub struct TokenToAnchorScoreVintFlushing<T: Integer + num::NumCast + Clone + Copy + ops::AddAssign + ops::Add + num::Zero> {
+pub struct TokenToAnchorScoreVintFlushing<T: AnchorScoreDataSize> {
     pub id_to_data_pos: Vec<T>,
     pub data_cache: Vec<u8>,
     pub current_data_offset: T,
@@ -60,13 +74,13 @@ fn get_serialized_most_common_encoded(data: &mut [u32]) -> Vec<u8> {
     vint.serialize()
 }
 
-impl<T: Integer + num::NumCast + Clone + Copy + ops::AddAssign + ops::Add + num::Zero> Default for TokenToAnchorScoreVintFlushing<T> {
+impl<T: AnchorScoreDataSize> Default for TokenToAnchorScoreVintFlushing<T> {
     fn default() -> TokenToAnchorScoreVintFlushing<T> {
         TokenToAnchorScoreVintFlushing::new("".to_string(), "".to_string())
     }
 }
 
-impl<T: Integer + num::NumCast + Clone + Copy + ops::AddAssign + ops::Add + num::Zero> TokenToAnchorScoreVintFlushing<T> {
+impl<T: AnchorScoreDataSize> TokenToAnchorScoreVintFlushing<T> {
     pub fn new(indirect_path: String, data_path: String) -> Self {
         let mut data_cache = vec![];
         data_cache.resize(1, 0); // resize data by one, because 0 is reserved for the empty buckets
@@ -123,7 +137,7 @@ impl<T: Integer + num::NumCast + Clone + Copy + ops::AddAssign + ops::Add + num:
         }
     }
 
-    pub fn into_mmap(self) -> Result<(TokenToAnchorScoreVintMmap), search::SearchError> {
+    pub fn into_mmap(self) -> Result<(TokenToAnchorScoreVintMmap<T>), search::SearchError> {
         //TODO MAX VALUE ID IS NOT SET
         Ok(TokenToAnchorScoreVintMmap::from_path(&self.indirect_path, &self.data_path)?)
     }
@@ -219,7 +233,7 @@ impl TokenToAnchorScore for TokenToAnchorScoreVintIM {
 }
 
 use util::open_file;
-impl TokenToAnchorScoreVintMmap {
+impl<T: AnchorScoreDataSize> TokenToAnchorScoreVintMmap<T> {
     pub fn from_path(start_and_end_file: &str, data_file: &str) -> Result<Self, search::SearchError> {
         let start_and_end_file = unsafe { MmapOptions::new().map(&open_file(start_and_end_file)?).unwrap() };
         let data_file = unsafe { MmapOptions::new().map(&open_file(data_file)?).unwrap() };
@@ -227,26 +241,32 @@ impl TokenToAnchorScoreVintMmap {
             start_pos: start_and_end_file,
             data: data_file,
             max_value_id: 0,
+            ok: std::marker::PhantomData,
         })
     }
 }
 
-impl HeapSizeOf for TokenToAnchorScoreVintMmap {
+impl<T: AnchorScoreDataSize> HeapSizeOf for TokenToAnchorScoreVintMmap<T> {
     fn heap_size_of_children(&self) -> usize {
         8
     }
 }
 
-impl TokenToAnchorScore for TokenToAnchorScoreVintMmap {
+impl<T: AnchorScoreDataSize> TokenToAnchorScore for TokenToAnchorScoreVintMmap<T> {
     fn get_score_iter(&self, id: u32) -> AnchorScoreIter {
-        if id as usize >= self.start_pos.len() / 4 {
+        if id as usize >= self.start_pos.len() / mem::size_of::<u32>() {
             return AnchorScoreIter::new(&[]);
         }
-        let pos = get_u32_from_bytes(&self.start_pos, id as usize * 4);
-        if pos == EMPTY_BUCKET {
+        let pos = if mem::size_of::<T>() == mem::size_of::<u32>(){
+            get_u32_from_bytes(&self.start_pos, id as usize * 4) as usize
+        }else{
+            get_u64_from_bytes(&self.start_pos, id as usize * 8) as usize
+        };
+        // let pos = get_u32_from_bytes(&self.start_pos, id as usize * 4);
+        if pos == EMPTY_BUCKET_USIZE {
             return AnchorScoreIter::new(&[]);
         }
-        AnchorScoreIter::new(&self.data[pos as usize..])
+        AnchorScoreIter::new(&self.data[pos..])
     }
 }
 

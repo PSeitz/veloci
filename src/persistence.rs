@@ -456,7 +456,7 @@ impl Persistence {
                 }
                 IndexCategory::AnchorScore => {
                     let store: Box<TokenToAnchorScore> = match loading_type {
-                        LoadingType::Disk => Box::new(TokenToAnchorScoreVintMmap::from_path(&indirect_path, &indirect_data_path)?),
+                        LoadingType::Disk => Box::new(TokenToAnchorScoreVintMmap::<u32>::from_path(&indirect_path, &indirect_data_path)?),
                         LoadingType::InMemoryUnCompressed | LoadingType::InMemory => {
                             let mut store = TokenToAnchorScoreVintIM::default();
                             store.read(&indirect_path, &indirect_data_path).unwrap();
