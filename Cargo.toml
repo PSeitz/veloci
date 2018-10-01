@@ -51,9 +51,6 @@ serde_json = "1.0.26"
 [dependencies.buffered_index_writer]
 path = "buffered_index_writer"
 
-[dependencies.parser]
-path = "parser"
-
 [dependencies.flame]
 optional = true
 version = "0.2.2"
@@ -81,6 +78,9 @@ version = "0.5.0"
 features = ["nightly"]
 version = "0.6.3"
 
+[dependencies.parser]
+path = "parser"
+
 [dependencies.term_hashmap]
 git = "https://github.com/PSeitz/rust_string_hashmap"
 
@@ -88,11 +88,14 @@ git = "https://github.com/PSeitz/rust_string_hashmap"
 git = "https://github.com/PSeitz/rust_vint"
 
 [dev-dependencies]
-criterion = {version = "0.2.4", features=[]}
 pretty_assertions = "0.5.1"
 rand = "0.5.5"
-tempfile = "3.0.3"
 stainless2 = "0.1.13"
+tempfile = "3.0.3"
+
+[dev-dependencies.criterion]
+features = []
+version = "0.2.4"
 
 [features]
 default = []

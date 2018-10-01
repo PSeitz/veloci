@@ -233,7 +233,7 @@ impl<T: IndexIdToParentData> IndexIdToMultipleParentIndirect<T> {
             }
 
             for position in &positions_vec {
-                let iter = VintArrayIterator::from_slice(&self.data[*position as usize..]);
+                let iter = VintArrayIterator::from_serialized_vint_array(&self.data[*position as usize..]);
                 for el in iter {
                     coll.add(num::cast(el).unwrap());
                 }
@@ -268,7 +268,7 @@ impl<T: IndexIdToParentData> IndexIdToParent for IndexIdToMultipleParentIndirect
         if id >= self.get_size() as u64 {
             VintArrayIteratorOpt {
                 single_value: -2,
-                iter: Box::new(VintArrayIterator::from_slice(&[])),
+                iter: Box::new(VintArrayIterator::from_serialized_vint_array(&[])),
             }
         } else {
             // let positions = &self.start_pos[(id * 2) as usize..=((id * 2) as usize + 1)];
@@ -276,22 +276,22 @@ impl<T: IndexIdToParentData> IndexIdToParent for IndexIdToMultipleParentIndirect
             let data_start_pos_or_data = data_start_pos.to_u32().unwrap();
             if let Some(val) = get_encoded(data_start_pos_or_data) {
                 // return Some(vec![num::cast(val).unwrap()]);
-                // return VintArrayIterator::from_slice(&[5]);
+                // return VintArrayIterator::from_serialized_vint_array(&[5]);
                 return VintArrayIteratorOpt {
                     single_value: val as i64,
-                    iter: Box::new(VintArrayIterator::from_slice(&[])),
+                    iter: Box::new(VintArrayIterator::from_serialized_vint_array(&[])),
                 };
             }
             if data_start_pos_or_data == EMPTY_BUCKET {
-                // return VintArrayIterator::from_slice(&[]);
+                // return VintArrayIterator::from_serialized_vint_array(&[]);
                 return VintArrayIteratorOpt {
                     single_value: -2,
-                    iter: Box::new(VintArrayIterator::from_slice(&[])),
+                    iter: Box::new(VintArrayIterator::from_serialized_vint_array(&[])),
                 };
             }
             VintArrayIteratorOpt {
                 single_value: -1,
-                iter: Box::new(VintArrayIterator::from_slice(&self.data[data_start_pos.to_usize().unwrap()..])),
+                iter: Box::new(VintArrayIterator::from_serialized_vint_array(&self.data[data_start_pos.to_usize().unwrap()..])),
             }
         }
     }
@@ -311,7 +311,7 @@ impl<T: IndexIdToParentData> IndexIdToParent for IndexIdToMultipleParentIndirect
                 return None;
             }
 
-            let iter = VintArrayIterator::from_slice(&self.data[data_start_pos.to_usize().unwrap()..]);
+            let iter = VintArrayIterator::from_serialized_vint_array(&self.data[data_start_pos.to_usize().unwrap()..]);
             let decoded_data: Vec<u32> = iter.collect();
             Some(decoded_data.iter().map(|el| num::cast(*el).unwrap()).collect())
         }
@@ -366,7 +366,7 @@ impl<T: IndexIdToParentData> IndexIdToParent for PointingMMAPFileReader<T> {
         if id >= self.get_size() as u64 {
             VintArrayIteratorOpt {
                 single_value: -2,
-                iter: Box::new(VintArrayIterator::from_slice(&[])),
+                iter: Box::new(VintArrayIterator::from_serialized_vint_array(&[])),
             }
         } else {
             let start_index = id as usize * std::mem::size_of::<T>();
@@ -375,18 +375,18 @@ impl<T: IndexIdToParentData> IndexIdToParent for PointingMMAPFileReader<T> {
             if let Some(val) = get_encoded(data_start_pos_or_data) {
                 return VintArrayIteratorOpt {
                     single_value: val as i64,
-                    iter: Box::new(VintArrayIterator::from_slice(&[])),
+                    iter: Box::new(VintArrayIterator::from_serialized_vint_array(&[])),
                 };
             }
             if data_start_pos_or_data == EMPTY_BUCKET {
                 return VintArrayIteratorOpt {
                     single_value: -2,
-                    iter: Box::new(VintArrayIterator::from_slice(&[])),
+                    iter: Box::new(VintArrayIterator::from_serialized_vint_array(&[])),
                 };
             }
             VintArrayIteratorOpt {
                 single_value: -1,
-                iter: Box::new(VintArrayIterator::from_slice(&self.data[data_start_pos.to_usize().unwrap()..])),
+                iter: Box::new(VintArrayIterator::from_serialized_vint_array(&self.data[data_start_pos.to_usize().unwrap()..])),
             }
         }
     }
@@ -420,7 +420,7 @@ fn get_u32_values_from_pointing_mmap_file_vint(id: u64, size: usize, start_pos: 
             return None;
         }
 
-        let iter = VintArrayIterator::from_slice(&data[data_start_pos as usize..]);
+        let iter = VintArrayIterator::from_serialized_vint_array(&data[data_start_pos as usize..]);
         let decoded_data: Vec<u32> = iter.collect();
         Some(decoded_data)
     }

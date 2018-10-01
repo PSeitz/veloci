@@ -84,15 +84,17 @@ extern crate fixedbitset;
 // extern crate lru_cache;
 extern crate term_hashmap;
 
+extern crate lz4;
+
+
 #[macro_use]
 pub mod util;
-mod profiler;
 pub mod stopwords;
 #[macro_use]
 pub mod type_info;
 pub mod create;
 // pub mod create_from_csv;
-pub mod doc_loader;
+pub mod doc_store;
 pub mod execution_plan;
 pub mod expression;
 pub mod facet;

@@ -40,9 +40,6 @@ pub struct TokenToAnchorScoreVintFlushing {
     pub current_id_offset: u32,
     pub indirect_path: String,
     pub data_path: String,
-    // pub avg_join_size: f32,
-    // pub num_values: u32,
-    // pub num_ids: u32,
     pub metadata: IndexMetaData,
 }
 

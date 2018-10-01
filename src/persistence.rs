@@ -24,7 +24,8 @@ use fst::Map;
 
 use prettytable::format;
 use prettytable::Table;
-
+use memmap::Mmap;
+use memmap::MmapOptions;
 use create;
 use persistence_data::*;
 use persistence_data_binary_search::*;
@@ -136,6 +137,7 @@ pub static VALUE_OFFSET: u32 = 1; // because 0 is reserved for EMPTY_BUCKET
 
 #[derive(Debug, Default)]
 pub struct PersistenceIndices {
+    pub doc_offsets: Option<Mmap>,
     pub key_value_stores: HashMap<String, Box<IndexIdToParent<Output = u32>>>,
     pub token_to_anchor_score: HashMap<String, Box<TokenToAnchorScore>>,
     pub phrase_pair_to_anchor: HashMap<String, Box<PhrasePairToAnchor<Input = (u32, u32)>>>,
@@ -246,21 +248,21 @@ impl<'a> VintArrayIteratorOpt<'a> {
     pub fn from_single_val(val: u32) -> Self {
         VintArrayIteratorOpt {
             single_value: val as i64,
-            iter: Box::new(VintArrayIterator::from_slice(&[])),
+            iter: Box::new(VintArrayIterator::from_serialized_vint_array(&[])),
         }
     }
 
     pub fn empty() -> Self {
         VintArrayIteratorOpt {
             single_value: -2,
-            iter: Box::new(VintArrayIterator::from_slice(&[])),
+            iter: Box::new(VintArrayIterator::from_serialized_vint_array(&[])),
         }
     }
 
     pub fn from_slice(data: &'a [u8]) -> Self {
         VintArrayIteratorOpt {
             single_value: -1,
-            iter: Box::new(VintArrayIterator::from_slice(&data)),
+            iter: Box::new(VintArrayIterator::from_serialized_vint_array(&data)),
         }
     }
 }
@@ -411,6 +413,11 @@ impl Persistence {
     #[cfg_attr(feature = "flame_it", flame)]
     pub fn load_from_disk(&mut self) -> Result<(), search::SearchError> {
         info_time!("loaded persistence {:?}", &self.db);
+
+        let doc_offsets_file = open_file(self.db.to_string() + "/data.offsets")?;
+        let doc_offsets_mmap = unsafe { MmapOptions::new().map(&doc_offsets_file).unwrap() };
+        self.indices.doc_offsets = Some(doc_offsets_mmap);
+
         self.load_all_id_lists()?;
 
         // for el in &self.meta_data.key_value_stores {
@@ -852,6 +859,22 @@ impl Persistence {
                 // doc_id_type: check_is_docid_type(data),
             },
         ))
+    }
+
+    #[cfg_attr(feature = "flame_it", flame)]
+    pub fn write_data_offset<T: Clone + Copy + Debug>(&self, bytes: &[u8], data: &[T], path: &str) -> Result<(IDList), io::Error> {
+        debug_time!("Wrote Index {} With size {:?}", path, data.len());
+        File::create(util::get_file_path(&self.db, path))?.write_all(bytes)?;
+        info!("Wrote Index {} With size {:?}", path, data.len());
+        trace!("{:?}", data);
+        Ok(
+            IDList {
+                path: path.to_string(),
+                size: data.len() as u64,
+                id_type: IDDataType::U64,
+                // doc_id_type: check_is_docid_type(data),
+            },
+        )
     }
 
     #[cfg_attr(feature = "flame_it", flame)]

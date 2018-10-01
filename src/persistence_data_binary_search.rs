@@ -103,10 +103,7 @@ impl<T: Default + std::fmt::Debug> IndexIdToMultipleParentIndirectFlushingInOrde
 }
 
 fn to_serialized_vint_array(add_data: Vec<u32>) -> Vec<u8> {
-    let mut vint = VIntArray::default();
-    for el in add_data {
-        vint.encode(el);
-    }
+    let vint = VIntArray::from_vals(&add_data);
     vint.serialize()
 }
 
@@ -124,7 +121,7 @@ pub struct IndexIdToMultipleParentIndirectBinarySearch<T> {
 //         match hit {
 //             Ok(pos) => {
 //                 let data_pos = self.start_pos[pos].1;
-//                 let iter = VintArrayIterator::from_slice(&self.data[data_pos as usize..]);
+//                 let iter = VintArrayIterator::from_serialized_vint_array(&self.data[data_pos as usize..]);
 //                 let decoded_data: Vec<u32> = iter.collect();
 //                 Some(decoded_data)
 //             },
@@ -142,7 +139,7 @@ impl<T: 'static + Ord + Copy + Default + std::fmt::Debug + Sync + Send> PhrasePa
         match hit {
             Ok(pos) => {
                 let data_pos = self.start_pos[pos].1;
-                let iter = VintArrayIterator::from_slice(&self.data[data_pos as usize..]);
+                let iter = VintArrayIterator::from_serialized_vint_array(&self.data[data_pos as usize..]);
                 let decoded_data: Vec<u32> = iter.collect();
                 Some(decoded_data)
             }
@@ -182,45 +179,57 @@ impl<T: Ord + Copy + Default + std::fmt::Debug> IndexIdToMultipleParentIndirectB
         })
     }
 
-    fn get(&self, pos: usize) -> (T, u32) {
-        let mut out: (T, u32) = Default::default();
-        let byte_pos = std::mem::size_of::<(T, u32)>() * pos;
-        unsafe {
-            self.start_pos[byte_pos as usize..]
-                .as_ptr()
-                .copy_to_nonoverlapping(&mut out as *mut (T, u32) as *mut u8, std::mem::size_of::<(T, u32)>());
-        }
-        out
-    }
+    // fn get(&self, pos: usize) -> (T, u32) {
+    //     get(pos, &self.start_pos)
+    // }
 
     #[inline]
     fn binary_search(&self, id: T) -> Option<(T, u32)> {
-        let s = self;
-        let mut size = s.size;
-        if size == 0 {
-            return None;
-        }
-        let mut base = 0usize;
-        while size > 1 {
-            let half = size / 2;
-            let mid = base + half;
-            // mid is always in [0, size), that means mid is >= 0 and < size.
-            // mid >= 0: by definition
-            // mid < size: mid = size / 2 + size / 4 + size / 8 ...
-            let cmp = s.get(mid).0.cmp(&id); //(unsafe { s.get(mid) });
-            base = if cmp == Greater { base } else { mid };
-            size -= half;
-        }
-        // base is always in [0, size) because base <= mid.
-        // let cmp = f(unsafe { s.get(base) });
-        let hit = s.get(base);
-        if id == hit.0 {
-            Some(hit)
-        } else {
-            None
-        }
+        binary_search_slice(self.size, id, &self.start_pos)
     }
 }
+
+
+#[inline]
+fn decode_pos<T: Copy + Default, K: Copy + Default>(pos: usize, slice:&[u8]) -> (T, K) {
+    let mut out: (T, K) = Default::default();
+    let byte_pos = std::mem::size_of::<(T, K)>() * pos;
+    unsafe {
+        slice[byte_pos as usize..]
+            .as_ptr()
+            .copy_to_nonoverlapping(&mut out as *mut (T, K) as *mut u8, std::mem::size_of::<(T, K)>());
+    }
+    out
+}
+
+#[inline]
+pub fn binary_search_slice<T: Ord + Copy + Default + std::fmt::Debug, K: Copy + Default>(mut size: usize, id: T, slice:&[u8]) -> Option<(T, K)> {
+    // let s = self;
+    // let mut size = s.size;
+    if size == 0 {
+        return None;
+    }
+    let mut base = 0usize;
+    while size > 1 {
+        let half = size / 2;
+        let mid = base + half;
+        // mid is always in [0, size), that means mid is >= 0 and < size.
+        // mid >= 0: by definition
+        // mid < size: mid = size / 2 + size / 4 + size / 8 ...
+        let cmp = decode_pos::<T, K>(mid, &slice).0.cmp(&id); //(unsafe { s.decode_pos(mid) });
+        base = if cmp == Greater { base } else { mid };
+        size -= half;
+    }
+    // base is always in [0, size) because base <= mid.
+    // let cmp = f(unsafe { s.decode_pos(base) });
+    let hit = decode_pos(base, &slice);
+    if id == hit.0 {
+        Some(hit)
+    } else {
+        None
+    }
+}
+
 
 impl<T: 'static + Ord + Copy + Default + std::fmt::Debug + Sync + Send> PhrasePairToAnchor for IndexIdToMultipleParentIndirectBinarySearchMMAP<T> {
     type Input = T;
@@ -230,7 +239,7 @@ impl<T: 'static + Ord + Copy + Default + std::fmt::Debug + Sync + Send> PhrasePa
         let hit = self.binary_search(id);
         hit.map(|el| {
             let data_pos = el.1;
-            VintArrayIterator::from_slice(&self.data[data_pos as usize..]).collect()
+            VintArrayIterator::from_serialized_vint_array(&self.data[data_pos as usize..]).collect()
         })
     }
 }
@@ -282,8 +291,8 @@ mod tests {
         // let yop = store.into_im_store();
         let store = IndexIdToMultipleParentIndirectBinarySearchMMAP::<(u32, u32)>::from_path(dir.path().join("yop"), store.metadata).unwrap();
         assert_eq!(store.size, 7);
-        assert_eq!(store.get(0), ((0, 0), 1));
-        assert_eq!(store.get(1), ((0, 1), 4));
+        assert_eq!(decode_pos(0, &store.start_pos), ((0, 0), 1));
+        assert_eq!(decode_pos(1, &store.start_pos), ((0, 1), 4));
 
         assert_eq!(store.get_values((0, 0)), Some(vec![5, 6]));
         assert_eq!(store.get_values((0, 1)), Some(vec![9]));

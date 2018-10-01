@@ -47,15 +47,6 @@ fn main() {
         };
     }
 
-    // create_thalia_index();
-    // {
-    //     let my_time = util::MeasureTime::new("jmdict load time", util::MeasureTimeLogLevel::Print);
-    //     let mut _pers:search_lib::persistence::Persistence = search_lib::persistence::Persistence::load("jmdict".to_string()).expect("could not load jmdict");
-    // }
-
-    // let doc_loader = doc_loader::DocLoader::new("jmdict", "data");
-    // let now = Instant::now();
-    // server::start_server();
 }
 
 static TAHLIA_INDICES: &str = r#"

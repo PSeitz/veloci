@@ -9,11 +9,11 @@ extern crate search_lib;
 extern crate serde_json;
 
 use search_lib::create;
-use search_lib::facet;
+// use search_lib::facet;
 use search_lib::persistence;
-use search_lib::query_generator;
+// use search_lib::query_generator;
 use search_lib::search;
-use search_lib::search_field;
+// use search_lib::search_field;
 use search_lib::trace;
 use serde_json::Value;
 

@@ -1,0 +1,10 @@
+[package]
+authors = ["Pascal Seitz <pascal.seitz@gmail.com>"]
+edition = "2018"
+name = "doc_store"
+version = "0.1.0"
+[dependencies]
+lz4 = "1.23.0"
+
+[dependencies.vint]
+git = "https://github.com/PSeitz/rust_vint"

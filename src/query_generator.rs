@@ -11,6 +11,9 @@ use std;
 use stopwords;
 // use util::*;
 
+#[cfg(test)]
+use test;
+
 // fn get_default_levenshtein(term: &str, levenshtein_auto_limit: usize) -> usize {
 //     match term.chars().count() {
 //         0..=3 => 0,
@@ -157,7 +160,6 @@ fn ast_to_request(query_ast: UserAST, all_fields: &[String], opt: &SearchQueryGe
     query_ast_to_request(query_ast, opt)
 }
 
-use test;
 #[bench]
 fn bench_query_to_request(b: &mut test::Bencher) {
     let fields = vec![
