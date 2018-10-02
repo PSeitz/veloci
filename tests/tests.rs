@@ -1,5 +1,3 @@
-#![feature(plugin)]
-#![cfg_attr(test, plugin(stainless))]
 #![recursion_limit = "128"]
 
 #[macro_use]
@@ -327,10 +325,9 @@ fn test_json_request() {
 //     data.iter().map(|el| el.to_string()).collect()
 // }
 
-describe! search_test {
 
-
-    it "simple_search"{
+    #[test]
+    fn simple_search(){
         let req = json!({
             "search": {
                 "terms":["urge"],
@@ -345,7 +342,8 @@ describe! search_test {
         assert_eq!(hits[0].doc["tags"], json!(["nice".to_string()]));
     }
 
-    it "simple_search explained"{
+    #[test]
+    fn simple_search_explained(){
         let req = json!({
             "search": {
                 "terms":["urge"],
@@ -363,7 +361,8 @@ describe! search_test {
         assert_eq!(hits[0].explain.as_ref().unwrap().len(), 2);
     }
 
-    it "or_query_explained"{
+    #[test]
+    fn or_query_explained(){
 
         let req = json!({
             "or":[
@@ -387,7 +386,8 @@ describe! search_test {
 
     }
 
-    it "simple_search_querygenerator_explained"{
+    #[test]
+    fn simple_search_querygenerator_explained(){
         let mut params = query_generator::SearchQueryGeneratorParameters::default();
         params.explain = Some(true);
         params.search_term = "urge".to_string();
@@ -401,7 +401,8 @@ describe! search_test {
         assert_eq!(hits[0].explain.as_ref().unwrap().len(), 3);
     }
 
-    it "simple_search_querygenerator_OR_connect_explained"{
+    #[test]
+    fn simple_search_querygenerator_o_r_connect_explained(){
         let mut params = query_generator::SearchQueryGeneratorParameters::default();
         params.explain = Some(true);
         params.search_term = "urge OR いよく".to_string();
@@ -417,7 +418,8 @@ describe! search_test {
 
     }
 
-    it "test_float"{
+    #[test]
+    fn test_float(){
         let req = json!({
             "search": {
                 "terms":["5.123"],
@@ -430,7 +432,8 @@ describe! search_test {
         assert_eq!(hits[0].doc["float_value"], 5.123);
     }
 
-    it "test_bool"{
+    #[test]
+    fn test_bool(){
         let req = json!({
             "search": {
                 "terms":["true"],
@@ -443,7 +446,8 @@ describe! search_test {
         assert_eq!(hits[0].doc["my_bool"], true);
     }
 
-    it "should return an error when trying to query an invalid field"{
+    #[test]
+    fn should_return_an_error_when_trying_to_query_an_invalid_field(){
         let req = json!({
             "search": {
                 "terms":["test"],
@@ -460,7 +464,8 @@ describe! search_test {
 
     }
 
-    it "simple_search querygenerator"{
+    #[test]
+    fn simple_search_querygenerator(){
         let mut params = query_generator::SearchQueryGeneratorParameters::default();
         params.search_term="urge".to_string();
 
@@ -471,7 +476,8 @@ describe! search_test {
         assert_eq!(hits[0].doc["tags"], json!(["nice".to_string()]));
     }
 
-    it "simple_search_querygenerator_OR_connect"{
+    #[test]
+    fn simple_search_querygenerator_o_r_connect(){
         let mut params = query_generator::SearchQueryGeneratorParameters::default();
         params.search_term="urge OR いよく".to_string();
 
@@ -482,7 +488,8 @@ describe! search_test {
         assert_eq!(hits[0].doc["tags"], json!(["nice".to_string()]));
     }
 
-    it "simple_search querygenerator and"{
+    #[test]
+    fn simple_search_querygenerator_and(){
         let mut params = query_generator::SearchQueryGeneratorParameters::default();
         params.search_term="urge AND いよく".to_string();
 
@@ -492,7 +499,8 @@ describe! search_test {
         assert_eq!(hits[0].doc["commonness"], 20);
         assert_eq!(hits[0].doc["tags"], json!(["nice".to_string()]));
     }
-    it "simple_search querygenerator and emtpy stopword list"{
+    #[test]
+    fn simple_search_querygenerator_and_emtpy_stopword_list(){
         let mut params = query_generator::SearchQueryGeneratorParameters::default();
         params.stopword_lists = Some(vec![]);
         params.search_term="urge AND いよく".to_string();
@@ -503,7 +511,8 @@ describe! search_test {
         assert_eq!(hits[0].doc["commonness"], 20);
         assert_eq!(hits[0].doc["tags"], json!(["nice".to_string()]));
     }
-    it "simple_search querygenerator and stopword list"{
+    #[test]
+    fn simple_search_querygenerator_and_stopword_list(){
         let mut params = query_generator::SearchQueryGeneratorParameters::default();
         params.stopword_lists = Some(vec!["en".to_string()]);
         params.search_term="urge AND いよく".to_string();
@@ -514,7 +523,8 @@ describe! search_test {
         assert_eq!(hits[0].doc["commonness"], 20);
         assert_eq!(hits[0].doc["tags"], json!(["nice".to_string()]));
     }
-    it "simple_search querygenerator and no hit"{
+    #[test]
+    fn simple_search_querygenerator_and_no_hit(){
         let mut params = query_generator::SearchQueryGeneratorParameters::default();
         params.search_term="urge AND いよく AND awesome".to_string();
 
@@ -522,7 +532,8 @@ describe! search_test {
         assert_eq!(hits.len(), 0);
     }
 
-    it "select single field"{
+    #[test]
+    fn select_single_field(){
         let req = json!({
             "search": {
                 "terms":["urge"],
@@ -539,7 +550,8 @@ describe! search_test {
 
     }
 
-    it "two tokens hit the same anchor" {
+    #[test]
+    fn two_tokens_h_test_fn_the_same_anchor() {
         let req = json!({
             "search": {
                 "terms":["majestätischer"],
@@ -553,7 +565,8 @@ describe! search_test {
         assert_eq!(hits[0].doc["ent_seq"], "1587680");
     }
 
-   it "deep structured objects" {
+   #[test]
+    fn deep_structured_objects() {
 
        let req = json!({
            "search": {
@@ -569,7 +582,8 @@ describe! search_test {
    }
 
 
-    it "should search without firstCharExactMatch"{
+    #[test]
+    fn should_search_without_first_char_exact_match(){
         let req = json!({
             "search": {
                 "terms":["najestätischer"],
@@ -582,7 +596,8 @@ describe! search_test {
         assert_eq!(hits[0].doc["ent_seq"], "1587680");
     }
 
-    it "should prefer exact matches to tokenmatches'"{
+    #[test]
+    fn should_prefer_exact_matches_to_tokenmatches(){
 
         let req = json!({
             "search": {
@@ -595,7 +610,8 @@ describe! search_test {
         assert_eq!(wa[0].doc["meanings"]["eng"][0], "will");
     }
 
-    it "should_prefer_exact_tokenmatches_to_fuzzy_text_hits"{
+    #[test]
+    fn should_prefer_exact_tokenmatches_to_fuzzy_text_hits(){
 
         let req = json!({
             "search": {
@@ -610,7 +626,8 @@ describe! search_test {
         assert_eq!(wa[0].doc["meanings"]["eng"][0], "karl der große"); // should hit karl, not karlo
     }
 
-    it "should_prefer_short_results"{
+    #[test]
+    fn should_prefer_short_results(){
         let mut params = query_generator::SearchQueryGeneratorParameters::default();
         params.phrase_pairs = Some(true);
         params.explain = Some(true);
@@ -619,7 +636,8 @@ describe! search_test {
         assert_eq!(hits[0].doc["title"], "Die Erbin");
     }
 
-    it "should search word non tokenized'"{
+    #[test]
+    fn should_search_word_non_tokenized(){
         let req = json!({
             "search": {
                 "terms":["偉容"],
@@ -632,7 +650,8 @@ describe! search_test {
         assert_eq!(hits[0].doc["ent_seq"], "1587680");
     }
 
-    it "should check disabled tokenization"{
+    #[test]
+    fn should_check_disabled_tokenization(){
         let req = json!({
             "search": {
                 "terms":["tokens"],
@@ -644,7 +663,8 @@ describe! search_test {
         assert_eq!(hits.len(), 0);
     }
 
-    it "should search on non subobject'"{
+    #[test]
+    fn should_search_on_non_subobject(){
         let req = json!({
             "search": {
                 "terms":["1587690"],
@@ -656,7 +676,8 @@ describe! search_test {
         assert_eq!(hits.len(), 1);
     }
 
-    it "AND connect hits same field"{
+    #[test]
+    fn and_connect_hits_same_field(){
         let req = json!({
             "and":[
                 {"search": {"terms":["aussehen"],       "path": "meanings.ger[]"}},
@@ -669,7 +690,8 @@ describe! search_test {
         assert_eq!(hits[0].doc["ent_seq"], "1587680");
     }
 
-    it "AND connect hits different fields"{
+    #[test]
+    fn and_connect_hits_different_fields(){
         let req = json!({
             "and":[
                 {"search": {"terms":["majestät"], "path": "meanings.ger[]"}},
@@ -682,7 +704,8 @@ describe! search_test {
         assert_eq!(hits[0].doc["ent_seq"], "1587680");
     }
 
-    it "AND connect hits different fields - no hit"{
+    #[test]
+    fn and_connect_hits_different_fields_no_hit(){
         let req = json!({
             "and":[
                 {"search": {
@@ -700,7 +723,8 @@ describe! search_test {
         assert_eq!(hits.len(), 0);
     }
 
-    it "AND connect hits different fields - same text 'alle meine words' appears again"{
+    #[test]
+    fn and_connect_hits_different_fields_same_text_alle_meine_words_appears_again(){
         let req = json!({
             "and":[
                 {"search": {
@@ -719,7 +743,8 @@ describe! search_test {
         assert_eq!(hits[0].doc["ent_seq"], "1000");
     }
 
-    it "OR connect hits"{
+    #[test]
+    fn o_r_connect_hits(){
         let req = json!({
             "or":[
                 {"search": {
@@ -738,7 +763,8 @@ describe! search_test {
         assert_eq!(hits.len(), 2);
     }
 
-    it "simple_search_and_connect_hits_with_filter"{
+    #[test]
+    fn simple_search_and_connect_hits_with_filter(){
         let req = json!({
             "search": {
                 "terms":["urge"],
@@ -756,7 +782,8 @@ describe! search_test {
         assert_eq!(hits.len(), 1);
     }
 
-    it "OR_connect_hits_with_filter"{
+    #[test]
+    fn o_r_connect_hits_with_filter(){
         let req = json!({
             "or":[
                 {"search": {
@@ -780,7 +807,8 @@ describe! search_test {
         assert_eq!(hits.len(), 1);
     }
 
-    it "OR_connect_hits_with_filter_reuse_query"{
+    #[test]
+    fn o_r_connect_hits_with_filter_reuse_query(){
         let req = json!({
             "or":[
                 {"search": {
@@ -804,7 +832,8 @@ describe! search_test {
         assert_eq!(hits.len(), 1);
     }
 
-    it "should find 2 values from token"{
+    #[test]
+    fn should_find_2_values_from_token(){
         let req = json!({
             "search": {
                 "terms":["意慾"],
@@ -816,7 +845,8 @@ describe! search_test {
         assert_eq!(hits.len(), 2);
     }
 
-    it "should_search_and_boosto"{
+    #[test]
+    fn should_search_and_boosto(){
         let req = json!({
             "search": {
                 "terms":["意慾"],
@@ -833,7 +863,8 @@ describe! search_test {
         assert_eq!(hits.len(), 2);
     }
 
-    it "should search and double boost"{
+    #[test]
+    fn should_search_and_double_boost(){
         let req = json!({
             "search": {
                 "terms":["awesome"],
@@ -855,7 +886,8 @@ describe! search_test {
         assert_eq!(hits.len(), 2);
     }
 
-    it "should search and boost anchor"{
+    #[test]
+    fn should_search_and_boost_anchor(){
         let req = json!({
             "search": {
                 "terms":["意慾"],
@@ -874,7 +906,8 @@ describe! search_test {
         assert_eq!(hits[0].doc["commonness"], 500);
     }
 
-    it "should or connect search and boost anchor"{
+    #[test]
+    fn should_or_connect_search_and_boost_anchor(){
         let req = json!({
             "or":[
                 {
@@ -906,7 +939,8 @@ describe! search_test {
         assert_eq!(hits[0].doc["commonness"], 20);
     }
 
-    it "should_or_connect_same_search"{
+    #[test]
+    fn should_or_connect_same_search(){
         let req = json!({
             "or":[
                 {
@@ -938,7 +972,8 @@ describe! search_test {
     // })
 
 
-    it "should use search on field for suggest without sorting etc."{
+    #[test]
+    fn should_use_search_on_field_for_suggest_without_sorting_etc(){
         let req = json!({
             "terms":["majes"],
             "path": "meanings.ger[]",
@@ -960,7 +995,8 @@ describe! search_test {
     }
 
     //TODO ENBALE
-    // it "should load the text for ids"{
+    // #[test]
+    // fn should_load_the_text_for_ids(){
     //     let pers = &TEST_PERSISTENCE;
     //     let mut faccess:persistence::FileSearch = pers.get_file_search("meanings.ger[].textindex");
 
@@ -970,10 +1006,9 @@ describe! search_test {
 
     // }
 
-    // it "should highlight ids"{
+    // #[test]
+    // fn should_highlight_ids(){
     //     let mut pers = &TEST_PERSISTENCE;
-
-
     //     let inf = search::SnippetInfo{
     //         num_words_around_snippet :  4,
     //         max_snippets :  40,
@@ -986,7 +1021,8 @@ describe! search_test {
 
     // }
 
-    it "should highlight on field"{
+    #[test]
+    fn should_highlight_on_field(){
         let req = json!({
             "terms":["story"],
             "path": "mylongtext",
@@ -1003,7 +1039,8 @@ describe! search_test {
     }
 
     //Should this be possible?
-    // it "should select on long text"{
+    // #[test]
+    // fn should_select_on_long_text(){
 
     //     let req = json!({
     //         "search": {
@@ -1019,7 +1056,8 @@ describe! search_test {
 
     // }
 
-    it "should highlight on sub_level field"{
+    #[test]
+    fn should_highlight_on_sub_level_field(){
         let req = json!({
             "terms":["story"],
             "path": "sub_level[].text",
@@ -1035,7 +1073,8 @@ describe! search_test {
         assert_eq!(results.iter().map(|el| el.0.clone()).collect::<Vec<String>>(), ["Prolog:\nthis is <b>story</b> of a guy who went ... "]);
     }
 
-    it "real suggest with score"{
+    #[test]
+    fn real_suggest_with_score(){
         let req = json!({
             "terms":["majes"],
             "path": "meanings.ger[]",
@@ -1052,7 +1091,8 @@ describe! search_test {
         assert_eq!(results.iter().map(|el| el.0.clone()).collect::<Vec<String>>(), ["majestät", "majestät (f)", "majestätisches", "majestätischer", "majestätischer anblick (m)", "majestätisches aussehen (n)"]);
     }
 
-    it "multi real suggest with score"{
+    #[test]
+    fn multi_real_suggest_with_score(){
 
         let req = json!({
             "suggest" : [
@@ -1072,7 +1112,8 @@ describe! search_test {
     }
 
 
-    it "real suggest with boosting score of 'Begeisterung' and token value"{
+    #[test]
+    fn real_suggest_with_boosting_score_of_begeisterung_and_token_value(){
         let req = json!({
             "terms":["begeist"],
             "path": "meanings.ger[]",
@@ -1094,7 +1135,8 @@ describe! search_test {
         assert_eq!(results.iter().map(|el| el.0.clone()).collect::<Vec<String>>(), ["begeisterung", "begeistern", "begeisterung (f)"]);
     }
 
-    // it "should or connect the checks"{
+    // #[test]
+    //fn should_or_connect_the_checks(){
     //     let req = json!({
     //         "search": {
     //             "terms":["having a long]",
@@ -1109,7 +1151,8 @@ describe! search_test {
     //     assert_eq!(hits.len(), 1);
     // }
 
-    it "should rank exact matches pretty good"{
+    #[test]
+    fn should_rank_exact_matches_pretty_good(){
         let req = json!({
             "search": {
                 "terms":["weich"], // hits welche and weich
@@ -1128,7 +1171,8 @@ describe! search_test {
         assert_eq!(hits[0].doc["meanings"]["ger"][0], "(1) weich");
     }
 
-    it "should boost terms and from cache"{
+    #[test]
+    fn should_boost_terms_and_from_cache(){
         let req = json!({
             "search": {
                 "terms":["weich"],
@@ -1153,7 +1197,8 @@ describe! search_test {
         assert_eq!(hits[0].doc["meanings"]["ger"][0], "(1) 2 3 super nice weich");
     }
 
-    it "should_add_why_found_terms"{
+    #[test]
+    fn should_add_why_found_terms(){
         let req = json!({
             "search": {
                 "terms":["weich"],
@@ -1170,7 +1215,8 @@ describe! search_test {
         assert_eq!(hits[0].doc["meanings"]["ger"][0], "(1) weich");
     }
 
-    it "OR connect hits but boost one term"{
+    #[test]
+    fn o_r_connect_hits_but_boost_one_term(){
         let req = json!({
             "or":[
                 {"search": {"terms":["majestät (f)"], "path": "meanings.ger[]", "boost": 2}},
@@ -1183,12 +1229,14 @@ describe! search_test {
         assert_eq!(hits[0].doc["meanings"]["ger"][0], "majestätischer Anblick (m)");
     }
 
-    it "get_bytes_indexed"{
+    #[test]
+    fn get_bytes_indexed(){
         let pers = &TEST_PERSISTENCE;
         assert_eq!(pers.get_bytes_indexed(), 2555);
     }
 
-    it "boost_text_localitaet"{
+    #[test]
+    fn boost_text_localitaet(){
         let req = json!({
             "or":[
                 {"search": {"terms":["text"],      "path": "meanings.ger[]"}, "text_locality": true},
@@ -1202,7 +1250,8 @@ describe! search_test {
         assert_eq!(hits[0].doc["meanings"]["ger"][0], "text localität");
     }
 
-    it "search_and_get_facet_with_facet_index"{
+    #[test]
+    fn search_and_get_facet_with_facet_index(){
         let req = json!({
             "search": {"terms":["will"], "path": "meanings.eng[]"},
             "facets": [{"field":"tags[]"}, {"field":"commonness"}]
@@ -1215,7 +1264,8 @@ describe! search_test {
         assert_eq!(facets.get("commonness").unwrap(), &vec![("20".to_string(), 2)] );
     }
 
-    it "search and get facet without facet index"{ // meanings.eng[] hat no facet index and is a 1-n facet
+    #[test]
+    fn search_and_get_facet_without_facet_index(){ // meanings.eng[] hat no facet index and is a 1-n facet
         let req = json!({
             "search": {"terms":["test"], "path": "meanings.ger[]"},
             "facets": [{"field":"meanings.eng[]"}]
@@ -1227,7 +1277,8 @@ describe! search_test {
         assert_eq!(facets.get("meanings.eng[]").unwrap(), &vec![("test1".to_string(), 1)] );
     }
 
-    it "read object only partly"{
+    #[test]
+    fn read_object_only_partly(){
         let pers = &TEST_PERSISTENCE;
         let yay = search::read_data(&pers, 4, &vec!["commonness".to_string(),
                                                     "ent_seq".to_string(),
@@ -1251,14 +1302,16 @@ describe! search_test {
 
     }
 
-    it "should skip existing fields which are not existent in the object - None values "{
+    #[test]
+    fn should_skip_existing_fields_which_are_not_existent_in_the_object_none_values(){
         let pers = &TEST_PERSISTENCE;
         //Check None values
         let yay = search::read_data(&pers, 3, &vec!["mylongtext".to_string()]).unwrap();
         assert_eq!(yay, json!({}));
     }
 
-    it "read recreate complete object with read"{
+    #[test]
+    fn read_recreate_complete_object_with_read(){
         let pers = &TEST_PERSISTENCE;
         let all_props = pers.meta_data.get_all_fields();
         let yay2 = search::read_data(&pers, 4, &all_props).unwrap();
@@ -1280,7 +1333,8 @@ describe! search_test {
 
     }
 
-    it "facet"{
+    #[test]
+    fn facet(){
         let pers = &TEST_PERSISTENCE;
         let mut yep = facet::get_facet(&pers, &search::FacetRequest{field:"tags[]".to_string(), top:Some(10)}, &vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14]).unwrap();
         // yep.sort_by_key(|yo|format!("{:?}{:?}", yo.1 , yo.0));
@@ -1290,7 +1344,8 @@ describe! search_test {
 
     //MUTLI TERMS
 
-    // it "should handle multi terms and connected"{ // multi terms attribute ALL
+    // #[test]
+    //fn should_handle_multi_terms_and_connected(){ // multi terms attribute ALL
     //     let req = json!({
     //         "or":[{"search": {"terms":["alle","Words"], "path": "meanings.ger[]", "term_operator": "ALL"}} ]
     //     });
@@ -1299,7 +1354,8 @@ describe! search_test {
     //     assert_eq!(hits.data[0].doc["meanings"]["ger"][2], "alle meine Words");
     // }
 
-    // it "should handle multi terms or connected"{ // multi terms attribute ALL
+    // #[test]
+    //fn should_handle_multi_terms_or_connected(){ // multi terms attribute ALL
     //     let req = json!({
     //         "or":[{"search": {"terms":["alle","Words", "TRIFFTNICHTS"], "path": "meanings.ger[]", "term_operator": "ANY"}} ]
     //     });
@@ -1308,7 +1364,8 @@ describe! search_test {
     //     assert_eq!(hits.data[0].doc["meanings"]["ger"][2], "alle meine Words");
     // }
 
-    // it "should handle multi terms or connected n hits"{ // multi terms attribute ALL
+    // #[test]
+    //fn should_handle_multi_terms_or_connected_n_hits(){ // multi terms attribute ALL
     //     let req = json!({
     //         "or":[{"search": {"terms":["alle","Words", "TRIFFTNICHTS"], "path": "meanings.ger[]", "term_operator": "ALL"}} ]
     //     });
@@ -1329,7 +1386,6 @@ describe! search_test {
     //     assert_eq!(hits[0].doc["meanings"]["ger"][1], "das ist ein guter Treffer");
     // }
 
-}
 
 // #[test]
 // fn checked_was_abgehst_22() {

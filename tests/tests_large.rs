@@ -1,5 +1,3 @@
-#![feature(plugin)]
-#![cfg_attr(test, plugin(stainless))]
 #![recursion_limit = "128"]
 
 #[macro_use]
@@ -80,30 +78,29 @@ fn search_testo_to_hitso(requesto: search::Request) -> Result<search::SearchResu
     Ok(hits)
 }
 
-describe! test_large {
+#[test]
+fn simple_search(){
+    let req = json!({
+        "search": {
+            "terms":["superb"],
+            "path": "category"
+        }
+    });
 
-    it "simple_search"{
-        let req = json!({
-            "search": {
-                "terms":["superb"],
-                "path": "category"
-            }
-        });
-
-        assert_eq!(search_testo_to_doc(req).num_hits, 300);
-    }
-
-    it "search and get facet with facet index"{
-        let req = json!({
-            "search": {"terms":["superb"], "path": "category"},
-            "facets": [{"field":"tags[]"}]
-        });
-
-        let hits = search_testo_to_doc(req);
-        let facets = hits.facets.unwrap();
-        let mut yep = facets.get("tags[]").unwrap().clone();
-        yep.sort_by(|a, b| format!("{:?}{:?}", b.1 , b.0).cmp(&format!("{:?}{:?}", a.1 , a.0)));
-        assert_eq!(yep, vec![("nice".to_string(), 300), ("cool".to_string(), 300)] );
-    }
-
+    assert_eq!(search_testo_to_doc(req).num_hits, 300);
 }
+
+#[test]
+fn search_and_get_facet_with_facet_index(){
+    let req = json!({
+        "search": {"terms":["superb"], "path": "category"},
+        "facets": [{"field":"tags[]"}]
+    });
+
+    let hits = search_testo_to_doc(req);
+    let facets = hits.facets.unwrap();
+    let mut yep = facets.get("tags[]").unwrap().clone();
+    yep.sort_by(|a, b| format!("{:?}{:?}", b.1 , b.0).cmp(&format!("{:?}{:?}", a.1 , a.0)));
+    assert_eq!(yep, vec![("nice".to_string(), 300), ("cool".to_string(), 300)] );
+}
+

@@ -94,7 +94,6 @@ git = "https://github.com/PSeitz/rust_vint"
 [dev-dependencies]
 pretty_assertions = "0.5.1"
 rand = "0.5.5"
-stainless2 = "0.1.13"
 tempfile = "3.0.3"
 
 [dev-dependencies.criterion]
