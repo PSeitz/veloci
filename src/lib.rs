@@ -82,9 +82,8 @@ extern crate lazy_static;
 extern crate chrono;
 extern crate fixedbitset;
 // extern crate lru_cache;
+pub extern crate doc_store;
 extern crate term_hashmap;
-extern crate doc_store as other_doc_store;
-
 
 #[macro_use]
 pub mod util;
@@ -93,7 +92,7 @@ pub mod stopwords;
 pub mod type_info;
 pub mod create;
 // pub mod create_from_csv;
-pub mod doc_store;
+// pub mod doc_store;
 pub mod execution_plan;
 pub mod expression;
 pub mod facet;

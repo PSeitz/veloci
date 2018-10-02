@@ -126,7 +126,7 @@ impl IndexIdToMultipleParentIndirectFlushingInOrderVint {
             if let Some(pos_in_data) = (self.current_data_offset as usize + self.data_cache.len()).to_u32() {
                 self.ids_cache[id_pos] = pos_in_data;
                 self.data_cache.extend(to_serialized_vint_array(add_data));
-            }else{
+            } else {
                 //Handle Overflow
                 panic!("Too much data, can't adress with u32");
             }

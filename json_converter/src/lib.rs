@@ -1,5 +1,6 @@
 extern crate serde_json;
 extern crate fnv;
+// #[cfg(test)]
 // extern crate test;
 
 use fnv::FnvHashMap;
@@ -21,6 +22,67 @@ pub fn convert_to_string(value: &Value) -> Cow<str> {
     }
 }
 
+
+#[inline]
+pub fn for_each_text<T, E, F, I: Iterator<Item = Result<serde_json::Value, serde_json::Error>>>(
+    data: I,
+    cb_text: &mut F,
+) -> Result<(), E>
+where
+    F: FnMut(&str, &str) -> Result<T, E>,
+{
+    let mut path = String::with_capacity(25);
+
+    for el in data {
+        for_each_texto(el.as_ref().unwrap(), &mut path, "", cb_text)?;
+        path.clear();
+    }
+    Ok(())
+}
+
+#[inline]
+pub fn for_each_texto<T, E, F>(
+    data: &Value,
+    mut current_path: &mut String,
+    current_el_name: &str,
+    cb_text: &mut F,
+) -> Result<(), E>
+where
+    F: FnMut(&str, &str) -> Result<T, E>,
+{
+    if let Some(arr) = data.as_array() {
+        if !(current_path.is_empty() || current_path.ends_with('.')) {
+            current_path.push('.');
+        }
+        current_path.push_str(current_el_name);
+        current_path.push('[');
+        current_path.push(']');
+        let prev_len = current_path.len();
+        for el in arr {
+            for_each_texto(el, current_path, "", cb_text)?;
+            unsafe {
+                current_path.as_mut_vec().truncate(prev_len);
+            }
+        }
+    } else if let Some(obj) = data.as_object() {
+        if !(current_path.is_empty() || current_path.ends_with('.')) {
+            current_path.push('.');
+        }
+        current_path.push_str(current_el_name);
+        let prev_len = current_path.len();
+        for (key, ref value) in obj.iter() {
+            for_each_texto(value, &mut current_path, key, cb_text)?;
+            unsafe {
+                current_path.as_mut_vec().truncate(prev_len);
+            }
+        }
+    } else if !data.is_null() {
+        current_path.push_str(current_el_name);
+        current_path.push_str(".textindex");
+        cb_text(convert_to_string(&data).as_ref(), &current_path)?;
+    }
+    Ok(())
+}
 
 #[inline]
 pub fn for_each_element<T, E, ID: IDProvider, F, F2, I: Iterator<Item = Result<serde_json::Value, serde_json::Error>>>(

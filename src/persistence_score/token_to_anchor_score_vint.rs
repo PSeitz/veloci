@@ -6,17 +6,17 @@ use vint::vint_encode_most_common::*;
 use itertools::Itertools;
 use search;
 use std;
-use std::mem;
 use std::io;
 use std::iter::FusedIterator;
 use std::marker::PhantomData;
+use std::mem;
 
-use persistence_data_indirect;
 use num;
+use persistence_data_indirect;
 use std::ops;
 
 // impl_type_info_single_templ!(TokenToAnchorScoreVintMmap);
-impl_type_info!(TokenToAnchorScoreVintIM);
+// impl_type_info!(TokenToAnchorScoreVintIM);
 
 const EMPTY_BUCKET: u32 = 0;
 const EMPTY_BUCKET_USIZE: usize = 0;
@@ -24,10 +24,9 @@ const EMPTY_BUCKET_USIZE: usize = 0;
 pub trait AnchorScoreDataSize: IndexIdToParentData + ops::AddAssign + ops::Add + num::Zero {}
 impl<T> AnchorScoreDataSize for T where T: IndexIdToParentData + ops::AddAssign + ops::Add + num::Zero {}
 
-
 #[derive(Serialize, Deserialize, Debug, Clone, Default, HeapSizeOf)]
-pub struct TokenToAnchorScoreVintIM {
-    pub start_pos: Vec<u32>,
+pub struct TokenToAnchorScoreVintIM<T> {
+    pub start_pos: Vec<T>,
     pub data: Vec<u8>,
 }
 
@@ -37,6 +36,12 @@ pub struct TokenToAnchorScoreVintMmap<T> {
     pub data: Mmap,
     pub max_value_id: u32,
     pub ok: PhantomData<T>,
+}
+
+impl<T: AnchorScoreDataSize> TypeInfo for TokenToAnchorScoreVintIM<T> {
+    fn type_name(&self) -> String {
+        unsafe { std::intrinsics::type_name::<Self>().to_string() }
+    }
 }
 
 impl<T: AnchorScoreDataSize> TypeInfo for TokenToAnchorScoreVintMmap<T> {
@@ -130,9 +135,9 @@ impl<T: AnchorScoreDataSize> TokenToAnchorScoreVintFlushing<T> {
         }
     }
 
-    pub fn into_im_store(self) -> TokenToAnchorScoreVintIM {
+    pub fn into_im_store(self) -> TokenToAnchorScoreVintIM<T> {
         TokenToAnchorScoreVintIM {
-            start_pos: self.id_to_data_pos.iter().map(|el|num::cast(*el).unwrap()).collect(), //TODO
+            start_pos: self.id_to_data_pos, //TODO
             data: self.data_cache,
         }
     }
@@ -151,11 +156,9 @@ impl<T: AnchorScoreDataSize> TokenToAnchorScoreVintFlushing<T> {
         self.current_id_offset += self.id_to_data_pos.len() as u32;
         self.current_data_offset += num::cast(self.data_cache.len()).unwrap();
 
-        use std::slice;
         use std::mem;
-        let id_to_data_pos_bytes = unsafe {
-            slice::from_raw_parts(self.id_to_data_pos.as_ptr() as *const u8, self.id_to_data_pos.len() * mem::size_of::<T>())
-        };
+        use std::slice;
+        let id_to_data_pos_bytes = unsafe { slice::from_raw_parts(self.id_to_data_pos.as_ptr() as *const u8, self.id_to_data_pos.len() * mem::size_of::<T>()) };
 
         // persistence_data_indirect::flush_to_file_indirect(&self.indirect_path, &self.data_path, &vec_to_bytes_u32(&self.id_to_data_pos), &self.data_cache)?;
         persistence_data_indirect::flush_to_file_indirect(&self.indirect_path, &self.data_path, id_to_data_pos_bytes, &self.data_cache)?;
@@ -169,14 +172,19 @@ impl<T: AnchorScoreDataSize> TokenToAnchorScoreVintFlushing<T> {
     }
 }
 
-impl TokenToAnchorScoreVintIM {
+impl<T: AnchorScoreDataSize> TokenToAnchorScoreVintIM<T> {
     #[inline]
     fn get_size(&self) -> usize {
         self.start_pos.len()
     }
 
     pub(crate) fn read<P: AsRef<Path> + std::fmt::Debug>(&mut self, path_indirect: P, path_data: P) -> Result<(), search::SearchError> {
-        self.start_pos = load_index_u32(&path_indirect)?;
+        //TODO THIS IS WEIRD
+        if mem::size_of::<T>() == mem::size_of::<u32>() {
+            self.start_pos = load_index_u32(&path_indirect)?.into_iter().map(|el| num::cast(el).unwrap()).collect(); //TODO REPLACE WITH SPECIALIZATION
+        } else {
+            self.start_pos = load_index_u64(&path_indirect)?.into_iter().map(|el| num::cast(el).unwrap()).collect(); //TODO REPLACE WITH SPECIALIZATION
+        };
         self.data = file_path_to_bytes(&path_data)?;
         Ok(())
     }
@@ -219,16 +227,16 @@ impl<'a> Iterator for AnchorScoreIter<'a> {
 
 impl<'a> FusedIterator for AnchorScoreIter<'a> {}
 
-impl TokenToAnchorScore for TokenToAnchorScoreVintIM {
+impl<T: AnchorScoreDataSize> TokenToAnchorScore for TokenToAnchorScoreVintIM<T> {
     fn get_score_iter(&self, id: u32) -> AnchorScoreIter {
         if id as usize >= self.get_size() {
             return AnchorScoreIter::new(&[]);
         }
         let pos = self.start_pos[id as usize];
-        if pos == EMPTY_BUCKET {
+        if pos.to_usize().unwrap() == EMPTY_BUCKET_USIZE {
             return AnchorScoreIter::new(&[]);
         }
-        AnchorScoreIter::new(&self.data[pos as usize..])
+        AnchorScoreIter::new(&self.data[num::cast(pos).unwrap()..])
     }
 }
 
@@ -257,9 +265,9 @@ impl<T: AnchorScoreDataSize> TokenToAnchorScore for TokenToAnchorScoreVintMmap<T
         if id as usize >= self.start_pos.len() / mem::size_of::<u32>() {
             return AnchorScoreIter::new(&[]);
         }
-        let pos = if mem::size_of::<T>() == mem::size_of::<u32>(){
+        let pos = if mem::size_of::<T>() == mem::size_of::<u32>() {
             get_u32_from_bytes(&self.start_pos, id as usize * 4) as usize
-        }else{
+        } else {
             get_u64_from_bytes(&self.start_pos, id as usize * 8) as usize
         };
         // let pos = get_u32_from_bytes(&self.start_pos, id as usize * 4);

@@ -189,9 +189,8 @@ impl<T: Ord + Copy + Default + std::fmt::Debug> IndexIdToMultipleParentIndirectB
     }
 }
 
-
 #[inline]
-fn decode_pos<T: Copy + Default, K: Copy + Default>(pos: usize, slice:&[u8]) -> (T, K) {
+fn decode_pos<T: Copy + Default, K: Copy + Default>(pos: usize, slice: &[u8]) -> (T, K) {
     let mut out: (T, K) = Default::default();
     let byte_pos = std::mem::size_of::<(T, K)>() * pos;
     unsafe {
@@ -203,7 +202,7 @@ fn decode_pos<T: Copy + Default, K: Copy + Default>(pos: usize, slice:&[u8]) -> 
 }
 
 #[inline]
-pub fn binary_search_slice<T: Ord + Copy + Default + std::fmt::Debug, K: Copy + Default>(mut size: usize, id: T, slice:&[u8]) -> Option<(T, K)> {
+pub fn binary_search_slice<T: Ord + Copy + Default + std::fmt::Debug, K: Copy + Default>(mut size: usize, id: T, slice: &[u8]) -> Option<(T, K)> {
     // let s = self;
     // let mut size = s.size;
     if size == 0 {
@@ -229,7 +228,6 @@ pub fn binary_search_slice<T: Ord + Copy + Default + std::fmt::Debug, K: Copy + 
         None
     }
 }
-
 
 impl<T: 'static + Ord + Copy + Default + std::fmt::Debug + Sync + Send> PhrasePairToAnchor for IndexIdToMultipleParentIndirectBinarySearchMMAP<T> {
     type Input = T;

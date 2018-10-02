@@ -22,14 +22,14 @@ use log;
 use fst::Map;
 // use rayon::prelude::*;
 
-use prettytable::format;
-use prettytable::Table;
+use create;
 use memmap::Mmap;
 use memmap::MmapOptions;
-use create;
 use persistence_data::*;
 use persistence_data_binary_search::*;
 use persistence_score::*;
+use prettytable::format;
+use prettytable::Table;
 use search::*;
 use search::{self, SearchError};
 use search_field;
@@ -130,6 +130,7 @@ pub struct KVStoreMetaData {
     pub is_empty: bool,
     pub loading_type: LoadingType,
     pub metadata: IndexMetaData,
+    pub id_type: IDDataType,
     // pub max_value_id: u32,  // max value on the "right" side key -> value, key -> value ..
     // pub avg_join_size: f32, // some join statistics
 }
@@ -144,7 +145,7 @@ pub struct PersistenceIndices {
     pub token_to_anchor_score: HashMap<String, Box<TokenToAnchorScore>>,
     pub phrase_pair_to_anchor: HashMap<String, Box<PhrasePairToAnchor<Input = (u32, u32)>>>,
     pub boost_valueid_to_value: HashMap<String, Box<IndexIdToParent<Output = u32>>>,
-    index_64: HashMap<String, Box<IndexIdToParent<Output = u64>>>,
+    // index_64: HashMap<String, Box<IndexIdToParent<Output = u64>>>,
     pub fst: HashMap<String, Map>,
 }
 
@@ -226,6 +227,12 @@ pub struct IDList {
 pub enum IDDataType {
     U32,
     U64,
+}
+
+impl Default for IDDataType {
+    fn default() -> IDDataType {
+        IDDataType::U32
+    }
 }
 
 pub trait IndexIdToParentData: Integer + Clone + num::NumCast + HeapSizeOf + Debug + Sync + Send + Copy + ToPrimitive + std::iter::Step + std::hash::Hash + 'static {}
@@ -374,34 +381,34 @@ pub fn get_readable_size_for_children<T: HeapSizeOf>(value: T) -> ColoredString 
 }
 
 impl Persistence {
-    #[cfg_attr(feature = "flame_it", flame)]
-    pub fn load_index_64(&mut self, path: &str) -> Result<(), search::SearchError> {
-        let loading_type = load_type_from_env()?.unwrap_or(LoadingType::Disk);
+    // #[cfg_attr(feature = "flame_it", flame)]
+    // pub fn load_index_64(&mut self, path: &str) -> Result<(), search::SearchError> {
+    //     let loading_type = load_type_from_env()?.unwrap_or(LoadingType::Disk);
 
-        match loading_type {
-            LoadingType::InMemoryUnCompressed | LoadingType::InMemory => {
-                let file_path = get_file_path(&self.db, path);
-                self.indices.index_64.insert(
-                    path.to_string(),
-                    Box::new(IndexIdToOneParent::<u64, u64> {
-                        data: load_index_u64(&file_path)?,
-                        metadata: IndexMetaData {
-                            max_value_id: u32::MAX,
-                            avg_join_size: 1.0,
-                            ..Default::default()
-                        },
-                        ok: std::marker::PhantomData,
-                    }),
-                );
-            }
-            LoadingType::Disk => {
-                let store = SingleArrayMMAP::<u64>::from_path(&get_file_path(&self.db, path), IndexMetaData::default())?; //TODO METADATA WRONG
-                self.indices.index_64.insert(path.to_string(), Box::new(store));
-            }
-        }
+    //     match loading_type {
+    //         LoadingType::InMemoryUnCompressed | LoadingType::InMemory => {
+    //             let file_path = get_file_path(&self.db, path);
+    //             self.indices.index_64.insert(
+    //                 path.to_string(),
+    //                 Box::new(IndexIdToOneParent::<u64, u64> {
+    //                     data: load_index_u64(&file_path)?,
+    //                     metadata: IndexMetaData {
+    //                         max_value_id: u32::MAX,
+    //                         avg_join_size: 1.0,
+    //                         ..Default::default()
+    //                     },
+    //                     ok: std::marker::PhantomData,
+    //                 }),
+    //             );
+    //         }
+    //         LoadingType::Disk => {
+    //             let store = SingleArrayMMAP::<u64>::from_path(&get_file_path(&self.db, path), IndexMetaData::default())?; //TODO METADATA WRONG
+    //             self.indices.index_64.insert(path.to_string(), Box::new(store));
+    //         }
+    //     }
 
-        Ok(())
-    }
+    //     Ok(())
+    // }
 
     fn load_types_index_to_one<T: IndexIdToParentData>(data_direct_path: &str, metadata: IndexMetaData) -> Result<Box<IndexIdToParent<Output = u32>>, search::SearchError> {
         let store = IndexIdToOneParent::<u32, T> {
@@ -420,7 +427,7 @@ impl Persistence {
         let doc_offsets_mmap = unsafe { MmapOptions::new().map(&doc_offsets_file).unwrap() };
         self.indices.doc_offsets = Some(doc_offsets_mmap);
 
-        self.load_all_id_lists()?;
+        // self.load_all_id_lists()?;
 
         // for el in &self.meta_data.key_value_stores {
         //     self.lru_cache.insert(el.path.clone(), LruCache::with_capacity(0));
@@ -456,12 +463,22 @@ impl Persistence {
                 }
                 IndexCategory::AnchorScore => {
                     let store: Box<TokenToAnchorScore> = match loading_type {
-                        LoadingType::Disk => Box::new(TokenToAnchorScoreVintMmap::<u32>::from_path(&indirect_path, &indirect_data_path)?),
-                        LoadingType::InMemoryUnCompressed | LoadingType::InMemory => {
-                            let mut store = TokenToAnchorScoreVintIM::default();
-                            store.read(&indirect_path, &indirect_data_path).unwrap();
-                            Box::new(store)
-                        }
+                        LoadingType::Disk => match el.id_type {
+                            IDDataType::U32 => Box::new(TokenToAnchorScoreVintMmap::<u32>::from_path(&indirect_path, &indirect_data_path)?),
+                            IDDataType::U64 => Box::new(TokenToAnchorScoreVintMmap::<u64>::from_path(&indirect_path, &indirect_data_path)?),
+                        },
+                        LoadingType::InMemoryUnCompressed | LoadingType::InMemory => match el.id_type {
+                            IDDataType::U32 => {
+                                let mut store = TokenToAnchorScoreVintIM::<u32>::default();
+                                store.read(&indirect_path, &indirect_data_path).unwrap();
+                                Box::new(store)
+                            }
+                            IDDataType::U64 => {
+                                let mut store = TokenToAnchorScoreVintIM::<u64>::default();
+                                store.read(&indirect_path, &indirect_data_path).unwrap();
+                                Box::new(store)
+                            }
+                        },
                     };
                     self.indices.token_to_anchor_score.insert(el.path.to_string(), store);
                 }
@@ -681,16 +698,16 @@ impl Persistence {
         Ok(())
     }
 
-    #[cfg_attr(feature = "flame_it", flame)]
-    pub fn load_all_id_lists(&mut self) -> Result<(), search::SearchError> {
-        for idlist in self.meta_data.id_lists.clone().values() {
-            match idlist.id_type {
-                IDDataType::U32 => {}
-                IDDataType::U64 => self.load_index_64(&idlist.path)?,
-            }
-        }
-        Ok(())
-    }
+    // #[cfg_attr(feature = "flame_it", flame)]
+    // pub fn load_all_id_lists(&mut self) -> Result<(), search::SearchError> {
+    //     for idlist in self.meta_data.id_lists.clone().values() {
+    //         match idlist.id_type {
+    //             IDDataType::U32 => {}
+    //             IDDataType::U64 => self.load_index_64(&idlist.path)?,
+    //         }
+    //     }
+    //     Ok(())
+    // }
 
     #[cfg_attr(feature = "flame_it", flame)]
     pub fn load_fst(&self, path: &str) -> Result<Map, search::SearchError> {
@@ -766,14 +783,14 @@ impl Persistence {
             .ok_or_else(|| path_not_found(path.as_ref()))
     }
 
-    #[cfg_attr(feature = "flame_it", flame)]
-    pub fn get_offsets(&self, path: &str) -> Result<&IndexIdToParent<Output = u64>, search::SearchError> {
-        self.indices
-            .index_64
-            .get(&(path.to_string() + ".offsets"))
-            .map(|el| el.as_ref())
-            .ok_or_else(|| path_not_found(path.as_ref()))
-    }
+    // #[cfg_attr(feature = "flame_it", flame)]
+    // pub fn get_offsets(&self, path: &str) -> Result<&IndexIdToParent<Output = u64>, search::SearchError> {
+    //     self.indices
+    //         .index_64
+    //         .get(&(path.to_string() + ".offsets"))
+    //         .map(|el| el.as_ref())
+    //         .ok_or_else(|| path_not_found(path.as_ref()))
+    // }
 
     // pub fn get_number_of_documents(&self) -> Result<usize, search::SearchError> {
     //     self.meta_data.num_docs
@@ -875,14 +892,12 @@ impl Persistence {
         File::create(util::get_file_path(&self.db, path))?.write_all(bytes)?;
         info!("Wrote Index {} With size {:?}", path, data.len());
         trace!("{:?}", data);
-        Ok(
-            IDList {
-                path: path.to_string(),
-                size: data.len() as u64,
-                id_type: IDDataType::U64,
-                // doc_id_type: check_is_docid_type(data),
-            },
-        )
+        Ok(IDList {
+            path: path.to_string(),
+            size: data.len() as u64,
+            id_type: IDDataType::U64,
+            // doc_id_type: check_is_docid_type(data),
+        })
     }
 
     #[cfg_attr(feature = "flame_it", flame)]
@@ -925,11 +940,11 @@ impl Persistence {
     }
 
     pub fn print_heap_sizes(&self) {
-        info!(
-            "indices.index_64 {}",
-            // get_readable_size_for_children(&self.indices.index_64)
-            get_readable_size(self.indices.index_64.heap_size_of_children())
-        );
+        // info!(
+        //     "indices.index_64 {}",
+        //     // get_readable_size_for_children(&self.indices.index_64)
+        //     get_readable_size(self.indices.index_64.heap_size_of_children())
+        // );
         info!(
             "indices.key_value_stores {}",
             get_readable_size(self.indices.key_value_stores.heap_size_of_children()) // get_readable_size_for_children(&self.indices.key_value_stores)
@@ -940,7 +955,7 @@ impl Persistence {
         info!("------");
         let total_size = self.get_fst_sizes()
             + self.indices.key_value_stores.heap_size_of_children()
-            + self.indices.index_64.heap_size_of_children()
+            // + self.indices.index_64.heap_size_of_children()
             + self.indices.boost_valueid_to_value.heap_size_of_children()
             + self.indices.token_to_anchor_score.heap_size_of_children();
 
@@ -953,9 +968,9 @@ impl Persistence {
         for (k, v) in &self.indices.token_to_anchor_score {
             print_and_size.push((v.heap_size_of_children(), v.type_name(), k));
         }
-        for (k, v) in &self.indices.index_64 {
-            print_and_size.push((v.heap_size_of_children(), v.type_name(), k));
-        }
+        // for (k, v) in &self.indices.index_64 {
+        //     print_and_size.push((v.heap_size_of_children(), v.type_name(), k));
+        // }
         for (k, v) in &self.indices.fst {
             print_and_size.push((v.as_fst().size(), "FST".to_string(), k));
         }

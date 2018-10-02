@@ -45,7 +45,6 @@ fn main() {
             _ => {}
         };
     }
-
 }
 
 static TAHLIA_INDICES: &str = r#"

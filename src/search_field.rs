@@ -596,7 +596,6 @@ pub fn resolve_token_to_anchor(
     let mut fast_field_res_ids = vec![];
     {
         if !result.hits_ids.is_empty() {
-
             //TODO FIXME Important Note: In the Filter Case we currently only resolve TEXT_IDS to anchor. No Filter are possible on tokens. Fixme: Conflicts with token based boosting
             let text_id_to_anchor = persistence.get_valueid_to_parent(&options.path.add(TEXT_ID_TO_ANCHOR))?;
 

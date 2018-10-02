@@ -1,36 +1,36 @@
-extern crate itertools;
 extern crate compact_int;
+extern crate itertools;
 extern crate memmap;
-extern crate tempfile;
-extern crate serde;
 extern crate rayon;
+extern crate serde;
+extern crate tempfile;
 // extern crate vint;
 #[macro_use]
 extern crate serde_derive;
 // extern crate byteorder;
 
+use itertools::Itertools;
+use memmap::Mmap;
+use memmap::MmapOptions;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use std::fmt::Display;
-use itertools::Itertools;
-use memmap::MmapOptions;
-use memmap::Mmap;
 // use vint::vint::*;
 
 // use compact_int::VintArrayIterator;
-use std::fmt;
-use std::cmp::PartialOrd;
 use std::cmp::Ord;
+use std::cmp::PartialOrd;
 use std::default::Default;
+use std::fmt;
 use std::fs::File;
 use std::io;
-use std::iter::FusedIterator;
-use std::mem;
 use std::io::prelude::*;
 use std::io::BufWriter;
+use std::iter::FusedIterator;
+use std::mem;
 // use std::ptr::copy_nonoverlapping;
-use std::marker::PhantomData;
 use rayon::prelude::*;
+use std::marker::PhantomData;
 
 pub trait SerializeInto {
     fn serialize_into(&self, sink: &mut Vec<u8>);
@@ -52,7 +52,7 @@ impl GetValue for u32 {
     }
 }
 
-impl GetValue for (u32,u32) {
+impl GetValue for (u32, u32) {
     #[inline]
     fn get_value(&self) -> u32 {
         self.0
@@ -60,19 +60,19 @@ impl GetValue for (u32,u32) {
 }
 
 #[derive(Debug, Default, PartialEq, Eq, Clone, Serialize, Deserialize)]
-pub struct KeyValue<K: PartialOrd + Ord + Default + Copy, T:GetValue + SerializeInto> {
+pub struct KeyValue<K: PartialOrd + Ord + Default + Copy, T: GetValue + SerializeInto> {
     pub key: K,
     pub value: T,
 }
 
 impl SerializeInto for u32 {
-    fn serialize_into(&self, _sink: &mut Vec<u8>){
+    fn serialize_into(&self, _sink: &mut Vec<u8>) {
         // encode_varint_into(sink, *self);
     }
 }
 
 impl SerializeInto for (u32, u32) {
-    fn serialize_into(&self, _sink: &mut Vec<u8>){
+    fn serialize_into(&self, _sink: &mut Vec<u8>) {
         // encode_varint_into(sink, self.0);
         // encode_varint_into(sink, self.1);
     }
@@ -89,7 +89,7 @@ struct Part {
 /// Order is not guaranteed to be kept the same for same ids -> insert (0, 1)..(0,2)   --> Output could be (0,2),(0,1) with BufferedIndexWriter::default()
 /// stable_sort with add_all fn keeps insertion order
 ///
-pub struct BufferedIndexWriter<K:PartialOrd + Ord + Default + Copy = u32, T:GetValue + SerializeInto = u32> {
+pub struct BufferedIndexWriter<K: PartialOrd + Ord + Default + Copy = u32, T: GetValue + SerializeInto = u32> {
     pub cache: Vec<KeyValue<K, T>>,
     pub temp_file: Option<File>,
     pub max_value_id: u32,
@@ -106,13 +106,21 @@ pub struct BufferedIndexWriter<K:PartialOrd + Ord + Default + Copy = u32, T:GetV
     temp_file_mmap: Option<Mmap>,
 }
 
-impl<K: PartialOrd + Ord + Default + Copy + Serialize + DeserializeOwned + Send + Sync, T:GetValue + Default + Clone + Copy + Serialize + DeserializeOwned + Send + Sync + SerializeInto> Default for BufferedIndexWriter<K, T> {
+impl<
+        K: PartialOrd + Ord + Default + Copy + Serialize + DeserializeOwned + Send + Sync,
+        T: GetValue + Default + Clone + Copy + Serialize + DeserializeOwned + Send + Sync + SerializeInto,
+    > Default for BufferedIndexWriter<K, T>
+{
     fn default() -> BufferedIndexWriter<K, T> {
         BufferedIndexWriter::new_unstable_sorted()
     }
 }
 
-impl<K: PartialOrd + Ord + Default + Copy + Serialize + DeserializeOwned + Send + Sync, T:GetValue + Default + Clone + Copy + Serialize + DeserializeOwned + Send + Sync + SerializeInto> BufferedIndexWriter<K,T> {
+impl<
+        K: PartialOrd + Ord + Default + Copy + Serialize + DeserializeOwned + Send + Sync,
+        T: GetValue + Default + Clone + Copy + Serialize + DeserializeOwned + Send + Sync + SerializeInto,
+    > BufferedIndexWriter<K, T>
+{
     pub fn new_with_opt(stable_sort: bool, ids_are_sorted: bool) -> Self {
         BufferedIndexWriter {
             cache: vec![],
@@ -132,9 +140,11 @@ impl<K: PartialOrd + Ord + Default + Copy + Serialize + DeserializeOwned + Send 
     pub fn new_for_sorted_id_insertion() -> Self {
         BufferedIndexWriter::new_with_opt(false, true)
     }
+
     pub fn new_stable_sorted() -> Self {
         BufferedIndexWriter::new_with_opt(true, false)
     }
+
     pub fn new_unstable_sorted() -> Self {
         BufferedIndexWriter::new_with_opt(false, false)
     }
@@ -149,10 +159,7 @@ impl<K: PartialOrd + Ord + Default + Copy + Serialize + DeserializeOwned + Send 
 
         for value in values {
             self.max_value_id = std::cmp::max(value.get_value(), self.max_value_id);
-            self.cache.push(KeyValue {
-                key: id,
-                value: *value,
-            });
+            self.cache.push(KeyValue { key: id, value: *value });
         }
 
         self.check_flush(id_has_changed)?;
@@ -161,7 +168,7 @@ impl<K: PartialOrd + Ord + Default + Copy + Serialize + DeserializeOwned + Send 
     }
 
     #[inline]
-    pub fn check_flush(&mut self, id_has_changed:bool) -> Result<(), io::Error> {
+    pub fn check_flush(&mut self, id_has_changed: bool) -> Result<(), io::Error> {
         if id_has_changed && self.cache.len() * mem::size_of::<KeyValue<K, T>>() >= self.flush_threshold {
             self.flush()?;
         }
@@ -177,16 +184,12 @@ impl<K: PartialOrd + Ord + Default + Copy + Serialize + DeserializeOwned + Send 
         let id_has_changed = self.last_id != Some(id);
         self.last_id = Some(id);
 
-        self.cache.push(KeyValue {
-            key: id,
-            value,
-        });
+        self.cache.push(KeyValue { key: id, value });
 
         self.check_flush(id_has_changed)?;
 
         Ok(())
     }
-
 
     pub fn flush(&mut self) -> Result<(), io::Error> {
         if self.cache.is_empty() {
@@ -196,12 +199,7 @@ impl<K: PartialOrd + Ord + Default + Copy + Serialize + DeserializeOwned + Send 
         self.sort_cache();
 
         let mut data_file = BufWriter::new(self.temp_file.get_or_insert_with(|| tempfile::tempfile().unwrap()));
-        let prev_part = self
-            .parts
-            .last()
-            .cloned()
-            .unwrap_or(Part { offset: 0, len: 0 });
-
+        let prev_part = self.parts.last().cloned().unwrap_or(Part { offset: 0, len: 0 });
 
         //Maximum speed, Maximum unsafe
         // use std::slice;
@@ -212,20 +210,27 @@ impl<K: PartialOrd + Ord + Default + Copy + Serialize + DeserializeOwned + Send 
         //     slice.len()
         // };
 
-        let sink =
-        self.cache
-        .par_iter()
-        .fold(|| vec![],
-                |mut sink: Vec<u8>, value:&KeyValue<K, T>| { compact_int::serialize_into(&mut sink, value).unwrap(); sink })
-        .reduce(|| vec![],
-                |mut sink_all: Vec<u8>, sink: Vec<u8>| { sink_all.extend_from_slice(&sink); sink_all });
-
+        let sink = self
+            .cache
+            .par_iter()
+            .fold(
+                || vec![],
+                |mut sink: Vec<u8>, value: &KeyValue<K, T>| {
+                    compact_int::serialize_into(&mut sink, value).unwrap();
+                    sink
+                },
+            ).reduce(
+                || vec![],
+                |mut sink_all: Vec<u8>, sink: Vec<u8>| {
+                    sink_all.extend_from_slice(&sink);
+                    sink_all
+                },
+            );
 
         // let mut sink = vec![];
         // for value in self.cache.iter() {
-        //     compact_int::serialize_into(&mut sink, value).unwrap(); // TODO
+        //     compact_int::serialize_into(&mut sink, value).unwrap();
         // }
-
 
         let serialized_len = sink.len();
         data_file.write_all(&sink)?;
@@ -241,32 +246,26 @@ impl<K: PartialOrd + Ord + Default + Copy + Serialize + DeserializeOwned + Send 
     }
 
     fn sort_cache(&mut self) {
-        if !self.ids_are_sorted{
+        if !self.ids_are_sorted {
             if self.stable_sort {
                 self.cache.sort_by_key(|el| el.key);
-            }else{
+            } else {
                 self.cache.sort_unstable_by_key(|el| el.key);
             }
         }
     }
 
-    pub fn multi_iter(&self) -> Result<(Vec<MMapIter<K,T>>), io::Error> {
+    pub fn multi_iter(&self) -> Result<(Vec<MMapIter<K, T>>), io::Error> {
         let mut vecco = vec![];
 
         // let file = File::open(&self.data_path)?;
         if let Some(file) = &self.temp_file {
             for part in &self.parts {
-                let mmap = unsafe {
-                    MmapOptions::new()
-                        .offset(part.offset as usize)
-                        .len(part.len as usize)
-                        .map(&file)?
-                };
+                let mmap = unsafe { MmapOptions::new().offset(part.offset as usize).len(part.len as usize).map(&file)? };
                 vecco.push(MMapIter::<K, T>::new(mmap));
             }
             Ok(vecco)
-
-        }else{
+        } else {
             Ok(vec![])
         }
     }
@@ -301,14 +300,14 @@ impl<K: PartialOrd + Ord + Default + Copy + Serialize + DeserializeOwned + Send 
 
     /// inmemory version for very small indices, where it's inefficient to write and then read from disk - data on disk will be ignored!
     #[inline]
-    pub fn into_iter_inmemory(mut self) -> impl Iterator<Item = KeyValue<K,T>> {
+    pub fn into_iter_inmemory(mut self) -> impl Iterator<Item = KeyValue<K, T>> {
         self.sort_cache();
         self.cache.into_iter()
     }
 
     /// flushed changes on disk and returns iterator over sorted elements
     #[inline]
-    pub fn flush_and_kmerge(&mut self) -> Result<(impl Iterator<Item = KeyValue<K,T>>), io::Error> {
+    pub fn flush_and_kmerge(&mut self) -> Result<(impl Iterator<Item = KeyValue<K, T>>), io::Error> {
         self.flush()?;
 
         Ok(self.kmerge())
@@ -316,11 +315,10 @@ impl<K: PartialOrd + Ord + Default + Copy + Serialize + DeserializeOwned + Send 
 
     /// returns iterator over sorted elements
     #[inline]
-    fn kmerge(&self) -> impl Iterator<Item = KeyValue<K,T>> {
+    fn kmerge(&self) -> impl Iterator<Item = KeyValue<K, T>> {
         let iters = self.multi_iter().unwrap();
         iters.into_iter().kmerge_by(|a, b| (*a).key < (*b).key)
     }
-
 
     // /// returns iterator over sorted elements
     // #[inline]
@@ -328,21 +326,16 @@ impl<K: PartialOrd + Ord + Default + Copy + Serialize + DeserializeOwned + Send 
     //     let iters = self.multi_iter_ref().unwrap();
     //     iters.into_iter().kmerge_by(|a, b| (*a).key < (*b).key)
     // }
-
 }
 
-
-
-impl<K: Display + PartialOrd + Ord + Default + Copy, T:GetValue + Default + SerializeInto> fmt::Display for BufferedIndexWriter<K, T> {
+impl<K: Display + PartialOrd + Ord + Default + Copy, T: GetValue + Default + SerializeInto> fmt::Display for BufferedIndexWriter<K, T> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        for el in &self.cache{
+        for el in &self.cache {
             writeln!(f, "{}\t{}", el.key, el.value.get_value())?;
         }
         Ok(())
     }
 }
-
-
 
 // #[inline]
 // // Maximum speed, Maximum unsafe
@@ -401,7 +394,7 @@ impl<K: Display + PartialOrd + Ord + Default + Copy, T:GetValue + Default + Seri
 
 use std::io::Cursor;
 #[derive(Debug)]
-pub struct MMapIter<K: PartialOrd + Ord + Default + Copy, T:GetValue> {
+pub struct MMapIter<K: PartialOrd + Ord + Default + Copy, T: GetValue> {
     // mmap: memmap::Mmap,
     mmap_cursor: Cursor<Mmap>,
     pos: u32,
@@ -410,39 +403,32 @@ pub struct MMapIter<K: PartialOrd + Ord + Default + Copy, T:GetValue> {
     menace: PhantomData<K>,
 }
 
-impl<K: PartialOrd + Ord + Default + Copy,T:GetValue> MMapIter<K,T> {
+impl<K: PartialOrd + Ord + Default + Copy, T: GetValue> MMapIter<K, T> {
     fn new(mmap: memmap::Mmap) -> Self {
         let mmap_cursor = Cursor::new(mmap);
-        MMapIter { mmap_cursor, finished:false, pos: 0, phantom:PhantomData, menace:PhantomData }
+        MMapIter {
+            mmap_cursor,
+            finished: false,
+            pos: 0,
+            phantom: PhantomData,
+            menace: PhantomData,
+        }
     }
 }
 
-impl<K: PartialOrd + Ord + Default + Copy + DeserializeOwned,T:GetValue + Default + DeserializeOwned + SerializeInto> Iterator for MMapIter<K,T> {
-    type Item = KeyValue<K,T>;
+impl<K: PartialOrd + Ord + Default + Copy + DeserializeOwned, T: GetValue + Default + DeserializeOwned + SerializeInto> Iterator for MMapIter<K, T> {
+    type Item = KeyValue<K, T>;
 
     #[inline]
-    fn next(&mut self) -> Option<KeyValue<K,T>> {
+    fn next(&mut self) -> Option<KeyValue<K, T>> {
         if self.finished {
             None
-        }else{
-            // let pair = ;
-            if let Ok(pair) = compact_int::deserialize_from::<_, KeyValue<K,T>>(&mut self.mmap_cursor) {
-                Some(pair)
-            }else{
-                self.finished = true;
-                None
-            }
+        } else if let Ok(pair) = compact_int::deserialize_from::<_, KeyValue<K, T>>(&mut self.mmap_cursor) {
+            Some(pair)
+        } else {
+            self.finished = true;
+            None
         }
-
-
-        // if self.mmap.len() <= self.pos as usize {
-        //     return None;
-        // }
-
-        // self.pos += iter.pos as u32;
-        // // let pair = read_pair_very_raw_p((&self.mmap[self.pos as usize..]).as_ptr());
-        // // self.pos += mem::size_of::<KeyValue<K,T>>() as u32;
-        // Some(pair)
     }
     // #[inline]
     // fn size_hint(&self) -> (usize, Option<usize>) {
@@ -459,7 +445,7 @@ impl<K: PartialOrd + Ord + Default + Copy + DeserializeOwned,T:GetValue + Defaul
 //     }
 // }
 
-impl<K: PartialOrd + Ord + Default + DeserializeOwned + Copy,T:GetValue + Default + DeserializeOwned + SerializeInto>  FusedIterator for MMapIter<K,T> {}
+impl<K: PartialOrd + Ord + Default + DeserializeOwned + Copy, T: GetValue + Default + DeserializeOwned + SerializeInto> FusedIterator for MMapIter<K, T> {}
 
 #[test]
 fn test_buffered_index_writer() {
@@ -469,11 +455,11 @@ fn test_buffered_index_writer() {
     ind.flush().unwrap();
 
     let mut iters = ind.multi_iter().unwrap();
-    assert_eq!(iters[0].next(), Some(KeyValue{key:2, value:2}));
+    assert_eq!(iters[0].next(), Some(KeyValue { key: 2, value: 2 }));
     assert_eq!(iters[0].next(), None);
 
     let mut iters = ind.multi_iter().unwrap();
-    assert_eq!(iters[0].next(), Some(KeyValue{key:2, value:2}));
+    assert_eq!(iters[0].next(), Some(KeyValue { key: 2, value: 2 }));
     assert_eq!(iters[0].next(), None);
 
     ind.add(1, 3).unwrap();
@@ -483,26 +469,24 @@ fn test_buffered_index_writer() {
     ind.flush().unwrap(); // double flush test
 
     let mut iters = ind.multi_iter().unwrap();
-    assert_eq!(iters[1].next(), Some(KeyValue{key:1, value:3}));
+    assert_eq!(iters[1].next(), Some(KeyValue { key: 1, value: 3 }));
     assert_eq!(iters[1].next(), None);
 
     let mut mergo = ind.flush_and_kmerge().unwrap();
-    assert_eq!(mergo.next(), Some(KeyValue{key:1, value:3}));
-    assert_eq!(mergo.next(), Some(KeyValue{key:2, value:2}));
-    assert_eq!(mergo.next(), Some(KeyValue{key:4, value:4}));
+    assert_eq!(mergo.next(), Some(KeyValue { key: 1, value: 3 }));
+    assert_eq!(mergo.next(), Some(KeyValue { key: 2, value: 2 }));
+    assert_eq!(mergo.next(), Some(KeyValue { key: 4, value: 4 }));
 
     let mut ind = BufferedIndexWriter::default();
     ind.add_all(2_u32, &vec![2, 2000]).unwrap();
     ind.flush().unwrap();
     let mut iters = ind.multi_iter().unwrap();
-    assert_eq!(iters[0].next(), Some(KeyValue{key:2, value:2}));
-    assert_eq!(iters[0].next(), Some(KeyValue{key:2, value:2000}));
+    assert_eq!(iters[0].next(), Some(KeyValue { key: 2, value: 2 }));
+    assert_eq!(iters[0].next(), Some(KeyValue { key: 2, value: 2000 }));
 
     let mut ind = BufferedIndexWriter::default();
     ind.add_all(2_u32, &vec![2, 2000]).unwrap();
     let mut iter = ind.into_iter_inmemory();
-    assert_eq!(iter.next(), Some(KeyValue{key:2, value:2}));
-    assert_eq!(iter.next(), Some(KeyValue{key:2, value:2000}));
-
-
+    assert_eq!(iter.next(), Some(KeyValue { key: 2, value: 2 }));
+    assert_eq!(iter.next(), Some(KeyValue { key: 2, value: 2000 }));
 }

@@ -1,6 +1,6 @@
-extern crate vint;
-extern crate serde;
 extern crate byteorder;
+extern crate serde;
+extern crate vint;
 
 // The serde_derive crate provides the macros for #[derive(Serialize)] and
 // #[derive(Deserialize)]. You won't need these for implementing a data format
@@ -10,21 +10,13 @@ extern crate byteorder;
 // extern crate serde_derive;
 
 // mod de;
+mod de;
 mod error;
 mod ser;
-mod de;
 use std::io::Read;
 use std::io::Write;
 
-// pub use de::{from_str, Deserializer};
 pub use self::error::{Error, Result};
-// pub use ser::{to_string, Serializer};
-
-// pub fn deserialize<'a, T: serde::Deserialize<'a>>(&self, bytes: &'a [u8]) -> Result<T> {
-//         config_map!(self, opts => ::internal::deserialize(bytes, opts))
-// }
-
-// pub use vint::vint::VintArrayIterator;
 
 pub fn deserialize_from<R, T>(reader: R) -> Result<T>
 where
@@ -67,18 +59,16 @@ where
 #[macro_use]
 extern crate serde_derive;
 
-
-
 #[cfg(test)]
 mod tests {
     #[derive(Debug, Serialize, Deserialize)]
     struct TestSer {
         val1: u32,
-        val2: u32
+        val2: u32,
     }
     #[test]
     fn test_struct_u32() {
-        let test = TestSer{val1: 5, val2: 5};
+        let test = TestSer { val1: 5, val2: 5 };
         let encoded: Vec<u8> = super::serialize(&test).unwrap();
 
         // 1 bytes each u32
@@ -112,29 +102,3 @@ mod tests {
         assert_eq!(test, decoded);
     }
 }
-
-
-
-// #[inline(always)]
-//     pub fn serialize<T: ?Sized + serde::Serialize>(&self, t: &T) -> Result<Vec<u8>> {
-//         config_map!(self, opts => ::internal::serialize(t, opts))
-// }
-
-// /// Serializes a serializable object into a `Vec` of bytes using the default configuration.
-// pub fn serialize<T: ?Sized>(value: &T) -> Result<Vec<u8>>
-// where
-//     T: serde::Serialize,
-// {
-//     config().serialize(value)
-// }
-
-
-// mod ser;
-
-// #[cfg(test)]
-// mod tests {
-//     #[test]
-//     fn it_works() {
-//         assert_eq!(2 + 2, 4);
-//     }
-// }

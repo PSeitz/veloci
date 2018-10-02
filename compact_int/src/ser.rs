@@ -3,14 +3,13 @@ use std::u32;
 
 use serde;
 
-use byteorder::WriteBytesExt;
 use byteorder::LittleEndian;
+use byteorder::WriteBytesExt;
 use vint::vint::encode_varint_into_writer;
 // use vint::vint::*;
 // use super::internal::SizeLimit;
 use super::error::{Error, Result};
 // use config::Options;
-
 
 // pub fn to_string<T>(value: &T) -> Result<String>
 // where
@@ -23,20 +22,20 @@ use super::error::{Error, Result};
 //     Ok(serializer.output)
 // }
 
-
-pub fn to_writer<W, T: ?Sized>(writer: W, value: &T) -> Result<()> where
+pub fn to_writer<W, T: ?Sized>(writer: W, value: &T) -> Result<()>
+where
     W: Write,
-    T: Serialize, 
+    T: Serialize,
 {
     let mut serializer = Serializer::new(writer);
     value.serialize(&mut serializer)?;
     Ok(())
 }
 
-use std::fs::File;
-use std::io::BufWriter;
 #[test]
 fn testo() {
+    use std::fs::File;
+    use std::io::BufWriter;
     let yop = BufWriter::new(File::create("yop").unwrap());
     to_writer(yop, &50_u32).unwrap();
     // yop
@@ -64,14 +63,13 @@ impl<W: Write> Serializer<W> {
     }
 }
 
-use serde::ser::Serialize;
 use serde::ser;
-
-
+use serde::ser::Serialize;
 
 impl<'a, W: Write> serde::Serializer for &'a mut Serializer<W> {
-    type Ok = ();
     type Error = Error;
+    type Ok = ();
+    type SerializeMap = Self;
     // type SerializeSeq = Compound<'a, W>;
     // type SerializeTuple = Compound<'a, W>;
     // type SerializeTupleStruct = Compound<'a, W>;
@@ -80,12 +78,11 @@ impl<'a, W: Write> serde::Serializer for &'a mut Serializer<W> {
     // type SerializeStruct = Compound<'a, W>;
     // type SerializeStructVariant = Compound<'a, W>;
     type SerializeSeq = Self;
+    type SerializeStruct = Self;
+    type SerializeStructVariant = Self;
     type SerializeTuple = Self;
     type SerializeTupleStruct = Self;
     type SerializeTupleVariant = Self;
-    type SerializeMap = Self;
-    type SerializeStruct = Self;
-    type SerializeStructVariant = Self;
 
     fn serialize_bool(self, _v: bool) -> Result<()> {
         unimplemented!()
@@ -126,7 +123,6 @@ impl<'a, W: Write> serde::Serializer for &'a mut Serializer<W> {
         self.writer.write_i64::<LittleEndian>(v).map_err(Into::into)
     }
 
-
     fn serialize_f32(self, v: f32) -> Result<()> {
         self.writer.write_f32::<LittleEndian>(v).map_err(Into::into)
     }
@@ -134,7 +130,6 @@ impl<'a, W: Write> serde::Serializer for &'a mut Serializer<W> {
     fn serialize_f64(self, v: f64) -> Result<()> {
         self.writer.write_f64::<LittleEndian>(v).map_err(Into::into)
     }
-
 
     fn serialize_str(self, _v: &str) -> Result<()> {
         unimplemented!()
@@ -169,21 +164,11 @@ impl<'a, W: Write> serde::Serializer for &'a mut Serializer<W> {
         Ok(self)
     }
 
-    fn serialize_tuple_struct(
-        self,
-        _name: &'static str,
-        _len: usize,
-    ) -> Result<Self::SerializeTupleStruct> {
+    fn serialize_tuple_struct(self, _name: &'static str, _len: usize) -> Result<Self::SerializeTupleStruct> {
         unimplemented!()
     }
 
-    fn serialize_tuple_variant(
-        self,
-        _name: &'static str,
-        _variant_index: u32,
-        _variant: &'static str,
-        _len: usize,
-    ) -> Result<Self::SerializeTupleVariant> {
+    fn serialize_tuple_variant(self, _name: &'static str, _variant_index: u32, _variant: &'static str, _len: usize) -> Result<Self::SerializeTupleVariant> {
         unimplemented!()
     }
 
@@ -197,13 +182,7 @@ impl<'a, W: Write> serde::Serializer for &'a mut Serializer<W> {
         // unimplemented!()
     }
 
-    fn serialize_struct_variant(
-        self,
-        _name: &'static str,
-        _variant_index: u32,
-        _variant: &'static str,
-        _len: usize,
-    ) -> Result<Self::SerializeStructVariant> {
+    fn serialize_struct_variant(self, _name: &'static str, _variant_index: u32, _variant: &'static str, _len: usize) -> Result<Self::SerializeStructVariant> {
         unimplemented!()
     }
 
@@ -214,28 +193,16 @@ impl<'a, W: Write> serde::Serializer for &'a mut Serializer<W> {
         unimplemented!()
     }
 
-    fn serialize_newtype_variant<T: ?Sized>(
-        self,
-        _name: &'static str,
-        _variant_index: u32,
-        _variant: &'static str,
-        _value: &T,
-    ) -> Result<()>
+    fn serialize_newtype_variant<T: ?Sized>(self, _name: &'static str, _variant_index: u32, _variant: &'static str, _value: &T) -> Result<()>
     where
         T: serde::ser::Serialize,
     {
         unimplemented!()
     }
 
-    fn serialize_unit_variant(
-        self,
-        _name: &'static str,
-        _variant_index: u32,
-        _variant: &'static str,
-    ) -> Result<()> {
+    fn serialize_unit_variant(self, _name: &'static str, _variant_index: u32, _variant: &'static str) -> Result<()> {
         unimplemented!()
     }
-
 
     fn serialize_unit(self) -> Result<()> {
         // self.output += "null";
@@ -254,16 +221,11 @@ impl<'a, W: Write> serde::Serializer for &'a mut Serializer<W> {
     }
 }
 
-
-
-
-
-
 impl<'a, W: Write> serde::ser::SerializeSeq for &'a mut Serializer<W> {
-    // Must match the `Ok` type of the serializer.
-    type Ok = ();
     // Must match the `Error` type of the serializer.
     type Error = Error;
+    // Must match the `Ok` type of the serializer.
+    type Ok = ();
 
     // Serialize a single element of the sequence.
     fn serialize_element<T>(&mut self, value: &T) -> Result<()>
@@ -281,8 +243,8 @@ impl<'a, W: Write> serde::ser::SerializeSeq for &'a mut Serializer<W> {
 
 // Same thing but for tuples.
 impl<'a, W: Write> ser::SerializeTuple for &'a mut Serializer<W> {
-    type Ok = ();
     type Error = Error;
+    type Ok = ();
 
     fn serialize_element<T>(&mut self, value: &T) -> Result<()>
     where
@@ -298,8 +260,8 @@ impl<'a, W: Write> ser::SerializeTuple for &'a mut Serializer<W> {
 
 // Same thing but for tuple structs.
 impl<'a, W: Write> ser::SerializeTupleStruct for &'a mut Serializer<W> {
-    type Ok = ();
     type Error = Error;
+    type Ok = ();
 
     fn serialize_field<T>(&mut self, value: &T) -> Result<()>
     where
@@ -323,8 +285,8 @@ impl<'a, W: Write> ser::SerializeTupleStruct for &'a mut Serializer<W> {
 // So the `end` method in this impl is responsible for closing both the `]` and
 // the `}`.
 impl<'a, W: Write> ser::SerializeTupleVariant for &'a mut Serializer<W> {
-    type Ok = ();
     type Error = Error;
+    type Ok = ();
 
     fn serialize_field<T>(&mut self, value: &T) -> Result<()>
     where
@@ -347,8 +309,8 @@ impl<'a, W: Write> ser::SerializeTupleVariant for &'a mut Serializer<W> {
 // key and value are both available simultaneously. In JSON it doesn't make a
 // difference so the default behavior for `serialize_entry` is fine.
 impl<'a, W: Write> ser::SerializeMap for &'a mut Serializer<W> {
-    type Ok = ();
     type Error = Error;
+    type Ok = ();
 
     // The Serde data model allows map keys to be any serializable type. JSON
     // only allows string keys so the implementation below will produce invalid
@@ -383,8 +345,8 @@ impl<'a, W: Write> ser::SerializeMap for &'a mut Serializer<W> {
 // Structs are like maps in which the keys are constrained to be compile-time
 // constant strings.
 impl<'a, W: Write> ser::SerializeStruct for &'a mut Serializer<W> {
-    type Ok = ();
     type Error = Error;
+    type Ok = ();
 
     fn serialize_field<T>(&mut self, _key: &'static str, value: &T) -> Result<()>
     where
@@ -401,8 +363,8 @@ impl<'a, W: Write> ser::SerializeStruct for &'a mut Serializer<W> {
 // Similar to `SerializeTupleVariant`, here the `end` method is responsible for
 // closing both of the curly braces opened by `serialize_struct_variant`.
 impl<'a, W: Write> ser::SerializeStructVariant for &'a mut Serializer<W> {
-    type Ok = ();
     type Error = Error;
+    type Ok = ();
 
     fn serialize_field<T>(&mut self, _key: &'static str, value: &T) -> Result<()>
     where
@@ -415,4 +377,3 @@ impl<'a, W: Write> ser::SerializeStructVariant for &'a mut Serializer<W> {
         Ok(())
     }
 }
-

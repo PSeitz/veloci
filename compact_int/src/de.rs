@@ -4,11 +4,11 @@ use std::io::Read;
 // use self::read::CompactRead;
 use byteorder::ReadBytesExt;
 // use internal::SizeLimit;
+use super::error::{Error, Result};
+use byteorder::LittleEndian;
 use serde;
 use serde::de::Error as DeError;
 use serde::de::IntoDeserializer;
-use super::error::{Error, Result};
-use byteorder::LittleEndian;
 use std::io;
 use vint::vint::*;
 
@@ -32,9 +32,7 @@ pub(crate) struct Deserializer<R> {
 impl<'de, R: CompactRead<'de>> Deserializer<R> {
     /// Creates a new Deserializer with a given `Read`er and a size_limit.
     pub(crate) fn new(r: R) -> Deserializer<R> {
-        Deserializer {
-            reader: r,
-        }
+        Deserializer { reader: r }
     }
 
     fn read_bytes(&mut self, _count: u64) -> Result<()> {
@@ -45,18 +43,6 @@ impl<'de, R: CompactRead<'de>> Deserializer<R> {
     fn read_type<T>(&mut self) -> Result<()> {
         use std::mem::size_of;
         self.read_bytes(size_of::<T>() as u64)
-    }
-
-    fn read_vec(&mut self) -> Result<Vec<u8>> {
-        let len: usize = serde::Deserialize::deserialize(&mut *self)?;
-        self.read_bytes(len as u64)?;
-        self.reader.get_byte_buffer(len)
-    }
-
-    fn read_string(&mut self) -> Result<String> {
-        unimplemented!()
-        // let vec = self.read_vec()?;
-        // String::from_utf8(vec).map_err(|e| ErrorKind::InvalidUtf8Encoding(e.utf8_error()).into())
     }
 }
 
@@ -75,9 +61,23 @@ macro_rules! impl_nums {
 
 impl<'de, 'a, R> serde::Deserializer<'de> for &'a mut Deserializer<R>
 where
-    R: CompactRead<'de>
+    R: CompactRead<'de>,
 {
     type Error = Error;
+
+    impl_nums!(u16, deserialize_u16, visit_u16, read_u16);
+
+    // impl_nums!(u32, deserialize_u32, visit_u32, read_u32);
+    // impl_nums!(u64, deserialize_u64, visit_u64, read_u64);
+    impl_nums!(i16, deserialize_i16, visit_i16, read_i16);
+
+    impl_nums!(i32, deserialize_i32, visit_i32, read_i32);
+
+    impl_nums!(i64, deserialize_i64, visit_i64, read_i64);
+
+    impl_nums!(f32, deserialize_f32, visit_f32, read_f32);
+
+    impl_nums!(f64, deserialize_f64, visit_f64, read_f64);
 
     #[inline]
     fn deserialize_any<V>(self, _visitor: V) -> Result<V::Value>
@@ -94,16 +94,6 @@ where
         unimplemented!()
     }
 
-    impl_nums!(u16, deserialize_u16, visit_u16, read_u16);
-    // impl_nums!(u32, deserialize_u32, visit_u32, read_u32);
-    // impl_nums!(u64, deserialize_u64, visit_u64, read_u64);
-    impl_nums!(i16, deserialize_i16, visit_i16, read_i16);
-    impl_nums!(i32, deserialize_i32, visit_i32, read_i32);
-    impl_nums!(i64, deserialize_i64, visit_i64, read_i64);
-    impl_nums!(f32, deserialize_f32, visit_f32, read_f32);
-    impl_nums!(f64, deserialize_f64, visit_f64, read_f64);
-
-
     //TODO FIXME
     #[inline]
     fn deserialize_u64<V>(self, visitor: V) -> Result<V::Value>
@@ -111,20 +101,21 @@ where
         V: serde::de::Visitor<'de>,
     {
         // self.read_type::<u64>()?;
-        visitor.visit_u64(decode_from_reader(&mut self.reader).ok_or_else(||Error::Eof)? as u64)
+        visitor.visit_u64(decode_from_reader(&mut self.reader).ok_or_else(|| Error::Eof)? as u64)
     }
+
     #[inline]
     fn deserialize_u32<V>(self, visitor: V) -> Result<V::Value>
     where
         V: serde::de::Visitor<'de>,
     {
         // self.read_type::<u32>()?;
-        visitor.visit_u32(decode_from_reader(&mut self.reader).ok_or_else(||Error::Eof)?)
+        visitor.visit_u32(decode_from_reader(&mut self.reader).ok_or_else(|| Error::Eof)?)
         // visitor.visit_u32(decode_from_reader_and_count(&mut self.reader).ok_or_else(||Error::Eof)?)
     }
 
     #[inline]
-    fn deserialize_u8<V>(self, visitor: V) -> Result<V::Value>
+    fn deserialize_u8<V>(self, _visitor: V) -> Result<V::Value>
     where
         V: serde::de::Visitor<'de>,
     {
@@ -134,7 +125,7 @@ where
     }
 
     #[inline]
-    fn deserialize_i8<V>(self, visitor: V) -> Result<V::Value>
+    fn deserialize_i8<V>(self, _visitor: V) -> Result<V::Value>
     where
         V: serde::de::Visitor<'de>,
     {
@@ -160,49 +151,36 @@ where
         V: serde::de::Visitor<'de>,
     {
         unimplemented!()
-        // let len: usize = try!(serde::Deserialize::deserialize(&mut *self));
-        // try!(self.read_bytes(len as u64));
-        // self.reader.forward_read_str(len, visitor)
     }
 
-    fn deserialize_string<V>(self, visitor: V) -> Result<V::Value>
+    fn deserialize_string<V>(self, _visitor: V) -> Result<V::Value>
     where
         V: serde::de::Visitor<'de>,
     {
         unimplemented!()
-        // visitor.visit_string(try!(self.read_string()))
     }
 
-    fn deserialize_bytes<V>(self, visitor: V) -> Result<V::Value>
+    fn deserialize_bytes<V>(self, _visitor: V) -> Result<V::Value>
     where
         V: serde::de::Visitor<'de>,
     {
         unimplemented!()
-        // let len: usize = try!(serde::Deserialize::deserialize(&mut *self));
-        // try!(self.read_bytes(len as u64));
-        // self.reader.forward_read_bytes(len, visitor)
     }
 
-    fn deserialize_byte_buf<V>(self, visitor: V) -> Result<V::Value>
+    fn deserialize_byte_buf<V>(self, _visitor: V) -> Result<V::Value>
     where
         V: serde::de::Visitor<'de>,
     {
         unimplemented!()
-        // visitor.visit_byte_buf(try!(self.read_vec()))
     }
 
-    fn deserialize_enum<V>(
-        self,
-        _enum: &'static str,
-        _variants: &'static [&'static str],
-        visitor: V,
-    ) -> Result<V::Value>
+    fn deserialize_enum<V>(self, _enum: &'static str, _variants: &'static [&'static str], visitor: V) -> Result<V::Value>
     where
         V: serde::de::Visitor<'de>,
     {
         impl<'de, 'a, R: 'a> serde::de::EnumAccess<'de> for &'a mut Deserializer<R>
         where
-            R: CompactRead<'de>
+            R: CompactRead<'de>,
         {
             type Error = Error;
             type Variant = Self;
@@ -229,9 +207,7 @@ where
             len: usize,
         }
 
-        impl<'de, 'a, 'b: 'a, R: CompactRead<'de> + 'b> serde::de::SeqAccess<'de>
-            for Access<'a, R>
-        {
+        impl<'de, 'a, 'b: 'a, R: CompactRead<'de> + 'b> serde::de::SeqAccess<'de> for Access<'a, R> {
             type Error = Error;
 
             fn next_element_seed<T>(&mut self, seed: T) -> Result<Option<T::Value>>
@@ -240,10 +216,7 @@ where
             {
                 if self.len > 0 {
                     self.len -= 1;
-                    let value = serde::de::DeserializeSeed::deserialize(
-                        seed,
-                        &mut *self.deserializer,
-                    )?;
+                    let value = serde::de::DeserializeSeed::deserialize(seed, &mut *self.deserializer)?;
                     Ok(Some(value))
                 } else {
                     Ok(None)
@@ -255,10 +228,7 @@ where
             }
         }
 
-        visitor.visit_seq(Access {
-            deserializer: self,
-            len: len,
-        })
+        visitor.visit_seq(Access { deserializer: self, len })
     }
 
     fn deserialize_option<V>(self, _visitor: V) -> Result<V::Value>
@@ -294,9 +264,7 @@ where
             len: usize,
         }
 
-        impl<'de, 'a, 'b: 'a, R: CompactRead<'de> + 'b> serde::de::MapAccess<'de>
-            for Access<'a, R>
-        {
+        impl<'de, 'a, 'b: 'a, R: CompactRead<'de> + 'b> serde::de::MapAccess<'de> for Access<'a, R> {
             type Error = Error;
 
             fn next_key_seed<K>(&mut self, seed: K) -> Result<Option<K::Value>>
@@ -305,10 +273,7 @@ where
             {
                 if self.len > 0 {
                     self.len -= 1;
-                    let key = serde::de::DeserializeSeed::deserialize(
-                        seed,
-                        &mut *self.deserializer,
-                    )?;
+                    let key = serde::de::DeserializeSeed::deserialize(seed, &mut *self.deserializer)?;
                     Ok(Some(key))
                 } else {
                     Ok(None)
@@ -319,10 +284,7 @@ where
             where
                 V: serde::de::DeserializeSeed<'de>,
             {
-                let value = serde::de::DeserializeSeed::deserialize(
-                    seed,
-                    &mut *self.deserializer,
-                )?;
+                let value = serde::de::DeserializeSeed::deserialize(seed, &mut *self.deserializer)?;
                 Ok(value)
             }
 
@@ -333,18 +295,10 @@ where
 
         let len = serde::Deserialize::deserialize(&mut *self)?;
 
-        visitor.visit_map(Access {
-            deserializer: self,
-            len: len,
-        })
+        visitor.visit_map(Access { deserializer: self, len })
     }
 
-    fn deserialize_struct<V>(
-        self,
-        _name: &str,
-        fields: &'static [&'static str],
-        visitor: V,
-    ) -> Result<V::Value>
+    fn deserialize_struct<V>(self, _name: &str, fields: &'static [&'static str], visitor: V) -> Result<V::Value>
     where
         V: serde::de::Visitor<'de>,
     {
@@ -373,12 +327,7 @@ where
         visitor.visit_unit()
     }
 
-    fn deserialize_tuple_struct<V>(
-        self,
-        _name: &'static str,
-        len: usize,
-        visitor: V,
-    ) -> Result<V::Value>
+    fn deserialize_tuple_struct<V>(self, _name: &'static str, len: usize, visitor: V) -> Result<V::Value>
     where
         V: serde::de::Visitor<'de>,
     {
@@ -400,7 +349,7 @@ where
 
 impl<'de, 'a, R> serde::de::VariantAccess<'de> for &'a mut Deserializer<R>
 where
-    R: CompactRead<'de>
+    R: CompactRead<'de>,
 {
     type Error = Error;
 
@@ -429,40 +378,6 @@ where
         serde::de::Deserializer::deserialize_tuple(self, fields.len(), visitor)
     }
 }
-static UTF8_CHAR_WIDTH: [u8; 256] = [
-    1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-    1, // 0x1F
-    1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-    1, // 0x3F
-    1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-    1, // 0x5F
-    1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-    1, // 0x7F
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0, // 0x9F
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0, // 0xBF
-    0, 0, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2,
-    2, // 0xDF
-    3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, // 0xEF
-    4, 4, 4, 4, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // 0xFF
-];
-
-// This function is a copy of core::str::utf8_char_width
-fn utf8_char_width(b: u8) -> usize {
-    UTF8_CHAR_WIDTH[b as usize] as usize
-}
-
-
-
-
-
-
-
-
-
-
-
 
 /// An optional Read trait for advanced CompactCode usage.
 ///
@@ -508,10 +423,7 @@ impl<'storage> SliceReader<'storage> {
 impl<R> IoReader<R> {
     /// Constructs an IoReadReader
     pub fn new(r: R) -> IoReader<R> {
-        IoReader {
-            reader: r,
-            temp_buffer: vec![],
-        }
+        IoReader { reader: r, temp_buffer: vec![] }
     }
 }
 
@@ -520,6 +432,7 @@ impl<'storage> io::Read for SliceReader<'storage> {
     fn read(&mut self, out: &mut [u8]) -> io::Result<usize> {
         (&mut self.slice).read(out)
     }
+
     #[inline(always)]
     fn read_exact(&mut self, out: &mut [u8]) -> io::Result<()> {
         (&mut self.slice).read_exact(out)
@@ -531,6 +444,7 @@ impl<R: io::Read> io::Read for IoReader<R> {
     fn read(&mut self, out: &mut [u8]) -> io::Result<usize> {
         self.reader.read(out)
     }
+
     #[inline(always)]
     fn read_exact(&mut self, out: &mut [u8]) -> io::Result<()> {
         self.reader.read_exact(out)
@@ -540,33 +454,11 @@ impl<R: io::Read> io::Read for IoReader<R> {
 impl<'storage> SliceReader<'storage> {
     #[inline(always)]
     fn unexpected_eof() -> Error {
-        return Error::Io(io::Error::new(
-            io::ErrorKind::UnexpectedEof,
-            "",
-        ));
+        Error::Io(io::Error::new(io::ErrorKind::UnexpectedEof, ""))
     }
 }
 
 impl<'storage> CompactRead<'storage> for SliceReader<'storage> {
-    // #[inline(always)]
-    // fn forward_read_str<V>(&mut self, length: usize, visitor: V) -> Result<V::Value>
-    // where
-    //     V: serde::de::Visitor<'storage>,
-    // {
-    //     use ErrorKind;
-    //     if length > self.slice.len() {
-    //         return Err(SliceReader::unexpected_eof());
-    //     }
-
-    //     let string = match ::std::str::from_utf8(&self.slice[..length]) {
-    //         Ok(s) => s,
-    //         Err(e) => return Err(ErrorKind::InvalidUtf8Encoding(e).into()),
-    //     };
-    //     let r = visitor.visit_borrowed_str(string);
-    //     self.slice = &self.slice[length..];
-    //     r
-    // }
-
     #[inline(always)]
     fn get_byte_buffer(&mut self, length: usize) -> Result<Vec<u8>> {
         if length > self.slice.len() {
@@ -645,6 +537,3 @@ where
         r
     }
 }
-
-
-

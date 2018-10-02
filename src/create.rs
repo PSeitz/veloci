@@ -29,6 +29,10 @@ use tokenizer::*;
 use util;
 use util::*;
 
+use doc_store::DocWriter;
+use memmap::MmapOptions;
+use std::mem;
+
 use buffered_index_writer::BufferedIndexWriter;
 use fixedbitset::FixedBitSet;
 
@@ -40,11 +44,11 @@ type TermMap = term_hashmap::HashMap<TermInfo>;
 // type FieldsConfig = FnvHashMap<String, FieldConfig>;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct CreateIndexConfig{
+pub struct CreateIndexConfig {
     fields_config: FnvHashMap<String, FieldConfig>,
     #[serde(default)]
     /// This can be used e.g. for documents, when only why found or snippets are used
-    do_not_store_document: bool
+    do_not_store_document: bool,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -57,22 +61,21 @@ impl FieldsConfig {
     //         self.0.get(path)
     //     }
     // }
-    fn get(&self, path:&str) -> &FieldConfig {
-        let el = if path.ends_with(".textindex"){
-            self.0.get(&path[..path.len()-10])
-        }else{
+    fn get(&self, path: &str) -> &FieldConfig {
+        let el = if path.ends_with(".textindex") {
+            self.0.get(&path[..path.len() - 10])
+        } else {
             self.0.get(path)
         };
         if let Some(el) = el {
             el
-        }else{
+        } else {
             self.0.get("*GLOBAL*").unwrap()
         }
         // el.or_else(||self.0.get("*GLOBAL*").unwrap())
     }
 
-
-    fn features_to_indices(&mut self) -> Result<(), CreateError>{
+    fn features_to_indices(&mut self) -> Result<(), CreateError> {
         if self.0.get("*GLOBAL*").is_none() {
             let default_fulltext_options = FulltextIndexOptions::new_with_tokenize();
             let default_field_config = FieldConfig {
@@ -81,24 +84,29 @@ impl FieldsConfig {
                 disabled_features: None,
                 fulltext: Some(default_fulltext_options.clone()),
                 disabled_indices: None,
-                boost: None
+                boost: None,
             };
             self.0.insert("*GLOBAL*".to_string(), default_field_config);
         }
         for (key, val) in self.0.iter_mut() {
-
-            if val.features.is_some() && val.disabled_features.is_some(){
-                return Err(CreateError::InvalidConfig(format!("features and disabled_features are not allowed at the same time in field{:?}", key )));
+            if val.features.is_some() && val.disabled_features.is_some() {
+                return Err(CreateError::InvalidConfig(format!(
+                    "features and disabled_features are not allowed at the same time in field{:?}",
+                    key
+                )));
             }
 
-            if let Some(features) = val.features.clone().or_else(||val.disabled_features.as_ref().map(|disabled_features|Features::invert(disabled_features))) {
+            if let Some(features) = val
+                .features
+                .clone()
+                .or_else(|| val.disabled_features.as_ref().map(|disabled_features| Features::invert(disabled_features)))
+            {
                 let disabled = Features::features_to_disabled_indices(&features);
-                let mut existing = val.disabled_indices.as_ref().map(|el|el.clone()).unwrap_or_else(||FnvHashSet::default());
+                let mut existing = val.disabled_indices.as_ref().map(|el| el.clone()).unwrap_or_else(|| FnvHashSet::default());
                 existing.extend(disabled);
                 val.disabled_indices = Some(existing);
             }
         }
-
 
         Ok(())
     }
@@ -112,12 +120,12 @@ pub struct FieldConfig {
     pub disabled_indices: Option<FnvHashSet<IndexCreationType>>,
     pub features: Option<FnvHashSet<Features>>,
     pub disabled_features: Option<FnvHashSet<Features>>,
-    pub boost: Option<BoostIndexOptions>
+    pub boost: Option<BoostIndexOptions>,
 }
 impl FieldConfig {
     fn is_index_enabled(&self, index: IndexCreationType) -> bool {
         // false
-        self.disabled_indices.as_ref().map(|el|!el.contains(&index)).unwrap_or(true)
+        self.disabled_indices.as_ref().map(|el| !el.contains(&index)).unwrap_or(true)
     }
 }
 
@@ -148,7 +156,6 @@ fn test_field_config_from_json() {
     assert_eq!(data.get("ISMTITLE").is_index_enabled(IndexCreationType::TokensToTextID), false);
     assert_eq!(data.get("ISMORIDCODE").fulltext.as_ref().unwrap().tokenize, false);
 }
-
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(untagged)]
@@ -358,9 +365,7 @@ fn store_fst(persistence: &Persistence, sorted_terms: &[(&str, &mut TermInfo)], 
     Ok(())
 }
 
-
 // type TermMap = FnvHashMap<String, TermInfo>;
-
 
 #[inline]
 // *mut FnvHashMap here or the borrow checker will complain, because the return apparently expands the scope of the mutable ownership to the complete function(?)
@@ -427,7 +432,7 @@ struct TermDataInPath {
     // terms_cache: Vec<String>,
     // long_terms: TermMap,
     do_not_store_text_longer_than: usize,
-    id_counter_for_large_texts: u32
+    id_counter_for_large_texts: u32,
 }
 
 #[derive(Debug, Default)]
@@ -488,7 +493,6 @@ fn get_allterms_per_path<I: Iterator<Item = Result<serde_json::Value, serde_json
 
     let tokenizer = SimpleTokenizerCharsIterateGroupTokens {};
     let default_fulltext_options = FulltextIndexOptions::new_with_tokenize();
-
 
     let mut id_holder = json_converter::IDHolder::new();
     {
@@ -608,23 +612,30 @@ pub enum Features {
     Select,
     WhyFound,
     Highlight,
-    PhraseBoost
+    PhraseBoost,
 }
 
 impl Features {
+    fn invert(features: &FnvHashSet<Features>) -> FnvHashSet<Features> {
+        let all_features: &[Features] = &[
+            Features::BoostTextLocality,
+            Features::BoostingFieldData,
+            Features::Search,
+            Features::Filters,
+            Features::Facets,
+            Features::Select,
+            Features::WhyFound,
+            Features::Highlight,
+            Features::PhraseBoost,
+        ];
 
-    fn invert(features: &FnvHashSet<Features>) -> FnvHashSet<Features>{
-        let all_features:&[Features] = &[Features::BoostTextLocality, Features::BoostingFieldData, Features::Search, Features::Filters, Features::Facets, Features::Select, Features::WhyFound, Features::Highlight, Features::PhraseBoost];
-
-        all_features.into_iter().filter(|feature|{
-            features.contains(&feature)
-        }).cloned().collect()
-
+        all_features.into_iter().filter(|feature| features.contains(&feature)).cloned().collect()
     }
-    fn features_to_disabled_indices(features: &FnvHashSet<Features>) -> FnvHashSet<IndexCreationType>{
+
+    fn features_to_disabled_indices(features: &FnvHashSet<Features>) -> FnvHashSet<IndexCreationType> {
         let mut hashset = FnvHashSet::default();
 
-        let add_if_features_not_used = |f:&[Features], index_type:IndexCreationType, hashset: &mut FnvHashSet<IndexCreationType> |{
+        let add_if_features_not_used = |f: &[Features], index_type: IndexCreationType, hashset: &mut FnvHashSet<IndexCreationType>| {
             for feature in f {
                 if features.contains(feature) {
                     return;
@@ -633,35 +644,38 @@ impl Features {
             hashset.insert(index_type);
         };
 
-        add_if_features_not_used(&[Features::BoostTextLocality, Features::Highlight, Features::BoostingFieldData], IndexCreationType::TokensToTextID, &mut hashset );
-        add_if_features_not_used(&[Features::Search], IndexCreationType::TokenToAnchorIDScore, &mut hashset );
+        add_if_features_not_used(
+            &[Features::BoostTextLocality, Features::Highlight, Features::BoostingFieldData],
+            IndexCreationType::TokensToTextID,
+            &mut hashset,
+        );
+        add_if_features_not_used(&[Features::Search], IndexCreationType::TokenToAnchorIDScore, &mut hashset);
 
-        add_if_features_not_used(&[Features::Select, Features::Facets], IndexCreationType::ParentToValueID, &mut hashset );
-        add_if_features_not_used(&[Features::BoostingFieldData], IndexCreationType::ValueIDToParent, &mut hashset );
+        add_if_features_not_used(&[Features::Select, Features::Facets], IndexCreationType::ParentToValueID, &mut hashset);
+        add_if_features_not_used(&[Features::BoostingFieldData], IndexCreationType::ValueIDToParent, &mut hashset);
 
-        add_if_features_not_used(&[Features::PhraseBoost], IndexCreationType::PhrasePairToAnchor, &mut hashset );
-        add_if_features_not_used(&[Features::Select, Features::WhyFound], IndexCreationType::TextIDToTokenIds, &mut hashset );
-        add_if_features_not_used(&[Features::BoostingFieldData], IndexCreationType::TextIDToParent, &mut hashset );
-        add_if_features_not_used(&[Features::Facets, Features::Select], IndexCreationType::ParentToTextID, &mut hashset ); //TODO can be diabled if facets is on non root element
-        add_if_features_not_used(&[Features::BoostTextLocality, Features::Select], IndexCreationType::TextIDToAnchor, &mut hashset );
+        add_if_features_not_used(&[Features::PhraseBoost], IndexCreationType::PhrasePairToAnchor, &mut hashset);
+        add_if_features_not_used(&[Features::Select, Features::WhyFound], IndexCreationType::TextIDToTokenIds, &mut hashset);
+        add_if_features_not_used(&[Features::BoostingFieldData], IndexCreationType::TextIDToParent, &mut hashset);
+        add_if_features_not_used(&[Features::Facets, Features::Select], IndexCreationType::ParentToTextID, &mut hashset); //TODO can be diabled if facets is on non root element
+        add_if_features_not_used(&[Features::BoostTextLocality, Features::Select], IndexCreationType::TextIDToAnchor, &mut hashset);
 
         hashset
-
     }
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, Copy, Eq, PartialEq, Hash)]
 pub enum IndexCreationType {
-    TokensToTextID, // Used by boost_text_locality, highlighting(why?), queries with boost indices on fields (slow search path)
+    TokensToTextID,       // Used by boost_text_locality, highlighting(why?), queries with boost indices on fields (slow search path)
     TokenToAnchorIDScore, //normal search
-    PhrasePairToAnchor, //phrase boost
-    TextIDToTokenIds, // highlight document(why_found, when select), select
-    TextIDToParent, // queries with boost indices on fields (slow search path)
-    ParentToTextID, // facets on root, facets on sublevel with no special direct index, select
-    ParentToValueID, // select
-    ValueIDToParent, // select
-    TextIDToAnchor, // Boost text locality, exact filters like facets
-    // AnchorToTextID, // 1:n facets
+    PhrasePairToAnchor,   //phrase boost
+    TextIDToTokenIds,     // highlight document(why_found, when select), select
+    TextIDToParent,       // queries with boost indices on fields (slow search path)
+    ParentToTextID,       // facets on root, facets on sublevel with no special direct index, select
+    ParentToValueID,      // select
+    ValueIDToParent,      // select
+    TextIDToAnchor,       // Boost text locality, exact filters like facets
+                          // AnchorToTextID, // 1:n facets
 }
 
 #[derive(Debug, Default)]
@@ -679,7 +693,7 @@ struct PathData {
     boost: Option<BufferedIndexWriter>,
     // max_valid: u32,
     // max_parentid: u32,
-    fulltext_options: FulltextIndexOptions
+    fulltext_options: FulltextIndexOptions,
 }
 
 fn is_1_to_n(path: &str) -> bool {
@@ -821,7 +835,7 @@ where
 
             let text_info = if all_terms.do_not_store_text_longer_than < value.len() {
                 // *all_terms.long_terms.get(value).expect("did not found term")
-                all_terms.id_counter_for_large_texts+=1;
+                all_terms.id_counter_for_large_texts += 1;
                 TermInfo {
                     id: all_terms.terms.len() as u32 + 1 + all_terms.id_counter_for_large_texts,
                     num_occurences: 1,
@@ -861,7 +875,7 @@ where
             if data.fulltext_options.tokenize && tokenizer.has_tokens(value) {
                 let mut current_token_pos = 0;
 
-                let text_ids_to_token_ids_already_stored = data.text_id_to_token_ids.as_ref().map(|el|el.contains(text_info.id)).unwrap_or(false);
+                let text_ids_to_token_ids_already_stored = data.text_id_to_token_ids.as_ref().map(|el| el.contains(text_info.id)).unwrap_or(false);
 
                 let mut prev_token: Option<u32> = None;
 
@@ -913,7 +927,6 @@ where
                     if let Some(el) = data.text_id_to_token_ids.as_mut() {
                         el.add_all(text_info.id, &tokens_ids).unwrap();
                     }
-
                 }
 
                 if let Some(el) = data.token_to_anchor_id_score.as_mut() {
@@ -928,23 +941,21 @@ where
         };
 
         let mut callback_ids = |_anchor_id: u32, path: &str, value_id: u32, parent_val_id: u32| -> Result<(), io::Error> {
-            let tuples = get_or_insert_prefer_get(&mut tuples_to_parent_in_path as *mut FnvHashMap<_, _>, path, &||
-                {
-                    let field_config = fields_config.get(path);
-                    //TODO ALL SUB LEVELS ARE NOT HANDLED (not every supath hat it's own config yet) ONLY THE LEAFES BEFORE .TEXTINDEX
-                    let value_to_parent = if field_config.is_index_enabled(IndexCreationType::ValueIDToParent) {
-                        Some(BufferedIndexWriter::new_for_sorted_id_insertion())
-                    } else {
-                        None
-                    };
-                    let parent_to_value = if field_config.is_index_enabled(IndexCreationType::ParentToValueID) {
-                        Some(BufferedIndexWriter::new_for_sorted_id_insertion())
-                    } else {
-                        None
-                    };
-                    PathDataIds {value_to_parent, parent_to_value }
-                }
-            );
+            let tuples = get_or_insert_prefer_get(&mut tuples_to_parent_in_path as *mut FnvHashMap<_, _>, path, &|| {
+                let field_config = fields_config.get(path);
+                //TODO ALL SUB LEVELS ARE NOT HANDLED (not every supath hat it's own config yet) ONLY THE LEAFES BEFORE .TEXTINDEX
+                let value_to_parent = if field_config.is_index_enabled(IndexCreationType::ValueIDToParent) {
+                    Some(BufferedIndexWriter::new_for_sorted_id_insertion())
+                } else {
+                    None
+                };
+                let parent_to_value = if field_config.is_index_enabled(IndexCreationType::ParentToValueID) {
+                    Some(BufferedIndexWriter::new_for_sorted_id_insertion())
+                } else {
+                    None
+                };
+                PathDataIds { value_to_parent, parent_to_value }
+            });
             if let Some(el) = tuples.value_to_parent.as_mut() {
                 el.add(value_id, parent_val_id)?;
             }
@@ -963,8 +974,7 @@ where
 
     Ok((path_data, tuples_to_parent_in_path))
 }
-use other_doc_store::DocWriter;
-use std::mem;
+
 fn write_docs<K, S: AsRef<str>>(persistence: &mut Persistence, create_cache: &mut CreateCache, stream3: K) -> Result<(), CreateError>
 where
     K: Iterator<Item = S>,
@@ -979,9 +989,7 @@ where
     doc_store.finish(&mut file_out)?;
     create_cache.term_data.current_offset = doc_store.current_offset;
     use std::slice;
-    let slice = unsafe {
-        slice::from_raw_parts(doc_store.offsets.as_ptr() as *const u8, doc_store.offsets.len() * mem::size_of::<(u32, u64)>())
-    };
+    let slice = unsafe { slice::from_raw_parts(doc_store.offsets.as_ptr() as *const u8, doc_store.offsets.len() * mem::size_of::<(u32, u64)>()) };
     persistence.write_data_offset(slice, &doc_store.offsets, &"data.offsets")?;
     persistence.meta_data.num_docs = doc_store.curr_id.into();
     persistence.meta_data.bytes_indexed = doc_store.bytes_indexed;
@@ -1087,9 +1095,11 @@ fn buffered_index_to_indirect_index_multiple(
 
     Ok(store)
 }
-// use buffered_index_writer::KeyValue;
-fn stream_iter_to_anchor_score<T: AnchorScoreDataSize>(iter: impl Iterator<Item = buffered_index_writer::KeyValue<u32, (u32, u32)>>, target: &mut TokenToAnchorScoreVintFlushing<T>) -> Result<(), io::Error> {
-    // use std::mem::transmute;
+
+fn stream_iter_to_anchor_score<T: AnchorScoreDataSize>(
+    iter: impl Iterator<Item = buffered_index_writer::KeyValue<u32, (u32, u32)>>,
+    target: &mut TokenToAnchorScoreVintFlushing<T>,
+) -> Result<(), io::Error> {
     use std::slice::from_raw_parts_mut;
     for (id, group) in &iter.group_by(|el| el.key) {
         let mut group: Vec<(u32, u32)> = group.map(|el| el.value).collect();
@@ -1116,25 +1126,49 @@ fn add_anchor_score_flush(db_path: &str, path: String, mut buffered_index_data: 
     let indirect_file_path = util::get_file_path(db_path, &(path.to_string() + ".indirect"));
     let data_file_path = util::get_file_path(db_path, &(path.to_string() + ".data"));
 
-    let mut store = TokenToAnchorScoreVintFlushing::new(indirect_file_path, data_file_path);
-    // stream_buffered_index_writer_to_anchor_score(buffered_index_data, &mut store)?;
-    if buffered_index_data.is_in_memory() {
-        stream_iter_to_anchor_score(buffered_index_data.into_iter_inmemory(), &mut store)?;
+    //If the buffered index_data is larger than 4GB, we switch to u64 for addressing the data block
+    if buffered_index_data.bytes_written < 2u64.pow(32) {
+        let mut store = TokenToAnchorScoreVintFlushing::<u32>::new(indirect_file_path, data_file_path);
+        // stream_buffered_index_writer_to_anchor_score(buffered_index_data, &mut store)?;
+        if buffered_index_data.is_in_memory() {
+            stream_iter_to_anchor_score(buffered_index_data.into_iter_inmemory(), &mut store)?;
+        } else {
+            stream_iter_to_anchor_score(buffered_index_data.flush_and_kmerge()?, &mut store)?;
+        }
+
+        //when there has been written something to disk flush the rest of the data too, so we have either all data im oder on disk
+        if !store.is_in_memory() {
+            store.flush()?;
+        }
+
+        indices.push(IndexData {
+            path,
+            index: IndexVariants::TokenToAnchorScoreU32(store),
+            loading_type: LoadingType::Disk,
+            index_category: IndexCategory::AnchorScore,
+        });
     } else {
-        stream_iter_to_anchor_score(buffered_index_data.flush_and_kmerge()?, &mut store)?;
+        let mut store = TokenToAnchorScoreVintFlushing::<u64>::new(indirect_file_path, data_file_path);
+        // stream_buffered_index_writer_to_anchor_score(buffered_index_data, &mut store)?;
+        if buffered_index_data.is_in_memory() {
+            stream_iter_to_anchor_score(buffered_index_data.into_iter_inmemory(), &mut store)?;
+        } else {
+            stream_iter_to_anchor_score(buffered_index_data.flush_and_kmerge()?, &mut store)?;
+        }
+
+        //when there has been written something to disk flush the rest of the data too, so we have either all data im oder on disk
+        if !store.is_in_memory() {
+            store.flush()?;
+        }
+
+        indices.push(IndexData {
+            path,
+            index: IndexVariants::TokenToAnchorScoreU64(store),
+            loading_type: LoadingType::Disk,
+            index_category: IndexCategory::AnchorScore,
+        });
     }
 
-    //when there has been written something to disk flush the rest of the data too, so we have either all data im oder on disk
-    if !store.is_in_memory() {
-        store.flush()?;
-    }
-
-    indices.push(IndexData {
-        path,
-        index: IndexVariants::TokenToAnchorScore(store),
-        loading_type: LoadingType::Disk,
-        index_category: IndexCategory::AnchorScore,
-    });
     Ok(())
 }
 
@@ -1201,7 +1235,8 @@ enum IndexVariants {
     Phrase(IndexIdToMultipleParentIndirectFlushingInOrderVintNoDirectEncode<(u32, u32)>),
     SingleValue(IndexIdToOneParentFlushing),
     MultiValue(IndexIdToMultipleParentIndirectFlushingInOrderVint),
-    TokenToAnchorScore(TokenToAnchorScoreVintFlushing<u32>),
+    TokenToAnchorScoreU32(TokenToAnchorScoreVintFlushing<u32>),
+    TokenToAnchorScoreU64(TokenToAnchorScoreVintFlushing<u64>),
 }
 
 fn convert_raw_path_data_to_indices(
@@ -1341,7 +1376,6 @@ fn convert_raw_path_data_to_indices(
 
             let path = &path;
 
-
             if let Some(value_to_parent) = data.value_to_parent {
                 add_index_flush(
                     path.add(VALUE_ID_TO_PARENT),
@@ -1396,7 +1430,7 @@ where
             .map(|(path, mut terms_data)| {
                 // let mut fulltext_indices = FnvHashMap::default();
                 let mut fulltext_index_metadata = TextIndexMetaData::default();
-                let options: &FulltextIndexOptions = indices_json.get(path).fulltext.as_ref().unwrap_or_else(||&default_fulltext_options);
+                let options: &FulltextIndexOptions = indices_json.get(path).fulltext.as_ref().unwrap_or_else(|| &default_fulltext_options);
                 fulltext_index_metadata.options = options.clone();
                 store_full_text_info_and_set_ids(&persistence, &mut terms_data, &path, &options, &mut fulltext_index_metadata)?;
                 // Ok(fulltext_indices)
@@ -1423,8 +1457,7 @@ where
     info_time!("create and (write) fulltext_index");
     trace!("all_terms {:?}", create_cache.term_data.terms_in_path);
 
-    let (mut path_data, tuples_to_parent_in_path) =
-        parse_json_and_prepare_indices(stream2, &persistence, &indices_json, &mut create_cache)?;
+    let (mut path_data, tuples_to_parent_in_path) = parse_json_and_prepare_indices(stream2, &persistence, &indices_json, &mut create_cache)?;
 
     std::mem::drop(create_cache);
 
@@ -1442,6 +1475,7 @@ where
                 loading_type: index_data.loading_type,
                 index_category: index_data.index_category,
                 path: index_data.path.to_string(),
+                id_type: IDDataType::U32,
                 ..Default::default()
                 // is_empty: store.is_empty(),
                 // index_type: KVStoreType::IndexIdToMultipleParentIndirect,
@@ -1467,10 +1501,17 @@ where
                     kv_metadata.metadata = store.metadata;
                     kv_metadata.index_type = persistence::KVStoreType::IndexIdToMultipleParentIndirect;
                 }
-                IndexVariants::TokenToAnchorScore(store) => {
+                IndexVariants::TokenToAnchorScoreU32(store) => {
                     store.flush()?;
                     kv_metadata.is_empty = false;
                     kv_metadata.metadata = store.metadata;
+                    // kv_metadata.index_type = KVStoreType::IndexIdToMultipleParentIndirect;
+                }
+                IndexVariants::TokenToAnchorScoreU64(store) => {
+                    store.flush()?;
+                    kv_metadata.is_empty = false;
+                    kv_metadata.metadata = store.metadata;
+                    kv_metadata.id_type = IDDataType::U64;
                     // kv_metadata.index_type = KVStoreType::IndexIdToMultipleParentIndirect;
                 }
             }
@@ -1482,7 +1523,10 @@ where
 
     // load the converted indices, without writing them
     if load_persistence {
-        persistence.load_all_id_lists()?;
+        let doc_offsets_file = open_file(persistence.db.to_string() + "/data.offsets")?;
+        let doc_offsets_mmap = unsafe { MmapOptions::new().map(&doc_offsets_file).unwrap() };
+        persistence.indices.doc_offsets = Some(doc_offsets_mmap);
+        // persistence.load_all_id_lists()?;
 
         for index_data in indices {
             let path = index_data.path;
@@ -1510,7 +1554,15 @@ where
                         persistence.indices.key_value_stores.insert(path, index.into_store()?);
                     }
                 }
-                IndexVariants::TokenToAnchorScore(index) => {
+                IndexVariants::TokenToAnchorScoreU32(index) => {
+                    // if index.is_in_memory() {
+                    //     persistence.indices.token_to_anchor_score.insert(path, Box::new(index.into_im_store()));
+                    // } else {
+                    //     persistence.indices.token_to_anchor_score.insert(path, Box::new(index.into_mmap()?));
+                    // }
+                    persistence.indices.token_to_anchor_score.insert(path, index.into_store()?);
+                }
+                IndexVariants::TokenToAnchorScoreU64(index) => {
                     // if index.is_in_memory() {
                     //     persistence.indices.token_to_anchor_score.insert(path, Box::new(index.into_im_store()));
                     // } else {
@@ -1584,6 +1636,7 @@ pub fn add_token_values_to_tokens(persistence: &mut Persistence, data_str: &str,
         is_empty: store.is_empty(),
         metadata: store.metadata,
         index_type: persistence::KVStoreType::IndexIdToOneParent,
+        id_type: IDDataType::U32,
     };
 
     persistence.meta_data.stores.push(kv_metadata);
@@ -1600,7 +1653,10 @@ trait FastLinesTrait<T> {
     where
         Self: Sized,
     {
-        FastLinesJson { reader: self,  prepared_jsons: vec![] }
+        FastLinesJson {
+            reader: self,
+            prepared_jsons: vec![],
+        }
     }
 }
 
@@ -1609,48 +1665,58 @@ impl<T> FastLinesTrait<T> for BufReader<T> {
     where
         Self: Sized,
     {
-        FastLinesJson { reader: self, prepared_jsons: vec![] }
+        FastLinesJson {
+            reader: self,
+            prepared_jsons: vec![],
+        }
     }
 }
 #[derive(Debug)]
 struct FastLinesJson<T> {
     reader: T,
     // cache: Vec<u8>,
-    prepared_jsons: Vec<Result<serde_json::Value, serde_json::Error>>
+    prepared_jsons: Vec<Result<serde_json::Value, serde_json::Error>>,
 }
 impl<T: BufRead> FastLinesJson<T> {
     #[inline]
-    fn load_lines_into_cache(&mut self){
+    fn load_lines_into_cache(&mut self) {
         let mut lines = vec![];
         for _ in 0..1000 {
             if let Some(line) = self.load_line() {
                 lines.push(line);
-            }else{
+            } else {
                 break;
             }
         }
 
-
-        self.prepared_jsons = lines.par_iter()
-        .map(|line| serde_json::from_str(line))
-        // .map(|c: &char| format!("{}", c))
-        // .reduce(|| self.prepared_jsons,
-        //     |mut a: &mut Vec<Result<serde_json::Value, serde_json::Error>>, b: Result<serde_json::Value, serde_json::Error>| { a.push(b); a });
-        .fold(|| vec![],
-                |mut sink: Vec<Result<serde_json::Value, serde_json::Error>>, value:Result<serde_json::Value, serde_json::Error>| { sink.push(value); sink })
-        .reduce(|| vec![],
+        self.prepared_jsons = lines
+            .par_iter()
+            .map(|line| serde_json::from_str(line))
+            // .map(|c: &char| format!("{}", c))
+            // .reduce(|| self.prepared_jsons,
+            //     |mut a: &mut Vec<Result<serde_json::Value, serde_json::Error>>, b: Result<serde_json::Value, serde_json::Error>| { a.push(b); a });
+            .fold(
+                || vec![],
+                |mut sink: Vec<Result<serde_json::Value, serde_json::Error>>, value: Result<serde_json::Value, serde_json::Error>| {
+                    sink.push(value);
+                    sink
+                },
+            ).reduce(
+                || vec![],
                 |mut sink_all: Vec<Result<serde_json::Value, serde_json::Error>>, mut sink: Vec<Result<serde_json::Value, serde_json::Error>>| {
                     for el in sink.drain(..) {
                         sink_all.push(el);
                     }
                     sink_all
-                });
+                },
+            );
 
         // let lines:Vec<String> = (0..200).flat_map(|_|self.load_line()).collect();
         // self.prepared_jsons =  lines.par_iter().map(|line| serde_json::from_str(line)).collect();
     }
+
     #[inline]
-    fn load_line(&mut self) -> Option<String>{
+    fn load_line(&mut self) -> Option<String> {
         let mut cache = vec![];
         match self.reader.read_until(b'\n', &mut cache) {
             Ok(0) => None,
@@ -1675,11 +1741,11 @@ impl<B: BufRead> Iterator for FastLinesJson<B> {
     fn next(&mut self) -> Option<Result<serde_json::Value, serde_json::Error>> {
         if let Some(next) = self.prepared_jsons.pop() {
             Some(next)
-        }else{
+        } else {
             self.load_lines_into_cache();
             if let Some(next) = self.prepared_jsons.pop() {
                 Some(next)
-            }else{
+            } else {
                 None
             }
         }

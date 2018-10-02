@@ -45,7 +45,7 @@ use rocket::Data;
 // use rocket::response::Stream;
 use rocket::response::status::Custom;
 
-use search_lib::doc_loader::*;
+use search_lib::doc_store::*;
 use search_lib::persistence;
 use search_lib::persistence::Persistence;
 use search_lib::query_generator;
@@ -180,7 +180,7 @@ fn ensure_shard(database: &String) -> Result<(), search::SearchError> {
 
 #[get("/version")]
 fn version() -> String {
-    "0.5".to_string()
+    "0.6".to_string()
 }
 
 fn search_in_persistence(persistence: &Persistence, request: search_lib::search::Request, _enable_flame: bool) -> Result<SearchResult, search::SearchError> {
@@ -231,7 +231,10 @@ fn get_doc_for_id_direct(database: String, id: u32) -> Json<Value> {
     // let tree = search::get_read_tree_from_fields(&persistence, &fields);
     ensure_database(&database).unwrap();
     let persistence = PERSISTENCES.get(&database).unwrap();
-    Json(serde_json::from_str(&DocLoader::get_doc(&persistence, id as usize).unwrap()).unwrap())
+
+    let offsets = persistence.indices.doc_offsets.as_ref().unwrap();
+    let f = persistence.get_file_handle("data").unwrap(); // TODO No unwrapo
+    Json(serde_json::from_str(&DocLoader::get_doc(f, offsets, id as usize).unwrap()).unwrap())
 }
 
 // #[get("/<database>/<id>")]

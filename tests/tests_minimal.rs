@@ -1,5 +1,3 @@
-#![feature(plugin)]
-#![cfg_attr(test, plugin(stainless))]
 #![recursion_limit = "128"]
 
 #[macro_use]
@@ -9,11 +7,8 @@ extern crate search_lib;
 extern crate serde_json;
 
 use search_lib::create;
-// use search_lib::facet;
 use search_lib::persistence;
-// use search_lib::query_generator;
 use search_lib::search;
-// use search_lib::search_field;
 use search_lib::trace;
 use serde_json::Value;
 
@@ -76,40 +71,38 @@ pub fn get_test_data() -> Value {
     ])
 }
 
-describe! search_test {
+#[test]
+fn test_minimal() {
+    let req = json!({
+        "search": {
+            "terms":["test"],
+            "path": "field"
+        }
+    });
 
-    it "test_minimal"{
-        let req = json!({
+    let hits = search_testo_to_doc(req).data;
+    assert_eq!(hits.len(), 1);
+    assert_eq!(hits[0].doc["field"], "test");
+}
+
+#[test]
+fn test_minimal_or() {
+    let req = json!({
+        "or":[
+        {
             "search": {
                 "terms":["test"],
-                "path": "field"
+                "path": "field",
             }
-        });
+        },{
+            "search": {
+                "terms":["test2"],
+                "path": "field",
+            }
+        }]
+    });
 
-        let hits = search_testo_to_doc(req).data;
-        assert_eq!(hits.len(), 1);
-        assert_eq!(hits[0].doc["field"], "test");
-    }
-
-    it "test_minimal_or"{
-        let req = json!({
-            "or":[
-            {
-                "search": {
-                    "terms":["test"],
-                    "path": "field",
-                }
-            },{
-                "search": {
-                    "terms":["test2"],
-                    "path": "field",
-                }
-            }]
-        });
-
-        let hits = search_testo_to_doc(req).data;
-        assert_eq!(hits.len(), 1);
-        assert_eq!(hits[0].doc["field"], "test");
-    }
-
+    let hits = search_testo_to_doc(req).data;
+    assert_eq!(hits.len(), 1);
+    assert_eq!(hits[0].doc["field"], "test");
 }
