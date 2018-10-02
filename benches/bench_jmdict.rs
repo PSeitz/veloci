@@ -15,8 +15,8 @@ extern crate test;
 extern crate criterion;
 
 use criterion::Criterion;
-use rand::distributions::{IndependentSample, Range};
-use search_lib::doc_loader::*;
+use rand::distributions::{Range};
+use search_lib::doc_store::*;
 use search_lib::search::*;
 use search_lib::*;
 static TEST_FOLDER: &str = "jmdict";

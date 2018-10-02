@@ -16,7 +16,7 @@ extern crate criterion;
 
 use criterion::Criterion;
 use rand::distributions::{IndependentSample, Range};
-use search_lib::doc_loader::*;
+use search_lib::doc_store::*;
 use search_lib::persistence::*;
 use search_lib::persistence_data_indirect::*;
 use search_lib::search::*;

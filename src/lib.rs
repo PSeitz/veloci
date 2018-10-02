@@ -23,32 +23,20 @@ extern crate cpuprofiler;
 
 #[macro_use]
 extern crate serde_derive;
-
 #[macro_use]
 extern crate serde_json;
-
-extern crate vint;
-
 extern crate serde;
-
+extern crate byteorder;
 extern crate fnv;
 extern crate fst;
-
 extern crate rayon;
 extern crate regex;
-// extern crate uuid;
-
 #[macro_use]
 #[allow(unused_imports)]
 extern crate dump;
-
 extern crate flexi_logger;
-#[allow(unused_imports)]
-#[macro_use]
 extern crate log;
-
 extern crate itertools;
-
 extern crate lru_time_cache;
 extern crate num;
 extern crate parking_lot;
@@ -56,34 +44,30 @@ extern crate parking_lot;
 #[macro_use]
 extern crate prettytable;
 
-// extern crate bincode;
-extern crate levenshtein_automata;
-// extern crate snap;
-
 extern crate heapsize;
 #[macro_use]
 extern crate heapsize_derive;
-#[macro_use]
-extern crate measure_time;
 
-extern crate byteorder;
 
-extern crate buffered_index_writer;
-extern crate json_converter;
 extern crate ordered_float;
-extern crate parser;
-
 extern crate colored;
-
 extern crate half;
 #[macro_use]
 extern crate lazy_static;
-
 extern crate chrono;
 extern crate fixedbitset;
-// extern crate lru_cache;
+
+
+#[macro_use]
+extern crate measure_time;
+extern crate vint;
+extern crate levenshtein_automata;
+extern crate parser;
+extern crate buffered_index_writer;
+extern crate json_converter;
 pub extern crate doc_store;
 extern crate term_hashmap;
+
 
 #[macro_use]
 pub mod util;

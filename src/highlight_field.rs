@@ -22,7 +22,6 @@ use fnv::FnvHashSet;
 /// tokens has to be sorted by best match first (probably longest)
 pub fn highlight_text(
     text: &str,
-    // tokens: &[&str],
     set: &FnvHashSet<String>,
     opt: &SnippetInfo,
 ) -> Option<String> {

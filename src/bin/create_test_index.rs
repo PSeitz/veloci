@@ -14,7 +14,6 @@ extern crate serde_json;
 #[cfg(feature = "enable_cpuprofiler")]
 extern crate cpuprofiler;
 
-use fst::{IntoStreamer, MapBuilder, Set};
 use std::fs::File;
 use std::io;
 use std::io::prelude::*;

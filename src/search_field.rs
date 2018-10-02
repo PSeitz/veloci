@@ -152,17 +152,9 @@ impl<'a> ExactSizeIterator for SearchFieldResultIterator<'a> {
 
 impl<'a> FusedIterator for SearchFieldResultIterator<'a> {}
 
-// pub type TermScore = (TermId, Score);
 pub type TermId = u32;
 pub type Score = f32;
 
-// fn get_default_score(term1: &str, term2: &str, prefix_matches: bool) -> f32 {
-//     return get_default_score_for_distance(
-//         distance(&term1.to_lowercase(), &term2.to_lowercase()) as u8,
-//         prefix_matches,
-//     );
-//     // return 2.0/(distance(term1, term2) as f32 + 0.2 )
-// }
 fn get_default_score_for_distance(distance: u8, prefix_matches: bool) -> f32 {
     if prefix_matches {
         2.0 / ((f32::from(distance) + 1.0).log2() + 0.2)
@@ -195,14 +187,6 @@ fn get_text_lines<F>(persistence: &Persistence, options: &RequestSearchPart, mut
 where
     F: FnMut(String, u32),
 {
-    // let mut f = persistence.get_file_handle(&(options.path.to_string()+".fst"))?;
-    // let mut buffer: Vec<u8> = Vec::new();
-    // f.read_to_end(&mut buffer)?;
-    // buffer.shrink_to_fit();
-    // let map = try!(Map::from_bytes(buffer));
-    // let map = persistence.get_fst(&options.path)?;
-
-    // let map = persistence.get_fst(&options.path)?;
     let map = persistence
         .indices
         .fst
@@ -212,10 +196,8 @@ where
         trace_time!("{} LevenshteinIC create", &options.path);
         let lev_automaton_builder = LevenshteinAutomatonBuilder::new(options.levenshtein_distance.unwrap_or(0) as u8, options.ignore_case.unwrap_or(true));
         lev_automaton_builder.build_dfa(&options.terms[0], true)
-        // LevenshteinIC::new(&options.terms[0], options.levenshtein_distance.unwrap_or(0))?
     };
 
-    // let stream = map.search(lev).into_stream();
     let hits = if options.starts_with.unwrap_or(false) {
         let stream = map.search(lev.starts_with()).into_stream();
         stream.into_str_vec()?
@@ -223,8 +205,6 @@ where
         let stream = map.search(lev).into_stream();
         stream.into_str_vec()?
     };
-    // let hits = try!(stream.into_str_vec());
-    // debug!("hitso {:?}", hits);
 
     for (term, id) in hits {
         fun(term, id as u32);
@@ -232,12 +212,6 @@ where
 
     Ok(())
 }
-
-// #[derive(Debug)]
-// struct TermnScore {
-//     termId: TermId,
-//     score: Score
-// }
 
 pub type SuggestFieldResult = Vec<(String, Score, TermId)>;
 
@@ -278,8 +252,6 @@ pub fn suggest_multi(persistence: &Persistence, req: Request) -> Result<SuggestF
         .suggest
         .ok_or_else(|| SearchError::StringError("only suggest allowed in suggest function".to_string()))?;
 
-    // let top = req.top;
-    // let skip = req.skip;
     let search_results: Result<Vec<_>, SearchError> = search_parts
         .into_par_iter()
         .map(|search_part| {
@@ -359,37 +331,6 @@ pub fn get_anchor_for_phrases_in_field(persistence: &Persistence, path: &str, te
     Ok(result)
 }
 
-// #[cfg_attr(feature = "flame_it", flame)]
-// pub fn get_hits_in_field(persistence: &Persistence, options: &PlanRequestSearchPart, filter: Option<&FnvHashSet<u32>>) -> Result<SearchFieldResult, SearchError> {
-//     let mut options = options.clone();
-
-//     if !options.request.path.ends_with(TEXTINDEX){
-//         options.request.path = options.request.path.add(TEXTINDEX);
-//     }
-
-//     if options.request.terms.len() == 1 {
-//         let mut hits = get_hits_in_field_one_term(persistence, &mut options, filter)?;
-//         hits.request = options.request;
-//         return Ok(hits);
-//     } else {
-//         return Err(SearchError::StringError("multiple terms on field not supported".to_string()))
-//     }
-// }
-
-// #[cfg_attr(feature = "flame_it", flame)]
-// fn get_hits_in_field_one_term(persistence: &Persistence, options: &mut PlanRequestSearchPart, filter: Option<&FnvHashSet<u32>>) -> Result<SearchFieldResult, SearchError> {
-//     debug_time!("{} get_hits_in_field", &options.request.path);
-
-//     let mut result = get_term_ids_in_field(persistence, options)?;
-
-//     debug!("{:?} hits in textindex {:?}", result.hits_scores.len(), &options.request.path);
-//     trace!("hits in textindex: {:?}", result.hits_scores);
-
-//     // resolve_token_hits_to_text_id(persistence, &options, filter, &mut result,)?;
-
-//     Ok(result)
-// }
-
 #[cfg_attr(feature = "flame_it", flame)]
 pub fn get_term_ids_in_field(persistence: &Persistence, options: &mut PlanRequestSearchPart) -> Result<SearchFieldResult, SearchError> {
     if !options.request.path.ends_with(TEXTINDEX) {
@@ -406,7 +347,6 @@ pub fn get_term_ids_in_field(persistence: &Persistence, options: &mut PlanReques
     trace!("Will Check distance {:?}", options.request.levenshtein_distance.unwrap_or(0) != 0);
     trace!("Will Check starts_with {:?}", options.request.starts_with);
 
-    // let mut vec_hits: Vec<(u32, f32)> = vec![];
     let limit_result = options.request.top.is_some();
     let mut worst_score = std::f32::MIN;
     let top_n_search = (options.request.top.unwrap_or(10) + options.request.skip.unwrap_or(0)) as u32;
@@ -649,16 +589,6 @@ pub fn get_text_for_id(persistence: &Persistence, path: &str, id: u32) -> String
     unsafe { String::from_utf8_unchecked(bytes) }
 }
 
-// #[cfg_attr(feature = "flame_it", flame)]
-// pub fn get_text_for_id_2(persistence: &Persistence, path: &str, id: u32, bytes: &mut Vec<u8>) {
-//     let map = persistence
-//         .indices
-//         .fst
-//         .get(path)
-//         .unwrap_or_else(|| panic!("fst not found loaded in indices {} ", path));
-//     ord_to_term(map.as_fst(), u64::from(id), bytes);
-// }
-
 #[cfg_attr(feature = "flame_it", flame)]
 pub fn get_id_text_map_for_ids(persistence: &Persistence, path: &str, ids: &[u32]) -> FnvHashMap<u32, String> {
     let map = persistence.indices.fst.get(path).unwrap_or_else(|| panic!("fst not found loaded in indices {} ", path));
@@ -669,23 +599,6 @@ pub fn get_id_text_map_for_ids(persistence: &Persistence, path: &str, ids: &[u32
             (*id, str::from_utf8(&bytes).unwrap().to_string())
         }).collect()
 }
-
-// #[cfg_attr(feature="flame_it", flame)]
-// pub fn resolve_snippets(persistence: &Persistence, path: &str, result: &mut SearchFieldResult) -> Result<(), search::SearchError> {
-//     let token_kvdata = persistence.get_valueid_to_parent(&concat(path, ".tokens"))?;
-//     let mut value_id_to_token_hits: FnvHashMap<u32, Vec<u32>> = FnvHashMap::default();
-//     //TODO snippety only for top x best scores?
-//     for (token_id, _) in result.hits.iter() {
-//         if let Some(parent_ids_for_token) = token_kvdata.get_values(*token_id as u64) {
-//             for token_parentval_id in parent_ids_for_token {
-//                 value_id_to_token_hits
-//                     .entry(token_parentval_id)
-//                     .or_insert(vec![])
-//                     .push(*token_id);
-//             }
-//         }
-//     }
-// }
 
 #[inline]
 fn should_filter(filter: &Option<Arc<FilterResult>>, id: u32) -> bool {
@@ -725,11 +638,8 @@ pub fn resolve_token_hits_to_text_id(
     let token_kvdata = persistence.get_valueid_to_parent(&token_path)?;
     debug!("Checking Tokens in {:?}", &token_path);
     persistence::trace_index_id_to_parent(token_kvdata);
-    // trace!("All Tokens: {:?}", token_kvdata.get_values());
 
-    // let mut token_hits:FnvHashMap<u32, f32> = FnvHashMap::default();
     let mut token_hits: Vec<(u32, f32, u32)> = vec![];
-    // let mut anchor_hits = FnvHashMap::default();
     {
         debug_time!("{} adding parent_id from tokens", token_path);
         for hit in &result.hits_scores {
@@ -792,12 +702,6 @@ pub fn resolve_token_hits_to_text_id(
     // }
     Ok(())
 }
-
-// fn highlight_and_store(persistence: &Persistence, path: &str, valueid:u32, result: &mut FnvHashMap<TermId, String>, snippet_info: &SnippetInfo) -> Result<(), SearchError> {
-//     let highlighted_document = highlight_document(persistence, path, valueid as u64, &t2.map(|el| el.2).collect_vec(), snippet_info)?;
-//     result.insert(valueid, highlighted_document);
-//     Ok(())
-// }
 
 fn distance_dfa(lower_hit: &str, dfa: &DFA, lower_term: &str) -> u8 {
     // let lower_hit = hit.to_lowercase();

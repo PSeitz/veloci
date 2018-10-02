@@ -54,13 +54,6 @@ pub struct CreateIndexConfig {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct FieldsConfig(FnvHashMap<String, FieldConfig>);
 impl FieldsConfig {
-    // fn get(&self, path:&str) -> Option<&FieldConfig> {
-    //     if path.ends_with(".textindex"){
-    //         self.0.get(&path[..path.len()-10])
-    //     }else{
-    //         self.0.get(path)
-    //     }
-    // }
     fn get(&self, path: &str) -> &FieldConfig {
         let el = if path.ends_with(".textindex") {
             self.0.get(&path[..path.len() - 10])
@@ -72,7 +65,6 @@ impl FieldsConfig {
         } else {
             self.0.get("*GLOBAL*").unwrap()
         }
-        // el.or_else(||self.0.get("*GLOBAL*").unwrap())
     }
 
     fn features_to_indices(&mut self) -> Result<(), CreateError> {
@@ -124,7 +116,6 @@ pub struct FieldConfig {
 }
 impl FieldConfig {
     fn is_index_enabled(&self, index: IndexCreationType) -> bool {
-        // false
         self.disabled_indices.as_ref().map(|el| !el.contains(&index)).unwrap_or(true)
     }
 }
@@ -220,14 +211,6 @@ impl Default for FulltextIndexOptions {
 }
 
 impl FulltextIndexOptions {
-    // #[allow(dead_code)]
-    // fn new_without_tokenize() -> FulltextIndexOptions {
-    //     FulltextIndexOptions {
-    //         tokenize: true,
-    //         stopwords: None,
-    //     }
-    // }
-
     fn new_with_tokenize() -> FulltextIndexOptions {
         FulltextIndexOptions {
             tokenize: true,
@@ -264,12 +247,6 @@ pub(crate) struct TermInfo {
 //             term_info.id = i as u32;
 //         }
 //     }
-// }
-
-// #[derive(Debug, Default, Clone, PartialEq, Eq)]
-// pub(crate) struct ValIdPair {
-//     pub(crate) valid: u32,
-//     pub(crate) parent_val_id: u32,
 // }
 
 #[derive(Debug, Default, Clone)]
@@ -337,13 +314,8 @@ fn store_full_text_info_and_set_ids(
         trace!("{:?} Terms: {:?}", path, all_text);
     }
     fulltext_indices.num_text_ids = terms_data.terms.len();
-    // fulltext_indices.num_long_text_ids = terms_data.long_terms.len();
-
     let term_and_mut_val = set_ids(&mut terms_data.terms, 0);
-    // set_ids(&mut terms_data.long_terms, fulltext_indices.num_text_ids as u32);
-
     store_fst(persistence, &term_and_mut_val, &path, options.do_not_store_text_longer_than).expect("Could not store fst");
-    // fulltext_indices.insert(path.to_string(), options.clone());
 
     Ok(())
 }
@@ -364,8 +336,6 @@ fn store_fst(persistence: &Persistence, sorted_terms: &[(&str, &mut TermInfo)], 
 
     Ok(())
 }
-
-// type TermMap = FnvHashMap<String, TermInfo>;
 
 #[inline]
 // *mut FnvHashMap here or the borrow checker will complain, because the return apparently expands the scope of the mutable ownership to the complete function(?)
@@ -429,8 +399,6 @@ pub struct CreateCache {
 #[derive(Debug, Default)]
 struct TermDataInPath {
     terms: TermMap,
-    // terms_cache: Vec<String>,
-    // long_terms: TermMap,
     do_not_store_text_longer_than: usize,
     id_counter_for_large_texts: u32,
 }
@@ -447,17 +415,11 @@ pub struct AllTermsAndDocumentBuilder {
 fn add_count_text(terms: &mut TermMap, text: &str) {
     let stat = terms.get_or_insert(text, || TermInfo::default());
     stat.num_occurences += 1;
-
-    // let stat = get_or_insert_prefer_get(terms as *mut FnvHashMap<_, _>, text, &|| TermInfo::default());
-    // stat.num_occurences += 1;
 }
 
 #[inline]
 fn add_text<T: Tokenizer>(text: &str, term_data: &mut TermDataInPath, options: &FulltextIndexOptions, tokenizer: &T) {
     trace!("text: {:?}", text);
-    // if options.stopwords.as_ref().map(|el| el.contains(text)).unwrap_or(false) {
-    //     return;
-    // }
 
     if term_data.do_not_store_text_longer_than < text.len() {
         // term_data.id_counter_for_large_texts += 1;
@@ -467,17 +429,7 @@ fn add_text<T: Tokenizer>(text: &str, term_data: &mut TermDataInPath, options: &
     }
 
     if options.tokenize && tokenizer.has_tokens(&text) {
-        // let mut prev_phrase_token:Vec<u8> = vec![];
         tokenizer.get_tokens(&text, &mut |token: &str, _is_seperator: bool| {
-            // if options.stopwords.as_ref().map(|el| el.contains(token)).unwrap_or(false) {
-            //     return;
-            // }
-            // if !prev_phrase_token.is_empty() && !is_seperator {
-            //     prev_phrase_token.extend(token.as_bytes());
-            //     add_count_text(term_data.terms, unsafe { std::str::from_utf8_unchecked(&prev_phrase_token) });
-            // }
-            // prev_phrase_token.clear();
-            // prev_phrase_token.extend(token.as_bytes());
             add_count_text(&mut term_data.terms, token);
         });
     }
@@ -675,7 +627,6 @@ pub enum IndexCreationType {
     ParentToValueID,      // select
     ValueIDToParent,      // select
     TextIDToAnchor,       // Boost text locality, exact filters like facets
-                          // AnchorToTextID, // 1:n facets
 }
 
 #[derive(Debug, Default)]
@@ -943,7 +894,7 @@ where
         let mut callback_ids = |_anchor_id: u32, path: &str, value_id: u32, parent_val_id: u32| -> Result<(), io::Error> {
             let tuples = get_or_insert_prefer_get(&mut tuples_to_parent_in_path as *mut FnvHashMap<_, _>, path, &|| {
                 let field_config = fields_config.get(path);
-                //TODO ALL SUB LEVELS ARE NOT HANDLED (not every supath hat it's own config yet) ONLY THE LEAFES BEFORE .TEXTINDEX
+                //TODO FIXME BUG ALL SUB LEVELS ARE NOT HANDLED (not every supath hat it's own config yet) ONLY THE LEAFES BEFORE .TEXTINDEX
                 let value_to_parent = if field_config.is_index_enabled(IndexCreationType::ValueIDToParent) {
                     Some(BufferedIndexWriter::new_for_sorted_id_insertion())
                 } else {
@@ -962,8 +913,6 @@ where
             if let Some(el) = tuples.parent_to_value.as_mut() {
                 el.add(parent_val_id, value_id)?;
             }
-            // tuples.value_to_parent.add(value_id, parent_val_id)?;
-            // tuples.parent_to_value.add(parent_val_id, value_id)?;
             Ok(())
         };
 
@@ -990,27 +939,9 @@ where
     create_cache.term_data.current_offset = doc_store.current_offset;
     use std::slice;
     let slice = unsafe { slice::from_raw_parts(doc_store.offsets.as_ptr() as *const u8, doc_store.offsets.len() * mem::size_of::<(u32, u64)>()) };
-    persistence.write_data_offset(slice, &doc_store.offsets, &"data.offsets")?;
+    persistence.write_data_offset(slice, &doc_store.offsets)?;
     persistence.meta_data.num_docs = doc_store.curr_id.into();
     persistence.meta_data.bytes_indexed = doc_store.bytes_indexed;
-    // let mut offsets = vec![];
-    // let mut current_offset = create_cache.term_data.current_offset;
-    // for doc in stream3 {
-    //     file_out.write_all(&doc.as_ref().as_bytes()).unwrap();
-    //     file_out.write_all(b"\n").unwrap();
-    //     offsets.push(current_offset as u64 + persistence::VALUE_OFFSET as u64); // +1 because 0 is reserved for EMPTY_BUCKET
-    //     current_offset += doc.as_ref().len() as u64;
-    //     current_offset += 1; //
-    // }
-    // offsets.push(current_offset as u64 + persistence::VALUE_OFFSET as u64);
-    // create_cache.term_data.offsets.extend(offsets);
-    // create_cache.term_data.current_offset = current_offset;
-    // let (id_list_path, id_list_meta_data) = persistence.write_offset(
-    //     &persistence::vec_to_bytes_u64(&create_cache.term_data.offsets),
-    //     &create_cache.term_data.offsets,
-    //     &"data.offsets",
-    // )?;
-    // persistence.meta_data.id_lists.insert(id_list_path, id_list_meta_data);
     Ok(())
 }
 
@@ -1405,7 +1336,6 @@ pub fn create_fulltext_index<I, J, K, S: AsRef<str>>(
     stream2: J,
     stream3: K,
     mut persistence: &mut Persistence,
-    // indices_json: &[CreateIndex],
     indices_json: &FieldsConfig,
     _create_cache: &mut CreateCache,
     load_persistence: bool,
@@ -1428,7 +1358,6 @@ where
             .terms_in_path
             .par_iter_mut()
             .map(|(path, mut terms_data)| {
-                // let mut fulltext_indices = FnvHashMap::default();
                 let mut fulltext_index_metadata = TextIndexMetaData::default();
                 let options: &FulltextIndexOptions = indices_json.get(path).fulltext.as_ref().unwrap_or_else(|| &default_fulltext_options);
                 fulltext_index_metadata.options = options.clone();
@@ -1437,14 +1366,10 @@ where
                 Ok((path.to_string(), fulltext_index_metadata))
             }).collect();
         persistence.meta_data.fulltext_indices = reso?;
-        // for fulltext_indices in reso? {
-        //     persistence.meta_data.fulltext_indices.extend(fulltext_indices);
-        // }
         persistence.load_all_fst()?;
 
         info!(
             "All text memory {}",
-            // persistence::get_readable_size(create_cache.term_data.terms_in_path.iter().map(|el| el.1.terms.memory_footprint() + el.1.long_terms.memory_footprint()).sum())
             persistence::get_readable_size(create_cache.term_data.terms_in_path.iter().map(|el| el.1.terms.memory_footprint()).sum())
         );
         info!(
@@ -1468,8 +1393,6 @@ where
     let mut indices = convert_raw_path_data_to_indices(&persistence.db, path_data, tuples_to_parent_in_path, &indices_json)?;
     if persistence.persistence_type == persistence::PersistenceType::Persistent {
         info_time!("write indices");
-        // let mut stores = vec![];
-        // let mut boost_stores = vec![];
         for index_data in &mut indices {
             let mut kv_metadata = persistence::KVStoreMetaData {
                 loading_type: index_data.loading_type,
@@ -1477,9 +1400,6 @@ where
                 path: index_data.path.to_string(),
                 id_type: IDDataType::U32,
                 ..Default::default()
-                // is_empty: store.is_empty(),
-                // index_type: KVStoreType::IndexIdToMultipleParentIndirect,
-                // metadata: store.metadata,
             };
 
             match &mut index_data.index {
@@ -1487,7 +1407,6 @@ where
                     store.flush()?;
                     kv_metadata.is_empty = store.is_empty();
                     kv_metadata.metadata = store.metadata;
-                    //     kv_metadata.index_type = KVStoreType::IndexIdToMultipleParentIndirect;
                 }
                 IndexVariants::SingleValue(store) => {
                     store.flush()?;
@@ -1505,14 +1424,12 @@ where
                     store.flush()?;
                     kv_metadata.is_empty = false;
                     kv_metadata.metadata = store.metadata;
-                    // kv_metadata.index_type = KVStoreType::IndexIdToMultipleParentIndirect;
                 }
                 IndexVariants::TokenToAnchorScoreU64(store) => {
                     store.flush()?;
                     kv_metadata.is_empty = false;
                     kv_metadata.metadata = store.metadata;
                     kv_metadata.id_type = IDDataType::U64;
-                    // kv_metadata.index_type = KVStoreType::IndexIdToMultipleParentIndirect;
                 }
             }
             persistence.meta_data.stores.push(kv_metadata);
@@ -1526,7 +1443,6 @@ where
         let doc_offsets_file = open_file(persistence.db.to_string() + "/data.offsets")?;
         let doc_offsets_mmap = unsafe { MmapOptions::new().map(&doc_offsets_file).unwrap() };
         persistence.indices.doc_offsets = Some(doc_offsets_mmap);
-        // persistence.load_all_id_lists()?;
 
         for index_data in indices {
             let path = index_data.path;
@@ -1539,11 +1455,11 @@ where
                         persistence.indices.phrase_pair_to_anchor.insert(path, Box::new(store));
                     }
                 }
-                IndexVariants::SingleValue(index) => {
+                IndexVariants::SingleValue(mut index) => {
                     if index.is_in_memory() {
                         persistence.indices.key_value_stores.insert(path, Box::new(index.into_im_store())); //Move data
                     } else {
-                        let store = SingleArrayMMAP::<u32>::from_path(&path, index.metadata)?; //load data with MMap
+                        let store = SingleArrayMMAPPacked::from_path(&path, index.metadata)?; //load data with MMap
                         persistence.indices.key_value_stores.insert(path, Box::new(store));
                     }
                 }
@@ -1555,19 +1471,9 @@ where
                     }
                 }
                 IndexVariants::TokenToAnchorScoreU32(index) => {
-                    // if index.is_in_memory() {
-                    //     persistence.indices.token_to_anchor_score.insert(path, Box::new(index.into_im_store()));
-                    // } else {
-                    //     persistence.indices.token_to_anchor_score.insert(path, Box::new(index.into_mmap()?));
-                    // }
                     persistence.indices.token_to_anchor_score.insert(path, index.into_store()?);
                 }
                 IndexVariants::TokenToAnchorScoreU64(index) => {
-                    // if index.is_in_memory() {
-                    //     persistence.indices.token_to_anchor_score.insert(path, Box::new(index.into_im_store()));
-                    // } else {
-                    //     persistence.indices.token_to_anchor_score.insert(path, Box::new(index.into_mmap()?));
-                    // }
                     persistence.indices.token_to_anchor_score.insert(path, index.into_store()?);
                 }
             }
@@ -1710,9 +1616,6 @@ impl<T: BufRead> FastLinesJson<T> {
                     sink_all
                 },
             );
-
-        // let lines:Vec<String> = (0..200).flat_map(|_|self.load_line()).collect();
-        // self.prepared_jsons =  lines.par_iter().map(|line| serde_json::from_str(line)).collect();
     }
 
     #[inline]
@@ -1851,7 +1754,6 @@ where
 {
     info_time!("total time create_indices for {:?}", persistence.db);
 
-    // let indices_json: Vec<CreateIndex> = serde_json::from_str(indices).unwrap();
     let mut indices_json: FieldsConfig = serde_json::from_str(indices).unwrap();
     indices_json.features_to_indices()?;
     let mut create_cache = create_cache.unwrap_or_else(CreateCache::default);

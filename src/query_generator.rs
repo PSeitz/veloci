@@ -59,10 +59,6 @@ fn get_all_field_names(persistence: &Persistence, fields: &Option<Vec<String>>) 
         .meta_data
         .get_all_fields()
         .into_iter()
-        // .meta_data
-        // .fulltext_indices
-        // .keys()
-        // .map(|field| extract_field_name(field))
         .filter(|el| {
             if let Some(ref filter) = *fields {
                 return filter.contains(el);
@@ -241,36 +237,11 @@ pub fn search_query(persistence: &Persistence, mut opt: SearchQueryGeneratorPara
     opt.facetlimit = opt.facetlimit.or(Some(5));
     info_time!("generating search query");
 
-    // opt.stopword_lists.as_mut().map(|ref mut list_name:&mut Vec<String>|list_name.iter().map(|el|el.to_lowercase()).collect());
-
-    // parser::query_parser(opt.search_term.to_string())
-
-    // let terms: Vec<String> = if opt.operator.is_none() && opt.search_term.contains(" AND ") {
-    //     opt.operator = Some("and".to_string());
-    //     let mut s = opt.search_term.to_string();
-    //     replace_all_with_space(&mut s, " AND ");
-    //     tokenize_term(&s)
-    // } else {
-    //     let mut s = opt.search_term.to_string();
-    //     replace_all_with_space(&mut s, " OR ");
-    //     tokenize_term(&s)
-    // };
-
     let all_fields = get_all_field_names(&persistence, &opt.fields); // all fields with applied field_filter
     let query_ast = parser::query_parser::parse(&opt.search_term).unwrap().0;
     let terms: Vec<String> = terms_for_phrase_from_ast(&query_ast).iter().map(|el| el.to_string()).collect();
     info!("Terms for Phrase{:?}", terms);
     let mut request = ast_to_request(query_ast, &all_fields, &opt);
-
-    // let terms = opt.search_term.split(" ").map(|el|el.to_string()).collect::<Vec<&str>>();
-    // let op = opt.operator.as_ref().map(|op| op.to_lowercase()).unwrap_or_else(|| "or".to_string());
-
-    // Add phrase pairs
-    // if opt.phrase_pairs.unwrap_or(false) && op == "or".to_string() && terms.len() >= 2 {
-    //     for (term_a, term_b) in terms.clone().iter().tuple_windows() {
-    //         terms.push(term_a.to_string() + term_b);
-    //     }
-    // }
 
     let facets_req: Option<Vec<FacetRequest>> = opt.facets.as_ref().map(|facets_fields| {
         facets_fields
@@ -280,8 +251,6 @@ pub fn search_query(persistence: &Persistence, mut opt: SearchQueryGeneratorPara
                 top: opt.facetlimit,
             }).collect()
     });
-
-    // let all_fields = persistence.meta_data.get_all_fields();
 
     let boost_terms_req: Vec<RequestSearchPart> = opt
         .boost_terms
@@ -308,88 +277,6 @@ pub fn search_query(persistence: &Persistence, mut opt: SearchQueryGeneratorPara
 
     let boost_term = if boost_terms_req.is_empty() { None } else { Some(boost_terms_req) };
 
-    // let get_levenshtein = |term: &str| -> u32 {
-    //     get_levenshteinn(term, opt.levenshtein.clone(), opt.levenshtein_auto_limit.clone())
-    //     // let levenshtein_distance = opt.levenshtein.unwrap_or_else(|| get_default_levenshtein(term, opt.levenshtein_auto_limit.unwrap_or(1)));
-    //     // std::cmp::min(levenshtein_distance, term.chars().count() - 1) as u32
-    // };
-
-    // let mut request = if op == "and" {
-    //     let requests: Vec<Request> = terms
-    //         .iter()
-    //         .filter(|term| {
-    //             if let Some(languages) = opt.stopword_lists.as_ref() {
-    //                 !languages.iter().any(|lang| stopwords::is_stopword(lang, &term.to_lowercase()))
-    //             } else {
-    //                 true
-    //             }
-    //         }).map(|term| {
-    //             let parts = get_all_field_names(&persistence, &opt.fields)
-    //                 .iter()
-    //                 .map(|field_name| {
-    //                     let part = RequestSearchPart {
-    //                         path: field_name.to_string(),
-    //                         terms: vec![term.to_string()],
-    //                         boost: opt.boost_fields.get(field_name).map(|el| OrderedFloat(*el)),
-    //                         levenshtein_distance: Some(get_levenshtein(term)),
-    //                         ..Default::default()
-    //                     };
-    //                     Request {
-    //                         search: Some(part),
-    //                         why_found: opt.why_found.unwrap_or(false),
-    //                         text_locality: opt.text_locality.unwrap_or(false),
-    //                         ..Default::default()
-    //                     }
-    //                 }).collect();
-
-    //             Request {
-    //                 or: Some(parts), // or over fields
-    //                 why_found: opt.why_found.unwrap_or(false),
-    //                 text_locality: opt.text_locality.unwrap_or(false),
-    //                 ..Default::default()
-    //             }
-    //         }).collect();
-
-    //     Request {
-    //         and: Some(requests), // and for terms
-    //         ..Default::default()
-    //     }
-    // } else {
-    //     let parts: Vec<Request> = get_all_field_names(&persistence, &opt.fields)
-    //         .iter()
-    //         .flat_map(|field_name| {
-    //             let requests: Vec<Request> = terms
-    //                 .iter()
-    //                 .filter(|term| {
-    //                     if let Some(languages) = opt.stopword_lists.as_ref() {
-    //                         !languages.iter().any(|lang| stopwords::is_stopword(lang, &term.to_lowercase()))
-    //                     } else {
-    //                         true
-    //                     }
-    //                 }).map(|term| {
-    //                     let part = RequestSearchPart {
-    //                         path: field_name.to_string(),
-    //                         terms: vec![term.to_string()],
-    //                         boost: opt.boost_fields.get(field_name).map(|el| OrderedFloat(*el)),
-    //                         levenshtein_distance: Some(get_levenshtein(term)),
-    //                         ..Default::default()
-    //                     };
-    //                     Request {
-    //                         search: Some(part),
-    //                         why_found: opt.why_found.unwrap_or(false),
-    //                         text_locality: opt.text_locality.unwrap_or(false),
-    //                         ..Default::default()
-    //                     }
-    //                 }).collect();
-
-    //             requests
-    //         }).collect();
-    //     Request {
-    //         or: Some(parts),
-    //         ..Default::default()
-    //     }
-    // };
-
     if opt.phrase_pairs.unwrap_or(false) && terms.len() >= 2 {
         request.phrase_boosts = Some(generate_phrase_queries_for_searchterm(
             persistence,
@@ -407,16 +294,6 @@ pub fn search_query(persistence: &Persistence, mut opt: SearchQueryGeneratorPara
         let query_ast = parser::query_parser::parse(filters).unwrap().0;
         let filter_request_ast = ast_to_request(query_ast, &all_fields, &params);
         request.filter = Some(Box::new(filter_request_ast));
-        // let requests: Vec<_> = filters
-        //     .iter()
-        //     .map(|part| Request {
-        //         search: Some(part.clone()),
-        //         ..Default::default()
-        //     }).collect();
-        // request.filter = Some(Box::new(Request {
-        //     or: Some(requests),
-        //     ..Default::default()
-        // }));
     }
 
     request.top = opt.top;
@@ -427,43 +304,9 @@ pub fn search_query(persistence: &Persistence, mut opt: SearchQueryGeneratorPara
     request.boost_term = boost_term;
     request.boost = opt.boost_queries.clone();
     request.explain = opt.explain.unwrap_or(false);
-    // Request {
-    //     or: Some(parts),
-    //     top: opt.top,
-    //     skip: opt.skip,
-    //     facets: facets_req,
-    //     why_found: opt.why_found.unwrap_or(false),
-    //     boost_term: boost_term,
-    //     ..Default::default()
-    // }
 
     request
 }
-
-// fn replace_all_with_space(s: &mut String, remove: &str) {
-//     while let Some(pos) = s.find(remove) {
-//         s.replace_range(pos..pos + remove.len(), " ");
-//     }
-// }
-// fn normalize_to_single_space(text: &str) -> String {
-//     lazy_static! {
-//         static ref REGEXES:Vec<Regex> = vec![
-//             Regex::new(r"\s\s+").unwrap() // replace tabs, newlines, double spaces with single spaces
-//         ];
-
-//     }
-//     let mut new_str = text.to_owned();
-//     for tupl in REGEXES.iter() {
-//         new_str = tupl.replace_all(&new_str, " ").into_owned();
-//     }
-
-//     new_str.trim().to_owned()
-// }
-
-// fn tokenize_term(term: &str) -> Vec<String> {
-//     let s = normalize_to_single_space(term);
-//     s.split(' ').map(|el| el.to_string()).collect()
-// }
 
 pub fn generate_phrase_queries_for_searchterm(
     persistence: &Persistence,
@@ -505,18 +348,14 @@ pub fn suggest_query(
     fields: &Option<Vec<String>>,
     levenshtein_auto_limit: Option<usize>,
 ) -> Request {
-    // let req = persistence.meta_data.fulltext_indices.key
 
     if top.is_none() {
         top = Some(10);
     }
-    // if skip.is_none() {top = Some(0); }
-
     let requests = get_all_field_names(&persistence, &fields)
         .iter()
         .map(|field_name| {
             let levenshtein_distance = levenshtein.unwrap_or_else(|| get_default_levenshtein(request, levenshtein_auto_limit.unwrap_or(1)));
-            // let starts_with = if request.chars().count() <= 3 { None } else { Some(true) };
             let starts_with = Some(true);
             RequestSearchPart {
                 path: field_name.to_string(),

@@ -62,8 +62,6 @@ pub struct IndexIdToMultipleParentIndirectFlushingInOrderVint {
     /// Already written ids_cache
     pub current_id_offset: u32,
     pub path: String,
-    // pub indirect_path: String,
-    // pub data_path: String,
     pub metadata: IndexMetaData,
 }
 
@@ -71,8 +69,6 @@ pub struct IndexIdToMultipleParentIndirectFlushingInOrderVint {
 // use vint for indirect, use not highest bit in indirect, but the highest unused bit. Max(value_id, single data_id, which would be encoded in the valueid index)
 //
 impl IndexIdToMultipleParentIndirectFlushingInOrderVint {
-    // pub fn new(indirect_path: String, data_path: String, max_value_id: u32) -> Self {
-    // pub fn new(path: String, max_value_id: u32) -> Self {
     pub fn new(path: String, max_value_id: u32) -> Self {
         let mut data_cache = vec![];
         data_cache.resize(1, 0); // resize data by one, because 0 is reserved for the empty buckets
@@ -271,19 +267,15 @@ impl<T: IndexIdToParentData> IndexIdToParent for IndexIdToMultipleParentIndirect
                 iter: Box::new(VintArrayIterator::from_serialized_vint_array(&[])),
             }
         } else {
-            // let positions = &self.start_pos[(id * 2) as usize..=((id * 2) as usize + 1)];
             let data_start_pos = self.start_pos[id as usize];
             let data_start_pos_or_data = data_start_pos.to_u32().unwrap();
             if let Some(val) = get_encoded(data_start_pos_or_data) {
-                // return Some(vec![num::cast(val).unwrap()]);
-                // return VintArrayIterator::from_serialized_vint_array(&[5]);
                 return VintArrayIteratorOpt {
                     single_value: val as i64,
                     iter: Box::new(VintArrayIterator::from_serialized_vint_array(&[])),
                 };
             }
             if data_start_pos_or_data == EMPTY_BUCKET {
-                // return VintArrayIterator::from_serialized_vint_array(&[]);
                 return VintArrayIteratorOpt {
                     single_value: -2,
                     iter: Box::new(VintArrayIterator::from_serialized_vint_array(&[])),
@@ -301,7 +293,6 @@ impl<T: IndexIdToParentData> IndexIdToParent for IndexIdToMultipleParentIndirect
         if id >= self.get_size() as u64 {
             None
         } else {
-            // let positions = &self.start_pos[(id * 2) as usize..=((id * 2) as usize + 1)];
             let data_start_pos = self.start_pos[id as usize];
             let data_start_pos_or_data = data_start_pos.to_u32().unwrap();
             if let Some(val) = get_encoded(data_start_pos_or_data) {
@@ -351,7 +342,7 @@ impl<T: IndexIdToParentData> PointingMMAPFileReader<T> {
 
 impl<T: IndexIdToParentData> HeapSizeOf for PointingMMAPFileReader<T> {
     fn heap_size_of_children(&self) -> usize {
-        0 //FIXME
+        0
     }
 }
 

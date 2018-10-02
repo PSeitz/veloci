@@ -113,22 +113,6 @@ pub struct IndexIdToMultipleParentIndirectBinarySearch<T> {
     pub data: Vec<u8>,
     pub metadata: IndexMetaData,
 }
-// impl<T: Ord + Copy> IndexIdToMultipleParentIndirectBinarySearch<T> {
-
-//     #[inline]
-//     pub fn get_values(&self, id: T) -> Option<Vec<u32>> {
-//         let hit = self.start_pos.binary_search_by_key(&id, |ref el| el.0);
-//         match hit {
-//             Ok(pos) => {
-//                 let data_pos = self.start_pos[pos].1;
-//                 let iter = VintArrayIterator::from_serialized_vint_array(&self.data[data_pos as usize..]);
-//                 let decoded_data: Vec<u32> = iter.collect();
-//                 Some(decoded_data)
-//             },
-//             Err(_) => None,
-//         }
-//     }
-// }
 
 impl<T: 'static + Ord + Copy + Default + std::fmt::Debug + Sync + Send> PhrasePairToAnchor for IndexIdToMultipleParentIndirectBinarySearch<T> {
     type Input = T;
@@ -178,10 +162,6 @@ impl<T: Ord + Copy + Default + std::fmt::Debug> IndexIdToMultipleParentIndirectB
             metadata,
         })
     }
-
-    // fn get(&self, pos: usize) -> (T, u32) {
-    //     get(pos, &self.start_pos)
-    // }
 
     #[inline]
     fn binary_search(&self, id: T) -> Option<(T, u32)> {

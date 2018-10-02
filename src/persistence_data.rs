@@ -4,8 +4,8 @@ use std::io;
 use std::io::Write;
 use std::marker::PhantomData;
 use std::u32;
-
-use byteorder::{LittleEndian, ReadBytesExt};
+use std::ptr::copy_nonoverlapping;
+// use byteorder::{LittleEndian, ReadBytesExt};
 use heapsize::HeapSizeOf;
 
 use persistence::EMPTY_BUCKET;
@@ -14,7 +14,6 @@ pub(crate) use persistence_data_indirect::*;
 
 use facet::*;
 use num;
-// use profiler;
 
 use fnv::FnvHashMap;
 use type_info::TypeInfo;
@@ -25,10 +24,6 @@ use memmap::MmapOptions;
 use search;
 use util::*;
 
-// impl_type_info_dual_templ!(IndexIdToOneParent);
-// impl_type_info_single_templ!(IndexIdToOneParentPacked);
-// impl_type_info_single_templ!(ParallelArrays);
-impl_type_info_single_templ!(SingleArrayMMAP);
 impl_type_info_single_templ!(SingleArrayMMAPPacked);
 
 /// This data structure assumes that a set is only called once for a id, and ids are set in order.
@@ -52,8 +47,8 @@ impl IndexIdToOneParentFlushing {
         }
     }
 
-    pub fn into_im_store(self) -> IndexIdToOneParent<u32, u32> {
-        let mut store = IndexIdToOneParent::default();
+    pub fn into_im_store(self) -> SingleArrayIM<u32, u32> {
+        let mut store = SingleArrayIM::default();
         store.metadata.avg_join_size = calc_avg_join_size(self.metadata.num_values, self.cache.len() as u32);
         store.data = self.cache;
         store.metadata = self.metadata;
@@ -65,7 +60,7 @@ impl IndexIdToOneParentFlushing {
             Ok(Box::new(self.into_im_store()))
         } else {
             self.flush()?;
-            let store = SingleArrayMMAP::<u32>::from_path(&self.path, self.metadata)?;
+            let store = SingleArrayMMAPPacked::<u32>::from_path(&self.path, self.metadata)?;
             Ok(Box::new(store))
         }
     }
@@ -113,8 +108,6 @@ impl IndexIdToOneParentFlushing {
         encode_vals(&self.cache, bytes_required, &mut bytes).unwrap();
         data.write_all(&bytes)?;
 
-        // data.write_all(&vec_to_bytes_u32(&self.cache))?;
-
         self.metadata.avg_join_size = calc_avg_join_size(self.metadata.num_values, self.current_id_offset + self.cache.len() as u32);
         self.cache.clear();
 
@@ -159,27 +152,8 @@ pub fn encode_vals<O: std::io::Write>(vals: &[u32], bytes_required: BytesRequire
     Ok(())
 }
 
-use std::ptr::copy_nonoverlapping;
 
-// // pub fn decode_bit_packed_val(val: &[u8], num_bits: u8, index: usize) -> u32 {
-// #[inline]
-// pub fn decode_bit_packed_val<T: IndexIdToParentData>(data: &[u8], bytes_required: BytesRequired, index: usize) -> Option<T> {
-//     let bit_pos_start = index * bytes_required as usize;
-//     if bit_pos_start >= data.len() {
-//         None
-//     }else{
-//         let mut out = T::zero();
-//         unsafe {
-//             copy_nonoverlapping(data.as_ptr().add(bit_pos_start), &mut out as *mut T as *mut u8, bytes_required as usize);
-//         }
-//         if out == T::zero() {
-//             return None;
-//         }
-//         return Some(out - T::one());
-//     }
-// }
 
-// pub fn decode_bit_packed_val(val: &[u8], num_bits: u8, index: usize) -> u32 {
 #[inline]
 pub fn decode_bit_packed_val<T: IndexIdToParentData>(data: &[u8], bytes_required: BytesRequired, index: usize) -> Option<T> {
     let bit_pos_start = index * bytes_required as usize;
@@ -190,8 +164,7 @@ pub fn decode_bit_packed_val<T: IndexIdToParentData>(data: &[u8], bytes_required
         unsafe {
             copy_nonoverlapping(data.as_ptr().add(bit_pos_start), &mut out as *mut T as *mut u8, bytes_required as usize);
         }
-        if out == T::zero() {
-            // == EMPTY_BUCKET
+        if out == T::zero() { // == EMPTY_BUCKET
             None
         } else {
             Some(out - T::one())
@@ -199,8 +172,7 @@ pub fn decode_bit_packed_val<T: IndexIdToParentData>(data: &[u8], bytes_required
     }
 }
 
-// pub fn decode_bit_packed_val(val: &[u8], num_bits: u8, index: usize) -> u32 {
-pub fn decode_bit_packed_vals<T: IndexIdToParentData>(data: &[u8], bytes_required: BytesRequired) -> Vec<T> {
+pub(crate) fn decode_bit_packed_vals<T: IndexIdToParentData>(data: &[u8], bytes_required: BytesRequired) -> Vec<T> {
     let mut out: Vec<u8> = vec![];
     out.resize(data.len() * std::mem::size_of::<T>() / bytes_required as usize, 0);
     let mut pos = 0;
@@ -258,19 +230,19 @@ where
 }
 
 #[derive(Debug, Default, HeapSizeOf)]
-pub struct IndexIdToOneParent<T: IndexIdToParentData, K: IndexIdToParentData> {
+pub struct SingleArrayIM<T: IndexIdToParentData, K: IndexIdToParentData> {
     pub data: Vec<K>,
     pub ok: PhantomData<T>,
     pub metadata: IndexMetaData,
 }
 
-impl<T: IndexIdToParentData, K: IndexIdToParentData> TypeInfo for IndexIdToOneParent<T, K> {
+impl<T: IndexIdToParentData, K: IndexIdToParentData> TypeInfo for SingleArrayIM<T, K> {
     fn type_name(&self) -> String {
         unsafe { std::intrinsics::type_name::<Self>().to_string() }
     }
 }
 
-impl<T: IndexIdToParentData, K: IndexIdToParentData> IndexIdToParent for IndexIdToOneParent<T, K> {
+impl<T: IndexIdToParentData, K: IndexIdToParentData> IndexIdToParent for SingleArrayIM<T, K> {
     type Output = T;
 
     #[inline]
@@ -321,7 +293,6 @@ fn count_values_for_ids_for_agg<C: AggregationCollector<T>, T: IndexIdToParentDa
 where
     F: Fn(u64) -> Option<T>,
 {
-    // let mut coll: Box<AggregationCollector<T>> = get_collector(ids.len() as u32, 1.0, max_value_id);
     for id in ids {
         if let Some(hit) = get_value(u64::from(*id)) {
             coll.add(hit);
@@ -330,50 +301,8 @@ where
     Box::new(coll).to_map(top)
 }
 
-// #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
-// pub struct ParallelArrays<T: IndexIdToParentData> {
-//     pub values1: Vec<T>,
-//     pub values2: Vec<T>,
-// }
-
-// impl<T: IndexIdToParentData> IndexIdToParent for ParallelArrays<T> {
-//     type Output = T;
-
-//     fn get_keys(&self) -> Vec<T> {
-//         let mut keys: Vec<T> = self.values1.iter().map(|el| num::cast(*el).unwrap()).collect();
-//         keys.sort();
-//         keys.dedup();
-//         keys
-//     }
-//     #[inline]
-//     fn get_values(&self, id: u64) -> Option<Vec<T>> {
-//         let mut result = Vec::new();
-//         let casted_id = num::cast(id).unwrap();
-//         if let Ok(mut pos) = self.values1.binary_search(&casted_id) {
-//             //this is not a lower_bounds search so we MUST move to the first hit
-//             while pos != 0 && self.values1[pos - 1] == casted_id {
-//                 pos -= 1;
-//             }
-//             let val_len = self.values1.len();
-//             while pos < val_len && self.values1[pos] == casted_id {
-//                 result.push(self.values2[pos]);
-//                 pos += 1;
-//             }
-//         }
-//         if result.is_empty() {
-//             None
-//         } else {
-//             Some(result)
-//         }
-//     }
-// }
-// impl<T: IndexIdToParentData> HeapSizeOf for ParallelArrays<T> {
-//     fn heap_size_of_children(&self) -> usize {
-//         self.values1.heap_size_of_children() + self.values2.heap_size_of_children()
-//     }
-// }
-
 #[derive(Debug)]
+// Loads integer with flexibel widths 1, 2 or 4 byte
 pub struct SingleArrayMMAPPacked<T: IndexIdToParentData> {
     pub data_file: Mmap,
     pub size: usize,
@@ -436,104 +365,16 @@ impl<T: IndexIdToParentData> IndexIdToParent for SingleArrayMMAPPacked<T> {
     }
 }
 
-#[derive(Debug)]
-pub struct SingleArrayMMAP<T: IndexIdToParentData> {
-    pub data_file: Mmap,
-    pub size: usize,
-    pub metadata: IndexMetaData,
-    pub ok: PhantomData<T>,
-}
 
-impl<T: IndexIdToParentData> SingleArrayMMAP<T> {
-    #[inline]
-    fn get_size(&self) -> usize {
-        self.size
-    }
-
-    pub fn from_path(path: &str, metadata: IndexMetaData) -> Result<Self, search::SearchError> {
-        let data_file = unsafe { MmapOptions::new().map(&open_file(path)?).unwrap() };
-        Ok(SingleArrayMMAP {
-            data_file,
-            size: File::open(path)?.metadata()?.len() as usize / std::mem::size_of::<T>(),
-            metadata,
-            ok: PhantomData,
-        })
-    }
-}
-impl<T: IndexIdToParentData> HeapSizeOf for SingleArrayMMAP<T> {
-    fn heap_size_of_children(&self) -> usize {
-        0
-    }
-}
-
-impl<T: IndexIdToParentData> IndexIdToParent for SingleArrayMMAP<T> {
-    type Output = T;
-
-    fn get_keys(&self) -> Vec<T> {
-        (num::cast(0).unwrap()..num::cast(self.get_size()).unwrap()).collect()
-    }
-
-    #[inline]
-    default fn get_num_keys(&self) -> usize {
-        self.get_size()
-    }
-
-    default fn get_values(&self, id: u64) -> Option<Vec<T>> {
-        self.get_value(id).map(|el| vec![el])
-    }
-
-    default fn get_value(&self, _find: u64) -> Option<T> {
-        unimplemented!() // implemented for u32, u64
-    }
-
-    fn get_values_iter(&self, id: u64) -> VintArrayIteratorOpt {
-        if let Some(val) = self.get_value(id) {
-            VintArrayIteratorOpt::from_single_val(num::cast(val).unwrap())
-        } else {
-            VintArrayIteratorOpt::empty()
-        }
-    }
-}
-
-impl IndexIdToParent for SingleArrayMMAP<u32> {
-    #[inline]
-    fn get_value(&self, find: u64) -> Option<u32> {
-        if find >= self.get_size() as u64 {
-            return None;
-        }
-        let pos = find as usize * 4;
-        let id = (&self.data_file[pos..pos + 4]).read_u32::<LittleEndian>().unwrap();
-        if id == EMPTY_BUCKET {
-            None
-        } else {
-            Some(num::cast(id - 1).unwrap())
-        }
-    }
-}
-impl IndexIdToParent for SingleArrayMMAP<u64> {
-    #[inline]
-    fn get_value(&self, find: u64) -> Option<u64> {
-        if find >= self.get_size() as u64 {
-            return None;
-        }
-        let pos = find as usize * 8;
-        let id = (&self.data_file[pos..pos + 8]).read_u64::<LittleEndian>().unwrap();
-        if id == u64::from(EMPTY_BUCKET) {
-            None
-        } else {
-            Some(num::cast(id - 1).unwrap())
-        }
-    }
-}
 #[cfg(test)]
 mod tests {
     use super::*;
     use rand;
     use test;
 
-    // fn get_test_data_1_to_1<T: IndexIdToParentData>() -> IndexIdToOneParent<T> {
+    // fn get_test_data_1_to_1<T: IndexIdToParentData>() -> SingleArrayIM<T> {
     //     let values = vec![5, 6, 9, 9, 9, 50000];
-    //     IndexIdToOneParent {
+    //     SingleArrayIM {
     //         data: values.iter().map(|el| num::cast(*el).unwrap()).collect(),
     //         max_value_id: 50000,
     //         avg_join_size: 1.0
@@ -563,19 +404,11 @@ mod tests {
         assert_eq!(store.get_values_iter(6).collect::<Vec<u32>>(), empty_vec);
         assert_eq!(store.get_values_iter(11).collect::<Vec<u32>>(), empty_vec);
 
-        // let map = store.count_values_for_ids(&[0, 1, 2, 3, 4, 5], None);
-        // assert_eq!(map.get(&5).unwrap(), &1);
-        // assert_eq!(map.get(&9).unwrap(), &3);
     }
 
     mod test_direct_1_to_1 {
         use super::*;
         use tempfile::tempdir;
-        // #[test]
-        // fn test_index_id_to_parent_im() {
-        //     let store = get_test_data_1_to_1::<u32>();
-        //     check_test_data_1_to_1(&store);
-        // }
 
         #[test]
         fn test_index_id_to_parent_flushing() {
