@@ -88,8 +88,7 @@ impl FieldsConfig {
                 )));
             }
 
-            if let Some(features) = val
-                .features
+            if let Some(features) = val.features
                 .clone()
                 .or_else(|| val.disabled_features.as_ref().map(|disabled_features| Features::invert(disabled_features)))
             {
@@ -106,8 +105,7 @@ impl FieldsConfig {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct FieldConfig {
-    #[serde(default)]
-    pub facet: bool,
+    #[serde(default)] pub facet: bool,
     pub fulltext: Option<FulltextIndexOptions>,
     pub disabled_indices: Option<FnvHashSet<IndexCreationType>>,
     pub features: Option<FnvHashSet<Features>>,
@@ -187,11 +185,9 @@ pub enum TokenizerStrategy {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct FulltextIndexOptions {
     pub tokenize: bool,
-    #[serde(default = "default_tokenizer")]
-    pub tokenizer: TokenizerStrategy,
+    #[serde(default = "default_tokenizer")] pub tokenizer: TokenizerStrategy,
     pub stopwords: Option<FnvHashSet<String>>,
-    #[serde(default = "default_text_length_store")]
-    pub do_not_store_text_longer_than: usize,
+    #[serde(default = "default_text_length_store")] pub do_not_store_text_longer_than: usize,
 }
 fn default_tokenizer() -> TokenizerStrategy {
     TokenizerStrategy::Simple
@@ -1294,7 +1290,8 @@ fn convert_raw_path_data_to_indices(
             }
 
             Ok(indices)
-        }).collect();
+        })
+        .collect();
 
     for mut indice in indices_res? {
         indices.extend(indice);
@@ -1322,7 +1319,8 @@ fn convert_raw_path_data_to_indices(
             }
 
             Ok(indices)
-        }).collect();
+        })
+        .collect();
 
     for mut indice in indices_res_2? {
         indices.extend(indice);
@@ -1364,7 +1362,8 @@ where
                 store_full_text_info_and_set_ids(&persistence, &mut terms_data, &path, &options, &mut fulltext_index_metadata)?;
                 // Ok(fulltext_indices)
                 Ok((path.to_string(), fulltext_index_metadata))
-            }).collect();
+            })
+            .collect();
         persistence.meta_data.fulltext_indices = reso?;
         persistence.load_all_fst()?;
 

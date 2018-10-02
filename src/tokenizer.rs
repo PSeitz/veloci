@@ -166,31 +166,6 @@ mod tests {
         })
     }
     #[bench]
-    fn bench_tokenizer_hash_tokens(b: &mut test::Bencher) {
-        let tokenizer = SimpleTokenizer {};
-        let text = get_test_book();
-        let mut has_tokens = false;
-        b.iter(move || {
-            let mut vec: Vec<String> = Vec::with_capacity(text.len() / 5);
-            has_tokens = tokenizer.has_tokens(&text);
-            vec
-        })
-    }
-    #[bench]
-    fn bench_tokenizer_hash_walk_tokens(b: &mut test::Bencher) {
-        let tokenizer = SimpleTokenizer {};
-        let text = get_test_book();
-        let mut toktok = "";
-        b.iter(|| {
-            let mut vec: Vec<String> = Vec::with_capacity(text.len() / 5);
-            tokenizer.get_tokens(&text, &mut |token: &str, _is_seperator: bool| {
-                // vec.push(token.to_string());3
-                toktok = token;
-            });
-            vec
-        })
-    }
-    #[bench]
     fn bench_tokenizer_no_copy(b: &mut test::Bencher) {
         let tokenizer = SimpleTokenizer {};
         let text = get_test_book();

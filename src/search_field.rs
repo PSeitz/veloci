@@ -16,7 +16,7 @@ use std::cmp::Ordering;
 use std::iter::FusedIterator;
 use std::marker;
 use std::sync::Arc;
-use str;
+use std::str;
 use util;
 use util::StringAdd;
 
@@ -226,7 +226,8 @@ fn get_text_score_id_from_result(suggest_text: bool, results: &[SearchFieldResul
                     let term = if suggest_text { &res.terms[&term_n_score.id] } else { &res.highlight[&term_n_score.id] };
                     (term.to_string(), term_n_score.score, term_n_score.id)
                 }).collect::<SuggestFieldResult>()
-        }).collect::<SuggestFieldResult>();
+        })
+        .collect::<SuggestFieldResult>();
 
     //Merge same text
     if suggest_text {
@@ -248,9 +249,7 @@ fn get_text_score_id_from_result(suggest_text: bool, results: &[SearchFieldResul
 }
 pub fn suggest_multi(persistence: &Persistence, req: Request) -> Result<SuggestFieldResult, SearchError> {
     info_time!("suggest time");
-    let search_parts: Vec<RequestSearchPart> = req
-        .suggest
-        .ok_or_else(|| SearchError::StringError("only suggest allowed in suggest function".to_string()))?;
+    let search_parts: Vec<RequestSearchPart> = req.suggest.ok_or_else(|| SearchError::StringError("only suggest allowed in suggest function".to_string()))?;
 
     let search_results: Result<Vec<_>, SearchError> = search_parts
         .into_par_iter()
@@ -267,7 +266,8 @@ pub fn suggest_multi(persistence: &Persistence, req: Request) -> Result<SuggestF
                 ..Default::default()
             };
             get_term_ids_in_field(persistence, &mut search_part)
-        }).collect();
+        })
+        .collect();
     info_time!("suggest text_id result to vec/sort");
     Ok(get_text_score_id_from_result(true, &search_results?, req.skip, req.top))
 }
@@ -404,11 +404,13 @@ pub fn get_term_ids_in_field(persistence: &Persistence, options: &mut PlanReques
                     // result.explain.insert(token_text_id, vec![format!("levenshtein score {:?} for {}", score, text_or_token)]);
                     result.explain.insert(
                         token_text_id,
-                        vec![Explain::LevenshteinScore {
-                            score: score,
-                            term_id: token_text_id,
-                            text_or_token_id: text_or_token.clone(),
-                        }],
+                        vec![
+                            Explain::LevenshteinScore {
+                                score: score,
+                                term_id: token_text_id,
+                                text_or_token_id: text_or_token.clone(),
+                            },
+                        ],
                     );
                 }
             }
@@ -597,7 +599,8 @@ pub fn get_id_text_map_for_ids(persistence: &Persistence, path: &str, ids: &[u32
             let mut bytes = vec![];
             ord_to_term(map.as_fst(), u64::from(*id), &mut bytes);
             (*id, str::from_utf8(&bytes).unwrap().to_string())
-        }).collect()
+        })
+        .collect()
 }
 
 #[inline]
@@ -607,7 +610,8 @@ fn should_filter(filter: &Option<Arc<FilterResult>>, id: u32) -> bool {
         .map(|filter| match **filter {
             FilterResult::Vec(_) => false,
             FilterResult::Set(ref filter) => !filter.contains(&id),
-        }).unwrap_or(false)
+        })
+        .unwrap_or(false)
 }
 
 #[cfg_attr(feature = "flame_it", flame)]

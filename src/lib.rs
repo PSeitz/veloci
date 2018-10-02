@@ -9,65 +9,54 @@
 #![cfg_attr(feature = "flame_it", plugin(flamer))]
 #![feature(core_intrinsics)]
 
-extern crate crossbeam;
-extern crate crossbeam_channel;
-extern crate crossbeam_utils;
-
+#[cfg(feature = "enable_cpuprofiler")]
+extern crate cpuprofiler;
 #[cfg(feature = "flame_it")]
 extern crate flame;
 
+extern crate byteorder;
+extern crate chrono;
+extern crate colored;
+extern crate crossbeam_channel;
+#[macro_use]
+#[allow(unused_imports)]
+extern crate dump;
+extern crate fixedbitset;
+extern crate flexi_logger;
+extern crate fnv;
+extern crate fst;
+extern crate half;
+extern crate heapsize;
+#[macro_use]
+extern crate heapsize_derive;
+extern crate itertools;
+#[macro_use]
+extern crate lazy_static;
+extern crate log;
+extern crate lru_time_cache;
 extern crate memmap;
-
-#[cfg(feature = "enable_cpuprofiler")]
-extern crate cpuprofiler;
-
+extern crate num;
+extern crate ordered_float;
+extern crate parking_lot;
+#[macro_use]
+extern crate prettytable;
+extern crate rayon;
+extern crate regex;
+extern crate serde;
 #[macro_use]
 extern crate serde_derive;
 #[macro_use]
 extern crate serde_json;
-extern crate serde;
-extern crate byteorder;
-extern crate fnv;
-extern crate fst;
-extern crate rayon;
-extern crate regex;
-#[macro_use]
-#[allow(unused_imports)]
-extern crate dump;
-extern crate flexi_logger;
-extern crate log;
-extern crate itertools;
-extern crate lru_time_cache;
-extern crate num;
-extern crate parking_lot;
 
-#[macro_use]
-extern crate prettytable;
-
-extern crate heapsize;
-#[macro_use]
-extern crate heapsize_derive;
-
-
-extern crate ordered_float;
-extern crate colored;
-extern crate half;
-#[macro_use]
-extern crate lazy_static;
-extern crate chrono;
-extern crate fixedbitset;
-
-
+extern crate buffered_index_writer;
+pub extern crate doc_store;
+extern crate json_converter;
+extern crate levenshtein_automata;
 #[macro_use]
 extern crate measure_time;
-extern crate vint;
-extern crate levenshtein_automata;
 extern crate parser;
-extern crate buffered_index_writer;
-extern crate json_converter;
-pub extern crate doc_store;
 extern crate term_hashmap;
-
+extern crate vint;
 
 #[macro_use]
 pub mod util;
@@ -75,8 +64,6 @@ pub mod stopwords;
 #[macro_use]
 pub mod type_info;
 pub mod create;
-// pub mod create_from_csv;
-// pub mod doc_store;
 pub mod execution_plan;
 pub mod expression;
 pub mod facet;
@@ -94,19 +81,8 @@ pub mod tokenizer;
 pub mod trace;
 
 #[cfg(test)]
-extern crate chashmap;
-
-#[cfg(test)]
-extern crate test;
-
-#[cfg(test)]
 extern crate rand;
 #[cfg(test)]
 extern crate tempfile;
-
-// #[cfg(test)]
-// mod test_why_found;
-// #[cfg(test)]
-// mod tests;
-
-use std::str;
+#[cfg(test)]
+extern crate test;

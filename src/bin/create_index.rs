@@ -31,7 +31,8 @@ fn main() {
             let mut contents = String::new();
             f.read_to_string(&mut contents).expect("something went wrong reading the file");
             contents
-        }).unwrap_or_else(|| "{}".to_string());
+        })
+        .unwrap_or_else(|| "{}".to_string());
 
     let file = matches.value_of("data").unwrap();
     let target = matches.value_of("target").unwrap();
@@ -57,4 +58,3 @@ fn stop_profiler() {
     use cpuprofiler::PROFILER;
     PROFILER.lock().unwrap().stop().unwrap();
 }
-

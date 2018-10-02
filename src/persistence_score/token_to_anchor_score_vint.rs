@@ -22,7 +22,11 @@ const EMPTY_BUCKET: u32 = 0;
 const EMPTY_BUCKET_USIZE: usize = 0;
 
 pub trait AnchorScoreDataSize: IndexIdToParentData + ops::AddAssign + ops::Add + num::Zero {}
-impl<T> AnchorScoreDataSize for T where T: IndexIdToParentData + ops::AddAssign + ops::Add + num::Zero {}
+impl<T> AnchorScoreDataSize for T
+where
+    T: IndexIdToParentData + ops::AddAssign + ops::Add + num::Zero,
+{
+}
 
 #[derive(Serialize, Deserialize, Debug, Clone, Default, HeapSizeOf)]
 pub struct TokenToAnchorScoreVintIM<T> {

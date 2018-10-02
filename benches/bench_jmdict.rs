@@ -15,7 +15,7 @@ extern crate test;
 extern crate criterion;
 
 use criterion::Criterion;
-use rand::distributions::{Range};
+use rand::distributions::Range;
 use search_lib::doc_store::*;
 use search_lib::search::*;
 use search_lib::*;

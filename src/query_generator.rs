@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use std::{f32, str};
+use std::{str, f32};
 
 use itertools::Itertools;
 // use regex::Regex;
@@ -64,7 +64,8 @@ fn get_all_field_names(persistence: &Persistence, fields: &Option<Vec<String>>) 
                 return filter.contains(el);
             }
             true
-        }).collect()
+        })
+        .collect()
 }
 
 fn get_levenshteinn(term: &str, levenshtein: Option<usize>, levenshtein_auto_limit: Option<usize>) -> u32 {
@@ -94,7 +95,8 @@ fn expand_fields_in_query_ast(ast: UserAST, all_fields: &[String]) -> UserAST {
                             levenshtein: filter.levenshtein,
                         };
                         UserAST::Leaf(Box::new(filter_with_field))
-                    }).collect();
+                    })
+                    .collect();
                 UserAST::Clause(Operator::Or, field_queries)
             }
         }
@@ -249,11 +251,11 @@ pub fn search_query(persistence: &Persistence, mut opt: SearchQueryGeneratorPara
             .map(|f| FacetRequest {
                 field: f.to_string(),
                 top: opt.facetlimit,
-            }).collect()
+            })
+            .collect()
     });
 
-    let boost_terms_req: Vec<RequestSearchPart> = opt
-        .boost_terms
+    let boost_terms_req: Vec<RequestSearchPart> = opt.boost_terms
         .iter()
         .flat_map(|(boost_term, boost_value): (&String, &f32)| {
             let mut boost_term = boost_term.to_string();
@@ -272,8 +274,10 @@ pub fn search_query(persistence: &Persistence, mut opt: SearchQueryGeneratorPara
                     terms: vec![boost_term.to_string()],
                     boost: Some(OrderedFloat(*boost_value)),
                     ..Default::default()
-                }).collect::<Vec<_>>()
-        }).collect();
+                })
+                .collect::<Vec<_>>()
+        })
+        .collect();
 
     let boost_term = if boost_terms_req.is_empty() { None } else { Some(boost_terms_req) };
 
@@ -348,7 +352,6 @@ pub fn suggest_query(
     fields: &Option<Vec<String>>,
     levenshtein_auto_limit: Option<usize>,
 ) -> Request {
-
     if top.is_none() {
         top = Some(10);
     }
@@ -366,7 +369,8 @@ pub fn suggest_query(
                 skip,
                 ..Default::default()
             }
-        }).collect();
+        })
+        .collect();
 
     Request {
         suggest: Some(requests),

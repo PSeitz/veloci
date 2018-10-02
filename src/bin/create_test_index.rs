@@ -36,10 +36,8 @@ fn main() {
     }
 }
 
-
 #[allow(dead_code)]
 fn create_jmdict_index_shards() -> Result<(), io::Error> {
-
     let threshold_bytes: usize = std::env::args().nth(2).expect("require command line parameter").parse().unwrap();
     let mut jmdict_shards = search_lib::shards::Shards::new("jmdict_shards".to_string());
 
@@ -317,4 +315,3 @@ fn create_book_index() -> Result<(), io::Error> {
     ).unwrap();
     Ok(())
 }
-

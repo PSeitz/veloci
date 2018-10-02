@@ -152,8 +152,6 @@ pub fn encode_vals<O: std::io::Write>(vals: &[u32], bytes_required: BytesRequire
     Ok(())
 }
 
-
-
 #[inline]
 pub fn decode_bit_packed_val<T: IndexIdToParentData>(data: &[u8], bytes_required: BytesRequired, index: usize) -> Option<T> {
     let bit_pos_start = index * bytes_required as usize;
@@ -164,7 +162,8 @@ pub fn decode_bit_packed_val<T: IndexIdToParentData>(data: &[u8], bytes_required
         unsafe {
             copy_nonoverlapping(data.as_ptr().add(bit_pos_start), &mut out as *mut T as *mut u8, bytes_required as usize);
         }
-        if out == T::zero() { // == EMPTY_BUCKET
+        if out == T::zero() {
+            // == EMPTY_BUCKET
             None
         } else {
             Some(out - T::one())
@@ -247,7 +246,9 @@ impl<T: IndexIdToParentData, K: IndexIdToParentData> IndexIdToParent for SingleA
 
     #[inline]
     fn count_values_for_ids(&self, ids: &[u32], top: Option<u32>) -> FnvHashMap<T, usize> {
-        count_values_for_ids(ids, top, self.metadata.avg_join_size, self.metadata.max_value_id, |id: u64| self.get_value(id))
+        count_values_for_ids(ids, top, self.metadata.avg_join_size, self.metadata.max_value_id, |id: u64| {
+            self.get_value(id)
+        })
     }
 
     fn get_keys(&self) -> Vec<T> {
@@ -365,7 +366,6 @@ impl<T: IndexIdToParentData> IndexIdToParent for SingleArrayMMAPPacked<T> {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -403,7 +403,6 @@ mod tests {
         assert_eq!(store.get_values_iter(5).collect::<Vec<u32>>(), vec![50000]);
         assert_eq!(store.get_values_iter(6).collect::<Vec<u32>>(), empty_vec);
         assert_eq!(store.get_values_iter(11).collect::<Vec<u32>>(), empty_vec);
-
     }
 
     mod test_direct_1_to_1 {

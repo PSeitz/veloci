@@ -5,7 +5,7 @@ use search;
 use search::*;
 use std;
 use std::cmp;
-use str;
+use std::str;
 use tokenizer::*;
 use util::StringAdd;
 
@@ -20,11 +20,7 @@ use fnv::FnvHashSet;
 
 /// Highlights text
 /// tokens has to be sorted by best match first (probably longest)
-pub fn highlight_text(
-    text: &str,
-    set: &FnvHashSet<String>,
-    opt: &SnippetInfo,
-) -> Option<String> {
+pub fn highlight_text(text: &str, set: &FnvHashSet<String>, opt: &SnippetInfo) -> Option<String> {
     let mut contains_any_token = false;
     let mut highlighted = String::with_capacity(text.len() + 10);
 
@@ -145,7 +141,8 @@ pub fn highlight_document(persistence: &Persistence, path: &str, value_id: u64, 
                     snippet_part_acc + &id_to_text[token_id]
                 }
             })
-        }).take(opt.max_snippets as usize)
+        })
+        .take(opt.max_snippets as usize)
         .intersperse(opt.snippet_connector.to_string())
         .fold(String::with_capacity(estimated_snippet_size as usize), |snippet, snippet_part| snippet + &snippet_part);
 

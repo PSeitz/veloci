@@ -79,7 +79,7 @@ fn search_testo_to_hitso(requesto: search::Request) -> Result<search::SearchResu
 }
 
 #[test]
-fn simple_search(){
+fn simple_search() {
     let req = json!({
         "search": {
             "terms":["superb"],
@@ -91,7 +91,7 @@ fn simple_search(){
 }
 
 #[test]
-fn search_and_get_facet_with_facet_index(){
+fn search_and_get_facet_with_facet_index() {
     let req = json!({
         "search": {"terms":["superb"], "path": "category"},
         "facets": [{"field":"tags[]"}]
@@ -100,7 +100,6 @@ fn search_and_get_facet_with_facet_index(){
     let hits = search_testo_to_doc(req);
     let facets = hits.facets.unwrap();
     let mut yep = facets.get("tags[]").unwrap().clone();
-    yep.sort_by(|a, b| format!("{:?}{:?}", b.1 , b.0).cmp(&format!("{:?}{:?}", a.1 , a.0)));
-    assert_eq!(yep, vec![("nice".to_string(), 300), ("cool".to_string(), 300)] );
+    yep.sort_by(|a, b| format!("{:?}{:?}", b.1, b.0).cmp(&format!("{:?}{:?}", a.1, a.0)));
+    assert_eq!(yep, vec![("nice".to_string(), 300), ("cool".to_string(), 300)]);
 }
-

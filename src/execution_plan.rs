@@ -32,11 +32,9 @@ type PlanStepId = usize;
 pub struct PlanRequestSearchPart {
     pub request: RequestSearchPart,
 
-    #[serde(default)]
-    pub get_scores: bool,
+    #[serde(default)] pub get_scores: bool,
 
-    #[serde(default)]
-    pub get_ids: bool,
+    #[serde(default)] pub get_ids: bool,
 
     /// Internal data used for whyfound - read and highlight fields
     #[serde(skip_deserializing)]
@@ -54,8 +52,7 @@ pub struct PlanRequestSearchPart {
     pub return_term: bool,
 
     //TODO MOVE TO RequestSearchPart?
-    #[serde(skip_serializing_if = "skip_false")]
-    pub return_term_lowercase: bool,
+    #[serde(skip_serializing_if = "skip_false")] pub return_term_lowercase: bool,
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
@@ -116,10 +113,12 @@ impl Plan {
                         .iter()
                         .filter(|dep| {
                             current_remaining_step_ids.iter().any(|step_id| *step_id == dep.depends_on) // check if depends_on is in current_remaining_step_ids
-                        }).collect();
+                        })
+                        .collect();
 
                     unfulfilled_dependencies.is_empty()
-                }).collect();
+                })
+                .collect();
 
             if steps_with_fullfilled_dependencies.is_empty() {
                 panic!("invalid plan created");
@@ -676,8 +675,7 @@ fn plan_creator_2(
             channel: channel,
         };
         let step_id = plan.add_step(Box::new(step.clone()));
-        let result_channels_from_prev_steps = or
-            .iter()
+        let result_channels_from_prev_steps = or.iter()
             .map(|x| {
                 // x.explain = request_header.explain;
                 let mut boost = merge_vec(boost, &x.boost);
@@ -694,7 +692,8 @@ fn plan_creator_2(
                     field_search_cache,
                 );
                 plan.get_step(step_id).get_channel().receiver_for_next_step.clone()
-            }).collect();
+            })
+            .collect();
         plan.get_step(step_id).get_channel().input_prev_steps = result_channels_from_prev_steps;
 
         if let Some(parent_step_dependecy) = parent_step_dependecy {
@@ -719,8 +718,7 @@ fn plan_creator_2(
             channel: channel,
         };
         let step_id = plan.add_step(Box::new(step.clone()));
-        let result_channels_from_prev_steps = ands
-            .iter()
+        let result_channels_from_prev_steps = ands.iter()
             .map(|x| {
                 // x.explain = request_header.explain;
                 let mut boost = merge_vec(boost, &x.boost);
@@ -737,7 +735,8 @@ fn plan_creator_2(
                     field_search_cache,
                 );
                 plan.get_step(step_id).get_channel().receiver_for_next_step.clone()
-            }).collect();
+            })
+            .collect();
         plan.get_step(step_id).get_channel().input_prev_steps = result_channels_from_prev_steps;
 
         if let Some(parent_step_dependecy) = parent_step_dependecy {

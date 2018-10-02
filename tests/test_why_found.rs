@@ -65,15 +65,14 @@ fn search_testo_to_hitso(req: Value) -> Result<search::SearchResult, search::Sea
     Ok(hits)
 }
 
-
 #[test]
-fn get_number_of_docs(){
+fn get_number_of_docs() {
     let pers = &TEST_PERSISTENCE;
     assert_eq!(pers.get_number_of_documents(), 4);
 }
 
 #[test]
-fn should_add_why_found_terms_highlight_tokens_and_also_text_ids(){
+fn should_add_why_found_terms_highlight_tokens_and_also_text_ids() {
     let req = json!({
         "search": {
             "terms":["schön"],
@@ -89,7 +88,7 @@ fn should_add_why_found_terms_highlight_tokens_and_also_text_ids(){
 }
 
 #[test]
-fn should_add_why_found_from_1_n_terms_highlight_tokens_and_also_text_ids(){
+fn should_add_why_found_from_1_n_terms_highlight_tokens_and_also_text_ids() {
     let req = json!({
         "search": {
             "terms":["treffers"],
@@ -104,7 +103,7 @@ fn should_add_why_found_from_1_n_terms_highlight_tokens_and_also_text_ids(){
 }
 
 #[test]
-fn should_add_why_found_from_1_n_terms_because_when_select_is_used_a_different_why_found_strategy_is_used(){
+fn should_add_why_found_from_1_n_terms_because_when_select_is_used_a_different_why_found_strategy_is_used() {
     let req = json!({
         "search": {
             "terms":["umsortiert"],
@@ -117,11 +116,14 @@ fn should_add_why_found_from_1_n_terms_because_when_select_is_used_a_different_w
 
     let hits = search_testo_to_doc(req).data;
     assert_eq!(hits[0].doc["richtig"], "shön");
-    assert_eq!(hits[0].why_found["viele[]"], vec!["ein längerer Text, um zu checken, dass da nicht <b>umsortiert</b> wird"]);
+    assert_eq!(
+        hits[0].why_found["viele[]"],
+        vec!["ein längerer Text, um zu checken, dass da nicht <b>umsortiert</b> wird"]
+    );
 }
 
 #[test]
-fn should_add_highlight_taschenbuch(){
+fn should_add_highlight_taschenbuch() {
     let req = json!({
         "search": {
             "terms":["Taschenbuch"],
@@ -136,7 +138,7 @@ fn should_add_highlight_taschenbuch(){
 }
 
 #[test]
-fn should_add_highlight_multi_terms(){
+fn should_add_highlight_multi_terms() {
     let req = json!({
         "or":[
         {
@@ -160,4 +162,3 @@ fn should_add_highlight_multi_terms(){
     let hits = search_testo_to_doc(req).data;
     assert_eq!(hits[0].why_found["buch"], vec!["<b>Taschenbuch</b> (<b>kartoniert</b>)"]);
 }
-

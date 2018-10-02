@@ -6,6 +6,8 @@ use std::fs::File;
 use std::io;
 use std::io::prelude::*;
 use std::path::Path;
+use itertools::Itertools;
+use std::collections::HashMap;
 
 pub(crate) fn normalize_text(text: &str) -> String {
     lazy_static! {
@@ -114,10 +116,6 @@ pub(crate) fn get_u64_from_bytes(data: &[u8], pos: usize) -> u64 {
 //     curr_pos
 // }
 
-// pub(crate) fn hits_map_to_vec(hits: &FnvHashMap<u32, f32>) -> Vec<Hit> {
-//     hits.iter().map(|(id, score)| Hit { id: *id, score: *score }).collect()
-// }
-
 // pub(crate) fn hits_vec_to_map(vec_hits: Vec<Hit>) -> FnvHashMap<u32, f32> {
 //     let mut hits: FnvHashMap<u32, f32> = FnvHashMap::default();
 //     for hit in vec_hits {
@@ -127,9 +125,11 @@ pub(crate) fn get_u64_from_bytes(data: &[u8], pos: usize) -> u64 {
 // }
 
 pub(crate) trait StringAdd {
+    #[inline]
     fn add<O: AsRef<str>>(&self, other: O) -> String;
 }
 impl<S: AsRef<str>> StringAdd for S {
+    #[inline]
     fn add<O: AsRef<str>>(&self, other: O) -> String {
         self.as_ref().to_string() + other.as_ref()
     }
@@ -265,9 +265,6 @@ pub(crate) fn get_all_steps_to_anchor(path: &str) -> Vec<String> {
     // paths.push(path.to_string() + TEXTINDEX); // add path to index
     paths
 }
-
-use itertools::Itertools;
-use std::collections::HashMap;
 
 #[derive(Debug, Clone, Serialize, PartialEq)]
 pub enum NodeTree {

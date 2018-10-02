@@ -302,9 +302,8 @@ fn test_json_request() {
     assert_eq!(requesto.search.unwrap().levenshtein_distance, Some(1));
 }
 
-
 #[test]
-fn simple_search(){
+fn simple_search() {
     let req = json!({
         "search": {
             "terms":["urge"],
@@ -320,7 +319,7 @@ fn simple_search(){
 }
 
 #[test]
-fn simple_search_explained(){
+fn simple_search_explained() {
     let req = json!({
         "search": {
             "terms":["urge"],
@@ -339,8 +338,7 @@ fn simple_search_explained(){
 }
 
 #[test]
-fn or_query_explained(){
-
+fn or_query_explained() {
     let req = json!({
         "or":[
             {"search": {
@@ -360,11 +358,10 @@ fn or_query_explained(){
     assert_eq!(hits[0].doc["ent_seq"], "1587690");
     // assert_eq!(hits[0].explain, Some(to_vec(&["or sum_over_distinct_terms 36.8125", "term score 10.0 * anchor score 3.68 to 36.8", "levenshtein score 10.0 for urge"])));
     assert_eq!(hits[0].explain.as_ref().unwrap().len(), 3);
-
 }
 
 #[test]
-fn simple_search_querygenerator_explained(){
+fn simple_search_querygenerator_explained() {
     let mut params = query_generator::SearchQueryGeneratorParameters::default();
     params.explain = Some(true);
     params.search_term = "urge".to_string();
@@ -379,7 +376,7 @@ fn simple_search_querygenerator_explained(){
 }
 
 #[test]
-fn simple_search_querygenerator_or_connect_explained(){
+fn simple_search_querygenerator_or_connect_explained() {
     let mut params = query_generator::SearchQueryGeneratorParameters::default();
     params.explain = Some(true);
     params.search_term = "urge OR いよく".to_string();
@@ -392,11 +389,10 @@ fn simple_search_querygenerator_or_connect_explained(){
     // assert_eq!(hits[0].explain, Some(vec!["or sum_over_distinct_terms 452.375".to_string(), "term score 15.0 * anchor score 3.7 to 55.5".to_string(), "term score 15.0 * anchor score 3.84 to 57.6".to_string()]));
     // assert_eq!(hits[0].explain, None);
     assert_eq!(hits[0].explain.as_ref().unwrap().len(), 5);
-
 }
 
 #[test]
-fn test_float(){
+fn test_float() {
     let req = json!({
         "search": {
             "terms":["5.123"],
@@ -410,7 +406,7 @@ fn test_float(){
 }
 
 #[test]
-fn test_bool(){
+fn test_bool() {
     let req = json!({
         "search": {
             "terms":["true"],
@@ -424,7 +420,7 @@ fn test_bool(){
 }
 
 #[test]
-fn should_return_an_error_when_trying_to_query_an_invalid_field(){
+fn should_return_an_error_when_trying_to_query_an_invalid_field() {
     let req = json!({
         "search": {
             "terms":["test"],
@@ -435,16 +431,15 @@ fn should_return_an_error_when_trying_to_query_an_invalid_field(){
     let hits = search_testo_to_hitso(requesto);
 
     match hits {
-        Err(search::SearchError::StringError(el)) => {assert_eq!(el, "fst not found loaded in indices notexisting.textindex ".to_string())},
+        Err(search::SearchError::StringError(el)) => assert_eq!(el, "fst not found loaded in indices notexisting.textindex ".to_string()),
         _ => panic!("YESO"),
     }
-
 }
 
 #[test]
-fn simple_search_querygenerator(){
+fn simple_search_querygenerator() {
     let mut params = query_generator::SearchQueryGeneratorParameters::default();
-    params.search_term="urge".to_string();
+    params.search_term = "urge".to_string();
 
     let hits = search_testo_to_doco_qp(params).data;
     assert_eq!(hits.len(), 1);
@@ -454,9 +449,9 @@ fn simple_search_querygenerator(){
 }
 
 #[test]
-fn simple_search_querygenerator_or_connect(){
+fn simple_search_querygenerator_or_connect() {
     let mut params = query_generator::SearchQueryGeneratorParameters::default();
-    params.search_term="urge OR いよく".to_string();
+    params.search_term = "urge OR いよく".to_string();
 
     let hits = search_testo_to_doco_qp(params).data;
     assert_eq!(hits.len(), 3);
@@ -466,9 +461,9 @@ fn simple_search_querygenerator_or_connect(){
 }
 
 #[test]
-fn simple_search_querygenerator_and(){
+fn simple_search_querygenerator_and() {
     let mut params = query_generator::SearchQueryGeneratorParameters::default();
-    params.search_term="urge AND いよく".to_string();
+    params.search_term = "urge AND いよく".to_string();
 
     let hits = search_testo_to_doco_qp(params).data;
     assert_eq!(hits.len(), 1);
@@ -477,10 +472,10 @@ fn simple_search_querygenerator_and(){
     assert_eq!(hits[0].doc["tags"], json!(["nice".to_string()]));
 }
 #[test]
-fn simple_search_querygenerator_and_emtpy_stopword_list(){
+fn simple_search_querygenerator_and_emtpy_stopword_list() {
     let mut params = query_generator::SearchQueryGeneratorParameters::default();
     params.stopword_lists = Some(vec![]);
-    params.search_term="urge AND いよく".to_string();
+    params.search_term = "urge AND いよく".to_string();
 
     let hits = search_testo_to_doco_qp(params).data;
     assert_eq!(hits.len(), 1);
@@ -489,10 +484,10 @@ fn simple_search_querygenerator_and_emtpy_stopword_list(){
     assert_eq!(hits[0].doc["tags"], json!(["nice".to_string()]));
 }
 #[test]
-fn simple_search_querygenerator_and_stopword_list(){
+fn simple_search_querygenerator_and_stopword_list() {
     let mut params = query_generator::SearchQueryGeneratorParameters::default();
     params.stopword_lists = Some(vec!["en".to_string()]);
-    params.search_term="urge AND いよく".to_string();
+    params.search_term = "urge AND いよく".to_string();
 
     let hits = search_testo_to_doco_qp(params).data;
     assert_eq!(hits.len(), 1);
@@ -501,16 +496,16 @@ fn simple_search_querygenerator_and_stopword_list(){
     assert_eq!(hits[0].doc["tags"], json!(["nice".to_string()]));
 }
 #[test]
-fn simple_search_querygenerator_and_no_hit(){
+fn simple_search_querygenerator_and_no_hit() {
     let mut params = query_generator::SearchQueryGeneratorParameters::default();
-    params.search_term="urge AND いよく AND awesome".to_string();
+    params.search_term = "urge AND いよく AND awesome".to_string();
 
     let hits = search_testo_to_doco_qp(params).data;
     assert_eq!(hits.len(), 0);
 }
 
 #[test]
-fn select_single_field(){
+fn select_single_field() {
     let req = json!({
         "search": {
             "terms":["urge"],
@@ -524,7 +519,6 @@ fn select_single_field(){
     assert_eq!(hits[0].doc["ent_seq"], "1587690");
     assert_eq!(hits[0].doc.get("commonness"), None); // didn't select
     assert_eq!(hits[0].doc["tags"], json!(["nice".to_string()]));
-
 }
 
 #[test]
@@ -544,8 +538,7 @@ fn two_tokens_h_test_fn_the_same_anchor() {
 
 #[test]
 fn deep_structured_objects() {
-
-   let req = json!({
+    let req = json!({
        "search": {
            "terms":["brook"],
            "path": "address[].line[]",
@@ -553,14 +546,13 @@ fn deep_structured_objects() {
        }
    });
 
-   let hits = search_testo_to_doc(req).data;
-   assert_eq!(hits.len(), 1);
-   assert_eq!(hits[0].doc["id"], 123456);
+    let hits = search_testo_to_doc(req).data;
+    assert_eq!(hits.len(), 1);
+    assert_eq!(hits[0].doc["id"], 123456);
 }
 
-
 #[test]
-fn should_search_without_first_char_exact_match(){
+fn should_search_without_first_char_exact_match() {
     let req = json!({
         "search": {
             "terms":["najestätischer"],
@@ -574,8 +566,7 @@ fn should_search_without_first_char_exact_match(){
 }
 
 #[test]
-fn should_prefer_exact_matches_to_tokenmatches(){
-
+fn should_prefer_exact_matches_to_tokenmatches() {
     let req = json!({
         "search": {
             "terms":["will"],
@@ -588,8 +579,7 @@ fn should_prefer_exact_matches_to_tokenmatches(){
 }
 
 #[test]
-fn should_prefer_exact_tokenmatches_to_fuzzy_text_hits(){
-
+fn should_prefer_exact_tokenmatches_to_fuzzy_text_hits() {
     let req = json!({
         "search": {
             "terms":["karl"],
@@ -604,7 +594,7 @@ fn should_prefer_exact_tokenmatches_to_fuzzy_text_hits(){
 }
 
 #[test]
-fn should_prefer_short_results(){
+fn should_prefer_short_results() {
     let mut params = query_generator::SearchQueryGeneratorParameters::default();
     params.phrase_pairs = Some(true);
     params.explain = Some(true);
@@ -614,7 +604,7 @@ fn should_prefer_short_results(){
 }
 
 #[test]
-fn should_search_word_non_tokenized(){
+fn should_search_word_non_tokenized() {
     let req = json!({
         "search": {
             "terms":["偉容"],
@@ -628,7 +618,7 @@ fn should_search_word_non_tokenized(){
 }
 
 #[test]
-fn should_check_disabled_tokenization(){
+fn should_check_disabled_tokenization() {
     let req = json!({
         "search": {
             "terms":["tokens"],
@@ -641,7 +631,7 @@ fn should_check_disabled_tokenization(){
 }
 
 #[test]
-fn should_search_on_non_subobject(){
+fn should_search_on_non_subobject() {
     let req = json!({
         "search": {
             "terms":["1587690"],
@@ -654,7 +644,7 @@ fn should_search_on_non_subobject(){
 }
 
 #[test]
-fn and_connect_hits_same_field(){
+fn and_connect_hits_same_field() {
     let req = json!({
         "and":[
             {"search": {"terms":["aussehen"],       "path": "meanings.ger[]"}},
@@ -668,7 +658,7 @@ fn and_connect_hits_same_field(){
 }
 
 #[test]
-fn and_connect_hits_different_fields(){
+fn and_connect_hits_different_fields() {
     let req = json!({
         "and":[
             {"search": {"terms":["majestät"], "path": "meanings.ger[]"}},
@@ -682,7 +672,7 @@ fn and_connect_hits_different_fields(){
 }
 
 #[test]
-fn and_connect_hits_different_fields_no_hit(){
+fn and_connect_hits_different_fields_no_hit() {
     let req = json!({
         "and":[
             {"search": {
@@ -701,7 +691,7 @@ fn and_connect_hits_different_fields_no_hit(){
 }
 
 #[test]
-fn and_connect_hits_different_fields_same_text_alle_meine_words_appears_again(){
+fn and_connect_hits_different_fields_same_text_alle_meine_words_appears_again() {
     let req = json!({
         "and":[
             {"search": {
@@ -721,7 +711,7 @@ fn and_connect_hits_different_fields_same_text_alle_meine_words_appears_again(){
 }
 
 #[test]
-fn o_r_connect_hits(){
+fn o_r_connect_hits() {
     let req = json!({
         "or":[
             {"search": {
@@ -741,7 +731,7 @@ fn o_r_connect_hits(){
 }
 
 #[test]
-fn simple_search_and_connect_hits_with_filter(){
+fn simple_search_and_connect_hits_with_filter() {
     let req = json!({
         "search": {
             "terms":["urge"],
@@ -760,7 +750,7 @@ fn simple_search_and_connect_hits_with_filter(){
 }
 
 #[test]
-fn o_r_connect_hits_with_filter(){
+fn o_r_connect_hits_with_filter() {
     let req = json!({
         "or":[
             {"search": {
@@ -785,7 +775,7 @@ fn o_r_connect_hits_with_filter(){
 }
 
 #[test]
-fn o_r_connect_hits_with_filter_reuse_query(){
+fn o_r_connect_hits_with_filter_reuse_query() {
     let req = json!({
         "or":[
             {"search": {
@@ -810,7 +800,7 @@ fn o_r_connect_hits_with_filter_reuse_query(){
 }
 
 #[test]
-fn should_find_2_values_from_token(){
+fn should_find_2_values_from_token() {
     let req = json!({
         "search": {
             "terms":["意慾"],
@@ -823,7 +813,7 @@ fn should_find_2_values_from_token(){
 }
 
 #[test]
-fn should_search_and_boosto(){
+fn should_search_and_boosto() {
     let req = json!({
         "search": {
             "terms":["意慾"],
@@ -841,7 +831,7 @@ fn should_search_and_boosto(){
 }
 
 #[test]
-fn should_search_and_double_boost(){
+fn should_search_and_double_boost() {
     let req = json!({
         "search": {
             "terms":["awesome"],
@@ -864,7 +854,7 @@ fn should_search_and_double_boost(){
 }
 
 #[test]
-fn should_search_and_boost_anchor(){
+fn should_search_and_boost_anchor() {
     let req = json!({
         "search": {
             "terms":["意慾"],
@@ -884,7 +874,7 @@ fn should_search_and_boost_anchor(){
 }
 
 #[test]
-fn should_or_connect_search_and_boost_anchor(){
+fn should_or_connect_search_and_boost_anchor() {
     let req = json!({
         "or":[
             {
@@ -917,7 +907,7 @@ fn should_or_connect_search_and_boost_anchor(){
 }
 
 #[test]
-fn should_or_connect_same_search(){
+fn should_or_connect_same_search() {
     let req = json!({
         "or":[
             {
@@ -941,7 +931,7 @@ fn should_or_connect_same_search(){
 }
 
 #[test]
-fn should_use_search_on_field_for_suggest_without_sorting_etc(){
+fn should_use_search_on_field_for_suggest_without_sorting_etc() {
     let req = json!({
         "terms":["majes"],
         "path": "meanings.ger[]",
@@ -951,13 +941,27 @@ fn should_use_search_on_field_for_suggest_without_sorting_etc(){
     let requesto: search::RequestSearchPart = serde_json::from_str(&req.to_string()).expect("Can't parse json");
     let mut pers = &TEST_PERSISTENCE;
     use search_lib::execution_plan::PlanRequestSearchPart;
-    let mut requesto = PlanRequestSearchPart{request:requesto, return_term:true, ..Default::default()};
+    let mut requesto = PlanRequestSearchPart {
+        request: requesto,
+        return_term: true,
+        ..Default::default()
+    };
     let results = search_field::get_term_ids_in_field(&mut pers, &mut requesto).unwrap();
 
     let mut all_terms = results.terms.values().collect::<Vec<&String>>();
     all_terms.sort();
     // assert_eq!(all_terms, ["majestät", "majestätischer", "majestätischer anblick", "majestätisches", "majestätisches aussehen"]);
-    assert_eq!(all_terms, ["Majestät", "Majestät (f)", "majestätischer", "majestätischer Anblick (m)", "majestätisches", "majestätisches Aussehen (n)"]);
+    assert_eq!(
+        all_terms,
+        [
+            "Majestät",
+            "Majestät (f)",
+            "majestätischer",
+            "majestätischer Anblick (m)",
+            "majestätisches",
+            "majestätisches Aussehen (n)"
+        ]
+    );
 }
 
 //TODO ENBALE
@@ -988,7 +992,7 @@ fn should_use_search_on_field_for_suggest_without_sorting_etc(){
 // }
 
 #[test]
-fn should_highlight_on_field(){
+fn should_highlight_on_field() {
     let req = json!({
         "terms":["story"],
         "path": "mylongtext",
@@ -1001,7 +1005,10 @@ fn should_highlight_on_field(){
     let mut requesto: search::RequestSearchPart = serde_json::from_str(&req.to_string()).expect("Can't parse json");
     let mut pers = &TEST_PERSISTENCE;
     let results = search_field::highlight(&mut pers, &mut requesto).unwrap();
-    assert_eq!(results.iter().map(|el| el.0.clone()).collect::<Vec<String>>(), ["Prolog:\nthis is a <b>story</b> of a guy who went ... "]);
+    assert_eq!(
+        results.iter().map(|el| el.0.clone()).collect::<Vec<String>>(),
+        ["Prolog:\nthis is a <b>story</b> of a guy who went ... "]
+    );
 }
 
 //Should this be possible?  - probably yes plz fixme
@@ -1023,7 +1030,7 @@ fn should_highlight_on_field(){
 // }
 
 #[test]
-fn should_highlight_on_sub_level_field(){
+fn should_highlight_on_sub_level_field() {
     let req = json!({
         "terms":["story"],
         "path": "sub_level[].text",
@@ -1036,11 +1043,14 @@ fn should_highlight_on_sub_level_field(){
     let mut requesto: search::RequestSearchPart = serde_json::from_str(&req.to_string()).expect("Can't parse json");
     let mut pers = &TEST_PERSISTENCE;
     let results = search_field::highlight(&mut pers, &mut requesto).unwrap();
-    assert_eq!(results.iter().map(|el| el.0.clone()).collect::<Vec<String>>(), ["Prolog:\nthis is <b>story</b> of a guy who went ... "]);
+    assert_eq!(
+        results.iter().map(|el| el.0.clone()).collect::<Vec<String>>(),
+        ["Prolog:\nthis is <b>story</b> of a guy who went ... "]
+    );
 }
 
 #[test]
-fn real_suggest_with_score(){
+fn real_suggest_with_score() {
     let req = json!({
         "terms":["majes"],
         "path": "meanings.ger[]",
@@ -1054,12 +1064,21 @@ fn real_suggest_with_score(){
     let results = search_field::suggest(&mut pers, &requesto).unwrap();
     // assert_eq!(results.iter().map(|el| el.0.clone()).collect::<Vec<String>>(), ["majestät", "majestätischer", "majestätisches", "majestätischer anblick", "majestätisches aussehen"]);
     // assert_eq!(results.iter().map(|el| el.0.clone()).collect::<Vec<String>>(), ["Majestät", "Majestät (f)", "majestätischer", "majestätisches", "majestätischer Anblick (m)", "majestätisches Aussehen (n)"]);
-    assert_eq!(results.iter().map(|el| el.0.clone()).collect::<Vec<String>>(), ["majestät", "majestät (f)", "majestätisches", "majestätischer", "majestätischer anblick (m)", "majestätisches aussehen (n)"]);
+    assert_eq!(
+        results.iter().map(|el| el.0.clone()).collect::<Vec<String>>(),
+        [
+            "majestät",
+            "majestät (f)",
+            "majestätisches",
+            "majestätischer",
+            "majestätischer anblick (m)",
+            "majestätisches aussehen (n)"
+        ]
+    );
 }
 
 #[test]
-fn multi_real_suggest_with_score(){
-
+fn multi_real_suggest_with_score() {
     let req = json!({
         "suggest" : [
             {"terms":["will"], "path": "meanings.ger[]", "levenshtein_distance": 0, "starts_with":true},
@@ -1077,9 +1096,8 @@ fn multi_real_suggest_with_score(){
     assert_eq!(results.iter().map(|el| el.0.clone()).collect::<Vec<String>>(), ["will", "wille", "wille (m)", "will testo"]);
 }
 
-
 #[test]
-fn real_suggest_with_boosting_score_of_begeisterung_and_token_value(){
+fn real_suggest_with_boosting_score_of_begeisterung_and_token_value() {
     let req = json!({
         "terms":["begeist"],
         "path": "meanings.ger[]",
@@ -1098,11 +1116,14 @@ fn real_suggest_with_boosting_score_of_begeisterung_and_token_value(){
     let results = search_field::suggest(&mut pers, &requesto).unwrap();
     // assert_eq!(results.iter().map(|el| el.0.clone()).collect::<Vec<String>>(), ["begeisterung", "begeistern"]);
     // assert_eq!(results.iter().map(|el| el.0.clone()).collect::<Vec<String>>(), ["Begeisterung", "begeistern", "Begeisterung (f)"]);
-    assert_eq!(results.iter().map(|el| el.0.clone()).collect::<Vec<String>>(), ["begeisterung", "begeistern", "begeisterung (f)"]);
+    assert_eq!(
+        results.iter().map(|el| el.0.clone()).collect::<Vec<String>>(),
+        ["begeisterung", "begeistern", "begeisterung (f)"]
+    );
 }
 
 #[test]
-fn should_rank_exact_matches_pretty_good(){
+fn should_rank_exact_matches_pretty_good() {
     let req = json!({
         "search": {
             "terms":["weich"], // hits welche and weich
@@ -1122,7 +1143,7 @@ fn should_rank_exact_matches_pretty_good(){
 }
 
 #[test]
-fn should_boost_terms_and_from_cache(){
+fn should_boost_terms_and_from_cache() {
     let req = json!({
         "search": {
             "terms":["weich"],
@@ -1148,7 +1169,7 @@ fn should_boost_terms_and_from_cache(){
 }
 
 #[test]
-fn should_add_why_found_terms(){
+fn should_add_why_found_terms() {
     let req = json!({
         "search": {
             "terms":["weich"],
@@ -1166,7 +1187,7 @@ fn should_add_why_found_terms(){
 }
 
 #[test]
-fn o_r_connect_hits_but_boost_one_term(){
+fn o_r_connect_hits_but_boost_one_term() {
     let req = json!({
         "or":[
             {"search": {"terms":["majestät (f)"], "path": "meanings.ger[]", "boost": 2}},
@@ -1180,13 +1201,13 @@ fn o_r_connect_hits_but_boost_one_term(){
 }
 
 #[test]
-fn get_bytes_indexed(){
+fn get_bytes_indexed() {
     let pers = &TEST_PERSISTENCE;
     assert_eq!(pers.get_bytes_indexed(), 2555);
 }
 
 #[test]
-fn boost_text_localitaet(){
+fn boost_text_localitaet() {
     let req = json!({
         "or":[
             {"search": {"terms":["text"],      "path": "meanings.ger[]"}, "text_locality": true},
@@ -1201,7 +1222,7 @@ fn boost_text_localitaet(){
 }
 
 #[test]
-fn search_and_get_facet_with_facet_index(){
+fn search_and_get_facet_with_facet_index() {
     let req = json!({
         "search": {"terms":["will"], "path": "meanings.eng[]"},
         "facets": [{"field":"tags[]"}, {"field":"commonness"}]
@@ -1210,12 +1231,13 @@ fn search_and_get_facet_with_facet_index(){
     let hits = search_testo_to_doc(req);
     assert_eq!(hits.data.len(), 2);
     let facets = hits.facets.unwrap();
-    assert_eq!(facets.get("tags[]").unwrap(), &vec![("nice".to_string(), 2), ("cool".to_string(), 1)] );
-    assert_eq!(facets.get("commonness").unwrap(), &vec![("20".to_string(), 2)] );
+    assert_eq!(facets.get("tags[]").unwrap(), &vec![("nice".to_string(), 2), ("cool".to_string(), 1)]);
+    assert_eq!(facets.get("commonness").unwrap(), &vec![("20".to_string(), 2)]);
 }
 
 #[test]
-fn search_and_get_facet_without_facet_index(){ // meanings.eng[] hat no facet index and is a 1-n facet
+fn search_and_get_facet_without_facet_index() {
+    // meanings.eng[] hat no facet index and is a 1-n facet
     let req = json!({
         "search": {"terms":["test"], "path": "meanings.ger[]"},
         "facets": [{"field":"meanings.eng[]"}]
@@ -1224,20 +1246,28 @@ fn search_and_get_facet_without_facet_index(){ // meanings.eng[] hat no facet in
     let hits = search_testo_to_doc(req);
     assert_eq!(hits.data.len(), 1);
     let facets = hits.facets.unwrap();
-    assert_eq!(facets.get("meanings.eng[]").unwrap(), &vec![("test1".to_string(), 1)] );
+    assert_eq!(facets.get("meanings.eng[]").unwrap(), &vec![("test1".to_string(), 1)]);
 }
 
 #[test]
-fn read_object_only_partly(){
+fn read_object_only_partly() {
     let pers = &TEST_PERSISTENCE;
-    let yay = search::read_data(&pers, 4, &vec!["commonness".to_string(),
-                                                "ent_seq".to_string(),
-                                                "meanings.ger[]".to_string(),
-                                                "kana[].text".to_string(),
-                                                "kana[].commonness".to_string(),
-                                                "kana[].romaji".to_string(),
-                                                "address[].line[]".to_string()]).unwrap();
-    assert_eq!(yay, json!({
+    let yay = search::read_data(
+        &pers,
+        4,
+        &vec![
+            "commonness".to_string(),
+            "ent_seq".to_string(),
+            "meanings.ger[]".to_string(),
+            "kana[].text".to_string(),
+            "kana[].commonness".to_string(),
+            "kana[].romaji".to_string(),
+            "address[].line[]".to_string(),
+        ],
+    ).unwrap();
+    assert_eq!(
+        yay,
+        json!({
         "address": [
             {"line": ["nuts strees"] },
             {"line": ["asdf"] }
@@ -1248,12 +1278,12 @@ fn read_object_only_partly(){
             "ger": ["der test", "das ist ein guter Treffer"]
         },
         "kana": [{"text": "いよく"} ]
-    }));
-
+    })
+    );
 }
 
 #[test]
-fn should_skip_existing_fields_which_are_not_existent_in_the_object_none_values(){
+fn should_skip_existing_fields_which_are_not_existent_in_the_object_none_values() {
     let pers = &TEST_PERSISTENCE;
     //Check None values
     let yay = search::read_data(&pers, 3, &vec!["mylongtext".to_string()]).unwrap();
@@ -1261,12 +1291,14 @@ fn should_skip_existing_fields_which_are_not_existent_in_the_object_none_values(
 }
 
 #[test]
-fn read_recreate_complete_object_with_read(){
+fn read_recreate_complete_object_with_read() {
     let pers = &TEST_PERSISTENCE;
     let all_props = pers.meta_data.get_all_fields();
     let yay2 = search::read_data(&pers, 4, &all_props).unwrap();
 
-    assert_eq!(yay2, json!({ //TODO FIX INTEGER TO STRING
+    assert_eq!(
+        yay2,
+        json!({ //TODO FIX INTEGER TO STRING
         "id": "1234566",
         "gender": "male",
         "tags": ["awesome", "cool"],
@@ -1279,16 +1311,31 @@ fn read_recreate_complete_object_with_read(){
         "kana": [{"text": "いよく"} ],
         "meanings": {"eng" : ["test1"], "ger": ["der test", "das ist ein guter Treffer"] },
         "ent_seq": "1587700"
-    }));
-
+    })
+    );
 }
 
 #[test]
-fn facet(){
+fn facet() {
     let pers = &TEST_PERSISTENCE;
-    let mut yep = facet::get_facet(&pers, &search::FacetRequest{field:"tags[]".to_string(), top:Some(10)}, &vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14]).unwrap();
+    let mut yep = facet::get_facet(
+        &pers,
+        &search::FacetRequest {
+            field: "tags[]".to_string(),
+            top: Some(10),
+        },
+        &vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14],
+    ).unwrap();
     // yep.sort_by_key(|yo|format!("{:?}{:?}", yo.1 , yo.0));
-    yep.sort_by(|a, b| format!("{:?}{:?}", b.1 , b.0).cmp(&format!("{:?}{:?}", a.1 , a.0)));
-    assert_eq!(yep, vec![("nice".to_string(), 8), ("cool".to_string(), 8), ("coolo".to_string(), 1), ("awesome".to_string(), 1), ("Eis".to_string(), 1)] );
+    yep.sort_by(|a, b| format!("{:?}{:?}", b.1, b.0).cmp(&format!("{:?}{:?}", a.1, a.0)));
+    assert_eq!(
+        yep,
+        vec![
+            ("nice".to_string(), 8),
+            ("cool".to_string(), 8),
+            ("coolo".to_string(), 1),
+            ("awesome".to_string(), 1),
+            ("Eis".to_string(), 1),
+        ]
+    );
 }
-

@@ -72,9 +72,8 @@ fn search_testo_to_hitso(requesto: search::Request) -> Result<search::SearchResu
     Ok(hits)
 }
 
-
 #[test]
-fn should_boost_phrase(){
+fn should_boost_phrase() {
     let req = json!({
         "search": {"terms":["erbin"], "path": "title"},
         "phrase_boosts": [{
@@ -89,7 +88,7 @@ fn should_boost_phrase(){
 }
 
 #[test]
-fn should_boost_phrase_search_multifield(){
+fn should_boost_phrase_search_multifield() {
     let req = json!({
         "or":[
             {"search": {"terms":["die"], "path": "title" }},
@@ -113,7 +112,7 @@ fn should_boost_phrase_search_multifield(){
 }
 
 #[test]
-fn should_and_boost_phrase_search(){
+fn should_and_boost_phrase_search() {
     let req = json!({
         "and":[
             {"search": {"terms":["die"], "path": "title" }},
@@ -131,18 +130,18 @@ fn should_and_boost_phrase_search(){
 }
 
 #[test]
-fn should_and_boost_phrase_a_n_d_query_generator(){
+fn should_and_boost_phrase_a_n_d_query_generator() {
     let mut params = query_generator::SearchQueryGeneratorParameters::default();
-    params.search_term="die AND erbin".to_string();
+    params.search_term = "die AND erbin".to_string();
     params.phrase_pairs = Some(true);
     let hits = search_testo_to_doco_qp(params).data;
     assert_eq!(hits[0].doc["title"], "die erbin");
 }
 
 #[test]
-fn should_and_boost_phrase_query_generator_and_explain(){
+fn should_and_boost_phrase_query_generator_and_explain() {
     let mut params = query_generator::SearchQueryGeneratorParameters::default();
-    params.search_term="die erbin".to_string();
+    params.search_term = "die erbin".to_string();
     params.phrase_pairs = Some(true);
     params.explain = Some(true);
     let hits = search_testo_to_doco_qp(params).data;
@@ -151,16 +150,16 @@ fn should_and_boost_phrase_query_generator_and_explain(){
 }
 
 #[test]
-fn should_and_boost_phrase_o_r_query_generator(){
+fn should_and_boost_phrase_o_r_query_generator() {
     let mut params = query_generator::SearchQueryGeneratorParameters::default();
-    params.search_term="die erbin".to_string();
+    params.search_term = "die erbin".to_string();
     params.phrase_pairs = Some(true);
     let hits = search_testo_to_doco_qp(params).data;
     assert_eq!(hits[0].doc["title"], "die erbin");
 }
 
 #[test]
-fn should_double_boost_from_multiphrases(){
+fn should_double_boost_from_multiphrases() {
     let req_with_single_phrase = json!({
         "or":[
             {"search": {"terms":["greg"], "path": "tags[]" }},
@@ -196,10 +195,9 @@ fn should_double_boost_from_multiphrases(){
 
     let hits = search_testo_to_doc(req_with_multi_phrase).data;
     assert_eq!(hits[0].doc["tags"][0], "greg tagebuch 05");
-
 }
 #[test]
-fn should_double_boost_from_multiphrases_a_n_d_searchterms(){
+fn should_double_boost_from_multiphrases_a_n_d_searchterms() {
     let req_with_single_phrase = json!({
         "and":[
             {"search": {"terms":["greg"], "path": "tags[]" }},
@@ -235,10 +233,9 @@ fn should_double_boost_from_multiphrases_a_n_d_searchterms(){
 
     let hits = search_testo_to_doc(req_with_multi_phrase).data;
     assert_eq!(hits[0].doc["tags"][0], "greg tagebuch 05");
-
 }
 #[test]
-fn should_prefer_different_phrases_from_same_phrase_multiple_times(){
+fn should_prefer_different_phrases_from_same_phrase_multiple_times() {
     let req_with_single_phrase = json!({
         "or":[
             {"search": {"terms":["greg"], "path": "tags[]" }},
@@ -273,6 +270,4 @@ fn should_prefer_different_phrases_from_same_phrase_multiple_times(){
 
     let hits = search_testo_to_doc(req_with_single_phrase).data;
     assert_eq!(hits[0].doc["tags"][0], "greg tagebuch 05");
-
 }
-
