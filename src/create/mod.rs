@@ -780,7 +780,6 @@ fn stream_iter_to_anchor_score<T: AnchorScoreDataSize>(
     target: &mut TokenToAnchorScoreVintFlushing<T>,
 ) -> Result<(), io::Error> {
     use std::slice::from_raw_parts_mut;
-    println!("wat");
     for (id, group) in &iter.group_by(|el| el.key) {
         let mut group: Vec<(u32, u32)> = group.map(|el| el.value).collect();
         group.sort_unstable_by_key(|el| el.0);
@@ -813,9 +812,7 @@ pub fn add_anchor_score_flush(db_path: &str, path: String, mut buffered_index_da
         if buffered_index_data.is_in_memory() {
             stream_iter_to_anchor_score(buffered_index_data.into_iter_inmemory(), &mut store)?;
         } else {
-            println!("stream_iter_to_anchor_score" );
             stream_iter_to_anchor_score(buffered_index_data.flush_and_kmerge()?, &mut store)?;
-            println!("stream_iter_to_anchor_score done" );
         }
 
         //when there has been written something to disk flush the rest of the data too, so we have either all data im oder on disk
