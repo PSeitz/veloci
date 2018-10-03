@@ -85,7 +85,7 @@ pub struct TextIndexMetaData {
 pub struct IndexMetaData {
     pub max_value_id: u32,
     pub avg_join_size: f32,
-    pub num_values: u32,
+    pub num_values: u64,
     pub num_ids: u32,
 }
 

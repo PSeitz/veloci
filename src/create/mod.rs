@@ -1,3 +1,10 @@
+mod features;
+mod fields_config;
+
+use self::fields_config::FieldsConfig;
+pub use self::fields_config::FulltextIndexOptions;
+use self::features::IndexCreationType;
+
 use std::fs::File;
 use std::io;
 use std::io::BufReader;
@@ -5,7 +12,6 @@ use std::{self, str};
 
 use buffered_index_writer;
 use fnv::FnvHashMap;
-use fnv::FnvHashSet;
 use fst::{self, MapBuilder};
 use itertools::Itertools;
 use json_converter;
@@ -39,120 +45,8 @@ use fixedbitset::FixedBitSet;
 use util::StringAdd;
 
 use term_hashmap;
+
 type TermMap = term_hashmap::HashMap<TermInfo>;
-
-// type FieldsConfig = FnvHashMap<String, FieldConfig>;
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct CreateIndexConfig {
-    fields_config: FnvHashMap<String, FieldConfig>,
-    #[serde(default)]
-    /// This can be used e.g. for documents, when only why found or snippets are used
-    do_not_store_document: bool,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct FieldsConfig(FnvHashMap<String, FieldConfig>);
-impl FieldsConfig {
-    fn get(&self, path: &str) -> &FieldConfig {
-        let el = if path.ends_with(".textindex") {
-            self.0.get(&path[..path.len() - 10])
-        } else {
-            self.0.get(path)
-        };
-        if let Some(el) = el {
-            el
-        } else {
-            self.0.get("*GLOBAL*").unwrap()
-        }
-    }
-
-    fn features_to_indices(&mut self) -> Result<(), CreateError> {
-        if self.0.get("*GLOBAL*").is_none() {
-            let default_fulltext_options = FulltextIndexOptions::new_with_tokenize();
-            let default_field_config = FieldConfig {
-                facet: false,
-                features: None,
-                disabled_features: None,
-                fulltext: Some(default_fulltext_options.clone()),
-                disabled_indices: None,
-                boost: None,
-            };
-            self.0.insert("*GLOBAL*".to_string(), default_field_config);
-        }
-        for (key, val) in self.0.iter_mut() {
-            if val.features.is_some() && val.disabled_features.is_some() {
-                return Err(CreateError::InvalidConfig(format!(
-                    "features and disabled_features are not allowed at the same time in field{:?}",
-                    key
-                )));
-            }
-
-            if let Some(features) = val.features
-                .clone()
-                .or_else(|| val.disabled_features.as_ref().map(|disabled_features| Features::invert(disabled_features)))
-            {
-                let disabled = Features::features_to_disabled_indices(&features);
-                let mut existing = val.disabled_indices.as_ref().map(|el| el.clone()).unwrap_or_else(|| FnvHashSet::default());
-                existing.extend(disabled);
-                val.disabled_indices = Some(existing);
-            }
-        }
-
-        Ok(())
-    }
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct FieldConfig {
-    #[serde(default)] pub facet: bool,
-    pub fulltext: Option<FulltextIndexOptions>,
-    pub disabled_indices: Option<FnvHashSet<IndexCreationType>>,
-    pub features: Option<FnvHashSet<Features>>,
-    pub disabled_features: Option<FnvHashSet<Features>>,
-    pub boost: Option<BoostIndexOptions>,
-}
-impl FieldConfig {
-    fn is_index_enabled(&self, index: IndexCreationType) -> bool {
-        self.disabled_indices.as_ref().map(|el| !el.contains(&index)).unwrap_or(true)
-    }
-}
-
-#[test]
-fn test_field_config_from_json() {
-    let json = r#"{
-        "MATNR" : {
-           "facet":true,
-           "fulltext" : {"tokenize":true},
-           "disabled_indices": ["TokensToTextID", "TokenToAnchorIDScore", "PhrasePairToAnchor", "TextIDToTokenIds", "TextIDToParent", "ParentToTextID", "TextIDToAnchor"]
-        },
-        "ISMTITLE"     : {"fulltext": {"tokenize":true}, "features":["Search"]  },
-        "ISMORIGTITLE" : {"fulltext": {"tokenize":true}, "disabled_features":["Search"]  },
-        "ISMSUBTITLE1" : {"fulltext": {"tokenize":true}  },
-        "ISMSUBTITLE2" : {"fulltext": {"tokenize":true}  },
-        "ISMSUBTITLE3" : {"fulltext": {"tokenize":true}  },
-        "ISMARTIST"    : {"fulltext": {"tokenize":true}  },
-        "ISMLANGUAGES" : {"fulltext": {"tokenize":false} },
-        "ISMPUBLDATE"  : {"fulltext": {"tokenize":false} },
-        "EAN11"        : {"fulltext": {"tokenize":false} },
-        "ISMORIDCODE"  : {"fulltext": {"tokenize":false} }
-    }"#;
-    let mut data: FieldsConfig = serde_json::from_str(json).unwrap();
-    data.features_to_indices().unwrap();
-    assert_eq!(data.get("MATNR").facet, true);
-    assert_eq!(data.get("MATNR").is_index_enabled(IndexCreationType::TokensToTextID), false);
-    assert_eq!(data.get("ISMTITLE").is_index_enabled(IndexCreationType::TokenToAnchorIDScore), true);
-    assert_eq!(data.get("ISMTITLE").is_index_enabled(IndexCreationType::TokensToTextID), false);
-    assert_eq!(data.get("ISMORIDCODE").fulltext.as_ref().unwrap().tokenize, false);
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-#[serde(untagged)]
-pub enum CreateIndex {
-    FulltextInfo(Fulltext),
-    BoostInfo(Boost),
-    FacetInfo(FacetIndex),
-}
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct FacetIndex {
@@ -160,64 +54,8 @@ pub struct FacetIndex {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct Fulltext {
-    fulltext: String,
-    options: Option<FulltextIndexOptions>,
-    loading_type: Option<LoadingType>,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct Boost {
-    boost: String,
-    options: BoostIndexOptions,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct TokenValuesConfig {
     path: String,
-}
-#[derive(Serialize, Deserialize, Debug, Clone, Copy)]
-#[serde(rename_all = "lowercase")]
-pub enum TokenizerStrategy {
-    Simple,
-    Jp,
-}
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct FulltextIndexOptions {
-    pub tokenize: bool,
-    #[serde(default = "default_tokenizer")] pub tokenizer: TokenizerStrategy,
-    pub stopwords: Option<FnvHashSet<String>>,
-    #[serde(default = "default_text_length_store")] pub do_not_store_text_longer_than: usize,
-}
-fn default_tokenizer() -> TokenizerStrategy {
-    TokenizerStrategy::Simple
-}
-fn default_text_length_store() -> usize {
-    32
-}
-impl Default for FulltextIndexOptions {
-    fn default() -> FulltextIndexOptions {
-        FulltextIndexOptions {
-            tokenize: true,
-            stopwords: None,
-            tokenizer: TokenizerStrategy::Simple,
-            do_not_store_text_longer_than: default_text_length_store(),
-        }
-    }
-}
-
-impl FulltextIndexOptions {
-    fn new_with_tokenize() -> FulltextIndexOptions {
-        FulltextIndexOptions {
-            tokenize: true,
-            ..Default::default()
-        }
-    }
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct BoostIndexOptions {
-    boost_type: String, // type:
 }
 
 #[derive(Debug, Default, Clone, Copy)]
@@ -297,16 +135,9 @@ fn store_full_text_info_and_set_ids(
 ) -> Result<(), io::Error> {
     debug_time!("store_fst strings and string offsets {:?}", path);
 
-    // info!(
-    //     "{:?} mappo.memory_footprint() {}",
-    //     path,
-    //     persistence::get_readable_size(all_terms.memory_footprint())
-    // );
-
     if log_enabled!(log::Level::Trace) {
         let mut all_text: Vec<_> = terms_data.terms.keys().collect();
         all_text.sort_unstable();
-
         trace!("{:?} Terms: {:?}", path, all_text);
     }
     fulltext_indices.num_text_ids = terms_data.terms.len();
@@ -317,7 +148,6 @@ fn store_full_text_info_and_set_ids(
 }
 
 fn store_fst(persistence: &Persistence, sorted_terms: &[(&str, &mut TermInfo)], path: &str, ignore_text_longer_than: usize) -> Result<(), fst::Error> {
-    // fn store_fst(persistence: &Persistence, sorted_terms: &[(&String, &mut TermInfo)], path: &str) -> Result<(), fst::Error> {
     debug_time!("store_fst {:?}", path);
     let wtr = persistence.get_buffered_writer(&path.add(".fst"))?;
     // Create a builder that can be used to insert new key-value pairs.
@@ -334,7 +164,7 @@ fn store_fst(persistence: &Persistence, sorted_terms: &[(&str, &mut TermInfo)], 
 }
 
 #[inline]
-// *mut FnvHashMap here or the borrow checker will complain, because the return apparently expands the scope of the mutable ownership to the complete function(?)
+// *mut FnvHashMap here or the borrow checker will complain, because of 'if let' expands the scope of the mutable ownership to the complete function
 fn get_or_insert_prefer_get<'a, T, F>(map: *mut FnvHashMap<String, T>, key: &str, constructor: &F) -> &'a mut T
 where
     F: Fn() -> T,
@@ -489,7 +319,6 @@ fn get_allterms_per_path<I: Iterator<Item = Result<serde_json::Value, serde_json
 //             }
 //         }
 //     }
-
 //     for (path, sub) in map {
 //         for (path2, data) in sub {
 //             if data.0 > 0.1 {
@@ -550,80 +379,6 @@ impl BufferedTextIdToTokenIdsData {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, Copy, Eq, PartialEq, Hash)]
-pub enum Features {
-    BoostTextLocality,
-    BoostingFieldData,
-    Search,
-    Filters,
-    Facets,
-    Select,
-    WhyFound,
-    Highlight,
-    PhraseBoost,
-}
-
-impl Features {
-    fn invert(features: &FnvHashSet<Features>) -> FnvHashSet<Features> {
-        let all_features: &[Features] = &[
-            Features::BoostTextLocality,
-            Features::BoostingFieldData,
-            Features::Search,
-            Features::Filters,
-            Features::Facets,
-            Features::Select,
-            Features::WhyFound,
-            Features::Highlight,
-            Features::PhraseBoost,
-        ];
-
-        all_features.into_iter().filter(|feature| features.contains(&feature)).cloned().collect()
-    }
-
-    fn features_to_disabled_indices(features: &FnvHashSet<Features>) -> FnvHashSet<IndexCreationType> {
-        let mut hashset = FnvHashSet::default();
-
-        let add_if_features_not_used = |f: &[Features], index_type: IndexCreationType, hashset: &mut FnvHashSet<IndexCreationType>| {
-            for feature in f {
-                if features.contains(feature) {
-                    return;
-                }
-            }
-            hashset.insert(index_type);
-        };
-
-        add_if_features_not_used(
-            &[Features::BoostTextLocality, Features::Highlight, Features::BoostingFieldData],
-            IndexCreationType::TokensToTextID,
-            &mut hashset,
-        );
-        add_if_features_not_used(&[Features::Search], IndexCreationType::TokenToAnchorIDScore, &mut hashset);
-
-        add_if_features_not_used(&[Features::Select, Features::Facets], IndexCreationType::ParentToValueID, &mut hashset);
-        add_if_features_not_used(&[Features::BoostingFieldData], IndexCreationType::ValueIDToParent, &mut hashset);
-
-        add_if_features_not_used(&[Features::PhraseBoost], IndexCreationType::PhrasePairToAnchor, &mut hashset);
-        add_if_features_not_used(&[Features::Select, Features::WhyFound], IndexCreationType::TextIDToTokenIds, &mut hashset);
-        add_if_features_not_used(&[Features::BoostingFieldData], IndexCreationType::TextIDToParent, &mut hashset);
-        add_if_features_not_used(&[Features::Facets, Features::Select], IndexCreationType::ParentToTextID, &mut hashset); //TODO can be diabled if facets is on non root element
-        add_if_features_not_used(&[Features::BoostTextLocality, Features::Select], IndexCreationType::TextIDToAnchor, &mut hashset);
-
-        hashset
-    }
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone, Copy, Eq, PartialEq, Hash)]
-pub enum IndexCreationType {
-    TokensToTextID,       // Used by boost_text_locality, highlighting(why?), queries with boost indices on fields (slow search path)
-    TokenToAnchorIDScore, //normal search
-    PhrasePairToAnchor,   //phrase boost
-    TextIDToTokenIds,     // highlight document(why_found, when select), select
-    TextIDToParent,       // queries with boost indices on fields (slow search path)
-    ParentToTextID,       // facets on root, facets on sublevel with no special direct index, select
-    ParentToValueID,      // select
-    ValueIDToParent,      // select
-    TextIDToAnchor,       // Boost text locality, exact filters like facets
-}
 
 #[derive(Debug, Default)]
 struct PathData {
@@ -636,10 +391,7 @@ struct PathData {
     parent_to_text_id: Option<BufferedIndexWriter>, //Used to recreate objects, keep oder
     text_id_to_anchor: Option<BufferedIndexWriter>,
     anchor_to_text_id: Option<BufferedIndexWriter>,
-    // boost: Option<Vec<ValIdToValue>>,
     boost: Option<BufferedIndexWriter>,
-    // max_valid: u32,
-    // max_parentid: u32,
     fulltext_options: FulltextIndexOptions,
 }
 
@@ -1028,6 +780,7 @@ fn stream_iter_to_anchor_score<T: AnchorScoreDataSize>(
     target: &mut TokenToAnchorScoreVintFlushing<T>,
 ) -> Result<(), io::Error> {
     use std::slice::from_raw_parts_mut;
+    println!("wat");
     for (id, group) in &iter.group_by(|el| el.key) {
         let mut group: Vec<(u32, u32)> = group.map(|el| el.value).collect();
         group.sort_unstable_by_key(|el| el.0);
@@ -1049,18 +802,20 @@ fn stream_iter_to_anchor_score<T: AnchorScoreDataSize>(
     Ok(())
 }
 
-fn add_anchor_score_flush(db_path: &str, path: String, mut buffered_index_data: BufferedIndexWriter<u32, (u32, u32)>, indices: &mut IndicesFromRawData) -> Result<(), io::Error> {
+pub fn add_anchor_score_flush(db_path: &str, path: String, mut buffered_index_data: BufferedIndexWriter<u32, (u32, u32)>, indices: &mut IndicesFromRawData) -> Result<(), io::Error> {
     let indirect_file_path = util::get_file_path(db_path, &(path.to_string() + ".indirect"));
     let data_file_path = util::get_file_path(db_path, &(path.to_string() + ".data"));
-
     //If the buffered index_data is larger than 4GB, we switch to u64 for addressing the data block
-    if buffered_index_data.bytes_written < 2u64.pow(32) {
+    //panic!("EEEEEHHH {:?}", buffered_index_data.bytes_written);
+    if buffered_index_data.bytes_written < 2_u64.pow(32) {
         let mut store = TokenToAnchorScoreVintFlushing::<u32>::new(indirect_file_path, data_file_path);
         // stream_buffered_index_writer_to_anchor_score(buffered_index_data, &mut store)?;
         if buffered_index_data.is_in_memory() {
             stream_iter_to_anchor_score(buffered_index_data.into_iter_inmemory(), &mut store)?;
         } else {
+            println!("stream_iter_to_anchor_score" );
             stream_iter_to_anchor_score(buffered_index_data.flush_and_kmerge()?, &mut store)?;
+            println!("stream_iter_to_anchor_score done" );
         }
 
         //when there has been written something to disk flush the rest of the data too, so we have either all data im oder on disk
@@ -1099,7 +854,6 @@ fn add_anchor_score_flush(db_path: &str, path: String, mut buffered_index_data: 
     Ok(())
 }
 
-// use buffered_index_writer::KeyValue;
 fn stream_iter_to_phrase_index(
     iter: impl Iterator<Item = buffered_index_writer::KeyValue<(u32, u32), u32>>,
     target: &mut IndexIdToMultipleParentIndirectFlushingInOrderVintNoDirectEncode<(u32, u32)>,
@@ -1147,10 +901,10 @@ fn add_phrase_pair_flush(db_path: &str, path: String, buffered_index_data: Buffe
     Ok(())
 }
 
-type IndicesFromRawData = Vec<IndexData>;
+pub type IndicesFromRawData = Vec<IndexData>;
 
 #[derive(Debug)]
-struct IndexData {
+pub struct IndexData { //TODO MAKE PRIVATE
     path: String,
     index: IndexVariants,
     loading_type: LoadingType,
@@ -1360,7 +1114,6 @@ where
                 let options: &FulltextIndexOptions = indices_json.get(path).fulltext.as_ref().unwrap_or_else(|| &default_fulltext_options);
                 fulltext_index_metadata.options = options.clone();
                 store_full_text_info_and_set_ids(&persistence, &mut terms_data, &path, &options, &mut fulltext_index_metadata)?;
-                // Ok(fulltext_indices)
                 Ok((path.to_string(), fulltext_index_metadata))
             })
             .collect();

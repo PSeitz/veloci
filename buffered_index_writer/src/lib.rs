@@ -80,7 +80,7 @@ impl SerializeInto for (u32, u32) {
 
 #[derive(Debug, Clone)]
 struct Part {
-    offset: u32,
+    offset: u64,
     len: u32,
 }
 
@@ -238,7 +238,7 @@ impl<
         self.bytes_written += serialized_len as u64;
 
         self.parts.push(Part {
-            offset: prev_part.offset + prev_part.len,
+            offset: prev_part.offset + prev_part.len as u64,
             len: serialized_len as u32,
         });
         self.cache.clear();

@@ -105,14 +105,14 @@ impl<T: AnchorScoreDataSize> TokenToAnchorScoreVintFlushing<T> {
     }
 
     pub fn set_scores(&mut self, id: u32, mut add_data: &mut [u32]) -> Result<(), io::Error> {
-        let id_pos = (id - self.current_id_offset) as usize;
+        let id_pos = id as usize - self.current_id_offset as usize;
 
         if self.id_to_data_pos.len() <= id_pos {
             //TODO this could become very big, check memory consumption upfront, and flush directly to disk, when a resize would step over a certain threshold @Memory
             self.id_to_data_pos.resize(id_pos + 1, num::cast(EMPTY_BUCKET).unwrap());
         }
 
-        self.metadata.num_values += add_data.len() as u32 / 2;
+        self.metadata.num_values += add_data.len() as u64 / 2; // 1/2 because the array is docid/score tuples
         self.metadata.num_ids += 1;
         // self.id_to_data_pos[id_pos] = self.current_data_offset + self.data_cache.len() as u32;
 

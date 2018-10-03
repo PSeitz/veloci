@@ -29,7 +29,7 @@ impl_type_info_single_templ!(PointingMMAPFileReader);
 
 const EMPTY_BUCKET: u32 = 0;
 
-pub(crate) fn calc_avg_join_size(num_values: u32, num_ids: u32) -> f32 {
+pub(crate) fn calc_avg_join_size(num_values: u64, num_ids: u32) -> f32 {
     num_values as f32 / std::cmp::max(1, num_ids).to_f32().unwrap()
 }
 

@@ -15,7 +15,6 @@ path = "../compact_int"
 
 [dev-dependencies]
 measure_time = "0.6"
-
 [profile.release]
 codegen-units = 1
 debug = false
