@@ -16,7 +16,7 @@ fn get_top_facet_group<T: IndexIdToParentData>(hits: &FnvHashMap<T, usize>, top:
 
 fn sort_and_apply_top_skip_group<T: IndexIdToParentData>(mut groups: Vec<(T, u32)>, top: Option<usize>) -> Vec<(T, u32)> {
     groups.sort_unstable_by(|a, b| b.1.cmp(&a.1));
-    groups = apply_top_skip(&groups, None, top);
+    apply_top_skip(&mut groups, None, top);
     groups
 }
 

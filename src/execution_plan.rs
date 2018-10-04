@@ -1,10 +1,7 @@
 use persistence::Persistence;
 use persistence::*;
-use search::add_boost;
-use search::FilterResult;
 use search::*;
-use search::{Request, RequestBoostPart, RequestSearchPart, SearchError};
-use search_field;
+use search_field::*;
 use std::fmt::Debug;
 use std::sync::Arc;
 use util;
@@ -17,7 +14,7 @@ use std::boxed::Box;
 
 use crossbeam_channel;
 use crossbeam_channel::unbounded;
-use search_field::*;
+
 
 type PlanDataSender = crossbeam_channel::Sender<SearchFieldResult>;
 type PlanDataReceiver = crossbeam_channel::Receiver<SearchFieldResult>;

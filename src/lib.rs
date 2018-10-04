@@ -60,7 +60,7 @@ extern crate vint;
 
 #[macro_use]
 pub mod util;
-pub mod stopwords;
+// pub mod stopwords;
 #[macro_use]
 pub mod type_info;
 pub mod create;
@@ -75,10 +75,12 @@ pub mod persistence_data_indirect;
 pub mod persistence_score;
 pub mod query_generator;
 pub mod search;
-pub mod search_field;
 pub mod shards;
 pub mod tokenizer;
 pub mod trace;
+
+pub use self::search::search_field as search_field;
+pub use self::search::search_field_result as search_field_result;
 
 #[cfg(test)]
 extern crate rand;

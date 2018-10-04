@@ -2,8 +2,8 @@
 extern crate log;
 
 extern crate flexi_logger;
-#[macro_use]
-extern crate measure_time;
+// #[macro_use]
+// extern crate measure_time;
 extern crate buffered_index_writer;
 extern crate rayon;
 extern crate search_lib;
@@ -32,7 +32,7 @@ fn main() -> Result<(), io::Error> {
 
     println!("{:?}", buffered_index_writer.bytes_written);
 
-    search_lib::create::add_anchor_score_flush("test_u64", "check".to_string(), buffered_index_writer, &mut vec![]);
+    search_lib::create::add_anchor_score_flush("test_u64", "check".to_string(), buffered_index_writer, &mut vec![]).unwrap();
 
     Ok(())
 }

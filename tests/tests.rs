@@ -321,6 +321,20 @@ fn simple_search() {
 }
 
 #[test]
+fn simple_search_skip_far() {
+    let req = json!({
+        "search": {
+            "terms":["urge"],
+            "path": "meanings.eng[]"
+        },
+        "skip": 1000
+    });
+
+    let hits = search_testo_to_doc(req).data;
+    assert_eq!(hits.len(), 0);
+}
+
+#[test]
 fn simple_search_explained() {
     let req = json!({
         "search": {
@@ -713,7 +727,28 @@ fn and_connect_hits_different_fields_same_text_alle_meine_words_appears_again() 
 }
 
 #[test]
-fn o_r_connect_hits() {
+fn or_connect_hits_with_top() {
+    let req = json!({
+        "or":[
+            {"search": {
+                "terms":["majestät"],
+                "path": "meanings.ger[]"
+            }},
+            {"search": {
+                "terms":["urge"],
+                "path": "meanings.eng[]"
+            }}
+        ],
+        "top":1
+    });
+
+    let hits = search_testo_to_doc(req).data;
+    assert_eq!(hits[0].doc["ent_seq"], "1587690");
+    assert_eq!(hits.len(), 1);
+}
+
+#[test]
+fn or_connect_hits() {
     let req = json!({
         "or":[
             {"search": {
@@ -752,7 +787,7 @@ fn simple_search_and_connect_hits_with_filter() {
 }
 
 #[test]
-fn o_r_connect_hits_with_filter() {
+fn or_connect_hits_with_filter() {
     let req = json!({
         "or":[
             {"search": {
@@ -777,7 +812,7 @@ fn o_r_connect_hits_with_filter() {
 }
 
 #[test]
-fn o_r_connect_hits_with_filter_reuse_query() {
+fn or_connect_hits_with_filter_reuse_query() {
     let req = json!({
         "or":[
             {"search": {
@@ -966,17 +1001,7 @@ fn should_use_search_on_field_for_suggest_without_sorting_etc() {
     );
 }
 
-//TODO ENBALE
-// #[test]
-// fn should_load_the_text_for_ids(){
-//     let pers = &TEST_PERSISTENCE;
-//     let mut faccess:persistence::FileSearch = pers.get_file_search("meanings.ger[].textindex");
 
-//     assert_eq!(faccess.get_text_for_id(11, pers.get_offsets("meanings.ger[].textindex").unwrap()), "Majestät" );
-//     assert_eq!(faccess.get_text_for_id(12, pers.get_offsets("meanings.ger[].textindex").unwrap()), "Majestät (f)" );
-//     assert_eq!(faccess.get_text_for_id(13, pers.get_offsets("meanings.ger[].textindex").unwrap()), "Treffer" );
-
-// }
 
 // #[test]
 // fn should_highlight_ids(){
@@ -1189,7 +1214,7 @@ fn should_add_why_found_terms() {
 }
 
 #[test]
-fn o_r_connect_hits_but_boost_one_term() {
+fn or_connect_hits_but_boost_one_term() {
     let req = json!({
         "or":[
             {"search": {"terms":["majestät (f)"], "path": "meanings.ger[]", "boost": 2}},

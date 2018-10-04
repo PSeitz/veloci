@@ -28,7 +28,7 @@ use prettytable::format;
 use prettytable::Table;
 use search::*;
 use search::{self, SearchError};
-use search_field;
+use search_field_result;
 use type_info;
 use util;
 use util::get_file_path;
@@ -164,7 +164,7 @@ pub struct Persistence {
     pub indices: PersistenceIndices,
     pub lru_cache: HashMap<String, LruCache<RequestSearchPart, SearchResult>>,
     // pub lru_fst: HashMap<String, LruCache<(String, u8), Box<fst::Automaton<State=Option<usize>>>>>,
-    pub term_boost_cache: RwLock<LruCache<Vec<RequestSearchPart>, Vec<search_field::SearchFieldResult>>>,
+    pub term_boost_cache: RwLock<LruCache<Vec<RequestSearchPart>, Vec<search_field_result::SearchFieldResult>>>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq)]

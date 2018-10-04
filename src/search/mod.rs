@@ -1,35 +1,28 @@
-use std::cmp::Ordering;
-use std::io;
-use std::{self, cmp, f32, str};
+pub mod stopwords;
+pub mod search_field;
+pub mod search_field_result;
 
-use fnv::FnvHashMap;
-use fnv::FnvHashSet;
+use self::search_field::*;
+pub use self::search_field_result::*;
+use facet;
+use util;
+use util::*;
+use json_converter;
+use execution_plan::*;
+use super::highlight_field;
+use expression::ScoreExpression;
+
+use std::cmp::Ordering;
+use std::{self, io, cmp, f32, u32, str, fmt, mem};
+
+use fnv::{FnvHashMap, FnvHashSet};
 use itertools::Itertools;
 use serde_json;
-
 use doc_store::DocLoader;
-// use doc_store::DocLoader;
 use fst;
 use persistence::Persistence;
 use persistence::*;
-use util;
-use util::*;
-
-use execution_plan::*;
-use search_field::*;
-
-use json_converter;
-
-use half::f16;
 use rayon::prelude::*;
-
-use highlight_field;
-use search_field;
-
-use expression::ScoreExpression;
-use std::fmt;
-use std::mem;
-
 use ordered_float::OrderedFloat;
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -45,30 +38,6 @@ impl Default for SearchOperation {
     }
 }
 
-// #[derive(Serialize, Deserialize, Default, Clone, Debug)]
-// pub struct RequestNew {
-//     pub search: SearchOperation,
-//     #[serde(skip_serializing_if = "Option::is_none")] pub suggest: Option<Vec<RequestSearchPart>>,
-//     #[serde(skip_serializing_if = "Option::is_none")] pub boost: Option<Vec<RequestBoostPart>>,
-//     #[serde(skip_serializing_if = "Option::is_none")] pub boost_term: Option<Vec<RequestSearchPart>>,
-//     #[serde(skip_serializing_if = "Option::is_none")] pub facets: Option<Vec<FacetRequest>>,
-//     #[serde(skip_serializing_if = "Option::is_none")] pub phrase_boosts: Option<Vec<RequestPhraseBoost>>,
-//     #[serde(skip_serializing_if = "Option::is_none")] pub select: Option<Vec<String>>,
-//     /// filter does not affect the score, it just filters the result
-//     #[serde(skip_serializing_if = "Option::is_none")] pub filter: Option<Vec<Request>>,
-//     #[serde(skip_serializing_if = "Option::is_none")]
-//     #[serde(default = "default_top")]
-//     pub top: Option<usize>,
-//     #[serde(skip_serializing_if = "Option::is_none")]
-//     #[serde(default = "default_skip")]
-//     pub skip: Option<usize>,
-//     #[serde(skip_serializing_if = "skip_false")]
-//     #[serde(default)]
-//     pub why_found: bool,
-//     #[serde(skip_serializing_if = "skip_false")]
-//     #[serde(default)]
-//     pub text_locality: bool,
-// }
 #[derive(Serialize, Deserialize, Default, Clone, Debug)]
 pub struct Request {
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -141,10 +110,6 @@ fn default_skip() -> Option<usize> {
     None
 }
 
-// pub struct RequestSearchPartCache {
-//     pub automaton: Option<Box<fst::Automaton<State = Option<usize>> + Send + Sync>>,
-// }
-
 #[derive(Serialize, Deserialize, Default, Clone, Debug, Hash, PartialEq, Eq, PartialOrd)]
 pub struct RequestSearchPart {
     pub path: String,
@@ -183,12 +148,6 @@ pub struct RequestSearchPart {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub snippet_info: Option<SnippetInfo>,
 }
-
-// impl PartialOrd for RequestSearchPart {
-//     fn partial_cmp(&self, other: &RequestSearchPart) -> Option<Ordering> {
-//         Some(self.cmp(other))
-//     }
-// }
 
 impl Ord for RequestSearchPart {
     fn cmp(&self, other: &RequestSearchPart) -> Ordering {
@@ -671,8 +630,9 @@ pub fn search(mut request: Request, persistence: &Persistence) -> Result<SearchR
             search_result.data.sort_unstable_by(sort_by_score_and_id);
         }
     }
-    let topn_results = apply_top_skip(&search_result.data, request.skip, request.top);
-    search_result.data = topn_results;
+    // let topn_results = apply_top_skip(&search_result.data, request.skip, request.top);
+    // search_result.data = topn_results;
+    apply_top_skip(&mut search_result.data, request.skip, request.top);
 
     if request.why_found && request.select.is_some() {
         let anchor_ids: Vec<u32> = search_result.data.iter().map(|el| el.id).collect();
@@ -790,19 +750,16 @@ pub fn apply_boost_term(persistence: &Persistence, mut res: SearchFieldResult, b
     Ok(res)
 }
 
-//TODO no copy
-#[cfg_attr(feature = "flame_it", flame)]
-pub fn apply_top_skip<T: Clone>(hits: &[T], skip: Option<usize>, top: Option<usize>) -> Vec<T> {
-    let skip = skip.unwrap_or(0);
+pub fn apply_top_skip<T: Clone>(hits: &mut Vec<T>, skip: Option<usize>, top: Option<usize>) {
+    if let Some(mut skip) = skip {
+        skip = cmp::min(skip, hits.len());
+        hits.drain(..skip);
+    }
     if let Some(mut top) = top {
-        top = cmp::min(top + skip, hits.len());
-        hits[skip..top].to_vec()
-    } else {
-        hits[skip..].to_vec()
+        top = cmp::min(top, hits.len());
+        hits.drain(top..);
     }
 }
-
-use facet;
 
 #[cfg_attr(feature = "flame_it", flame)]
 pub fn get_shortest_result<T: std::iter::ExactSizeIterator>(results: &[T]) -> usize {
@@ -1028,13 +985,7 @@ fn union_hits_vec_test() {
     assert_eq!(res.hits_ids, vec![0, 3, 5, 10, 20]);
 }
 
-#[derive(Debug, Clone)]
-pub struct MiniHit {
-    pub id: u32,
-    pub score: f16,
-    pub term_id: u8,
-    // pub field_id: u8,
-}
+
 
 // #[test]
 // fn union_hits_vec_test() {
@@ -1068,7 +1019,6 @@ pub struct MiniHit {
 //         vec![Hit::new(0, 80.0), Hit::new(3, 20.0), Hit::new(5, 20.0), Hit::new(10, 120.0), Hit::new(20, 30.0)] //max_score
 //     );
 // }
-use std::u32;
 
 #[cfg_attr(feature = "flame_it", flame)]
 pub fn intersect_score_hits_with_ids(mut score_results: SearchFieldResult, mut id_hits: SearchFieldResult) -> SearchFieldResult {

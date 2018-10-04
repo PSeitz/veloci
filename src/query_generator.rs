@@ -9,7 +9,7 @@ use ordered_float::OrderedFloat;
 use persistence::Persistence;
 use search::*;
 use std;
-use stopwords;
+use search::stopwords;
 use util::*;
 
 #[cfg(test)]
