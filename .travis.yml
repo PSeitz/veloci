@@ -11,9 +11,10 @@ rust:
 env:
   - TEST_DIR=./ PersistenceType=Persistent LoadingType=Disk RUST_BACKTRACE=full RUST_LOG=search_lib=trace
   - TEST_DIR=./ PersistenceType=Persistent LoadingType=InMemory RUST_BACKTRACE=full RUST_LOG=search_lib=trace
-  - TEST_DIR=./ PersistenceType=Persistent LoadingType=InMemoryUnCompressed RUST_BACKTRACE=full RUST_LOG=search_lib=trace
   - TEST_DIR=./ PersistenceType=Transient RUST_BACKTRACE=full RUST_LOG=search_lib=trace
   - TEST_DIR=buffered_index_writer
+  - TEST_DIR=parser
+  - TEST_DIR=doc_store
 script:
 - cd $TEST_DIR
 - cargo build

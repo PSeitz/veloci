@@ -1002,7 +1002,7 @@ fn convert_raw_path_data_to_indices(
             }
 
             let loading_type = if indices_json.get(path).facet && !is_1_to_n(path) {
-                LoadingType::InMemoryUnCompressed
+                LoadingType::InMemory
             } else {
                 LoadingType::Disk
             };
@@ -1029,7 +1029,7 @@ fn convert_raw_path_data_to_indices(
                     false,
                     sort_and_dedup,
                     &mut indices,
-                    LoadingType::InMemoryUnCompressed,
+                    LoadingType::InMemory,
                 )?;
             }
 
@@ -1040,7 +1040,7 @@ fn convert_raw_path_data_to_indices(
                 indices.push(IndexData {
                     path: boost_path.to_string(),
                     index: IndexVariants::MultiValue(store),
-                    loading_type: LoadingType::InMemoryUnCompressed,
+                    loading_type: LoadingType::InMemory,
                     index_category: IndexCategory::Boost,
                 });
             }
@@ -1290,7 +1290,7 @@ pub fn add_token_values_to_tokens(persistence: &mut Persistence, data_str: &str,
 
     store.flush()?;
     let kv_metadata = persistence::KVStoreMetaData {
-        loading_type: LoadingType::InMemoryUnCompressed,
+        loading_type: LoadingType::InMemory,
         index_category: IndexCategory::Boost,
         path: path.to_string(),
         is_empty: store.is_empty(),

@@ -170,7 +170,6 @@ pub struct Persistence {
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq)]
 pub enum LoadingType {
     InMemory,
-    InMemoryUnCompressed,
     Disk,
 }
 
@@ -185,7 +184,6 @@ impl FromStr for LoadingType {
 
     fn from_str(s: &str) -> Result<LoadingType, ()> {
         match s {
-            "InMemoryUnCompressed" => Ok(LoadingType::InMemoryUnCompressed),
             "InMemory" => Ok(LoadingType::InMemory),
             "Disk" => Ok(LoadingType::Disk),
             _ => Err(()),
@@ -410,7 +408,7 @@ impl Persistence {
 
                     let store: Box<PhrasePairToAnchor<Input = (u32, u32)>> = match loading_type {
                         LoadingType::Disk => Box::new(IndexIdToMultipleParentIndirectBinarySearchMMAP::from_path(&get_file_path(&self.db, &el.path), el.metadata)?),
-                        LoadingType::InMemoryUnCompressed | LoadingType::InMemory => {
+                        LoadingType::InMemory => {
                             Box::new(IndexIdToMultipleParentIndirectBinarySearchMMAP::from_path(&get_file_path(&self.db, &el.path), el.metadata)?)
                         }
                     };
@@ -422,7 +420,7 @@ impl Persistence {
                             IDDataType::U32 => Box::new(TokenToAnchorScoreVintMmap::<u32>::from_path(&indirect_path, &indirect_data_path)?),
                             IDDataType::U64 => Box::new(TokenToAnchorScoreVintMmap::<u64>::from_path(&indirect_path, &indirect_data_path)?),
                         },
-                        LoadingType::InMemoryUnCompressed | LoadingType::InMemory => match el.id_type {
+                        LoadingType::InMemory => match el.id_type {
                             IDDataType::U32 => {
                                 let mut store = TokenToAnchorScoreVintIM::<u32>::default();
                                 store.read(&indirect_path, &indirect_data_path).unwrap();
@@ -468,7 +466,7 @@ impl Persistence {
                     }
 
                     let store = match loading_type {
-                        LoadingType::InMemoryUnCompressed | LoadingType::InMemory => match el.index_type {
+                        LoadingType::InMemory => match el.index_type {
                             KVStoreType::IndexIdToMultipleParentIndirect => {
                                 let indirect_u32 = bytes_to_vec_u32(&file_path_to_bytes(&indirect_path)?);
                                 let store = IndexIdToMultipleParentIndirect {
@@ -788,7 +786,7 @@ fn load_type_from_env() -> Result<Option<LoadingType>, search::SearchError> {
             .into_string()
             .map_err(|_err| search::SearchError::StringError(format!("Could not convert LoadingType environment variable to utf-8: {:?}", val)))?;
         let loading_type = LoadingType::from_str(&conv_env)
-            .map_err(|_err| search::SearchError::StringError("only InMemoryUnCompressed, InMemory or Disk allowed for LoadingType environment variable".to_string()))?;
+            .map_err(|_err| search::SearchError::StringError("only InMemory or Disk allowed for LoadingType environment variable".to_string()))?;
         Ok(Some(loading_type))
     } else {
         Ok(None)

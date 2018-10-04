@@ -9,9 +9,6 @@ pub struct DocLoader {}
 use persistence::Persistence;
 
 impl DocLoader {
-    // pub fn load(persistence: &mut Persistence) {
-    //     persistence.load_index_64("data.offsets").unwrap();
-    // }
 
     #[cfg_attr(feature = "flame_it", flame)]
     pub fn get_doc(persistence: &Persistence, pos: usize) -> Result<String, search::SearchError> {
@@ -23,10 +20,6 @@ impl DocLoader {
 
         let mut f = persistence.get_file_handle("data")?;
         let mut buffer: Vec<u8> = vec![0; (end - start) as usize];
-        // let mut buffer: Vec<u8> = Vec::with_capacity((end - start) as usize);
-        // unsafe {
-        //     buffer.set_len(end - start);
-        // }
 
         f.seek(SeekFrom::Start(start as u64))?;
         f.read_exact(&mut buffer)?;
