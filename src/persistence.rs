@@ -534,15 +534,15 @@ impl Persistence {
     }
 
     pub fn load_fst(&self, path: &str) -> Result<Map, search::SearchError> {
-        unsafe {
-            Ok(Map::from_path(&get_file_path(&self.db, &(path.to_string() + ".fst")))?) //(path.to_string() + ".fst"))?)
-        }
+        // unsafe {
+        //     Ok(Map::from_path(&get_file_path(&self.db, &(path.to_string() + ".fst")))?) //(path.to_string() + ".fst"))?)
+        // }
         // In memory version
-        // let mut f = self.get_file_handle(&(path.to_string() + ".fst"))?;
-        // let mut buffer: Vec<u8> = Vec::new();
-        // f.read_to_end(&mut buffer)?;
-        // buffer.shrink_to_fit();
-        // Ok(Map::from_bytes(buffer)?)
+        let mut f = self.get_file_handle(&(path.to_string() + ".fst"))?;
+        let mut buffer: Vec<u8> = Vec::new();
+        f.read_to_end(&mut buffer)?;
+        buffer.shrink_to_fit();
+        Ok(Map::from_bytes(buffer)?)
     }
 
     pub fn get_file_handle(&self, path: &str) -> Result<File, search::SearchError> {
@@ -572,6 +572,12 @@ impl Persistence {
             .get(&path)
             .map(|el| el.as_ref())
             .ok_or_else(|| path_not_found(path.as_ref()))
+    }
+    pub fn has_token_to_anchor<S: AsRef<str>>(&self, path: S) -> bool {
+        let path = path.as_ref().add(TO_ANCHOR_ID_SCORE);
+        self.indices
+            .token_to_anchor_score
+            .contains_key(&path)
     }
 
     pub fn get_phrase_pair_to_anchor<S: AsRef<str>>(&self, path: S) -> Result<&PhrasePairToAnchor<Input = (u32, u32)>, search::SearchError> {

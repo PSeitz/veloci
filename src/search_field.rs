@@ -24,7 +24,6 @@ use half::f16;
 use rayon::prelude::*;
 use std;
 use std::ptr;
-
 use execution_plan::*;
 
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]

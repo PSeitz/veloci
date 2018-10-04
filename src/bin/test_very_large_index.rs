@@ -14,7 +14,6 @@ extern crate serde_json;
 
 #[allow(unused_imports)]
 use search_lib::*;
-use std::str;
 use std::io;
 
 #[allow(unused_imports)]

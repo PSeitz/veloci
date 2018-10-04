@@ -1670,8 +1670,10 @@ pub fn read_tree(persistence: &Persistence, id: u32, tree: &NodeTree) -> Result<
 }
 
 //TODO CHECK FIELD VALIDTY
-pub fn get_read_tree_from_fields(_persistence: &Persistence, fields: &[String]) -> util::NodeTree {
-    let all_steps: Vec<Vec<String>> = fields.iter().map(|field| util::get_all_steps_to_anchor(&field)).collect();
+pub fn get_read_tree_from_fields(persistence: &Persistence, fields: &[String]) -> util::NodeTree {
+    let all_steps: Vec<Vec<String>> = fields.iter().filter(|path|{
+        persistence.has_index(&path.add(TEXTINDEX).add(PARENT_TO_VALUE_ID))
+    }).map(|field| util::get_all_steps_to_anchor(&field)).collect();
     to_node_tree(all_steps)
 }
 

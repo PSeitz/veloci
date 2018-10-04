@@ -47,6 +47,7 @@ lazy_static! {
 
         let indices = r#"
         {
+            "ignore_field":{"features":[]},
             "tags[]":{"facet":true},
             "commonness":{"facet":true, "boost":{"boost_type":"int"}},
             "ent_seq": {"fulltext":{"tokenize":true}},
@@ -97,6 +98,7 @@ lazy_static! {
 pub fn get_test_data() -> Value {
     json!([
         {
+            "ignore_field":"",
             "commonness": 123456,
             "ent_seq": "99999",
             "tags": ["nice", "cool"]
@@ -1203,7 +1205,7 @@ fn o_r_connect_hits_but_boost_one_term() {
 #[test]
 fn get_bytes_indexed() {
     let pers = &TEST_PERSISTENCE;
-    assert_eq!(pers.get_bytes_indexed(), 2555);
+    assert_eq!(pers.get_bytes_indexed(), 2573);
 }
 
 #[test]
