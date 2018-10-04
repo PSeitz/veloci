@@ -408,9 +408,7 @@ impl Persistence {
 
                     let store: Box<PhrasePairToAnchor<Input = (u32, u32)>> = match loading_type {
                         LoadingType::Disk => Box::new(IndexIdToMultipleParentIndirectBinarySearchMMAP::from_path(&get_file_path(&self.db, &el.path), el.metadata)?),
-                        LoadingType::InMemory => {
-                            Box::new(IndexIdToMultipleParentIndirectBinarySearchMMAP::from_path(&get_file_path(&self.db, &el.path), el.metadata)?)
-                        }
+                        LoadingType::InMemory => Box::new(IndexIdToMultipleParentIndirectBinarySearchMMAP::from_path(&get_file_path(&self.db, &el.path), el.metadata)?),
                     };
                     self.indices.phrase_pair_to_anchor.insert(el.path.to_string(), store);
                 }
@@ -785,8 +783,8 @@ fn load_type_from_env() -> Result<Option<LoadingType>, search::SearchError> {
             .clone()
             .into_string()
             .map_err(|_err| search::SearchError::StringError(format!("Could not convert LoadingType environment variable to utf-8: {:?}", val)))?;
-        let loading_type = LoadingType::from_str(&conv_env)
-            .map_err(|_err| search::SearchError::StringError("only InMemory or Disk allowed for LoadingType environment variable".to_string()))?;
+        let loading_type =
+            LoadingType::from_str(&conv_env).map_err(|_err| search::SearchError::StringError("only InMemory or Disk allowed for LoadingType environment variable".to_string()))?;
         Ok(Some(loading_type))
     } else {
         Ok(None)

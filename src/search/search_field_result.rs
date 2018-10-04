@@ -1,11 +1,11 @@
+use fnv::FnvHashMap;
+use half::f16;
 use search;
 use search::*;
 use search_field::Explain;
-use fnv::FnvHashMap;
 use std::iter::FusedIterator;
 use std::marker;
 use std::ptr;
-use half::f16;
 
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
 pub struct SearchFieldResult {
@@ -47,7 +47,6 @@ impl SearchFieldResult {
         res
     }
 }
-
 
 #[cfg(test)]
 use test;
@@ -93,7 +92,6 @@ impl<'a> Iterator for SearchFieldResultIterator<'a> {
             self.ptr = unsafe { self.ptr.offset(1) };
             let hit = unsafe { ptr::read(old) };
 
-
             Some(MiniHit {
                 id: hit.id,
                 term_id: self.term_id,
@@ -112,7 +110,6 @@ impl<'a> ExactSizeIterator for SearchFieldResultIterator<'a> {
 }
 
 impl<'a> FusedIterator for SearchFieldResultIterator<'a> {}
-
 
 #[derive(Debug, Clone)]
 pub struct MiniHit {

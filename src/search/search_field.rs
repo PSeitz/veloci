@@ -1,4 +1,3 @@
-use search::search_field_result::*;
 use fnv::{FnvHashMap, FnvHashSet};
 use fst::automaton::*;
 use fst::raw::Fst;
@@ -11,6 +10,7 @@ use persistence;
 use persistence::Persistence;
 use persistence::*;
 use search;
+use search::search_field_result::*;
 use search::*;
 use std::cmp;
 use std::cmp::Ordering;
@@ -23,8 +23,6 @@ use execution_plan::*;
 
 use rayon::prelude::*;
 use std;
-
-
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum Explain {
@@ -47,7 +45,6 @@ pub enum Explain {
         new_score: u32,
     },
 }
-
 
 pub type TermId = u32;
 pub type Score = f32;

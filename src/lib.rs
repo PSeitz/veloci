@@ -79,8 +79,8 @@ pub mod shards;
 pub mod tokenizer;
 pub mod trace;
 
-pub use self::search::search_field as search_field;
-pub use self::search::search_field_result as search_field_result;
+pub use self::search::search_field;
+pub use self::search::search_field_result;
 
 #[cfg(test)]
 extern crate rand;

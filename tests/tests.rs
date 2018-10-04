@@ -1001,8 +1001,6 @@ fn should_use_search_on_field_for_suggest_without_sorting_etc() {
     );
 }
 
-
-
 // #[test]
 // fn should_highlight_ids(){
 //     let mut pers = &TEST_PERSISTENCE;

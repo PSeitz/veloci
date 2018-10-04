@@ -7,9 +7,9 @@ use itertools::Itertools;
 
 use ordered_float::OrderedFloat;
 use persistence::Persistence;
+use search::stopwords;
 use search::*;
 use std;
-use search::stopwords;
 use util::*;
 
 #[cfg(test)]

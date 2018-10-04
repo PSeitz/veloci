@@ -1,3 +1,4 @@
+edition = "2018"
 comment_width = 180
 max_width = 180
 error_on_line_overflow = false

@@ -1023,14 +1023,7 @@ fn convert_raw_path_data_to_indices(
             }
 
             if let Some(anchor_to_text_id) = data.anchor_to_text_id {
-                add_index_flush(
-                    path.add(ANCHOR_TO_TEXT_ID),
-                    anchor_to_text_id,
-                    false,
-                    sort_and_dedup,
-                    &mut indices,
-                    LoadingType::InMemory,
-                )?;
+                add_index_flush(path.add(ANCHOR_TO_TEXT_ID), anchor_to_text_id, false, sort_and_dedup, &mut indices, LoadingType::InMemory)?;
             }
 
             if let Some(buffered_index_data) = data.boost {

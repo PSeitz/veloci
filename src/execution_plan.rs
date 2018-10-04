@@ -15,7 +15,6 @@ use std::boxed::Box;
 use crossbeam_channel;
 use crossbeam_channel::unbounded;
 
-
 type PlanDataSender = crossbeam_channel::Sender<SearchFieldResult>;
 type PlanDataReceiver = crossbeam_channel::Receiver<SearchFieldResult>;
 // type PlanDataFilterSender = crossbeam_channel::Sender<Arc<SearchFieldResult>>;
