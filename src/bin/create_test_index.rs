@@ -94,7 +94,8 @@ fn create_jmdict_index() -> Result<(), io::Error> {
         JMDICT_INDICES,
         None,
         false,
-    ).unwrap();
+    )
+    .unwrap();
 
     // PROFILER.lock().unwrap().stop().unwrap();
     Ok(())
@@ -312,6 +313,7 @@ fn create_book_index() -> Result<(), io::Error> {
         indices,
         None,
         false,
-    ).unwrap();
+    )
+    .unwrap();
     Ok(())
 }

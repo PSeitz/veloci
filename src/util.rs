@@ -1,13 +1,13 @@
+use itertools::Itertools;
 use persistence::TEXTINDEX;
 use regex::Regex;
 use search;
 use std;
+use std::collections::HashMap;
 use std::fs::File;
 use std::io;
 use std::io::prelude::*;
 use std::path::Path;
-use itertools::Itertools;
-use std::collections::HashMap;
 
 pub(crate) fn normalize_text(text: &str) -> String {
     lazy_static! {

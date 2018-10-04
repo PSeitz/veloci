@@ -32,9 +32,11 @@ type PlanStepId = usize;
 pub struct PlanRequestSearchPart {
     pub request: RequestSearchPart,
 
-    #[serde(default)] pub get_scores: bool,
+    #[serde(default)]
+    pub get_scores: bool,
 
-    #[serde(default)] pub get_ids: bool,
+    #[serde(default)]
+    pub get_ids: bool,
 
     /// Internal data used for whyfound - read and highlight fields
     #[serde(skip_deserializing)]
@@ -52,7 +54,8 @@ pub struct PlanRequestSearchPart {
     pub return_term: bool,
 
     //TODO MOVE TO RequestSearchPart?
-    #[serde(skip_serializing_if = "skip_false")] pub return_term_lowercase: bool,
+    #[serde(skip_serializing_if = "skip_false")]
+    pub return_term_lowercase: bool,
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
@@ -675,7 +678,8 @@ fn plan_creator_2(
             channel: channel,
         };
         let step_id = plan.add_step(Box::new(step.clone()));
-        let result_channels_from_prev_steps = or.iter()
+        let result_channels_from_prev_steps = or
+            .iter()
             .map(|x| {
                 // x.explain = request_header.explain;
                 let mut boost = merge_vec(boost, &x.boost);
@@ -718,7 +722,8 @@ fn plan_creator_2(
             channel: channel,
         };
         let step_id = plan.add_step(Box::new(step.clone()));
-        let result_channels_from_prev_steps = ands.iter()
+        let result_channels_from_prev_steps = ands
+            .iter()
             .map(|x| {
                 // x.explain = request_header.explain;
                 let mut boost = merge_vec(boost, &x.boost);

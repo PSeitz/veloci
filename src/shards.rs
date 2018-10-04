@@ -63,7 +63,7 @@ where
 #[test]
 fn test_top_n_sort() {
     let dat = vec![
-        3, 5, 9, 10, 10, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9
+        3, 5, 9, 10, 10, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9,
     ];
     let yops = get_top_n_sort_from_iter(dat.iter(), 2, |a, b| b.cmp(&a));
     assert_eq!(yops, vec![&10, &10]);
@@ -200,7 +200,8 @@ impl Shards {
     ) -> Result<SearchResultWithDoc, search::SearchError> {
         let mut all_search_results = SearchResultWithDoc::default();
 
-        let r: Vec<ShardResult> = self.shards
+        let r: Vec<ShardResult> = self
+            .shards
             .par_iter()
             .map(|shard| {
                 print_time!("search shard {:?}", shard.shard_id);
@@ -212,7 +213,8 @@ impl Shards {
 
         let total_num_hits: u64 = r.iter().map(|shard_result| shard_result.result.num_hits).sum();
 
-        let all_shard_results: Vec<_> = r.iter()
+        let all_shard_results: Vec<_> = r
+            .iter()
             .flat_map(|shard_result| {
                 shard_result.result.data.iter().map(move |hit| ShardResultHit {
                     shard: shard_result.shard,

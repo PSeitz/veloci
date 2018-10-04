@@ -1,9 +1,9 @@
 mod features;
 mod fields_config;
 
+use self::features::IndexCreationType;
 use self::fields_config::FieldsConfig;
 pub use self::fields_config::FulltextIndexOptions;
-use self::features::IndexCreationType;
 
 use std::fs::File;
 use std::io;
@@ -378,7 +378,6 @@ impl BufferedTextIdToTokenIdsData {
         self.data.add_all(text_id, token_ids)
     }
 }
-
 
 #[derive(Debug, Default)]
 struct PathData {
@@ -801,7 +800,12 @@ fn stream_iter_to_anchor_score<T: AnchorScoreDataSize>(
     Ok(())
 }
 
-pub fn add_anchor_score_flush(db_path: &str, path: String, mut buffered_index_data: BufferedIndexWriter<u32, (u32, u32)>, indices: &mut IndicesFromRawData) -> Result<(), io::Error> {
+pub fn add_anchor_score_flush(
+    db_path: &str,
+    path: String,
+    mut buffered_index_data: BufferedIndexWriter<u32, (u32, u32)>,
+    indices: &mut IndicesFromRawData,
+) -> Result<(), io::Error> {
     let indirect_file_path = util::get_file_path(db_path, &(path.to_string() + ".indirect"));
     let data_file_path = util::get_file_path(db_path, &(path.to_string() + ".data"));
     //If the buffered index_data is larger than 4GB, we switch to u64 for addressing the data block
@@ -901,7 +905,8 @@ fn add_phrase_pair_flush(db_path: &str, path: String, buffered_index_data: Buffe
 pub type IndicesFromRawData = Vec<IndexData>;
 
 #[derive(Debug)]
-pub struct IndexData { //TODO MAKE PRIVATE
+pub struct IndexData {
+    //TODO MAKE PRIVATE
     path: String,
     index: IndexVariants,
     loading_type: LoadingType,
@@ -1356,7 +1361,8 @@ impl<T: BufRead> FastLinesJson<T> {
                     sink.push(value);
                     sink
                 },
-            ).reduce(
+            )
+            .reduce(
                 || vec![],
                 |mut sink_all: Vec<Result<serde_json::Value, serde_json::Error>>, mut sink: Vec<Result<serde_json::Value, serde_json::Error>>| {
                     for el in sink.drain(..) {

@@ -1,6 +1,6 @@
 use persistence::TEXTINDEX;
 use std::collections::HashMap;
-use std::{str, f32};
+use std::{f32, str};
 
 use itertools::Itertools;
 // use regex::Regex;
@@ -64,8 +64,9 @@ fn get_all_search_field_names(persistence: &Persistence, fields: &Option<Vec<Str
             if let Some(ref filter) = *fields {
                 return filter.contains(path);
             }
-            let path:String = path.add(TEXTINDEX);
-            if !persistence.has_token_to_anchor(path) { // Index creation for fields may be disabled
+            let path: String = path.add(TEXTINDEX);
+            if !persistence.has_token_to_anchor(path) {
+                // Index creation for fields may be disabled
                 return false;
             }
             true
@@ -260,7 +261,8 @@ pub fn search_query(persistence: &Persistence, mut opt: SearchQueryGeneratorPara
             .collect()
     });
 
-    let boost_terms_req: Vec<RequestSearchPart> = opt.boost_terms
+    let boost_terms_req: Vec<RequestSearchPart> = opt
+        .boost_terms
         .iter()
         .flat_map(|(boost_term, boost_value): (&String, &f32)| {
             let mut boost_term = boost_term.to_string();

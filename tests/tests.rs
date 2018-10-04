@@ -1266,7 +1266,8 @@ fn read_object_only_partly() {
             "kana[].romaji".to_string(),
             "address[].line[]".to_string(),
         ],
-    ).unwrap();
+    )
+    .unwrap();
     assert_eq!(
         yay,
         json!({
@@ -1327,7 +1328,8 @@ fn facet() {
             top: Some(10),
         },
         &vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14],
-    ).unwrap();
+    )
+    .unwrap();
     // yep.sort_by_key(|yo|format!("{:?}{:?}", yo.1 , yo.0));
     yep.sort_by(|a, b| format!("{:?}{:?}", b.1, b.0).cmp(&format!("{:?}{:?}", a.1, a.0)));
     assert_eq!(

@@ -1,11 +1,9 @@
-
-use super::CreateError;
 use super::features::Features;
 use super::features::IndexCreationType;
+use super::CreateError;
 
 use fnv::FnvHashMap;
 use fnv::FnvHashSet;
-
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct CreateIndexConfig {
@@ -52,7 +50,8 @@ impl FieldsConfig {
                 )));
             }
 
-            if let Some(features) = val.features
+            if let Some(features) = val
+                .features
                 .clone()
                 .or_else(|| val.disabled_features.as_ref().map(|disabled_features| Features::invert(disabled_features)))
             {
@@ -69,7 +68,8 @@ impl FieldsConfig {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct FieldConfig {
-    #[serde(default)] pub facet: bool,
+    #[serde(default)]
+    pub facet: bool,
     pub fulltext: Option<FulltextIndexOptions>,
     pub disabled_indices: Option<FnvHashSet<IndexCreationType>>,
     pub features: Option<FnvHashSet<Features>>,
@@ -90,9 +90,11 @@ pub struct BoostIndexOptions {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct FulltextIndexOptions {
     pub tokenize: bool,
-    #[serde(default = "default_tokenizer")] pub tokenizer: TokenizerStrategy,
+    #[serde(default = "default_tokenizer")]
+    pub tokenizer: TokenizerStrategy,
     pub stopwords: Option<FnvHashSet<String>>,
-    #[serde(default = "default_text_length_store")] pub do_not_store_text_longer_than: usize,
+    #[serde(default = "default_text_length_store")]
+    pub do_not_store_text_longer_than: usize,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Copy)]
@@ -127,8 +129,6 @@ impl FulltextIndexOptions {
         }
     }
 }
-
-
 
 #[test]
 fn test_field_config_from_json() {

@@ -3,8 +3,8 @@ use std::fs::File;
 use std::io;
 use std::io::Write;
 use std::marker::PhantomData;
-use std::u32;
 use std::ptr::copy_nonoverlapping;
+use std::u32;
 // use byteorder::{LittleEndian, ReadBytesExt};
 use heapsize::HeapSizeOf;
 
@@ -246,9 +246,7 @@ impl<T: IndexIdToParentData, K: IndexIdToParentData> IndexIdToParent for SingleA
 
     #[inline]
     fn count_values_for_ids(&self, ids: &[u32], top: Option<u32>) -> FnvHashMap<T, usize> {
-        count_values_for_ids(ids, top, self.metadata.avg_join_size, self.metadata.max_value_id, |id: u64| {
-            self.get_value(id)
-        })
+        count_values_for_ids(ids, top, self.metadata.avg_join_size, self.metadata.max_value_id, |id: u64| self.get_value(id))
     }
 
     fn get_keys(&self) -> Vec<T> {

@@ -74,7 +74,7 @@ pub fn highlight_document(persistence: &Persistence, path: &str, value_id: u64, 
     trace!("documents_token_ids {}", get_readable_size(documents_token_ids.heap_size_of_children()));
     trace!("documents_token_ids {}", get_readable_size(documents_token_ids.len() * 4));
 
-    let token_ids: FnvHashSet<u32> = token_ids.iter().cloned().collect(); // FIXME: Performance
+    let token_ids: FnvHashSet<u32> = token_ids.iter().cloned().collect(); // TOOD: Performance
 
     let to = std::cmp::min(documents_token_ids.len(), 100);
     trace!("documents_token_ids {:?}", &documents_token_ids[0..to]);
@@ -87,7 +87,7 @@ pub fn highlight_document(persistence: &Persistence, path: &str, value_id: u64, 
             let mut last_pos = 0;
             let mut iter = documents_token_ids.iter();
             while let Some(pos) = iter.position(|x| *x == *token_id) {
-                // FIXME: Maybe Performance just walk once over data
+                // TODO: Maybe Performance just walk once over data
                 last_pos += pos;
                 token_positions_in_document.push(last_pos);
                 last_pos += 1;

@@ -65,7 +65,6 @@ pub struct IndexIdToMultipleParentIndirectFlushingInOrderVint {
     pub metadata: IndexMetaData,
 }
 
-// TODO: Indirect Stuff @Performance @Memory
 // use vint for indirect, use not highest bit in indirect, but the highest unused bit. Max(value_id, single data_id, which would be encoded in the valueid index)
 //
 impl IndexIdToMultipleParentIndirectFlushingInOrderVint {
@@ -78,8 +77,6 @@ impl IndexIdToMultipleParentIndirectFlushingInOrderVint {
             current_data_offset: 0,
             current_id_offset: 0,
             path,
-            // indirect_path,
-            // data_path,
             metadata: IndexMetaData::new(max_value_id),
         }
     }
@@ -389,7 +386,8 @@ impl<T: IndexIdToParentData> IndexIdToParent for PointingMMAPFileReader<T> {
             self.get_size(),
             &self.start_pos,
             &self.data,
-        ).map(|el| el.iter().map(|el| num::cast(*el).unwrap()).collect())
+        )
+        .map(|el| el.iter().map(|el| num::cast(*el).unwrap()).collect())
     }
 }
 
