@@ -25,7 +25,7 @@ impl FieldsConfig {
         if let Some(el) = el {
             el
         } else {
-            self.0.get("*GLOBAL*").unwrap()
+            &self.0["*GLOBAL*"]
         }
     }
 
@@ -56,7 +56,7 @@ impl FieldsConfig {
                 .or_else(|| val.disabled_features.as_ref().map(|disabled_features| Features::invert(disabled_features)))
             {
                 let disabled = Features::features_to_disabled_indices(&features);
-                let mut existing = val.disabled_indices.as_ref().map(|el| el.clone()).unwrap_or_else(|| FnvHashSet::default());
+                let mut existing = val.disabled_indices.as_ref().cloned().unwrap_or_else(FnvHashSet::default);
                 existing.extend(disabled);
                 val.disabled_indices = Some(existing);
             }

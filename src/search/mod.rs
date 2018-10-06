@@ -25,18 +25,18 @@ use persistence::*;
 use rayon::prelude::*;
 use serde_json;
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
-pub enum SearchOperation {
-    And(Vec<SearchOperation>),
-    Or(Vec<SearchOperation>),
-    Search(RequestSearchPart),
-}
+// #[derive(Serialize, Deserialize, Clone, Debug)]
+// pub enum SearchOperation {
+//     And(Vec<SearchOperation>),
+//     Or(Vec<SearchOperation>),
+//     Search(RequestSearchPart),
+// }
 
-impl Default for SearchOperation {
-    fn default() -> SearchOperation {
-        SearchOperation::Search(Default::default())
-    }
-}
+// impl Default for SearchOperation {
+//     fn default() -> SearchOperation {
+//         SearchOperation::Search(Default::default())
+//     }
+// }
 
 #[derive(Serialize, Deserialize, Default, Clone, Debug)]
 pub struct Request {
@@ -251,9 +251,9 @@ pub enum FilterResult {
 }
 
 impl FilterResult {
-    pub fn from_result(res: &Vec<TermId>) -> FilterResult {
+    pub fn from_result(res: &[TermId]) -> FilterResult {
         if res.len() > 100_000 {
-            FilterResult::Vec(res.clone())
+            FilterResult::Vec(res.to_vec())
         } else {
             let mut filter = FnvHashSet::with_capacity_and_hasher(100_000, Default::default());
             for id in res {
@@ -461,7 +461,7 @@ fn boost_text_locality_all(persistence: &Persistence, term_id_hits_in_field: &mu
     info_time!("collect sort_boost");
     let boosts = r?;
     let mergo = boosts.into_iter().kmerge_by(|a, b| a.id < b.id);
-    for (mut id, mut group) in &mergo.into_iter().group_by(|el| el.id) {
+    for (mut id, mut group) in &mergo.group_by(|el| el.id) {
         let best_score = group.map(|el| el.score).max_by(|a, b| b.partial_cmp(&a).unwrap_or(Ordering::Equal)).unwrap();
         boost_anchor.push(Hit::new(id, best_score));
     }
@@ -486,7 +486,7 @@ fn boost_text_locality(persistence: &Persistence, path: &str, search_term_to_tex
             terms_text_ids.push(text_ids);
         }
         let mergo = terms_text_ids.into_iter().kmerge_by(|a, b| a < b);
-        for (mut id, mut group) in &mergo.into_iter().group_by(|el| *el) {
+        for (mut id, mut group) in &mergo.group_by(|el| *el) {
             let num_hits_in_same_text = group.count();
             if num_hits_in_same_text > 1 {
                 boost_text_ids.push((id, num_hits_in_same_text));
@@ -663,7 +663,6 @@ pub fn apply_boost_term(persistence: &Persistence, mut res: SearchFieldResult, b
                     let boost_val: f32 = el.request.boost.map(|el| el.into_inner()).unwrap_or(2.0);
                     el.hits_ids.iter().map(move |id| Hit::new(*id, boost_val))
                 })
-                .into_iter()
                 .kmerge_by(|a, b| a.id < b.id);
 
             // {
@@ -737,7 +736,7 @@ pub fn apply_boost_term(persistence: &Persistence, mut res: SearchFieldResult, b
                     ..Default::default()
                 };
                 let mut result = search_field::get_term_ids_in_field(persistence, &mut boost_term_req)?;
-                result = search_field::resolve_token_to_anchor(persistence, &boost_term_req.request, None, &result)?;
+                result = search_field::resolve_token_to_anchor(persistence, &boost_term_req.request, &None, &result)?;
                 Ok(result)
             })
             .collect();
@@ -813,7 +812,7 @@ fn merge_term_id_texts(results: &mut Vec<SearchFieldResult>) -> FnvHashMap<Strin
 
 #[cfg_attr(feature = "flame_it", flame)]
 pub fn union_hits_score(mut or_results: Vec<SearchFieldResult>) -> SearchFieldResult {
-    if or_results.len() == 0 {
+    if or_results.is_empty() {
         return SearchFieldResult { ..Default::default() };
     }
     if or_results.len() == 1 {
@@ -880,7 +879,7 @@ pub fn union_hits_score(mut or_results: Vec<SearchFieldResult>) -> SearchFieldRe
         let mut max_scores_per_term: Vec<f32> = vec![];
         max_scores_per_term.resize(terms.len(), 0.0);
         // let mut field_id_hits = 0;
-        for (mut id, mut group) in &mergo.into_iter().group_by(|el| el.id) {
+        for (mut id, mut group) in &mergo.group_by(|el| el.id) {
             //reset scores to 0
             for el in &mut max_scores_per_term {
                 *el = 0.;
@@ -930,7 +929,7 @@ pub fn union_hits_score(mut or_results: Vec<SearchFieldResult>) -> SearchFieldRe
 
 #[cfg_attr(feature = "flame_it", flame)]
 pub fn union_hits_ids(mut or_results: Vec<SearchFieldResult>) -> SearchFieldResult {
-    if or_results.len() == 0 {
+    if or_results.is_empty() {
         return SearchFieldResult { ..Default::default() };
     }
     if or_results.len() == 1 {
@@ -953,9 +952,9 @@ pub fn union_hits_ids(mut or_results: Vec<SearchFieldResult>) -> SearchFieldResu
 
     let mut union_hits = Vec::with_capacity(longest_len as usize + sum_other_len as usize / 2);
     {
-        let mergo = or_results.iter().map(|res| res.hits_ids.iter()).into_iter().kmerge();
+        let mergo = or_results.iter().map(|res| res.hits_ids.iter()).kmerge();
         debug_time!("filter union hits kmerge");
-        for (mut id, mut _group) in &mergo.into_iter().group_by(|el| *el) {
+        for (mut id, mut _group) in &mergo.group_by(|el| *el) {
             union_hits.push(*id);
         }
     }
@@ -1055,9 +1054,27 @@ fn test_intersect_score_hits_with_ids() {
     assert_eq!(res.hits_scores, vec![Hit::new(0, 20.0), Hit::new(10, 20.0)]);
 }
 
+fn check_score_iter_for_id<'a>(ref mut iter_n_current:&mut (impl Iterator<Item = Hit>, Hit), current_id:u32) -> bool {
+    if (iter_n_current.1).id == current_id {
+        return true;
+    }
+    let iter = &mut iter_n_current.0;
+    for el in iter {
+        let id = el.id;
+        iter_n_current.1 = el;
+        if id > current_id {
+            return false;
+        }
+        if id == current_id {
+            return true;
+        }
+    }
+    false
+}
+
 #[cfg_attr(feature = "flame_it", flame)]
 pub fn intersect_hits_score(mut and_results: Vec<SearchFieldResult>) -> SearchFieldResult {
-    if and_results.len() == 0 {
+    if and_results.is_empty() {
         return SearchFieldResult { ..Default::default() };
     }
     if and_results.len() == 1 {
@@ -1083,7 +1100,7 @@ pub fn intersect_hits_score(mut and_results: Vec<SearchFieldResult>) -> SearchFi
         let mut iterators_and_current = and_results
             .iter_mut()
             .map(|el| {
-                let mut iterator = el.hits_scores.iter();
+                let mut iterator = el.hits_scores.iter().cloned();
                 let current = iterator.next();
                 (iterator, current)
             })
@@ -1095,23 +1112,7 @@ pub fn intersect_hits_score(mut and_results: Vec<SearchFieldResult>) -> SearchFi
             let current_id = current_el.id;
             let current_score = current_el.score;
 
-            if iterators_and_current.iter_mut().all(|ref mut iter_n_current| {
-                if (iter_n_current.1).id == current_id {
-                    return true;
-                }
-                let iter = &mut iter_n_current.0;
-                while let Some(el) = iter.next() {
-                    let id = el.id;
-                    iter_n_current.1 = el;
-                    if id > current_id {
-                        return false;
-                    }
-                    if id == current_id {
-                        return true;
-                    }
-                }
-                false
-            }) {
+            if iterators_and_current.iter_mut().all(|iter_n_current|check_score_iter_for_id(iter_n_current, current_id)) {
                 let mut score = iterators_and_current.iter().map(|el| (el.1).score).sum();
                 score += current_score; //TODO SCORE Max oder Sum FOR AND
                 intersected_hits.push(Hit::new(current_id, score));
@@ -1140,16 +1141,32 @@ pub fn intersect_hits_score(mut and_results: Vec<SearchFieldResult>) -> SearchFi
     }
 }
 
+fn check_id_iter_for_id(iter_n_current:&mut (impl Iterator<Item = u32>, u32), current_id:u32) -> bool {
+    if (iter_n_current.1) == current_id {
+        return true;
+    }
+    let iter = &mut iter_n_current.0;
+    for id in iter {
+        iter_n_current.1 = id;
+        if id > current_id {
+            return false;
+        }
+        if id == current_id {
+            return true;
+        }
+    }
+    false
+}
+
 #[cfg_attr(feature = "flame_it", flame)]
 pub fn intersect_hits_ids(mut and_results: Vec<SearchFieldResult>) -> SearchFieldResult {
-    if and_results.len() == 0 {
+    if and_results.is_empty() {
         return SearchFieldResult { ..Default::default() };
     }
     if and_results.len() == 1 {
         let res = and_results.swap_remove(0);
         return res;
     }
-
     let index_shortest = get_shortest_result(&and_results.iter().map(|el| el.hits_ids.iter()).collect::<Vec<_>>());
 
     for res in &mut and_results {
@@ -1164,7 +1181,7 @@ pub fn intersect_hits_ids(mut and_results: Vec<SearchFieldResult>) -> SearchFiel
         let mut iterators_and_current = and_results
             .iter_mut()
             .map(|el| {
-                let mut iterator = el.hits_ids.iter();
+                let mut iterator = el.hits_ids.iter().cloned();
                 let current = iterator.next();
                 (iterator, current)
             })
@@ -1173,22 +1190,7 @@ pub fn intersect_hits_ids(mut and_results: Vec<SearchFieldResult>) -> SearchFiel
             .collect::<Vec<_>>();
 
         for current_id in &mut shortest_result {
-            if iterators_and_current.iter_mut().all(|ref mut iter_n_current| {
-                if (iter_n_current.1) == current_id {
-                    return true;
-                }
-                let iter = &mut iter_n_current.0;
-                while let Some(id) = iter.next() {
-                    iter_n_current.1 = id;
-                    if id > current_id {
-                        return false;
-                    }
-                    if id == current_id {
-                        return true;
-                    }
-                }
-                false
-            }) {
+            if iterators_and_current.iter_mut().all(|iter_n_current|check_id_iter_for_id(iter_n_current, *current_id)) {
                 intersected_hits.push(*current_id);
             }
         }
@@ -1299,7 +1301,6 @@ pub fn boost_hits_ids_vec_multi(mut results: SearchFieldResult, boost: &mut Vec<
             let boost_val: f32 = el.request.boost.map(|el| el.into_inner()).unwrap_or(2.0);
             el.hits_ids.iter().map(move |id| Hit::new(*id, boost_val))
         })
-        .into_iter()
         .kmerge_by(|a, b| a.id < b.id);
 
     debug_time!("boost_hits_ids_vec_multi");
@@ -1537,13 +1538,13 @@ impl Error for SearchError {
 }
 
 #[inline]
-fn join_and_get_text_for_ids(persistence: &Persistence, id: u32, prop: &str) -> Result<Option<String>, SearchError> {
+fn join_and_get_text_for_ids(persistence: &Persistence, id: u32, prop: &str) -> Result<Option<String>, SearchError> {  // TODO CHECK field_name exists previously
     let field_name = prop.add(TEXTINDEX);
     let text_value_id_opt = join_for_1_to_1(persistence, id, &field_name.add(PARENT_TO_VALUE_ID))?;
     if let Some(text_value_id) = text_value_id_opt {
-        let text = if text_value_id >= persistence.meta_data.fulltext_indices.get(&field_name).unwrap().num_text_ids as u32 {
+        let text = if text_value_id >= persistence.meta_data.fulltext_indices[&field_name].num_text_ids as u32 {
             let text_id_to_token_ids = persistence.get_valueid_to_parent(field_name.add(TEXT_ID_TO_TOKEN_IDS))?;
-            let vals = text_id_to_token_ids.get_values(text_value_id as u64);
+            let vals = text_id_to_token_ids.get_values(u64::from(text_value_id));
             if let Some(vals) = vals {
                 vals.iter()
                     .map(|token_id| get_text_for_id(persistence, &field_name, *token_id))

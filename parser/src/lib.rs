@@ -1,3 +1,4 @@
+#![cfg_attr(feature = "cargo-clippy", allow(unneeded_field_pattern))]
 #![recursion_limit = "80"]
 extern crate combine;
 pub mod query_parser;

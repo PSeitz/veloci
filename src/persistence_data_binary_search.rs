@@ -66,7 +66,7 @@ impl<T: Default + std::fmt::Debug> IndexIdToMultipleParentIndirectFlushingInOrde
         let data_pos = self.current_data_offset + self.data_cache.len() as u32;
 
         self.ids_cache.push((id, data_pos));
-        self.data_cache.extend(to_serialized_vint_array(add_data));
+        self.data_cache.extend(to_serialized_vint_array(&add_data));
         if self.ids_cache.len() * std::mem::size_of::<T>() + self.data_cache.len() >= 4_000_000 {
             self.flush()?;
         }
@@ -102,8 +102,8 @@ impl<T: Default + std::fmt::Debug> IndexIdToMultipleParentIndirectFlushingInOrde
     }
 }
 
-fn to_serialized_vint_array(add_data: Vec<u32>) -> Vec<u8> {
-    let vint = VIntArray::from_vals(&add_data);
+fn to_serialized_vint_array(add_data: &[u32]) -> Vec<u8> {
+    let vint = VIntArray::from_vals(add_data);
     vint.serialize()
 }
 

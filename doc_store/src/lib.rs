@@ -99,7 +99,7 @@ impl DocWriter {
             curr_id: 0,
             bytes_indexed: 0,
             offsets: vec![],
-            current_offset: current_offset,
+            current_offset,
             current_block: Default::default(),
         }
     }

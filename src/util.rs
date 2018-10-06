@@ -31,6 +31,10 @@ pub(crate) fn normalize_text(text: &str) -> String {
 
 pub fn open_file<P: AsRef<Path>>(path: P) -> Result<File, search::SearchError> {
     Ok(File::open(path.as_ref()).map_err(|err| search::SearchError::StringError(format!("Could not open {} {:?}", path.as_ref().to_str().unwrap(), err)))?)
+    // Ok(File::open(path.as_ref()).map_err(|err| {
+    //     panic!("alarmo");
+    //     search::SearchError::StringError(format!("Could not open {} {:?}", path.as_ref().to_str().unwrap(), err))
+    // })?)
 }
 
 // pub(crate) fn get_bit_at(input: u32, n: u8) -> bool {
@@ -125,7 +129,6 @@ pub(crate) fn get_u64_from_bytes(data: &[u8], pos: usize) -> u64 {
 // }
 
 pub(crate) trait StringAdd {
-    #[inline]
     fn add<O: AsRef<str>>(&self, other: O) -> String;
 }
 impl<S: AsRef<str>> StringAdd for S {
@@ -210,7 +213,6 @@ pub(crate) fn extract_field_name(field: &str) -> String {
     field
         .chars()
         .take(field.chars().count() - 10) //remove .textindex
-        .into_iter()
         .collect()
 }
 

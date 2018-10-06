@@ -115,14 +115,12 @@ impl IndexIdToMultipleParentIndirectFlushingInOrderVint {
             let mut val: u32 = add_data[0].to_u32().unwrap();
             set_high_bit(&mut val); // encode directly, much wow, much compression, gg memory consumption
             self.ids_cache[id_pos] = val;
+        } else if let Some(pos_in_data) = (self.current_data_offset as usize + self.data_cache.len()).to_u32() {
+            self.ids_cache[id_pos] = pos_in_data;
+            self.data_cache.extend(to_serialized_vint_array(add_data));
         } else {
-            if let Some(pos_in_data) = (self.current_data_offset as usize + self.data_cache.len()).to_u32() {
-                self.ids_cache[id_pos] = pos_in_data;
-                self.data_cache.extend(to_serialized_vint_array(add_data));
-            } else {
-                //Handle Overflow
-                panic!("Too much data, can't adress with u32");
-            }
+            //Handle Overflow
+            panic!("Too much data, can't adress with u32");
         }
 
         if self.ids_cache.len() * std::mem::size_of::<u32>() + self.data_cache.len() >= 4_000_000 {
@@ -268,7 +266,7 @@ impl<T: IndexIdToParentData> IndexIdToParent for IndexIdToMultipleParentIndirect
             let data_start_pos_or_data = data_start_pos.to_u32().unwrap();
             if let Some(val) = get_encoded(data_start_pos_or_data) {
                 return VintArrayIteratorOpt {
-                    single_value: val as i64,
+                    single_value: i64::from(val),
                     iter: Box::new(VintArrayIterator::from_serialized_vint_array(&[])),
                 };
             }
@@ -362,7 +360,7 @@ impl<T: IndexIdToParentData> IndexIdToParent for PointingMMAPFileReader<T> {
             let data_start_pos_or_data = data_start_pos.to_u32().unwrap();
             if let Some(val) = get_encoded(data_start_pos_or_data) {
                 return VintArrayIteratorOpt {
-                    single_value: val as i64,
+                    single_value: i64::from(val),
                     iter: Box::new(VintArrayIterator::from_serialized_vint_array(&[])),
                 };
             }

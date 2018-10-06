@@ -1,3 +1,5 @@
+#![cfg_attr(feature = "cargo-clippy", allow(clippy::boxed_local))]
+
 use fnv::FnvHashMap;
 use itertools::Itertools;
 use num;

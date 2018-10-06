@@ -1,4 +1,4 @@
-use fnv::{FnvHashMap, FnvHashSet};
+use fnv::{FnvHashMap};
 use fst::automaton::*;
 use fst::raw::Fst;
 use fst::IntoStreamer;
@@ -193,7 +193,7 @@ pub fn highlight(persistence: &Persistence, options: &mut RequestSearchPart) -> 
     };
 
     let mut result = get_term_ids_in_field(persistence, &mut options)?;
-    resolve_token_hits_to_text_id(persistence, &options.request, None, &mut result)?;
+    resolve_token_hits_to_text_id(persistence, &options.request, &mut result)?;
     Ok(get_text_score_id_from_result(false, &[result], options.request.skip, options.request.top))
 }
 
@@ -201,8 +201,8 @@ pub fn highlight(persistence: &Persistence, options: &mut RequestSearchPart) -> 
 pub fn get_anchor_for_phrases_in_search_results(
     persistence: &Persistence,
     path: &str,
-    res1: SearchFieldResult,
-    res2: SearchFieldResult,
+    res1: &SearchFieldResult,
+    res2: &SearchFieldResult,
 ) -> Result<(SearchFieldResult), SearchError> {
     let mut path = path.to_string();
     if !path.ends_with(TEXTINDEX) {
@@ -369,7 +369,7 @@ pub fn resolve_token_to_anchor(
     persistence: &Persistence,
     options: &RequestSearchPart,
     // filter: Option<FnvHashSet<u32>>,
-    filter: Option<Arc<FilterResult>>,
+    filter: &Option<Arc<FilterResult>>,
     result: &SearchFieldResult,
 ) -> Result<SearchFieldResult, SearchError> {
     let mut options = options.clone();
@@ -507,7 +507,7 @@ fn should_filter(filter: &Option<Arc<FilterResult>>, id: u32) -> bool {
 pub fn resolve_token_hits_to_text_id(
     persistence: &Persistence,
     options: &RequestSearchPart,
-    _filter: Option<FnvHashSet<u32>>,
+    // _filter: Option<FnvHashSet<u32>>,
     result: &mut SearchFieldResult,
 ) -> Result<(), search::SearchError> {
     let mut path = options.path.to_string();

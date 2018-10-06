@@ -41,19 +41,19 @@ use lru_time_cache::LruCache;
 use parking_lot::RwLock;
 use std::str::FromStr;
 
-pub const TOKENS_TO_TEXT_ID: &'static str = ".tokens_to_text_id";
-pub const TEXT_ID_TO_TOKEN_IDS: &'static str = ".text_id_to_token_ids";
-pub const TO_ANCHOR_ID_SCORE: &'static str = ".to_anchor_id_score";
-pub const PHRASE_PAIR_TO_ANCHOR: &'static str = ".phrase_pair_to_anchor";
-pub const VALUE_ID_TO_PARENT: &'static str = ".value_id_to_parent";
-pub const PARENT_TO_VALUE_ID: &'static str = ".parent_to_value_id";
-pub const TEXT_ID_TO_ANCHOR: &'static str = ".text_id_to_anchor";
-// pub const PARENT_TO_TEXT_ID: &'static str = ".parent_to_text_id";
-pub const ANCHOR_TO_TEXT_ID: &'static str = ".anchor_to_text_id";
-pub const BOOST_VALID_TO_VALUE: &'static str = ".boost_valid_to_value";
-pub const TOKEN_VALUES: &'static str = ".token_values";
+pub const TOKENS_TO_TEXT_ID: &str = ".tokens_to_text_id";
+pub const TEXT_ID_TO_TOKEN_IDS: &str = ".text_id_to_token_ids";
+pub const TO_ANCHOR_ID_SCORE: &str = ".to_anchor_id_score";
+pub const PHRASE_PAIR_TO_ANCHOR: &str = ".phrase_pair_to_anchor";
+pub const VALUE_ID_TO_PARENT: &str = ".value_id_to_parent";
+pub const PARENT_TO_VALUE_ID: &str = ".parent_to_value_id";
+pub const TEXT_ID_TO_ANCHOR: &str = ".text_id_to_anchor";
+// pub const PARENT_TO_TEXT_ID: &str = ".parent_to_text_id";
+pub const ANCHOR_TO_TEXT_ID: &str = ".anchor_to_text_id";
+pub const BOOST_VALID_TO_VALUE: &str = ".boost_valid_to_value";
+pub const TOKEN_VALUES: &str = ".token_values";
 
-pub const TEXTINDEX: &'static str = ".textindex";
+pub const TEXTINDEX: &str = ".textindex";
 
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
 pub struct MetaData {
@@ -92,7 +92,7 @@ pub struct IndexMetaData {
 impl IndexMetaData {
     pub fn new(max_value_id: u32) -> Self {
         IndexMetaData {
-            max_value_id: max_value_id,
+            max_value_id,
             ..Default::default()
         }
     }
@@ -244,7 +244,7 @@ pub struct VintArrayIteratorOpt<'a> {
 impl<'a> VintArrayIteratorOpt<'a> {
     pub fn from_single_val(val: u32) -> Self {
         VintArrayIteratorOpt {
-            single_value: val as i64,
+            single_value: i64::from(val),
             iter: Box::new(VintArrayIterator::from_serialized_vint_array(&[])),
         }
     }
@@ -372,7 +372,7 @@ impl Persistence {
     fn load_types_index_to_one<T: IndexIdToParentData>(data_direct_path: &str, metadata: IndexMetaData) -> Result<Box<IndexIdToParent<Output = u32>>, search::SearchError> {
         let store = SingleArrayIM::<u32, T> {
             data: decode_bit_packed_vals(&file_path_to_bytes(data_direct_path)?, get_bytes_required(metadata.max_value_id)),
-            metadata: metadata,
+            metadata,
             ok: std::marker::PhantomData,
         };
         Ok(Box::new(store) as Box<IndexIdToParent<Output = u32>>)
@@ -382,7 +382,7 @@ impl Persistence {
     pub fn load_from_disk(&mut self) -> Result<(), search::SearchError> {
         info_time!("loaded persistence {:?}", &self.db);
 
-        let doc_offsets_file = open_file(self.db.to_string() + "/data.offsets")?;
+        let doc_offsets_file = self.get_file_handle("data.offsets")?;
         let doc_offsets_mmap = unsafe { MmapOptions::new().map(&doc_offsets_file).unwrap() };
         self.indices.doc_offsets = Some(doc_offsets_mmap);
 
@@ -441,7 +441,7 @@ impl Persistence {
                             self.indices.boost_valueid_to_value.insert(el.path.to_string(), Box::new(store));
                         }
                         KVStoreType::IndexIdToOneParent => {
-                            let store = SingleArrayMMAPPacked::<u32>::from_path(&get_file_path(&self.db, &el.path), el.metadata)?;
+                            let store = SingleArrayMMAPPacked::<u32>::from_file(self.get_file_handle(&el.path)?, el.metadata)?;
                             self.indices.boost_valueid_to_value.insert(el.path.to_string(), Box::new(store));
                         }
                     }
@@ -502,7 +502,7 @@ impl Persistence {
                                 Box::new(store) as Box<IndexIdToParent<Output = u32>>
                             }
                             KVStoreType::IndexIdToOneParent => {
-                                let store = SingleArrayMMAPPacked::<u32>::from_path(&data_direct_path, el.metadata)?;
+                                let store = SingleArrayMMAPPacked::<u32>::from_file(self.get_file_handle(&el.path)?, el.metadata)?;
 
                                 Box::new(store) as Box<IndexIdToParent<Output = u32>>
                             }
@@ -527,15 +527,15 @@ impl Persistence {
     }
 
     pub fn load_fst(&self, path: &str) -> Result<Map, search::SearchError> {
-        // unsafe {
-        //     Ok(Map::from_path(&get_file_path(&self.db, &(path.to_string() + ".fst")))?) //(path.to_string() + ".fst"))?)
-        // }
+        unsafe {
+            Ok(Map::from_path(&get_file_path(&self.db, &(path.to_string() + ".fst")))?) //(path.to_string() + ".fst"))?)
+        }
         // In memory version
-        let mut f = self.get_file_handle(&(path.to_string() + ".fst"))?;
-        let mut buffer: Vec<u8> = Vec::new();
-        f.read_to_end(&mut buffer)?;
-        buffer.shrink_to_fit();
-        Ok(Map::from_bytes(buffer)?)
+        // let mut f = self.get_file_handle(&(path.to_string() + ".fst"))?;
+        // let mut buffer: Vec<u8> = Vec::new();
+        // f.read_to_end(&mut buffer)?;
+        // buffer.shrink_to_fit();
+        // Ok(Map::from_bytes(buffer)?)
     }
 
     pub fn get_file_handle(&self, path: &str) -> Result<File, search::SearchError> {
@@ -551,7 +551,7 @@ impl Persistence {
             .boost_valueid_to_value
             .get(path)
             .map(|el| el.as_ref())
-            .ok_or_else(|| path_not_found(path.as_ref()))
+            .ok_or_else(|| path_not_found(path))
     }
 
     pub fn has_index(&self, path: &str) -> bool {

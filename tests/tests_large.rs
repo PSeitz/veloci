@@ -7,9 +7,7 @@ extern crate search_lib;
 #[macro_use]
 extern crate serde_json;
 
-use search_lib::create;
-use search_lib::persistence;
-use search_lib::search;
+use search_lib::*;
 use serde_json::Value;
 
 static TEST_FOLDER: &str = "mochaTest_large";
@@ -27,6 +25,13 @@ lazy_static! {
             let el = r#"{
                 "category": "superb",
                 "tags": ["nice", "cool"]
+            }"#;
+
+            data.extend(el.as_bytes());
+
+            let el = r#"{
+                "category": "awesomo",
+                "tags": ["is", "cool"]
             }"#;
 
             data.extend(el.as_bytes());
@@ -62,6 +67,13 @@ fn search_testo_to_doc(req: Value) -> search::SearchResultWithDoc {
     search_testo_to_doco(req).expect("search error")
 }
 
+fn search_testo_to_doco_qp(qp: query_generator::SearchQueryGeneratorParameters) -> search::SearchResultWithDoc {
+    let pers = &TEST_PERSISTENCE;
+    let requesto = query_generator::search_query(&pers, qp).unwrap();
+    search::to_search_result(&pers, search_testo_to_hitso(requesto.clone()).expect("search error"), &requesto.select)
+}
+
+
 fn search_testo_to_doco(req: Value) -> Result<search::SearchResultWithDoc, search::SearchError> {
     let requesto: search::Request = serde_json::from_str(&req.to_string()).expect("Can't parse json");
     search_testo_to_doco_req(requesto)
@@ -89,6 +101,33 @@ mod tests_large {
             }
         });
         assert_eq!(search_testo_to_doc(req).num_hits, 300);
+    }
+
+    #[test]
+    fn and_search() {
+        let mut params = query_generator::SearchQueryGeneratorParameters::default();
+        params.search_term = "superb AND cool".to_string();
+
+        let res = search_testo_to_doco_qp(params);
+        assert_eq!(res.num_hits, 300);
+    }
+
+    #[test]
+    fn or_search() {
+        let mut params = query_generator::SearchQueryGeneratorParameters::default();
+        params.search_term = "superb OR awesome".to_string();
+
+        let res = search_testo_to_doco_qp(params);
+        assert_eq!(res.num_hits, 600);
+    }
+    #[test]
+    fn search_and_filter() {
+        let mut params = query_generator::SearchQueryGeneratorParameters::default();
+        params.search_term = "superb".to_string();
+        params.filter = Some("nice AND superb".to_string());
+
+        let res = search_testo_to_doco_qp(params);
+        assert_eq!(res.num_hits, 300);
     }
 
     #[test]

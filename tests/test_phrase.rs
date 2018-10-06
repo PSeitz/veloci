@@ -57,7 +57,7 @@ lazy_static! {
 
 fn search_testo_to_doco_qp(qp: query_generator::SearchQueryGeneratorParameters) -> search::SearchResultWithDoc {
     let pers = &TEST_PERSISTENCE;
-    let requesto = query_generator::search_query(&pers, qp);
+    let requesto = query_generator::search_query(&pers, qp).unwrap();
     search::to_search_result(&pers, search_testo_to_hitso(requesto.clone()).expect("search error"), &requesto.select)
 }
 fn search_testo_to_doc(req: Value) -> search::SearchResultWithDoc {

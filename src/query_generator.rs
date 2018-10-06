@@ -54,9 +54,9 @@ fn get_default_levenshtein(term: &str, levenshtein_auto_limit: usize) -> usize {
     }
 }
 
-fn get_all_search_field_names(persistence: &Persistence, fields: &Option<Vec<String>>) -> Vec<String> {
+fn get_all_search_field_names(persistence: &Persistence, fields: &Option<Vec<String>>) -> Result<Vec<String>, SearchError> {
     // TODO ADD WARNING IF fields filter all
-    persistence
+    let res:Vec<_> = persistence
         .meta_data
         .get_all_fields()
         .into_iter()
@@ -71,7 +71,12 @@ fn get_all_search_field_names(persistence: &Persistence, fields: &Option<Vec<Str
             }
             true
         })
-        .collect()
+        .collect();
+    if res.is_empty() {
+        Err(SearchError::StringError(format!("Did not find any fields for {:?}", fields)))
+    }else{
+        Ok(res)
+    }
 }
 
 fn get_levenshteinn(term: &str, levenshtein: Option<usize>, levenshtein_auto_limit: Option<usize>) -> u32 {
@@ -209,9 +214,9 @@ fn query_ast_to_request(ast: UserAST, opt: &SearchQueryGeneratorParameters) -> R
             let term = &filter.phrase;
 
             let levenshtein_distance = if let Some(levenshtein) = filter.levenshtein {
-                Some(levenshtein as u32)
+                Some(u32::from(levenshtein))
             } else {
-                Some(get_levenshteinn(term, opt.levenshtein.clone(), opt.levenshtein_auto_limit.clone()))
+                Some(get_levenshteinn(term, opt.levenshtein, opt.levenshtein_auto_limit))
             };
 
             let part = RequestSearchPart {
@@ -240,12 +245,12 @@ fn terms_for_phrase_from_ast(ast: &UserAST) -> Vec<&String> {
 
 use parser;
 #[cfg_attr(feature = "flame_it", flame)]
-pub fn search_query(persistence: &Persistence, mut opt: SearchQueryGeneratorParameters) -> Request {
+pub fn search_query(persistence: &Persistence, mut opt: SearchQueryGeneratorParameters) -> Result<Request, SearchError> {
     // let req = persistence.meta_data.fulltext_indices.key
     opt.facetlimit = opt.facetlimit.or(Some(5));
     info_time!("generating search query");
 
-    let all_fields = get_all_search_field_names(&persistence, &opt.fields); // all fields with applied field_filter
+    let all_fields = get_all_search_field_names(&persistence, &opt.fields)?; // all fields with applied field_filter
     let query_ast = parser::query_parser::parse(&opt.search_term).unwrap().0;
     let terms: Vec<String> = terms_for_phrase_from_ast(&query_ast).iter().map(|el| el.to_string()).collect();
     info!("Terms for Phrase{:?}", terms);
@@ -274,7 +279,7 @@ pub fn search_query(persistence: &Persistence, mut opt: SearchQueryGeneratorPara
                 None
             };
 
-            get_all_search_field_names(&persistence, &field_filter)
+            get_all_search_field_names(&persistence, &field_filter).unwrap()
                 .iter()
                 .map(|field_name| RequestSearchPart {
                     path: field_name.to_string(),
@@ -295,8 +300,8 @@ pub fn search_query(persistence: &Persistence, mut opt: SearchQueryGeneratorPara
             &terms,
             opt.levenshtein,
             opt.levenshtein_auto_limit,
-            opt.boost_fields.clone(),
-        ));
+            &opt.boost_fields,
+        )?);
     }
 
     if let Some(filters) = opt.filter.as_ref() {
@@ -316,20 +321,20 @@ pub fn search_query(persistence: &Persistence, mut opt: SearchQueryGeneratorPara
     request.boost = opt.boost_queries.clone();
     request.explain = opt.explain.unwrap_or(false);
 
-    request
+    Ok(request)
 }
 
 pub fn generate_phrase_queries_for_searchterm(
     persistence: &Persistence,
     fields: &Option<Vec<String>>,
-    terms: &Vec<String>,
+    terms: &[String],
     levenshtein: Option<usize>,
     levenshtein_auto_limit: Option<usize>,
-    boost_fields: HashMap<String, f32>,
-) -> Vec<RequestPhraseBoost> {
+    boost_fields: &HashMap<String, f32>,
+) -> Result<Vec<RequestPhraseBoost>, SearchError> {
     let mut phase_boost_requests = vec![];
-    for (term_a, term_b) in terms.clone().iter().tuple_windows() {
-        phase_boost_requests.extend(get_all_search_field_names(&persistence, &fields).iter().map(|field_name| RequestPhraseBoost {
+    for (term_a, term_b) in terms.iter().tuple_windows() {
+        phase_boost_requests.extend(get_all_search_field_names(&persistence, &fields)?.iter().map(|field_name| RequestPhraseBoost {
             search1: RequestSearchPart {
                 path: field_name.to_string(),
                 terms: vec![term_a.to_string()],
@@ -347,7 +352,7 @@ pub fn generate_phrase_queries_for_searchterm(
         }));
     }
 
-    phase_boost_requests
+    Ok(phase_boost_requests)
 }
 
 pub fn suggest_query(
@@ -358,11 +363,11 @@ pub fn suggest_query(
     levenshtein: Option<usize>,
     fields: &Option<Vec<String>>,
     levenshtein_auto_limit: Option<usize>,
-) -> Request {
+) -> Result<Request, SearchError> {
     if top.is_none() {
         top = Some(10);
     }
-    let requests = get_all_search_field_names(&persistence, &fields)
+    let requests = get_all_search_field_names(&persistence, &fields)?
         .iter()
         .map(|field_name| {
             let levenshtein_distance = levenshtein.unwrap_or_else(|| get_default_levenshtein(request, levenshtein_auto_limit.unwrap_or(1)));
@@ -379,10 +384,10 @@ pub fn suggest_query(
         })
         .collect();
 
-    Request {
+    Ok(Request {
         suggest: Some(requests),
         top,
         skip,
         ..Default::default()
-    }
+    })
 }

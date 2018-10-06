@@ -239,10 +239,10 @@ impl<
         let serialized_len = sink.len();
         data_file.write_all(&sink)?;
 
-        self.bytes_written += serialized_len as u64;
+        self.bytes_written += u64::from(prev_part.len);
 
         self.parts.push(Part {
-            offset: prev_part.offset + prev_part.len as u64,
+            offset: prev_part.offset + u64::from(prev_part.len),
             len: serialized_len as u32,
         });
         self.cache.clear();

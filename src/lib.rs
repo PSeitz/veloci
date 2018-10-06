@@ -1,3 +1,5 @@
+#![cfg_attr(feature = "cargo-clippy", allow(clippy::implicit_hasher))]
+#![feature(tool_lints)]
 #![feature(drain_filter)]
 #![feature(align_offset)]
 #![feature(ptr_offset_from)]

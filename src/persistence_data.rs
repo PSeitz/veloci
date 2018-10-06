@@ -22,7 +22,6 @@ use memmap::Mmap;
 use memmap::MmapOptions;
 
 use search;
-use util::*;
 
 impl_type_info_single_templ!(SingleArrayMMAPPacked);
 
@@ -60,7 +59,7 @@ impl IndexIdToOneParentFlushing {
             Ok(Box::new(self.into_im_store()))
         } else {
             self.flush()?;
-            let store = SingleArrayMMAPPacked::<u32>::from_path(&self.path, self.metadata)?;
+            let store = SingleArrayMMAPPacked::<u32>::from_file(File::open(self.path)?, self.metadata)?;
             Ok(Box::new(store))
         }
     }
@@ -125,7 +124,7 @@ pub enum BytesRequired {
 
 #[inline]
 pub fn get_bytes_required(mut val: u32) -> BytesRequired {
-    val = val + 1; //+1 because EMPTY_BUCKET = 0 is already reserved
+    val += val; //+1 because EMPTY_BUCKET = 0 is already reserved
     if val < 1 << 8 {
         BytesRequired::One
     } else if val < 1 << 16 {
@@ -315,16 +314,26 @@ impl<T: IndexIdToParentData> SingleArrayMMAPPacked<T> {
         self.size
     }
 
-    pub fn from_path(path: &str, metadata: IndexMetaData) -> Result<Self, search::SearchError> {
-        let data_file = unsafe { MmapOptions::new().map(&open_file(path)?).unwrap() };
+    pub fn from_file(file: File, metadata: IndexMetaData) -> Result<Self, search::SearchError> {
+        let data_file = unsafe { MmapOptions::new().map(&file).unwrap() };
         Ok(SingleArrayMMAPPacked {
             data_file,
-            size: File::open(path)?.metadata()?.len() as usize / get_bytes_required(metadata.max_value_id) as usize,
+            size: file.metadata()?.len() as usize / get_bytes_required(metadata.max_value_id) as usize,
             metadata,
             ok: PhantomData,
             bytes_required: get_bytes_required(metadata.max_value_id),
         })
     }
+    // pub fn from_path(path: &str, metadata: IndexMetaData) -> Result<Self, search::SearchError> {
+    //     let data_file = unsafe { MmapOptions::new().map(&open_file(path)?).unwrap() };
+    //     Ok(SingleArrayMMAPPacked {
+    //         data_file,
+    //         size: File::open(path)?.metadata()?.len() as usize / get_bytes_required(metadata.max_value_id) as usize,
+    //         metadata,
+    //         ok: PhantomData,
+    //         bytes_required: get_bytes_required(metadata.max_value_id),
+    //     })
+    // }
 }
 impl<T: IndexIdToParentData> HeapSizeOf for SingleArrayMMAPPacked<T> {
     fn heap_size_of_children(&self) -> usize {
@@ -416,7 +425,7 @@ mod tests {
                 ind.add(key as u32, *val as u32).unwrap();
                 ind.flush().unwrap();
             }
-            let store = SingleArrayMMAPPacked::<u32>::from_path(&data_path, ind.metadata).unwrap();
+            let store = SingleArrayMMAPPacked::<u32>::from_file(File::open(data_path).unwrap(), ind.metadata).unwrap();
             check_test_data_1_to_1(&store);
         }
 

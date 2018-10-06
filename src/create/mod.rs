@@ -207,7 +207,7 @@ fn calculate_and_add_token_score_in_doc(
 
 #[inline]
 fn calculate_token_score_for_entry(token_best_pos: u32, num_occurences: u32, num_tokens_in_text: u32, is_exact: bool) -> u32 {
-    let mut score = if is_exact { 400 } else { 2000 / (token_best_pos + 10) } as f32;
+    let mut score = if is_exact { 400. } else { 2000. / (token_best_pos as f32 + 10.) } ;
     // let mut score = score / (num_occurences as f32 + 100.).log10(); //+10 so log() is bigger than 1
     let mut num_occurence_modifier = (num_occurences as f32 + 1000.).log10() - 2.; // log 1000 is 3
     num_occurence_modifier -= (num_occurence_modifier - 1.) * 0.7; //reduce by 70%
@@ -239,7 +239,7 @@ pub struct AllTermsAndDocumentBuilder {
 
 #[inline]
 fn add_count_text(terms: &mut TermMap, text: &str) {
-    let stat = terms.get_or_insert(text, || TermInfo::default());
+    let stat = terms.get_or_insert(text, TermInfo::default);
     stat.num_occurences += 1;
 }
 
@@ -406,8 +406,8 @@ fn stream_iter_to_direct_index(iter: impl Iterator<Item = buffered_index_writer:
     Ok(())
 }
 
-fn buffered_index_to_direct_index(db_path: &str, path: String, mut buffered_index_data: BufferedIndexWriter) -> Result<IndexIdToOneParentFlushing, io::Error> {
-    let data_file_path = util::get_file_path(db_path, &path);
+fn buffered_index_to_direct_index(db_path: &str, path: &str, mut buffered_index_data: BufferedIndexWriter) -> Result<IndexIdToOneParentFlushing, io::Error> {
+    let data_file_path = util::get_file_path(db_path, path);
     let mut store = IndexIdToOneParentFlushing::new(data_file_path, buffered_index_data.max_value_id);
     if buffered_index_data.is_in_memory() {
         stream_iter_to_direct_index(buffered_index_data.into_iter_inmemory(), &mut store)?;
@@ -523,8 +523,7 @@ where
                     text_id_to_anchor,
                     phrase_pair_to_anchor,
                     text_id_to_token_ids,
-                    fulltext_options: field_config.fulltext.clone().unwrap_or(default_fulltext_options.clone()),
-                    ..Default::default()
+                    fulltext_options: field_config.fulltext.clone().unwrap_or_else(||default_fulltext_options.clone()),
                 }
             });
 
@@ -754,11 +753,11 @@ fn stream_iter_to_indirect_index(
 
 fn buffered_index_to_indirect_index_multiple(
     db_path: &str,
-    path: String,
+    path: &str,
     mut buffered_index_data: BufferedIndexWriter,
     sort_and_dedup: bool,
 ) -> Result<IndexIdToMultipleParentIndirectFlushingInOrderVint, search::SearchError> {
-    let mut store = IndexIdToMultipleParentIndirectFlushingInOrderVint::new(get_file_path(db_path, &path), buffered_index_data.max_value_id);
+    let mut store = IndexIdToMultipleParentIndirectFlushingInOrderVint::new(get_file_path(db_path, path), buffered_index_data.max_value_id);
 
     if buffered_index_data.is_in_memory() {
         stream_iter_to_indirect_index(buffered_index_data.into_iter_inmemory(), &mut store, sort_and_dedup)?;
@@ -940,7 +939,7 @@ fn convert_raw_path_data_to_indices(
                            loading_type: LoadingType|
      -> Result<(), search::SearchError> {
         if is_always_1_to_1 {
-            let store = buffered_index_to_direct_index(db_path, path.to_string(), buffered_index_data)?;
+            let store = buffered_index_to_direct_index(db_path, &path, buffered_index_data)?;
             indices.push(IndexData {
                 path,
                 index: IndexVariants::SingleValue(store),
@@ -948,7 +947,7 @@ fn convert_raw_path_data_to_indices(
                 index_category: IndexCategory::KeyValue,
             });
         } else {
-            let store = buffered_index_to_indirect_index_multiple(db_path, path.to_string(), buffered_index_data, sort_and_dedup)?;
+            let store = buffered_index_to_indirect_index_multiple(db_path, &path, buffered_index_data, sort_and_dedup)?;
             indices.push(IndexData {
                 path,
                 index: IndexVariants::MultiValue(store),
@@ -1029,7 +1028,7 @@ fn convert_raw_path_data_to_indices(
             if let Some(buffered_index_data) = data.boost {
                 let boost_path = extract_field_name(path).add(BOOST_VALID_TO_VALUE);
 
-                let store = buffered_index_to_indirect_index_multiple(db_path, boost_path.to_string(), buffered_index_data, false)?;
+                let store = buffered_index_to_indirect_index_multiple(db_path, &boost_path, buffered_index_data, false)?;
                 indices.push(IndexData {
                     path: boost_path.to_string(),
                     index: IndexVariants::MultiValue(store),
@@ -1187,7 +1186,7 @@ where
 
     // load the converted indices, without writing them
     if load_persistence {
-        let doc_offsets_file = open_file(persistence.db.to_string() + "/data.offsets")?;
+        let doc_offsets_file = persistence.get_file_handle("data.offsets")?;
         let doc_offsets_mmap = unsafe { MmapOptions::new().map(&doc_offsets_file).unwrap() };
         persistence.indices.doc_offsets = Some(doc_offsets_mmap);
 
@@ -1198,7 +1197,7 @@ where
                     if index.is_in_memory() {
                         persistence.indices.phrase_pair_to_anchor.insert(path, Box::new(index.into_im_store())); //Move data
                     } else {
-                        let store = IndexIdToMultipleParentIndirectBinarySearchMMAP::from_path(&path, index.metadata)?; //load data with MMap
+                        let store = IndexIdToMultipleParentIndirectBinarySearchMMAP::from_path(&(persistence.db.to_string()+"/" + &path), index.metadata)?; //load data with MMap
                         persistence.indices.phrase_pair_to_anchor.insert(path, Box::new(store));
                     }
                 }
@@ -1206,7 +1205,7 @@ where
                     if index.is_in_memory() {
                         persistence.indices.key_value_stores.insert(path, Box::new(index.into_im_store())); //Move data
                     } else {
-                        let store = SingleArrayMMAPPacked::from_path(&path, index.metadata)?; //load data with MMap
+                        let store = SingleArrayMMAPPacked::from_file(persistence.get_file_handle(&path)?, index.metadata)?; //load data with MMap
                         persistence.indices.key_value_stores.insert(path, Box::new(store));
                     }
                 }
@@ -1269,7 +1268,7 @@ pub fn add_token_values_to_tokens(persistence: &mut Persistence, data_str: &str,
         };
 
         let hits = search_field::get_term_ids_in_field(persistence, &mut options)?;
-        if hits.hits_scores.len() >= 1 {
+        if !hits.hits_scores.is_empty() {
             // tuples.push(ValIdToValue {
             //     valid: hits.hits_scores[0].id,
             //     value: el.value.unwrap(),
@@ -1279,7 +1278,7 @@ pub fn add_token_values_to_tokens(persistence: &mut Persistence, data_str: &str,
     }
 
     let path = config.path.add(TEXTINDEX).add(TOKEN_VALUES).add(BOOST_VALID_TO_VALUE);
-    let mut store = buffered_index_to_direct_index(&persistence.db, path.to_string(), buffered_index_data)?;
+    let mut store = buffered_index_to_direct_index(&persistence.db, &path, buffered_index_data)?;
 
     store.flush()?;
     let kv_metadata = persistence::KVStoreMetaData {
@@ -1296,7 +1295,7 @@ pub fn add_token_values_to_tokens(persistence: &mut Persistence, data_str: &str,
     persistence.write_meta_data()?;
 
     //TODO FIX LOAD FOR IN_MEMORY
-    let store = SingleArrayMMAPPacked::<u32>::from_path(&util::get_file_path(&persistence.db, &path), store.metadata)?;
+    let store = SingleArrayMMAPPacked::<u32>::from_file(persistence.get_file_handle(&path)?, store.metadata)?;
     persistence.indices.boost_valueid_to_value.insert(path.to_string(), Box::new(store));
     Ok(())
 }
