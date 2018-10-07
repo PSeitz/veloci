@@ -19,6 +19,7 @@ use std::io::prelude::*;
 use std::io::BufWriter;
 use std::iter::FusedIterator;
 use std::mem;
+use std::boxed::Box;
 use vint::vint::*;
 // use rayon::prelude::*;
 use std::marker::PhantomData;
@@ -121,19 +122,23 @@ struct Part {
 ///
 pub struct BufferedIndexWriter<K: PartialOrd + Ord + Default + Copy + SerializeInto + DeserializeFrom = u32, T: GetValue + SerializeInto + DeserializeFrom = u32> {
     pub cache: Vec<KeyValue<K, T>>,
-    pub temp_file: Option<File>,
     pub max_value_id: u32,
     pub num_values: u32,
-    pub bytes_written: u64,
+    last_id: Option<K>,
+    flush_data: Box<FlushStruct>
+}
+
+#[derive(Debug)]
+struct FlushStruct {
+    bytes_written: u64,
     /// keep order of values
     stable_sort: bool,
     /// Ids are already sorted inserted, so there is no need to sort them
     ids_are_sorted: bool,
-    last_id: Option<K>,
-    flush_threshold: usize,
+    // flush_threshold: usize,
     /// written parts offsets in the file
     parts: Vec<Part>,
-    temp_file_mmap: Option<Mmap>,
+    pub temp_file: Option<File>,
 }
 
 impl<
@@ -151,19 +156,24 @@ impl<
         T: GetValue + Default + Clone + Copy + Send + Sync + SerializeInto + DeserializeFrom,
     > BufferedIndexWriter<K, T>
 {
+
+    pub fn bytes_written(&self) -> u64 {
+        self.flush_data.bytes_written
+    }
     pub fn new_with_opt(stable_sort: bool, ids_are_sorted: bool) -> Self {
-        BufferedIndexWriter {
-            cache: vec![],
+        let flush_data = Box::new(FlushStruct{
+            bytes_written: 0,
             temp_file: None,
-            temp_file_mmap: None,
-            max_value_id: 0,
-            num_values: 0,
+            parts: vec![],
             stable_sort,
             ids_are_sorted,
+        });
+        BufferedIndexWriter {
+            cache: vec![],
+            max_value_id: 0,
+            num_values: 0,
             last_id: None,
-            bytes_written: 0,
-            flush_threshold: 4_000_000,
-            parts: vec![],
+            flush_data
         }
     }
 
@@ -199,7 +209,7 @@ impl<
 
     #[inline]
     pub fn check_flush(&mut self, id_has_changed: bool) -> Result<(), io::Error> {
-        if id_has_changed && self.cache.len() * mem::size_of::<KeyValue<K, T>>() >= self.flush_threshold {
+        if id_has_changed && self.cache.len() * mem::size_of::<KeyValue<K, T>>() >= 4_000_000 {
             self.flush()?;
         }
         Ok(())
@@ -221,27 +231,28 @@ impl<
         Ok(())
     }
 
+    #[cold]
     pub fn flush(&mut self) -> Result<(), io::Error> {
         if self.cache.is_empty() {
             return Ok(());
         }
 
         self.sort_cache();
+        let prev_part = self.flush_data.parts.last().cloned().unwrap_or(Part { offset: 0, len: 0 });
+        let serialized_len = {
+            let mut data_file = BufWriter::new(self.flush_data.temp_file.get_or_insert_with(|| tempfile::tempfile().unwrap()));
+            let mut sink = Vec::with_capacity(self.cache.len() * mem::size_of::<KeyValue<K, T>>());
+            for value in self.cache.iter() {
+                value.serialize_into(&mut sink);
+            }
+    
+            data_file.write_all(&sink)?;
+            sink.len()
+        };
 
-        let mut data_file = BufWriter::new(self.temp_file.get_or_insert_with(|| tempfile::tempfile().unwrap()));
-        let prev_part = self.parts.last().cloned().unwrap_or(Part { offset: 0, len: 0 });
+        self.flush_data.bytes_written += u64::from(prev_part.len);
 
-        let mut sink = Vec::with_capacity(self.cache.len() * mem::size_of::<KeyValue<K, T>>());
-        for value in self.cache.iter() {
-            value.serialize_into(&mut sink);
-        }
-
-        let serialized_len = sink.len();
-        data_file.write_all(&sink)?;
-
-        self.bytes_written += u64::from(prev_part.len);
-
-        self.parts.push(Part {
+        self.flush_data.parts.push(Part {
             offset: prev_part.offset + u64::from(prev_part.len),
             len: serialized_len as u32,
         });
@@ -250,8 +261,8 @@ impl<
     }
 
     fn sort_cache(&mut self) {
-        if !self.ids_are_sorted {
-            if self.stable_sort {
+        if !self.flush_data.ids_are_sorted {
+            if self.flush_data.stable_sort {
                 self.cache.sort_by_key(|el| el.key);
             } else {
                 self.cache.sort_unstable_by_key(|el| el.key);
@@ -263,8 +274,8 @@ impl<
         let mut vecco = vec![];
 
         // let file = File::open(&self.data_path)?;
-        if let Some(file) = &self.temp_file {
-            for part in &self.parts {
+        if let Some(file) = &self.flush_data.temp_file {
+            for part in &self.flush_data.parts {
                 let mmap = unsafe { MmapOptions::new().offset(part.offset).len(part.len as usize).map(&file)? };
                 vecco.push(MMapIter::<K, T>::new(mmap));
             }
@@ -292,7 +303,7 @@ impl<
 
     #[inline]
     pub fn is_in_memory(&self) -> bool {
-        self.parts.is_empty()
+        self.flush_data.parts.is_empty()
     }
 
     // /// inmemory version for very small indices, where it's inefficient to write and then read from disk - data on disk will be ignored!

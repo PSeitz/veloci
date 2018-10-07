@@ -827,8 +827,7 @@ pub fn add_anchor_score_flush(
     let indirect_file_path = util::get_file_path(db_path, &(path.to_string() + ".indirect"));
     let data_file_path = util::get_file_path(db_path, &(path.to_string() + ".data"));
     //If the buffered index_data is larger than 4GB, we switch to u64 for addressing the data block
-    //panic!("EEEEEHHH {:?}", buffered_index_data.bytes_written);
-    if buffered_index_data.bytes_written < 2_u64.pow(32) {
+    if buffered_index_data.bytes_written() < 2_u64.pow(32) {
         let mut store = TokenToAnchorScoreVintFlushing::<u32>::new(indirect_file_path, data_file_path);
         // stream_buffered_index_writer_to_anchor_score(buffered_index_data, &mut store)?;
         if buffered_index_data.is_in_memory() {

@@ -30,7 +30,7 @@ fn main() -> Result<(), io::Error> {
         buffered_index_writer.add(i, (i, 50_000))?;
     }
 
-    println!("{:?}", buffered_index_writer.bytes_written);
+    println!("{:?}", buffered_index_writer.bytes_written());
 
     search_lib::create::add_anchor_score_flush("test_u64", "check".to_string(), buffered_index_writer, &mut vec![]).unwrap();
 
