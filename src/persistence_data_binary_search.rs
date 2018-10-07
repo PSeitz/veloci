@@ -59,14 +59,14 @@ impl<T: Default + std::fmt::Debug> IndexIdToMultipleParentIndirectFlushingInOrde
     }
 
     #[inline]
-    pub fn add(&mut self, id: T, add_data: Vec<u32>) -> Result<(), io::Error> {
+    pub fn add(&mut self, id: T, add_data: &[u32]) -> Result<(), io::Error> {
         self.metadata.num_values += 1;
         self.metadata.num_ids += add_data.len() as u32;
 
         let data_pos = self.current_data_offset + self.data_cache.len() as u32;
 
         self.ids_cache.push((id, data_pos));
-        self.data_cache.extend(to_serialized_vint_array(&add_data));
+        self.data_cache.extend(to_serialized_vint_array(add_data));
         if self.ids_cache.len() * std::mem::size_of::<T>() + self.data_cache.len() >= 4_000_000 {
             self.flush()?;
         }
@@ -230,13 +230,13 @@ mod tests {
 
     fn get_test_data_1_to_n_ind(ind_path: String, data_path: String) -> IndexIdToMultipleParentIndirectFlushingInOrderVintNoDirectEncode<(u32, u32)> {
         let mut store = IndexIdToMultipleParentIndirectFlushingInOrderVintNoDirectEncode::new(ind_path, data_path, u32::MAX);
-        store.add((0, 0), vec![5, 6]).unwrap();
-        store.add((0, 1), vec![9]).unwrap();
-        store.add((2, 0), vec![9]).unwrap();
-        store.add((2, 3), vec![9, 50000]).unwrap();
-        store.add((5, 0), vec![80]).unwrap();
-        store.add((5, 9), vec![0]).unwrap();
-        store.add((5, 10), vec![0]).unwrap();
+        store.add((0, 0), &vec![5, 6]).unwrap();
+        store.add((0, 1), &vec![9]).unwrap();
+        store.add((2, 0), &vec![9]).unwrap();
+        store.add((2, 3), &vec![9, 50000]).unwrap();
+        store.add((5, 0), &vec![80]).unwrap();
+        store.add((5, 9), &vec![0]).unwrap();
+        store.add((5, 10), &vec![0]).unwrap();
         store
     }
 

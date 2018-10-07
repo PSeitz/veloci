@@ -31,10 +31,6 @@ pub(crate) fn normalize_text(text: &str) -> String {
 
 pub fn open_file<P: AsRef<Path>>(path: P) -> Result<File, search::SearchError> {
     Ok(File::open(path.as_ref()).map_err(|err| search::SearchError::StringError(format!("Could not open {} {:?}", path.as_ref().to_str().unwrap(), err)))?)
-    // Ok(File::open(path.as_ref()).map_err(|err| {
-    //     panic!("alarmo");
-    //     search::SearchError::StringError(format!("Could not open {} {:?}", path.as_ref().to_str().unwrap(), err))
-    // })?)
 }
 
 // pub(crate) fn get_bit_at(input: u32, n: u8) -> bool {
@@ -86,11 +82,6 @@ pub(crate) fn is_hight_bit_set(input: u32) -> bool {
     input & ONLY_HIGH_BIT_SET != 0
 }
 
-// pub fn get_u32_from_bytes(data: &[u8], pos: usize) -> u32 {
-//     let mut bytes: [u8; 4] = [0, 0, 0, 0];
-//     bytes.copy_from_slice(&data[pos..pos + 4]);
-//     unsafe { transmute(bytes) }
-// }
 use std::ptr::copy_nonoverlapping;
 #[inline]
 pub(crate) fn get_u32_from_bytes(data: &[u8], pos: usize) -> u32 {
@@ -109,24 +100,6 @@ pub(crate) fn get_u64_from_bytes(data: &[u8], pos: usize) -> u64 {
     }
     out
 }
-
-// #[inline]
-// pub(crate) fn unsafe_increase_len<T>(vec: &mut Vec<T>, add: usize) -> usize {
-//     vec.reserve(1 + add);
-//     let curr_pos = vec.len();
-//     unsafe {
-//         vec.set_len(curr_pos + add);
-//     }
-//     curr_pos
-// }
-
-// pub(crate) fn hits_vec_to_map(vec_hits: Vec<Hit>) -> FnvHashMap<u32, f32> {
-//     let mut hits: FnvHashMap<u32, f32> = FnvHashMap::default();
-//     for hit in vec_hits {
-//         hits.insert(hit.id, hit.score);
-//     }
-//     hits
-// }
 
 pub(crate) trait StringAdd {
     fn add<O: AsRef<str>>(&self, other: O) -> String;
@@ -149,19 +122,6 @@ pub(crate) fn file_as_string<P: AsRef<Path> + std::fmt::Debug>(path: P) -> Resul
     file.read_to_string(&mut contents)?;
     Ok(contents)
 }
-
-// pub(crate) fn get_level(path: &str) -> u32 {
-//     path.matches("[]").count() as u32
-// }
-
-// pub(crate) fn remove_array_marker(path: &str) -> String {
-//     path.split('.')
-//         .collect::<Vec<_>>()
-//         .iter()
-//         .map(|el| if el.ends_with("[]") { &el[0..el.len() - 2] } else { el })
-//         .collect::<Vec<_>>()
-//         .join(".")
-// }
 
 #[inline]
 pub(crate) fn vec_with_size_uninitialized<T>(size: usize) -> Vec<T> {
@@ -195,18 +155,6 @@ pub(crate) fn vec_with_size_uninitialized<T>(size: usize) -> Vec<T> {
 //     data
 // }
 
-// #[inline]
-// pub(crate) fn load_bytes_into(buffer: &mut [u8], mut file: &File, offset: u64) {
-//     // @Temporary Use Result
-//     file.seek(SeekFrom::Start(offset)).unwrap();
-//     file.read_exact(buffer).unwrap();
-// }
-
-// #[inline]
-// pub(crate) fn write_bytes_at(buffer: &[u8], mut file: &File, offset: u64) -> Result<(), io::Error> {
-//     file.seek(SeekFrom::Start(offset))?;
-//     file.write_all(buffer)
-// }
 
 #[inline]
 pub(crate) fn extract_field_name(field: &str) -> String {
@@ -238,7 +186,7 @@ pub(crate) fn get_steps_to_anchor(path: &str) -> Vec<String> {
         }
     }
 
-    paths.push(path.to_string() + TEXTINDEX); // add path to index
+    paths.push(path.to_string() + TEXTINDEX); // last step is field.textindex
     paths
 }
 
@@ -264,7 +212,6 @@ pub(crate) fn get_all_steps_to_anchor(path: &str) -> Vec<String> {
         paths.push(joined);
     }
 
-    // paths.push(path.to_string() + TEXTINDEX); // add path to index
     paths
 }
 

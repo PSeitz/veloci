@@ -55,7 +55,6 @@ fn get_default_levenshtein(term: &str, levenshtein_auto_limit: usize) -> usize {
 }
 
 fn get_all_search_field_names(persistence: &Persistence, fields: &Option<Vec<String>>) -> Result<Vec<String>, SearchError> {
-    // TODO ADD WARNING IF fields filter all
     let res:Vec<_> = persistence
         .meta_data
         .get_all_fields()
@@ -66,7 +65,7 @@ fn get_all_search_field_names(persistence: &Persistence, fields: &Option<Vec<Str
             }
             let path: String = path.add(TEXTINDEX);
             if !persistence.has_token_to_anchor(path) {
-                // Index creation for fields may be disabled
+                // Index creation for fields may be disabled and therefore be unavailable
                 return false;
             }
             true
@@ -116,14 +115,14 @@ fn expand_fields_in_query_ast(ast: UserAST, all_fields: &[String]) -> UserAST {
 
 #[test]
 fn test_field_expand() {
-    let fields = vec!["Title".to_string(), "Author".to_string()];
+    let fields = vec!["Title".to_string(), "Author[].name".to_string()];
     let ast = UserAST::Leaf(Box::new(UserFilter {
         field_name: None,
         phrase: "Fred".to_string(),
         levenshtein: None,
     }));
     let expanded_ast = expand_fields_in_query_ast(ast, &fields);
-    assert_eq!(format!("{:?}", expanded_ast), "(Title:\"Fred\" OR Author:\"Fred\")");
+    assert_eq!(format!("{:?}", expanded_ast), "(Title:\"Fred\" OR Author[].name:\"Fred\")");
 
     let ast = UserAST::Leaf(Box::new(UserFilter {
         field_name: Some("Title".to_string()),

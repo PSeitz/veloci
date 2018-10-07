@@ -34,6 +34,7 @@ use std::io::BufRead;
 use tokenizer::*;
 use util;
 use util::*;
+use num::ToPrimitive;
 
 use doc_store::DocWriter;
 use memmap::MmapOptions;
@@ -47,6 +48,9 @@ use util::StringAdd;
 use term_hashmap;
 
 type TermMap = term_hashmap::HashMap<TermInfo>;
+
+const NUM_TERM_LIMIT_MSG: &str = "number of terms per field is currently limited to u32";
+const NUM_TERM_OCC_LIMIT_MSG: &str = "number of terms occurences per field is currently limited to u32";
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct FacetIndex {
@@ -63,6 +67,8 @@ pub(crate) struct TermInfo {
     pub(crate) id: u32,
     pub(crate) num_occurences: u32,
 }
+
+
 
 // #[inline]
 // pub fn set_ids(terms: &mut TermMap) {
@@ -120,7 +126,7 @@ fn set_ids(all_terms: &mut TermMap, offset: u32) -> Vec<(&str, &mut TermInfo)> {
     term_and_mut_val.sort_unstable_by_key(|el| el.0);
 
     for (i, term_and_info) in term_and_mut_val.iter_mut().enumerate() {
-        term_and_info.1.id = i as u32 + offset;
+        term_and_info.1.id = i.to_u32().expect(NUM_TERM_LIMIT_MSG).checked_add(offset).expect(NUM_TERM_LIMIT_MSG);
     }
 
     term_and_mut_val
@@ -225,6 +231,7 @@ pub struct CreateCache {
 #[derive(Debug, Default)]
 struct TermDataInPath {
     terms: TermMap,
+    /// does not store texts longer than this in the fst in bytes
     do_not_store_text_longer_than: usize,
     id_counter_for_large_texts: u32,
 }
@@ -240,7 +247,7 @@ pub struct AllTermsAndDocumentBuilder {
 #[inline]
 fn add_count_text(terms: &mut TermMap, text: &str) {
     let stat = terms.get_or_insert(text, TermInfo::default);
-    stat.num_occurences += 1;
+    stat.num_occurences = stat.num_occurences.checked_add(1).expect(NUM_TERM_OCC_LIMIT_MSG);
 }
 
 #[inline]
@@ -444,14 +451,6 @@ where
     let mut tuples_to_parent_in_path: FnvHashMap<String, PathDataIds> = FnvHashMap::default();
 
     let default_fulltext_options = FulltextIndexOptions::new_with_tokenize();
-    // let default_field_config = FieldConfig {
-    //     facet: false,
-    //     features: None,
-    //     disabled_features: None,
-    //     fulltext: Some(default_fulltext_options.clone()),
-    //     disabled_indices: None,
-    //     boost: None
-    // };
 
     let tokenizer = SimpleTokenizerCharsIterateGroupTokens {};
 
@@ -532,9 +531,9 @@ where
 
             let text_info = if all_terms.do_not_store_text_longer_than < value.len() {
                 // *all_terms.long_terms.get(value).expect("did not found term")
-                all_terms.id_counter_for_large_texts += 1;
+                all_terms.id_counter_for_large_texts = all_terms.id_counter_for_large_texts.checked_add(1).expect(NUM_TERM_LIMIT_MSG);
                 TermInfo {
-                    id: all_terms.terms.len() as u32 + 1 + all_terms.id_counter_for_large_texts,
+                    id: all_terms.terms.len().to_u32().expect(NUM_TERM_LIMIT_MSG).checked_add(1).expect(NUM_TERM_LIMIT_MSG).checked_add(all_terms.id_counter_for_large_texts).expect(NUM_TERM_LIMIT_MSG) ,
                     num_occurences: 1,
                 }
             } else {
@@ -581,7 +580,7 @@ where
                     trace!("Adding to tokens_ids {:?} : {:?}", token, token_info);
 
                     if !text_ids_to_token_ids_already_stored {
-                        tokens_ids.push(token_info.id as u32);
+                        tokens_ids.push(token_info.id);
                     }
 
                     if let Some(el) = data.tokens_to_text_id.as_mut() {
@@ -590,33 +589,21 @@ where
                     }
 
                     tokens_to_anchor_id.push(ValIdPairToken {
-                        token_or_text_id: token_info.id as u32,
-                        num_occurences: token_info.num_occurences as u32,
-                        token_pos: current_token_pos as u32,
+                        token_or_text_id: token_info.id,
+                        num_occurences: token_info.num_occurences,
+                        token_pos: current_token_pos,
                     });
                     current_token_pos += 1;
 
                     if !is_seperator {
                         if let Some(el) = data.phrase_pair_to_anchor.as_mut() {
                             if let Some(prev_token) = prev_token {
-                                el.add((prev_token, token_info.id as u32), anchor_id).unwrap(); // TODO Error Handling in closure
+                                el.add((prev_token, token_info.id), anchor_id).unwrap(); // TODO Error Handling in closure
                             }
-                            prev_token = Some(token_info.id as u32);
+                            prev_token = Some(token_info.id);
                         }
                     }
 
-                    // phrase
-                    // if !prev_phrase_token.is_empty() && !is_seperator {
-                    //     prev_phrase_token.extend(token.as_bytes());
-                    //     let phrase_info = all_terms.get(unsafe { std::str::from_utf8_unchecked(&prev_phrase_token) }).expect("did not found token");
-                    //         tokens_to_anchor_id.push(ValIdPairToken {
-                    //         token_or_text_id: phrase_info.id as u32,
-                    //         num_occurences: phrase_info.num_occurences as u32,
-                    //         token_pos: current_token_pos as u32,
-                    //     });
-                    // }
-                    // prev_phrase_token.clear();
-                    // prev_phrase_token.extend(token.as_bytes());
                 });
 
                 if !text_ids_to_token_ids_already_stored {
@@ -862,7 +849,7 @@ fn stream_iter_to_phrase_index(
         let mut group: Vec<u32> = group.map(|el| el.value).collect();
         group.sort_unstable();
         group.dedup();
-        target.add(id, group)?;
+        target.add(id, &group)?;
     }
 
     Ok(())
@@ -1205,7 +1192,7 @@ where
                     if index.is_in_memory() {
                         persistence.indices.key_value_stores.insert(path, Box::new(index.into_im_store())); //Move data
                     } else {
-                        let store = SingleArrayMMAPPacked::from_file(persistence.get_file_handle(&path)?, index.metadata)?; //load data with MMap
+                        let store = SingleArrayMMAPPacked::from_file(&persistence.get_file_handle(&path)?, index.metadata)?; //load data with MMap
                         persistence.indices.key_value_stores.insert(path, Box::new(store));
                     }
                 }
@@ -1295,7 +1282,7 @@ pub fn add_token_values_to_tokens(persistence: &mut Persistence, data_str: &str,
     persistence.write_meta_data()?;
 
     //TODO FIX LOAD FOR IN_MEMORY
-    let store = SingleArrayMMAPPacked::<u32>::from_file(persistence.get_file_handle(&path)?, store.metadata)?;
+    let store = SingleArrayMMAPPacked::<u32>::from_file(&persistence.get_file_handle(&path)?, store.metadata)?;
     persistence.indices.boost_valueid_to_value.insert(path.to_string(), Box::new(store));
     Ok(())
 }

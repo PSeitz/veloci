@@ -6,7 +6,9 @@ LoadingType=Disk CARGO_INCREMENTAL=1 RUST_BACKTRACE=full RUST_TEST_THREADS=1 RUS
 ## Features
 
 - Fuzzy Search
-- Boosting
+- Query Boosting
+- Term Boosting
+- Phrase Boosting
 - Facets
 - Filters
 - Stopwordlists

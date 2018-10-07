@@ -1054,7 +1054,7 @@ fn test_intersect_score_hits_with_ids() {
     assert_eq!(res.hits_scores, vec![Hit::new(0, 20.0), Hit::new(10, 20.0)]);
 }
 
-fn check_score_iter_for_id<'a>(ref mut iter_n_current:&mut (impl Iterator<Item = Hit>, Hit), current_id:u32) -> bool {
+fn check_score_iter_for_id(iter_n_current:&mut (impl Iterator<Item = Hit>, Hit), current_id:u32) -> bool {
     if (iter_n_current.1).id == current_id {
         return true;
     }

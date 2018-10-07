@@ -59,7 +59,7 @@ impl IndexIdToOneParentFlushing {
             Ok(Box::new(self.into_im_store()))
         } else {
             self.flush()?;
-            let store = SingleArrayMMAPPacked::<u32>::from_file(File::open(self.path)?, self.metadata)?;
+            let store = SingleArrayMMAPPacked::<u32>::from_file(&File::open(self.path)?, self.metadata)?;
             Ok(Box::new(store))
         }
     }
@@ -314,7 +314,7 @@ impl<T: IndexIdToParentData> SingleArrayMMAPPacked<T> {
         self.size
     }
 
-    pub fn from_file(file: File, metadata: IndexMetaData) -> Result<Self, search::SearchError> {
+    pub fn from_file(file: &File, metadata: IndexMetaData) -> Result<Self, search::SearchError> {
         let data_file = unsafe { MmapOptions::new().map(&file).unwrap() };
         Ok(SingleArrayMMAPPacked {
             data_file,
@@ -376,8 +376,8 @@ impl<T: IndexIdToParentData> IndexIdToParent for SingleArrayMMAPPacked<T> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use rand;
-    use test;
+    // use rand;
+    // use test;
 
     // fn get_test_data_1_to_1<T: IndexIdToParentData>() -> SingleArrayIM<T> {
     //     let values = vec![5, 6, 9, 9, 9, 50000];
@@ -425,7 +425,7 @@ mod tests {
                 ind.add(key as u32, *val as u32).unwrap();
                 ind.flush().unwrap();
             }
-            let store = SingleArrayMMAPPacked::<u32>::from_file(File::open(data_path).unwrap(), ind.metadata).unwrap();
+            let store = SingleArrayMMAPPacked::<u32>::from_file(&File::open(data_path).unwrap(), ind.metadata).unwrap();
             check_test_data_1_to_1(&store);
         }
 
@@ -443,84 +443,84 @@ mod tests {
     }
 
     mod test_indirect {
-        use super::*;
-        use rand::Rng;
-        pub(crate) fn bench_fnvhashmap_group_by(num_entries: u32, max_val: u32) -> FnvHashMap<u32, u32> {
-            let mut hits: FnvHashMap<u32, u32> = FnvHashMap::default();
-            hits.reserve(num_entries as usize);
-            let mut rng = rand::thread_rng();
-            for _x in 0..num_entries {
-                let stat = hits.entry(rng.gen_range(0, max_val)).or_insert(0);
-                *stat += 1;
-            }
-            hits
-        }
+        // use super::*;
+        // use rand::Rng;
+        // pub(crate) fn bench_fnvhashmap_group_by(num_entries: u32, max_val: u32) -> FnvHashMap<u32, u32> {
+        //     let mut hits: FnvHashMap<u32, u32> = FnvHashMap::default();
+        //     hits.reserve(num_entries as usize);
+        //     let mut rng = rand::thread_rng();
+        //     for _x in 0..num_entries {
+        //         let stat = hits.entry(rng.gen_range(0, max_val)).or_insert(0);
+        //         *stat += 1;
+        //     }
+        //     hits
+        // }
 
-        pub(crate) fn bench_vec_group_by_direct(num_entries: u32, max_val: u32, hits: &mut Vec<u32>) -> &mut Vec<u32> {
-            hits.resize(max_val as usize + 1, 0);
-            let mut rng = rand::thread_rng();
-            for _x in 0..num_entries {
-                hits[rng.gen_range(0, max_val as usize)] += 1;
-            }
-            hits
-        }
-        pub(crate) fn bench_vec_group_by_direct_u8(num_entries: u32, max_val: u32, hits: &mut Vec<u8>) -> &mut Vec<u8> {
-            hits.resize(max_val as usize + 1, 0);
-            let mut rng = rand::thread_rng();
-            for _x in 0..num_entries {
-                hits[rng.gen_range(0, max_val as usize)] += 1;
-            }
-            hits
-        }
+        // pub(crate) fn bench_vec_group_by_direct(num_entries: u32, max_val: u32, hits: &mut Vec<u32>) -> &mut Vec<u32> {
+        //     hits.resize(max_val as usize + 1, 0);
+        //     let mut rng = rand::thread_rng();
+        //     for _x in 0..num_entries {
+        //         hits[rng.gen_range(0, max_val as usize)] += 1;
+        //     }
+        //     hits
+        // }
+        // pub(crate) fn bench_vec_group_by_direct_u8(num_entries: u32, max_val: u32, hits: &mut Vec<u8>) -> &mut Vec<u8> {
+        //     hits.resize(max_val as usize + 1, 0);
+        //     let mut rng = rand::thread_rng();
+        //     for _x in 0..num_entries {
+        //         hits[rng.gen_range(0, max_val as usize)] += 1;
+        //     }
+        //     hits
+        // }
 
-        pub(crate) fn bench_vec_group_by_flex(num_entries: u32, max_val: u32) -> Vec<u32> {
-            let mut hits: Vec<u32> = vec![];
-            let mut rng = rand::thread_rng();
-            for _x in 0..num_entries {
-                let id = rng.gen_range(0, max_val as usize);
-                if hits.len() <= id {
-                    hits.resize(id + 1, 0);
-                }
-                hits[id] += 1;
-            }
-            hits
-        }
+        // pub(crate) fn bench_vec_group_by_flex(num_entries: u32, max_val: u32) -> Vec<u32> {
+        //     let mut hits: Vec<u32> = vec![];
+        //     let mut rng = rand::thread_rng();
+        //     for _x in 0..num_entries {
+        //         let id = rng.gen_range(0, max_val as usize);
+        //         if hits.len() <= id {
+        //             hits.resize(id + 1, 0);
+        //         }
+        //         hits[id] += 1;
+        //     }
+        //     hits
+        // }
 
         //20x break even ?
-        #[bench]
-        fn bench_group_by_fnvhashmap_0(b: &mut test::Bencher) {
-            b.iter(|| {
-                bench_fnvhashmap_group_by(700_000, 5_000_000);
-            })
-        }
+        // #[bench]
+        // fn bench_group_by_fnvhashmap_0(b: &mut test::Bencher) {
+        //     b.iter(|| {
+        //         bench_fnvhashmap_group_by(700_000, 5_000_000);
+        //     })
+        // }
 
-        #[bench]
-        fn bench_group_by_vec_direct_0(b: &mut test::Bencher) {
-            b.iter(|| {
-                bench_vec_group_by_direct(700_000, 5_000_000, &mut vec![]);
-            })
-        }
-        #[bench]
-        fn bench_group_by_vec_direct_u16_0(b: &mut test::Bencher) {
-            b.iter(|| {
-                bench_vec_group_by_direct_u8(700_000, 5_000_000, &mut vec![]);
-            })
-        }
+        // #[bench]
+        // fn bench_group_by_vec_direct_0(b: &mut test::Bencher) {
+        //     b.iter(|| {
+        //         bench_vec_group_by_direct(700_000, 5_000_000, &mut vec![]);
+        //     })
+        // }
+        // #[bench]
+        // fn bench_group_by_vec_direct_u16_0(b: &mut test::Bencher) {
+        //     b.iter(|| {
+        //         bench_vec_group_by_direct_u8(700_000, 5_000_000, &mut vec![]);
+        //     })
+        // }
 
-        #[bench]
-        fn bench_group_by_vec_direct_0_pre_alloc(b: &mut test::Bencher) {
-            let mut dat = vec![];
-            b.iter(|| {
-                bench_vec_group_by_direct(700_000, 5_000_000, &mut dat);
-            })
-        }
+        // #[bench]
+        // fn bench_group_by_vec_direct_0_pre_alloc(b: &mut test::Bencher) {
+        //     let mut dat = vec![];
+        //     b.iter(|| {
+        //         bench_vec_group_by_direct(700_000, 5_000_000, &mut dat);
+        //     })
+        // }
 
-        #[bench]
-        fn bench_group_by_vec_flex_0(b: &mut test::Bencher) {
-            b.iter(|| {
-                bench_vec_group_by_flex(700_000, 5_000_000);
-            })
-        }
+        // #[bench]
+        // fn bench_group_by_vec_flex_0(b: &mut test::Bencher) {
+        //     b.iter(|| {
+        //         bench_vec_group_by_flex(700_000, 5_000_000);
+        //     })
+        // }
         // #[bench]
         // fn bench_group_by_rand_0(b: &mut test::Bencher) {
         //     b.iter(|| {

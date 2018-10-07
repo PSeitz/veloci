@@ -441,7 +441,7 @@ impl Persistence {
                             self.indices.boost_valueid_to_value.insert(el.path.to_string(), Box::new(store));
                         }
                         KVStoreType::IndexIdToOneParent => {
-                            let store = SingleArrayMMAPPacked::<u32>::from_file(self.get_file_handle(&el.path)?, el.metadata)?;
+                            let store = SingleArrayMMAPPacked::<u32>::from_file(&self.get_file_handle(&el.path)?, el.metadata)?;
                             self.indices.boost_valueid_to_value.insert(el.path.to_string(), Box::new(store));
                         }
                     }
@@ -502,7 +502,7 @@ impl Persistence {
                                 Box::new(store) as Box<IndexIdToParent<Output = u32>>
                             }
                             KVStoreType::IndexIdToOneParent => {
-                                let store = SingleArrayMMAPPacked::<u32>::from_file(self.get_file_handle(&el.path)?, el.metadata)?;
+                                let store = SingleArrayMMAPPacked::<u32>::from_file(&self.get_file_handle(&el.path)?, el.metadata)?;
 
                                 Box::new(store) as Box<IndexIdToParent<Output = u32>>
                             }

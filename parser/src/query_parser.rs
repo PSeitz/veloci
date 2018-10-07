@@ -40,7 +40,7 @@ pub enum Operator {
     And,
 }
 impl Operator {
-    fn to_string(&self) -> &'static str {
+    fn to_string(self) -> &'static str {
         match self {
             Operator::Or => " OR ",
             Operator::And => " AND ",
@@ -253,7 +253,7 @@ parser! {
                         move |left: UserAST, right: UserAST| {
                             combine_if_same_op!(left, op, right);
                             combine_if_same_op!(right, op, left);
-                            return UserAST::Clause(op, vec![left, right]);
+                            UserAST::Clause(op, vec![left, right])
                         }
                     )
                 )

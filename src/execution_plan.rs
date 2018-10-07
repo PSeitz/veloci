@@ -546,7 +546,7 @@ pub fn plan_creator(mut request: Request, plan: &mut Plan) {
 
     let filter_final_step_id: Option<PlanStepId> = if let Some(filter) = request.filter.as_mut() {
         collect_all_field_request_into_cache(filter, &mut field_search_cache, plan, true);
-        let mut final_output_filter = plan_creator_2(true, true, None, &request_header, &*filter, &vec![], plan, None, None, &mut field_search_cache);
+        let mut final_output_filter = plan_creator_2(true, true, None, &request_header, &*filter, vec![], plan, None, None, &mut field_search_cache);
         Some(final_output_filter)
     } else {
         None
@@ -561,7 +561,7 @@ pub fn plan_creator(mut request: Request, plan: &mut Plan) {
             filter_final_step_id,
             &request_header,
             &request,
-            &boost.unwrap_or_else(|| vec![]),
+            boost.unwrap_or_else(|| vec![]),
             plan,
             None,
             filter_final_step_id,
@@ -653,7 +653,7 @@ fn plan_creator_2(
     filter_channel_step: Option<usize>, //  this channel is used to receive the result from the filter step
     request_header: &Request,
     request: &Request,
-    boost: &[RequestBoostPart],
+    mut boost: Vec<RequestBoostPart>,
     plan: &mut Plan,
     parent_step_dependecy: Option<usize>,
     depends_on_step: Option<usize>,
@@ -678,14 +678,14 @@ fn plan_creator_2(
             .iter()
             .map(|x| {
                 // x.explain = request_header.explain;
-                let boost = merge_vec(boost, &x.boost);
+                let boost = merge_vec(&boost, &x.boost);
                 let step_id = plan_creator_2(
                     is_filter,
                     false,
                     filter_channel_step,
                     request_header,
                     x,
-                    &boost,
+                    boost,
                     plan,
                     Some(step_id),
                     depends_on_step,
@@ -722,14 +722,14 @@ fn plan_creator_2(
             .iter()
             .map(|x| {
                 // x.explain = request_header.explain;
-                let boost = merge_vec(boost, &x.boost);
+                let boost = merge_vec(&boost, &x.boost);
                 let step_id = plan_creator_2(
                     is_filter,
                     false,
                     filter_channel_step,
                     request_header,
                     x,
-                    &boost,
+                    boost,
                     plan,
                     Some(step_id),
                     depends_on_step,
@@ -756,7 +756,7 @@ fn plan_creator_2(
             filter_channel_step,
             part,
             request,
-            &mut boost.to_owned(),
+            &mut boost,
             plan,
             parent_step_dependecy,
             depends_on_step,
