@@ -238,7 +238,7 @@ fn search_freestyle(term: &str, pers: &persistence::Persistence) -> Vec<search::
         search_term: term.to_string(),
         ..Default::default()
     };
-    let requesto = query_generator::search_query(pers, yop);
+    let requesto = query_generator::search_query(pers, yop).unwrap();
     let hits = search::search(requesto, pers).unwrap();
     search::to_documents(pers, &hits.data, &None, &hits)
 }
