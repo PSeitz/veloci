@@ -1,21 +1,11 @@
-#![feature(entry_and_modify)]
 #![feature(test)]
 #[macro_use]
 extern crate criterion;
 
-
 extern crate test;
-// extern crate trie;
-
-// use criterion::Criterion;
-
-// use bit_set::BitSet;
 use fnv::FnvHashMap;
 use std::collections::HashMap;
 use std::hash::{BuildHasherDefault, Hasher};
-
-// use trie::map;
-// use trie::map::Map;
 
 #[allow(dead_code)]
 static K1K: u32 = 1000;

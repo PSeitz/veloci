@@ -1,27 +1,22 @@
-#![feature(test)]
+// #![feature(test)]
+
+// // #[macro_use]
+// // extern crate serde_derive;
 
 // #[macro_use]
-// extern crate serde_derive;
+// extern crate serde_json;
 
-#[macro_use]
-extern crate serde_json;
+// #[macro_use]
+// extern crate criterion;
 
-
-
-
-
-
-#[macro_use]
-extern crate criterion;
-
-use criterion::Criterion;
-use rand::distributions::{IndependentSample, Range};
-use search_lib::doc_store::*;
-use search_lib::persistence::*;
-use search_lib::persistence_data_indirect::*;
-use search_lib::search::*;
-use search_lib::*;
-use std::env;
+// use criterion::Criterion;
+// use rand::distributions::{IndependentSample, Range};
+// use search_lib::doc_store::*;
+// use search_lib::persistence::*;
+// use search_lib::persistence_data_indirect::*;
+// use search_lib::search::*;
+// use search_lib::*;
+// use std::env;
 
 // fn prepare_indirect_pointing_file_array(folder: &str, store: &IndexIdToParent<Output = u32>) -> PointingArrayFileReader<u32> {
 //     let (max_value_id, num_values, num_ids, start_and_end_pos, data) = to_indirect_arrays(store, 0);
@@ -72,6 +67,6 @@ use std::env;
 // criterion_group!(benches, persistence);
 // criterion_main!(benches);
 
-fn main() {
-    unimplemented!();
-}
+// fn main() {
+//     unimplemented!();
+// }
