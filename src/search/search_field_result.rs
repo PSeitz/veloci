@@ -23,7 +23,7 @@ pub struct SearchFieldResult {
 }
 
 impl SearchFieldResult {
-    pub(crate) fn iter(&self, term_id: u8, _field_id: u8) -> SearchFieldResultIterator {
+    pub(crate) fn iter(&self, term_id: u8, _field_id: u8) -> SearchFieldResultIterator<'_> {
         let begin = self.hits_scores.as_ptr();
         let end = unsafe { begin.add(self.hits_scores.len()) as *const search::Hit };
 

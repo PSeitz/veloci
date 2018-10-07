@@ -9,7 +9,7 @@ use parking_lot::RwLock;
 /// <br>
 /// i.e. with timestamp and file location.
 #[cfg_attr(tarpaulin, skip)]
-pub fn format_log(record: &Record) -> String {
+pub fn format_log(record: &Record<'_>) -> String {
     format!(
         "[{}] {} [{}:{}] {}",
         Local::now().format("%Y-%m-%d %H:%M:%S%.6f %:z"),

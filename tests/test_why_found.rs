@@ -2,7 +2,7 @@
 
 #[macro_use]
 extern crate lazy_static;
-extern crate search_lib;
+
 #[macro_use]
 extern crate serde_json;
 

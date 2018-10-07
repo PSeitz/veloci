@@ -1,13 +1,13 @@
 #![recursion_limit = "128"]
-extern crate log;
 
-extern crate flexi_logger;
-extern crate fst;
+
+
+
 
 #[macro_use]
 extern crate measure_time;
-extern crate rayon;
-extern crate search_lib;
+
+use search_lib;
 #[macro_use]
 extern crate serde_json;
 

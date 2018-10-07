@@ -203,7 +203,7 @@ fn calculate_and_add_token_score_in_doc(
         let first = group.next().unwrap();
         let best_pos = first.token_pos;
         let num_occurences = first.num_occurences;
-        let mut score = calculate_token_score_for_entry(best_pos, num_occurences, num_tokens_in_text, false);
+        let score = calculate_token_score_for_entry(best_pos, num_occurences, num_tokens_in_text, false);
         index.add(first.token_or_text_id, (anchor_id, score))?;
     }
     Ok(())
@@ -1039,7 +1039,7 @@ fn convert_raw_path_data_to_indices(
         })
         .collect();
 
-    for mut indice in indices_res? {
+    for indice in indices_res? {
         indices.extend(indice);
     }
 
@@ -1068,7 +1068,7 @@ fn convert_raw_path_data_to_indices(
         })
         .collect();
 
-    for mut indice in indices_res_2? {
+    for indice in indices_res_2? {
         indices.extend(indice);
     }
 
@@ -1199,7 +1199,7 @@ where
                         persistence.indices.phrase_pair_to_anchor.insert(path, Box::new(store));
                     }
                 }
-                IndexVariants::SingleValue(mut index) => {
+                IndexVariants::SingleValue(index) => {
                     if index.is_in_memory() {
                         persistence.indices.key_value_stores.insert(path, Box::new(index.into_im_store())); //Move data
                     } else {

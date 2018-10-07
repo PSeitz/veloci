@@ -131,10 +131,10 @@ pub static VALUE_OFFSET: u32 = 1; // because 0 is reserved for EMPTY_BUCKET
 #[derive(Debug, Default)]
 pub struct PersistenceIndices {
     pub doc_offsets: Option<Mmap>,
-    pub key_value_stores: HashMap<String, Box<IndexIdToParent<Output = u32>>>,
-    pub token_to_anchor_score: HashMap<String, Box<TokenToAnchorScore>>,
-    pub phrase_pair_to_anchor: HashMap<String, Box<PhrasePairToAnchor<Input = (u32, u32)>>>,
-    pub boost_valueid_to_value: HashMap<String, Box<IndexIdToParent<Output = u32>>>,
+    pub key_value_stores: HashMap<String, Box<dyn IndexIdToParent<Output = u32>>>,
+    pub token_to_anchor_score: HashMap<String, Box<dyn TokenToAnchorScore>>,
+    pub phrase_pair_to_anchor: HashMap<String, Box<dyn PhrasePairToAnchor<Input = (u32, u32)>>>,
+    pub boost_valueid_to_value: HashMap<String, Box<dyn IndexIdToParent<Output = u32>>>,
     // index_64: HashMap<String, Box<IndexIdToParent<Output = u64>>>,
     pub fst: HashMap<String, Map>,
 }
@@ -227,7 +227,7 @@ pub trait IndexIdToParentData: Integer + Clone + num::NumCast + HeapSizeOf + Deb
 impl<T> IndexIdToParentData for T where T: Integer + Clone + num::NumCast + HeapSizeOf + Debug + Sync + Send + Copy + ToPrimitive + std::iter::Step + std::hash::Hash + 'static {}
 
 pub trait TokenToAnchorScore: Debug + HeapSizeOf + Sync + Send + type_info::TypeInfo {
-    fn get_score_iter(&self, id: u32) -> AnchorScoreIter;
+    fn get_score_iter(&self, id: u32) -> AnchorScoreIter<'_>;
 }
 
 pub trait PhrasePairToAnchor: Debug + 'static + Sync + Send {
@@ -291,7 +291,7 @@ impl<'a> Iterator for VintArrayIteratorOpt<'a> {
 pub trait IndexIdToParent: Debug + HeapSizeOf + Sync + Send + type_info::TypeInfo {
     type Output: IndexIdToParentData;
 
-    fn get_values_iter(&self, _id: u64) -> VintArrayIteratorOpt {
+    fn get_values_iter(&self, _id: u64) -> VintArrayIteratorOpt<'_> {
         unimplemented!()
     }
 
@@ -344,12 +344,12 @@ pub trait IndexIdToParent: Debug + HeapSizeOf + Sync + Send + type_info::TypeInf
     // }
 }
 
-pub fn trace_index_id_to_parent<T: IndexIdToParentData>(val: &IndexIdToParent<Output = T>) {
+pub fn trace_index_id_to_parent<T: IndexIdToParentData>(val: &dyn IndexIdToParent<Output = T>) {
     if log_enabled!(log::Level::Trace) {
         let keys = val.get_keys();
         for key in keys.iter().take(100) {
             if let Some(vals) = val.get_values(num::cast(*key).unwrap()) {
-                let mut to = std::cmp::min(vals.len(), 100);
+                let to = std::cmp::min(vals.len(), 100);
                 trace!("key {:?} to {:?}", key, &vals[0..to]);
             }
         }
@@ -358,8 +358,8 @@ pub fn trace_index_id_to_parent<T: IndexIdToParentData>(val: &IndexIdToParent<Ou
 
 pub fn get_readable_size(value: usize) -> ColoredString {
     match value {
-        0...1_000 => format!("{:?} b", value).blue(),
-        1_001...1_000_000 => format!("{:?} kb", value / 1_000).green(),
+        0..=1_000 => format!("{:?} b", value).blue(),
+        1_001..=1_000_000 => format!("{:?} kb", value / 1_000).green(),
         _ => format!("{:?} mb", value / 1_000_000).red(),
     }
 }
@@ -369,13 +369,13 @@ pub fn get_readable_size_for_children<T: HeapSizeOf>(value: T) -> ColoredString 
 }
 
 impl Persistence {
-    fn load_types_index_to_one<T: IndexIdToParentData>(data_direct_path: &str, metadata: IndexMetaData) -> Result<Box<IndexIdToParent<Output = u32>>, search::SearchError> {
+    fn load_types_index_to_one<T: IndexIdToParentData>(data_direct_path: &str, metadata: IndexMetaData) -> Result<Box<dyn IndexIdToParent<Output = u32>>, search::SearchError> {
         let store = SingleArrayIM::<u32, T> {
             data: decode_bit_packed_vals(&file_path_to_bytes(data_direct_path)?, get_bytes_required(metadata.max_value_id)),
             metadata,
             ok: std::marker::PhantomData,
         };
-        Ok(Box::new(store) as Box<IndexIdToParent<Output = u32>>)
+        Ok(Box::new(store) as Box<dyn IndexIdToParent<Output = u32>>)
     }
 
     #[cfg_attr(feature = "flame_it", flame)]
@@ -402,18 +402,18 @@ impl Persistence {
                         };
                         self.indices
                             .phrase_pair_to_anchor
-                            .insert(el.path.to_string(), Box::new(store) as Box<PhrasePairToAnchor<Input = (u32, u32)>>);
+                            .insert(el.path.to_string(), Box::new(store) as Box<dyn PhrasePairToAnchor<Input = (u32, u32)>>);
                         continue;
                     }
 
-                    let store: Box<PhrasePairToAnchor<Input = (u32, u32)>> = match loading_type {
+                    let store: Box<dyn PhrasePairToAnchor<Input = (u32, u32)>> = match loading_type {
                         LoadingType::Disk => Box::new(IndexIdToMultipleParentIndirectBinarySearchMMAP::from_path(&get_file_path(&self.db, &el.path), el.metadata)?),
                         LoadingType::InMemory => Box::new(IndexIdToMultipleParentIndirectBinarySearchMMAP::from_path(&get_file_path(&self.db, &el.path), el.metadata)?),
                     };
                     self.indices.phrase_pair_to_anchor.insert(el.path.to_string(), store);
                 }
                 IndexCategory::AnchorScore => {
-                    let store: Box<TokenToAnchorScore> = match loading_type {
+                    let store: Box<dyn TokenToAnchorScore> = match loading_type {
                         LoadingType::Disk => match el.id_type {
                             IDDataType::U32 => Box::new(TokenToAnchorScoreVintMmap::<u32>::from_path(&indirect_path, &indirect_data_path)?),
                             IDDataType::U64 => Box::new(TokenToAnchorScoreVintMmap::<u64>::from_path(&indirect_path, &indirect_data_path)?),
@@ -459,7 +459,7 @@ impl Persistence {
                         };
                         self.indices
                             .key_value_stores
-                            .insert(el.path.to_string(), Box::new(store) as Box<IndexIdToParent<Output = u32>>);
+                            .insert(el.path.to_string(), Box::new(store) as Box<dyn IndexIdToParent<Output = u32>>);
                         continue;
                     }
 
@@ -478,7 +478,7 @@ impl Persistence {
                                         num_ids: 0,
                                     },
                                 };
-                                Box::new(store) as Box<IndexIdToParent<Output = u32>>
+                                Box::new(store) as Box<dyn IndexIdToParent<Output = u32>>
                             }
                             KVStoreType::IndexIdToOneParent => {
                                 let bytes_required = get_bytes_required(el.metadata.max_value_id) as u8;
@@ -499,12 +499,12 @@ impl Persistence {
                                     ..Default::default()
                                 };
                                 let store = PointingMMAPFileReader::from_path(&get_file_path(&self.db, &el.path), meta)?;
-                                Box::new(store) as Box<IndexIdToParent<Output = u32>>
+                                Box::new(store) as Box<dyn IndexIdToParent<Output = u32>>
                             }
                             KVStoreType::IndexIdToOneParent => {
                                 let store = SingleArrayMMAPPacked::<u32>::from_file(&self.get_file_handle(&el.path)?, el.metadata)?;
 
-                                Box::new(store) as Box<IndexIdToParent<Output = u32>>
+                                Box::new(store) as Box<dyn IndexIdToParent<Output = u32>>
                             }
                         },
                     };
@@ -546,7 +546,7 @@ impl Persistence {
     //     FileSearch::new(path, self.get_file_handle(path).unwrap())
     // }
 
-    pub fn get_boost(&self, path: &str) -> Result<&IndexIdToParent<Output = u32>, search::SearchError> {
+    pub fn get_boost(&self, path: &str) -> Result<&dyn IndexIdToParent<Output = u32>, search::SearchError> {
         self.indices.boost_valueid_to_value.get(path).map(|el| el.as_ref()).ok_or_else(|| path_not_found(path))
     }
 
@@ -554,7 +554,7 @@ impl Persistence {
         self.indices.key_value_stores.contains_key(path)
     }
 
-    pub fn get_token_to_anchor<S: AsRef<str>>(&self, path: S) -> Result<&TokenToAnchorScore, search::SearchError> {
+    pub fn get_token_to_anchor<S: AsRef<str>>(&self, path: S) -> Result<&dyn TokenToAnchorScore, search::SearchError> {
         let path = path.as_ref().add(TO_ANCHOR_ID_SCORE);
         self.indices
             .token_to_anchor_score
@@ -568,7 +568,7 @@ impl Persistence {
         self.indices.token_to_anchor_score.contains_key(&path)
     }
 
-    pub fn get_phrase_pair_to_anchor<S: AsRef<str>>(&self, path: S) -> Result<&PhrasePairToAnchor<Input = (u32, u32)>, search::SearchError> {
+    pub fn get_phrase_pair_to_anchor<S: AsRef<str>>(&self, path: S) -> Result<&dyn PhrasePairToAnchor<Input = (u32, u32)>, search::SearchError> {
         self.indices
             .phrase_pair_to_anchor
             .get(path.as_ref())
@@ -576,7 +576,7 @@ impl Persistence {
             .ok_or_else(|| path_not_found(path.as_ref()))
     }
 
-    pub fn get_valueid_to_parent<S: AsRef<str>>(&self, path: S) -> Result<&IndexIdToParent<Output = u32>, search::SearchError> {
+    pub fn get_valueid_to_parent<S: AsRef<str>>(&self, path: S) -> Result<&dyn IndexIdToParent<Output = u32>, search::SearchError> {
         self.indices
             .key_value_stores
             .get(path.as_ref())

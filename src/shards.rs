@@ -143,7 +143,7 @@ impl Shards {
                 self.shards.sort_unstable_by_key(|shard| shard.persistence.get_bytes_indexed());
                 // for (_, group) in &self.shards.iter().group_by(|shard| (shard.persistence.get_bytes_indexed() / 10_000_000)) {
                 for (_, group) in &self.shards.iter().group_by(|shard| (shard.persistence.get_bytes_indexed() as f32).log10().round() as u32) {
-                    let mut shard_group: Vec<&Shard> = group.collect();
+                    let shard_group: Vec<&Shard> = group.collect();
                     if shard_group.len() == 1 {
                         continue;
                     }
@@ -151,7 +151,7 @@ impl Shards {
                     invalid_shards.extend(shard_group.iter().map(|shard| shard.shard_id));
 
                     let mut new_shard = self.get_new_shard().unwrap();
-                    let mut persistences: Vec<&Persistence> = shard_group.iter().map(|shard| &shard.persistence).collect();
+                    let persistences: Vec<&Persistence> = shard_group.iter().map(|shard| &shard.persistence).collect();
                     merge_persistences(&persistences, &mut new_shard.persistence, indices)?;
                     new_shards.push(new_shard);
                 }
@@ -200,7 +200,7 @@ impl Shards {
     ) -> Result<SearchResultWithDoc, search::SearchError> {
         let mut all_search_results = SearchResultWithDoc::default();
 
-        let r: Vec<ShardResult> = self
+        let r: Vec<ShardResult<'_>> = self
             .shards
             .par_iter()
             .map(|shard| {
@@ -209,7 +209,7 @@ impl Shards {
                 let result = search::search(request, &shard.persistence)?;
                 Ok(ShardResult { shard: &shard, result })
             })
-            .collect::<Result<Vec<ShardResult>, search::SearchError>>()?;
+            .collect::<Result<Vec<ShardResult<'_>>, search::SearchError>>()?;
 
         let total_num_hits: u64 = r.iter().map(|shard_result| shard_result.result.num_hits).sum();
 

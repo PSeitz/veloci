@@ -6,10 +6,10 @@
 #[macro_use]
 extern crate serde_json;
 
-extern crate rand;
-extern crate search_lib;
-extern crate serde;
-extern crate test;
+
+
+
+
 
 #[macro_use]
 extern crate criterion;
@@ -39,7 +39,7 @@ fn load_persistence_disk() -> persistence::Persistence {
 
 #[cfg(test)]
 mod bench_jmdict {
-    extern crate rand;
+    
 
     // fn search_testo_to_doc(req: Value) -> Result<Vec<search::DocWithHit>, search::SearchError> {
     //     let persistences = PERSISTENCES.read().unwrap();

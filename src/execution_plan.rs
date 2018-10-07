@@ -63,7 +63,7 @@ pub struct Dependency {
 
 #[derive(Debug)]
 pub struct Plan {
-    pub steps: Vec<Box<PlanStepTrait>>,
+    pub steps: Vec<Box<dyn PlanStepTrait>>,
     dependencies: Vec<Dependency>,
     pub plan_result: Option<PlanDataReceiver>,
 }
@@ -84,14 +84,14 @@ impl Plan {
     }
 
     /// return the position in the array, which can be used as an id
-    fn add_step(&mut self, step: Box<PlanStepTrait>) -> usize {
+    fn add_step(&mut self, step: Box<dyn PlanStepTrait>) -> usize {
         self.steps.push(step);
         // self.steps.last_mut().unwrap()
         self.steps.len() - 1
     }
 
     /// return the position in the array, which can be used as an id
-    fn get_step(&mut self, step_id: usize) -> &mut Box<PlanStepTrait> {
+    fn get_step(&mut self, step_id: usize) -> &mut Box<dyn PlanStepTrait> {
         &mut self.steps[step_id]
     }
 
@@ -99,7 +99,7 @@ impl Plan {
     //     self.dependencies.iter().filter(|dep|dep.step_index == step_index).cloned().collect()
     // }
 
-    pub fn get_ordered_steps(self) -> Vec<Vec<Box<PlanStepTrait>>> {
+    pub fn get_ordered_steps(self) -> Vec<Vec<Box<dyn PlanStepTrait>>> {
         let mut ordered_steps = vec![];
         let mut remaining_steps: Vec<_> = self.steps.into_iter().enumerate().collect();
         let dep = self.dependencies;
@@ -344,7 +344,7 @@ fn sort_and_group_boosts_by_phrase_terms(mut boosts: Vec<SearchFieldResult>) -> 
     });
 
     let mut new_vec = vec![];
-    for (phrase, mut group) in &boosts.iter().group_by(|res| {
+    for (phrase, group) in &boosts.iter().group_by(|res| {
         let phrase_req = res.phrase_boost.as_ref().unwrap();
         (phrase_req.search1.terms[0].to_string(), phrase_req.search2.terms[0].to_string())
     }) {
@@ -522,7 +522,7 @@ fn collect_all_field_request_into_cache(request: &mut Request, field_search_cach
             field_search.req.get_scores |= !ids_only;
             continue; // else doesn't work because field_search borrow scope expands else
         }
-        let mut plan_request_part = PlanRequestSearchPart {
+        let plan_request_part = PlanRequestSearchPart {
             request: request_part.clone(),
             get_scores: !ids_only,
             get_ids: ids_only,
@@ -546,7 +546,7 @@ pub fn plan_creator(mut request: Request, plan: &mut Plan) {
 
     let filter_final_step_id: Option<PlanStepId> = if let Some(filter) = request.filter.as_mut() {
         collect_all_field_request_into_cache(filter, &mut field_search_cache, plan, true);
-        let mut final_output_filter = plan_creator_2(true, true, None, &request_header, &*filter, vec![], plan, None, None, &mut field_search_cache);
+        let final_output_filter = plan_creator_2(true, true, None, &request_header, &*filter, vec![], plan, None, None, &mut field_search_cache);
         Some(final_output_filter)
     } else {
         None
@@ -572,8 +572,8 @@ pub fn plan_creator(mut request: Request, plan: &mut Plan) {
     if let Some(filter_final_step_id) = filter_final_step_id {
         let final_step_channel = plan.get_step(final_step_id).get_channel().clone();
         let filter_receiver = plan.get_step(filter_final_step_id).get_channel().receiver_for_next_step.clone();
-        let mut channel = PlanStepDataChannels::open_channel(1, vec![final_step_channel.receiver_for_next_step.clone(), filter_receiver]);
-        let mut step = IntersectScoresWithIds { channel: channel.clone() };
+        let channel = PlanStepDataChannels::open_channel(1, vec![final_step_channel.receiver_for_next_step.clone(), filter_receiver]);
+        let step = IntersectScoresWithIds { channel: channel.clone() };
         // step.get_channel().input_prev_steps = vec![final_output.0, filter_data_output.0];
         let id_step = plan.add_step(Box::new(step.clone()));
         plan.add_dependency(id_step, filter_final_step_id);
@@ -669,7 +669,7 @@ fn plan_creator_2(
         if is_filter_channel {
             channel.filter_channel = Some(FilterChannel::default());
         }
-        let mut step = Union { ids_only: is_filter, channel };
+        let step = Union { ids_only: is_filter, channel };
         let step_id = plan.add_step(Box::new(step.clone()));
         let result_channels_from_prev_steps = or
             .iter()
@@ -710,7 +710,7 @@ fn plan_creator_2(
         if is_filter_channel {
             channel.filter_channel = Some(FilterChannel::default());
         }
-        let mut step = Intersect { ids_only: is_filter, channel };
+        let step = Intersect { ids_only: is_filter, channel };
         let step_id = plan.add_step(Box::new(step.clone()));
         let result_channels_from_prev_steps = ands
             .iter()
@@ -816,7 +816,7 @@ fn plan_creator_search_part(
         (id1)
     } else {
         // This is a special case, where boost indices on fields are used.
-        let mut add_step = |step: Box<PlanStepTrait>| -> usize {
+        let mut add_step = |step: Box<dyn PlanStepTrait>| -> usize {
             let step_id = plan.add_step(step);
             if let Some(parent_step_dependecy) = parent_step_dependecy {
                 plan.add_dependency(parent_step_dependecy, step_id);
@@ -935,8 +935,8 @@ use rayon::prelude::*;
 // }
 
 #[cfg_attr(feature = "flame_it", flame)]
-pub fn execute_steps(steps: Vec<Box<PlanStepTrait>>, persistence: &Persistence) -> Result<(), SearchError> {
-    let r: Result<Vec<_>, SearchError> = steps.into_par_iter().map(|step: Box<PlanStepTrait>| step.execute_step(persistence)).collect();
+pub fn execute_steps(steps: Vec<Box<dyn PlanStepTrait>>, persistence: &Persistence) -> Result<(), SearchError> {
+    let r: Result<Vec<_>, SearchError> = steps.into_par_iter().map(|step: Box<dyn PlanStepTrait>| step.execute_step(persistence)).collect();
 
     if r.is_err() {
         Err(r.unwrap_err())

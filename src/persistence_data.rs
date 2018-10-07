@@ -54,7 +54,7 @@ impl IndexIdToOneParentFlushing {
         store
     }
 
-    pub fn into_store(mut self) -> Result<Box<IndexIdToParent<Output = u32>>, search::SearchError> {
+    pub fn into_store(mut self) -> Result<Box<dyn IndexIdToParent<Output = u32>>, search::SearchError> {
         if self.is_in_memory() {
             Ok(Box::new(self.into_im_store()))
         } else {
@@ -253,7 +253,7 @@ impl<T: IndexIdToParentData, K: IndexIdToParentData> IndexIdToParent for SingleA
     }
 
     #[inline]
-    fn get_values_iter(&self, id: u64) -> VintArrayIteratorOpt {
+    fn get_values_iter(&self, id: u64) -> VintArrayIteratorOpt<'_> {
         if let Some(val) = self.get_value(id) {
             VintArrayIteratorOpt::from_single_val(num::cast(val).unwrap())
         } else {
@@ -364,7 +364,7 @@ impl<T: IndexIdToParentData> IndexIdToParent for SingleArrayMMAPPacked<T> {
     }
 
     #[inline]
-    fn get_values_iter(&self, id: u64) -> VintArrayIteratorOpt {
+    fn get_values_iter(&self, id: u64) -> VintArrayIteratorOpt<'_> {
         if let Some(val) = self.get_value(id) {
             VintArrayIteratorOpt::from_single_val(num::cast(val).unwrap())
         } else {
@@ -391,7 +391,7 @@ mod tests {
     fn get_test_data_1_to_1() -> Vec<u32> {
         vec![5, 6, 9, 9, 9, 50000]
     }
-    fn check_test_data_1_to_1<T: IndexIdToParentData>(store: &IndexIdToParent<Output = T>) {
+    fn check_test_data_1_to_1<T: IndexIdToParentData>(store: &dyn IndexIdToParent<Output = T>) {
         assert_eq!(store.get_keys().iter().map(|el| el.to_u32().unwrap()).collect::<Vec<_>>(), vec![0, 1, 2, 3, 4, 5]);
         assert_eq!(store.get_value(0).unwrap().to_u32().unwrap(), 5);
         assert_eq!(store.get_value(1).unwrap().to_u32().unwrap(), 6);

@@ -385,7 +385,7 @@ pub fn resolve_token_to_anchor(
     {
         debug_time!("{} tokens.to_anchor_id_score", &options.path);
         for hit in &result.hits_scores {
-            let mut iter = token_to_anchor_score.get_score_iter(hit.id);
+            let iter = token_to_anchor_score.get_score_iter(hit.id);
             anchor_ids_hits.reserve(iter.size_hint().1.unwrap());
             for el in iter {
                 if should_filter(&filter, el.id) {
@@ -439,7 +439,7 @@ pub fn resolve_token_to_anchor(
 
             debug_time!("{} tokens to anchor_id", &options.path);
             for id in &result.hits_ids {
-                let mut iter = text_id_to_anchor.get_values_iter(u64::from(*id));
+                let iter = text_id_to_anchor.get_values_iter(u64::from(*id));
                 fast_field_res_ids.reserve(iter.size_hint().1.unwrap());
                 for anchor_id in iter {
                     //TODO ENABLE should_filter(&filter, anchor_id) ?
@@ -570,7 +570,7 @@ pub fn resolve_token_hits_to_text_id(
 
         for (parent_id, group) in &token_hits.iter().group_by(|el| el.0) {
             //Group by anchor
-            let (mut t1, t2) = group.tee();
+            let (t1, t2) = group.tee();
             let max_score = t1.max_by_key(|el| OrderedFloat(el.1.abs())).unwrap().1;
 
             result.hits_scores.push(Hit::new(parent_id, max_score));

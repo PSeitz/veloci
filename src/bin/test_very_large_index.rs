@@ -1,12 +1,12 @@
 #![recursion_limit = "128"]
-extern crate log;
 
-extern crate flexi_logger;
+
+
 // #[macro_use]
 // extern crate measure_time;
-extern crate buffered_index_writer;
-extern crate rayon;
-extern crate search_lib;
+
+
+use search_lib;
 
 #[allow(unused_imports)]
 #[macro_use]

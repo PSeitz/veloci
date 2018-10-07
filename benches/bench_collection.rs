@@ -165,7 +165,7 @@ pub fn bench_vec_insert_with_group_by_in_2_vec(num_hits: u32, token_hits: u32) -
 mod bench_collection {
 
     use super::*;
-    use test::Bencher;
+    use super::test::Bencher;
 
     // #[bench]
     // fn bench_fnvhashmap_insert_with_lookup_100k(b: &mut Bencher) {

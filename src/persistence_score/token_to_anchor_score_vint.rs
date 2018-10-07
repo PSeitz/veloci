@@ -126,7 +126,7 @@ impl<T: AnchorScoreDataSize> TokenToAnchorScoreVintFlushing<T> {
         self.current_id_offset == 0
     }
 
-    pub fn into_store(mut self) -> Result<Box<TokenToAnchorScore>, search::SearchError> {
+    pub fn into_store(mut self) -> Result<Box<dyn TokenToAnchorScore>, search::SearchError> {
         if self.is_in_memory() {
             Ok(Box::new(self.into_im_store()))
         } else {
@@ -228,7 +228,7 @@ impl<'a> Iterator for AnchorScoreIter<'a> {
 impl<'a> FusedIterator for AnchorScoreIter<'a> {}
 
 impl<T: AnchorScoreDataSize> TokenToAnchorScore for TokenToAnchorScoreVintIM<T> {
-    fn get_score_iter(&self, id: u32) -> AnchorScoreIter {
+    fn get_score_iter(&self, id: u32) -> AnchorScoreIter<'_> {
         if id as usize >= self.get_size() {
             return AnchorScoreIter::new(&[]);
         }
@@ -261,7 +261,7 @@ impl<T: AnchorScoreDataSize> HeapSizeOf for TokenToAnchorScoreVintMmap<T> {
 }
 
 impl<T: AnchorScoreDataSize> TokenToAnchorScore for TokenToAnchorScoreVintMmap<T> {
-    fn get_score_iter(&self, id: u32) -> AnchorScoreIter {
+    fn get_score_iter(&self, id: u32) -> AnchorScoreIter<'_> {
         if id as usize >= self.start_pos.len() / mem::size_of::<u32>() {
             return AnchorScoreIter::new(&[]);
         }

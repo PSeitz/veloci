@@ -314,7 +314,7 @@ impl Hit {
 // }
 
 impl std::fmt::Display for DocWithHit {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
         write!(f, "\n{}\t{}", self.hit.id, self.hit.score)?;
         write!(f, "\n{}", serde_json::to_string_pretty(&self.doc).unwrap())?;
         Ok(())
@@ -332,7 +332,7 @@ fn highlight_on_original_document(doc: &str, why_found_terms: &FnvHashMap<String
             if let Some(terms) = why_found_terms.get(path) {
                 if let Some(highlighted) = highlight_field::highlight_text(value, &terms, &DEFAULT_SNIPPETINFO) {
                     let field_name = extract_field_name(path); // extract_field_name removes .textindex
-                    let mut jepp = highlighted_texts.entry(field_name).or_default();
+                    let jepp = highlighted_texts.entry(field_name).or_default();
                     jepp.push(highlighted);
                 }
             }
@@ -418,7 +418,7 @@ fn get_why_found(
 
     for (path, term_with_ids) in term_id_hits_in_field.iter() {
         let field_name = &extract_field_name(path); // extract_field_name removes .textindex
-        let mut paths = util::get_steps_to_anchor(field_name);
+        let paths = util::get_steps_to_anchor(field_name);
 
         let all_term_ids_hits_in_path = term_with_ids.iter().fold(vec![], |mut acc, (ref _term, ref hits)| {
             acc.extend(hits.iter());
@@ -437,7 +437,7 @@ fn get_why_found(
                 let highlighted_document = highlight_field::highlight_document(persistence, &path, u64::from(value_id), &all_term_ids_hits_in_path, &DEFAULT_SNIPPETINFO).unwrap();
                 if let Some(highlighted_document) = highlighted_document {
                     let jepp = anchor_highlights.entry(*anchor_id).or_default();
-                    let mut field_highlights = jepp.entry(field_name.clone()).or_default();
+                    let field_highlights = jepp.entry(field_name.clone()).or_default();
                     field_highlights.push(highlighted_document);
                 }
             }
@@ -461,7 +461,7 @@ fn boost_text_locality_all(persistence: &Persistence, term_id_hits_in_field: &mu
     info_time!("collect sort_boost");
     let boosts = r?;
     let mergo = boosts.into_iter().kmerge_by(|a, b| a.id < b.id);
-    for (mut id, mut group) in &mergo.group_by(|el| el.id) {
+    for (id, group) in &mergo.group_by(|el| el.id) {
         let best_score = group.map(|el| el.score).max_by(|a, b| b.partial_cmp(&a).unwrap_or(Ordering::Equal)).unwrap();
         boost_anchor.push(Hit::new(id, best_score));
     }
@@ -486,7 +486,7 @@ fn boost_text_locality(persistence: &Persistence, path: &str, search_term_to_tex
             terms_text_ids.push(text_ids);
         }
         let mergo = terms_text_ids.into_iter().kmerge_by(|a, b| a < b);
-        for (mut id, mut group) in &mergo.group_by(|el| *el) {
+        for (id, group) in &mergo.group_by(|el| *el) {
             let num_hits_in_same_text = group.count();
             if num_hits_in_same_text > 1 {
                 boost_text_ids.push((id, num_hits_in_same_text));
@@ -508,7 +508,7 @@ fn boost_text_locality(persistence: &Persistence, path: &str, search_term_to_tex
 }
 
 #[inline]
-fn get_all_value_ids(ids: &[u32], token_to_text_id: &IndexIdToParent<Output = u32>) -> Vec<u32> {
+fn get_all_value_ids(ids: &[u32], token_to_text_id: &dyn IndexIdToParent<Output = u32>) -> Vec<u32> {
     let mut text_ids: Vec<u32> = vec![];
     for id in ids {
         text_ids.extend(token_to_text_id.get_values_iter(u64::from(*id)))
@@ -550,7 +550,7 @@ fn top_n_sort(data: Vec<Hit>, top_n: u32) -> Vec<Hit> {
 }
 
 #[inline]
-pub(crate) fn check_apply_top_n_sort<T: std::fmt::Debug>(new_data: &mut Vec<T>, top_n: u32, sort_compare: &Fn(&T, &T) -> Ordering, new_worst: &mut FnMut(&T)) {
+pub(crate) fn check_apply_top_n_sort<T: std::fmt::Debug>(new_data: &mut Vec<T>, top_n: u32, sort_compare: &dyn Fn(&T, &T) -> Ordering, new_worst: &mut dyn FnMut(&T)) {
     if !new_data.is_empty() && new_data.len() as u32 == top_n + 200 {
         new_data.sort_unstable_by(sort_compare);
         new_data.truncate(top_n as usize);
@@ -581,7 +581,7 @@ pub fn search(mut request: Request, persistence: &Persistence) -> Result<SearchR
         for stepso in plan.get_ordered_steps() {
             execute_steps(stepso, &persistence)?;
         }
-        let mut res = plan_result.recv().unwrap();
+        let res = plan_result.recv().unwrap();
         drop(plan_result);
         res
     };
@@ -801,7 +801,7 @@ fn merge_term_id_texts(results: &mut Vec<SearchFieldResult>) -> FnvHashMap<Strin
     //attr -> term_texts
     let mut term_text_in_field: FnvHashMap<String, Vec<String>> = FnvHashMap::default();
     for el in results.iter_mut() {
-        for (attr, mut v) in el.term_text_in_field.drain() {
+        for (attr, v) in el.term_text_in_field.drain() {
             let attr_term_hits = term_text_in_field.entry(attr).or_default();
             attr_term_hits.extend(v.iter().cloned());
         }
@@ -879,7 +879,7 @@ pub fn union_hits_score(mut or_results: Vec<SearchFieldResult>) -> SearchFieldRe
         let mut max_scores_per_term: Vec<f32> = vec![];
         max_scores_per_term.resize(terms.len(), 0.0);
         // let mut field_id_hits = 0;
-        for (mut id, mut group) in &mergo.group_by(|el| el.id) {
+        for (id, group) in &mergo.group_by(|el| el.id) {
             //reset scores to 0
             for el in &mut max_scores_per_term {
                 *el = 0.;
@@ -954,7 +954,7 @@ pub fn union_hits_ids(mut or_results: Vec<SearchFieldResult>) -> SearchFieldResu
     {
         let mergo = or_results.iter().map(|res| res.hits_ids.iter()).kmerge();
         debug_time!("filter union hits kmerge");
-        for (mut id, mut _group) in &mergo.group_by(|el| *el) {
+        for (id, mut _group) in &mergo.group_by(|el| *el) {
             union_hits.push(*id);
         }
     }
@@ -1244,12 +1244,12 @@ fn intersect_hits_scores_test() {
     assert_eq!(res.hits_scores, vec![Hit::new(0, 40.0), Hit::new(10, 50.0)]);
 }
 
-fn apply_boost_from_iter(mut results: SearchFieldResult, mut boost_iter: &mut Iterator<Item = Hit>) -> SearchFieldResult {
+fn apply_boost_from_iter(mut results: SearchFieldResult, mut boost_iter: &mut dyn Iterator<Item = Hit>) -> SearchFieldResult {
     let mut explain = FnvHashMap::default();
     mem::swap(&mut explain, &mut results.explain);
     let should_explain = results.request.explain;
     {
-        let mut move_boost = |hit: &mut Hit, hit_curr: &mut Hit, boost_iter: &mut Iterator<Item = Hit>| {
+        let mut move_boost = |hit: &mut Hit, hit_curr: &mut Hit, boost_iter: &mut dyn Iterator<Item = Hit>| {
             //Forward the boost iterator and look for matches
             for b_hit in boost_iter {
                 if b_hit.id > hit.id {
@@ -1417,7 +1417,7 @@ pub fn add_boost(persistence: &Persistence, boost: &RequestBoostPart, hits: &mut
             continue;
         }
         let value_id = &hit.id;
-        let mut score = &mut hit.score;
+        let score = &mut hit.score;
         // let ref vals_opt = boostkv_store.get(*value_id as usize);
         let val_opt = &boostkv_store.get_value(u64::from(*value_id));
 
@@ -1521,14 +1521,14 @@ impl<'a> From<&'a str> for SearchError {
 pub use std::error::Error;
 
 impl fmt::Display for SearchError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
         write!(f, "\n{}", self)?;
         Ok(())
     }
 }
 
 impl Error for SearchError {
-    fn cause(&self) -> Option<&Error> {
+    fn cause(&self) -> Option<&dyn Error> {
         None
     }
 
@@ -1646,7 +1646,7 @@ pub fn join_to_parent_with_score(persistence: &Persistence, input: &SearchFieldR
     let kv_store = persistence.get_valueid_to_parent(path)?;
 
     for hit in &input.hits_scores {
-        let mut score = hit.score;
+        let score = hit.score;
         if let Some(values) = kv_store.get_values(u64::from(hit.id)).as_ref() {
             total_values += values.len();
             hits.reserve(values.len());

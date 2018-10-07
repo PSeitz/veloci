@@ -90,7 +90,7 @@ impl IndexIdToMultipleParentIndirectFlushingInOrderVint {
         store
     }
 
-    pub fn into_store(mut self) -> Result<Box<IndexIdToParent<Output = u32>>, search::SearchError> {
+    pub fn into_store(mut self) -> Result<Box<dyn IndexIdToParent<Output = u32>>, search::SearchError> {
         if self.is_in_memory() {
             Ok(Box::new(self.into_im_store()))
         } else {
@@ -177,7 +177,7 @@ impl<T: IndexIdToParentData> HeapSizeOf for IndexIdToMultipleParentIndirect<T> {
 }
 
 impl<T: IndexIdToParentData> fmt::Debug for IndexIdToMultipleParentIndirect<T> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "IndexIdToMultipleParentIndirect {{ start_pos: {:?}, data: {:?} }}", self.start_pos, self.data)
     }
 }
@@ -255,7 +255,7 @@ impl<T: IndexIdToParentData> IndexIdToParent for IndexIdToMultipleParentIndirect
         (num::cast(0).unwrap()..num::cast(self.get_size()).unwrap()).collect()
     }
 
-    fn get_values_iter(&self, id: u64) -> VintArrayIteratorOpt {
+    fn get_values_iter(&self, id: u64) -> VintArrayIteratorOpt<'_> {
         if id >= self.get_size() as u64 {
             VintArrayIteratorOpt {
                 single_value: -2,
@@ -348,7 +348,7 @@ impl<T: IndexIdToParentData> IndexIdToParent for PointingMMAPFileReader<T> {
         (num::cast(0).unwrap()..num::cast(self.get_size()).unwrap()).collect()
     }
 
-    fn get_values_iter(&self, id: u64) -> VintArrayIteratorOpt {
+    fn get_values_iter(&self, id: u64) -> VintArrayIteratorOpt<'_> {
         if id >= self.get_size() as u64 {
             VintArrayIteratorOpt {
                 single_value: -2,
@@ -440,7 +440,7 @@ mod tests {
         store
     }
 
-    fn check_test_data_1_to_n(store: &IndexIdToParent<Output = u32>) {
+    fn check_test_data_1_to_n(store: &dyn IndexIdToParent<Output = u32>) {
         assert_eq!(store.get_keys(), vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
         assert_eq!(store.get_values(0), Some(vec![5, 6]));
         assert_eq!(store.get_values(1), Some(vec![9]));
@@ -457,7 +457,7 @@ mod tests {
         assert_eq!(map.get(&5).unwrap(), &1);
         assert_eq!(map.get(&9).unwrap(), &3);
     }
-    fn check_test_data_1_to_n_iter(store: &IndexIdToParent<Output = u32>) {
+    fn check_test_data_1_to_n_iter(store: &dyn IndexIdToParent<Output = u32>) {
         let empty_vec: Vec<u32> = vec![];
         assert_eq!(store.get_keys(), vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
         assert_eq!(store.get_values_iter(0).collect::<Vec<u32>>(), vec![5, 6]);

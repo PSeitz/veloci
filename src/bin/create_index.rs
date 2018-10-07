@@ -1,12 +1,12 @@
 #![recursion_limit = "128"]
 
-extern crate flexi_logger;
-extern crate search_lib;
+
+use search_lib;
 
 #[cfg(feature = "enable_cpuprofiler")]
 extern crate cpuprofile;
 
-extern crate clap;
+
 use clap::{App, Arg};
 
 use std::fs::File;
