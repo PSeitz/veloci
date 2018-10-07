@@ -14,5 +14,5 @@ LoadingType=Disk CARGO_INCREMENTAL=1 RUST_BACKTRACE=full RUST_TEST_THREADS=1 RUS
 - Stopwordlists (EN, DE)
 - Queryparser
 - Compressed Docstore
-- Support for In-Memory and MMap for Indices
+- Support for In-Memory and MMap Indices
 - Speed
