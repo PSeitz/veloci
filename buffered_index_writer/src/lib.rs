@@ -5,7 +5,6 @@ extern crate rayon;
 extern crate tempfile;
 
 use itertools::Itertools;
-use memmap::Mmap;
 use memmap::MmapOptions;
 use std::fmt::Display;
 

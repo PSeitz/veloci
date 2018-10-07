@@ -1,7 +1,9 @@
 mod features;
 mod fields_config;
+mod fast_lines;
 
 use self::features::IndexCreationType;
+use self::fast_lines::FastLinesTrait;
 use self::fields_config::FieldsConfig;
 pub use self::fields_config::FulltextIndexOptions;
 
@@ -67,25 +69,6 @@ pub(crate) struct TermInfo {
     pub(crate) id: u32,
     pub(crate) num_occurences: u32,
 }
-
-// #[inline]
-// pub fn set_ids(terms: &mut TermMap) {
-//     let mut v: Vec<_> = terms
-//         .keys()
-//         .map(|el| el.as_str() as *const str) //#borrow
-//         .collect();
-//     v.sort_unstable_by_key(|term| unsafe {
-//         std::mem::transmute::<*const str, &str>(*term) //#borrow
-//     });
-//     for (i, term) in v.iter().enumerate() {
-//         let term = unsafe {
-//             std::mem::transmute::<*const str, &str>(*term) //#borrow this is only done to trick the borrow checker for performance reasons
-//         };
-//         if let Some(term_info) = terms.get_mut(term) {
-//             term_info.id = i as u32;
-//         }
-//     }
-// }
 
 #[derive(Debug, Default, Clone, Copy)]
 pub(crate) struct ValIdPairToken {
@@ -197,7 +180,7 @@ fn calculate_and_add_token_score_in_doc(
         } else {
             sort_valid
         }
-    }); // sort by parent id
+    });
 
     for (_, mut group) in &tokens_to_anchor_id.into_iter().group_by(|el| el.token_or_text_id) {
         let first = group.next().unwrap();
@@ -1318,124 +1301,7 @@ pub fn add_token_values_to_tokens(persistence: &mut Persistence, data_str: &str,
     Ok(())
 }
 
-trait FastLinesTrait<T> {
-    fn fast_lines(self) -> FastLinesJson<Self>
-    where
-        Self: Sized,
-    {
-        FastLinesJson {
-            reader: self,
-            prepared_jsons: vec![],
-        }
-    }
-}
 
-impl<T> FastLinesTrait<T> for BufReader<T> {
-    fn fast_lines(self) -> FastLinesJson<Self>
-    where
-        Self: Sized,
-    {
-        FastLinesJson {
-            reader: self,
-            prepared_jsons: vec![],
-        }
-    }
-}
-#[derive(Debug)]
-struct FastLinesJson<T> {
-    reader: T,
-    // cache: Vec<u8>,
-    prepared_jsons: Vec<Result<serde_json::Value, serde_json::Error>>,
-}
-impl<T: BufRead> FastLinesJson<T> {
-    #[inline]
-    fn load_lines_into_cache(&mut self) {
-        let mut lines = vec![];
-        for _ in 0..1000 {
-            if let Some(line) = self.load_line() {
-                lines.push(line);
-            } else {
-                break;
-            }
-        }
-
-        self.prepared_jsons = lines
-            .par_iter()
-            .map(|line| serde_json::from_str(line))
-            // .map(|c: &char| format!("{}", c))
-            // .reduce(|| self.prepared_jsons,
-            //     |mut a: &mut Vec<Result<serde_json::Value, serde_json::Error>>, b: Result<serde_json::Value, serde_json::Error>| { a.push(b); a });
-            .fold(
-                || vec![],
-                |mut sink: Vec<Result<serde_json::Value, serde_json::Error>>, value: Result<serde_json::Value, serde_json::Error>| {
-                    sink.push(value);
-                    sink
-                },
-            )
-            .reduce(
-                || vec![],
-                |mut sink_all: Vec<Result<serde_json::Value, serde_json::Error>>, mut sink: Vec<Result<serde_json::Value, serde_json::Error>>| {
-                    for el in sink.drain(..) {
-                        sink_all.push(el);
-                    }
-                    sink_all
-                },
-            );
-    }
-
-    #[inline]
-    fn load_line(&mut self) -> Option<String> {
-        let mut cache = vec![];
-        match self.reader.read_until(b'\n', &mut cache) {
-            Ok(0) => None,
-            Ok(_n) => {
-                if cache.ends_with(b"\n") {
-                    cache.pop();
-                    if cache.ends_with(b"\r") {
-                        cache.pop();
-                    }
-                }
-                Some(unsafe { String::from_utf8_unchecked(cache) })
-            }
-            Err(_e) => None,
-        }
-    }
-}
-
-impl<B: BufRead> Iterator for FastLinesJson<B> {
-    type Item = Result<serde_json::Value, serde_json::Error>;
-
-    #[inline(always)]
-    fn next(&mut self) -> Option<Result<serde_json::Value, serde_json::Error>> {
-        if let Some(next) = self.prepared_jsons.pop() {
-            Some(next)
-        } else {
-            self.load_lines_into_cache();
-            if let Some(next) = self.prepared_jsons.pop() {
-                Some(next)
-            } else {
-                None
-            }
-        }
-    }
-    // fn next(&mut self) -> Option<Result<serde_json::Value, serde_json::Error>> {
-    //     self.cache.clear();
-    //     match self.reader.read_until(b'\n', &mut self.cache) {
-    //         Ok(0) => None,
-    //         Ok(_n) => {
-    //             if self.cache.ends_with(b"\n") {
-    //                 self.cache.pop();
-    //                 if self.cache.ends_with(b"\r") {
-    //                     self.cache.pop();
-    //                 }
-    //             }
-    //             let json = serde_json::from_str(unsafe { std::str::from_utf8_unchecked(&self.cache) });
-    //             Some(json)
-    //         }
-    //         Err(_e) => None,
-    //     }
-    // }
-}
 
 pub fn convert_any_json_data_to_line_delimited<I: std::io::Read, O: std::io::Write>(input: I, mut out: O) -> Result<(), io::Error> {
     let stream = Deserializer::from_reader(input).into_iter::<Value>();
@@ -1491,13 +1357,13 @@ pub fn create_indices_from_file(
     load_persistence: bool,
 ) -> Result<(CreateCache), CreateError> {
     let stream1 = std::io::BufReader::new(File::open(data_path).unwrap())
-        // .fast_lines();
-        .lines()
-        .map(|line| serde_json::from_str(&line.unwrap()));
+        .fast_lines();
+        // .lines()
+        // .map(|line| serde_json::from_str(&line.unwrap()));
     let stream2 = std::io::BufReader::new(File::open(data_path).unwrap())
-        // .fast_lines();
-        .lines()
-        .map(|line| serde_json::from_str(&line.unwrap()));
+        .fast_lines();
+        // .lines()
+        // .map(|line| serde_json::from_str(&line.unwrap()));
     let stream3 = std::io::BufReader::new(File::open(data_path).unwrap()).lines().map(|line| line.unwrap());
 
     create_indices_from_streams(persistence, stream1, stream2, stream3, indices, create_cache, load_persistence)
