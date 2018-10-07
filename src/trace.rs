@@ -2,6 +2,8 @@ use chrono::Local;
 use flexi_logger;
 use log::Record;
 use parking_lot::RwLock;
+use std::io;
+use std::io::Write;
 
 /// A logline-formatter that produces log lines like
 /// <br>
@@ -9,8 +11,9 @@ use parking_lot::RwLock;
 /// <br>
 /// i.e. with timestamp and file location.
 #[cfg_attr(tarpaulin, skip)]
-pub fn format_log(record: &Record<'_>) -> String {
-    format!(
+pub fn format_log(w: &mut Write, record: &Record<'_>)  -> Result<(), io::Error>  {
+    write!(
+        w,
         "[{}] {} [{}:{}] {}",
         Local::now().format("%Y-%m-%d %H:%M:%S%.6f %:z"),
         record.level(),
