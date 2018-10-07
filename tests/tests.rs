@@ -6,45 +6,15 @@ extern crate search_lib;
 #[macro_use]
 extern crate serde_json;
 
-use search_lib::create;
-use search_lib::facet;
-use search_lib::persistence;
-use search_lib::query_generator;
-use search_lib::search;
-use search_lib::search_field;
-use search_lib::trace;
+use search_lib::*;
 use serde_json::Value;
 
-fn search_testo_to_doc(req: Value) -> search::SearchResultWithDoc {
-    search_testo_to_doco(req).expect("search error")
-}
-
-fn search_testo_to_doco_qp(qp: query_generator::SearchQueryGeneratorParameters) -> search::SearchResultWithDoc {
-    let pers = &TEST_PERSISTENCE;
-    let requesto = query_generator::search_query(&pers, qp).unwrap();
-    search::to_search_result(&pers, search_testo_to_hitso(requesto.clone()).expect("search error"), &requesto.select)
-}
-
-fn search_testo_to_doco(req: Value) -> Result<search::SearchResultWithDoc, search::SearchError> {
-    let requesto: search::Request = serde_json::from_str(&req.to_string()).expect("Can't parse json");
-    search_testo_to_doco_req(requesto, &TEST_PERSISTENCE)
-}
-
-fn search_testo_to_doco_req(requesto: search::Request, pers: &persistence::Persistence) -> Result<search::SearchResultWithDoc, search::SearchError> {
-    Ok(search::to_search_result(&pers, search_testo_to_hitso(requesto.clone())?, &requesto.select))
-}
-
-fn search_testo_to_hitso(requesto: search::Request) -> Result<search::SearchResult, search::SearchError> {
-    let pers = &TEST_PERSISTENCE;
-    let hits = search::search(requesto, &pers)?;
-    Ok(hits)
-}
+#[macro_use]
+mod common;
 
 static TEST_FOLDER: &str = "mochaTest";
 lazy_static! {
     static ref TEST_PERSISTENCE: persistence::Persistence = {
-        trace::enable_log();
-
         let indices = r#"
         {
             "ignore_field":{"features":[]},
@@ -62,36 +32,13 @@ lazy_static! {
         }
         "#;
 
-        let data = get_test_data();
+        let token_values = Some((
+            r#"[{"text": "Begeisterung", "value": 20 } ]"#.to_string(),
+            json!({"path": "meanings.ger[]"})
+        ));
 
-        let mut persistence_type = persistence::PersistenceType::Transient;
-        if let Some(val) = std::env::var_os("PersistenceType") {
-            if val.clone().into_string().unwrap() == "Transient" {
-                persistence_type = persistence::PersistenceType::Transient;
-            } else if val.clone().into_string().unwrap() == "Persistent" {
-                persistence_type = persistence::PersistenceType::Persistent;
-            } else {
-                panic!("env PersistenceType needs to be Transient or Persistent");
-            }
-        }
+        common::create_test_persistence(TEST_FOLDER, indices, get_test_data().to_string().as_bytes(), token_values)
 
-        let mut pers = persistence::Persistence::create_type(TEST_FOLDER.to_string(), persistence_type.clone()).unwrap();
-
-        let mut out: Vec<u8> = vec![];
-        search_lib::create::convert_any_json_data_to_line_delimited(data.to_string().as_bytes(), &mut out).unwrap();
-        println!("{:?}", create::create_indices_from_str(&mut pers, std::str::from_utf8(&out).unwrap(), indices, None, true));
-
-        {
-            let config = json!({
-                "path": "meanings.ger[]"
-            });
-            create::add_token_values_to_tokens(&mut pers, r#"[{"text": "Begeisterung", "value": 20 } ]"#, &config.to_string()).expect("Could not add token values");
-        }
-
-        if persistence_type == persistence::PersistenceType::Persistent {
-            pers = persistence::Persistence::load(TEST_FOLDER.to_string()).expect("Could not load persistence");
-        }
-        pers
     };
 }
 
@@ -313,7 +260,7 @@ fn simple_search() {
         }
     });
 
-    let hits = search_testo_to_doc(req).data;
+    let hits = search_testo_to_doc!(req).data;
     assert_eq!(hits.len(), 1);
     assert_eq!(hits[0].doc["ent_seq"], "1587690");
     assert_eq!(hits[0].doc["commonness"], 20);
@@ -330,7 +277,7 @@ fn simple_search_skip_far() {
         "skip": 1000
     });
 
-    let hits = search_testo_to_doc(req).data;
+    let hits = search_testo_to_doc!(req).data;
     assert_eq!(hits.len(), 0);
 }
 
@@ -344,7 +291,7 @@ fn simple_search_explained() {
         }
     });
 
-    let hits = search_testo_to_doc(req).data;
+    let hits = search_testo_to_doc!(req).data;
     assert_eq!(hits.len(), 1);
     assert_eq!(hits[0].doc["ent_seq"], "1587690");
     assert_eq!(hits[0].doc["commonness"], 20);
@@ -369,7 +316,7 @@ fn or_query_explained() {
         "explain":true
     });
 
-    let hits = search_testo_to_doc(req).data;
+    let hits = search_testo_to_doc!(req).data;
     assert_eq!(hits.len(), 2);
     assert_eq!(hits[0].doc["ent_seq"], "1587690");
     // assert_eq!(hits[0].explain, Some(to_vec(&["or sum_over_distinct_terms 36.8125", "term score 10.0 * anchor score 3.68 to 36.8", "levenshtein score 10.0 for urge"])));
@@ -382,7 +329,7 @@ fn simple_search_querygenerator_explained() {
     params.explain = Some(true);
     params.search_term = "urge".to_string();
 
-    let hits = search_testo_to_doco_qp(params).data;
+    let hits = search_testo_to_doco_qp!(params).data;
     assert_eq!(hits.len(), 1);
     assert_eq!(hits[0].doc["ent_seq"], "1587690");
     assert_eq!(hits[0].doc["commonness"], 20);
@@ -397,7 +344,7 @@ fn simple_search_querygenerator_or_connect_explained() {
     params.explain = Some(true);
     params.search_term = "urge OR いよく".to_string();
 
-    let hits = search_testo_to_doco_qp(params).data;
+    let hits = search_testo_to_doco_qp!(params).data;
     assert_eq!(hits.len(), 3);
     assert_eq!(hits[0].doc["ent_seq"], "1587690");
     assert_eq!(hits[0].doc["commonness"], 20);
@@ -416,7 +363,7 @@ fn test_float() {
         }
     });
 
-    let hits = search_testo_to_doc(req).data;
+    let hits = search_testo_to_doc!(req).data;
     assert_eq!(hits.len(), 1);
     assert_eq!(hits[0].doc["float_value"], 5.123);
 }
@@ -430,7 +377,7 @@ fn test_bool() {
         }
     });
 
-    let hits = search_testo_to_doc(req).data;
+    let hits = search_testo_to_doc!(req).data;
     assert_eq!(hits.len(), 1);
     assert_eq!(hits[0].doc["my_bool"], true);
 }
@@ -444,7 +391,7 @@ fn should_return_an_error_when_trying_to_query_an_invalid_field() {
         }
     });
     let requesto: search::Request = serde_json::from_str(&req.to_string()).expect("Can't parse json");
-    let hits = search_testo_to_hitso(requesto);
+    let hits = search_to_hits!(requesto);
 
     match hits {
         Err(search::SearchError::StringError(el)) => assert_eq!(el, "fst not found loaded in indices notexisting.textindex ".to_string()),
@@ -457,7 +404,7 @@ fn simple_search_querygenerator() {
     let mut params = query_generator::SearchQueryGeneratorParameters::default();
     params.search_term = "urge".to_string();
 
-    let hits = search_testo_to_doco_qp(params).data;
+    let hits = search_testo_to_doco_qp!(params).data;
     assert_eq!(hits.len(), 1);
     assert_eq!(hits[0].doc["ent_seq"], "1587690");
     assert_eq!(hits[0].doc["commonness"], 20);
@@ -469,7 +416,7 @@ fn simple_search_querygenerator_or_connect() {
     let mut params = query_generator::SearchQueryGeneratorParameters::default();
     params.search_term = "urge OR いよく".to_string();
 
-    let hits = search_testo_to_doco_qp(params).data;
+    let hits = search_testo_to_doco_qp!(params).data;
     assert_eq!(hits.len(), 3);
     assert_eq!(hits[0].doc["ent_seq"], "1587690");
     assert_eq!(hits[0].doc["commonness"], 20);
@@ -481,7 +428,7 @@ fn simple_search_querygenerator_and() {
     let mut params = query_generator::SearchQueryGeneratorParameters::default();
     params.search_term = "urge AND いよく".to_string();
 
-    let hits = search_testo_to_doco_qp(params).data;
+    let hits = search_testo_to_doco_qp!(params).data;
     assert_eq!(hits.len(), 1);
     assert_eq!(hits[0].doc["ent_seq"], "1587690");
     assert_eq!(hits[0].doc["commonness"], 20);
@@ -493,7 +440,7 @@ fn simple_search_querygenerator_and_emtpy_stopword_list() {
     params.stopword_lists = Some(vec![]);
     params.search_term = "urge AND いよく".to_string();
 
-    let hits = search_testo_to_doco_qp(params).data;
+    let hits = search_testo_to_doco_qp!(params).data;
     assert_eq!(hits.len(), 1);
     assert_eq!(hits[0].doc["ent_seq"], "1587690");
     assert_eq!(hits[0].doc["commonness"], 20);
@@ -505,7 +452,7 @@ fn simple_search_querygenerator_and_stopword_list() {
     params.stopword_lists = Some(vec!["en".to_string()]);
     params.search_term = "urge AND いよく".to_string();
 
-    let hits = search_testo_to_doco_qp(params).data;
+    let hits = search_testo_to_doco_qp!(params).data;
     assert_eq!(hits.len(), 1);
     assert_eq!(hits[0].doc["ent_seq"], "1587690");
     assert_eq!(hits[0].doc["commonness"], 20);
@@ -516,7 +463,7 @@ fn simple_search_querygenerator_and_no_hit() {
     let mut params = query_generator::SearchQueryGeneratorParameters::default();
     params.search_term = "urge AND いよく AND awesome".to_string();
 
-    let hits = search_testo_to_doco_qp(params).data;
+    let hits = search_testo_to_doco_qp!(params).data;
     assert_eq!(hits.len(), 0);
 }
 
@@ -530,7 +477,7 @@ fn select_single_field() {
         "select": ["ent_seq", "tags[]"]
     });
 
-    let hits = search_testo_to_doc(req).data;
+    let hits = search_testo_to_doc!(req).data;
     assert_eq!(hits.len(), 1);
     assert_eq!(hits[0].doc["ent_seq"], "1587690");
     assert_eq!(hits[0].doc.get("commonness"), None); // didn't select
@@ -547,7 +494,7 @@ fn two_tokens_h_test_fn_the_same_anchor() {
         }
     });
 
-    let hits = search_testo_to_doc(req).data;
+    let hits = search_testo_to_doc!(req).data;
     assert_eq!(hits.len(), 1);
     assert_eq!(hits[0].doc["ent_seq"], "1587680");
 }
@@ -562,7 +509,7 @@ fn deep_structured_objects() {
        }
    });
 
-    let hits = search_testo_to_doc(req).data;
+    let hits = search_testo_to_doc!(req).data;
     assert_eq!(hits.len(), 1);
     assert_eq!(hits[0].doc["id"], 123456);
 }
@@ -576,7 +523,7 @@ fn should_search_without_first_char_exact_match() {
             "levenshtein_distance": 1
         }
     });
-    let hits = search_testo_to_doc(req).data;
+    let hits = search_testo_to_doc!(req).data;
     assert_eq!(hits.len(), 1);
     assert_eq!(hits[0].doc["ent_seq"], "1587680");
 }
@@ -590,7 +537,7 @@ fn should_prefer_exact_matches_to_tokenmatches() {
             "levenshtein_distance": 1
         }
     });
-    let wa = search_testo_to_doc(req).data;
+    let wa = search_testo_to_doc!(req).data;
     assert_eq!(wa[0].doc["meanings"]["eng"][0], "will");
 }
 
@@ -604,7 +551,7 @@ fn should_prefer_exact_tokenmatches_to_fuzzy_text_hits() {
         },
         "explain":true
     });
-    let wa = search_testo_to_doc(req).data;
+    let wa = search_testo_to_doc!(req).data;
     println!("{}", serde_json::to_string_pretty(&wa).unwrap());
     assert_eq!(wa[0].doc["meanings"]["eng"][0], "karl der große"); // should hit karl, not karlo
 }
@@ -615,7 +562,7 @@ fn should_prefer_short_results() {
     params.phrase_pairs = Some(true);
     params.explain = Some(true);
     params.search_term = "die erbin taschenbuch".to_string();
-    let hits = search_testo_to_doco_qp(params).data;
+    let hits = search_testo_to_doco_qp!(params).data;
     assert_eq!(hits[0].doc["title"], "Die Erbin");
 }
 
@@ -628,7 +575,7 @@ fn should_search_word_non_tokenized() {
         }
     });
 
-    let hits = search_testo_to_doc(req).data;
+    let hits = search_testo_to_doc!(req).data;
     assert_eq!(hits.len(), 1);
     assert_eq!(hits[0].doc["ent_seq"], "1587680");
 }
@@ -642,7 +589,7 @@ fn should_check_disabled_tokenization() {
         }
     });
 
-    let hits = search_testo_to_doc(req).data;
+    let hits = search_testo_to_doc!(req).data;
     assert_eq!(hits.len(), 0);
 }
 
@@ -655,7 +602,7 @@ fn should_search_on_non_subobject() {
         }
     });
 
-    let hits = search_testo_to_doc(req).data;
+    let hits = search_testo_to_doc!(req).data;
     assert_eq!(hits.len(), 1);
 }
 
@@ -668,7 +615,7 @@ fn and_connect_hits_same_field() {
         ]
     });
 
-    let hits = search_testo_to_doc(req).data;
+    let hits = search_testo_to_doc!(req).data;
     assert_eq!(hits.len(), 1);
     assert_eq!(hits[0].doc["ent_seq"], "1587680");
 }
@@ -682,7 +629,7 @@ fn and_connect_hits_different_fields() {
         ]
     });
 
-    let hits = search_testo_to_doc(req).data;
+    let hits = search_testo_to_doc!(req).data;
     assert_eq!(hits.len(), 1);
     assert_eq!(hits[0].doc["ent_seq"], "1587680");
 }
@@ -702,7 +649,7 @@ fn and_connect_hits_different_fields_no_hit() {
         ]
     });
 
-    let hits = search_testo_to_doc(req).data;
+    let hits = search_testo_to_doc!(req).data;
     assert_eq!(hits.len(), 0);
 }
 
@@ -721,7 +668,7 @@ fn and_connect_hits_different_fields_same_text_alle_meine_words_appears_again() 
         ]
     });
 
-    let hits = search_testo_to_doc(req).data;
+    let hits = search_testo_to_doc!(req).data;
     assert_eq!(hits.len(), 1);
     assert_eq!(hits[0].doc["ent_seq"], "1000");
 }
@@ -742,7 +689,7 @@ fn or_connect_hits_with_top() {
         "top":1
     });
 
-    let hits = search_testo_to_doc(req).data;
+    let hits = search_testo_to_doc!(req).data;
     assert_eq!(hits[0].doc["ent_seq"], "1587690");
     assert_eq!(hits.len(), 1);
 }
@@ -762,7 +709,7 @@ fn or_connect_hits() {
         ]
     });
 
-    let hits = search_testo_to_doc(req).data;
+    let hits = search_testo_to_doc!(req).data;
     assert_eq!(hits[0].doc["ent_seq"], "1587690");
     assert_eq!(hits.len(), 2);
 }
@@ -782,7 +729,7 @@ fn simple_search_and_connect_hits_with_filter() {
         }
     });
 
-    let hits = search_testo_to_doc(req).data;
+    let hits = search_testo_to_doc!(req).data;
     assert_eq!(hits.len(), 1);
 }
 
@@ -807,7 +754,7 @@ fn or_connect_hits_with_filter() {
         }
     });
 
-    let hits = search_testo_to_doc(req).data;
+    let hits = search_testo_to_doc!(req).data;
     assert_eq!(hits.len(), 1);
 }
 
@@ -832,7 +779,7 @@ fn or_connect_hits_with_filter_reuse_query() {
         }
     });
 
-    let hits = search_testo_to_doc(req).data;
+    let hits = search_testo_to_doc!(req).data;
     assert_eq!(hits.len(), 1);
 }
 
@@ -845,7 +792,7 @@ fn should_find_2_values_from_token() {
         }
     });
 
-    let hits = search_testo_to_doc(req).data;
+    let hits = search_testo_to_doc!(req).data;
     assert_eq!(hits.len(), 2);
 }
 
@@ -863,7 +810,7 @@ fn should_search_and_boosto() {
         }]
     });
 
-    let hits = search_testo_to_doc(req).data;
+    let hits = search_testo_to_doc!(req).data;
     assert_eq!(hits.len(), 2);
 }
 
@@ -886,7 +833,7 @@ fn should_search_and_double_boost() {
         }]
     });
 
-    let hits = search_testo_to_doc(req).data;
+    let hits = search_testo_to_doc!(req).data;
     assert_eq!(hits.len(), 2);
 }
 
@@ -906,7 +853,7 @@ fn should_search_and_boost_anchor() {
         }]
     });
 
-    let hits = search_testo_to_doc(req).data;
+    let hits = search_testo_to_doc!(req).data;
     assert_eq!(hits[0].doc["commonness"], 500);
 }
 
@@ -939,7 +886,7 @@ fn should_or_connect_search_and_boost_anchor() {
         ]
     });
 
-    let hits = search_testo_to_doc(req).data;
+    let hits = search_testo_to_doc!(req).data;
     assert_eq!(hits[0].doc["commonness"], 20);
 }
 
@@ -962,7 +909,7 @@ fn should_or_connect_same_search() {
         ]
     });
 
-    let hits = search_testo_to_doc(req).data;
+    let hits = search_testo_to_doc!(req).data;
     assert_eq!(hits[0].doc["commonness"], 551);
     assert_eq!(hits.len(), 2);
 }
@@ -1048,7 +995,7 @@ fn should_highlight_on_field() {
 //         "select": ["mylongtext"]
 //     });
 
-//     let hits = search_testo_to_doc(req).data;
+//     let hits = search_testo_to_doc!(req).data;
 //     assert_eq!(hits.len(), 1);
 //     assert_eq!(hits[0].doc["mylongtext"], json!("Prolog:\nthis is a story of a guy who went out to rule the world, but then died. the end".to_string()));
 
@@ -1163,7 +1110,7 @@ fn should_rank_exact_matches_pretty_good() {
         }]
     });
 
-    let hits = search_testo_to_doc(req).data;
+    let hits = search_testo_to_doc!(req).data;
     assert_eq!(hits[0].doc["meanings"]["ger"][0], "(1) weich");
 }
 
@@ -1183,13 +1130,13 @@ fn should_boost_terms_and_from_cache() {
         }]
     });
 
-    let hits = search_testo_to_doc(req.clone()).data;
+    let hits = search_testo_to_doc!(req.clone()).data;
     assert_eq!(hits[0].doc["meanings"]["ger"][0], "(1) 2 3 super nice weich");
 
     //using boost cache here
-    let hits = search_testo_to_doc(req.clone()).data;
+    let hits = search_testo_to_doc!(req.clone()).data;
     assert_eq!(hits[0].doc["meanings"]["ger"][0], "(1) 2 3 super nice weich");
-    let hits = search_testo_to_doc(req.clone()).data;
+    let hits = search_testo_to_doc!(req.clone()).data;
     assert_eq!(hits[0].doc["meanings"]["ger"][0], "(1) 2 3 super nice weich");
 }
 
@@ -1206,7 +1153,7 @@ fn should_add_why_found_terms() {
         "explain": true
     });
 
-    let hits = search_testo_to_doc(req).data;
+    let hits = search_testo_to_doc!(req).data;
     println!("{}", serde_json::to_string_pretty(&hits).unwrap());
     assert_eq!(hits[0].doc["meanings"]["ger"][0], "(1) weich");
 }
@@ -1220,7 +1167,7 @@ fn or_connect_hits_but_boost_one_term() {
         ]
     });
 
-    let hits = search_testo_to_doc(req).data;
+    let hits = search_testo_to_doc!(req).data;
     assert_eq!(hits.len(), 2);
     assert_eq!(hits[0].doc["meanings"]["ger"][0], "majestätischer Anblick (m)");
 }
@@ -1242,7 +1189,7 @@ fn boost_text_localitaet() {
         "explain": true
     });
 
-    let hits = search_testo_to_doc(req).data;
+    let hits = search_testo_to_doc!(req).data;
     assert_eq!(hits[0].doc["meanings"]["ger"][0], "text localität");
 }
 
@@ -1253,7 +1200,7 @@ fn search_and_get_facet_with_facet_index() {
         "facets": [{"field":"tags[]"}, {"field":"commonness"}]
     });
 
-    let hits = search_testo_to_doc(req);
+    let hits = search_testo_to_doc!(req);
     assert_eq!(hits.data.len(), 2);
     let facets = hits.facets.unwrap();
     assert_eq!(facets.get("tags[]").unwrap(), &vec![("nice".to_string(), 2), ("cool".to_string(), 1)]);
@@ -1268,7 +1215,7 @@ fn search_and_get_facet_without_facet_index() {
         "facets": [{"field":"meanings.eng[]"}]
     });
 
-    let hits = search_testo_to_doc(req);
+    let hits = search_testo_to_doc!(req);
     assert_eq!(hits.data.len(), 1);
     let facets = hits.facets.unwrap();
     assert_eq!(facets.get("meanings.eng[]").unwrap(), &vec![("test1".to_string(), 1)]);

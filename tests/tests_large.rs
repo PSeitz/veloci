@@ -8,7 +8,9 @@ extern crate search_lib;
 extern crate serde_json;
 
 use search_lib::*;
-use serde_json::Value;
+
+#[macro_use]
+mod common;
 
 static TEST_FOLDER: &str = "mochaTest_large";
 
@@ -37,57 +39,9 @@ lazy_static! {
             data.extend(el.as_bytes());
         }
 
-        let mut persistence_type = persistence::PersistenceType::Transient;
-        if let Some(val) = std::env::var_os("PersistenceType") {
-            if val.clone().into_string().unwrap() ==  "Transient"{
-                persistence_type = persistence::PersistenceType::Transient;
-            }else if val.clone().into_string().unwrap() ==  "Persistent"{
-                persistence_type = persistence::PersistenceType::Persistent;
-            }else{
-                panic!("env PersistenceType needs to be Transient or Persistent");
-            }
-        }
+        common::create_test_persistence(TEST_FOLDER, indices, &data, None)
 
-        let mut pers = persistence::Persistence::create_type(TEST_FOLDER.to_string(), persistence_type.clone()).unwrap();
-
-        let mut out:Vec<u8> = vec![];
-        search_lib::create::convert_any_json_data_to_line_delimited(&data as &[u8], &mut out).unwrap();
-
-        println!("{:?}", create::create_indices_from_str(&mut pers, std::str::from_utf8(&out).unwrap(), indices, None, true));
-
-        if persistence_type == persistence::PersistenceType::Persistent {
-            pers = persistence::Persistence::load(TEST_FOLDER.to_string()).expect("Could not load persistence");
-        }
-
-        pers
     };
-}
-
-fn search_testo_to_doc(req: Value) -> search::SearchResultWithDoc {
-    search_testo_to_doco(req).expect("search error")
-}
-
-fn search_testo_to_doco_qp(qp: query_generator::SearchQueryGeneratorParameters) -> search::SearchResultWithDoc {
-    let pers = &TEST_PERSISTENCE;
-    let requesto = query_generator::search_query(&pers, qp).unwrap();
-    search::to_search_result(&pers, search_testo_to_hitso(requesto.clone()).expect("search error"), &requesto.select)
-}
-
-
-fn search_testo_to_doco(req: Value) -> Result<search::SearchResultWithDoc, search::SearchError> {
-    let requesto: search::Request = serde_json::from_str(&req.to_string()).expect("Can't parse json");
-    search_testo_to_doco_req(requesto)
-}
-
-fn search_testo_to_doco_req(requesto: search::Request) -> Result<search::SearchResultWithDoc, search::SearchError> {
-    let pers = &TEST_PERSISTENCE;
-    Ok(search::to_search_result(&pers, search_testo_to_hitso(requesto.clone())?, &requesto.select))
-}
-
-fn search_testo_to_hitso(requesto: search::Request) -> Result<search::SearchResult, search::SearchError> {
-    let pers = &TEST_PERSISTENCE;
-    let hits = search::search(requesto, &pers)?;
-    Ok(hits)
 }
 
 mod tests_large {
@@ -100,7 +54,7 @@ mod tests_large {
                 "path": "category"
             }
         });
-        assert_eq!(search_testo_to_doc(req).num_hits, 300);
+        assert_eq!(search_testo_to_doc!(req).num_hits, 300);
     }
 
     #[test]
@@ -108,7 +62,7 @@ mod tests_large {
         let mut params = query_generator::SearchQueryGeneratorParameters::default();
         params.search_term = "superb AND cool".to_string();
 
-        let res = search_testo_to_doco_qp(params);
+        let res = search_testo_to_doco_qp!(params);
         assert_eq!(res.num_hits, 300);
     }
 
@@ -117,7 +71,7 @@ mod tests_large {
         let mut params = query_generator::SearchQueryGeneratorParameters::default();
         params.search_term = "superb OR awesome".to_string();
 
-        let res = search_testo_to_doco_qp(params);
+        let res = search_testo_to_doco_qp!(params);
         assert_eq!(res.num_hits, 600);
     }
     #[test]
@@ -126,7 +80,7 @@ mod tests_large {
         params.search_term = "superb".to_string();
         params.filter = Some("nice AND superb".to_string());
 
-        let res = search_testo_to_doco_qp(params);
+        let res = search_testo_to_doco_qp!(params);
         assert_eq!(res.num_hits, 300);
     }
 
@@ -137,7 +91,7 @@ mod tests_large {
             "facets": [{"field":"tags[]"}]
         });
 
-        let hits = search_testo_to_doc(req);
+        let hits = search_testo_to_doc!(req);
         let facets = hits.facets.unwrap();
         let mut yep = facets.get("tags[]").unwrap().clone();
         yep.sort_by(|a, b| format!("{:?}{:?}", b.1, b.0).cmp(&format!("{:?}{:?}", a.1, a.0)));
