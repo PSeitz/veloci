@@ -1357,7 +1357,7 @@ fn boost_intersect_hits_vec_test_multi() {
 #[cfg(test)]
 mod bench_intersect {
     use super::*;
-    use test;
+    use crate::test;
     #[bench]
     fn bench_boost_intersect_hits_vec_multi(b: &mut test::Bencher) {
         let hits1: Vec<Hit> = (0..4_000_00).map(|i| Hit::new(i * 5 as u32, 2.2 as f32)).collect();

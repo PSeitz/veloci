@@ -13,7 +13,7 @@ use std;
 use crate::util::*;
 
 #[cfg(test)]
-use test;
+use crate::test;
 
 // fn get_default_levenshtein(term: &str, levenshtein_auto_limit: usize) -> usize {
 //     match term.chars().count() {

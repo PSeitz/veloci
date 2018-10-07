@@ -49,7 +49,7 @@ impl SearchFieldResult {
 }
 
 #[cfg(test)]
-use test;
+use crate::test;
 #[bench]
 fn bench_search_field_iterator(b: &mut test::Bencher) {
     let mut res = SearchFieldResult::default();

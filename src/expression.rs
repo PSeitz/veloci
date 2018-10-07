@@ -120,7 +120,7 @@ fn mult(val: f32) -> f32 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use test::Bencher;
+    use crate::test::Bencher;
 
     #[test]
     fn test_parser() {
