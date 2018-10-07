@@ -1,7 +1,7 @@
 [package]
 authors = ["Pascal Powerman <you@gmail.com>"]
 autobenches = false
-name = "native_search_bin"
+name = "veloci_server"
 version = "0.1.0"
 [[bin]]
 name = "rocket_server"
@@ -26,7 +26,7 @@ serde_json = "1.0.26"
 features = ["rocket", "rocket_codegen"]
 version = "0.15.2"
 
-[dependencies.native_search]
+[dependencies.veloci]
 path = "../"
 
 [dependencies.uuid]

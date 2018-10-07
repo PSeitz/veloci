@@ -318,7 +318,7 @@ fn search_get(database: String, params: Result<QueryParams, rocket::Error>) -> R
         println!("{:?}", q_params.boost_queries);
     }
 
-    let mut request = query_generator::search_query(&persistence, q_params);
+    let mut request = query_generator::search_query(&persistence, q_params).map_err(|err| Custom(Status::BadRequest, format!("query_generation failed: {:?}", err)))?;
 
     request.select = query_param_to_vec(params.select);
 
@@ -561,7 +561,7 @@ fn suggest_get(database: String, params: QueryParams) -> Result<SuggestResult, s
         params.levenshtein,
         &fields,
         params.levenshtein_auto_limit,
-    );
+    ).unwrap();
 
     debug!("{}", serde_json::to_string(&request).unwrap());
     excute_suggest(&persistence, request, false)

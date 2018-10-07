@@ -160,6 +160,8 @@ fn should_and_boost_phrase_o_r_query_generator() {
 
 #[test]
 fn should_double_boost_from_multiphrases() {
+
+    // This query will hit ["greg tagebuch", "05"] from different texts, boosting only for greg tagebuch
     let req_with_single_phrase = json!({
         "or":[
             {"search": {"terms":["greg"], "path": "tags[]" }},
@@ -175,7 +177,9 @@ fn should_double_boost_from_multiphrases() {
 
     let hits = search_testo_to_doc(req_with_single_phrase).data;
     assert_eq!(hits[0].doc["tags"][0], "greg tagebuch");
+    assert_eq!(hits[0].doc["tags"][1], "05");
 
+    // This query will hit ["greg tagebuch 05"]
     let req_with_multi_phrase = json!({
         "or":[
             {"search": {"terms":["greg"], "path": "tags[]" }},
