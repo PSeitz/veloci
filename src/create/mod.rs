@@ -87,14 +87,14 @@ pub(crate) struct TermInfo {
 //     }
 // }
 
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Default, Clone, Copy)]
 pub(crate) struct ValIdPairToken {
     pub(crate) token_or_text_id: u32,
     pub(crate) token_pos: u32,
     pub(crate) num_occurences: u32,
 }
 
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Default, Clone, Copy)]
 pub(crate) struct TokenToAnchorScore {
     pub(crate) valid: u32,
     pub(crate) anchor_id: u32,
@@ -169,9 +169,9 @@ fn store_fst(persistence: &Persistence, sorted_terms: &[(&str, &mut TermInfo)], 
 
 #[inline]
 // *mut FnvHashMap here or the borrow checker will complain, because of 'if let' expands the scope of the mutable ownership to the complete function
-fn get_or_insert_prefer_get<'a, T, F>(map: *mut FnvHashMap<String, T>, key: &str, constructor: F) -> &'a mut T
+fn get_or_insert_prefer_get<'a, T, F>(map: *mut FnvHashMap<String, T>, key: &str, mut constructor: F) -> &'a mut T
 where
-    F: Fn() -> T,
+    F: FnMut() -> T,
 {
     unsafe {
         if let Some(e) = (*map).get_mut(key) {
@@ -403,7 +403,8 @@ struct PathData {
     anchor_to_text_id: Option<Box<BufferedIndexWriter>>,
     boost: Option<Box<BufferedIndexWriter>>,
     fulltext_options: FulltextIndexOptions,
-    skip_tokenizing: bool
+    skip_tokenizing: bool,
+    term_data: TermDataInPath,
 }
 
 fn is_1_to_n(path: &str) -> bool {
@@ -441,7 +442,9 @@ struct PathDataIds {
     parent_to_value: Option<BufferedIndexWriter>,
 }
 
-fn prepare_path_data(fields_config: &FieldsConfig, path: &str) -> PathData {
+fn prepare_path_data(fields_config: &FieldsConfig, path: &str, term_data: TermDataInPath) -> PathData {
+
+    
     let field_config = fields_config.get(path);
     let boost_info_data = if field_config.boost.is_some() {
         Some(Box::new(BufferedIndexWriter::new_for_sorted_id_insertion()))
@@ -510,7 +513,30 @@ fn prepare_path_data(fields_config: &FieldsConfig, path: &str) -> PathData {
         text_id_to_token_ids,
         fulltext_options,
         skip_tokenizing,
+        term_data
     }
+}
+
+fn get_text_info(all_terms: &mut TermDataInPath, value: &str) -> TermInfo {
+    let text_info = if all_terms.do_not_store_text_longer_than < value.len() {
+        // *all_terms.long_terms.get(value).expect("did not found term")
+        all_terms.id_counter_for_large_texts = all_terms.id_counter_for_large_texts.checked_add(1).expect(NUM_TERM_LIMIT_MSG);
+        TermInfo {
+            id: all_terms
+                .terms
+                .len()
+                .to_u32()
+                .expect(NUM_TERM_LIMIT_MSG)
+                .checked_add(1)
+                .expect(NUM_TERM_LIMIT_MSG)
+                .checked_add(all_terms.id_counter_for_large_texts)
+                .expect(NUM_TERM_LIMIT_MSG),
+            num_occurences: 1,
+        }
+    } else {
+        *all_terms.terms.get(value).expect("did not found term")
+    };
+    text_info
 }
 
 fn parse_json_and_prepare_indices<I>(
@@ -527,8 +553,6 @@ where
     let mut id_holder = json_converter::IDHolder::new();
     let mut tuples_to_parent_in_path: FnvHashMap<String, PathDataIds> = FnvHashMap::default();
 
-    // let default_fulltext_options = FulltextIndexOptions::new_with_tokenize();
-
     let tokenizer = SimpleTokenizerCharsIterateGroupTokens {};
 
     {
@@ -536,33 +560,16 @@ where
 
         let mut tokens_ids = Vec::with_capacity(5);
         let mut tokens_to_anchor_id = Vec::with_capacity(10);
-        // let mut phrase_to_anchor_id = Vec::with_capacity(10);
-        // let mut prev_phrase_token:Vec<u8> = vec![];
 
         let mut cb_text = |anchor_id: u32, value: &str, path: &str, parent_val_id: u32| -> Result<(), io::Error> {
-            let data = get_or_insert_prefer_get(&mut path_data as *mut FnvHashMap<_, _>, path, || prepare_path_data(&fields_config, path));
+            let data = get_or_insert_prefer_get(&mut path_data as *mut FnvHashMap<_, _>, path, || {
+                let term_data = create_cache.term_data.terms_in_path.remove(path).unwrap();
+                prepare_path_data(&fields_config, path, term_data)
+            });
 
-            let all_terms = create_cache.term_data.terms_in_path.get_mut(path).unwrap();
-            // let options: &FulltextIndexOptions = field_config.get(path).and_then(|el| el.fulltext.as_ref()).unwrap_or(&default_fulltext_options);
+            // let all_terms = create_cache.term_data.terms_in_path.get_mut(path).unwrap();
 
-            let text_info = if all_terms.do_not_store_text_longer_than < value.len() {
-                // *all_terms.long_terms.get(value).expect("did not found term")
-                all_terms.id_counter_for_large_texts = all_terms.id_counter_for_large_texts.checked_add(1).expect(NUM_TERM_LIMIT_MSG);
-                TermInfo {
-                    id: all_terms
-                        .terms
-                        .len()
-                        .to_u32()
-                        .expect(NUM_TERM_LIMIT_MSG)
-                        .checked_add(1)
-                        .expect(NUM_TERM_LIMIT_MSG)
-                        .checked_add(all_terms.id_counter_for_large_texts)
-                        .expect(NUM_TERM_LIMIT_MSG),
-                    num_occurences: 1,
-                }
-            } else {
-                *all_terms.terms.get(value).expect("did not found term")
-            };
+            let text_info = get_text_info(&mut data.term_data, &value);
             trace!("Found id {:?} for {:?}", text_info, value);
 
             if let Some(el) = data.text_id_to_parent.as_mut() {
@@ -600,7 +607,7 @@ where
                 let mut prev_token: Option<u32> = None;
 
                 tokenizer.get_tokens(value, &mut |token: &str, is_seperator: bool| {
-                    let token_info = all_terms.terms.get(token).expect("did not found token");
+                    let token_info = data.term_data.terms.get(token).expect("did not found token");
                     trace!("Adding to tokens_ids {:?} : {:?}", token, token_info);
 
                     if !text_ids_to_token_ids_already_stored {

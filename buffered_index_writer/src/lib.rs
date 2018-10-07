@@ -265,7 +265,7 @@ impl<
         // let file = File::open(&self.data_path)?;
         if let Some(file) = &self.temp_file {
             for part in &self.parts {
-                let mmap = unsafe { MmapOptions::new().offset(part.offset as usize).len(part.len as usize).map(&file)? };
+                let mmap = unsafe { MmapOptions::new().offset(part.offset).len(part.len as usize).map(&file)? };
                 vecco.push(MMapIter::<K, T>::new(mmap));
             }
             Ok(vecco)

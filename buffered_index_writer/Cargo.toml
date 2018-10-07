@@ -4,12 +4,15 @@ name = "buffered_index_writer"
 version = "0.1.0"
 [dependencies]
 itertools = "0.7.8"
-memmap = "0.6.2"
+memmap = "0.7.0"
 rayon = "1.0.2"
-tempfile = "3.0.2"
+tempfile = "3.0.4"
+
+[dependencies.vint]
+git = "https://github.com/PSeitz/rust_vint"
 
 [dev-dependencies]
-measure_time = "0.6"
+measure_time = "0.6.0"
 
 [profile.release]
 codegen-units = 1
@@ -17,6 +20,3 @@ debug = false
 lto = true
 opt-level = 3
 panic = "unwind"
-
-[dependencies.vint]
-git = "https://github.com/PSeitz/rust_vint"

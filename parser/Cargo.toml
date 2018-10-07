@@ -4,4 +4,4 @@ name = "parser"
 version = "0.1.0"
 
 [dependencies]
-combine = "3.5.1"
+combine = "3.5.3"
