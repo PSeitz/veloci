@@ -2,8 +2,8 @@
 #![feature(test)]
 #[macro_use]
 extern crate criterion;
-extern crate fnv;
-extern crate itertools;
+
+
 extern crate test;
 // extern crate trie;
 
