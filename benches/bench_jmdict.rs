@@ -317,9 +317,9 @@ fn highlight(term: &str, path: &str, pers: &persistence::Persistence) -> search_
 //     }));
 // }
 
-fn searches(c: &mut Criterion) {
-    let pers = load_persistence_disk();
-    let pers_im = load_persistence_im();
+fn searches(_c: &mut Criterion) {
+    let _pers = load_persistence_disk();
+    let _pers_im = load_persistence_im();
 
     // c.bench_function("jmdict_search_anschauen", |b| b.iter(|| search("anschauen", &pers, 1)));
 
@@ -387,70 +387,6 @@ fn searches(c: &mut Criterion) {
 
     // c.bench_function("jmdict_suggest_kana_a", |b| b.iter(|| suggest("あ", "kana[].text", &pers)));
 
-    // c.bench_function("vecco push", |b| {
-    //     b.iter(|| {
-    //         let mut vec = Vec::with_capacity(1_000_000);
-    //         for i in 0..1_000_000 {
-    //             vec.push(Hit::new(i, 0.5));
-    //         }
-    //         vec
-    //     })
-    // });
-
-    // // c.bench_function("vecco placement", |b| {
-    // //     b.iter(|| {
-    // //         let mut vec = Vec::with_capacity(1_000_000);
-    // //         for i in 0..1_000_000 {
-    // //             vec.place_back() <- Hit::new(i, 0.5);
-    // //         }
-    // //         vec
-    // //     })
-    // // });
-
-    // c.bench_function("vecco resize", |b| {
-    //     b.iter(|| {
-    //         let mut vec = Vec::with_capacity(1_000_000);
-    //         unsafe {
-    //             vec.set_len(1_000_000);
-    //         }
-    //         for i in 0..1_000_000 {
-    //             vec[i as usize] = Hit::new(i, 0.5);
-    //         }
-    //         vec
-    //     })
-    // });
-
-    // c.bench_function("vecco get_unchecked_mut", |b| {
-    //     b.iter(|| {
-    //         let mut vec = Vec::with_capacity(1_000_000);
-    //         unsafe {
-    //             vec.set_len(1_000_000);
-    //         }
-    //         for i in 0..1_000_000 {
-    //             unsafe {
-    //                 let elem = vec.get_unchecked_mut(i as usize);
-    //                 *elem = Hit::new(i, 0.5);
-    //             }
-    //         }
-    //         vec
-    //     })
-    // });
-
-    // c.bench_function("vecco pointer fun", |b| {
-    //     b.iter(|| {
-    //         let mut vec = Vec::with_capacity(1_000_000);
-    //         unsafe {
-    //             vec.set_len(1_000_000);
-    //         }
-    //         let x_ptr = vec.as_mut_ptr();
-    //         for i in 0..1_000_000 {
-    //             unsafe {
-    //                 *x_ptr.offset(i as isize) = Hit::new(i, 0.5);
-    //             }
-    //         }
-    //         vec
-    //     })
-    // });
 }
 
 criterion_group!(benches, searches);

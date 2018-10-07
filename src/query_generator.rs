@@ -1,4 +1,4 @@
-use persistence::TEXTINDEX;
+use crate::persistence::TEXTINDEX;
 use std::collections::HashMap;
 use std::{f32, str};
 
@@ -6,11 +6,11 @@ use itertools::Itertools;
 // use regex::Regex;
 
 use ordered_float::OrderedFloat;
-use persistence::Persistence;
-use search::stopwords;
-use search::*;
+use crate::persistence::Persistence;
+use crate::search::stopwords;
+use crate::search::*;
 use std;
-use util::*;
+use crate::util::*;
 
 #[cfg(test)]
 use test;

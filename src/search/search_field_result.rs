@@ -1,8 +1,8 @@
 use fnv::FnvHashMap;
 use half::f16;
-use search;
-use search::*;
-use search_field::Explain;
+use crate::search;
+use crate::search::*;
+use crate::search_field::Explain;
 use std::iter::FusedIterator;
 use std::marker;
 use std::ptr;

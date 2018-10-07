@@ -1,13 +1,13 @@
 use heapsize::HeapSizeOf;
 use lru_time_cache::LruCache;
-use util::*;
+use crate::util::*;
 
 use byteorder::{LittleEndian, ReadBytesExt};
 
-use persistence::*;
-use type_info::TypeInfo;
+use crate::persistence::*;
+use crate::type_info::TypeInfo;
 
-use facet::*;
+use crate::facet::*;
 use num;
 use num::cast::ToPrimitive;
 use std;
@@ -304,8 +304,8 @@ impl<T: IndexIdToParentData> IndexIdToParent for IndexIdToMultipleParentIndirect
     }
 }
 
-use search;
-use util::open_file;
+use crate::search;
+use crate::util::open_file;
 
 #[derive(Debug)]
 pub struct PointingMMAPFileReader<T: IndexIdToParentData> {
@@ -426,7 +426,7 @@ fn get_encoded(mut val: u32) -> Option<u32> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use persistence_data::*;
+    use crate::persistence_data::*;
 
     fn get_test_data_1_to_n_ind(path: &str) -> IndexIdToMultipleParentIndirectFlushingInOrderVint {
         let mut store = IndexIdToMultipleParentIndirectFlushingInOrderVint::new(path.to_string(), u32::MAX);

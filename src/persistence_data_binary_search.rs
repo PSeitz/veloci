@@ -1,10 +1,10 @@
 use heapsize::HeapSizeOf;
 use std::cmp::Ordering::Greater;
 
-use persistence::*;
-use persistence_data_indirect::calc_avg_join_size;
-use persistence_data_indirect::flush_to_file_indirect;
-use type_info::TypeInfo;
+use crate::persistence::*;
+use crate::persistence_data_indirect::calc_avg_join_size;
+use crate::persistence_data_indirect::flush_to_file_indirect;
+use crate::type_info::TypeInfo;
 
 use std;
 use std::io;
@@ -131,8 +131,8 @@ impl<T: 'static + Ord + Copy + Default + std::fmt::Debug + Sync + Send> PhrasePa
         }
     }
 }
-use search;
-use util::open_file;
+use crate::search;
+use crate::util::open_file;
 
 #[derive(Debug)]
 pub struct IndexIdToMultipleParentIndirectBinarySearchMMAP<T> {

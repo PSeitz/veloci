@@ -1,17 +1,17 @@
-use persistence;
-use persistence::Persistence;
-use persistence::*;
-use search;
-use search::*;
+use crate::persistence;
+use crate::persistence::Persistence;
+use crate::persistence::*;
+use crate::search;
+use crate::search::*;
 use std;
 use std::cmp;
 use std::str;
-use tokenizer::*;
-use util::StringAdd;
+use crate::tokenizer::*;
+use crate::util::StringAdd;
 
 #[allow(unused_imports)]
 use fst::{IntoStreamer, Map, MapBuilder, Set};
-use search_field::*;
+use crate::search_field::*;
 
 use heapsize::HeapSizeOf;
 use itertools::Itertools;

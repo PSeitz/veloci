@@ -1,12 +1,12 @@
 #![cfg_attr(feature = "cargo-clippy", allow(clippy::boxed_local))]
-use persistence::Persistence;
-use persistence::*;
-use search::*;
-use search_field::*;
+use crate::persistence::Persistence;
+use crate::persistence::*;
+use crate::search::*;
+use crate::search_field::*;
 use std::fmt::Debug;
 use std::sync::Arc;
-use util;
-use util::StringAdd;
+use crate::util;
+use crate::util::StringAdd;
 
 use fnv::FnvHashMap;
 use fnv::FnvHashSet;

@@ -17,24 +17,24 @@ use itertools::Itertools;
 use json_converter;
 use log;
 use num::ToPrimitive;
-use persistence;
-use persistence::IndexCategory;
-use persistence::*;
-use persistence::{LoadingType, Persistence};
-use persistence_data::*;
-use persistence_data_binary_search::*;
-use persistence_data_indirect::*;
-use persistence_score::token_to_anchor_score_vint::*;
+use crate::persistence;
+use crate::persistence::IndexCategory;
+use crate::persistence::*;
+use crate::persistence::{LoadingType, Persistence};
+use crate::persistence_data::*;
+use crate::persistence_data_binary_search::*;
+use crate::persistence_data_indirect::*;
+use crate::persistence_score::token_to_anchor_score_vint::*;
 use rayon::prelude::*;
-use search;
-use search::SearchError;
-use search_field;
+use crate::search;
+use crate::search::SearchError;
+use crate::search_field;
 use serde_json::Deserializer;
 use serde_json::{self, Value};
 use std::io::BufRead;
-use tokenizer::*;
-use util;
-use util::*;
+use crate::tokenizer::*;
+use crate::util;
+use crate::util::*;
 
 use doc_store::DocWriter;
 use memmap::MmapOptions;
@@ -43,7 +43,7 @@ use std::mem;
 use buffered_index_writer::BufferedIndexWriter;
 use fixedbitset::FixedBitSet;
 
-use util::StringAdd;
+use crate::util::StringAdd;
 
 use term_hashmap;
 
@@ -1239,7 +1239,7 @@ struct TokenValueData {
     text: String,
     value: Option<u32>,
 }
-use execution_plan::PlanRequestSearchPart;
+use crate::execution_plan::PlanRequestSearchPart;
 pub fn add_token_values_to_tokens(persistence: &mut Persistence, data_str: &str, config: &str) -> Result<(), search::SearchError> {
     let data: Vec<TokenValueData> = serde_json::from_str(data_str).unwrap();
     let config: TokenValuesConfig = serde_json::from_str(config).unwrap();

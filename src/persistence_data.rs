@@ -8,20 +8,20 @@ use std::u32;
 // use byteorder::{LittleEndian, ReadBytesExt};
 use heapsize::HeapSizeOf;
 
-use persistence::EMPTY_BUCKET;
-use persistence::*;
-pub(crate) use persistence_data_indirect::*;
+use crate::persistence::EMPTY_BUCKET;
+use crate::persistence::*;
+pub(crate) use crate::persistence_data_indirect::*;
 
-use facet::*;
+use crate::facet::*;
 use num;
 
 use fnv::FnvHashMap;
-use type_info::TypeInfo;
+use crate::type_info::TypeInfo;
 
 use memmap::Mmap;
 use memmap::MmapOptions;
 
-use search;
+use crate::search;
 
 impl_type_info_single_templ!(SingleArrayMMAPPacked);
 

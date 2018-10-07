@@ -18,21 +18,21 @@ use fst::Map;
 use log;
 // use rayon::prelude::*;
 
-use create;
+use crate::create;
 use memmap::Mmap;
 use memmap::MmapOptions;
-use persistence_data::*;
-use persistence_data_binary_search::*;
-use persistence_score::*;
+use crate::persistence_data::*;
+use crate::persistence_data_binary_search::*;
+use crate::persistence_score::*;
 use prettytable::format;
 use prettytable::Table;
-use search::*;
-use search::{self, SearchError};
-use search_field_result;
-use type_info;
-use util;
-use util::get_file_path;
-use util::*;
+use crate::search::*;
+use crate::search::{self, SearchError};
+use crate::search_field_result;
+use crate::type_info;
+use crate::util;
+use crate::util::get_file_path;
+use crate::util::*;
 
 use heapsize::HeapSizeOf;
 

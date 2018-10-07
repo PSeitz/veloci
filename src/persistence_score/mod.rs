@@ -1,7 +1,7 @@
 use half::f16;
-use persistence::*;
+use crate::persistence::*;
 use std::path::Path;
-use type_info::TypeInfo;
+use crate::type_info::TypeInfo;
 
 use heapsize::HeapSizeOf;
 

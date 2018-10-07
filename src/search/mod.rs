@@ -5,12 +5,12 @@ pub mod stopwords;
 use self::search_field::*;
 pub use self::search_field_result::*;
 use super::highlight_field;
-use execution_plan::*;
-use expression::ScoreExpression;
-use facet;
+use crate::execution_plan::*;
+use crate::expression::ScoreExpression;
+use crate::facet;
 use json_converter;
-use util;
-use util::*;
+use crate::util;
+use crate::util::*;
 
 use std::cmp::Ordering;
 use std::{self, cmp, f32, fmt, io, mem, str, u32};
@@ -20,8 +20,8 @@ use fnv::{FnvHashMap, FnvHashSet};
 use fst;
 use itertools::Itertools;
 use ordered_float::OrderedFloat;
-use persistence::Persistence;
-use persistence::*;
+use crate::persistence::Persistence;
+use crate::persistence::*;
 use rayon::prelude::*;
 use serde_json;
 
