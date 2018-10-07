@@ -6,7 +6,6 @@ extern crate search_lib;
 #[macro_use]
 extern crate serde_json;
 
-#[macro_use]
 use search_lib::*;
 use serde_json::Value;
 
@@ -52,8 +51,7 @@ fn check_score_regarding_to_length() {
     });
 
     let res = search_testo_to_doc!(req_with_single_phrase);
-    assert_eq!(res.data[0].doc["title"], "greg tagebuch 05");//hits 3 tokens and phrases
-    assert_eq!(res.data[1].doc["title"], "greg tagebuch");//hits 2 tokens and phrases
+    assert_eq!(res.data[0].doc["title"], "greg tagebuch 05"); //hits 3 tokens and phrases
+    assert_eq!(res.data[1].doc["title"], "greg tagebuch"); //hits 2 tokens and phrases
     assert_eq!(res.data[2].doc["title"], "and some some text 05 this is not relevant let tagebuch greg"); //hits 3 tokens but no phrases
 }
-

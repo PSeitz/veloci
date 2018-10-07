@@ -35,7 +35,7 @@ pub fn get_test_data() -> Value {
 static TEST_FOLDER: &str = "mochaTest_wf";
 
 lazy_static! {
-    static ref TEST_PERSISTENCE:persistence::Persistence = {
+    static ref TEST_PERSISTENCE: persistence::Persistence = {
         let indices = r#"{ "richtig":{"fulltext":{"tokenize":true} } } "#;
         common::create_test_persistence(TEST_FOLDER, indices, &get_test_data().to_string().as_bytes(), None)
     };

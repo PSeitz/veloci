@@ -1054,7 +1054,7 @@ fn test_intersect_score_hits_with_ids() {
     assert_eq!(res.hits_scores, vec![Hit::new(0, 20.0), Hit::new(10, 20.0)]);
 }
 
-fn check_score_iter_for_id(iter_n_current:&mut (impl Iterator<Item = Hit>, Hit), current_id:u32) -> bool {
+fn check_score_iter_for_id(iter_n_current: &mut (impl Iterator<Item = Hit>, Hit), current_id: u32) -> bool {
     if (iter_n_current.1).id == current_id {
         return true;
     }
@@ -1112,7 +1112,7 @@ pub fn intersect_hits_score(mut and_results: Vec<SearchFieldResult>) -> SearchFi
             let current_id = current_el.id;
             let current_score = current_el.score;
 
-            if iterators_and_current.iter_mut().all(|iter_n_current|check_score_iter_for_id(iter_n_current, current_id)) {
+            if iterators_and_current.iter_mut().all(|iter_n_current| check_score_iter_for_id(iter_n_current, current_id)) {
                 let mut score = iterators_and_current.iter().map(|el| (el.1).score).sum();
                 score += current_score; //TODO SCORE Max oder Sum FOR AND
                 intersected_hits.push(Hit::new(current_id, score));
@@ -1141,7 +1141,7 @@ pub fn intersect_hits_score(mut and_results: Vec<SearchFieldResult>) -> SearchFi
     }
 }
 
-fn check_id_iter_for_id(iter_n_current:&mut (impl Iterator<Item = u32>, u32), current_id:u32) -> bool {
+fn check_id_iter_for_id(iter_n_current: &mut (impl Iterator<Item = u32>, u32), current_id: u32) -> bool {
     if (iter_n_current.1) == current_id {
         return true;
     }
@@ -1190,7 +1190,7 @@ pub fn intersect_hits_ids(mut and_results: Vec<SearchFieldResult>) -> SearchFiel
             .collect::<Vec<_>>();
 
         for current_id in &mut shortest_result {
-            if iterators_and_current.iter_mut().all(|iter_n_current|check_id_iter_for_id(iter_n_current, *current_id)) {
+            if iterators_and_current.iter_mut().all(|iter_n_current| check_id_iter_for_id(iter_n_current, *current_id)) {
                 intersected_hits.push(*current_id);
             }
         }
@@ -1538,7 +1538,8 @@ impl Error for SearchError {
 }
 
 #[inline]
-fn join_and_get_text_for_ids(persistence: &Persistence, id: u32, prop: &str) -> Result<Option<String>, SearchError> {  // TODO CHECK field_name exists previously
+fn join_and_get_text_for_ids(persistence: &Persistence, id: u32, prop: &str) -> Result<Option<String>, SearchError> {
+    // TODO CHECK field_name exists previously
     let field_name = prop.add(TEXTINDEX);
     let text_value_id_opt = join_for_1_to_1(persistence, id, &field_name.add(PARENT_TO_VALUE_ID))?;
     if let Some(text_value_id) = text_value_id_opt {

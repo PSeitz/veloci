@@ -1,4 +1,4 @@
-use fnv::{FnvHashMap};
+use fnv::FnvHashMap;
 use fst::automaton::*;
 use fst::raw::Fst;
 use fst::IntoStreamer;

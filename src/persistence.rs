@@ -547,11 +547,7 @@ impl Persistence {
     // }
 
     pub fn get_boost(&self, path: &str) -> Result<&IndexIdToParent<Output = u32>, search::SearchError> {
-        self.indices
-            .boost_valueid_to_value
-            .get(path)
-            .map(|el| el.as_ref())
-            .ok_or_else(|| path_not_found(path))
+        self.indices.boost_valueid_to_value.get(path).map(|el| el.as_ref()).ok_or_else(|| path_not_found(path))
     }
 
     pub fn has_index(&self, path: &str) -> bool {

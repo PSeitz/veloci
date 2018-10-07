@@ -32,13 +32,9 @@ lazy_static! {
         }
         "#;
 
-        let token_values = Some((
-            r#"[{"text": "Begeisterung", "value": 20 } ]"#.to_string(),
-            json!({"path": "meanings.ger[]"})
-        ));
+        let token_values = Some((r#"[{"text": "Begeisterung", "value": 20 } ]"#.to_string(), json!({"path": "meanings.ger[]"})));
 
         common::create_test_persistence(TEST_FOLDER, indices, get_test_data().to_string().as_bytes(), token_values)
-
     };
 }
 

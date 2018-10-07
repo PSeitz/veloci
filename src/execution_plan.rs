@@ -669,10 +669,7 @@ fn plan_creator_2(
         if is_filter_channel {
             channel.filter_channel = Some(FilterChannel::default());
         }
-        let mut step = Union {
-            ids_only: is_filter,
-            channel,
-        };
+        let mut step = Union { ids_only: is_filter, channel };
         let step_id = plan.add_step(Box::new(step.clone()));
         let result_channels_from_prev_steps = or
             .iter()
@@ -713,10 +710,7 @@ fn plan_creator_2(
         if is_filter_channel {
             channel.filter_channel = Some(FilterChannel::default());
         }
-        let mut step = Intersect {
-            ids_only: is_filter,
-            channel,
-        };
+        let mut step = Intersect { ids_only: is_filter, channel };
         let step_id = plan.add_step(Box::new(step.clone()));
         let result_channels_from_prev_steps = ands
             .iter()

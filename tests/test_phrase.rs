@@ -131,7 +131,6 @@ fn should_and_boost_phrase_o_r_query_generator() {
 
 #[test]
 fn should_double_boost_from_multiphrases() {
-
     // This query will hit ["greg tagebuch", "05"] from different texts, boosting only for greg tagebuch
     let req_with_single_phrase = json!({
         "or":[

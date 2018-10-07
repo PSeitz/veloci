@@ -1,8 +1,6 @@
-
 use search_lib::*;
-// use serde_json::Value;
 
-pub fn create_test_persistence(folder: &str, indices: &str, test_data:&[u8], token_values: Option<(String, serde_json::Value)>) -> persistence::Persistence {
+pub fn create_test_persistence(folder: &str, indices: &str, test_data: &[u8], token_values: Option<(String, serde_json::Value)>) -> persistence::Persistence {
     trace::enable_log();
 
     let mut persistence_type = persistence::PersistenceType::Transient;
@@ -35,13 +33,12 @@ pub fn create_test_persistence(folder: &str, indices: &str, test_data:&[u8], tok
     pers
 }
 
-
 #[allow(unused_macros)]
 macro_rules! search_to_hits {
     ($x:expr) => {{
         let pers = &TEST_PERSISTENCE;
         search::search($x, &pers)
-    }}
+    }};
 }
 
 #[allow(unused_macros)]
@@ -50,7 +47,7 @@ macro_rules! search_testo_to_doc {
         let requesto: search::Request = serde_json::from_str(&$x.to_string()).expect("Can't parse json");
         let pers = &TEST_PERSISTENCE;
         search::to_search_result(&pers, search::search(requesto.clone(), &pers).expect("search error"), &requesto.select)
-    }}
+    }};
 }
 
 #[allow(unused_macros)]
@@ -59,5 +56,5 @@ macro_rules! search_testo_to_doco_qp {
         let pers = &TEST_PERSISTENCE;
         let requesto = query_generator::search_query(&pers, $x).unwrap();
         search::to_search_result(&pers, search::search(requesto.clone(), &pers).expect("search error"), &requesto.select)
-    }}
+    }};
 }

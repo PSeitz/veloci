@@ -55,7 +55,7 @@ fn get_default_levenshtein(term: &str, levenshtein_auto_limit: usize) -> usize {
 }
 
 fn get_all_search_field_names(persistence: &Persistence, fields: &Option<Vec<String>>) -> Result<Vec<String>, SearchError> {
-    let res:Vec<_> = persistence
+    let res: Vec<_> = persistence
         .meta_data
         .get_all_fields()
         .into_iter()
@@ -73,7 +73,7 @@ fn get_all_search_field_names(persistence: &Persistence, fields: &Option<Vec<Str
         .collect();
     if res.is_empty() {
         Err(SearchError::StringError(format!("Did not find any fields for {:?}", fields)))
-    }else{
+    } else {
         Ok(res)
     }
 }
@@ -278,7 +278,8 @@ pub fn search_query(persistence: &Persistence, mut opt: SearchQueryGeneratorPara
                 None
             };
 
-            get_all_search_field_names(&persistence, &field_filter).unwrap()
+            get_all_search_field_names(&persistence, &field_filter)
+                .unwrap()
                 .iter()
                 .map(|field_name| RequestSearchPart {
                     path: field_name.to_string(),

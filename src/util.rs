@@ -155,7 +155,6 @@ pub(crate) fn vec_with_size_uninitialized<T>(size: usize) -> Vec<T> {
 //     data
 // }
 
-
 #[inline]
 pub(crate) fn extract_field_name(field: &str) -> String {
     field

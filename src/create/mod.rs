@@ -16,6 +16,7 @@ use fst::{self, MapBuilder};
 use itertools::Itertools;
 use json_converter;
 use log;
+use num::ToPrimitive;
 use persistence;
 use persistence::IndexCategory;
 use persistence::*;
@@ -34,7 +35,6 @@ use std::io::BufRead;
 use tokenizer::*;
 use util;
 use util::*;
-use num::ToPrimitive;
 
 use doc_store::DocWriter;
 use memmap::MmapOptions;
@@ -67,8 +67,6 @@ pub(crate) struct TermInfo {
     pub(crate) id: u32,
     pub(crate) num_occurences: u32,
 }
-
-
 
 // #[inline]
 // pub fn set_ids(terms: &mut TermMap) {
@@ -213,7 +211,7 @@ fn calculate_and_add_token_score_in_doc(
 
 #[inline]
 fn calculate_token_score_for_entry(token_best_pos: u32, num_occurences: u32, num_tokens_in_text: u32, is_exact: bool) -> u32 {
-    let mut score = if is_exact { 400. } else { 2000. / ((token_best_pos as f32 + 10.).log2()  + 10.) };
+    let mut score = if is_exact { 400. } else { 2000. / ((token_best_pos as f32 + 10.).log2() + 10.) };
     let mut num_occurence_modifier = (num_occurences as f32 + 1000.).log10() - 2.; // log 1000 is 3
     num_occurence_modifier -= (num_occurence_modifier - 1.) * 0.7; //reduce by 70%
     score /= num_occurence_modifier;
@@ -221,7 +219,11 @@ fn calculate_token_score_for_entry(token_best_pos: u32, num_occurences: u32, num
     text_length_modifier -= (text_length_modifier - 1.) * 0.7; //reduce by 70%
     score /= text_length_modifier;
     let score = score as u32;
-    debug_assert_ne!(score, 0, "token_best_pos:{:?} num_occurences:{:?} num_tokens_in_text:{:?} {:?}", token_best_pos, num_occurences, num_tokens_in_text, is_exact);
+    debug_assert_ne!(
+        score, 0,
+        "token_best_pos:{:?} num_occurences:{:?} num_tokens_in_text:{:?} {:?}",
+        token_best_pos, num_occurences, num_tokens_in_text, is_exact
+    );
     score
 }
 
@@ -524,7 +526,7 @@ where
                     text_id_to_anchor,
                     phrase_pair_to_anchor,
                     text_id_to_token_ids,
-                    fulltext_options: field_config.fulltext.clone().unwrap_or_else(||default_fulltext_options.clone()),
+                    fulltext_options: field_config.fulltext.clone().unwrap_or_else(|| default_fulltext_options.clone()),
                 }
             });
 
@@ -535,7 +537,15 @@ where
                 // *all_terms.long_terms.get(value).expect("did not found term")
                 all_terms.id_counter_for_large_texts = all_terms.id_counter_for_large_texts.checked_add(1).expect(NUM_TERM_LIMIT_MSG);
                 TermInfo {
-                    id: all_terms.terms.len().to_u32().expect(NUM_TERM_LIMIT_MSG).checked_add(1).expect(NUM_TERM_LIMIT_MSG).checked_add(all_terms.id_counter_for_large_texts).expect(NUM_TERM_LIMIT_MSG) ,
+                    id: all_terms
+                        .terms
+                        .len()
+                        .to_u32()
+                        .expect(NUM_TERM_LIMIT_MSG)
+                        .checked_add(1)
+                        .expect(NUM_TERM_LIMIT_MSG)
+                        .checked_add(all_terms.id_counter_for_large_texts)
+                        .expect(NUM_TERM_LIMIT_MSG),
                     num_occurences: 1,
                 }
             } else {
@@ -605,7 +615,6 @@ where
                             prev_token = Some(token_info.id);
                         }
                     }
-
                 });
 
                 if !text_ids_to_token_ids_already_stored {
@@ -1186,7 +1195,7 @@ where
                     if index.is_in_memory() {
                         persistence.indices.phrase_pair_to_anchor.insert(path, Box::new(index.into_im_store())); //Move data
                     } else {
-                        let store = IndexIdToMultipleParentIndirectBinarySearchMMAP::from_path(&(persistence.db.to_string()+"/" + &path), index.metadata)?; //load data with MMap
+                        let store = IndexIdToMultipleParentIndirectBinarySearchMMAP::from_path(&(persistence.db.to_string() + "/" + &path), index.metadata)?; //load data with MMap
                         persistence.indices.phrase_pair_to_anchor.insert(path, Box::new(store));
                     }
                 }
