@@ -1,6 +1,6 @@
+use crate::util::*;
 use heapsize::HeapSizeOf;
 use lru_time_cache::LruCache;
-use crate::util::*;
 
 use byteorder::{LittleEndian, ReadBytesExt};
 

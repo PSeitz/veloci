@@ -1,16 +1,16 @@
 #![cfg_attr(feature = "cargo-clippy", allow(clippy::boxed_local))]
 
+use crate::persistence::*;
+use crate::search::*;
+use crate::search_field::*;
+use crate::util;
+use crate::util::StringAdd;
 use fnv::FnvHashMap;
 use itertools::Itertools;
 use num;
 use num::ToPrimitive;
-use crate::persistence::*;
-use crate::search::*;
-use crate::search_field::*;
 use std;
 use std::cmp::Ordering;
-use crate::util;
-use crate::util::StringAdd;
 
 fn get_top_facet_group<T: IndexIdToParentData>(hits: &FnvHashMap<T, usize>, top: Option<usize>) -> Vec<(T, u32)> {
     let groups: Vec<(T, u32)> = hits.iter().map(|ref tupl| (*tupl.0, tupl.1.to_u32().unwrap())).collect();

@@ -19,13 +19,9 @@ use log;
 // use rayon::prelude::*;
 
 use crate::create;
-use memmap::Mmap;
-use memmap::MmapOptions;
 use crate::persistence_data::*;
 use crate::persistence_data_binary_search::*;
 use crate::persistence_score::*;
-use prettytable::format;
-use prettytable::Table;
 use crate::search::*;
 use crate::search::{self, SearchError};
 use crate::search_field_result;
@@ -33,6 +29,10 @@ use crate::type_info;
 use crate::util;
 use crate::util::get_file_path;
 use crate::util::*;
+use memmap::Mmap;
+use memmap::MmapOptions;
+use prettytable::format;
+use prettytable::Table;
 
 use heapsize::HeapSizeOf;
 

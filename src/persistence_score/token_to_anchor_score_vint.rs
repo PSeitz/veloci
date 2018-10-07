@@ -3,16 +3,16 @@ use crate::util::*;
 use super::*;
 use vint::vint_encode_most_common::*;
 
-use itertools::Itertools;
 use crate::search;
+use itertools::Itertools;
 use std;
 use std::io;
 use std::iter::FusedIterator;
 use std::marker::PhantomData;
 use std::mem;
 
-use num;
 use crate::persistence_data_indirect;
+use num;
 use std::ops;
 
 // impl_type_info_single_templ!(TokenToAnchorScoreVintMmap);

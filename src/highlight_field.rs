@@ -3,15 +3,15 @@ use crate::persistence::Persistence;
 use crate::persistence::*;
 use crate::search;
 use crate::search::*;
+use crate::tokenizer::*;
+use crate::util::StringAdd;
 use std;
 use std::cmp;
 use std::str;
-use crate::tokenizer::*;
-use crate::util::StringAdd;
 
+use crate::search_field::*;
 #[allow(unused_imports)]
 use fst::{IntoStreamer, Map, MapBuilder, Set};
-use crate::search_field::*;
 
 use heapsize::HeapSizeOf;
 use itertools::Itertools;

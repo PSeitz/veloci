@@ -1,7 +1,7 @@
-use itertools::Itertools;
 use crate::persistence::TEXTINDEX;
-use regex::Regex;
 use crate::search;
+use itertools::Itertools;
+use regex::Regex;
 use std;
 use std::collections::HashMap;
 use std::fs::File;

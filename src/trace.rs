@@ -11,7 +11,7 @@ use std::io::Write;
 /// <br>
 /// i.e. with timestamp and file location.
 #[cfg_attr(tarpaulin, skip)]
-pub fn format_log(w: &mut Write, record: &Record<'_>)  -> Result<(), io::Error>  {
+pub fn format_log(w: &mut Write, record: &Record<'_>) -> Result<(), io::Error> {
     write!(
         w,
         "[{}] {} [{}:{}] {}",

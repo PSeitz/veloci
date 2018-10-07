@@ -1,8 +1,5 @@
 #![recursion_limit = "128"]
 
-
-
-
 // extern crate fst_levenshtein;
 // extern crate cpuprofiler;
 #[macro_use]

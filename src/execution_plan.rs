@@ -3,10 +3,10 @@ use crate::persistence::Persistence;
 use crate::persistence::*;
 use crate::search::*;
 use crate::search_field::*;
-use std::fmt::Debug;
-use std::sync::Arc;
 use crate::util;
 use crate::util::StringAdd;
+use std::fmt::Debug;
+use std::sync::Arc;
 
 use fnv::FnvHashMap;
 use fnv::FnvHashSet;

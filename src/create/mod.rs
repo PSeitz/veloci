@@ -1,9 +1,9 @@
+mod fast_lines;
 mod features;
 mod fields_config;
-mod fast_lines;
 
-use self::features::IndexCreationType;
 use self::fast_lines::FastLinesTrait;
+use self::features::IndexCreationType;
 use self::fields_config::FieldsConfig;
 pub use self::fields_config::FulltextIndexOptions;
 
@@ -12,12 +12,6 @@ use std::io;
 use std::{self, str};
 
 use buffered_index_writer;
-use fnv::FnvHashMap;
-use fst::{self, MapBuilder};
-use itertools::Itertools;
-use json_converter;
-use log;
-use num::ToPrimitive;
 use crate::persistence;
 use crate::persistence::IndexCategory;
 use crate::persistence::*;
@@ -26,16 +20,22 @@ use crate::persistence_data::*;
 use crate::persistence_data_binary_search::*;
 use crate::persistence_data_indirect::*;
 use crate::persistence_score::token_to_anchor_score_vint::*;
-use rayon::prelude::*;
 use crate::search;
 use crate::search::SearchError;
 use crate::search_field;
-use serde_json::Deserializer;
-use serde_json::{self, Value};
-use std::io::BufRead;
 use crate::tokenizer::*;
 use crate::util;
 use crate::util::*;
+use fnv::FnvHashMap;
+use fst::{self, MapBuilder};
+use itertools::Itertools;
+use json_converter;
+use log;
+use num::ToPrimitive;
+use rayon::prelude::*;
+use serde_json::Deserializer;
+use serde_json::{self, Value};
+use std::io::BufRead;
 
 use doc_store::DocWriter;
 use memmap::MmapOptions;
@@ -425,8 +425,6 @@ struct PathDataIds {
 }
 
 fn prepare_path_data(fields_config: &FieldsConfig, path: &str, term_data: TermDataInPath) -> PathData {
-
-    
     let field_config = fields_config.get(path);
     let boost_info_data = if field_config.boost.is_some() {
         Some(Box::new(BufferedIndexWriter::new_for_sorted_id_insertion()))
@@ -474,7 +472,6 @@ fn prepare_path_data(fields_config: &FieldsConfig, path: &str, term_data: TermDa
         None
     };
 
-
     let fulltext_options = field_config.fulltext.clone().unwrap_or_else(|| FulltextIndexOptions::new_with_tokenize());
 
     let mut skip_tokenizing = tokens_to_text_id.is_none() && token_to_anchor_id_score.is_none() && phrase_pair_to_anchor.is_none();
@@ -495,7 +492,7 @@ fn prepare_path_data(fields_config: &FieldsConfig, path: &str, term_data: TermDa
         text_id_to_token_ids,
         fulltext_options,
         skip_tokenizing,
-        term_data
+        term_data,
     }
 }
 
@@ -574,7 +571,6 @@ where
                 let my_int = value.parse::<u32>().unwrap_or_else(|_| panic!("Expected an int value but got {:?}", value));
                 el.add(parent_val_id, my_int).unwrap();
             }
-            
 
             if let Some(el) = data.token_to_anchor_id_score.as_mut() {
                 let score = calculate_token_score_for_entry(0, text_info.num_occurences, 1, true);
@@ -1300,8 +1296,6 @@ pub fn add_token_values_to_tokens(persistence: &mut Persistence, data_str: &str,
     Ok(())
 }
 
-
-
 pub fn convert_any_json_data_to_line_delimited<I: std::io::Read, O: std::io::Write>(input: I, mut out: O) -> Result<(), io::Error> {
     let stream = Deserializer::from_reader(input).into_iter::<Value>();
 
@@ -1355,14 +1349,12 @@ pub fn create_indices_from_file(
     create_cache: Option<CreateCache>,
     load_persistence: bool,
 ) -> Result<(CreateCache), CreateError> {
-    let stream1 = std::io::BufReader::new(File::open(data_path).unwrap())
-        .fast_lines();
-        // .lines()
-        // .map(|line| serde_json::from_str(&line.unwrap()));
-    let stream2 = std::io::BufReader::new(File::open(data_path).unwrap())
-        .fast_lines();
-        // .lines()
-        // .map(|line| serde_json::from_str(&line.unwrap()));
+    let stream1 = std::io::BufReader::new(File::open(data_path).unwrap()).fast_lines();
+    // .lines()
+    // .map(|line| serde_json::from_str(&line.unwrap()));
+    let stream2 = std::io::BufReader::new(File::open(data_path).unwrap()).fast_lines();
+    // .lines()
+    // .map(|line| serde_json::from_str(&line.unwrap()));
     let stream3 = std::io::BufReader::new(File::open(data_path).unwrap()).lines().map(|line| line.unwrap());
 
     create_indices_from_streams(persistence, stream1, stream2, stream3, indices, create_cache, load_persistence)

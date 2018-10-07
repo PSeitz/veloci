@@ -15,8 +15,8 @@ pub(crate) use crate::persistence_data_indirect::*;
 use crate::facet::*;
 use num;
 
-use fnv::FnvHashMap;
 use crate::type_info::TypeInfo;
+use fnv::FnvHashMap;
 
 use memmap::Mmap;
 use memmap::MmapOptions;

@@ -1,6 +1,6 @@
-use std::io;
 use fst;
 use serde_json;
+use std::io;
 
 #[derive(Debug, Fail)]
 pub enum VelociError {

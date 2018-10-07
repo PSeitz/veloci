@@ -1,11 +1,11 @@
 use crate::create;
-use itertools::Itertools;
 use crate::persistence;
 use crate::persistence::*;
 use crate::query_generator;
-use rayon::prelude::*;
 use crate::search;
 use crate::search::*;
+use itertools::Itertools;
+use rayon::prelude::*;
 use serde_json;
 use std;
 use std::cmp::Ordering;

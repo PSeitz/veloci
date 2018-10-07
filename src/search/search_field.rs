@@ -1,23 +1,23 @@
-use fnv::FnvHashMap;
-use fst::automaton::*;
-use fst::raw::Fst;
-use fst::IntoStreamer;
 use crate::highlight_field::*;
-use itertools::Itertools;
-use levenshtein_automata::{Distance, LevenshteinAutomatonBuilder, DFA};
-use ordered_float::OrderedFloat;
 use crate::persistence;
 use crate::persistence::Persistence;
 use crate::persistence::*;
 use crate::search;
 use crate::search::search_field_result::*;
 use crate::search::*;
+use crate::util;
+use crate::util::StringAdd;
+use fnv::FnvHashMap;
+use fst::automaton::*;
+use fst::raw::Fst;
+use fst::IntoStreamer;
+use itertools::Itertools;
+use levenshtein_automata::{Distance, LevenshteinAutomatonBuilder, DFA};
+use ordered_float::OrderedFloat;
 use std::cmp;
 use std::cmp::Ordering;
 use std::str;
 use std::sync::Arc;
-use crate::util;
-use crate::util::StringAdd;
 
 use crate::execution_plan::*;
 

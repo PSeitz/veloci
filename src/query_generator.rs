@@ -5,12 +5,12 @@ use std::{f32, str};
 use itertools::Itertools;
 // use regex::Regex;
 
-use ordered_float::OrderedFloat;
 use crate::persistence::Persistence;
 use crate::search::stopwords;
 use crate::search::*;
-use std;
 use crate::util::*;
+use ordered_float::OrderedFloat;
+use std;
 
 #[cfg(test)]
 use crate::test;

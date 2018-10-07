@@ -6,11 +6,6 @@
 #[macro_use]
 extern crate serde_json;
 
-
-
-
-
-
 #[macro_use]
 extern crate criterion;
 
@@ -39,7 +34,6 @@ fn load_persistence_disk() -> persistence::Persistence {
 
 #[cfg(test)]
 mod bench_jmdict {
-    
 
     // fn search_testo_to_doc(req: Value) -> Result<Vec<search::DocWithHit>, search::SearchError> {
     //     let persistences = PERSISTENCES.read().unwrap();
@@ -386,7 +380,6 @@ fn searches(_c: &mut Criterion) {
     // c.bench_function("jmdict_suggest_kana_a", |b| b.iter(|| suggest("あ", "kana[].text", &pers)));
 
     // c.bench_function("jmdict_suggest_kana_a", |b| b.iter(|| suggest("あ", "kana[].text", &pers)));
-
 }
 
 criterion_group!(benches, searches);

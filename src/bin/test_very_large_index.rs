@@ -1,10 +1,7 @@
 #![recursion_limit = "128"]
 
-
-
 // #[macro_use]
 // extern crate measure_time;
-
 
 use search_lib;
 

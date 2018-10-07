@@ -8,20 +8,20 @@ use super::highlight_field;
 use crate::execution_plan::*;
 use crate::expression::ScoreExpression;
 use crate::facet;
-use json_converter;
 use crate::util;
 use crate::util::*;
+use json_converter;
 
 use std::cmp::Ordering;
 use std::{self, cmp, f32, fmt, io, mem, str, u32};
 
+use crate::persistence::Persistence;
+use crate::persistence::*;
 use doc_store::DocLoader;
 use fnv::{FnvHashMap, FnvHashSet};
 use fst;
 use itertools::Itertools;
 use ordered_float::OrderedFloat;
-use crate::persistence::Persistence;
-use crate::persistence::*;
 use rayon::prelude::*;
 use serde_json;
 
@@ -1476,7 +1476,6 @@ pub enum SearchError {
     MetaData(serde_json::Error),
     Utf8Error(std::str::Utf8Error),
     FstError(fst::Error),
-    // TooManyStates,
 }
 // Automatic Conversion
 impl From<io::Error> for SearchError {
@@ -1499,11 +1498,6 @@ impl From<fst::Error> for SearchError {
         SearchError::FstError(err)
     }
 }
-// impl From<fst_levenshtein::Error> for SearchError {
-//     fn from(err: fst_levenshtein::Error) -> SearchError {
-//         SearchError::FstLevenShtein(err)
-//     }
-// }
 
 impl From<String> for SearchError {
     fn from(err: String) -> SearchError {
@@ -1568,13 +1562,8 @@ fn join_and_get_text_for_ids(persistence: &Persistence, id: u32, prop: &str) -> 
 }
 
 pub fn read_data(persistence: &Persistence, id: u32, fields: &[String]) -> Result<serde_json::Value, SearchError> {
-    // let all_steps: FnvHashMap<String, Vec<String>> = fields.iter().map(|field| (field.clone(), util::get_steps_to_anchor(&field))).collect();
-    // let all_steps: Vec<Vec<String>> = fields.iter().map(|field| util::get_steps_to_anchor(&field)).collect();
-    // let paths = util::get_steps_to_anchor(&request.path);
-    // let tree = to_node_tree(all_steps);
     let tree = get_read_tree_from_fields(persistence, fields);
     read_tree(persistence, id, &tree)
-    // Ok(serde_json::to_string_pretty(&dat).unwrap())
 }
 
 #[cfg_attr(feature = "flame_it", flame)]

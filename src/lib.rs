@@ -33,13 +33,15 @@ pub use doc_store;
 
 #[macro_use]
 extern crate measure_time;
-#[macro_use] extern crate failure;
+#[macro_use]
+extern crate failure;
 
 #[macro_use]
 pub mod util;
 #[macro_use]
 pub mod type_info;
 pub mod create;
+pub mod error;
 pub mod execution_plan;
 pub mod expression;
 pub mod facet;
@@ -54,12 +56,9 @@ pub mod search;
 pub mod shards;
 pub mod tokenizer;
 pub mod trace;
-pub mod error;
 
 pub use self::search::search_field;
 pub use self::search::search_field_result;
-
-
 
 #[cfg(test)]
 extern crate test;

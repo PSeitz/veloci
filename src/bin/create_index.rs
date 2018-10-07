@@ -1,11 +1,9 @@
 #![recursion_limit = "128"]
 
-
 use search_lib;
 
 #[cfg(feature = "enable_cpuprofiler")]
 extern crate cpuprofile;
-
 
 use clap::{App, Arg};
 
