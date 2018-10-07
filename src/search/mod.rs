@@ -1476,8 +1476,7 @@ pub enum SearchError {
     MetaData(serde_json::Error),
     Utf8Error(std::str::Utf8Error),
     FstError(fst::Error),
-    // FstLevenShtein(fst_levenshtein::Error),
-    TooManyStates,
+    // TooManyStates,
 }
 // Automatic Conversion
 impl From<io::Error> for SearchError {

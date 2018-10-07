@@ -16,54 +16,27 @@
 extern crate cpuprofiler;
 #[cfg(feature = "flame_it")]
 extern crate flame;
-
-
-
-
-
 #[macro_use]
 #[allow(unused_imports)]
 extern crate dump;
-
-
-
-
-
-
 #[macro_use]
 extern crate heapsize_derive;
-
 #[macro_use]
 extern crate lazy_static;
-
-
-
-
-
-
 #[macro_use]
 extern crate prettytable;
-
-
-
 #[macro_use]
 extern crate serde_derive;
 #[macro_use]
 extern crate serde_json;
-
-
 pub use doc_store;
-
 
 #[macro_use]
 extern crate measure_time;
-
-
-
+#[macro_use] extern crate failure;
 
 #[macro_use]
 pub mod util;
-// pub mod stopwords;
 #[macro_use]
 pub mod type_info;
 pub mod create;
@@ -81,6 +54,7 @@ pub mod search;
 pub mod shards;
 pub mod tokenizer;
 pub mod trace;
+pub mod error;
 
 pub use self::search::search_field;
 pub use self::search::search_field_result;

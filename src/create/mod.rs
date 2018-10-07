@@ -9,7 +9,6 @@ pub use self::fields_config::FulltextIndexOptions;
 
 use std::fs::File;
 use std::io;
-use std::io::BufReader;
 use std::{self, str};
 
 use buffered_index_writer;
