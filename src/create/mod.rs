@@ -51,7 +51,7 @@ use term_hashmap;
 type TermMap = term_hashmap::HashMap<TermInfo>;
 
 const NUM_TERM_LIMIT_MSG: &str = "number of terms per field is currently limited to u32";
-const NUM_TERM_OCC_LIMIT_MSG: &str = "number of terms occurences per field is currently limited to u32";
+// const NUM_TERM_OCC_LIMIT_MSG: &str = "number of terms occurences per field is currently limited to u32";
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct FacetIndex {
@@ -233,7 +233,8 @@ pub struct AllTermsAndDocumentBuilder {
 #[inline]
 fn add_count_text(terms: &mut TermMap, text: &str) {
     let stat = terms.get_or_insert(text, TermInfo::default);
-    stat.num_occurences = stat.num_occurences.checked_add(1).expect(NUM_TERM_OCC_LIMIT_MSG);
+    // stat.num_occurences = stat.num_occurences.checked_add(1).expect(NUM_TERM_OCC_LIMIT_MSG);
+    stat.num_occurences = stat.num_occurences.saturating_add(1);
 }
 
 #[inline]
