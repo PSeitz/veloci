@@ -668,25 +668,37 @@ where
     Ok((path_data, tuples_to_parent_in_path))
 }
 
-fn write_docs<K, S: AsRef<str>>(persistence: &mut Persistence, create_cache: &mut CreateCache, stream3: K) -> Result<(), CreateError>
+#[derive(Debug)]
+struct DocWriteRes {
+    num_doc_ids: u32,
+    bytes_indexed: u64,
+    offset: u64,
+}
+
+fn write_docs<K, S: AsRef<str>>(persistence: &mut Persistence, stream3: K) -> Result<DocWriteRes, CreateError>
 where
     K: Iterator<Item = S>,
 {
     info_time!("write_docs");
     let mut file_out = persistence.get_buffered_writer("data")?;
 
-    let mut doc_store = DocWriter::new(create_cache.term_data.current_offset);
+    // let mut doc_store = DocWriter::new(create_cache.term_data.current_offset);
+    let mut doc_store = DocWriter::new(0);
     for doc in stream3 {
         doc_store.add_doc(doc.as_ref(), &mut file_out)?;
     }
     doc_store.finish(&mut file_out)?;
-    create_cache.term_data.current_offset = doc_store.current_offset;
+    // create_cache.term_data.current_offset = doc_store.current_offset;
     use std::slice;
     let slice = unsafe { slice::from_raw_parts(doc_store.offsets.as_ptr() as *const u8, doc_store.offsets.len() * mem::size_of::<(u32, u64)>()) };
     persistence.write_data_offset(slice, &doc_store.offsets)?;
     persistence.meta_data.num_docs = doc_store.curr_id.into();
     persistence.meta_data.bytes_indexed = doc_store.bytes_indexed;
-    Ok(())
+    Ok(DocWriteRes{
+        num_doc_ids: doc_store.curr_id,
+        bytes_indexed: doc_store.bytes_indexed,
+        offset: doc_store.current_offset
+    })
 }
 
 /// Only trace im data
@@ -1090,7 +1102,7 @@ where
 {
     let mut create_cache = CreateCache::default();
 
-    write_docs(&mut persistence, &mut create_cache, stream3)?;
+    write_docs(&mut persistence, stream3)?;
     get_allterms_per_path(stream1, &indices_json, &mut create_cache.term_data)?;
 
     let default_fulltext_options = FulltextIndexOptions::new_with_tokenize();
