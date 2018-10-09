@@ -1,7 +1,9 @@
+cargo-features = ["edition"]
 [package]
+edition = "2018"
 authors = ["Pascal Seitz <pascal.seitz@gmail.com>"]
 name = "parser"
 version = "0.1.0"
 
 [dependencies]
-combine = "3.5.3"
+combine = "3.6.0"

@@ -1,5 +1,5 @@
 #![feature(test)]
-extern crate lz4;
+
 
 use std::mem;
 use std::io;

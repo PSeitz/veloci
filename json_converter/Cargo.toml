@@ -1,7 +1,9 @@
+cargo-features = ["edition"]
 [package]
 authors = ["Pascal Seitz <pascal.seitz@gmail.com>"]
 name = "json_converter"
 version = "0.1.0"
+edition = "2018"
 [[bench]]
 harness = false
 name = "bench"

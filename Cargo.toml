@@ -1,3 +1,4 @@
+cargo-features = ["edition"]
 [package]
 authors = ["Pascal Seitz <pascal.seitz@gmail.com>"]
 autobenches = false

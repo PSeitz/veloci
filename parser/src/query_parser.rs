@@ -189,12 +189,12 @@ parser! {
             phrase,
             levenshtein: None
         }.into_ast());
-        // try(term_with_field)
-        //     .or(try(multi_words))
+        // attempt(term_with_field)
+        //     .or(attempt(multi_words))
         //     .or(term_no_field)
-        try(term_with_field_and_levenshtein)
-            .or(try(term_no_field_and_levenshtein))
-            .or(try(term_with_field))
+        attempt(term_with_field_and_levenshtein)
+            .or(attempt(term_no_field_and_levenshtein))
+            .or(attempt(term_with_field))
             .or(term_no_field)
     }
 }
@@ -212,7 +212,7 @@ parser! {
             });
 
         (char('('), parse_to_ast(), char(')')).map(|(_, expr, _)| expr)
-        .or(try(multi_literals))
+        .or(attempt(multi_literals))
         .or(user_literal())
     }
 }
@@ -246,7 +246,7 @@ parser! {
     where [I: Stream<Item = char>]
     {
         (
-            try(
+            attempt(
                 chainl1(
                     leaf(),
                     parse_operator().map(|op: Operator|

@@ -1,6 +1,6 @@
 #[macro_use]
 extern crate criterion;
-extern crate buffered_index_writer;
+
 
 use buffered_index_writer::*;
 

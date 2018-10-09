@@ -1,5 +1,5 @@
-extern crate serde_json;
-extern crate fnv;
+use serde_json;
+
 // #[cfg(test)]
 // extern crate test;
 
@@ -12,7 +12,7 @@ use std::str;
 // pub mod bench;
 
 #[inline]
-pub fn convert_to_string(value: &Value) -> Cow<str> {
+pub fn convert_to_string(value: &Value) -> Cow<'_, str> {
     match *value {
         Value::String(ref s) => Cow::from(s.as_str()),
         Value::Number(ref i) if i.is_u64() => Cow::from(i.as_u64().unwrap().to_string()),

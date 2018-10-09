@@ -1,8 +1,8 @@
-extern crate vint;
-extern crate itertools;
-extern crate memmap;
-extern crate rayon;
-extern crate tempfile;
+
+
+use memmap;
+
+use tempfile;
 
 use itertools::Itertools;
 use memmap::MmapOptions;
@@ -343,7 +343,7 @@ impl<
 }
 
 impl<K: Display + PartialOrd + Ord + Default + Copy + SerializeInto + DeserializeFrom, T: GetValue + Default + SerializeInto + DeserializeFrom> fmt::Display for BufferedIndexWriter<K, T> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         for el in &self.cache {
             writeln!(f, "{}\t{}", el.key, el.value.get_value())?;
         }

@@ -1,4 +1,6 @@
+cargo-features = ["edition"]
 [package]
+edition = "2018"
 authors = ["Pascal Seitz <pascal.seitz@gmail.com>"]
 name = "buffered_index_writer"
 version = "0.1.0"

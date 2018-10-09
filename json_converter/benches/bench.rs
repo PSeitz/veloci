@@ -1,7 +1,7 @@
 #![recursion_limit = "128"]
 #[macro_use]
 extern crate criterion;
-extern crate json_converter;
+
 #[macro_use]
 extern crate serde_json;
 
