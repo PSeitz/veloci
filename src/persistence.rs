@@ -628,6 +628,7 @@ impl Persistence {
             fs::remove_dir_all(&db)?;
         }
         fs::create_dir_all(&db)?;
+        fs::create_dir(db.to_string() + "/temp")?; // for temporary index creation
         let meta_data = MetaData { ..Default::default() };
         Ok(Persistence {
             persistence_type,
@@ -693,6 +694,10 @@ impl Persistence {
         }
 
         info!("{}", table);
+    }
+
+    pub fn temp_dir(&self) -> String {
+        self.db.to_string() + "/temp"
     }
 
     fn get_fst_sizes(&self) -> usize {

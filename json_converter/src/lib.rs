@@ -149,7 +149,6 @@ where
         current_path.pop();
     } else if !data.is_null() {
         current_path.push_str(current_el_name);
-        current_path.push_str(".textindex");
         cb_text(anchor_id, convert_to_string(&data).as_ref(), &current_path, parent_id)?;
     }
     Ok(())
@@ -196,7 +195,7 @@ fn test_foreach() {
 
     let stream = r#"{"structure" : {"sub1" : "test"}}"#.lines().map(|line|serde_json::from_str(&line));
     for_each_element(stream, &mut id_holder, &mut |anchor_id: u32, value: &str, path: &str, _parent_val_id: u32| -> Result<(), ()>{
-        assert_eq!(path, "structure.sub1.textindex");
+        assert_eq!(path, "structure.sub1");
         assert_eq!(value, "test");
         assert_eq!(anchor_id, 0);
         assert_eq!(_parent_val_id, 0);
@@ -205,14 +204,14 @@ fn test_foreach() {
 
     let stream = r#"{"a" : "1"}"#.lines().map(|line|serde_json::from_str(&line));
     for_each_element(stream, &mut id_holder, &mut |_anchor_id: u32, value: &str, path: &str, _parent_val_id: u32| -> Result<(), ()>{
-        assert_eq!(path, "a.textindex");
+        assert_eq!(path, "a");
         assert_eq!(value, "1");
         Ok(())
     }, &mut callback_ids).unwrap();
 
     let stream = r#"{"meanings": {"ger" : ["karlo"]}}"#.lines().map(|line|serde_json::from_str(&line));
     for_each_element(stream, &mut id_holder, &mut |_anchor_id: u32, value: &str, path: &str, _parent_val_id: u32| -> Result<(), ()>{
-        assert_eq!(path, "meanings.ger[].textindex");
+        assert_eq!(path, "meanings.ger[]");
         assert_eq!(value, "karlo");
         Ok(())
     }, &mut callback_ids).unwrap();

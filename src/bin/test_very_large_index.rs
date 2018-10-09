@@ -20,7 +20,7 @@ use buffered_index_writer::BufferedIndexWriter;
 
 fn main() -> Result<(), io::Error> {
     search_lib::trace::enable_log();
-    let mut buffered_index_writer = BufferedIndexWriter::<u32, (u32, u32)>::new_unstable_sorted();
+    let mut buffered_index_writer = BufferedIndexWriter::<u32, (u32, u32)>::new_unstable_sorted("./".to_string());
 
     for i in 0..40_000_000 {
         // Write a lot of data

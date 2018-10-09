@@ -49,6 +49,25 @@ impl Iterator for FastLinesJson {
     }
 }
 
+// #[test]
+// fn test_fast_lines() {
+//     use std::io::Write;
+//     use std::io::Read;
+//     let data = "{\"val\": \"30\"}\n{\"val\": \"30\"}".as_bytes();
+//     let mut file = tempfile::tempfile().unwrap();
+//     file.write_all(data);
+//     file.flush();
+
+//     let mut s = String::new();
+//     file.read_to_string(&mut s).unwrap();
+//     println!("{:?}", s);
+
+//     let stream1 = std::io::BufReader::new(file).fast_lines();
+//     let res: Vec<Result<serde_json::Value, serde_json::Error>> = stream1.collect();
+//     assert_eq!(res[0].as_ref().unwrap(), &json!({"val": "30"}));
+//     assert_eq!(res[1].as_ref().unwrap(), &json!({"val": "30"}));
+// }
+
 // pub trait FastLinesTrait<T> {
 //     fn fast_lines(self) -> FastLinesJson<Self>
 //     where

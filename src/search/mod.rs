@@ -326,12 +326,12 @@ fn highlight_on_original_document(doc: &str, why_found_terms: &FnvHashMap<String
     let stream = serde_json::Deserializer::from_str(&doc).into_iter::<serde_json::Value>();
 
     let mut id_holder = json_converter::IDHolder::new();
-
     {
         let mut cb_text = |_anchor_id: u32, value: &str, path: &str, _parent_val_id: u32| -> Result<(), ()> {
-            if let Some(terms) = why_found_terms.get(path) {
+            let path = path.to_string() + TEXTINDEX;
+            if let Some(terms) = why_found_terms.get(&path) {
                 if let Some(highlighted) = highlight_field::highlight_text(value, &terms, &DEFAULT_SNIPPETINFO) {
-                    let field_name = extract_field_name(path); // extract_field_name removes .textindex
+                    let field_name = extract_field_name(&path); // extract_field_name removes .textindex
                     let jepp = highlighted_texts.entry(field_name).or_default();
                     jepp.push(highlighted);
                 }
