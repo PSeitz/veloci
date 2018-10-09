@@ -969,9 +969,10 @@ fn convert_raw_path_data_to_indices(
 
     let indices_res: Result<Vec<_>, search::SearchError> = path_data
         .into_par_iter()
-        .map(|(path, data)| {
+        .map(|(mut path, data)| {
             let mut indices = IndicesFromRawData::default();
 
+            // path = path + TEXTINDEX;
             let path = &path;
 
             if let Some(tokens_to_text_id) = data.tokens_to_text_id {
@@ -1114,7 +1115,8 @@ where
             .par_iter_mut()
             .map(|(path, mut terms_data)| {
                 let mut fulltext_index_metadata = TextIndexMetaData::default();
-                let options: &FulltextIndexOptions = indices_json.get(path).fulltext.as_ref().unwrap_or_else(|| &default_fulltext_options);
+                let options: &FulltextIndexOptions = indices_json.get(&path).fulltext.as_ref().unwrap_or_else(|| &default_fulltext_options);
+                // let path = path.to_string() + TEXTINDEX;
                 fulltext_index_metadata.options = options.clone();
                 store_full_text_info_and_set_ids(&persistence, &mut terms_data, &path, &options, &mut fulltext_index_metadata)?;
                 Ok((path.to_string(), fulltext_index_metadata))
