@@ -425,7 +425,7 @@ struct PathDataIds {
     parent_to_value: Option<BufferedIndexWriter>,
 }
 
-fn prepare_path_data(temp_dir:String, fields_config: &FieldsConfig, path: &str, term_data: TermDataInPath) -> PathData {
+fn prepare_path_data(temp_dir: String, fields_config: &FieldsConfig, path: &str, term_data: TermDataInPath) -> PathData {
     let field_config = fields_config.get(path);
     let boost_info_data = if field_config.boost.is_some() {
         Some(Box::new(BufferedIndexWriter::new_for_sorted_id_insertion(temp_dir.to_string())))
@@ -697,10 +697,10 @@ where
     persistence.write_data_offset(slice, &doc_store.offsets)?;
     persistence.meta_data.num_docs = doc_store.curr_id.into();
     persistence.meta_data.bytes_indexed = doc_store.bytes_indexed;
-    Ok(DocWriteRes{
+    Ok(DocWriteRes {
         num_doc_ids: doc_store.curr_id,
         bytes_indexed: doc_store.bytes_indexed,
-        offset: doc_store.current_offset
+        offset: doc_store.current_offset,
     })
 }
 

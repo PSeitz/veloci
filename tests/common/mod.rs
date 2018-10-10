@@ -1,9 +1,17 @@
 use search_lib::*;
 
+#[allow(dead_code)]
 pub fn create_test_persistence(folder: &str, indices: &str, test_data: &[u8], token_values: Option<(String, serde_json::Value)>) -> persistence::Persistence {
     create_test_persistence_with_logging(folder, indices, test_data, token_values, true)
 }
-pub fn create_test_persistence_with_logging(folder: &str, indices: &str, test_data: &[u8], token_values: Option<(String, serde_json::Value)>, enable_tracing:bool) -> persistence::Persistence {
+#[allow(dead_code)]
+pub fn create_test_persistence_with_logging(
+    folder: &str,
+    indices: &str,
+    test_data: &[u8],
+    token_values: Option<(String, serde_json::Value)>,
+    enable_tracing: bool,
+) -> persistence::Persistence {
     if enable_tracing {
         trace::enable_log();
     }

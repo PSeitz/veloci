@@ -109,7 +109,10 @@ pub(crate) fn should_prefer_vec(num_ids: u32, avg_join_size: f32, max_value_id: 
     prefer_vec
 }
 
-fn get_top_n_sort_from_iter<T: num::Zero + std::cmp::PartialOrd + Copy + std::fmt::Debug, K: Copy + std::fmt::Debug, I: Iterator<Item = (K, T)>>(iter: I, top_n: usize) -> Vec<(K, T)> {
+fn get_top_n_sort_from_iter<T: num::Zero + std::cmp::PartialOrd + Copy + std::fmt::Debug, K: Copy + std::fmt::Debug, I: Iterator<Item = (K, T)>>(
+    iter: I,
+    top_n: usize,
+) -> Vec<(K, T)> {
     let mut new_data: Vec<(K, T)> = vec![];
 
     let mut worst_score = T::zero();
@@ -118,7 +121,12 @@ fn get_top_n_sort_from_iter<T: num::Zero + std::cmp::PartialOrd + Copy + std::fm
             continue;
         }
 
-        check_apply_top_n_sort(&mut new_data, top_n as u32, &|a, b| b.1.partial_cmp(&a.1).unwrap_or(Ordering::Equal), &mut |the_worst: &(K,T)| worst_score = the_worst.1);
+        check_apply_top_n_sort(
+            &mut new_data,
+            top_n as u32,
+            &|a, b| b.1.partial_cmp(&a.1).unwrap_or(Ordering::Equal),
+            &mut |the_worst: &(K, T)| worst_score = the_worst.1,
+        );
 
         new_data.push((el.0, el.1));
     }
@@ -163,4 +171,3 @@ impl<T: IndexIdToParentData> AggregationCollector<T> for FnvHashMap<T, usize> {
         *stat += 1;
     }
 }
-

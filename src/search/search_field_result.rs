@@ -56,7 +56,7 @@ fn bench_search_field_iterator(b: &mut test::Bencher) {
 
 #[derive(Debug, Clone)]
 pub struct SearchFieldResultIterator<'a> {
-    data: &'a[search::Hit],
+    data: &'a [search::Hit],
     pos: usize,
     term_id: u8,
     // field_id: u8,
@@ -82,7 +82,7 @@ impl<'a> Iterator for SearchFieldResultIterator<'a> {
             None
         } else {
             let hit = &self.data[self.pos];
-            self.pos+=1;
+            self.pos += 1;
             Some(MiniHit {
                 id: hit.id,
                 term_id: self.term_id,

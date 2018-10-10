@@ -281,12 +281,9 @@ pub fn get_term_ids_in_field(persistence: &Persistence, options: &mut PlanReques
                         return;
                     }
 
-                    search::check_apply_top_n_sort(
-                        &mut result.hits_scores,
-                        top_n_search,
-                        &search::sort_by_score_and_id,
-                        &mut |the_worst: &Hit| worst_score = the_worst.score,
-                    );
+                    search::check_apply_top_n_sort(&mut result.hits_scores, top_n_search, &search::sort_by_score_and_id, &mut |the_worst: &Hit| {
+                        worst_score = the_worst.score
+                    });
                 }
                 debug!("Hit: {:?}\tid: {:?} score: {:?}", &text_or_token, token_text_id, score);
                 result.hits_scores.push(Hit::new(token_text_id, score));

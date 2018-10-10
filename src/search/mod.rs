@@ -810,8 +810,6 @@ fn merge_term_id_texts(results: &mut Vec<SearchFieldResult>) -> FnvHashMap<Strin
     term_text_in_field
 }
 
-
-
 // #[cfg(test)]
 // mod bench_union_hits_score {
 //     use super::*;
@@ -832,7 +830,6 @@ fn merge_term_id_texts(results: &mut Vec<SearchFieldResult>) -> FnvHashMap<Strin
 //         })
 //     }
 // }
-
 
 #[cfg_attr(feature = "flame_it", flame)]
 pub fn union_hits_score(mut or_results: Vec<SearchFieldResult>) -> SearchFieldResult {
