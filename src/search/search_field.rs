@@ -431,7 +431,7 @@ pub fn resolve_token_to_anchor(
                 let iter = text_id_to_anchor.get_values_iter(u64::from(*id));
                 fast_field_res_ids.reserve(iter.size_hint().1.unwrap());
                 for anchor_id in iter {
-                    //TODO ENABLE should_filter(&filter, anchor_id) ?
+                    // Should filter here is not used, the expensive lookup may not be worth it (untested)
                     fast_field_res_ids.push(anchor_id);
                 }
             }
@@ -599,6 +599,8 @@ fn distance_dfa(lower_hit: &str, dfa: &DFA, lower_term: &str) -> u8 {
 
 //TODO: FIXME This method can't compare string larger than u8 length
 fn distance(s1: &str, s2: &str) -> u8 {
+    debug_assert!(s1.len() < 256);
+    debug_assert!(s2.len() < 256);
     trace_time!("distance {:?} {:?}", s1, s2);
     if s1.len() >= 255 || s2.len() >= 255 {
         return 255;

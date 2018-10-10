@@ -4,7 +4,7 @@
     "description.text": {"features": []},
     "claims.texts[]": {"features": ["Search"]},
     "ucid": {"features": ["Search"], "fulltext":{"tokenize":false}},
-    "bibliographic-data.further-classifications[]": {"features": ["Search"], "facets":true},
-    "bibliographic-data.inventors[]": {"features": ["Search"], "facets":true},
+    "bibliographic-data.further-classifications[]": {"features": ["Search"], "facet":true},
+    "bibliographic-data.inventors[]": {"features": ["Search"], "facet":true},
     "bibliographic-data.invention-title": {"features": ["Search"]}
 }
