@@ -12,11 +12,11 @@ use std::path::Path;
 pub(crate) fn normalize_text(text: &str) -> String {
     lazy_static! {
         static ref REGEXES:Vec<(Regex, & 'static str)> = vec![
-            (Regex::new(r"\([fmn\d]\)").unwrap(), " "),
-            (Regex::new(r"[\(\)]").unwrap(), " "),  // remove braces
-            (Regex::new(r#"[{}'"“]"#).unwrap(), ""), // remove ' " {}
-            (Regex::new(r"\s\s+").unwrap(), " "), // replace tabs, newlines, double spaces with single spaces
-            (Regex::new(r"[,.…;・’-]").unwrap(), "")  // remove , .;・’-
+            (Regex::new(r"\([fmn\d]\)").expect("Could not create regex"), " "),
+            (Regex::new(r"[\(\)]").expect("Could not create regex"), " "),  // remove braces
+            (Regex::new(r#"[{}'"“]"#).expect("Could not create regex"), ""), // remove ' " {}
+            (Regex::new(r"\s\s+").expect("Could not create regex"), " "), // replace tabs, newlines, double spaces with single spaces
+            (Regex::new(r"[,.…;・’-]").expect("Could not create regex"), "")  // remove , .;・’-
         ];
 
     }

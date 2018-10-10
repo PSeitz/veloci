@@ -182,11 +182,12 @@ fn calculate_and_add_token_score_in_doc(
     });
 
     for (_, mut group) in &tokens_to_anchor_id.into_iter().group_by(|el| el.token_or_text_id) {
-        let first = group.next().unwrap();
-        let best_pos = first.token_pos;
-        let num_occurences = first.num_occurences;
-        let score = calculate_token_score_for_entry(best_pos, num_occurences, num_tokens_in_text, false);
-        index.add(first.token_or_text_id, (anchor_id, score))?;
+        if let Some(first) = group.next() {
+            let best_pos = first.token_pos;
+            let num_occurences = first.num_occurences;
+            let score = calculate_token_score_for_entry(best_pos, num_occurences, num_tokens_in_text, false);
+            index.add(first.token_or_text_id, (anchor_id, score))?;
+        }
     }
     Ok(())
 }
@@ -1258,8 +1259,8 @@ struct TokenValueData {
 }
 use crate::execution_plan::PlanRequestSearchPart;
 pub fn add_token_values_to_tokens(persistence: &mut Persistence, data_str: &str, config: &str) -> Result<(), VelociError> {
-    let data: Vec<TokenValueData> = serde_json::from_str(data_str).unwrap();
-    let config: TokenValuesConfig = serde_json::from_str(config).unwrap();
+    let data: Vec<TokenValueData> = serde_json::from_str(data_str)?;
+    let config: TokenValuesConfig = serde_json::from_str(config)?;
 
     let mut options: search::RequestSearchPart = search::RequestSearchPart {
         path: config.path.clone(),
@@ -1270,25 +1271,24 @@ pub fn add_token_values_to_tokens(persistence: &mut Persistence, data_str: &str,
     let mut buffered_index_data = BufferedIndexWriter::new_unstable_sorted(persistence.temp_dir());
 
     for el in data {
-        if el.value.is_none() {
-            continue;
-        }
-        options.terms = vec![el.text];
-        options.ignore_case = Some(false);
+        if let Some(value) = el.value {
+            options.terms = vec![el.text];
+            options.ignore_case = Some(false);
 
-        let mut options = PlanRequestSearchPart {
-            request: options.clone(),
-            get_scores: true,
-            ..Default::default()
-        };
+            let mut options = PlanRequestSearchPart {
+                request: options.clone(),
+                get_scores: true,
+                ..Default::default()
+            };
 
-        let hits = search_field::get_term_ids_in_field(persistence, &mut options)?;
-        if !hits.hits_scores.is_empty() {
-            // tuples.push(ValIdToValue {
-            //     valid: hits.hits_scores[0].id,
-            //     value: el.value.unwrap(),
-            // });
-            buffered_index_data.add(hits.hits_scores[0].id, el.value.unwrap())?;
+            let hits = search_field::get_term_ids_in_field(persistence, &mut options)?;
+            if !hits.hits_scores.is_empty() {
+                // tuples.push(ValIdToValue {
+                //     valid: hits.hits_scores[0].id,
+                //     value: el.value.unwrap(),
+                // });
+                buffered_index_data.add(hits.hits_scores[0].id, value)?;
+            }
         }
     }
 
@@ -1368,13 +1368,13 @@ pub fn create_indices_from_file(
     create_cache: Option<CreateCache>,
     load_persistence: bool,
 ) -> Result<(CreateCache), VelociError> {
-    let stream1 = std::io::BufReader::new(File::open(data_path).unwrap()).fast_lines();
+    let stream1 = std::io::BufReader::new(File::open(data_path)?).fast_lines();
     // .lines()
-    // .map(|line| serde_json::from_str(&line.unwrap()));
-    let stream2 = std::io::BufReader::new(File::open(data_path).unwrap()).fast_lines();
+    // .map(|line| serde_json::from_str(&line?));
+    let stream2 = std::io::BufReader::new(File::open(data_path)?).fast_lines();
     // .lines()
-    // .map(|line| serde_json::from_str(&line.unwrap()));
-    let stream3 = std::io::BufReader::new(File::open(data_path).unwrap()).lines().map(|line| line.unwrap());
+    // .map(|line| serde_json::from_str(&line?));
+    let stream3 = std::io::BufReader::new(File::open(data_path)?).lines().map(|line| line.unwrap());
 
     create_indices_from_streams(persistence, stream1, stream2, stream3, indices, create_cache, load_persistence)
 }

@@ -18,6 +18,10 @@ pub enum VelociError {
     Io(io::Error),
     #[fail(display = "Invalid Config: '{:?}'", _0)]
     InvalidConfig(String),
+    #[fail(display = "Missing text_id {:?} in index {}, therefore could not load text", text_value_id, field_name)]
+    MissingTextId{text_value_id:u32, field_name:String},
+    #[fail(display = "field does not exist {} (fst not found)", _0)]
+    FstNotFound(String),
 }
 
 impl From<io::Error> for VelociError {

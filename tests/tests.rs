@@ -389,10 +389,8 @@ fn should_return_an_error_when_trying_to_query_an_invalid_field() {
     let requesto: search::Request = serde_json::from_str(&req.to_string()).expect("Can't parse json");
     let hits = search_to_hits!(requesto);
 
-    match hits {
-        Err(error::VelociError::StringError(el)) => assert_eq!(el, "fst not found loaded in indices notexisting.textindex ".to_string()),
-        _ => panic!("YESO"),
-    }
+    assert_eq!(format!("{}", hits.unwrap_err()), "field does not exist notexisting.textindex (fst not found)".to_string())
+
 }
 
 #[test]

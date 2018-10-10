@@ -98,12 +98,12 @@ impl IndexIdToOneParentFlushing {
 
         self.current_id_offset += self.cache.len() as u32;
 
-        let mut data = std::fs::OpenOptions::new().read(true).write(true).append(true).create(true).open(&self.path).unwrap();
+        let mut data = std::fs::OpenOptions::new().read(true).write(true).append(true).create(true).open(&self.path)?;
 
         let bytes_required = get_bytes_required(self.metadata.max_value_id);
 
         let mut bytes = vec![];
-        encode_vals(&self.cache, bytes_required, &mut bytes).unwrap();
+        encode_vals(&self.cache, bytes_required, &mut bytes)?;
         data.write_all(&bytes)?;
 
         self.metadata.avg_join_size = calc_avg_join_size(self.metadata.num_values, self.current_id_offset + self.cache.len() as u32);
@@ -264,10 +264,10 @@ impl<T: IndexIdToParentData, K: IndexIdToParentData> IndexIdToParent for SingleA
         let val = self.data.get(id as usize);
         match val {
             Some(val) => {
-                if val.to_u32().unwrap() == EMPTY_BUCKET {
+                if val.to_u32().expect(&format!("could not cast to u32 {:?}", val)) == EMPTY_BUCKET {
                     None
                 } else {
-                    Some(num::cast(*val - K::one()).unwrap())
+                    Some(num::cast(*val - K::one()).expect(&format!("could not cast to u32 {:?}", *val - K::one())))
                 }
             }
             None => None,
@@ -314,7 +314,7 @@ impl<T: IndexIdToParentData> SingleArrayMMAPPacked<T> {
     // }
 
     pub fn from_file(file: &File, metadata: IndexMetaData) -> Result<Self, VelociError> {
-        let data_file = unsafe { MmapOptions::new().map(&file).unwrap() };
+        let data_file = unsafe { MmapOptions::new().map(&file)? };
         Ok(SingleArrayMMAPPacked {
             data_file,
             size: file.metadata()?.len() as usize / get_bytes_required(metadata.max_value_id) as usize,
@@ -324,7 +324,7 @@ impl<T: IndexIdToParentData> SingleArrayMMAPPacked<T> {
         })
     }
     // pub fn from_path(path: &str, metadata: IndexMetaData) -> Result<Self, VelociError> {
-    //     let data_file = unsafe { MmapOptions::new().map(&open_file(path)?).unwrap() };
+    //     let data_file = unsafe { MmapOptions::new().map(&open_file(path)?)? };
     //     Ok(SingleArrayMMAPPacked {
     //         data_file,
     //         size: File::open(path)?.metadata()?.len() as usize / get_bytes_required(metadata.max_value_id) as usize,

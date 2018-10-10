@@ -1506,11 +1506,7 @@ fn join_and_get_text_for_ids(persistence: &Persistence, id: u32, prop: &str) -> 
                     .collect::<Vec<_>>()
                     .concat()
             } else {
-                return Err(VelociError::StringError(format!(
-                    "Missing text_id {:?} in index {:?}, therefore could not load text",
-                    text_value_id,
-                    field_name.add(TEXT_ID_TO_TOKEN_IDS)
-                )));
+                return Err(VelociError::MissingTextId{text_value_id, field_name:field_name.add(TEXT_ID_TO_TOKEN_IDS)} );
             }
         } else {
             get_text_for_id(persistence, &field_name, text_value_id)

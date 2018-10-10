@@ -383,7 +383,7 @@ impl Persistence {
         info_time!("loaded persistence {:?}", &self.db);
 
         let doc_offsets_file = self.get_file_handle("data.offsets")?;
-        let doc_offsets_mmap = unsafe { MmapOptions::new().map(&doc_offsets_file).unwrap() };
+        let doc_offsets_mmap = unsafe { MmapOptions::new().map(&doc_offsets_file)? };
         self.indices.doc_offsets = Some(doc_offsets_mmap);
 
         //ANCHOR TO SCORE
@@ -421,12 +421,12 @@ impl Persistence {
                         LoadingType::InMemory => match el.id_type {
                             IDDataType::U32 => {
                                 let mut store = TokenToAnchorScoreVintIM::<u32>::default();
-                                store.read(&indirect_path, &indirect_data_path).unwrap();
+                                store.read(&indirect_path, &indirect_data_path)?;
                                 Box::new(store)
                             }
                             IDDataType::U64 => {
                                 let mut store = TokenToAnchorScoreVintIM::<u64>::default();
-                                store.read(&indirect_path, &indirect_data_path).unwrap();
+                                store.read(&indirect_path, &indirect_data_path)?;
                                 Box::new(store)
                             }
                         },

@@ -86,7 +86,7 @@ where
         .indices
         .fst
         .get(&options.path)
-        .ok_or_else(|| VelociError::StringError(format!("fst not found loaded in indices {} ", options.path)))?;
+        .ok_or_else(|| VelociError::FstNotFound(options.path.to_string()))?;
     let lev = {
         trace_time!("{} LevenshteinIC create", &options.path);
         let lev_automaton_builder = LevenshteinAutomatonBuilder::new(options.levenshtein_distance.unwrap_or(0) as u8, options.ignore_case.unwrap_or(true));
