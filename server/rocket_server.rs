@@ -453,7 +453,7 @@ fn process_upload(boundary: &str, data: Data) -> Result<(String, Option<String>)
 
             process_entries(partial.entries)
         }
-        Error(e) => return Err(search_lib::VelociError::Io(e)),
+        Error(e) => return Err(VelociError::Io(e)),
     }
 
     // Ok(out)
