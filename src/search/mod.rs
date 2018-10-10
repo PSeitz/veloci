@@ -818,119 +818,21 @@ fn merge_term_id_texts(results: &mut Vec<SearchFieldResult>) -> FnvHashMap<Strin
 //     use crate::test;
 //     #[bench]
 //     fn bench_boost_intersect_hits_vec_multi(b: &mut test::Bencher) {
-//         let hits1: Vec<Hit> = SearchFieldResult {hits_scores:(0..4_000_00).map(|i| Hit::new(i * 5 as u32, 1.2 as f32)).collect(), ..Default::default()};
-//         let hits2: Vec<Hit> = SearchFieldResult {hits_scores:(0..40_000).map(|i| Hit::new(i * 3 as u32, 4.2 as f32)).collect(), ..Default::default()};
-//         let hits3: Vec<Hit> = SearchFieldResult {hits_scores:(0..120_000).map(|i| Hit::new(i * 13 as u32, 3.2 as f32)).collect(), ..Default::default()};
-//         let hits4: Vec<Hit> = SearchFieldResult {hits_scores:(0..300_000).map(|i| Hit::new(i * 3 as u32, 2.9 as f32)).collect(), ..Default::default()};
+//         let req = RequestSearchPart{terms:vec!["a".to_string()], ..Default::default()};
+//         let hits1 = SearchFieldResult {hits_scores:(0..4_000_00).map(|i| Hit::new(i * 5 as u32, 1.2 as f32)).collect(), request:req.clone(), ..Default::default()};
+//         let hits2 = SearchFieldResult {hits_scores:(0..40_000).map(|i| Hit::new(i * 3 as u32, 4.2 as f32)).collect(), request:req.clone(), ..Default::default()};
+//         let hits3 = SearchFieldResult {hits_scores:(0..120_000).map(|i| Hit::new(i * 13 as u32, 3.2 as f32)).collect(), request:req.clone(), ..Default::default()};
+//         let hits4 = SearchFieldResult {hits_scores:(0..300_000).map(|i| Hit::new(i * 3 as u32, 2.9 as f32)).collect(), request:req.clone(), ..Default::default()};
 
-//         let results:Vec<_> = vec![hits1, hits2, hits3, hits4].into_iter().map(|hits_scores|SearchFieldResult {hits_scores, ..Default::default() }).collect();
+//         // let results:Vec<_> = vec![hits1, hits2, hits3, hits4].into_iter().map(|hits_scores|SearchFieldResult {hits_scores, ..Default::default() }).collect();
+//         let results:Vec<_> = vec![hits1, hits2, hits3, hits4];
 
 //         b.iter(|| {
-//             union_hits_score_merge(&results)
+//             union_hits_score(results)
 //         })
 //     }
 // }
 
-
-
-// #[cfg_attr(feature = "flame_it", flame)]
-// fn union_hits_score_merge(or_results: &Vec<SearchFieldResult>) -> SearchFieldResult {
-//     let index_longest: usize = get_longest_result(&or_results.iter().map(|el| el.hits_scores.iter()).collect::<Vec<_>>());
-
-//     let longest_len = or_results[index_longest].hits_scores.len() as f32;
-//     let len_total: usize = or_results.iter().map(|el| el.hits_scores.len()).sum();
-//     let sum_other_len = len_total as f32 - longest_len;
-
-
-//     let explain = or_results[0].request.explain;
-
-//     let mut terms = or_results.iter().map(|res| res.request.terms[0].to_string()).collect::<Vec<_>>();
-//     terms.sort();
-//     terms.dedup();
-
-//     let mut fields = or_results.iter().map(|res| res.request.path.to_string()).collect::<Vec<_>>();
-//     fields.sort();
-//     fields.dedup();
-//     info!("or connect search terms {:?}", terms);
-
-//     let mut union_hits = Vec::with_capacity(longest_len as usize + sum_other_len as usize / 2);
-//     let mut explain_hits = FnvHashMap::default();
-//     {
-//         let iterators: Vec<_> = or_results
-//             .iter()
-//             .map(|res| {
-//                 let term_id = terms.iter().position(|ref x| x == &&res.request.terms[0]).unwrap() as u8; //TODO This could be term ids for AND search results
-//                 let field_id = fields.iter().position(|ref x| x == &&res.request.path).unwrap() as u8;
-//                 // res.hits_scores.iter().map(move |el| (el.hit, f16::from_f32(el.score), term_id, field_id))
-
-//                 res.iter(term_id, field_id)
-
-//                 // res.hits_scores.iter().map(move |hit| MiniHit {
-//                 //     id: hit.id,
-//                 //     score: f16::from_f32(hit.score),
-//                 //     term_id: term_id,
-//                 //     field_id: field_id,
-//                 // })
-//             })
-//             .collect();
-
-//         // let mergo = iterators.into_iter().kmerge_by(|a, b| a.1.id < b.1.id);
-//         let mergo = iterators.into_iter().kmerge_by(|a, b| a.id < b.id);
-
-//         // let mergo = kmerge_by::kmerge_by(iterators.into_iter(), |a, b| a.id < b.id);
-//         // let mergo = kmerge_by::kmerge_by(iterators.into_iter(), |a, b| a.id < b.id);
-
-//         debug_time!("union hits kmerge");
-
-//         let mut max_scores_per_term: Vec<f32> = vec![];
-//         max_scores_per_term.resize(terms.len(), 0.0);
-//         // let mut field_id_hits = 0;
-//         for (id, group) in &mergo.group_by(|el| el.id) {
-//             //reset scores to 0
-//             for el in &mut max_scores_per_term {
-//                 *el = 0.;
-//             }
-//             for el in group {
-//                 max_scores_per_term[el.term_id as usize] = max_scores_per_term[el.term_id as usize].max(el.score.to_f32());
-//             }
-
-//             // let num_distinct_terms = term_id_hits.count_ones() as f32;
-//             let num_distinct_terms = max_scores_per_term.iter().filter(|el| *el >= &0.00001).count() as f32;
-//             // sum_score = sum_score * num_distinct_terms * num_distinct_terms;
-
-//             let sum_over_distinct_with_distinct_term_boost = max_scores_per_term.iter().sum::<f32>() as f32 * num_distinct_terms * num_distinct_terms;
-//             union_hits.push(Hit::new(id, sum_over_distinct_with_distinct_term_boost));
-//             if explain {
-//                 let explain = explain_hits.entry(id).or_insert_with(|| vec![]);
-//                 // explain.push(format!("or sum_over_distinct_terms {:?}", max_scores_per_term.iter().sum::<f32>() as f32));
-//                 explain.push(Explain::OrSumOverDistinctTerms(max_scores_per_term.iter().sum::<f32>() as f32));
-//                 if num_distinct_terms > 1. {
-//                     // explain.push(format!("num_distinct_terms boost {:?} to {:?}", num_distinct_terms * num_distinct_terms, sum_over_distinct_with_distinct_term_boost));
-//                     // explain.push(Explain::NumDistinctTermsBoost{distinct_boost:num_distinct_terms * num_distinct_terms, new_score:sum_over_distinct_with_distinct_term_boost});
-//                 }
-//             }
-//         }
-//     }
-
-//     if explain {
-//         for hit in union_hits.iter() {
-//             for res in or_results.iter() {
-//                 if let Some(exp) = res.explain.get(&hit.id) {
-//                     let explain = explain_hits.entry(hit.id).or_insert_with(|| vec![]);
-//                     explain.extend_from_slice(exp);
-//                 }
-//             }
-//         }
-//     }
-
-//     SearchFieldResult {
-//         hits_scores: union_hits,
-//         explain: explain_hits,
-//         request: or_results[0].request.clone(), // set this to transport fields like explain
-//         ..Default::default()
-//     }
-
-// }
 
 #[cfg_attr(feature = "flame_it", flame)]
 pub fn union_hits_score(mut or_results: Vec<SearchFieldResult>) -> SearchFieldResult {

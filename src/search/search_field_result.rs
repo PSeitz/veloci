@@ -47,7 +47,6 @@ use crate::test;
 #[bench]
 fn bench_search_field_iterator(b: &mut test::Bencher) {
     let mut res = SearchFieldResult::default();
-    panic!("SearchFieldResultIterator2 {:?} SearchFieldResultIterator {:?}", std::mem::size_of::<SearchFieldResultIterator2>(), std::mem::size_of::<SearchFieldResultIterator>());
     res.hits_scores = (0..6_000_000).map(|el| search::Hit::new(el, 1.0)).collect();
     b.iter(|| {
         let iter = res.iter(0, 1);
@@ -102,60 +101,6 @@ impl<'a> ExactSizeIterator for SearchFieldResultIterator<'a> {
 }
 
 impl<'a> FusedIterator for SearchFieldResultIterator<'a> {}
-
-#[derive(Debug, Clone)]
-pub struct SearchFieldResultIterator2<'a> {
-    _marker: std::marker::PhantomData<&'a search::Hit>,
-    ptr: *const search::Hit,
-    end: *const search::Hit,
-    term_id: u8,
-    // field_id: u8,
-}
-
-
-
-
-// impl<'a> Iterator for SearchFieldResultIterator<'a> {
-//     type Item = MiniHit;
-
-//     #[inline]
-//     fn count(self) -> usize {
-//         self.size_hint().0
-//     }
-
-//     #[inline]
-//     fn size_hint(&self) -> (usize, Option<usize>) {
-//         let exact = unsafe { self.end.offset_from(self.ptr) as usize };
-//         (exact, Some(exact))
-//     }
-
-//     #[inline]
-//     fn next(&mut self) -> Option<MiniHit> {
-//         if self.ptr as *const _ == self.end {
-//             None
-//         } else {
-//             let old = self.ptr;
-//             self.ptr = unsafe { self.ptr.offset(1) };
-//             let hit = unsafe { ptr::read(old) };
-
-//             Some(MiniHit {
-//                 id: hit.id,
-//                 term_id: self.term_id,
-//                 score: f16::from_f32(hit.score),
-//                 // field_id: self.field_id,
-//             })
-//         }
-//     }
-// }
-
-// impl<'a> ExactSizeIterator for SearchFieldResultIterator<'a> {
-//     #[inline]
-//     fn len(&self) -> usize {
-//         unsafe { self.end.offset_from(self.ptr) as usize }
-//     }
-// }
-
-// impl<'a> FusedIterator for SearchFieldResultIterator<'a> {}
 
 #[derive(Debug, Clone)]
 pub struct MiniHit {
