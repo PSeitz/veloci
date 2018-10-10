@@ -5,6 +5,7 @@ pub mod stopwords;
 use self::search_field::*;
 pub use self::search_field_result::*;
 use super::highlight_field;
+use crate::error::VelociError;
 use crate::execution_plan::*;
 use crate::expression::ScoreExpression;
 use crate::facet;
@@ -13,13 +14,12 @@ use crate::util::*;
 use json_converter;
 
 use std::cmp::Ordering;
-use std::{self, cmp, f32, fmt, io, mem, str, u32};
+use std::{self, cmp, f32, mem, str, u32};
 
 use crate::persistence::Persistence;
 use crate::persistence::*;
 use doc_store::DocLoader;
 use fnv::{FnvHashMap, FnvHashSet};
-use fst;
 use itertools::Itertools;
 use ordered_float::OrderedFloat;
 use rayon::prelude::*;
@@ -396,7 +396,7 @@ pub fn to_search_result(persistence: &Persistence, hits: SearchResult, select: &
     }
 }
 
-// pub fn get_search_result(persistence: &Persistence, request: Request) -> Result<SearchResultWithDoc, SearchError> {
+// pub fn get_search_result(persistence: &Persistence, request: Request) -> Result<SearchResultWithDoc, VelociError> {
 //     let select = request.select.clone();
 //     let res = search(request, &persistence)?;
 //     Ok(to_search_result(&persistence, res, &select))
@@ -411,7 +411,7 @@ fn get_why_found(
     persistence: &Persistence,
     anchor_ids: &[u32],
     term_id_hits_in_field: &FnvHashMap<String, FnvHashMap<String, Vec<TermId>>>,
-) -> Result<FnvHashMap<u32, FnvHashMap<String, Vec<String>>>, SearchError> {
+) -> Result<FnvHashMap<u32, FnvHashMap<String, Vec<String>>>, VelociError> {
     debug!("why_found info {:?}", term_id_hits_in_field);
     info_time!("why_found");
     let mut anchor_highlights: FnvHashMap<_, FnvHashMap<_, Vec<_>>> = FnvHashMap::default();
@@ -448,12 +448,12 @@ fn get_why_found(
 }
 
 #[inline]
-fn boost_text_locality_all(persistence: &Persistence, term_id_hits_in_field: &mut FnvHashMap<String, FnvHashMap<String, Vec<TermId>>>) -> Result<(Vec<Hit>), SearchError> {
+fn boost_text_locality_all(persistence: &Persistence, term_id_hits_in_field: &mut FnvHashMap<String, FnvHashMap<String, Vec<TermId>>>) -> Result<(Vec<Hit>), VelociError> {
     debug!("boost_text_locality_all {:?}", term_id_hits_in_field);
     info_time!("boost_text_locality_all");
     let mut boost_anchor: Vec<Hit> = vec![];
 
-    let r: Result<Vec<_>, SearchError> = term_id_hits_in_field
+    let r: Result<Vec<_>, VelociError> = term_id_hits_in_field
         .into_par_iter()
         .map(|(path, term_with_ids)| boost_text_locality(persistence, path, term_with_ids))
         .collect();
@@ -469,7 +469,7 @@ fn boost_text_locality_all(persistence: &Persistence, term_id_hits_in_field: &mu
     Ok(boost_anchor)
 }
 
-fn boost_text_locality(persistence: &Persistence, path: &str, search_term_to_text_ids: &mut FnvHashMap<String, Vec<TermId>>) -> Result<(Vec<Hit>), SearchError> {
+fn boost_text_locality(persistence: &Persistence, path: &str, search_term_to_text_ids: &mut FnvHashMap<String, Vec<TermId>>) -> Result<(Vec<Hit>), VelociError> {
     let mut boost_anchor = vec![];
     if search_term_to_text_ids.len() <= 1 {
         // No boost for single term hits
@@ -562,7 +562,7 @@ pub(crate) fn check_apply_top_n_sort<T: std::fmt::Debug>(new_data: &mut Vec<T>, 
 }
 
 #[cfg_attr(feature = "flame_it", flame)]
-pub fn search(mut request: Request, persistence: &Persistence) -> Result<SearchResult, SearchError> {
+pub fn search(mut request: Request, persistence: &Persistence) -> Result<SearchResult, VelociError> {
     info_time!("search");
     request.top = request.top.or(Some(10));
     request.skip = request.skip;
@@ -643,7 +643,7 @@ pub fn search(mut request: Request, persistence: &Persistence) -> Result<SearchR
 }
 
 #[cfg_attr(feature = "flame_it", flame)]
-pub fn apply_boost_term(persistence: &Persistence, mut res: SearchFieldResult, boost_term: &[RequestSearchPart]) -> Result<SearchFieldResult, SearchError> {
+pub fn apply_boost_term(persistence: &Persistence, mut res: SearchFieldResult, boost_term: &[RequestSearchPart]) -> Result<SearchFieldResult, VelociError> {
     info_time!("boost_term");
     {
         persistence.term_boost_cache.write().get(boost_term); //poke
@@ -726,7 +726,7 @@ pub fn apply_boost_term(persistence: &Persistence, mut res: SearchFieldResult, b
     }
 
     if !from_cache {
-        let r: Result<Vec<_>, SearchError> = boost_term
+        let r: Result<Vec<_>, VelociError> = boost_term
             .to_vec()
             .into_par_iter()
             .map(|boost_term_req: RequestSearchPart| {
@@ -1419,7 +1419,7 @@ mod bench_intersect {
 // }
 
 #[cfg_attr(feature = "flame_it", flame)]
-pub fn add_boost(persistence: &Persistence, boost: &RequestBoostPart, hits: &mut SearchFieldResult) -> Result<(), SearchError> {
+pub fn add_boost(persistence: &Persistence, boost: &RequestBoostPart, hits: &mut SearchFieldResult) -> Result<(), VelociError> {
     // let key = util::boost_path(&boost.path);
     let boost_path = boost.path.to_string() + BOOST_VALID_TO_VALUE;
     let boostkv_store = persistence.get_boost(&boost_path)?;
@@ -1490,69 +1490,9 @@ pub fn add_boost(persistence: &Persistence, boost: &RequestBoostPart, hits: &mut
     Ok(())
 }
 
-#[derive(Debug)]
-pub enum SearchError {
-    Io(io::Error),
-    StringError(String),
-    MetaData(serde_json::Error),
-    Utf8Error(std::str::Utf8Error),
-    FstError(fst::Error),
-}
-// Automatic Conversion
-impl From<io::Error> for SearchError {
-    fn from(err: io::Error) -> SearchError {
-        SearchError::Io(err)
-    }
-}
-impl From<serde_json::Error> for SearchError {
-    fn from(err: serde_json::Error) -> SearchError {
-        SearchError::MetaData(err)
-    }
-}
-impl From<std::str::Utf8Error> for SearchError {
-    fn from(err: std::str::Utf8Error) -> SearchError {
-        SearchError::Utf8Error(err)
-    }
-}
-impl From<fst::Error> for SearchError {
-    fn from(err: fst::Error) -> SearchError {
-        SearchError::FstError(err)
-    }
-}
-
-impl From<String> for SearchError {
-    fn from(err: String) -> SearchError {
-        SearchError::StringError(err)
-    }
-}
-
-impl<'a> From<&'a str> for SearchError {
-    fn from(err: &'a str) -> SearchError {
-        SearchError::StringError(err.to_string())
-    }
-}
-
-pub use std::error::Error;
-
-impl fmt::Display for SearchError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
-        write!(f, "\n{}", self)?;
-        Ok(())
-    }
-}
-
-impl Error for SearchError {
-    fn cause(&self) -> Option<&dyn Error> {
-        None
-    }
-
-    fn description(&self) -> &str {
-        "self.error.description()"
-    }
-}
 
 #[inline]
-fn join_and_get_text_for_ids(persistence: &Persistence, id: u32, prop: &str) -> Result<Option<String>, SearchError> {
+fn join_and_get_text_for_ids(persistence: &Persistence, id: u32, prop: &str) -> Result<Option<String>, VelociError> {
     // TODO CHECK field_name exists previously
     let field_name = prop.add(TEXTINDEX);
     let text_value_id_opt = join_for_1_to_1(persistence, id, &field_name.add(PARENT_TO_VALUE_ID))?;
@@ -1566,7 +1506,7 @@ fn join_and_get_text_for_ids(persistence: &Persistence, id: u32, prop: &str) -> 
                     .collect::<Vec<_>>()
                     .concat()
             } else {
-                return Err(SearchError::StringError(format!(
+                return Err(VelociError::StringError(format!(
                     "Missing text_id {:?} in index {:?}, therefore could not load text",
                     text_value_id,
                     field_name.add(TEXT_ID_TO_TOKEN_IDS)
@@ -1582,13 +1522,13 @@ fn join_and_get_text_for_ids(persistence: &Persistence, id: u32, prop: &str) -> 
     }
 }
 
-pub fn read_data(persistence: &Persistence, id: u32, fields: &[String]) -> Result<serde_json::Value, SearchError> {
+pub fn read_data(persistence: &Persistence, id: u32, fields: &[String]) -> Result<serde_json::Value, VelociError> {
     let tree = get_read_tree_from_fields(persistence, fields);
     read_tree(persistence, id, &tree)
 }
 
 #[cfg_attr(feature = "flame_it", flame)]
-pub fn read_tree(persistence: &Persistence, id: u32, tree: &NodeTree) -> Result<serde_json::Value, SearchError> {
+pub fn read_tree(persistence: &Persistence, id: u32, tree: &NodeTree) -> Result<serde_json::Value, VelociError> {
     let mut json = json!({});
     match *tree {
         NodeTree::Map(ref map) => {
@@ -1647,7 +1587,7 @@ pub fn get_read_tree_from_fields(persistence: &Persistence, fields: &[String]) -
 }
 
 #[cfg_attr(feature = "flame_it", flame)]
-pub fn join_to_parent_with_score(persistence: &Persistence, input: &SearchFieldResult, path: &str, _trace_time_info: &str) -> Result<SearchFieldResult, SearchError> {
+pub fn join_to_parent_with_score(persistence: &Persistence, input: &SearchFieldResult, path: &str, _trace_time_info: &str) -> Result<SearchFieldResult, VelociError> {
     let mut total_values = 0;
     let num_hits = input.hits_scores.len();
 
@@ -1682,7 +1622,7 @@ pub fn join_to_parent_with_score(persistence: &Persistence, input: &SearchFieldR
 }
 
 // #[cfg_attr(feature = "flame_it", flame)]
-// pub(crate) fn join_for_read(persistence: &Persistence, input: Vec<u32>, path: &str) -> Result<FnvHashMap<u32, Vec<u32>>, SearchError> {
+// pub(crate) fn join_for_read(persistence: &Persistence, input: Vec<u32>, path: &str) -> Result<FnvHashMap<u32, Vec<u32>>, VelociError> {
 //     let mut hits: FnvHashMap<u32, Vec<u32>> = FnvHashMap::default();
 //     let kv_store = persistence.get_valueid_to_parent(path)?;
 //     // debug_time!("term hits hit to column");
@@ -1700,13 +1640,13 @@ pub fn join_to_parent_with_score(persistence: &Persistence, input: &SearchFieldR
 // }
 
 #[cfg_attr(feature = "flame_it", flame)]
-pub fn join_for_1_to_1(persistence: &Persistence, value_id: u32, path: &str) -> Result<std::option::Option<u32>, SearchError> {
+pub fn join_for_1_to_1(persistence: &Persistence, value_id: u32, path: &str) -> Result<std::option::Option<u32>, VelociError> {
     let kv_store = persistence.get_valueid_to_parent(path)?;
     // trace!("path {:?} id {:?} resulto {:?}", path, value_id, kv_store.get_value(value_id as u64));
     Ok(kv_store.get_value(u64::from(value_id)))
 }
 #[cfg_attr(feature = "flame_it", flame)]
-pub fn join_for_1_to_n(persistence: &Persistence, value_id: u32, path: &str) -> Result<Option<Vec<u32>>, SearchError> {
+pub fn join_for_1_to_n(persistence: &Persistence, value_id: u32, path: &str) -> Result<Option<Vec<u32>>, VelociError> {
     let kv_store = persistence.get_valueid_to_parent(path)?;
     Ok(kv_store.get_values(u64::from(value_id)))
 }

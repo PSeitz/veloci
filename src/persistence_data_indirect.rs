@@ -1,13 +1,15 @@
-use crate::util::*;
+
 use heapsize::HeapSizeOf;
 use lru_time_cache::LruCache;
 
 use byteorder::{LittleEndian, ReadBytesExt};
 
 use crate::persistence::*;
-use crate::type_info::TypeInfo;
-
 use crate::facet::*;
+use crate::util::*;
+use crate::type_info::TypeInfo;
+use crate::error::VelociError;
+
 use num;
 use num::cast::ToPrimitive;
 use std;
@@ -90,7 +92,7 @@ impl IndexIdToMultipleParentIndirectFlushingInOrderVint {
         store
     }
 
-    pub fn into_store(mut self) -> Result<Box<dyn IndexIdToParent<Output = u32>>, search::SearchError> {
+    pub fn into_store(mut self) -> Result<Box<dyn IndexIdToParent<Output = u32>>, VelociError> {
         if self.is_in_memory() {
             Ok(Box::new(self.into_im_store()))
         } else {
@@ -304,9 +306,6 @@ impl<T: IndexIdToParentData> IndexIdToParent for IndexIdToMultipleParentIndirect
     }
 }
 
-use crate::search;
-use crate::util::open_file;
-
 #[derive(Debug)]
 pub struct PointingMMAPFileReader<T: IndexIdToParentData> {
     pub start_pos: Mmap,
@@ -322,7 +321,7 @@ impl<T: IndexIdToParentData> PointingMMAPFileReader<T> {
         self.size
     }
 
-    pub fn from_path(path: &str, metadata: IndexMetaData) -> Result<Self, search::SearchError> {
+    pub fn from_path(path: &str, metadata: IndexMetaData) -> Result<Self, VelociError> {
         let start_pos = unsafe { MmapOptions::new().map(&open_file(path.to_string() + ".indirect")?).unwrap() };
         let data = unsafe { MmapOptions::new().map(&open_file(path.to_string() + ".data")?).unwrap() };
         Ok(PointingMMAPFileReader {

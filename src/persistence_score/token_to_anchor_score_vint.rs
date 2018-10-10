@@ -3,7 +3,7 @@ use crate::util::*;
 use super::*;
 use vint::vint_encode_most_common::*;
 
-use crate::search;
+use crate::error::VelociError;
 use itertools::Itertools;
 use std;
 use std::io;
@@ -126,7 +126,7 @@ impl<T: AnchorScoreDataSize> TokenToAnchorScoreVintFlushing<T> {
         self.current_id_offset == 0
     }
 
-    pub fn into_store(mut self) -> Result<Box<dyn TokenToAnchorScore>, search::SearchError> {
+    pub fn into_store(mut self) -> Result<Box<dyn TokenToAnchorScore>, VelociError> {
         if self.is_in_memory() {
             Ok(Box::new(self.into_im_store()))
         } else {
@@ -142,7 +142,7 @@ impl<T: AnchorScoreDataSize> TokenToAnchorScoreVintFlushing<T> {
         }
     }
 
-    pub fn into_mmap(self) -> Result<(TokenToAnchorScoreVintMmap<T>), search::SearchError> {
+    pub fn into_mmap(self) -> Result<(TokenToAnchorScoreVintMmap<T>), VelociError> {
         //TODO MAX VALUE ID IS NOT SET
         Ok(TokenToAnchorScoreVintMmap::from_path(&self.indirect_path, &self.data_path)?)
     }
@@ -178,7 +178,7 @@ impl<T: AnchorScoreDataSize> TokenToAnchorScoreVintIM<T> {
         self.start_pos.len()
     }
 
-    pub(crate) fn read<P: AsRef<Path> + std::fmt::Debug>(&mut self, path_indirect: P, path_data: P) -> Result<(), search::SearchError> {
+    pub(crate) fn read<P: AsRef<Path> + std::fmt::Debug>(&mut self, path_indirect: P, path_data: P) -> Result<(), VelociError> {
         //TODO THIS IS WEIRD
         if mem::size_of::<T>() == mem::size_of::<u32>() {
             self.start_pos = load_index_u32(&path_indirect)?.into_iter().map(|el| num::cast(el).unwrap()).collect(); //TODO REPLACE WITH SPECIALIZATION
@@ -242,7 +242,7 @@ impl<T: AnchorScoreDataSize> TokenToAnchorScore for TokenToAnchorScoreVintIM<T> 
 
 use crate::util::open_file;
 impl<T: AnchorScoreDataSize> TokenToAnchorScoreVintMmap<T> {
-    pub fn from_path(start_and_end_file: &str, data_file: &str) -> Result<Self, search::SearchError> {
+    pub fn from_path(start_and_end_file: &str, data_file: &str) -> Result<Self, VelociError> {
         let start_and_end_file = unsafe { MmapOptions::new().map(&open_file(start_and_end_file)?).unwrap() };
         let data_file = unsafe { MmapOptions::new().map(&open_file(data_file)?).unwrap() };
         Ok(TokenToAnchorScoreVintMmap {

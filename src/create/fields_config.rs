@@ -1,6 +1,6 @@
 use super::features::Features;
 use super::features::IndexCreationType;
-use super::CreateError;
+use crate::error::VelociError;
 
 use fnv::FnvHashMap;
 use fnv::FnvHashSet;
@@ -29,7 +29,7 @@ impl FieldsConfig {
         }
     }
 
-    pub fn features_to_indices(&mut self) -> Result<(), CreateError> {
+    pub fn features_to_indices(&mut self) -> Result<(), VelociError> {
         if self.0.get("*GLOBAL*").is_none() {
             let default_fulltext_options = FulltextIndexOptions::new_with_tokenize();
             let default_field_config = FieldConfig {
@@ -44,7 +44,7 @@ impl FieldsConfig {
         }
         for (key, val) in self.0.iter_mut() {
             if val.features.is_some() && val.disabled_features.is_some() {
-                return Err(CreateError::InvalidConfig(format!(
+                return Err(VelociError::InvalidConfig(format!(
                     "features and disabled_features are not allowed at the same time in field{:?}",
                     key
                 )));

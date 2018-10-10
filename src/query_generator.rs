@@ -8,6 +8,7 @@ use itertools::Itertools;
 use crate::persistence::Persistence;
 use crate::search::stopwords;
 use crate::search::*;
+use crate::error::VelociError;
 use crate::util::*;
 use ordered_float::OrderedFloat;
 use std;
@@ -54,7 +55,7 @@ fn get_default_levenshtein(term: &str, levenshtein_auto_limit: usize) -> usize {
     }
 }
 
-fn get_all_search_field_names(persistence: &Persistence, fields: &Option<Vec<String>>) -> Result<Vec<String>, SearchError> {
+fn get_all_search_field_names(persistence: &Persistence, fields: &Option<Vec<String>>) -> Result<Vec<String>, VelociError> {
     let res: Vec<_> = persistence
         .meta_data
         .get_all_fields()
@@ -72,7 +73,7 @@ fn get_all_search_field_names(persistence: &Persistence, fields: &Option<Vec<Str
         })
         .collect();
     if res.is_empty() {
-        Err(SearchError::StringError(format!("Did not find any fields for {:?}", fields)))
+        Err(VelociError::StringError(format!("Did not find any fields for {:?}", fields)))
     } else {
         Ok(res)
     }
@@ -244,7 +245,7 @@ fn terms_for_phrase_from_ast(ast: &UserAST) -> Vec<&String> {
 
 use parser;
 #[cfg_attr(feature = "flame_it", flame)]
-pub fn search_query(persistence: &Persistence, mut opt: SearchQueryGeneratorParameters) -> Result<Request, SearchError> {
+pub fn search_query(persistence: &Persistence, mut opt: SearchQueryGeneratorParameters) -> Result<Request, VelociError> {
     // let req = persistence.meta_data.fulltext_indices.key
     opt.facetlimit = opt.facetlimit.or(Some(5));
     info_time!("generating search query");
@@ -331,7 +332,7 @@ pub fn generate_phrase_queries_for_searchterm(
     levenshtein: Option<usize>,
     levenshtein_auto_limit: Option<usize>,
     boost_fields: &HashMap<String, f32>,
-) -> Result<Vec<RequestPhraseBoost>, SearchError> {
+) -> Result<Vec<RequestPhraseBoost>, VelociError> {
     let mut phase_boost_requests = vec![];
     for (term_a, term_b) in terms.iter().tuple_windows() {
         phase_boost_requests.extend(get_all_search_field_names(&persistence, &fields)?.iter().map(|field_name| RequestPhraseBoost {
@@ -363,7 +364,7 @@ pub fn suggest_query(
     levenshtein: Option<usize>,
     fields: &Option<Vec<String>>,
     levenshtein_auto_limit: Option<usize>,
-) -> Result<Request, SearchError> {
+) -> Result<Request, VelociError> {
     if top.is_none() {
         top = Some(10);
     }

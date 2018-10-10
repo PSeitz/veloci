@@ -390,7 +390,7 @@ fn should_return_an_error_when_trying_to_query_an_invalid_field() {
     let hits = search_to_hits!(requesto);
 
     match hits {
-        Err(search::SearchError::StringError(el)) => assert_eq!(el, "fst not found loaded in indices notexisting.textindex ".to_string()),
+        Err(error::VelociError::StringError(el)) => assert_eq!(el, "fst not found loaded in indices notexisting.textindex ".to_string()),
         _ => panic!("YESO"),
     }
 }

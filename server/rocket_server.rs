@@ -50,6 +50,7 @@ use search_lib::persistence;
 use search_lib::persistence::Persistence;
 use search_lib::query_generator;
 use search_lib::search;
+use search_lib::error::VelociError;
 use search_lib::search_field;
 use search_lib::shards::Shards;
 
@@ -67,7 +68,7 @@ lazy_static! {
 
 #[derive(Debug)]
 struct SearchResult(search::SearchResultWithDoc);
-struct SearchErroro(search::SearchError);
+struct SearchErroro(VelociError);
 
 #[derive(Debug)]
 struct SuggestResult(search_field::SuggestFieldResult);
@@ -163,14 +164,14 @@ fn query_param_to_vec(name: Option<String>) -> Option<Vec<String>> {
     name.map(|el| el.split(',').map(|f| f.to_string()).collect())
 }
 
-fn ensure_database(database: &String) -> Result<(), search::SearchError> {
+fn ensure_database(database: &String) -> Result<(), VelociError> {
     if !PERSISTENCES.contains_key(database) {
         PERSISTENCES.insert(database.clone(), persistence::Persistence::load(database.clone())?);
     }
     Ok(())
 }
 
-fn ensure_shard(database: &String) -> Result<(), search::SearchError> {
+fn ensure_shard(database: &String) -> Result<(), VelociError> {
     if !SHARDS.contains_key(database) {
         SHARDS.insert(database.clone(), Shards::load(database.clone())?);
         // SHARDS.insert(database.clone(), Shards::load(database.clone(), 1)?);
@@ -183,7 +184,7 @@ fn version() -> String {
     "0.6".to_string()
 }
 
-fn search_in_persistence(persistence: &Persistence, request: search_lib::search::Request, _enable_flame: bool) -> Result<SearchResult, search::SearchError> {
+fn search_in_persistence(persistence: &Persistence, request: search_lib::search::Request, _enable_flame: bool) -> Result<SearchResult, VelociError> {
     // info!("Searching ... ");
     let select = request.select.clone();
     let hits = {
@@ -199,7 +200,7 @@ fn search_in_persistence(persistence: &Persistence, request: search_lib::search:
     Ok(doc)
 }
 
-fn excute_suggest(persistence: &Persistence, struct_body: search::Request, _flame: bool) -> Result<SuggestResult, search::SearchError> {
+fn excute_suggest(persistence: &Persistence, struct_body: search::Request, _flame: bool) -> Result<SuggestResult, VelociError> {
     info_time!("search total");
     info!("Suggesting ... ");
     let hits = search_field::suggest_multi(persistence, struct_body)?;
@@ -208,7 +209,7 @@ fn excute_suggest(persistence: &Persistence, struct_body: search::Request, _flam
 }
 
 #[post("/<database>/search", format = "application/json", data = "<request>")]
-fn search_post(database: String, request: Json<search::Request>) -> Result<SearchResult, search::SearchError> {
+fn search_post(database: String, request: Json<search::Request>) -> Result<SearchResult, VelociError> {
     ensure_database(&database)?;
     let persistence = PERSISTENCES.get(&database).unwrap();
 
@@ -238,7 +239,7 @@ fn get_doc_for_id_direct(database: String, id: u32) -> Json<Value> {
 }
 
 // #[get("/<database>/<id>")]
-// fn get_doc_for_id(database: String, id: u32) -> Result<serde_json::Value, search::SearchError> {
+// fn get_doc_for_id(database: String, id: u32) -> Result<serde_json::Value, VelociError> {
 //     let persistence = PERSISTENCES.get(&database).unwrap();
 //     let fields = persistence.get_all_fields();
 //     let tree = search::get_read_tree_from_fields(&persistence, &fields);
@@ -327,7 +328,7 @@ fn search_get(database: String, params: Result<QueryParams, rocket::Error>) -> R
 }
 
 #[get("/<database>/search_shard?<params>")]
-fn search_get_shard(database: String, params: QueryParams) -> Result<SearchResult, search::SearchError> {
+fn search_get_shard(database: String, params: QueryParams) -> Result<SearchResult, VelociError> {
     ensure_shard(&database)?;
     let shard = SHARDS.get(&database).unwrap();
 
@@ -428,14 +429,14 @@ fn multipart_upload(database: String, cont_type: &ContentType, data: Data) -> Re
     Ok(format!("created {:?}", &database))
 }
 
-fn search_error_to_rocket_error(err: search::SearchError) -> Custom<String> {
+fn search_error_to_rocket_error(err: VelociError) -> Custom<String> {
     match err {
-        search::SearchError::StringError(msg) => Custom(Status::BadRequest, msg),
+        VelociError::StringError(msg) => Custom(Status::BadRequest, msg),
         _ => Custom(Status::InternalServerError, format!("SearchError: {:?}", err)),
     }
 }
 
-fn process_upload(boundary: &str, data: Data) -> Result<(String, Option<String>), search::SearchError> {
+fn process_upload(boundary: &str, data: Data) -> Result<(String, Option<String>), VelociError> {
     // let mut out = Vec::new();
 
     // saves all fields, any field longer than 10kB goes to a temporary directory
@@ -452,7 +453,7 @@ fn process_upload(boundary: &str, data: Data) -> Result<(String, Option<String>)
 
             process_entries(partial.entries)
         }
-        Error(e) => return Err(search_lib::search::SearchError::Io(e)),
+        Error(e) => return Err(search_lib::VelociError::Io(e)),
     }
 
     // Ok(out)
@@ -460,13 +461,13 @@ fn process_upload(boundary: &str, data: Data) -> Result<(String, Option<String>)
 use std::io::prelude::*;
 // having a streaming output would be nice; there's one for returning a `Read` impl
 // but not one that you can `write()` to
-fn process_entries(entries: Entries) -> Result<(String, Option<String>), search::SearchError> {
+fn process_entries(entries: Entries) -> Result<(String, Option<String>), VelociError> {
     if entries.fields_count() == 2 {
         let mut config = String::new();
         entries
             .fields
             .get(&"config".to_string())
-            .ok_or_else(|| search::SearchError::StringError(format!("expecting content field, but got {:?}", entries.fields.keys().collect::<Vec<_>>())))?[0]
+            .ok_or_else(|| VelociError::StringError(format!("expecting content field, but got {:?}", entries.fields.keys().collect::<Vec<_>>())))?[0]
             .data
             .readable()?
             .read_to_string(&mut config)?;
@@ -474,7 +475,7 @@ fn process_entries(entries: Entries) -> Result<(String, Option<String>), search:
         let data_reader = entries
             .fields
             .get(&"data".to_string())
-            .ok_or_else(|| search::SearchError::StringError(format!("expecting data field, but got {:?}", entries.fields.keys().collect::<Vec<_>>())))?[0]
+            .ok_or_else(|| VelociError::StringError(format!("expecting data field, but got {:?}", entries.fields.keys().collect::<Vec<_>>())))?[0]
             .data
             .readable()?;
 
@@ -487,7 +488,7 @@ fn process_entries(entries: Entries) -> Result<(String, Option<String>), search:
     let data_reader = entries
         .fields
         .get(&"data".to_string())
-        .ok_or_else(|| search::SearchError::StringError(format!("expecting data field, but got {:?}", entries.fields.keys().collect::<Vec<_>>())))?[0]
+        .ok_or_else(|| VelociError::StringError(format!("expecting data field, but got {:?}", entries.fields.keys().collect::<Vec<_>>())))?[0]
         .data
         .readable()?;
     search_lib::create::convert_any_json_data_to_line_delimited(data_reader, &mut data)?;
@@ -495,7 +496,7 @@ fn process_entries(entries: Entries) -> Result<(String, Option<String>), search:
 }
 
 #[post("/<database>", data = "<data>")]
-fn create_db(database: String, data: rocket::data::Data) -> Result<String, search::SearchError> {
+fn create_db(database: String, data: rocket::data::Data) -> Result<String, VelociError> {
     if PERSISTENCES.contains_key(&database) {
         //TODO @BUG @FixMe ERROR OWASP
         PERSISTENCES.remove(&database);
@@ -517,7 +518,7 @@ fn create_db(database: String, data: rocket::data::Data) -> Result<String, searc
 // ******************************************** UPLOAD UPLOAD ********************************************
 
 #[delete("/<database>")]
-fn delete_db(database: String) -> Result<String, search::SearchError> {
+fn delete_db(database: String) -> Result<String, VelociError> {
     if PERSISTENCES.contains_key(&database) {
         PERSISTENCES.remove(&database);
     }
@@ -538,7 +539,7 @@ fn suggest_post(database: String, request: Json<search::Request>) -> Json<Value>
 }
 
 #[get("/<database>/inspect/<path>/<id>")]
-fn inspect_data(database: String, path: String, id: u64) -> Result<String, search::SearchError> {
+fn inspect_data(database: String, path: String, id: u64) -> Result<String, VelociError> {
     ensure_database(&database)?;
     let persistence = PERSISTENCES.get(&database).unwrap();
     // persistence.get(path)
@@ -547,7 +548,7 @@ fn inspect_data(database: String, path: String, id: u64) -> Result<String, searc
 }
 
 #[get("/<database>/suggest?<params>", format = "application/json")]
-fn suggest_get(database: String, params: QueryParams) -> Result<SuggestResult, search::SearchError> {
+fn suggest_get(database: String, params: QueryParams) -> Result<SuggestResult, VelociError> {
     ensure_database(&database)?;
     let persistence = PERSISTENCES.get(&database).unwrap();
 

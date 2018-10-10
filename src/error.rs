@@ -16,6 +16,8 @@ pub enum VelociError {
     FstError(fst::Error),
     #[fail(display = "IoError: '{:?}'", _0)]
     Io(io::Error),
+    #[fail(display = "Invalid Config: '{:?}'", _0)]
+    InvalidConfig(String),
 }
 
 impl From<io::Error> for VelociError {
@@ -38,3 +40,4 @@ impl From<serde_json::Error> for VelociError {
         VelociError::JsonError(error)
     }
 }
+

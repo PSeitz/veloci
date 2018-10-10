@@ -2,9 +2,11 @@ use heapsize::HeapSizeOf;
 use std::cmp::Ordering::Greater;
 
 use crate::persistence::*;
+use crate::error::VelociError;
 use crate::persistence_data_indirect::calc_avg_join_size;
 use crate::persistence_data_indirect::flush_to_file_indirect;
 use crate::type_info::TypeInfo;
+use crate::util::open_file;
 
 use std;
 use std::io;
@@ -131,8 +133,6 @@ impl<T: 'static + Ord + Copy + Default + std::fmt::Debug + Sync + Send> PhrasePa
         }
     }
 }
-use crate::search;
-use crate::util::open_file;
 
 #[derive(Debug)]
 pub struct IndexIdToMultipleParentIndirectBinarySearchMMAP<T> {
@@ -148,7 +148,7 @@ impl<T: Ord + Copy + Default + std::fmt::Debug> HeapSizeOf for IndexIdToMultiple
     }
 }
 impl<T: Ord + Copy + Default + std::fmt::Debug> IndexIdToMultipleParentIndirectBinarySearchMMAP<T> {
-    pub fn from_path<P: AsRef<Path>>(path: P, metadata: IndexMetaData) -> Result<Self, search::SearchError> {
+    pub fn from_path<P: AsRef<Path>>(path: P, metadata: IndexMetaData) -> Result<Self, VelociError> {
         let ind_file = open_file(path.as_ref().to_str().unwrap().to_string() + ".indirect")?;
         let data_file = open_file(path.as_ref().to_str().unwrap().to_string() + ".data")?;
 

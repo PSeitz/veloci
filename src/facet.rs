@@ -2,6 +2,7 @@
 
 use crate::persistence::*;
 use crate::search::*;
+use crate::error::VelociError;
 use crate::search_field::*;
 use crate::util;
 use crate::util::StringAdd;
@@ -29,7 +30,7 @@ fn get_groups_with_text(persistence: &Persistence, groups: &[(u32, u32)], field:
 
 // TODO Check ignorecase, check duplicates in facet data
 // For ignorecase, we probably need a term_ids -> lower case term id mapping index - read all texts annd aggregate may be too slow
-pub fn get_facet(persistence: &Persistence, req: &FacetRequest, ids: &[u32]) -> Result<Vec<(String, usize)>, SearchError> {
+pub fn get_facet(persistence: &Persistence, req: &FacetRequest, ids: &[u32]) -> Result<Vec<(String, usize)>, VelociError> {
     info_time!("facets in field {:?}", req.field);
     trace!("get_facet for ids {:?}", ids);
     let steps = util::get_steps_to_anchor(&req.field);
@@ -73,7 +74,7 @@ pub fn get_facet(persistence: &Persistence, req: &FacetRequest, ids: &[u32]) -> 
     Ok(groups_with_text)
 }
 
-pub(crate) fn join_anchor_to_leaf(persistence: &Persistence, ids: &[u32], steps: &[String]) -> Result<Vec<u32>, SearchError> {
+pub(crate) fn join_anchor_to_leaf(persistence: &Persistence, ids: &[u32], steps: &[String]) -> Result<Vec<u32>, VelociError> {
     let mut next_level_ids = { join_for_n_to_m(persistence, ids, &(steps.first().unwrap().add(PARENT_TO_VALUE_ID)))? };
     for step in steps.iter().skip(1) {
         trace!("facet step {:?}", step);
@@ -84,7 +85,7 @@ pub(crate) fn join_anchor_to_leaf(persistence: &Persistence, ids: &[u32], steps:
 }
 
 #[cfg_attr(feature = "flame_it", flame)]
-fn join_for_n_to_m(persistence: &Persistence, value_ids: &[u32], path: &str) -> Result<Vec<u32>, SearchError> {
+fn join_for_n_to_m(persistence: &Persistence, value_ids: &[u32], path: &str) -> Result<Vec<u32>, VelociError> {
     let kv_store = persistence.get_valueid_to_parent(path)?;
     let mut hits = vec![];
     hits.reserve(value_ids.len()); // TODO reserve by statistics

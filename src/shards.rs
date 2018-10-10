@@ -1,3 +1,4 @@
+use crate::error::VelociError;
 use crate::create;
 use crate::persistence;
 use crate::persistence::*;
@@ -83,7 +84,7 @@ struct ShardResultHit<'a> {
 }
 
 use std::io::BufRead;
-fn merge_persistences(persistences: &[&Persistence], mut target_persistence: &mut Persistence, indices: &str) -> Result<(), create::CreateError> {
+fn merge_persistences(persistences: &[&Persistence], mut target_persistence: &mut Persistence, indices: &str) -> Result<(), VelociError> {
     let get_doc_json_stream = || {
         persistences.iter().flat_map(|pers| {
             std::io::BufReader::new(pers.get_file_handle("data").unwrap())
@@ -109,7 +110,7 @@ impl Shards {
         }
     }
 
-    pub fn insert(&mut self, docs: &str, indices: &str) -> Result<(), create::CreateError> {
+    pub fn insert(&mut self, docs: &str, indices: &str) -> Result<(), VelociError> {
         // extend existing persistence or create new persistence and add to list
         // println!("self.shards.len() {:?}", self.shards.len());
         if self.shards.is_empty() {
@@ -175,7 +176,7 @@ impl Shards {
         Ok(())
     }
 
-    fn add_new_shard_from_docs(&mut self, docs: &str, indices: &str) -> Result<(), search::SearchError> {
+    fn add_new_shard_from_docs(&mut self, docs: &str, indices: &str) -> Result<(), VelociError> {
         let mut new_shard = self.get_new_shard()?;
         // println!("new shard {:?}", new_shard.persistence.db);
         create::create_indices_from_str(&mut new_shard.persistence, docs, indices, None, true).unwrap();
@@ -183,7 +184,7 @@ impl Shards {
         Ok(())
     }
 
-    fn get_new_shard(&self) -> Result<(Shard), search::SearchError> {
+    fn get_new_shard(&self) -> Result<(Shard), VelociError> {
         let shard_id = self.current_id.fetch_add(1, atomic::Ordering::SeqCst);
         let path = self.path.to_owned() + "/" + &shard_id.to_string();
         let persistence = Persistence::create_type(path.to_string(), persistence::PersistenceType::Persistent)?;
@@ -197,7 +198,7 @@ impl Shards {
         &self,
         q_params: &query_generator::SearchQueryGeneratorParameters,
         select: &Option<Vec<String>>,
-    ) -> Result<SearchResultWithDoc, search::SearchError> {
+    ) -> Result<SearchResultWithDoc, VelociError> {
         let mut all_search_results = SearchResultWithDoc::default();
 
         let r: Vec<ShardResult<'_>> = self
@@ -209,7 +210,7 @@ impl Shards {
                 let result = search::search(request, &shard.persistence)?;
                 Ok(ShardResult { shard: &shard, result })
             })
-            .collect::<Result<Vec<ShardResult<'_>>, search::SearchError>>()?;
+            .collect::<Result<Vec<ShardResult<'_>>, VelociError>>()?;
 
         let total_num_hits: u64 = r.iter().map(|shard_result| shard_result.result.num_hits).sum();
 
@@ -242,7 +243,7 @@ impl Shards {
         Ok(all_search_results)
     }
 
-    pub fn search_all_shards(&self, request: &search::Request) -> Result<SearchResultWithDoc, search::SearchError> {
+    pub fn search_all_shards(&self, request: &search::Request) -> Result<SearchResultWithDoc, VelociError> {
         let select = request.select.clone();
         let mut all_results = SearchResultWithDoc::default();
         for shard in &self.shards {
@@ -253,7 +254,7 @@ impl Shards {
         Ok(all_results)
     }
 
-    pub fn load(path: String) -> Result<(Shards), search::SearchError> {
+    pub fn load(path: String) -> Result<(Shards), VelociError> {
         let mut shards = vec![];
         let mut shard_id: u64 = 0;
         for entry in fs::read_dir(path.to_string())? {

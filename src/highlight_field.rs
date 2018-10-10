@@ -1,7 +1,7 @@
 use crate::persistence;
 use crate::persistence::Persistence;
 use crate::persistence::*;
-use crate::search;
+use crate::error::VelociError;
 use crate::search::*;
 use crate::tokenizer::*;
 use crate::util::StringAdd;
@@ -52,7 +52,7 @@ pub fn highlight_text(text: &str, set: &FnvHashSet<String>, opt: &SnippetInfo) -
 // }
 
 #[cfg_attr(feature = "flame_it", flame)]
-pub fn highlight_document(persistence: &Persistence, path: &str, value_id: u64, token_ids: &[u32], opt: &SnippetInfo) -> Result<Option<String>, search::SearchError> {
+pub fn highlight_document(persistence: &Persistence, path: &str, value_id: u64, token_ids: &[u32], opt: &SnippetInfo) -> Result<Option<String>, VelociError> {
     let text_id_to_token_ids = persistence.get_valueid_to_parent(path.add(TEXT_ID_TO_TOKEN_IDS))?;
     trace_time!("highlight_document id {}", value_id);
 

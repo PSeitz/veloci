@@ -21,7 +21,7 @@ use crate::persistence_data_binary_search::*;
 use crate::persistence_data_indirect::*;
 use crate::persistence_score::token_to_anchor_score_vint::*;
 use crate::search;
-use crate::search::SearchError;
+use crate::error::*;
 use crate::search_field;
 use crate::tokenizer::*;
 use crate::util;
@@ -678,7 +678,7 @@ struct DocWriteRes {
     offset: u64,
 }
 
-fn write_docs<K, S: AsRef<str>>(persistence: &mut Persistence, stream3: K) -> Result<DocWriteRes, CreateError>
+fn write_docs<K, S: AsRef<str>>(persistence: &mut Persistence, stream3: K) -> Result<DocWriteRes, VelociError>
 where
     K: Iterator<Item = S>,
 {
@@ -769,7 +769,7 @@ fn buffered_index_to_indirect_index_multiple(
     path: &str,
     mut buffered_index_data: BufferedIndexWriter,
     sort_and_dedup: bool,
-) -> Result<IndexIdToMultipleParentIndirectFlushingInOrderVint, search::SearchError> {
+) -> Result<IndexIdToMultipleParentIndirectFlushingInOrderVint, VelociError> {
     let mut store = IndexIdToMultipleParentIndirectFlushingInOrderVint::new(get_file_path(db_path, path), buffered_index_data.max_value_id);
 
     if buffered_index_data.is_in_memory() {
@@ -939,7 +939,7 @@ fn convert_raw_path_data_to_indices(
     tuples_to_parent_in_path: FnvHashMap<String, PathDataIds>,
     indices_json: &FieldsConfig,
     // facet_index: &FnvHashSet<String>,
-) -> Result<IndicesFromRawData, SearchError> {
+) -> Result<IndicesFromRawData, VelociError> {
     info_time!("convert_raw_path_data_to_indices");
     let mut indices = IndicesFromRawData::default();
 
@@ -949,7 +949,7 @@ fn convert_raw_path_data_to_indices(
                            sort_and_dedup: bool,
                            indices: &mut IndicesFromRawData,
                            loading_type: LoadingType|
-     -> Result<(), search::SearchError> {
+     -> Result<(), VelociError> {
         if is_always_1_to_1 {
             let store = buffered_index_to_direct_index(db_path, &path, buffered_index_data)?;
             indices.push(IndexData {
@@ -970,7 +970,7 @@ fn convert_raw_path_data_to_indices(
         Ok(())
     };
 
-    let indices_res: Result<Vec<_>, search::SearchError> = path_data
+    let indices_res: Result<Vec<_>, VelociError> = path_data
         .into_par_iter()
         .map(|(mut path, data)| {
             let mut indices = IndicesFromRawData::default();
@@ -1058,7 +1058,7 @@ fn convert_raw_path_data_to_indices(
         indices.extend(indice);
     }
 
-    let indices_res_2: Result<Vec<_>, search::SearchError> = tuples_to_parent_in_path
+    let indices_res_2: Result<Vec<_>, VelociError> = tuples_to_parent_in_path
         .into_par_iter()
         .map(|(path, data)| {
             let mut indices = IndicesFromRawData::default();
@@ -1098,7 +1098,7 @@ pub fn create_fulltext_index<I, J, K, S: AsRef<str>>(
     indices_json: &FieldsConfig,
     _create_cache: &mut CreateCache,
     load_persistence: bool,
-) -> Result<(), CreateError>
+) -> Result<(), VelociError>
 where
     I: Iterator<Item = Result<serde_json::Value, serde_json::Error>>,
     J: Iterator<Item = Result<serde_json::Value, serde_json::Error>>,
@@ -1256,7 +1256,7 @@ struct TokenValueData {
     value: Option<u32>,
 }
 use crate::execution_plan::PlanRequestSearchPart;
-pub fn add_token_values_to_tokens(persistence: &mut Persistence, data_str: &str, config: &str) -> Result<(), search::SearchError> {
+pub fn add_token_values_to_tokens(persistence: &mut Persistence, data_str: &str, config: &str) -> Result<(), VelociError> {
     let data: Vec<TokenValueData> = serde_json::from_str(data_str).unwrap();
     let config: TokenValuesConfig = serde_json::from_str(config).unwrap();
 
@@ -1354,7 +1354,7 @@ pub fn create_indices_from_str(
     indices: &str,
     create_cache: Option<CreateCache>,
     load_persistence: bool,
-) -> Result<(CreateCache), CreateError> {
+) -> Result<(CreateCache), VelociError> {
     let stream1 = data_str.lines().map(|line| serde_json::from_str(&line));
     let stream2 = data_str.lines().map(|line| serde_json::from_str(&line));
 
@@ -1366,7 +1366,7 @@ pub fn create_indices_from_file(
     indices: &str,
     create_cache: Option<CreateCache>,
     load_persistence: bool,
-) -> Result<(CreateCache), CreateError> {
+) -> Result<(CreateCache), VelociError> {
     let stream1 = std::io::BufReader::new(File::open(data_path).unwrap()).fast_lines();
     // .lines()
     // .map(|line| serde_json::from_str(&line.unwrap()));
@@ -1386,7 +1386,7 @@ pub fn create_indices_from_streams<I, J, K, S: AsRef<str>>(
     indices: &str,
     create_cache: Option<CreateCache>,
     load_persistence: bool,
-) -> Result<(CreateCache), CreateError>
+) -> Result<(CreateCache), VelociError>
 where
     I: Iterator<Item = Result<serde_json::Value, serde_json::Error>>,
     J: Iterator<Item = Result<serde_json::Value, serde_json::Error>>,
@@ -1404,32 +1404,3 @@ where
     Ok(create_cache)
 }
 
-#[derive(Debug)]
-pub enum CreateError {
-    Io(io::Error),
-    InvalidConfig(String),
-    InvalidJson(serde_json::Error),
-    Utf8Error(std::str::Utf8Error),
-    SearchError(search::SearchError),
-}
-
-impl From<io::Error> for CreateError {
-    fn from(err: io::Error) -> CreateError {
-        CreateError::Io(err)
-    }
-}
-impl From<serde_json::Error> for CreateError {
-    fn from(err: serde_json::Error) -> CreateError {
-        CreateError::InvalidJson(err)
-    }
-}
-impl From<std::str::Utf8Error> for CreateError {
-    fn from(err: std::str::Utf8Error) -> CreateError {
-        CreateError::Utf8Error(err)
-    }
-}
-impl From<search::SearchError> for CreateError {
-    fn from(err: search::SearchError) -> CreateError {
-        CreateError::SearchError(err)
-    }
-}

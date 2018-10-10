@@ -2,6 +2,7 @@
 use crate::persistence::Persistence;
 use crate::persistence::*;
 use crate::search::*;
+use crate::error::*;
 use crate::search_field::*;
 use crate::util;
 use crate::util::StringAdd;
@@ -205,7 +206,7 @@ impl PlanStepDataChannels {
 pub trait PlanStepTrait: Debug + Sync + Send {
     fn get_channel(&mut self) -> &mut PlanStepDataChannels;
     // fn get_output(&self) -> PlanDataReceiver;
-    fn execute_step(self: Box<Self>, persistence: &Persistence) -> Result<(), SearchError>;
+    fn execute_step(self: Box<Self>, persistence: &Persistence) -> Result<(), VelociError>;
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -264,7 +265,7 @@ impl PlanStepTrait for PlanStepFieldSearchToTokenIds {
         &mut self.channel
     }
 
-    fn execute_step(mut self: Box<Self>, persistence: &Persistence) -> Result<(), SearchError> {
+    fn execute_step(mut self: Box<Self>, persistence: &Persistence) -> Result<(), VelociError> {
         let field_result = search_field::get_term_ids_in_field(persistence, &mut self.req)?;
         send_result_to_channel(field_result, &self.channel)?;
         drop_channel(self.channel);
@@ -277,7 +278,7 @@ impl PlanStepTrait for ResolveTokenIdToAnchor {
         &mut self.channel
     }
 
-    fn execute_step(self: Box<Self>, persistence: &Persistence) -> Result<(), SearchError> {
+    fn execute_step(self: Box<Self>, persistence: &Persistence) -> Result<(), VelociError> {
         let res = self.channel.input_prev_steps[0].recv().unwrap();
         let filter_res = if let Some(ref filter_receiver) = self.channel.filter_receiver {
             let search_field_result = filter_receiver.recv().unwrap();
@@ -296,7 +297,7 @@ impl PlanStepTrait for ResolveTokenIdToTextId {
         &mut self.channel
     }
 
-    fn execute_step(self: Box<Self>, persistence: &Persistence) -> Result<(), SearchError> {
+    fn execute_step(self: Box<Self>, persistence: &Persistence) -> Result<(), VelociError> {
         let mut field_result = self.channel.input_prev_steps[0].recv().unwrap();
         resolve_token_hits_to_text_id(persistence, &self.request, &mut field_result)?;
         send_result_to_channel(field_result, &self.channel)?;
@@ -310,7 +311,7 @@ impl PlanStepTrait for ValueIdToParent {
         &mut self.channel
     }
 
-    fn execute_step(self: Box<Self>, persistence: &Persistence) -> Result<(), SearchError> {
+    fn execute_step(self: Box<Self>, persistence: &Persistence) -> Result<(), VelociError> {
         send_result_to_channel(
             join_to_parent_with_score(persistence, &self.channel.input_prev_steps[0].recv().unwrap(), &self.path, &self.trace_info)?,
             &self.channel,
@@ -325,7 +326,7 @@ impl PlanStepTrait for BoostPlanStepFromBoostRequest {
         &mut self.channel
     }
 
-    fn execute_step(self: Box<Self>, persistence: &Persistence) -> Result<(), SearchError> {
+    fn execute_step(self: Box<Self>, persistence: &Persistence) -> Result<(), VelociError> {
         let mut input = self.channel.input_prev_steps[0].recv().unwrap();
         add_boost(persistence, &self.req, &mut input)?;
         send_result_to_channel(input, &self.channel)?;
@@ -366,7 +367,7 @@ impl PlanStepTrait for BoostAnchorFromPhraseResults {
         &mut self.channel
     }
 
-    fn execute_step(self: Box<Self>, _persistence: &Persistence) -> Result<(), SearchError> {
+    fn execute_step(self: Box<Self>, _persistence: &Persistence) -> Result<(), VelociError> {
         let input = self.channel.input_prev_steps[0].recv().unwrap();
         let boosts = get_data(&self.channel.input_prev_steps[1..])?;
         let mut boosts = sort_and_group_boosts_by_phrase_terms(boosts);
@@ -385,7 +386,7 @@ impl PlanStepTrait for PlanStepPhrasePairToAnchorId {
         &mut self.channel
     }
 
-    fn execute_step(self: Box<Self>, persistence: &Persistence) -> Result<(), SearchError> {
+    fn execute_step(self: Box<Self>, persistence: &Persistence) -> Result<(), VelociError> {
         let res1 = self.channel.input_prev_steps[0].recv().unwrap();
         let res2 = self.channel.input_prev_steps[1].recv().unwrap();
         assert!(self.req.search1.path == self.req.search2.path);
@@ -402,7 +403,7 @@ impl PlanStepTrait for Union {
         &mut self.channel
     }
 
-    fn execute_step(self: Box<Self>, _persistence: &Persistence) -> Result<(), SearchError> {
+    fn execute_step(self: Box<Self>, _persistence: &Persistence) -> Result<(), VelociError> {
         let res = if self.ids_only {
             union_hits_ids(get_data(&self.channel.input_prev_steps.clone())?)
         } else {
@@ -420,7 +421,7 @@ impl PlanStepTrait for Intersect {
         &mut self.channel
     }
 
-    fn execute_step(self: Box<Self>, _persistence: &Persistence) -> Result<(), SearchError> {
+    fn execute_step(self: Box<Self>, _persistence: &Persistence) -> Result<(), VelociError> {
         let res = if self.ids_only {
             intersect_hits_ids(get_data(&self.channel.input_prev_steps.clone())?)
         } else {
@@ -436,7 +437,7 @@ impl PlanStepTrait for IntersectScoresWithIds {
         &mut self.channel
     }
 
-    fn execute_step(self: Box<Self>, _persistence: &Persistence) -> Result<(), SearchError> {
+    fn execute_step(self: Box<Self>, _persistence: &Persistence) -> Result<(), VelociError> {
         info_time!("IntersectScoresWithIds");
         let scores_res = self.channel.input_prev_steps[0].recv().unwrap();
         let ids_res = self.channel.input_prev_steps[1].recv().unwrap();
@@ -448,7 +449,7 @@ impl PlanStepTrait for IntersectScoresWithIds {
     }
 }
 
-fn get_data(input_prev_steps: &[PlanDataReceiver]) -> Result<Vec<SearchFieldResult>, SearchError> {
+fn get_data(input_prev_steps: &[PlanDataReceiver]) -> Result<Vec<SearchFieldResult>, VelociError> {
     let mut dat = vec![];
     for el in input_prev_steps {
         dat.push(el.recv().unwrap());
@@ -466,7 +467,7 @@ fn drop_channel(channel: PlanStepDataChannels) {
     }
 }
 
-fn send_result_to_channel(field_result: SearchFieldResult, channel: &PlanStepDataChannels) -> Result<(), SearchError> {
+fn send_result_to_channel(field_result: SearchFieldResult, channel: &PlanStepDataChannels) -> Result<(), VelociError> {
     //Send SearchFieldResult as Filter
     if let Some(ref filter_channel) = channel.filter_channel {
         debug_time!("convert filter");
@@ -897,8 +898,8 @@ fn plan_creator_search_part(
 use rayon::prelude::*;
 
 // #[cfg_attr(feature = "flame_it", flame)]
-// pub fn execute_steps(steps: Vec<PlanStepType>, persistence: &Persistence) -> Result<(), SearchError> {
-//     let r: Result<Vec<_>, SearchError> = steps.into_par_iter().map(|step| step.execute_step(persistence)).collect();
+// pub fn execute_steps(steps: Vec<PlanStepType>, persistence: &Persistence) -> Result<(), VelociError> {
+//     let r: Result<Vec<_>, VelociError> = steps.into_par_iter().map(|step| step.execute_step(persistence)).collect();
 
 //     if r.is_err() {
 //         Err(r.unwrap_err())
@@ -935,8 +936,8 @@ use rayon::prelude::*;
 // }
 
 #[cfg_attr(feature = "flame_it", flame)]
-pub fn execute_steps(steps: Vec<Box<dyn PlanStepTrait>>, persistence: &Persistence) -> Result<(), SearchError> {
-    let r: Result<Vec<_>, SearchError> = steps.into_par_iter().map(|step: Box<dyn PlanStepTrait>| step.execute_step(persistence)).collect();
+pub fn execute_steps(steps: Vec<Box<dyn PlanStepTrait>>, persistence: &Persistence) -> Result<(), VelociError> {
+    let r: Result<Vec<_>, VelociError> = steps.into_par_iter().map(|step: Box<dyn PlanStepTrait>| step.execute_step(persistence)).collect();
 
     if r.is_err() {
         Err(r.unwrap_err())
@@ -974,7 +975,7 @@ pub fn execute_steps(steps: Vec<Box<dyn PlanStepTrait>>, persistence: &Persisten
 
 // use crossbeam;
 // #[cfg_attr(feature = "flame_it", flame)]
-// pub fn execute_step_in_parrael(steps: Vec<PlanStepType>, persistence: &Persistence) -> Result<(), SearchError> {
+// pub fn execute_step_in_parrael(steps: Vec<PlanStepType>, persistence: &Persistence) -> Result<(), VelociError> {
 
 //     crossbeam::scope(|scope| {
 //         for step in steps {

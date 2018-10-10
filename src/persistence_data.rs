@@ -10,6 +10,7 @@ use heapsize::HeapSizeOf;
 
 use crate::persistence::EMPTY_BUCKET;
 use crate::persistence::*;
+use crate::error::VelociError;
 pub(crate) use crate::persistence_data_indirect::*;
 
 use crate::facet::*;
@@ -20,8 +21,6 @@ use fnv::FnvHashMap;
 
 use memmap::Mmap;
 use memmap::MmapOptions;
-
-use crate::search;
 
 impl_type_info_single_templ!(SingleArrayMMAPPacked);
 
@@ -54,7 +53,7 @@ impl IndexIdToOneParentFlushing {
         store
     }
 
-    pub fn into_store(mut self) -> Result<Box<dyn IndexIdToParent<Output = u32>>, search::SearchError> {
+    pub fn into_store(mut self) -> Result<Box<dyn IndexIdToParent<Output = u32>>, VelociError> {
         if self.is_in_memory() {
             Ok(Box::new(self.into_im_store()))
         } else {
@@ -314,7 +313,7 @@ impl<T: IndexIdToParentData> SingleArrayMMAPPacked<T> {
     //     self.size
     // }
 
-    pub fn from_file(file: &File, metadata: IndexMetaData) -> Result<Self, search::SearchError> {
+    pub fn from_file(file: &File, metadata: IndexMetaData) -> Result<Self, VelociError> {
         let data_file = unsafe { MmapOptions::new().map(&file).unwrap() };
         Ok(SingleArrayMMAPPacked {
             data_file,
@@ -324,7 +323,7 @@ impl<T: IndexIdToParentData> SingleArrayMMAPPacked<T> {
             bytes_required: get_bytes_required(metadata.max_value_id),
         })
     }
-    // pub fn from_path(path: &str, metadata: IndexMetaData) -> Result<Self, search::SearchError> {
+    // pub fn from_path(path: &str, metadata: IndexMetaData) -> Result<Self, VelociError> {
     //     let data_file = unsafe { MmapOptions::new().map(&open_file(path)?).unwrap() };
     //     Ok(SingleArrayMMAPPacked {
     //         data_file,

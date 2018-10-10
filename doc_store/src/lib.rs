@@ -1,6 +1,5 @@
 #![feature(test)]
 
-
 use std::mem;
 use std::io;
 use std::io::prelude::*;
@@ -19,9 +18,7 @@ pub struct DocLoader {}
 impl DocLoader {
 
     #[cfg_attr(feature = "flame_it", flame)]
-    // pub fn get_doc(persistence: &Persistence, pos: usize) -> Result<String, search::SearchError> {
     pub fn get_doc<R: Read + Seek>(mut data_reader: R, offsets:&[u8], pos: usize) -> Result<String, io::Error> {
-        // let offsets = persistence.indices.doc_offsets.as_ref().unwrap();
         let size = offsets.len() / mem::size_of::<(u32, u64)>();
         let hit = binary_search_slice::<u32, u64>(size, pos as u32, &offsets);
         let start = hit.lower.1 - 1;

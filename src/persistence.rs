@@ -23,7 +23,7 @@ use crate::persistence_data::*;
 use crate::persistence_data_binary_search::*;
 use crate::persistence_score::*;
 use crate::search::*;
-use crate::search::{self, SearchError};
+use crate::error::VelociError;
 use crate::search_field_result;
 use crate::type_info;
 use crate::util;
@@ -64,7 +64,7 @@ pub struct MetaData {
 }
 
 impl MetaData {
-    pub fn new(folder: &str) -> Result<MetaData, SearchError> {
+    pub fn new(folder: &str) -> Result<MetaData, VelociError> {
         let json = util::file_as_string(&(folder.to_string() + "/metaData.json"))?;
         Ok(serde_json::from_str(&json)?)
     }
@@ -369,7 +369,7 @@ pub fn get_readable_size_for_children<T: HeapSizeOf>(value: T) -> ColoredString 
 }
 
 impl Persistence {
-    fn load_types_index_to_one<T: IndexIdToParentData>(data_direct_path: &str, metadata: IndexMetaData) -> Result<Box<dyn IndexIdToParent<Output = u32>>, search::SearchError> {
+    fn load_types_index_to_one<T: IndexIdToParentData>(data_direct_path: &str, metadata: IndexMetaData) -> Result<Box<dyn IndexIdToParent<Output = u32>>, VelociError> {
         let store = SingleArrayIM::<u32, T> {
             data: decode_bit_packed_vals(&file_path_to_bytes(data_direct_path)?, get_bytes_required(metadata.max_value_id)),
             metadata,
@@ -379,7 +379,7 @@ impl Persistence {
     }
 
     #[cfg_attr(feature = "flame_it", flame)]
-    pub fn load_from_disk(&mut self) -> Result<(), search::SearchError> {
+    pub fn load_from_disk(&mut self) -> Result<(), VelociError> {
         info_time!("loaded persistence {:?}", &self.db);
 
         let doc_offsets_file = self.get_file_handle("data.offsets")?;
@@ -518,7 +518,7 @@ impl Persistence {
         Ok(())
     }
 
-    pub fn load_all_fst(&mut self) -> Result<(), search::SearchError> {
+    pub fn load_all_fst(&mut self) -> Result<(), VelociError> {
         for path in self.meta_data.fulltext_indices.keys() {
             let map = self.load_fst(path)?;
             self.indices.fst.insert(path.to_string(), map);
@@ -526,7 +526,7 @@ impl Persistence {
         Ok(())
     }
 
-    pub fn load_fst(&self, path: &str) -> Result<Map, search::SearchError> {
+    pub fn load_fst(&self, path: &str) -> Result<Map, VelociError> {
         unsafe {
             Ok(Map::from_path(&get_file_path(&self.db, &(path.to_string() + ".fst")))?) //(path.to_string() + ".fst"))?)
         }
@@ -538,15 +538,15 @@ impl Persistence {
         // Ok(Map::from_bytes(buffer)?)
     }
 
-    pub fn get_file_handle(&self, path: &str) -> Result<File, search::SearchError> {
-        Ok(File::open(PathBuf::from(get_file_path(&self.db, path))).map_err(|err| search::SearchError::StringError(format!("Could not open {} {:?}", path, err)))?)
+    pub fn get_file_handle(&self, path: &str) -> Result<File, VelociError> {
+        Ok(File::open(PathBuf::from(get_file_path(&self.db, path))).map_err(|err| VelociError::StringError(format!("Could not open {} {:?}", path, err)))?)
     }
 
     // pub(crate) fn get_file_search(&self, path: &str) -> FileSearch {
     //     FileSearch::new(path, self.get_file_handle(path).unwrap())
     // }
 
-    pub fn get_boost(&self, path: &str) -> Result<&dyn IndexIdToParent<Output = u32>, search::SearchError> {
+    pub fn get_boost(&self, path: &str) -> Result<&dyn IndexIdToParent<Output = u32>, VelociError> {
         self.indices.boost_valueid_to_value.get(path).map(|el| el.as_ref()).ok_or_else(|| path_not_found(path))
     }
 
@@ -554,7 +554,7 @@ impl Persistence {
         self.indices.key_value_stores.contains_key(path)
     }
 
-    pub fn get_token_to_anchor<S: AsRef<str>>(&self, path: S) -> Result<&dyn TokenToAnchorScore, search::SearchError> {
+    pub fn get_token_to_anchor<S: AsRef<str>>(&self, path: S) -> Result<&dyn TokenToAnchorScore, VelociError> {
         let path = path.as_ref().add(TO_ANCHOR_ID_SCORE);
         self.indices
             .token_to_anchor_score
@@ -568,7 +568,7 @@ impl Persistence {
         self.indices.token_to_anchor_score.contains_key(&path)
     }
 
-    pub fn get_phrase_pair_to_anchor<S: AsRef<str>>(&self, path: S) -> Result<&dyn PhrasePairToAnchor<Input = (u32, u32)>, search::SearchError> {
+    pub fn get_phrase_pair_to_anchor<S: AsRef<str>>(&self, path: S) -> Result<&dyn PhrasePairToAnchor<Input = (u32, u32)>, VelociError> {
         self.indices
             .phrase_pair_to_anchor
             .get(path.as_ref())
@@ -576,7 +576,7 @@ impl Persistence {
             .ok_or_else(|| path_not_found(path.as_ref()))
     }
 
-    pub fn get_valueid_to_parent<S: AsRef<str>>(&self, path: S) -> Result<&dyn IndexIdToParent<Output = u32>, search::SearchError> {
+    pub fn get_valueid_to_parent<S: AsRef<str>>(&self, path: S) -> Result<&dyn IndexIdToParent<Output = u32>, VelociError> {
         self.indices
             .key_value_stores
             .get(path.as_ref())
@@ -641,7 +641,7 @@ impl Persistence {
     }
 
     #[cfg_attr(feature = "flame_it", flame)]
-    pub fn load<P: AsRef<Path>>(db: P) -> Result<Self, search::SearchError> {
+    pub fn load<P: AsRef<Path>>(db: P) -> Result<Self, VelociError> {
         let meta_data = MetaData::new(db.as_ref().to_str().unwrap())?;
         let mut pers = Persistence {
             persistence_type: PersistenceType::Persistent,
@@ -705,10 +705,10 @@ impl Persistence {
     }
 }
 
-fn path_not_found(path: &str) -> search::SearchError {
+fn path_not_found(path: &str) -> VelociError {
     let error = format!("Did not found path in indices {}", path);
     error!("{:?}", error);
-    From::from(error)
+    VelociError::StringError(error)
 }
 
 // #[derive(Debug)]
@@ -778,21 +778,21 @@ fn path_not_found(path: &str) -> search::SearchError {
 //     // }
 // }
 
-fn load_type_from_env() -> Result<Option<LoadingType>, search::SearchError> {
+fn load_type_from_env() -> Result<Option<LoadingType>, VelociError> {
     if let Some(val) = env::var_os("LoadingType") {
         let conv_env = val
             .clone()
             .into_string()
-            .map_err(|_err| search::SearchError::StringError(format!("Could not convert LoadingType environment variable to utf-8: {:?}", val)))?;
+            .map_err(|_err| VelociError::StringError(format!("Could not convert LoadingType environment variable to utf-8: {:?}", val)))?;
         let loading_type =
-            LoadingType::from_str(&conv_env).map_err(|_err| search::SearchError::StringError("only InMemory or Disk allowed for LoadingType environment variable".to_string()))?;
+            LoadingType::from_str(&conv_env).map_err(|_err| VelociError::StringError("only InMemory or Disk allowed for LoadingType environment variable".to_string()))?;
         Ok(Some(loading_type))
     } else {
         Ok(None)
     }
 }
 
-fn get_loading_type(loading_type: LoadingType) -> Result<LoadingType, search::SearchError> {
+fn get_loading_type(loading_type: LoadingType) -> Result<LoadingType, VelociError> {
     let mut loading_type = loading_type;
     if let Some(val) = load_type_from_env()? {
         // Overrule Loadingtype from env
@@ -839,12 +839,12 @@ pub(crate) fn bytes_to_vec<T>(data: &[u8]) -> Vec<T> {
     out_dat
 }
 
-pub(crate) fn file_path_to_bytes<P: AsRef<Path> + std::fmt::Debug>(s1: P) -> Result<Vec<u8>, search::SearchError> {
+pub(crate) fn file_path_to_bytes<P: AsRef<Path> + std::fmt::Debug>(s1: P) -> Result<Vec<u8>, VelociError> {
     let f = get_file_handle_complete_path(s1)?;
     file_handle_to_bytes(&f)
 }
 
-pub(crate) fn file_handle_to_bytes(f: &File) -> Result<Vec<u8>, search::SearchError> {
+pub(crate) fn file_handle_to_bytes(f: &File) -> Result<Vec<u8>, VelociError> {
     let file_size = { f.metadata()?.len() as usize };
     let mut reader = std::io::BufReader::new(f);
     let mut buffer: Vec<u8> = Vec::with_capacity(file_size + 1);
@@ -853,16 +853,16 @@ pub(crate) fn file_handle_to_bytes(f: &File) -> Result<Vec<u8>, search::SearchEr
     Ok(buffer)
 }
 
-pub(crate) fn load_index_u32<P: AsRef<Path> + std::fmt::Debug>(s1: P) -> Result<Vec<u32>, search::SearchError> {
+pub(crate) fn load_index_u32<P: AsRef<Path> + std::fmt::Debug>(s1: P) -> Result<Vec<u32>, VelociError> {
     info!("Loading Index32 {:?} ", s1);
     Ok(bytes_to_vec_u32(&file_path_to_bytes(s1)?))
 }
 
-pub(crate) fn load_index_u64<P: AsRef<Path> + std::fmt::Debug>(s1: P) -> Result<Vec<u64>, search::SearchError> {
+pub(crate) fn load_index_u64<P: AsRef<Path> + std::fmt::Debug>(s1: P) -> Result<Vec<u64>, VelociError> {
     info!("Loading Index64 {:?} ", s1);
     Ok(bytes_to_vec_u64(&file_path_to_bytes(s1)?))
 }
 
-pub(crate) fn get_file_handle_complete_path<P: AsRef<Path> + std::fmt::Debug>(path: P) -> Result<File, search::SearchError> {
-    Ok(File::open(&path).map_err(|err| search::SearchError::StringError(format!("Could not open {:?} {:?}", path, err)))?)
+pub(crate) fn get_file_handle_complete_path<P: AsRef<Path> + std::fmt::Debug>(path: P) -> Result<File, VelociError> {
+    Ok(File::open(&path).map_err(|err| VelociError::StringError(format!("Could not open {:?} {:?}", path, err)))?)
 }

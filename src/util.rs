@@ -1,5 +1,5 @@
 use crate::persistence::TEXTINDEX;
-use crate::search;
+use crate::error::VelociError;
 use itertools::Itertools;
 use regex::Regex;
 use std;
@@ -29,8 +29,8 @@ pub(crate) fn normalize_text(text: &str) -> String {
     new_str.to_lowercase().trim().to_owned()
 }
 
-pub fn open_file<P: AsRef<Path>>(path: P) -> Result<File, search::SearchError> {
-    Ok(File::open(path.as_ref()).map_err(|err| search::SearchError::StringError(format!("Could not open {} {:?}", path.as_ref().to_str().unwrap(), err)))?)
+pub fn open_file<P: AsRef<Path>>(path: P) -> Result<File, VelociError> {
+    Ok(File::open(path.as_ref()).map_err(|err| VelociError::StringError(format!("Could not open {} {:?}", path.as_ref().to_str().unwrap(), err)))?)
 }
 
 // pub(crate) fn get_bit_at(input: u32, n: u8) -> bool {
@@ -41,11 +41,11 @@ pub fn open_file<P: AsRef<Path>>(path: P) -> Result<File, search::SearchError> {
 //     }
 // }
 
-// pub(crate) fn load_flush_threshold_from_env() -> Result<Option<u32>, search::SearchError> {
+// pub(crate) fn load_flush_threshold_from_env() -> Result<Option<u32>, VelociError> {
 //     if let Some(val) = env::var_os("FlushThreshold") {
 //         let conv_env = val.clone()
 //             .into_string()
-//             .map_err(|_err| search::SearchError::StringError(format!("Could not convert LoadingType environment variable to utf-8: {:?}", val)))?;
+//             .map_err(|_err| VelociError::StringError(format!("Could not convert LoadingType environment variable to utf-8: {:?}", val)))?;
 
 //         let flush_threshold = conv_env
 //             .parse::<u32>()

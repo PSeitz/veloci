@@ -3,6 +3,7 @@ use crate::persistence;
 use crate::persistence::Persistence;
 use crate::persistence::*;
 use crate::search;
+use crate::error::VelociError;
 use crate::search::search_field_result::*;
 use crate::search::*;
 use crate::util;
@@ -77,7 +78,7 @@ pub fn ord_to_term(fst: &Fst, mut ord: u64, bytes: &mut Vec<u8>) -> bool {
 
 #[inline]
 #[cfg_attr(feature = "flame_it", flame)]
-fn get_text_lines<F>(persistence: &Persistence, options: &RequestSearchPart, mut fun: F) -> Result<(), SearchError>
+fn get_text_lines<F>(persistence: &Persistence, options: &RequestSearchPart, mut fun: F) -> Result<(), VelociError>
 where
     F: FnMut(String, u32),
 {
@@ -85,7 +86,7 @@ where
         .indices
         .fst
         .get(&options.path)
-        .ok_or_else(|| SearchError::StringError(format!("fst not found loaded in indices {} ", options.path)))?;
+        .ok_or_else(|| VelociError::StringError(format!("fst not found loaded in indices {} ", options.path)))?;
     let lev = {
         trace_time!("{} LevenshteinIC create", &options.path);
         let lev_automaton_builder = LevenshteinAutomatonBuilder::new(options.levenshtein_distance.unwrap_or(0) as u8, options.ignore_case.unwrap_or(true));
@@ -143,13 +144,13 @@ fn get_text_score_id_from_result(suggest_text: bool, results: &[SearchFieldResul
     search::apply_top_skip(&mut suggest_result, skip, top);
     suggest_result
 }
-pub fn suggest_multi(persistence: &Persistence, req: Request) -> Result<SuggestFieldResult, SearchError> {
+pub fn suggest_multi(persistence: &Persistence, req: Request) -> Result<SuggestFieldResult, VelociError> {
     info_time!("suggest time");
     let search_parts: Vec<RequestSearchPart> = req
         .suggest
-        .ok_or_else(|| SearchError::StringError("only suggest allowed in suggest function".to_string()))?;
+        .ok_or_else(|| VelociError::StringError("only suggest allowed in suggest function".to_string()))?;
 
-    let search_results: Result<Vec<_>, SearchError> = search_parts
+    let search_results: Result<Vec<_>, VelociError> = search_parts
         .into_par_iter()
         .map(|search_part| {
             // if search_part.token_value.is_none() { //Apply top skip directly if there is no token_boosting, which alters the result afterwards.
@@ -171,7 +172,7 @@ pub fn suggest_multi(persistence: &Persistence, req: Request) -> Result<SuggestF
 }
 
 // just adds sorting to search
-pub fn suggest(persistence: &Persistence, options: &RequestSearchPart) -> Result<SuggestFieldResult, SearchError> {
+pub fn suggest(persistence: &Persistence, options: &RequestSearchPart) -> Result<SuggestFieldResult, VelociError> {
     let mut req = Request {
         suggest: Some(vec![options.clone()]),
         ..Default::default()
@@ -183,7 +184,7 @@ pub fn suggest(persistence: &Persistence, options: &RequestSearchPart) -> Result
 }
 
 // just adds sorting to search
-pub fn highlight(persistence: &Persistence, options: &mut RequestSearchPart) -> Result<SuggestFieldResult, SearchError> {
+pub fn highlight(persistence: &Persistence, options: &mut RequestSearchPart) -> Result<SuggestFieldResult, VelociError> {
     options.terms = options.terms.iter().map(|el| util::normalize_text(el)).collect::<Vec<_>>();
 
     let mut options = PlanRequestSearchPart {
@@ -203,7 +204,7 @@ pub fn get_anchor_for_phrases_in_search_results(
     path: &str,
     res1: &SearchFieldResult,
     res2: &SearchFieldResult,
-) -> Result<(SearchFieldResult), SearchError> {
+) -> Result<(SearchFieldResult), VelociError> {
     let mut path = path.to_string();
     if !path.ends_with(TEXTINDEX) {
         path = path.add(TEXTINDEX);
@@ -215,7 +216,7 @@ pub fn get_anchor_for_phrases_in_search_results(
 }
 
 #[cfg_attr(feature = "flame_it", flame)]
-pub fn get_anchor_for_phrases_in_field(persistence: &Persistence, path: &str, term_id_pairs_1: &[u32], term_id_pairs_2: &[u32]) -> Result<(SearchFieldResult), SearchError> {
+pub fn get_anchor_for_phrases_in_field(persistence: &Persistence, path: &str, term_id_pairs_1: &[u32], term_id_pairs_2: &[u32]) -> Result<(SearchFieldResult), VelociError> {
     let mut result = SearchFieldResult::default();
     let store = persistence.get_phrase_pair_to_anchor(path)?;
     for term_id_1 in term_id_pairs_1 {
@@ -230,7 +231,7 @@ pub fn get_anchor_for_phrases_in_field(persistence: &Persistence, path: &str, te
 }
 
 #[cfg_attr(feature = "flame_it", flame)]
-pub fn get_term_ids_in_field(persistence: &Persistence, options: &mut PlanRequestSearchPart) -> Result<SearchFieldResult, SearchError> {
+pub fn get_term_ids_in_field(persistence: &Persistence, options: &mut PlanRequestSearchPart) -> Result<SearchFieldResult, VelociError> {
     if !options.request.path.ends_with(TEXTINDEX) {
         options.request.path = options.request.path.add(TEXTINDEX);
     }
@@ -360,7 +361,7 @@ pub fn resolve_token_to_anchor(
     // filter: Option<FnvHashSet<u32>>,
     filter: &Option<Arc<FilterResult>>,
     result: &SearchFieldResult,
-) -> Result<SearchFieldResult, SearchError> {
+) -> Result<SearchFieldResult, VelociError> {
     let mut options = options.clone();
     if !options.path.ends_with(TEXTINDEX) {
         options.path = options.path.add(TEXTINDEX);
@@ -498,7 +499,7 @@ pub fn resolve_token_hits_to_text_id(
     options: &RequestSearchPart,
     // _filter: Option<FnvHashSet<u32>>,
     result: &mut SearchFieldResult,
-) -> Result<(), search::SearchError> {
+) -> Result<(), VelociError> {
     let mut path = options.path.to_string();
     if !path.ends_with(TEXTINDEX) {
         path = path.add(TEXTINDEX);

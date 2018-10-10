@@ -35,7 +35,7 @@ fn load_persistence_disk() -> persistence::Persistence {
 #[cfg(test)]
 mod bench_jmdict {
 
-    // fn search_testo_to_doc(req: Value) -> Result<Vec<search::DocWithHit>, search::SearchError> {
+    // fn search_testo_to_doc(req: Value) -> Result<Vec<search::DocWithHit>, VelociError> {
     //     let persistences = PERSISTENCES.read().unwrap();
     //     let pers = persistences.get(&"default".to_string()).unwrap();
     //     let requesto: search::Request = serde_json::from_str(&req.to_string()).expect("Can't parse json");
