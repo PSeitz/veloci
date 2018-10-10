@@ -20,25 +20,18 @@ lazy_static! {
         { "tags[]":{"facet":true}}
         "#;
 
-        let mut data:Vec<u8> = vec![];
-        for _ in 0..300 {
-
-            let el = r#"{
+        let data:String = std::iter::repeat(r#"
+            {
                 "category": "superb",
                 "tags": ["nice", "cool"]
-            }"#;
-
-            data.extend(el.as_bytes());
-
-            let el = r#"{
+            }
+            {
                 "category": "awesomo",
                 "tags": ["is", "cool"]
-            }"#;
+            }
+        "#).take(300).collect();
 
-            data.extend(el.as_bytes());
-        }
-
-        common::create_test_persistence(TEST_FOLDER, indices, &data, None)
+        common::create_test_persistence_with_logging(TEST_FOLDER, indices, data.as_bytes(), None, false)
 
     };
 }

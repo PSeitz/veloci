@@ -248,9 +248,9 @@ impl<T: IndexIdToParentData, K: IndexIdToParentData> IndexIdToParent for SingleA
         count_values_for_ids(ids, top, self.metadata.avg_join_size, self.metadata.max_value_id, |id: u64| self.get_value(id))
     }
 
-    fn get_keys(&self) -> Vec<T> {
-        (num::cast(0).unwrap()..num::cast(self.data.len()).unwrap()).collect()
-    }
+    // fn get_keys(&self) -> Vec<T> {
+    //     (num::cast(0).unwrap()..num::cast(self.data.len()).unwrap()).collect()
+    // }
 
     #[inline]
     fn get_values_iter(&self, id: u64) -> VintArrayIteratorOpt<'_> {
@@ -280,10 +280,10 @@ impl<T: IndexIdToParentData, K: IndexIdToParentData> IndexIdToParent for SingleA
         self.get_value(id).map(|el| vec![el])
     }
 
-    #[inline]
-    fn get_num_keys(&self) -> usize {
-        self.data.len()
-    }
+    // #[inline]
+    // fn get_num_keys(&self) -> usize {
+    //     self.data.len()
+    // }
 }
 
 #[inline]
@@ -310,9 +310,9 @@ pub struct SingleArrayMMAPPacked<T: IndexIdToParentData> {
 }
 
 impl<T: IndexIdToParentData> SingleArrayMMAPPacked<T> {
-    fn get_size(&self) -> usize {
-        self.size
-    }
+    // fn get_size(&self) -> usize {
+    //     self.size
+    // }
 
     pub fn from_file(file: &File, metadata: IndexMetaData) -> Result<Self, search::SearchError> {
         let data_file = unsafe { MmapOptions::new().map(&file).unwrap() };
@@ -344,14 +344,14 @@ impl<T: IndexIdToParentData> HeapSizeOf for SingleArrayMMAPPacked<T> {
 impl<T: IndexIdToParentData> IndexIdToParent for SingleArrayMMAPPacked<T> {
     type Output = T;
 
-    fn get_keys(&self) -> Vec<T> {
-        (num::cast(0).unwrap()..num::cast(self.get_size()).unwrap()).collect()
-    }
+    // fn get_keys(&self) -> Vec<T> {
+    //     (num::cast(0).unwrap()..num::cast(self.get_size()).unwrap()).collect()
+    // }
 
-    #[inline]
-    default fn get_num_keys(&self) -> usize {
-        self.get_size()
-    }
+    // #[inline]
+    // default fn get_num_keys(&self) -> usize {
+    //     self.get_size()
+    // }
 
     #[inline]
     default fn get_values(&self, id: u64) -> Option<Vec<T>> {
@@ -392,7 +392,7 @@ mod tests {
         vec![5, 6, 9, 9, 9, 50000]
     }
     fn check_test_data_1_to_1<T: IndexIdToParentData>(store: &dyn IndexIdToParent<Output = T>) {
-        assert_eq!(store.get_keys().iter().map(|el| el.to_u32().unwrap()).collect::<Vec<_>>(), vec![0, 1, 2, 3, 4, 5]);
+        // assert_eq!(store.get_keys().iter().map(|el| el.to_u32().unwrap()).collect::<Vec<_>>(), vec![0, 1, 2, 3, 4, 5]);
         assert_eq!(store.get_value(0).unwrap().to_u32().unwrap(), 5);
         assert_eq!(store.get_value(1).unwrap().to_u32().unwrap(), 6);
         assert_eq!(store.get_value(2).unwrap().to_u32().unwrap(), 9);

@@ -19,6 +19,7 @@ env:
   - TEST_DIR=json_converter
 script:
 - cd $TEST_DIR
+- cargo clean
 - cargo build
 - cargo test
 
@@ -27,7 +28,7 @@ before_cache: |
 
 after_success: |
   # Uncomment the following line for coveralls.io
-  RAYON_NUM_THREADS=1 cargo tarpaulin --all --exclude-files src/bin/* benches/* --ciserver travis-ci --coveralls $TRAVIS_JOB_ID
+  RAYON_NUM_THREADS=1 cargo tarpaulin --all --exclude-files "src/bin/*" "benches/*" --ciserver travis-ci --coveralls $TRAVIS_JOB_ID
 
   # Uncomment the following two lines create and upload a report for codecov.io
   # cargo tarpaulin --out Xml

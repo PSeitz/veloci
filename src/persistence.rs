@@ -223,8 +223,8 @@ impl Default for IDDataType {
     }
 }
 
-pub trait IndexIdToParentData: Integer + Clone + num::NumCast + HeapSizeOf + Debug + Sync + Send + Copy + ToPrimitive + std::iter::Step + std::hash::Hash + 'static {}
-impl<T> IndexIdToParentData for T where T: Integer + Clone + num::NumCast + HeapSizeOf + Debug + Sync + Send + Copy + ToPrimitive + std::iter::Step + std::hash::Hash + 'static {}
+pub trait IndexIdToParentData: Integer + Clone + num::NumCast + HeapSizeOf + Debug + Sync + Send + Copy + ToPrimitive + std::hash::Hash + 'static {}
+impl<T> IndexIdToParentData for T where T: Integer + Clone + num::NumCast + HeapSizeOf + Debug + Sync + Send + Copy + ToPrimitive + std::hash::Hash + 'static {}
 
 pub trait TokenToAnchorScore: Debug + HeapSizeOf + Sync + Send + type_info::TypeInfo {
     fn get_score_iter(&self, id: u32) -> AnchorScoreIter<'_>;
@@ -329,12 +329,12 @@ pub trait IndexIdToParent: Debug + HeapSizeOf + Sync + Send + type_info::TypeInf
     }
 
     //last needs to be the largest value_id
-    fn get_keys(&self) -> Vec<Self::Output>;
+    // fn get_keys(&self) -> Vec<Self::Output>;
 
-    #[inline]
-    fn get_num_keys(&self) -> usize {
-        self.get_keys().len()
-    }
+    // #[inline]
+    // fn get_num_keys(&self) -> usize {
+    //     self.get_keys().len()
+    // }
 
     // #[inline]
     // fn is_1_to_n(&self) -> bool {
@@ -344,15 +344,15 @@ pub trait IndexIdToParent: Debug + HeapSizeOf + Sync + Send + type_info::TypeInf
     // }
 }
 
-pub fn trace_index_id_to_parent<T: IndexIdToParentData>(val: &dyn IndexIdToParent<Output = T>) {
+pub fn trace_index_id_to_parent<T: IndexIdToParentData>(_val: &dyn IndexIdToParent<Output = T>) {
     if log_enabled!(log::Level::Trace) {
-        let keys = val.get_keys();
-        for key in keys.iter().take(100) {
-            if let Some(vals) = val.get_values(num::cast(*key).unwrap()) {
-                let to = std::cmp::min(vals.len(), 100);
-                trace!("key {:?} to {:?}", key, &vals[0..to]);
-            }
-        }
+        // let keys = val.get_keys();
+        // for key in keys.iter().take(100) {
+        //     if let Some(vals) = val.get_values(num::cast(*key).unwrap()) {
+        //         let to = std::cmp::min(vals.len(), 100);
+        //         trace!("key {:?} to {:?}", key, &vals[0..to]);
+        //     }
+        // }
     }
 }
 

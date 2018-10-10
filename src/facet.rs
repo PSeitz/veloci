@@ -109,26 +109,20 @@ pub(crate) fn should_prefer_vec(num_ids: u32, avg_join_size: f32, max_value_id: 
     prefer_vec
 }
 
-fn get_top_n_sort_from_iter<T: num::Zero + std::cmp::PartialOrd + Copy + std::fmt::Debug, K: Copy, I: Iterator<Item = (K, T)>>(iter: I, top: usize) -> Vec<(K, T)> {
-    let mut top_n: Vec<(K, T)> = vec![];
+fn get_top_n_sort_from_iter<T: num::Zero + std::cmp::PartialOrd + Copy + std::fmt::Debug, K: Copy + std::fmt::Debug, I: Iterator<Item = (K, T)>>(iter: I, top_n: usize) -> Vec<(K, T)> {
+    let mut new_data: Vec<(K, T)> = vec![];
 
-    let mut current_worst = T::zero();
+    let mut worst_score = T::zero();
     for el in iter {
-        if el.1 < current_worst {
+        if el.1 < worst_score {
             continue;
         }
 
-        if !top_n.is_empty() && top_n.len() == 200 + top {
-            // 200 + top proved to be good
-            top_n.sort_unstable_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(Ordering::Equal));
-            top_n.truncate(top);
-            current_worst = top_n.last().unwrap().1;
-            trace!("facet new worst {:?}", current_worst);
-        }
+        check_apply_top_n_sort(&mut new_data, top_n as u32, &|a, b| b.1.partial_cmp(&a.1).unwrap_or(Ordering::Equal), &mut |the_worst: &(K,T)| worst_score = the_worst.1);
 
-        top_n.push((el.0, el.1));
+        new_data.push((el.0, el.1));
     }
-    top_n
+    new_data
 }
 
 impl<T: IndexIdToParentData> AggregationCollector<T> for Vec<T> {
@@ -169,3 +163,4 @@ impl<T: IndexIdToParentData> AggregationCollector<T> for FnvHashMap<T, usize> {
         *stat += 1;
     }
 }
+

@@ -1,7 +1,12 @@
 use search_lib::*;
 
 pub fn create_test_persistence(folder: &str, indices: &str, test_data: &[u8], token_values: Option<(String, serde_json::Value)>) -> persistence::Persistence {
-    trace::enable_log();
+    create_test_persistence_with_logging(folder, indices, test_data, token_values, true)
+}
+pub fn create_test_persistence_with_logging(folder: &str, indices: &str, test_data: &[u8], token_values: Option<(String, serde_json::Value)>, enable_tracing:bool) -> persistence::Persistence {
+    if enable_tracing {
+        trace::enable_log();
+    }
 
     let mut persistence_type = persistence::PersistenceType::Transient;
     if let Some(val) = std::env::var_os("PersistenceType") {

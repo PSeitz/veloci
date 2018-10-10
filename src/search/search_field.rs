@@ -281,18 +281,10 @@ pub fn get_term_ids_in_field(persistence: &Persistence, options: &mut PlanReques
                         return;
                     }
 
-                    if !result.hits_scores.is_empty() && result.hits_scores.len() as u32 == 200 + top_n_search {
-                        // if !result.hits_scores.is_empty() && (result.hits_scores.len() as u32 % (top_n_search * 5)) == 0 {
-                        result.hits_scores.sort_unstable_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(Ordering::Equal));
-                        result.hits_scores.truncate(top_n_search as usize);
-                        worst_score = result.hits_scores.last().unwrap().score;
-                        trace!("new worst {:?}", worst_score);
-                    }
-
                     search::check_apply_top_n_sort(
                         &mut result.hits_scores,
                         top_n_search,
-                        &|a, b| b.score.partial_cmp(&a.score).unwrap_or(Ordering::Equal),
+                        &search::sort_by_score_and_id,
                         &mut |the_worst: &Hit| worst_score = the_worst.score,
                     );
                 }
