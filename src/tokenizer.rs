@@ -10,12 +10,12 @@ pub trait Tokenizer {
 
 lazy_static! {
     // static ref TOKENIZER:Regex  = Regex::new(r#"([\s])+|([^\s]*)"#).unwrap();
-    static ref SEPERATORS:Regex = Regex::new(r#"(?P<seperator>[\s\(\),.…;・’\-\[\]{}<>'"“]+)"#).unwrap();
+    static ref SEPERATORS:Regex = Regex::new(r#"(?P<seperator>[\s:\(\),.…;・’\-\[\]{}<>'"“]+)"#).unwrap();
 }
 
 fn is_default_seperator(char: char) -> bool {
     match char {
-        ' ' | '\t' | '\n' | '\r' | '(' | ')' | ',' | '.' | '…' | ';' | '・' | '’' | '—' | '-' | '\\' | '{' | '}' | '<' | '>' | '\'' | '"' | '“' | '™' => true,
+        ' ' | '\t' | '\n' | '\r' | ':' | '(' | ')' | ',' | '.' | '…' | ';' | '・' | '’' | '—' | '-' | '\\' | '[' | ']'| '{' | '}' | '<' | '>' | '\'' | '"' | '“' | '™' => true,
         _ => false,
     }
 }

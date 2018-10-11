@@ -242,7 +242,7 @@ fn add_text<T: Tokenizer>(text: &str, term_data: &mut TermDataInPath, options: &
     trace!("text: {:?}", text);
 
     if term_data.do_not_store_text_longer_than < text.len() {
-        // term_data.id_counter_for_large_texts += 1;
+        term_data.id_counter_for_large_texts += 1;
         // add_count_text(&mut term_data.long_terms, text); //TODO handle no tokens case or else the text can't be reconstructed
     } else {
         add_count_text(&mut term_data.terms, text); //TODO handle no tokens case or else the text can't be reconstructed
@@ -250,6 +250,7 @@ fn add_text<T: Tokenizer>(text: &str, term_data: &mut TermDataInPath, options: &
 
     if options.tokenize && tokenizer.has_tokens(&text) {
         tokenizer.get_tokens(&text, &mut |token: &str, _is_seperator: bool| {
+            // debug_assert!(!_is_seperator && text.contains(" "));
             add_count_text(&mut term_data.terms, token);
         });
     }

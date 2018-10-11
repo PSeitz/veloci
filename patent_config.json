@@ -1,7 +1,7 @@
 {
     "*GLOBAL*":{"features" :[] },
     "abstract.text": {"features": ["Search"]},
-    "description.text": {"features": []},
+    "description.text": {"features": ["Search"]},
     "claims.texts[]": {"features": ["Search"]},
     "ucid": {"features": ["Search"], "fulltext":{"tokenize":false}},
     "bibliographic-data.further-classifications[]": {"features": ["Search"], "facet":true},
