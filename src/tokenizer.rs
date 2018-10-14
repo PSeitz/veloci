@@ -8,6 +8,25 @@ pub trait Tokenizer {
     fn has_tokens(&self, orignal: &str) -> bool;
 }
 
+pub trait TokenizerIter{
+    fn iter_tokens(&self) -> SimpleTokenizerGroupTokenIter ;
+    fn has_tokens(&self) -> bool;
+}
+
+impl TokenizerIter for & str {
+    fn iter_tokens(& self) -> SimpleTokenizerGroupTokenIter {
+        SimpleTokenizerGroupTokenIter{
+            orignal: self,
+            last_returned_byte: 0,
+            last_was_token: false,
+            char_iter: self.char_indices()
+        }
+    }
+    fn has_tokens(&self) -> bool {
+        SEPERATORS.is_match(self)
+    }
+}
+
 lazy_static! {
     // static ref TOKENIZER:Regex  = Regex::new(r#"([\s])+|([^\s]*)"#).unwrap();
     static ref SEPERATORS:Regex = Regex::new(r#"(?P<seperator>[\s:\(\),.…;・’\-\[\]{}<>'"“]+)"#).unwrap();
@@ -48,6 +67,59 @@ impl Tokenizer for SimpleTokenizer {
         }
     }
 }
+
+
+
+
+
+
+
+#[derive(Debug, Clone)]
+pub struct SimpleTokenizerGroupTokenIter<'a> {
+    orignal: &'a str,
+    last_returned_byte: usize,
+    last_was_token: bool,
+    char_iter: std::str::CharIndices<'a>
+    // field_id: u8,
+}
+
+impl<'a> Iterator for SimpleTokenizerGroupTokenIter<'a> {
+    type Item = (&'a str, bool);
+
+    #[inline]
+    fn next(&mut self) -> Option<(&'a str, bool)> {
+
+        while let Some((char_byte_pos, char)) = self.char_iter.next() {
+            if is_default_seperator(char) {
+                if char_byte_pos == 0 {
+                    self.last_was_token = true;
+                } else if !self.last_was_token {
+                    let slice = (&self.orignal[self.last_returned_byte..char_byte_pos], false);
+                    self.last_was_token = true;
+                    self.last_returned_byte = char_byte_pos;
+                    return Some(slice);
+                }
+            } else if self.last_was_token {
+                let slice = (&self.orignal[self.last_returned_byte..char_byte_pos], true);
+                self.last_was_token = false;
+                self.last_returned_byte = char_byte_pos;
+                return Some(slice);
+            }
+        }
+
+        if self.last_returned_byte != self.orignal.len() {
+            let slice = (&self.orignal[self.last_returned_byte..self.orignal.len()], self.last_was_token);
+            self.last_returned_byte = self.orignal.len();
+            Some(slice)
+        }else{
+            None
+        }
+    }
+}
+
+impl<'a> std::iter::FusedIterator for SimpleTokenizerGroupTokenIter<'a> {}
+
+
 #[derive(Debug)]
 pub struct SimpleTokenizerCharsIterateGroupTokens {}
 impl Tokenizer for SimpleTokenizerCharsIterateGroupTokens {
@@ -108,6 +180,11 @@ mod tests {
         tokenizer.get_tokens("das \n ist ein txt, test", &mut |token: &str, _is_seperator: bool| {
             vec.push(token.to_string());
         });
+        assert_eq!(vec, vec!["das", " \n ", "ist", " ", "ein", " ", "txt", ", ", "test"])
+    }
+    #[test]
+    fn test_tokenizer_iter_control_sequences_grouped() {
+        let vec: Vec<&str> = "das \n ist ein txt, test".iter_tokens().map(|el|el.0).collect();
         assert_eq!(vec, vec!["das", " \n ", "ist", " ", "ein", " ", "txt", ", ", "test"])
     }
     #[test]
@@ -188,6 +265,15 @@ mod tests {
                 vec.push(token);
             });
             // vec
+        })
+    }
+    #[bench]
+    fn bench_tokenizer_grouped_no_copy_2(b: &mut test::Bencher) {
+        use super::TokenizerIter;
+        let text = get_test_book();
+        let texto = text.as_str();
+        b.iter(|| {
+            texto.iter_tokens().map(|el|el.0).collect::<Vec<&str>>()
         })
     }
 

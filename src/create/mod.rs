@@ -250,10 +250,13 @@ fn add_text<T: Tokenizer>(text: &str, term_data: &mut TermDataInPath, options: &
     }
 
     if options.tokenize && tokenizer.has_tokens(&text) {
-        tokenizer.get_tokens(&text, &mut |token: &str, _is_seperator: bool| {
-            // debug_assert!(!_is_seperator && text.contains(" "));
+        for (token, _is_seperator) in text.iter_tokens() {
             add_count_text(&mut term_data.terms, token);
-        });
+        }
+        // tokenizer.get_tokens(&text, &mut |token: &str, _is_seperator: bool| {
+        //     // debug_assert!(!_is_seperator && text.contains(" "));
+            
+        // });
     }
 }
 
@@ -306,7 +309,7 @@ fn get_allterms_per_path<I: Iterator<Item = Result<serde_json::Value, serde_json
 //             let similiarity = num_similar as f32 / num_terms as f32;
 //             //info!("Similiarity {:?} {:?} {:?}", path, path_comp, num_similar as f32 / num_terms as f32);
 //             if map.contains_key(path_comp) {
-//                 let aha = map.get_mut(path_comp).unwrap().get_mut(path).unwrap();
+//                 let aha = map.get_mut(path_comp).expect("did not found key").get_mut(path).expect("did not found key");
 //                 aha.1 = similiarity;
 //             // map.get_mut(path_comp).1 = num_similar as f32 / num_terms as f32
 //             } else {
@@ -548,11 +551,10 @@ where
 
         let mut cb_text = |anchor_id: u32, value: &str, path: &str, parent_val_id: u32| -> Result<(), io::Error> {
             let data = get_or_insert_prefer_get(&mut path_data as *mut FnvHashMap<_, _>, path, || {
-                let term_data = create_cache.term_data.terms_in_path.remove(path).unwrap();
+                let term_data = create_cache.term_data.terms_in_path.remove(path).expect(&format!("Couldn't find path in create_cache.term_data {:?}", path));
                 prepare_path_data(persistence.temp_dir(), &fields_config, path, term_data)
             });
 
-            // let all_terms = create_cache.term_data.terms_in_path.get_mut(path).unwrap();
 
             let text_info = get_text_info(&mut data.term_data, &value);
             trace!("Found id {:?} for {:?}", text_info, value);
@@ -575,7 +577,7 @@ where
             if let Some(el) = data.boost.as_mut() {
                 // if options.boost_type == "int" {
                 let my_int = value.parse::<u32>().unwrap_or_else(|_| panic!("Expected an int value but got {:?}", value));
-                el.add(parent_val_id, my_int).unwrap();
+                el.add(parent_val_id, my_int)?;
             }
 
             if let Some(el) = data.token_to_anchor_id_score.as_mut() {
@@ -590,7 +592,8 @@ where
 
                 let mut prev_token: Option<u32> = None;
 
-                tokenizer.get_tokens(value, &mut |token: &str, is_seperator: bool| {
+                for (token, is_seperator) in value.iter_tokens() {
+                // tokenizer.get_tokens(value, &mut |token: &str, is_seperator: bool| {
                     let token_info = data.term_data.terms.get(token).expect("did not found token");
                     trace!("Adding to tokens_ids {:?} : {:?}", token, token_info);
 
@@ -620,7 +623,7 @@ where
                             prev_token = Some(token_info.id);
                         }
                     }
-                });
+                }
 
                 if !text_ids_to_token_ids_already_stored {
                     trace!("Adding for {:?} {:?} token_ids {:?}", value, text_info.id, tokens_ids);
