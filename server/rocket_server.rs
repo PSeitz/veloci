@@ -184,7 +184,7 @@ fn version() -> String {
     "0.6".to_string()
 }
 
-fn search_in_persistence(persistence: &Persistence, request: search_lib::search::Request, _enable_flame: bool) -> Result<SearchResult, VelociError> {
+fn search_in_persistence(persistence: &Persistence, request: search_lib::search::Request) -> Result<SearchResult, VelociError> {
     // info!("Searching ... ");
     let select = request.select.clone();
     let hits = {
@@ -213,7 +213,7 @@ fn search_post(database: String, request: Json<search::Request>) -> Result<Searc
     ensure_database(&database)?;
     let persistence = PERSISTENCES.get(&database).unwrap();
 
-    search_in_persistence(&persistence, request.0, false)
+    search_in_persistence(&persistence, request.0)
 }
 
 #[get("/<database>/_idtree/<id>")]
@@ -324,7 +324,7 @@ fn search_get(database: String, params: Result<QueryParams, rocket::Error>) -> R
     request.select = query_param_to_vec(params.select);
 
     debug!("{}", serde_json::to_string(&request).unwrap());
-    search_in_persistence(&persistence, request, false).map_err(search_error_to_rocket_error)
+    search_in_persistence(&persistence, request).map_err(search_error_to_rocket_error)
 }
 
 #[get("/<database>/search_shard?<params>")]

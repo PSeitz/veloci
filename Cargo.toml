@@ -56,14 +56,6 @@ path = "buffered_index_writer"
 [dependencies.doc_store]
 path = "doc_store"
 
-[dependencies.flame]
-optional = true
-version = "0.2.2"
-
-[dependencies.flamer]
-optional = true
-version = "0.2.5"
-
 [dependencies.half]
 features = ["use-intrinsics", "serialize", "std"]
 version = "1.3.0"
@@ -104,7 +96,6 @@ version = "0.2.5"
 [features]
 default = []
 enable_cpuprofiler = []
-flame_it = ["flame", "flamer"]
 
 [lib]
 name = "search_lib"

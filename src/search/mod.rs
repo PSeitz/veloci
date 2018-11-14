@@ -305,7 +305,7 @@ impl Hit {
     }
 }
 
-// #[cfg_attr(feature = "flame_it", flame)]
+// 
 // fn hits_to_sorted_array(hits: FnvHashMap<u32, f32>) -> Vec<Hit> {
 //     debug_time!("hits_to_sorted_array");
 //     let mut res: Vec<Hit> = hits.iter().map(|(id, score)| Hit { id: *id, score: *score }).collect();
@@ -347,7 +347,7 @@ fn highlight_on_original_document(doc: &str, why_found_terms: &FnvHashMap<String
 }
 
 // @FixMe Tests should use to_search_result
-#[cfg_attr(feature = "flame_it", flame)]
+
 pub fn to_documents(persistence: &Persistence, hits: &[Hit], select: &Option<Vec<String>>, result: &SearchResult) -> Vec<DocWithHit> {
     let tokens_set = {
         result
@@ -387,7 +387,7 @@ pub fn to_documents(persistence: &Persistence, hits: &[Hit], select: &Option<Vec
         .collect::<Vec<_>>()
 }
 
-#[cfg_attr(feature = "flame_it", flame)]
+
 pub fn to_search_result(persistence: &Persistence, hits: SearchResult, select: &Option<Vec<String>>) -> SearchResultWithDoc {
     SearchResultWithDoc {
         data: to_documents(&persistence, &hits.data, &select, &hits),
@@ -561,7 +561,7 @@ pub(crate) fn check_apply_top_n_sort<T: std::fmt::Debug>(new_data: &mut Vec<T>, 
     }
 }
 
-#[cfg_attr(feature = "flame_it", flame)]
+
 pub fn search(mut request: Request, persistence: &Persistence) -> Result<SearchResult, VelociError> {
     info_time!("search");
     request.top = request.top.or(Some(10));
@@ -642,7 +642,7 @@ pub fn search(mut request: Request, persistence: &Persistence) -> Result<SearchR
     Ok(search_result)
 }
 
-#[cfg_attr(feature = "flame_it", flame)]
+
 pub fn apply_boost_term(persistence: &Persistence, mut res: SearchFieldResult, boost_term: &[RequestSearchPart]) -> Result<SearchFieldResult, VelociError> {
     info_time!("boost_term");
     {
@@ -760,7 +760,7 @@ pub fn apply_top_skip<T: Clone>(hits: &mut Vec<T>, skip: Option<usize>, top: Opt
     }
 }
 
-#[cfg_attr(feature = "flame_it", flame)]
+
 pub fn get_shortest_result<T: std::iter::ExactSizeIterator>(results: &[T]) -> usize {
     let mut shortest = (0, std::u64::MAX);
     for (index, res) in results.iter().enumerate() {
@@ -771,7 +771,7 @@ pub fn get_shortest_result<T: std::iter::ExactSizeIterator>(results: &[T]) -> us
     shortest.0
 }
 
-#[cfg_attr(feature = "flame_it", flame)]
+
 pub fn get_longest_result<T: std::iter::ExactSizeIterator>(results: &[T]) -> usize {
     let mut longest = (0, std::u64::MIN);
     for (index, res) in results.iter().enumerate() {
@@ -831,7 +831,7 @@ fn merge_term_id_texts(results: &mut Vec<SearchFieldResult>) -> FnvHashMap<Strin
 //     }
 // }
 
-#[cfg_attr(feature = "flame_it", flame)]
+
 pub fn union_hits_score(mut or_results: Vec<SearchFieldResult>) -> SearchFieldResult {
     if or_results.is_empty() {
         return SearchFieldResult { ..Default::default() };
@@ -948,7 +948,7 @@ pub fn union_hits_score(mut or_results: Vec<SearchFieldResult>) -> SearchFieldRe
     }
 }
 
-#[cfg_attr(feature = "flame_it", flame)]
+
 pub fn union_hits_ids(mut or_results: Vec<SearchFieldResult>) -> SearchFieldResult {
     if or_results.is_empty() {
         return SearchFieldResult { ..Default::default() };
@@ -1038,7 +1038,7 @@ fn union_hits_vec_test() {
 //     );
 // }
 
-#[cfg_attr(feature = "flame_it", flame)]
+
 pub fn intersect_score_hits_with_ids(mut score_results: SearchFieldResult, mut id_hits: SearchFieldResult) -> SearchFieldResult {
     score_results.hits_scores.sort_unstable_by_key(|el| el.id);
     id_hits.hits_ids.sort_unstable();
@@ -1093,7 +1093,7 @@ fn check_score_iter_for_id(iter_n_current: &mut (impl Iterator<Item = Hit>, Hit)
     false
 }
 
-#[cfg_attr(feature = "flame_it", flame)]
+
 pub fn intersect_hits_score(mut and_results: Vec<SearchFieldResult>) -> SearchFieldResult {
     if and_results.is_empty() {
         return SearchFieldResult { ..Default::default() };
@@ -1179,7 +1179,7 @@ fn check_id_iter_for_id(iter_n_current: &mut (impl Iterator<Item = u32>, u32), c
     false
 }
 
-#[cfg_attr(feature = "flame_it", flame)]
+
 pub fn intersect_hits_ids(mut and_results: Vec<SearchFieldResult>) -> SearchFieldResult {
     if and_results.is_empty() {
         return SearchFieldResult { ..Default::default() };
@@ -1418,7 +1418,7 @@ mod bench_intersect {
 //     b.iter(|| intersect_hits_score())
 // }
 
-#[cfg_attr(feature = "flame_it", flame)]
+
 pub fn add_boost(persistence: &Persistence, boost: &RequestBoostPart, hits: &mut SearchFieldResult) -> Result<(), VelociError> {
     // let key = util::boost_path(&boost.path);
     let boost_path = boost.path.to_string() + BOOST_VALID_TO_VALUE;
@@ -1523,7 +1523,7 @@ pub fn read_data(persistence: &Persistence, id: u32, fields: &[String]) -> Resul
     read_tree(persistence, id, &tree)
 }
 
-#[cfg_attr(feature = "flame_it", flame)]
+
 pub fn read_tree(persistence: &Persistence, id: u32, tree: &NodeTree) -> Result<serde_json::Value, VelociError> {
     let mut json = json!({});
     match *tree {
@@ -1582,7 +1582,7 @@ pub fn get_read_tree_from_fields(persistence: &Persistence, fields: &[String]) -
     to_node_tree(all_steps)
 }
 
-#[cfg_attr(feature = "flame_it", flame)]
+
 pub fn join_to_parent_with_score(persistence: &Persistence, input: &SearchFieldResult, path: &str, _trace_time_info: &str) -> Result<SearchFieldResult, VelociError> {
     let mut total_values = 0;
     let num_hits = input.hits_scores.len();
@@ -1617,7 +1617,7 @@ pub fn join_to_parent_with_score(persistence: &Persistence, input: &SearchFieldR
     Ok(res)
 }
 
-// #[cfg_attr(feature = "flame_it", flame)]
+// 
 // pub(crate) fn join_for_read(persistence: &Persistence, input: Vec<u32>, path: &str) -> Result<FnvHashMap<u32, Vec<u32>>, VelociError> {
 //     let mut hits: FnvHashMap<u32, Vec<u32>> = FnvHashMap::default();
 //     let kv_store = persistence.get_valueid_to_parent(path)?;
@@ -1635,13 +1635,13 @@ pub fn join_to_parent_with_score(persistence: &Persistence, input: &SearchFieldR
 //     Ok(hits)
 // }
 
-#[cfg_attr(feature = "flame_it", flame)]
+
 pub fn join_for_1_to_1(persistence: &Persistence, value_id: u32, path: &str) -> Result<std::option::Option<u32>, VelociError> {
     let kv_store = persistence.get_valueid_to_parent(path)?;
     // trace!("path {:?} id {:?} resulto {:?}", path, value_id, kv_store.get_value(value_id as u64));
     Ok(kv_store.get_value(u64::from(value_id)))
 }
-#[cfg_attr(feature = "flame_it", flame)]
+
 pub fn join_for_1_to_n(persistence: &Persistence, value_id: u32, path: &str) -> Result<Option<Vec<u32>>, VelociError> {
     let kv_store = persistence.get_valueid_to_parent(path)?;
     Ok(kv_store.get_values(u64::from(value_id)))

@@ -538,7 +538,7 @@ fn collect_all_field_request_into_cache(request: &mut Request, field_search_cach
     }
 }
 
-#[cfg_attr(feature = "flame_it", flame)]
+
 pub fn plan_creator(mut request: Request, plan: &mut Plan) {
     let request_header = request.clone();
     let mut field_search_cache = FnvHashMap::default();
@@ -646,7 +646,7 @@ fn merge_vec(boost: &[RequestBoostPart], opt: &Option<Vec<RequestBoostPart>>) ->
     boost
 }
 
-#[cfg_attr(feature = "flame_it", flame)]
+
 fn plan_creator_2(
     is_filter: bool,
     is_filter_channel: bool,
@@ -764,7 +764,7 @@ fn plan_creator_2(
     }
 }
 
-#[cfg_attr(feature = "flame_it", flame)]
+
 fn plan_creator_search_part(
     is_filter_channel: bool,
     filter_channel_step: Option<usize>,
@@ -895,7 +895,7 @@ fn plan_creator_search_part(
 
 use rayon::prelude::*;
 
-// #[cfg_attr(feature = "flame_it", flame)]
+// 
 // pub fn execute_steps(steps: Vec<PlanStepType>, persistence: &Persistence) -> Result<(), VelociError> {
 //     let r: Result<Vec<_>, VelociError> = steps.into_par_iter().map(|step| step.execute_step(persistence)).collect();
 
@@ -933,7 +933,7 @@ use rayon::prelude::*;
 //     // Ok(hits)
 // }
 
-#[cfg_attr(feature = "flame_it", flame)]
+
 pub fn execute_steps(steps: Vec<Box<dyn PlanStepTrait>>, persistence: &Persistence) -> Result<(), VelociError> {
     let r: Result<Vec<_>, VelociError> = steps.into_par_iter().map(|step: Box<dyn PlanStepTrait>| step.execute_step(persistence)).collect();
 
@@ -972,7 +972,7 @@ pub fn execute_steps(steps: Vec<Box<dyn PlanStepTrait>>, persistence: &Persisten
 }
 
 // use crossbeam;
-// #[cfg_attr(feature = "flame_it", flame)]
+// 
 // pub fn execute_step_in_parrael(steps: Vec<PlanStepType>, persistence: &Persistence) -> Result<(), VelociError> {
 
 //     crossbeam::scope(|scope| {

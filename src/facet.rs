@@ -84,7 +84,7 @@ pub(crate) fn join_anchor_to_leaf(persistence: &Persistence, ids: &[u32], steps:
     Ok(next_level_ids)
 }
 
-#[cfg_attr(feature = "flame_it", flame)]
+
 fn join_for_n_to_m(persistence: &Persistence, value_ids: &[u32], path: &str) -> Result<Vec<u32>, VelociError> {
     let kv_store = persistence.get_valueid_to_parent(path)?;
     let mut hits = vec![];

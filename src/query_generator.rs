@@ -244,7 +244,7 @@ fn terms_for_phrase_from_ast(ast: &UserAST) -> Vec<&String> {
 }
 
 use parser;
-#[cfg_attr(feature = "flame_it", flame)]
+
 pub fn search_query(persistence: &Persistence, mut opt: SearchQueryGeneratorParameters) -> Result<Request, VelociError> {
     // let req = persistence.meta_data.fulltext_indices.key
     opt.facetlimit = opt.facetlimit.or(Some(5));

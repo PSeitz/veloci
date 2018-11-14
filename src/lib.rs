@@ -4,14 +4,10 @@
 #![feature(specialization)]
 #![feature(test)]
 #![cfg_attr(feature = "unstable", feature(alloc, heap_api, repr_simd))]
-#![cfg_attr(feature = "flame_it", feature(plugin, custom_attribute))]
-#![cfg_attr(feature = "flame_it", plugin(flamer))]
 #![feature(core_intrinsics)]
 
 #[cfg(feature = "enable_cpuprofiler")]
 extern crate cpuprofiler;
-#[cfg(feature = "flame_it")]
-extern crate flame;
 #[macro_use]
 #[allow(unused_imports)]
 extern crate dump;
@@ -25,13 +21,13 @@ extern crate prettytable;
 extern crate serde_derive;
 #[macro_use]
 extern crate serde_json;
-pub use doc_store;
 
 #[macro_use]
 extern crate measure_time;
 #[macro_use]
 extern crate failure;
 
+pub use doc_store;
 #[macro_use]
 pub mod util;
 #[macro_use]
