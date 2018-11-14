@@ -63,6 +63,7 @@ pub struct Dependency {
 }
 
 #[derive(Debug)]
+/// Plan creates a plan based on a search::Request
 pub struct Plan {
     pub steps: Vec<Box<dyn PlanStepTrait>>,
     dependencies: Vec<Dependency>,
@@ -91,8 +92,12 @@ impl Plan {
     }
 
     /// return the position in the array, which can be used as an id
-    fn get_step(&mut self, step_id: usize) -> &mut Box<dyn PlanStepTrait> {
-        &mut self.steps[step_id]
+    // fn get_step(&mut self, step_id: usize) -> &mut Box<dyn PlanStepTrait> {
+    //     &mut self.steps[step_id]
+    // }
+    /// return the position in the array, which can be used as an id
+    fn get_step_channel(&mut self, step_id: usize) -> &mut PlanStepDataChannels {
+        self.steps[step_id].get_channel()
     }
 
     // fn get_dependencies(&self, step_index: usize) -> Vec<Dependency> {
@@ -574,8 +579,8 @@ pub fn plan_creator(mut request: Request, plan: &mut Plan) {
     };
     // Add intersect step the search result with the filter
     if let Some(filter_final_step_id) = filter_final_step_id {
-        let final_step_channel = plan.get_step(final_step_id).get_channel().clone();
-        let filter_receiver = plan.get_step(filter_final_step_id).get_channel().receiver_for_next_step.clone();
+        let final_step_channel = plan.get_step_channel(final_step_id).clone();
+        let filter_receiver = plan.get_step_channel(filter_final_step_id).receiver_for_next_step.clone();
         let channel = PlanStepDataChannels::open_channel(1, vec![final_step_channel.receiver_for_next_step.clone(), filter_receiver]);
         let step = IntersectScoresWithIds { channel: channel.clone() };
         // step.get_channel().input_prev_steps = vec![final_output.0, filter_data_output.0];
@@ -592,7 +597,7 @@ pub fn plan_creator(mut request: Request, plan: &mut Plan) {
     for (_k, v) in field_search_cache.drain() {
         plan.steps[v.0] = Box::new(v.1);
     }
-    plan.plan_result = Some(plan.get_step(final_step_id).get_channel().receiver_for_next_step.clone());
+    plan.plan_result = Some(plan.get_step_channel(final_step_id).receiver_for_next_step.clone());
     // final_output.0
 }
 
@@ -631,7 +636,7 @@ fn add_phrase_boost_plan_steps(
     }
 
     //first is search result channel, rest are boost results
-    let mut vecco = vec![plan.get_step(search_output_step).get_channel().receiver_for_next_step.clone()];
+    let mut vecco = vec![plan.get_step_channel(search_output_step).receiver_for_next_step.clone()];
     for channel in phrase_outputs {
         vecco.push(channel.receiver_for_next_step);
     }
@@ -668,8 +673,8 @@ fn plan_creator_2(
     if let Some(or) = request.or.as_ref() {
         let mut channel = PlanStepDataChannels::default();
         if let Some(step_id) = filter_channel_step {
-            plan.get_step(step_id).get_channel().filter_channel.as_mut().unwrap().num_receivers += 1;
-            channel.filter_receiver = Some(plan.get_step(step_id).get_channel().filter_channel.as_mut().unwrap().filter_receiver.clone());
+            plan.get_step_channel(step_id).filter_channel.as_mut().unwrap().num_receivers += 1;
+            channel.filter_receiver = Some(plan.get_step_channel(step_id).filter_channel.as_mut().unwrap().filter_receiver.clone());
         }
         if is_filter_channel {
             channel.filter_channel = Some(FilterChannel::default());
@@ -693,10 +698,10 @@ fn plan_creator_2(
                     depends_on_step,
                     field_search_cache,
                 );
-                plan.get_step(step_id).get_channel().receiver_for_next_step.clone()
+                plan.get_step_channel(step_id).receiver_for_next_step.clone()
             })
             .collect();
-        plan.get_step(step_id).get_channel().input_prev_steps = result_channels_from_prev_steps;
+        plan.get_step_channel(step_id).input_prev_steps = result_channels_from_prev_steps;
 
         if let Some(parent_step_dependecy) = parent_step_dependecy {
             plan.add_dependency(parent_step_dependecy, step_id);
@@ -709,8 +714,8 @@ fn plan_creator_2(
     } else if let Some(ands) = request.and.as_ref() {
         let mut channel = PlanStepDataChannels::default();
         if let Some(step_id) = filter_channel_step {
-            plan.get_step(step_id).get_channel().filter_channel.as_mut().unwrap().num_receivers += 1;
-            channel.filter_receiver = Some(plan.get_step(step_id).get_channel().filter_channel.as_mut().unwrap().filter_receiver.clone());
+            plan.get_step_channel(step_id).filter_channel.as_mut().unwrap().num_receivers += 1;
+            channel.filter_receiver = Some(plan.get_step_channel(step_id).filter_channel.as_mut().unwrap().filter_receiver.clone());
         }
         if is_filter_channel {
             channel.filter_channel = Some(FilterChannel::default());
@@ -734,10 +739,10 @@ fn plan_creator_2(
                     depends_on_step,
                     field_search_cache,
                 );
-                plan.get_step(step_id).get_channel().receiver_for_next_step.clone()
+                plan.get_step_channel(step_id).receiver_for_next_step.clone()
             })
             .collect();
-        plan.get_step(step_id).get_channel().input_prev_steps = result_channels_from_prev_steps;
+        plan.get_step_channel(step_id).input_prev_steps = result_channels_from_prev_steps;
 
         if let Some(parent_step_dependecy) = parent_step_dependecy {
             plan.add_dependency(parent_step_dependecy, step_id);
@@ -798,8 +803,8 @@ fn plan_creator_search_part(
         // This is the normal case, resolve field directly to anchor ids
         let mut channel = PlanStepDataChannels::open_channel(1, vec![field_rx]);
         if let Some(step_id) = filter_channel_step {
-            plan.get_step(step_id).get_channel().filter_channel.as_mut().unwrap().num_receivers += 1;
-            channel.filter_receiver = Some(plan.get_step(step_id).get_channel().filter_channel.as_mut().unwrap().filter_receiver.clone());
+            plan.get_step_channel(step_id).filter_channel.as_mut().unwrap().num_receivers += 1;
+            channel.filter_receiver = Some(plan.get_step_channel(step_id).filter_channel.as_mut().unwrap().filter_receiver.clone());
         }
         if is_filter_channel {
             channel.filter_channel = Some(FilterChannel::default());

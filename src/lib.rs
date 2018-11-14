@@ -1,5 +1,5 @@
-#![cfg_attr(feature = "cargo-clippy", allow(implicit_hasher))]
-#![cfg_attr(feature = "cargo-clippy", allow(too_many_arguments))]
+#![cfg_attr(feature = "cargo-clippy", allow(clippy::implicit_hasher))]
+#![cfg_attr(feature = "cargo-clippy", allow(clippy::too_many_arguments))]
 #![feature(drain_filter)]
 #![feature(specialization)]
 #![feature(test)]
