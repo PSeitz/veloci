@@ -28,7 +28,7 @@ static LOG_ENABLED: RwLock<bool> = RwLock::new(false);
 pub fn enable_log() {
     let mut log_enabledo = LOG_ENABLED.write();
     if !*log_enabledo {
-        flexi_logger::Logger::with_env().format(format_log).start().unwrap();
+        flexi_logger::Logger::with_env().format(format_log).start().expect("could not create logger");
         *log_enabledo = true;
     };
 }
