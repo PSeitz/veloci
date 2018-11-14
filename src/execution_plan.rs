@@ -608,7 +608,7 @@ fn add_phrase_boost_plan_steps(
         let mut get_field_search = |req: &RequestSearchPart| -> (PlanDataReceiver, usize) {
             let field_search1 = field_search_cache
                 .get_mut(req)
-                .expect(&format!("PlanCreator: Could not find  request in field_search_cache {:?}", req));
+                .unwrap_or_else(|| panic!("PlanCreator: Could not find  request in field_search_cache {:?}", req));
             field_search1.1.req.get_ids = true;
             field_search1.1.channel.num_receivers += 1;
             let field_rx = field_search1.1.channel.receiver_for_next_step.clone();
@@ -788,7 +788,7 @@ fn plan_creator_search_part(
 
     let (id, field_search_step) = field_search_cache
         .get_mut(&request_part)
-        .expect(&format!("PlanCreator: Could not find  request in field_search_cache {:?}", request_part));
+        .unwrap_or_else(|| panic!("PlanCreator: Could not find  request in field_search_cache {:?}", request_part));
     field_search_step.req.store_term_texts |= request.why_found;
     field_search_step.req.store_term_id_hits |= store_term_id_hits;
     field_search_step.channel.num_receivers += 1;

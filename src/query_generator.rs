@@ -98,7 +98,7 @@ fn expand_fields_in_query_ast(ast: UserAST, all_fields: &[String]) -> UserAST {
                 UserAST::Leaf(filter) // TODO check if field exists
             } else {
                 let field_queries = all_fields
-                    .into_iter()
+                    .iter()
                     .map(|field_name| {
                         let filter_with_field = UserFilter {
                             field_name: Some(field_name.to_string()),

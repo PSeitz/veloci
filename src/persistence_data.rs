@@ -264,10 +264,10 @@ impl<T: IndexIdToParentData, K: IndexIdToParentData> IndexIdToParent for SingleA
         let val = self.data.get(id as usize);
         match val {
             Some(val) => {
-                if val.to_u32().expect(&format!("could not cast to u32 {:?}", val)) == EMPTY_BUCKET {
+                if val.to_u32().unwrap_or_else(|| panic!("could not cast to u32 {:?}", val)) == EMPTY_BUCKET {
                     None
                 } else {
-                    Some(num::cast(*val - K::one()).expect(&format!("could not cast to u32 {:?}", *val - K::one())))
+                    Some(num::cast(*val - K::one()).unwrap_or_else(|| panic!("could not cast to u32 {:?}", *val - K::one())))
                 }
             }
             None => None,

@@ -181,7 +181,7 @@ fn calculate_and_add_token_score_in_doc(
         }
     });
 
-    for (_, mut group) in &tokens_to_anchor_id.into_iter().group_by(|el| el.token_or_text_id) {
+    for (_, mut group) in &tokens_to_anchor_id.iter_mut().group_by(|el| el.token_or_text_id) {
         if let Some(first) = group.next() {
             let best_pos = first.token_pos;
             let num_occurences = first.num_occurences;
@@ -430,7 +430,7 @@ struct PathDataIds {
     parent_to_value: Option<BufferedIndexWriter>,
 }
 
-fn prepare_path_data(temp_dir: String, fields_config: &FieldsConfig, path: &str, term_data: TermDataInPath) -> PathData {
+fn prepare_path_data(temp_dir: &str, fields_config: &FieldsConfig, path: &str, term_data: TermDataInPath) -> PathData {
     let field_config = fields_config.get(path);
     let boost_info_data = if field_config.boost.is_some() {
         Some(Box::new(BufferedIndexWriter::new_for_sorted_id_insertion(temp_dir.to_string())))
@@ -481,12 +481,9 @@ fn prepare_path_data(temp_dir: String, fields_config: &FieldsConfig, path: &str,
         None
     };
 
-    let fulltext_options = field_config.fulltext.clone().unwrap_or_else(|| FulltextIndexOptions::new_with_tokenize());
+    let fulltext_options = field_config.fulltext.clone().unwrap_or_else(FulltextIndexOptions::new_with_tokenize);
 
-    let mut skip_tokenizing = tokens_to_text_id.is_none() && token_to_anchor_id_score.is_none() && phrase_pair_to_anchor.is_none();
-    if !fulltext_options.tokenize {
-        skip_tokenizing = fulltext_options.tokenize;
-    }
+    let skip_tokenizing = if !fulltext_options.tokenize { fulltext_options.tokenize } else { tokens_to_text_id.is_none() && token_to_anchor_id_score.is_none() && phrase_pair_to_anchor.is_none() };
 
     PathData {
         anchor_to_text_id,
@@ -506,7 +503,7 @@ fn prepare_path_data(temp_dir: String, fields_config: &FieldsConfig, path: &str,
 }
 
 fn get_text_info(all_terms: &mut TermDataInPath, value: &str) -> TermInfo {
-    let text_info = if all_terms.do_not_store_text_longer_than < value.len() {
+    if all_terms.do_not_store_text_longer_than < value.len() {
         // *all_terms.long_terms.get(value).expect("did not found term")
         all_terms.id_counter_for_large_texts = all_terms.id_counter_for_large_texts.checked_add(1).expect(NUM_TERM_LIMIT_MSG);
         TermInfo {
@@ -523,8 +520,7 @@ fn get_text_info(all_terms: &mut TermDataInPath, value: &str) -> TermInfo {
         }
     } else {
         *all_terms.terms.get(value).expect("did not found term")
-    };
-    text_info
+    }
 }
 
 fn parse_json_and_prepare_indices<I>(
@@ -555,8 +551,8 @@ where
                     .term_data
                     .terms_in_path
                     .remove(path)
-                    .expect(&format!("Couldn't find path in create_cache.term_data {:?}", path));
-                prepare_path_data(persistence.temp_dir(), &fields_config, path, term_data)
+                    .unwrap_or_else(|| panic!("Couldn't find path in create_cache.term_data {:?}", path));
+                prepare_path_data(&persistence.temp_dir(), &fields_config, path, term_data)
             });
 
             let text_info = get_text_info(&mut data.term_data, &value);
@@ -983,7 +979,7 @@ fn convert_raw_path_data_to_indices(
         .map(|(mut path, data)| {
             let mut indices = IndicesFromRawData::default();
 
-            path = path + TEXTINDEX;
+            path += TEXTINDEX;
             let path = &path;
 
             if let Some(tokens_to_text_id) = data.tokens_to_text_id {

@@ -207,7 +207,7 @@ impl<T: IndexIdToParentData> IndexIdToMultipleParentIndirect<T> {
         let size = self.get_size();
 
         let mut positions_vec = Vec::with_capacity(8);
-        for id_chunk in &ids.into_iter().chunks(8) {
+        for id_chunk in &ids.iter().chunks(8) {
             for id in id_chunk {
                 if *id >= size as u32 {
                     continue;

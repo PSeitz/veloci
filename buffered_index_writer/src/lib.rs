@@ -243,7 +243,7 @@ impl<
             let temp_folder = &self.flush_data.temp_file_folder;
             let mut data_file = BufWriter::new(self.flush_data.temp_file.get_or_insert_with(|| {
                 tempfile::NamedTempFile::new_in(temp_folder)
-                    .expect(&format!("could not create temp file {:?}", temp_folder))
+                    .unwrap_or_else(|_| panic!("could not create temp file {:?}", temp_folder))
             }));
             let mut sink = Vec::with_capacity(self.cache.len() * mem::size_of::<KeyValue<K, T>>());
             for value in self.cache.iter() {

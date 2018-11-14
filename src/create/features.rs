@@ -27,7 +27,7 @@ impl Features {
             Features::PhraseBoost,
         ];
 
-        all_features.into_iter().filter(|feature| features.contains(&feature)).cloned().collect()
+        all_features.iter().filter(|feature| features.contains(feature)).cloned().collect()
     }
 
     pub fn features_to_disabled_indices(features: &FnvHashSet<Features>) -> FnvHashSet<IndexCreationType> {
