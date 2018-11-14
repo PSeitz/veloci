@@ -1,9 +1,9 @@
+use crate::error::VelociError;
 use crate::highlight_field::*;
 use crate::persistence;
 use crate::persistence::Persistence;
 use crate::persistence::*;
 use crate::search;
-use crate::error::VelociError;
 use crate::search::search_field_result::*;
 use crate::search::*;
 use crate::util;
@@ -110,7 +110,6 @@ where
 
 pub type SuggestFieldResult = Vec<(String, Score, TermId)>;
 
-
 fn get_text_score_id_from_result(suggest_text: bool, results: &[SearchFieldResult], skip: Option<usize>, top: Option<usize>) -> SuggestFieldResult {
     let mut suggest_result = results
         .iter()
@@ -198,7 +197,6 @@ pub fn highlight(persistence: &Persistence, options: &mut RequestSearchPart) -> 
     Ok(get_text_score_id_from_result(false, &[result], options.request.skip, options.request.top))
 }
 
-
 pub fn get_anchor_for_phrases_in_search_results(
     persistence: &Persistence,
     path: &str,
@@ -215,7 +213,6 @@ pub fn get_anchor_for_phrases_in_search_results(
     get_anchor_for_phrases_in_field(persistence, &path, &res1.hits_ids, &res2.hits_ids)
 }
 
-
 pub fn get_anchor_for_phrases_in_field(persistence: &Persistence, path: &str, term_id_pairs_1: &[u32], term_id_pairs_2: &[u32]) -> Result<(SearchFieldResult), VelociError> {
     let mut result = SearchFieldResult::default();
     let store = persistence.get_phrase_pair_to_anchor(path)?;
@@ -229,7 +226,6 @@ pub fn get_anchor_for_phrases_in_field(persistence: &Persistence, path: &str, te
     result.hits_ids.sort_unstable();
     Ok(result)
 }
-
 
 pub fn get_term_ids_in_field(persistence: &Persistence, options: &mut PlanRequestSearchPart) -> Result<SearchFieldResult, VelociError> {
     if !options.request.path.ends_with(TEXTINDEX) {
@@ -354,7 +350,6 @@ pub fn get_term_ids_in_field(persistence: &Persistence, options: &mut PlanReques
     Ok(result)
 }
 
-
 pub fn resolve_token_to_anchor(
     persistence: &Persistence,
     options: &RequestSearchPart,
@@ -447,20 +442,19 @@ pub fn resolve_token_to_anchor(
     Ok(res)
 }
 
-// 
+//
 // fn get_text_for_ids(persistence: &Persistence, path: &str, ids: &[u32]) -> Vec<String> {
 //     // let mut faccess: persistence::FileSearch = persistence.get_file_search(path);
 //     // let offsets = persistence.get_offsets(path).unwrap();
 //     ids.iter().map(|id| get_text_for_id(persistence, path, *id)).collect()
 // }
 
-// 
+//
 // fn get_text_for_id_disk(persistence: &Persistence, path: &str, id: u32) -> String {
 //     let mut faccess: persistence::FileSearch = persistence.get_file_search(path);
 //     let offsets = persistence.get_offsets(path).unwrap();
 //     faccess.get_text_for_id(id as usize, offsets)
 // }
-
 
 pub fn get_text_for_id(persistence: &Persistence, path: &str, id: u32) -> String {
     let map = persistence.indices.fst.get(path).unwrap_or_else(|| panic!("fst not found loaded in indices {} ", path));
@@ -469,7 +463,6 @@ pub fn get_text_for_id(persistence: &Persistence, path: &str, id: u32) -> String
     ord_to_term(map.as_fst(), u64::from(id), &mut bytes);
     unsafe { String::from_utf8_unchecked(bytes) }
 }
-
 
 pub fn get_id_text_map_for_ids(persistence: &Persistence, path: &str, ids: &[u32]) -> FnvHashMap<u32, String> {
     let map = persistence.indices.fst.get(path).unwrap_or_else(|| panic!("fst not found loaded in indices {} ", path));
@@ -492,7 +485,6 @@ fn should_filter(filter: &Option<Arc<FilterResult>>, id: u32) -> bool {
         })
         .unwrap_or(false)
 }
-
 
 pub fn resolve_token_hits_to_text_id(
     persistence: &Persistence,

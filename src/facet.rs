@@ -1,8 +1,8 @@
 #![cfg_attr(feature = "cargo-clippy", allow(clippy::boxed_local))]
 
+use crate::error::VelociError;
 use crate::persistence::*;
 use crate::search::*;
-use crate::error::VelociError;
 use crate::search_field::*;
 use crate::util;
 use crate::util::StringAdd;
@@ -83,7 +83,6 @@ pub(crate) fn join_anchor_to_leaf(persistence: &Persistence, ids: &[u32], steps:
 
     Ok(next_level_ids)
 }
-
 
 fn join_for_n_to_m(persistence: &Persistence, value_ids: &[u32], path: &str) -> Result<Vec<u32>, VelociError> {
     let kv_store = persistence.get_valueid_to_parent(path)?;

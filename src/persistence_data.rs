@@ -8,9 +8,9 @@ use std::u32;
 // use byteorder::{LittleEndian, ReadBytesExt};
 use heapsize::HeapSizeOf;
 
+use crate::error::VelociError;
 use crate::persistence::EMPTY_BUCKET;
 use crate::persistence::*;
-use crate::error::VelociError;
 pub(crate) use crate::persistence_data_indirect::*;
 
 use crate::facet::*;

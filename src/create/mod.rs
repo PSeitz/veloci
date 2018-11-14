@@ -12,6 +12,7 @@ use std::io;
 use std::{self, str};
 
 use buffered_index_writer;
+use crate::error::*;
 use crate::persistence;
 use crate::persistence::IndexCategory;
 use crate::persistence::*;
@@ -21,7 +22,6 @@ use crate::persistence_data_binary_search::*;
 use crate::persistence_data_indirect::*;
 use crate::persistence_score::token_to_anchor_score_vint::*;
 use crate::search;
-use crate::error::*;
 use crate::search_field;
 use crate::tokenizer::*;
 use crate::util;
@@ -244,7 +244,7 @@ fn add_text<T: Tokenizer>(text: &str, term_data: &mut TermDataInPath, options: &
 
     if term_data.do_not_store_text_longer_than < text.len() {
         term_data.id_counter_for_large_texts += 1;
-        // add_count_text(&mut term_data.long_terms, text); //TODO handle no tokens case or else the text can't be reconstructed
+    // add_count_text(&mut term_data.long_terms, text); //TODO handle no tokens case or else the text can't be reconstructed
     } else {
         add_count_text(&mut term_data.terms, text); //TODO handle no tokens case or else the text can't be reconstructed
     }
@@ -255,7 +255,7 @@ fn add_text<T: Tokenizer>(text: &str, term_data: &mut TermDataInPath, options: &
         }
         // tokenizer.get_tokens(&text, &mut |token: &str, _is_seperator: bool| {
         //     // debug_assert!(!_is_seperator && text.contains(" "));
-            
+
         // });
     }
 }
@@ -551,10 +551,13 @@ where
 
         let mut cb_text = |anchor_id: u32, value: &str, path: &str, parent_val_id: u32| -> Result<(), io::Error> {
             let data = get_or_insert_prefer_get(&mut path_data as *mut FnvHashMap<_, _>, path, || {
-                let term_data = create_cache.term_data.terms_in_path.remove(path).expect(&format!("Couldn't find path in create_cache.term_data {:?}", path));
+                let term_data = create_cache
+                    .term_data
+                    .terms_in_path
+                    .remove(path)
+                    .expect(&format!("Couldn't find path in create_cache.term_data {:?}", path));
                 prepare_path_data(persistence.temp_dir(), &fields_config, path, term_data)
             });
-
 
             let text_info = get_text_info(&mut data.term_data, &value);
             trace!("Found id {:?} for {:?}", text_info, value);
@@ -593,7 +596,7 @@ where
                 let mut prev_token: Option<u32> = None;
 
                 for (token, is_seperator) in value.iter_tokens() {
-                // tokenizer.get_tokens(value, &mut |token: &str, is_seperator: bool| {
+                    // tokenizer.get_tokens(value, &mut |token: &str, is_seperator: bool| {
                     let token_info = data.term_data.terms.get(token).expect("did not found token");
                     trace!("Adding to tokens_ids {:?} : {:?}", token, token_info);
 
@@ -1407,4 +1410,3 @@ where
 
     Ok(create_cache)
 }
-

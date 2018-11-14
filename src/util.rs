@@ -1,5 +1,5 @@
-use crate::persistence::TEXTINDEX;
 use crate::error::VelociError;
+use crate::persistence::TEXTINDEX;
 use itertools::Itertools;
 use regex::Regex;
 use std;
@@ -30,7 +30,8 @@ pub(crate) fn normalize_text(text: &str) -> String {
 }
 
 pub fn open_file<P: AsRef<Path>>(path: P) -> Result<File, VelociError> {
-    Ok(File::open(path.as_ref()).map_err(|err| VelociError::StringError(format!("Could not open {} {:?}", path.as_ref().to_str().expect("could not convert path to string"), err)))?)
+    Ok(File::open(path.as_ref())
+        .map_err(|err| VelociError::StringError(format!("Could not open {} {:?}", path.as_ref().to_str().expect("could not convert path to string"), err)))?)
 }
 
 // pub(crate) fn get_bit_at(input: u32, n: u8) -> bool {

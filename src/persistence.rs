@@ -19,11 +19,11 @@ use log;
 // use rayon::prelude::*;
 
 use crate::create;
+use crate::error::VelociError;
 use crate::persistence_data::*;
 use crate::persistence_data_binary_search::*;
 use crate::persistence_score::*;
 use crate::search::*;
-use crate::error::VelociError;
 use crate::search_field_result;
 use crate::type_info;
 use crate::util;
@@ -378,7 +378,6 @@ impl Persistence {
         Ok(Box::new(store) as Box<dyn IndexIdToParent<Output = u32>>)
     }
 
-    
     pub fn load_from_disk(&mut self) -> Result<(), VelociError> {
         info_time!("loaded persistence {:?}", &self.db);
 
@@ -598,18 +597,15 @@ impl Persistence {
         Ok(io::BufWriter::new(file))
     }
 
-    
     pub fn write_data(&self, path: &str, data: &[u8]) -> Result<(), io::Error> {
         File::create(&get_file_path(&self.db, path))?.write_all(data)?;
         Ok(())
     }
 
-    
     pub fn write_meta_data(&self) -> Result<(), io::Error> {
         self.write_data("metaData.json", serde_json::to_string_pretty(&self.meta_data)?.as_bytes())
     }
 
-    
     pub fn write_data_offset<T: Clone + Copy + Debug>(&self, bytes: &[u8], data: &[T]) -> Result<(), io::Error> {
         debug_time!("Wrote data offsets with size {:?}", data.len());
         File::create(util::get_file_path(&self.db, "data.offsets"))?.write_all(bytes)?;
@@ -640,7 +636,6 @@ impl Persistence {
         })
     }
 
-    
     pub fn load<P: AsRef<Path>>(db: P) -> Result<Self, VelociError> {
         let meta_data = MetaData::new(db.as_ref().to_str().unwrap())?;
         let mut pers = Persistence {

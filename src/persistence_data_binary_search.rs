@@ -1,8 +1,8 @@
 use heapsize::HeapSizeOf;
 use std::cmp::Ordering::Greater;
 
-use crate::persistence::*;
 use crate::error::VelociError;
+use crate::persistence::*;
 use crate::persistence_data_indirect::calc_avg_join_size;
 use crate::persistence_data_indirect::flush_to_file_indirect;
 use crate::type_info::TypeInfo;

@@ -305,7 +305,7 @@ impl Hit {
     }
 }
 
-// 
+//
 // fn hits_to_sorted_array(hits: FnvHashMap<u32, f32>) -> Vec<Hit> {
 //     debug_time!("hits_to_sorted_array");
 //     let mut res: Vec<Hit> = hits.iter().map(|(id, score)| Hit { id: *id, score: *score }).collect();
@@ -386,7 +386,6 @@ pub fn to_documents(persistence: &Persistence, hits: &[Hit], select: &Option<Vec
         })
         .collect::<Vec<_>>()
 }
-
 
 pub fn to_search_result(persistence: &Persistence, hits: SearchResult, select: &Option<Vec<String>>) -> SearchResultWithDoc {
     SearchResultWithDoc {
@@ -561,7 +560,6 @@ pub(crate) fn check_apply_top_n_sort<T: std::fmt::Debug>(new_data: &mut Vec<T>, 
     }
 }
 
-
 pub fn search(mut request: Request, persistence: &Persistence) -> Result<SearchResult, VelociError> {
     info_time!("search");
     request.top = request.top.or(Some(10));
@@ -641,7 +639,6 @@ pub fn search(mut request: Request, persistence: &Persistence) -> Result<SearchR
     }
     Ok(search_result)
 }
-
 
 pub fn apply_boost_term(persistence: &Persistence, mut res: SearchFieldResult, boost_term: &[RequestSearchPart]) -> Result<SearchFieldResult, VelociError> {
     info_time!("boost_term");
@@ -760,7 +757,6 @@ pub fn apply_top_skip<T: Clone>(hits: &mut Vec<T>, skip: Option<usize>, top: Opt
     }
 }
 
-
 pub fn get_shortest_result<T: std::iter::ExactSizeIterator>(results: &[T]) -> usize {
     let mut shortest = (0, std::u64::MAX);
     for (index, res) in results.iter().enumerate() {
@@ -770,7 +766,6 @@ pub fn get_shortest_result<T: std::iter::ExactSizeIterator>(results: &[T]) -> us
     }
     shortest.0
 }
-
 
 pub fn get_longest_result<T: std::iter::ExactSizeIterator>(results: &[T]) -> usize {
     let mut longest = (0, std::u64::MIN);
@@ -830,7 +825,6 @@ fn merge_term_id_texts(results: &mut Vec<SearchFieldResult>) -> FnvHashMap<Strin
 //         })
 //     }
 // }
-
 
 pub fn union_hits_score(mut or_results: Vec<SearchFieldResult>) -> SearchFieldResult {
     if or_results.is_empty() {
@@ -948,7 +942,6 @@ pub fn union_hits_score(mut or_results: Vec<SearchFieldResult>) -> SearchFieldRe
     }
 }
 
-
 pub fn union_hits_ids(mut or_results: Vec<SearchFieldResult>) -> SearchFieldResult {
     if or_results.is_empty() {
         return SearchFieldResult { ..Default::default() };
@@ -1038,7 +1031,6 @@ fn union_hits_vec_test() {
 //     );
 // }
 
-
 pub fn intersect_score_hits_with_ids(mut score_results: SearchFieldResult, mut id_hits: SearchFieldResult) -> SearchFieldResult {
     score_results.hits_scores.sort_unstable_by_key(|el| el.id);
     id_hits.hits_ids.sort_unstable();
@@ -1092,7 +1084,6 @@ fn check_score_iter_for_id(iter_n_current: &mut (impl Iterator<Item = Hit>, Hit)
     }
     false
 }
-
 
 pub fn intersect_hits_score(mut and_results: Vec<SearchFieldResult>) -> SearchFieldResult {
     if and_results.is_empty() {
@@ -1178,7 +1169,6 @@ fn check_id_iter_for_id(iter_n_current: &mut (impl Iterator<Item = u32>, u32), c
     }
     false
 }
-
 
 pub fn intersect_hits_ids(mut and_results: Vec<SearchFieldResult>) -> SearchFieldResult {
     if and_results.is_empty() {
@@ -1418,7 +1408,6 @@ mod bench_intersect {
 //     b.iter(|| intersect_hits_score())
 // }
 
-
 pub fn add_boost(persistence: &Persistence, boost: &RequestBoostPart, hits: &mut SearchFieldResult) -> Result<(), VelociError> {
     // let key = util::boost_path(&boost.path);
     let boost_path = boost.path.to_string() + BOOST_VALID_TO_VALUE;
@@ -1490,7 +1479,6 @@ pub fn add_boost(persistence: &Persistence, boost: &RequestBoostPart, hits: &mut
     Ok(())
 }
 
-
 #[inline]
 fn join_and_get_text_for_ids(persistence: &Persistence, id: u32, prop: &str) -> Result<Option<String>, VelociError> {
     // TODO CHECK field_name exists previously
@@ -1506,7 +1494,10 @@ fn join_and_get_text_for_ids(persistence: &Persistence, id: u32, prop: &str) -> 
                     .collect::<Vec<_>>()
                     .concat()
             } else {
-                return Err(VelociError::MissingTextId{text_value_id, field_name:field_name.add(TEXT_ID_TO_TOKEN_IDS)} );
+                return Err(VelociError::MissingTextId {
+                    text_value_id,
+                    field_name: field_name.add(TEXT_ID_TO_TOKEN_IDS),
+                });
             }
         } else {
             get_text_for_id(persistence, &field_name, text_value_id)
@@ -1522,7 +1513,6 @@ pub fn read_data(persistence: &Persistence, id: u32, fields: &[String]) -> Resul
     let tree = get_read_tree_from_fields(persistence, fields);
     read_tree(persistence, id, &tree)
 }
-
 
 pub fn read_tree(persistence: &Persistence, id: u32, tree: &NodeTree) -> Result<serde_json::Value, VelociError> {
     let mut json = json!({});
@@ -1582,7 +1572,6 @@ pub fn get_read_tree_from_fields(persistence: &Persistence, fields: &[String]) -
     to_node_tree(all_steps)
 }
 
-
 pub fn join_to_parent_with_score(persistence: &Persistence, input: &SearchFieldResult, path: &str, _trace_time_info: &str) -> Result<SearchFieldResult, VelociError> {
     let mut total_values = 0;
     let num_hits = input.hits_scores.len();
@@ -1617,7 +1606,7 @@ pub fn join_to_parent_with_score(persistence: &Persistence, input: &SearchFieldR
     Ok(res)
 }
 
-// 
+//
 // pub(crate) fn join_for_read(persistence: &Persistence, input: Vec<u32>, path: &str) -> Result<FnvHashMap<u32, Vec<u32>>, VelociError> {
 //     let mut hits: FnvHashMap<u32, Vec<u32>> = FnvHashMap::default();
 //     let kv_store = persistence.get_valueid_to_parent(path)?;
@@ -1634,7 +1623,6 @@ pub fn join_to_parent_with_score(persistence: &Persistence, input: &SearchFieldR
 
 //     Ok(hits)
 // }
-
 
 pub fn join_for_1_to_1(persistence: &Persistence, value_id: u32, path: &str) -> Result<std::option::Option<u32>, VelociError> {
     let kv_store = persistence.get_valueid_to_parent(path)?;

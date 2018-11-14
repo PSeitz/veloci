@@ -1,14 +1,13 @@
-
 use heapsize::HeapSizeOf;
 use lru_time_cache::LruCache;
 
 use byteorder::{LittleEndian, ReadBytesExt};
 
-use crate::persistence::*;
-use crate::facet::*;
-use crate::util::*;
-use crate::type_info::TypeInfo;
 use crate::error::VelociError;
+use crate::facet::*;
+use crate::persistence::*;
+use crate::type_info::TypeInfo;
+use crate::util::*;
 
 use num;
 use num::cast::ToPrimitive;

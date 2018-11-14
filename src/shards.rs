@@ -1,5 +1,5 @@
-use crate::error::VelociError;
 use crate::create;
+use crate::error::VelociError;
 use crate::persistence;
 use crate::persistence::*;
 use crate::query_generator;
@@ -194,11 +194,7 @@ impl Shards {
         })
     }
 
-    pub fn search_all_shards_from_qp(
-        &self,
-        q_params: &query_generator::SearchQueryGeneratorParameters,
-        select: &Option<Vec<String>>,
-    ) -> Result<SearchResultWithDoc, VelociError> {
+    pub fn search_all_shards_from_qp(&self, q_params: &query_generator::SearchQueryGeneratorParameters, select: &Option<Vec<String>>) -> Result<SearchResultWithDoc, VelociError> {
         let mut all_search_results = SearchResultWithDoc::default();
 
         let r: Vec<ShardResult<'_>> = self

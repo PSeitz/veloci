@@ -19,7 +19,7 @@ pub enum VelociError {
     #[fail(display = "Invalid Config: '{:?}'", _0)]
     InvalidConfig(String),
     #[fail(display = "Missing text_id {:?} in index {}, therefore could not load text", text_value_id, field_name)]
-    MissingTextId{text_value_id:u32, field_name:String},
+    MissingTextId { text_value_id: u32, field_name: String },
     #[fail(display = "field does not exist {} (fst not found)", _0)]
     FstNotFound(String),
     #[fail(display = "Plan Execution Failed, channel was closed or empty ")]
@@ -48,4 +48,3 @@ impl From<serde_json::Error> for VelociError {
         VelociError::JsonError(error)
     }
 }
-

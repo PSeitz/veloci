@@ -390,7 +390,6 @@ fn should_return_an_error_when_trying_to_query_an_invalid_field() {
     let hits = search_to_hits!(requesto);
 
     assert_eq!(format!("{}", hits.unwrap_err()), "field does not exist notexisting.textindex (fst not found)".to_string())
-
 }
 
 #[test]
