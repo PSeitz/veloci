@@ -1,9 +1,11 @@
-#![feature(decl_macro, custom_derive)]
-#![plugin(rocket_codegen)]
+// #![feature(decl_macro, custom_derive)]
+// #![plugin(rocket_codegen)]
+
+#![feature(proc_macro_hygiene, decl_macro)]
 #![feature(plugin, custom_attribute)]
 #![feature(type_ascription)]
 
-extern crate rocket;
+#[macro_use] extern crate rocket;
 extern crate rocket_contrib;
 extern crate rocket_cors;
 
@@ -31,9 +33,11 @@ extern crate search_lib;
 use rocket::fairing;
 use rocket::http::Method;
 use rocket::response::{self, Responder, Response};
+use rocket::request::{Form, FormError, FormDataError};
 use rocket::Request;
 
-use rocket_contrib::{Json, Value};
+// use rocket_contrib::{Json, Value};
+use rocket_contrib::json::{Json, JsonValue};
 use rocket_cors::{AllowedHeaders, AllowedOrigins};
 
 use multipart::server::save::Entries;
@@ -217,7 +221,7 @@ fn search_post(database: String, request: Json<search::Request>) -> Result<Searc
 }
 
 #[get("/<database>/_idtree/<id>")]
-fn get_doc_for_id_tree(database: String, id: u32) -> Json<Value> {
+fn get_doc_for_id_tree(database: String, id: u32) -> Json<serde_json::Value> {
     let persistence = PERSISTENCES.get(&database).unwrap();
     let all_fields = persistence.meta_data.get_all_fields();
     let tree = search::get_read_tree_from_fields(&persistence, &all_fields);
@@ -226,7 +230,7 @@ fn get_doc_for_id_tree(database: String, id: u32) -> Json<Value> {
 }
 
 #[get("/<database>/_id/<id>")]
-fn get_doc_for_id_direct(database: String, id: u32) -> Json<Value> {
+fn get_doc_for_id_direct(database: String, id: u32) -> Json<serde_json::Value> {
     // let persistence = PERSISTENCES.get(&database).unwrap();
     // let fields = persistence.get_all_fields();
     // let tree = search::get_read_tree_from_fields(&persistence, &fields);
@@ -247,7 +251,7 @@ fn get_doc_for_id_direct(database: String, id: u32) -> Json<Value> {
 // }
 
 #[get("/<database>/search?<params>")]
-fn search_get(database: String, params: Result<QueryParams, rocket::Error>) -> Result<SearchResult, Custom<String>> {
+fn search_get(database: String, params: Result<QueryParams, FormError>) -> Result<SearchResult, Custom<String>> {
     let params = params.map_err(|err| Custom(Status::BadRequest, format!("{:?}", err)))?;
     ensure_database(&database).map_err(search_error_to_rocket_error)?;
     let persistence = PERSISTENCES.get(&database).unwrap();
@@ -531,7 +535,7 @@ fn delete_db(database: String) -> Result<String, VelociError> {
 }
 
 #[post("/<database>/suggest", format = "application/json", data = "<request>")]
-fn suggest_post(database: String, request: Json<search::Request>) -> Json<Value> {
+fn suggest_post(database: String, request: Json<search::Request>) -> Json<serde_json::Value> {
     ensure_database(&database).unwrap();
     let persistence = PERSISTENCES.get(&database).unwrap();
     let hits = search_field::suggest_multi(&persistence, request.0).unwrap();
