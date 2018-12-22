@@ -26,7 +26,7 @@ impl FastLinesTrait for BufReader<File> {
                         }
                     }
                     let line = unsafe { String::from_utf8_unchecked(cache) };
-                    s.send(serde_json::from_str(&line))
+                    s.send(serde_json::from_str(&line));
                 }
                 Err(_e) => break,
             }
@@ -45,6 +45,6 @@ impl Iterator for FastLinesJson {
 
     #[inline(always)]
     fn next(&mut self) -> Option<Result<serde_json::Value, serde_json::Error>> {
-        self.receiver.recv()
+        self.receiver.recv().ok()
     }
 }

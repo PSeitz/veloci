@@ -136,7 +136,7 @@ impl Plan {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone)]
 pub struct PlanStepDataChannels {
     input_prev_steps: Vec<PlanDataReceiver>,
     sender_to_next_steps: PlanDataSender,
@@ -146,7 +146,7 @@ pub struct PlanStepDataChannels {
     filter_channel: Option<FilterChannel>,    // Sending result as filter output to receivers
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone)]
 pub struct FilterChannel {
     // input_prev_steps: Vec<PlanDataReceiver>,
     // sender_to_next_steps: PlanDataSender,
@@ -213,53 +213,53 @@ pub trait PlanStepTrait: Debug + Sync + Send {
     fn execute_step(self: Box<Self>, persistence: &Persistence) -> Result<(), VelociError>;
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug)]
 struct PlanStepFieldSearchToTokenIds {
     req: PlanRequestSearchPart,
     channel: PlanStepDataChannels,
 }
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug)]
 struct ResolveTokenIdToAnchor {
     // req: PlanRequestSearchPart,
     request: RequestSearchPart,
     channel: PlanStepDataChannels,
 }
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug)]
 struct ResolveTokenIdToTextId {
     request: RequestSearchPart,
     channel: PlanStepDataChannels,
 }
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug)]
 struct ValueIdToParent {
     path: String,
     trace_info: String,
     channel: PlanStepDataChannels,
 }
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug)]
 struct BoostPlanStepFromBoostRequest {
     req: RequestBoostPart,
     channel: PlanStepDataChannels,
 }
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug)]
 struct BoostAnchorFromPhraseResults {
     channel: PlanStepDataChannels,
 }
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug)]
 struct PlanStepPhrasePairToAnchorId {
     req: RequestPhraseBoost,
     channel: PlanStepDataChannels,
 }
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug)]
 struct Union {
     ids_only: bool,
     channel: PlanStepDataChannels,
 }
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug)]
 struct Intersect {
     ids_only: bool,
     channel: PlanStepDataChannels,
 }
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug)]
 struct IntersectScoresWithIds {
     channel: PlanStepDataChannels,
 }
@@ -283,9 +283,9 @@ impl PlanStepTrait for ResolveTokenIdToAnchor {
     }
 
     fn execute_step(self: Box<Self>, persistence: &Persistence) -> Result<(), VelociError> {
-        let res = self.channel.input_prev_steps[0].recv().ok_or_else(|| VelociError::PlanExecutionRecvFailed)?;
+        let res = self.channel.input_prev_steps[0].recv().map_err(|_| VelociError::PlanExecutionRecvFailed)?;
         let filter_res = if let Some(ref filter_receiver) = self.channel.filter_receiver {
-            let search_field_result = filter_receiver.recv().ok_or_else(|| VelociError::PlanExecutionRecvFailedFilter)?;
+            let search_field_result = filter_receiver.recv().map_err(|_| VelociError::PlanExecutionRecvFailedFilter)?;
             Some(search_field_result)
         } else {
             None
@@ -302,7 +302,7 @@ impl PlanStepTrait for ResolveTokenIdToTextId {
     }
 
     fn execute_step(self: Box<Self>, persistence: &Persistence) -> Result<(), VelociError> {
-        let mut field_result = self.channel.input_prev_steps[0].recv().ok_or_else(|| VelociError::PlanExecutionRecvFailed)?;
+        let mut field_result = self.channel.input_prev_steps[0].recv().map_err(|_| VelociError::PlanExecutionRecvFailed)?;
         resolve_token_hits_to_text_id(persistence, &self.request, &mut field_result)?;
         send_result_to_channel(field_result, &self.channel)?;
         drop_channel(self.channel);
@@ -319,7 +319,7 @@ impl PlanStepTrait for ValueIdToParent {
         send_result_to_channel(
             join_to_parent_with_score(
                 persistence,
-                &self.channel.input_prev_steps[0].recv().ok_or_else(|| VelociError::PlanExecutionRecvFailed)?,
+                &self.channel.input_prev_steps[0].recv().map_err(|_| VelociError::PlanExecutionRecvFailed)?,
                 &self.path,
                 &self.trace_info,
             )?,
@@ -336,7 +336,7 @@ impl PlanStepTrait for BoostPlanStepFromBoostRequest {
     }
 
     fn execute_step(self: Box<Self>, persistence: &Persistence) -> Result<(), VelociError> {
-        let mut input = self.channel.input_prev_steps[0].recv().ok_or_else(|| VelociError::PlanExecutionRecvFailed)?;
+        let mut input = self.channel.input_prev_steps[0].recv().map_err(|_| VelociError::PlanExecutionRecvFailed)?;
         add_boost(persistence, &self.req, &mut input)?;
         send_result_to_channel(input, &self.channel)?;
         drop_channel(self.channel);
@@ -377,7 +377,7 @@ impl PlanStepTrait for BoostAnchorFromPhraseResults {
     }
 
     fn execute_step(self: Box<Self>, _persistence: &Persistence) -> Result<(), VelociError> {
-        let input = self.channel.input_prev_steps[0].recv().ok_or_else(|| VelociError::PlanExecutionRecvFailed)?;
+        let input = self.channel.input_prev_steps[0].recv().map_err(|_| VelociError::PlanExecutionRecvFailed)?;
         let boosts = get_data(&self.channel.input_prev_steps[1..])?;
         let mut boosts = sort_and_group_boosts_by_phrase_terms(boosts);
         //Set boost for phrases for the next step
@@ -396,8 +396,8 @@ impl PlanStepTrait for PlanStepPhrasePairToAnchorId {
     }
 
     fn execute_step(self: Box<Self>, persistence: &Persistence) -> Result<(), VelociError> {
-        let res1 = self.channel.input_prev_steps[0].recv().ok_or_else(|| VelociError::PlanExecutionRecvFailed)?;
-        let res2 = self.channel.input_prev_steps[1].recv().ok_or_else(|| VelociError::PlanExecutionRecvFailed)?;
+        let res1 = self.channel.input_prev_steps[0].recv().map_err(|_| VelociError::PlanExecutionRecvFailed)?;
+        let res2 = self.channel.input_prev_steps[1].recv().map_err(|_| VelociError::PlanExecutionRecvFailed)?;
         assert!(self.req.search1.path == self.req.search2.path);
         let mut res = get_anchor_for_phrases_in_search_results(persistence, &self.req.search1.path, &res1, &res2)?;
         res.phrase_boost = Some(self.req.clone());
@@ -448,8 +448,8 @@ impl PlanStepTrait for IntersectScoresWithIds {
 
     fn execute_step(self: Box<Self>, _persistence: &Persistence) -> Result<(), VelociError> {
         info_time!("IntersectScoresWithIds");
-        let scores_res = self.channel.input_prev_steps[0].recv().ok_or_else(|| VelociError::PlanExecutionRecvFailed)?;
-        let ids_res = self.channel.input_prev_steps[1].recv().ok_or_else(|| VelociError::PlanExecutionRecvFailed)?;
+        let scores_res = self.channel.input_prev_steps[0].recv().map_err(|_| VelociError::PlanExecutionRecvFailed)?;
+        let ids_res = self.channel.input_prev_steps[1].recv().map_err(|_| VelociError::PlanExecutionRecvFailed)?;
 
         let res = intersect_score_hits_with_ids(scores_res, ids_res);
         send_result_to_channel(res, &self.channel)?;
@@ -461,7 +461,7 @@ impl PlanStepTrait for IntersectScoresWithIds {
 fn get_data(input_prev_steps: &[PlanDataReceiver]) -> Result<Vec<SearchFieldResult>, VelociError> {
     let mut dat = vec![];
     for el in input_prev_steps {
-        dat.push(el.recv().ok_or_else(|| VelociError::PlanExecutionRecvFailed)?);
+        dat.push(el.recv().map_err(|_| VelociError::PlanExecutionRecvFailed)?);
     }
     Ok(dat)
 }
