@@ -26,7 +26,7 @@ impl FastLinesTrait for BufReader<File> {
                         }
                     }
                     let line = unsafe { String::from_utf8_unchecked(cache) };
-                    s.send(serde_json::from_str(&line));
+                    s.send(serde_json::from_str(&line)).expect("could not send json to channel while indexing");
                 }
                 Err(_e) => break,
             }

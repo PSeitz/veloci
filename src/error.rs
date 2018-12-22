@@ -22,8 +22,10 @@ pub enum VelociError {
     MissingTextId { text_value_id: u32, field_name: String },
     #[fail(display = "field does not exist {} (fst not found)", _0)]
     FstNotFound(String),
-    #[fail(display = "Plan Execution Failed, channel was closed or empty ")]
+    #[fail(display = "Plan Execution Failed, receive channel was closed or empty ")]
     PlanExecutionRecvFailed,
+    #[fail(display = "Plan Execution Failed, could not send to channel ")]
+    PlanExecutionSendFailed,
     #[fail(display = "Plan Execution Failed, filter channel was closed or empty ")]
     PlanExecutionRecvFailedFilter,
 }
