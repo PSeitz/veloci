@@ -1,6 +1,3 @@
-// #![feature(decl_macro, custom_derive)]
-// #![plugin(rocket_codegen)]
-
 #![feature(proc_macro_hygiene, decl_macro)]
 #![feature(plugin, custom_attribute)]
 #![feature(type_ascription)]
@@ -14,11 +11,7 @@ extern crate fnv;
 extern crate serde;
 #[macro_use]
 extern crate serde_json;
-// extern crate snap;
-
 // extern crate time;
-// extern crate bodyparser;
-// extern crate urlencoded;
 
 extern crate flate2;
 #[macro_use]
@@ -30,14 +23,14 @@ extern crate measure_time;
 extern crate multipart;
 extern crate search_lib;
 
+use rocket::request::LenientForm;
 use rocket::fairing;
 use rocket::http::Method;
 use rocket::response::{self, Responder, Response};
-use rocket::request::{Form, FormError, FormDataError};
 use rocket::Request;
 
 // use rocket_contrib::{Json, Value};
-use rocket_contrib::json::{Json, JsonValue};
+use rocket_contrib::json::{Json};
 use rocket_cors::{AllowedHeaders, AllowedOrigins};
 
 use multipart::server::save::Entries;
@@ -250,9 +243,10 @@ fn get_doc_for_id_direct(database: String, id: u32) -> Json<serde_json::Value> {
 //     search::read_tree(&persistence, 25000, &tree)
 // }
 
-#[get("/<database>/search?<params>")]
-fn search_get(database: String, params: Result<QueryParams, FormError>) -> Result<SearchResult, Custom<String>> {
-    let params = params.map_err(|err| Custom(Status::BadRequest, format!("{:?}", err)))?;
+#[get("/<database>/search?<params..>")]
+fn search_get(database: String, params: LenientForm<QueryParams>) -> Result<SearchResult, Custom<String>> {
+    // let params = params.map_err(|err| Custom(Status::BadRequest, format!("{:let params: QueryParams = params.into_inner();?}", err)))?;
+    let params: QueryParams = params.into_inner();
     ensure_database(&database).map_err(search_error_to_rocket_error)?;
     let persistence = PERSISTENCES.get(&database).unwrap();
 
@@ -331,8 +325,9 @@ fn search_get(database: String, params: Result<QueryParams, FormError>) -> Resul
     search_in_persistence(&persistence, request).map_err(search_error_to_rocket_error)
 }
 
-#[get("/<database>/search_shard?<params>")]
-fn search_get_shard(database: String, params: QueryParams) -> Result<SearchResult, VelociError> {
+#[get("/<database>/search_shard?<params..>")]
+fn search_get_shard(database: String, params: LenientForm<QueryParams>) -> Result<SearchResult, VelociError> {
+    let params: QueryParams = params.into_inner();
     ensure_shard(&database)?;
     let shard = SHARDS.get(&database).unwrap();
 
@@ -551,8 +546,9 @@ fn inspect_data(database: String, path: String, id: u64) -> Result<String, Veloc
     Ok(serde_json::to_string(&data.get_values(id)).unwrap())
 }
 
-#[get("/<database>/suggest?<params>", format = "application/json")]
-fn suggest_get(database: String, params: QueryParams) -> Result<SuggestResult, VelociError> {
+#[get("/<database>/suggest?<params..>", format = "application/json")]
+fn suggest_get(database: String, params: LenientForm<QueryParams>) -> Result<SuggestResult, VelociError> {
+    let params: QueryParams = params.into_inner();
     ensure_database(&database)?;
     let persistence = PERSISTENCES.get(&database).unwrap();
 
