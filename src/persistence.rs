@@ -369,6 +369,30 @@ pub fn get_readable_size_for_children<T: HeapSizeOf>(value: T) -> ColoredString 
 }
 
 impl Persistence {
+
+    pub fn create(db: String) -> Result<Self, io::Error> {
+        Self::create_type(db, PersistenceType::Persistent)
+    }
+
+    pub fn create_type(db: String, persistence_type: PersistenceType) -> Result<Self, io::Error> {
+        use std::path::Path;
+        if Path::new(&db).exists() {
+            fs::remove_dir_all(&db)?;
+        }
+        fs::create_dir_all(&db)?;
+        fs::create_dir(db.to_string() + "/temp")?; // for temporary index creation
+        let meta_data = MetaData { ..Default::default() };
+        Ok(Persistence {
+            persistence_type,
+            meta_data,
+            db,
+            lru_cache: HashMap::default(),
+            term_boost_cache: RwLock::new(LruCache::with_expiry_duration_and_capacity(Duration::new(3600, 0), 10)),
+            indices: PersistenceIndices::default(),
+        })
+    }
+
+
     fn load_types_index_to_one<T: IndexIdToParentData>(data_direct_path: &str, metadata: IndexMetaData) -> Result<Box<dyn IndexIdToParent<Output = u32>>, VelociError> {
         let store = SingleArrayIM::<u32, T> {
             data: decode_bit_packed_vals(&file_path_to_bytes(data_direct_path)?, get_bytes_required(metadata.max_value_id)),
@@ -612,28 +636,6 @@ impl Persistence {
         info!("Wrote data offsets with size {:?}", data.len());
         trace!("{:?}", data);
         Ok(())
-    }
-
-    pub fn create(db: String) -> Result<Self, io::Error> {
-        Self::create_type(db, PersistenceType::Persistent)
-    }
-
-    pub fn create_type(db: String, persistence_type: PersistenceType) -> Result<Self, io::Error> {
-        use std::path::Path;
-        if Path::new(&db).exists() {
-            fs::remove_dir_all(&db)?;
-        }
-        fs::create_dir_all(&db)?;
-        fs::create_dir(db.to_string() + "/temp")?; // for temporary index creation
-        let meta_data = MetaData { ..Default::default() };
-        Ok(Persistence {
-            persistence_type,
-            meta_data,
-            db,
-            lru_cache: HashMap::default(),
-            term_boost_cache: RwLock::new(LruCache::with_expiry_duration_and_capacity(Duration::new(3600, 0), 10)),
-            indices: PersistenceIndices::default(),
-        })
     }
 
     pub fn load<P: AsRef<Path>>(db: P) -> Result<Self, VelociError> {

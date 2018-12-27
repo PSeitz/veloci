@@ -27,16 +27,16 @@ fn main() {
         .map(|path| {
             let mut f = File::open(path).expect("file not found");
             let mut contents = String::new();
-            f.read_to_string(&mut contents).expect("something went wrong reading the file");
+            f.read_to_string(&mut contents).expect("could not read the config file");
             contents
         })
         .unwrap_or_else(|| "{}".to_string());
 
-    let file = matches.value_of("data").unwrap();
+    let data = matches.value_of("data").unwrap();
     let target = matches.value_of("target").unwrap();
 
     start_profiler("./create-prof.profile");
-    search_lib::create::create_indices_from_file(&mut search_lib::persistence::Persistence::create(target.to_string()).unwrap(), file, &config, None, false).unwrap();
+    search_lib::create::create_indices_from_file(&mut search_lib::persistence::Persistence::create(target.to_string()).expect("could not create the persistence"), data, &config, None, false).unwrap();
     stop_profiler();
 }
 
@@ -48,11 +48,11 @@ fn stop_profiler() {}
 #[cfg(feature = "enable_cpuprofiler")]
 fn start_profiler(name: &str) {
     use cpuprofiler::PROFILER;
-    PROFILER.lock().unwrap().start(name).unwrap();
+    PROFILER.lock().expect("could not star profiler").start(name).expect("could not star profiler");
 }
 
 #[cfg(feature = "enable_cpuprofiler")]
 fn stop_profiler() {
     use cpuprofiler::PROFILER;
-    PROFILER.lock().unwrap().stop().unwrap();
+    PROFILER.lock().expect("could not stop profiler").stop().expect("could not stop profiler");
 }

@@ -59,6 +59,13 @@ fn get_default_score_for_distance(distance: u8, prefix_matches: bool) -> f32 {
 }
 
 #[inline]
+pub fn ord_to_term_to_string(fst: &Fst, id: u32) -> String {
+    let mut bytes = vec![];
+    ord_to_term(fst, u64::from(id), &mut bytes);
+    unsafe { String::from_utf8_unchecked(bytes) }
+}
+
+#[inline]
 pub fn ord_to_term(fst: &Fst, mut ord: u64, bytes: &mut Vec<u8>) -> bool {
     bytes.clear();
     let mut node = fst.root();
@@ -459,18 +466,21 @@ pub fn resolve_token_to_anchor(
 pub fn get_text_for_id(persistence: &Persistence, path: &str, id: u32) -> String {
     let map = persistence.indices.fst.get(path).unwrap_or_else(|| panic!("fst not found loaded in indices {} ", path));
 
-    let mut bytes = vec![];
-    ord_to_term(map.as_fst(), u64::from(id), &mut bytes);
-    unsafe { String::from_utf8_unchecked(bytes) }
+    ord_to_term_to_string(map.as_fst(), id)
+
+    // let mut bytes = vec![];
+    // ord_to_term(map.as_fst(), u64::from(id), &mut bytes);
+    // unsafe { String::from_utf8_unchecked(bytes) }
 }
 
 pub fn get_id_text_map_for_ids(persistence: &Persistence, path: &str, ids: &[u32]) -> FnvHashMap<u32, String> {
     let map = persistence.indices.fst.get(path).unwrap_or_else(|| panic!("fst not found loaded in indices {} ", path));
     ids.iter()
         .map(|id| {
-            let mut bytes = vec![];
-            ord_to_term(map.as_fst(), u64::from(*id), &mut bytes);
-            (*id, str::from_utf8(&bytes).unwrap().to_string())
+            (*id, ord_to_term_to_string(map.as_fst(), *id))
+            // let mut bytes = vec![];
+            // ord_to_term(map.as_fst(), u64::from(*id), &mut bytes);
+            // (*id, String::from_utf8(&bytes).unwrap())
         })
         .collect()
 }

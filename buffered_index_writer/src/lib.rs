@@ -159,7 +159,7 @@ impl<
     pub fn bytes_written(&self) -> u64 {
         self.flush_data.bytes_written
     }
-    pub fn new_with_opt(stable_sort: bool, ids_are_sorted: bool, temp_file_folder : String) -> Self {
+    fn new_with_opt(stable_sort: bool, ids_are_sorted: bool, temp_file_folder : String) -> Self {
         let flush_data = Box::new(FlushStruct{
             bytes_written: 0,
             temp_file: None,
@@ -177,14 +177,17 @@ impl<
         }
     }
 
+    /// When key ids are already inserted in the correct order, we can skip sorting
     pub fn new_for_sorted_id_insertion(temp_file_folder : String) -> Self {
         BufferedIndexWriter::new_with_opt(false, true, temp_file_folder)
     }
 
+    /// Sorting on key ids is done with a _stable_ sort
     pub fn new_stable_sorted(temp_file_folder : String) -> Self {
         BufferedIndexWriter::new_with_opt(true, false, temp_file_folder)
     }
 
+    /// Sorting on key ids is done with _unstable_ sort. Use this when incoming order of data for an id needs to be stable e.g. text_id -> token_ids
     pub fn new_unstable_sorted(temp_file_folder : String) -> Self {
         BufferedIndexWriter::new_with_opt(false, false, temp_file_folder)
     }
