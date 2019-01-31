@@ -55,21 +55,29 @@ fn to_serialized_vint_array(add_data: Vec<u32>) -> Vec<u8> {
 }
 
 /// This data structure assumes that a set is only called once for a id, and ids are set in order.
+<<<<<<< bf95731630f8f78c4b2193f6f79a1fb0eb023b70
 #[derive(Debug, Clone)]
 pub struct IndexIdToMultipleParentIndirectFlushingInOrderVint {
     pub ids_cache: Vec<u32>,
     pub data_cache: Vec<u8>,
     pub current_data_offset: u32,
+=======
+#[derive(Debug, Clone, HeapSizeOf)]
+pub(crate) struct IndexIdToMultipleParentIndirectFlushingInOrderVint {
+    pub(crate) ids_cache: Vec<u32>,
+    pub(crate) data_cache: Vec<u8>,
+    pub(crate) current_data_offset: u32,
+>>>>>>> visiblity
     /// Already written ids_cache
-    pub current_id_offset: u32,
-    pub path: String,
-    pub metadata: IndexMetaData,
+    pub(crate) current_id_offset: u32,
+    pub(crate) path: String,
+    pub(crate) metadata: IndexMetaData,
 }
 
 // use vint for indirect, use not highest bit in indirect, but the highest unused bit. Max(value_id, single data_id, which would be encoded in the valueid index)
 //
 impl IndexIdToMultipleParentIndirectFlushingInOrderVint {
-    pub fn new(path: String, max_value_id: u32) -> Self {
+    pub(crate) fn new(path: String, max_value_id: u32) -> Self {
         let mut data_cache = vec![];
         data_cache.resize(1, 0); // resize data by one, because 0 is reserved for the empty buckets
         IndexIdToMultipleParentIndirectFlushingInOrderVint {
@@ -82,7 +90,7 @@ impl IndexIdToMultipleParentIndirectFlushingInOrderVint {
         }
     }
 
-    pub fn into_im_store(mut self) -> IndexIdToMultipleParentIndirect<u32> {
+    pub(crate) fn into_im_store(mut self) -> IndexIdToMultipleParentIndirect<u32> {
         let mut store = IndexIdToMultipleParentIndirect::default();
         self.metadata.avg_join_size = calc_avg_join_size(self.metadata.num_values, self.metadata.num_ids);
         store.start_pos = self.ids_cache;
@@ -91,7 +99,7 @@ impl IndexIdToMultipleParentIndirectFlushingInOrderVint {
         store
     }
 
-    pub fn into_store(mut self) -> Result<Box<dyn IndexIdToParent<Output = u32>>, VelociError> {
+    pub(crate) fn into_store(mut self) -> Result<Box<dyn IndexIdToParent<Output = u32>>, VelociError> {
         if self.is_in_memory() {
             Ok(Box::new(self.into_im_store()))
         } else {
@@ -102,7 +110,7 @@ impl IndexIdToMultipleParentIndirectFlushingInOrderVint {
     }
 
     #[inline]
-    pub fn add(&mut self, id: u32, add_data: Vec<u32>) -> Result<(), io::Error> {
+    pub(crate) fn add(&mut self, id: u32, add_data: Vec<u32>) -> Result<(), io::Error> {
         self.metadata.num_values += 1;
         self.metadata.num_ids += add_data.len() as u32;
 
@@ -131,16 +139,16 @@ impl IndexIdToMultipleParentIndirectFlushingInOrderVint {
     }
 
     #[inline]
-    pub fn is_in_memory(&self) -> bool {
+    pub(crate) fn is_in_memory(&self) -> bool {
         self.current_id_offset == 0
     }
 
     #[inline]
-    pub fn is_empty(&self) -> bool {
+    pub(crate) fn is_empty(&self) -> bool {
         self.ids_cache.is_empty() && self.current_id_offset == 0
     }
 
-    pub fn flush(&mut self) -> Result<(), io::Error> {
+    pub(crate) fn flush(&mut self) -> Result<(), io::Error> {
         if self.ids_cache.is_empty() {
             return Ok(());
         }
@@ -165,11 +173,11 @@ impl IndexIdToMultipleParentIndirectFlushingInOrderVint {
 }
 
 #[derive(Clone)]
-pub struct IndexIdToMultipleParentIndirect<T: IndexIdToParentData> {
-    pub start_pos: Vec<T>,
-    pub cache: LruCache<Vec<T>, u32>,
-    pub data: Vec<u8>,
-    pub metadata: IndexMetaData,
+pub(crate) struct IndexIdToMultipleParentIndirect<T: IndexIdToParentData> {
+    pub(crate) start_pos: Vec<T>,
+    pub(crate) cache: LruCache<Vec<T>, u32>,
+    pub(crate) data: Vec<u8>,
+    pub(crate) metadata: IndexMetaData,
 }
 // impl<T: IndexIdToParentData> HeapSizeOf for IndexIdToMultipleParentIndirect<T> {
 //     fn heap_size_of_children(&self) -> usize {
@@ -306,12 +314,12 @@ impl<T: IndexIdToParentData> IndexIdToParent for IndexIdToMultipleParentIndirect
 }
 
 #[derive(Debug)]
-pub struct PointingMMAPFileReader<T: IndexIdToParentData> {
-    pub start_pos: Mmap,
-    pub data: Mmap,
-    pub size: usize,
-    pub ok: PhantomData<T>,
-    pub metadata: IndexMetaData,
+pub(crate) struct PointingMMAPFileReader<T: IndexIdToParentData> {
+    pub(crate) start_pos: Mmap,
+    pub(crate) data: Mmap,
+    pub(crate) size: usize,
+    pub(crate) ok: PhantomData<T>,
+    pub(crate) metadata: IndexMetaData,
 }
 
 impl<T: IndexIdToParentData> PointingMMAPFileReader<T> {
@@ -320,7 +328,7 @@ impl<T: IndexIdToParentData> PointingMMAPFileReader<T> {
         self.size
     }
 
-    pub fn from_path(path: &str, metadata: IndexMetaData) -> Result<Self, VelociError> {
+    pub(crate) fn from_path(path: &str, metadata: IndexMetaData) -> Result<Self, VelociError> {
         let start_pos = unsafe { MmapOptions::new().map(&open_file(path.to_string() + ".indirect")?).unwrap() };
         let data = unsafe { MmapOptions::new().map(&open_file(path.to_string() + ".data")?).unwrap() };
         Ok(PointingMMAPFileReader {

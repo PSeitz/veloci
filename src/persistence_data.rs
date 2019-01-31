@@ -25,16 +25,25 @@ use memmap::MmapOptions;
 impl_type_info_single_templ!(SingleArrayMMAPPacked);
 
 /// This data structure assumes that a set is only called once for a id, and ids are set in order.
+<<<<<<< bf95731630f8f78c4b2193f6f79a1fb0eb023b70
 #[derive(Serialize, Debug, Clone, Default)]
 pub struct IndexIdToOneParentFlushing {
     pub cache: Vec<u32>,
     pub current_id_offset: u32,
     pub path: String,
     pub metadata: IndexMetaData,
+=======
+#[derive(Serialize, Debug, Clone, HeapSizeOf, Default)]
+pub(crate) struct IndexIdToOneParentFlushing {
+    pub(crate) cache: Vec<u32>,
+    pub(crate) current_id_offset: u32,
+    pub(crate) path: String,
+    pub(crate) metadata: IndexMetaData,
+>>>>>>> visiblity
 }
 
 impl IndexIdToOneParentFlushing {
-    pub fn new(path: String, max_value_id: u32) -> IndexIdToOneParentFlushing {
+    pub(crate) fn new(path: String, max_value_id: u32) -> IndexIdToOneParentFlushing {
         IndexIdToOneParentFlushing {
             path,
             metadata: IndexMetaData {
@@ -45,7 +54,7 @@ impl IndexIdToOneParentFlushing {
         }
     }
 
-    pub fn into_im_store(self) -> SingleArrayIM<u32, u32> {
+    pub(crate) fn into_im_store(self) -> SingleArrayIM<u32, u32> {
         let mut store = SingleArrayIM::default();
         store.metadata.avg_join_size = calc_avg_join_size(self.metadata.num_values, self.cache.len() as u32);
         store.data = self.cache;
@@ -53,18 +62,18 @@ impl IndexIdToOneParentFlushing {
         store
     }
 
-    pub fn into_store(mut self) -> Result<Box<dyn IndexIdToParent<Output = u32>>, VelociError> {
-        if self.is_in_memory() {
-            Ok(Box::new(self.into_im_store()))
-        } else {
-            self.flush()?;
-            let store = SingleArrayMMAPPacked::<u32>::from_file(&File::open(self.path)?, self.metadata)?;
-            Ok(Box::new(store))
-        }
-    }
+    // pub(crate) fn into_store(mut self) -> Result<Box<dyn IndexIdToParent<Output = u32>>, VelociError> {
+    //     if self.is_in_memory() {
+    //         Ok(Box::new(self.into_im_store()))
+    //     } else {
+    //         self.flush()?;
+    //         let store = SingleArrayMMAPPacked::<u32>::from_file(&File::open(self.path)?, self.metadata)?;
+    //         Ok(Box::new(store))
+    //     }
+    // }
 
     #[inline]
-    pub fn add(&mut self, id: u32, val: u32) -> Result<(), io::Error> {
+    pub(crate) fn add(&mut self, id: u32, val: u32) -> Result<(), io::Error> {
         self.metadata.num_values += 1;
 
         let id_pos = (id - self.current_id_offset) as usize;
@@ -82,16 +91,16 @@ impl IndexIdToOneParentFlushing {
     }
 
     #[inline]
-    pub fn is_in_memory(&self) -> bool {
+    pub(crate) fn is_in_memory(&self) -> bool {
         self.current_id_offset == 0
     }
 
     #[inline]
-    pub fn is_empty(&self) -> bool {
+    pub(crate) fn is_empty(&self) -> bool {
         self.cache.is_empty() && self.current_id_offset == 0
     }
 
-    pub fn flush(&mut self) -> Result<(), io::Error> {
+    pub(crate) fn flush(&mut self) -> Result<(), io::Error> {
         if self.cache.is_empty() {
             return Ok(());
         }
@@ -113,8 +122,13 @@ impl IndexIdToOneParentFlushing {
     }
 }
 
+<<<<<<< bf95731630f8f78c4b2193f6f79a1fb0eb023b70
 #[derive(Debug, Clone, Copy)]
 pub enum BytesRequired {
+=======
+#[derive(Debug, Clone, Copy, HeapSizeOf)]
+pub(crate) enum BytesRequired {
+>>>>>>> visiblity
     One = 1,
     Two,
     Three,
@@ -122,7 +136,7 @@ pub enum BytesRequired {
 }
 
 #[inline]
-pub fn get_bytes_required(mut val: u32) -> BytesRequired {
+pub(crate) fn get_bytes_required(mut val: u32) -> BytesRequired {
     val += val; //+1 because EMPTY_BUCKET = 0 is already reserved
     if val < 1 << 8 {
         BytesRequired::One
@@ -136,7 +150,7 @@ pub fn get_bytes_required(mut val: u32) -> BytesRequired {
 }
 use std::mem;
 #[inline]
-pub fn encode_vals<O: std::io::Write>(vals: &[u32], bytes_required: BytesRequired, out: &mut O) -> Result<(), io::Error> {
+pub(crate) fn encode_vals<O: std::io::Write>(vals: &[u32], bytes_required: BytesRequired, out: &mut O) -> Result<(), io::Error> {
     //Maximum speed, Maximum unsafe
     use std::slice;
     unsafe {
@@ -151,7 +165,7 @@ pub fn encode_vals<O: std::io::Write>(vals: &[u32], bytes_required: BytesRequire
 }
 
 #[inline]
-pub fn decode_bit_packed_val<T: IndexIdToParentData>(data: &[u8], bytes_required: BytesRequired, index: usize) -> Option<T> {
+pub(crate) fn decode_bit_packed_val<T: IndexIdToParentData>(data: &[u8], bytes_required: BytesRequired, index: usize) -> Option<T> {
     let bit_pos_start = index * bytes_required as usize;
     if bit_pos_start >= data.len() {
         None
@@ -226,11 +240,19 @@ where
     }
 }
 
+<<<<<<< bf95731630f8f78c4b2193f6f79a1fb0eb023b70
 #[derive(Debug, Default)]
 pub struct SingleArrayIM<T: IndexIdToParentData, K: IndexIdToParentData> {
     pub data: Vec<K>,
     pub ok: PhantomData<T>,
     pub metadata: IndexMetaData,
+=======
+#[derive(Debug, Default, HeapSizeOf)]
+pub(crate) struct SingleArrayIM<T: IndexIdToParentData, K: IndexIdToParentData> {
+    pub(crate) data: Vec<K>,
+    pub(crate) ok: PhantomData<T>,
+    pub(crate) metadata: IndexMetaData,
+>>>>>>> visiblity
 }
 
 impl<T: IndexIdToParentData, K: IndexIdToParentData> TypeInfo for SingleArrayIM<T, K> {
@@ -300,12 +322,12 @@ where
 
 #[derive(Debug)]
 // Loads integer with flexibel widths 1, 2 or 4 byte
-pub struct SingleArrayMMAPPacked<T: IndexIdToParentData> {
-    pub data_file: Mmap,
-    pub size: usize,
-    pub metadata: IndexMetaData,
-    pub ok: PhantomData<T>,
-    pub bytes_required: BytesRequired,
+pub(crate) struct SingleArrayMMAPPacked<T: IndexIdToParentData> {
+    pub(crate) data_file: Mmap,
+    pub(crate) size: usize,
+    pub(crate) metadata: IndexMetaData,
+    pub(crate) ok: PhantomData<T>,
+    pub(crate) bytes_required: BytesRequired,
 }
 
 impl<T: IndexIdToParentData> SingleArrayMMAPPacked<T> {
@@ -313,7 +335,7 @@ impl<T: IndexIdToParentData> SingleArrayMMAPPacked<T> {
     //     self.size
     // }
 
-    pub fn from_file(file: &File, metadata: IndexMetaData) -> Result<Self, VelociError> {
+    pub(crate) fn from_file(file: &File, metadata: IndexMetaData) -> Result<Self, VelociError> {
         let data_file = unsafe { MmapOptions::new().map(&file)? };
         Ok(SingleArrayMMAPPacked {
             data_file,
@@ -323,7 +345,7 @@ impl<T: IndexIdToParentData> SingleArrayMMAPPacked<T> {
             bytes_required: get_bytes_required(metadata.max_value_id),
         })
     }
-    // pub fn from_path(path: &str, metadata: IndexMetaData) -> Result<Self, VelociError> {
+    // pub(crate) fn from_path(path: &str, metadata: IndexMetaData) -> Result<Self, VelociError> {
     //     let data_file = unsafe { MmapOptions::new().map(&open_file(path)?)? };
     //     Ok(SingleArrayMMAPPacked {
     //         data_file,

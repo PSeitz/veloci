@@ -23,20 +23,28 @@ impl_type_info_single_templ!(IndexIdToMultipleParentIndirectBinarySearchMMAP);
 use vint::vint::*;
 
 /// This data structure assumes that a set is only called once for a id, and ids are set in order.
+<<<<<<< bf95731630f8f78c4b2193f6f79a1fb0eb023b70
 #[derive(Debug, Clone)]
 pub struct IndexIdToMultipleParentIndirectFlushingInOrderVintNoDirectEncode<T> {
     pub ids_cache: Vec<(T, u32)>,
     pub data_cache: Vec<u8>,
     pub current_data_offset: u32,
+=======
+#[derive(Debug, Clone, HeapSizeOf)]
+pub(crate) struct IndexIdToMultipleParentIndirectFlushingInOrderVintNoDirectEncode<T> {
+    pub(crate) ids_cache: Vec<(T, u32)>,
+    pub(crate) data_cache: Vec<u8>,
+    pub(crate) current_data_offset: u32,
+>>>>>>> visiblity
     /// Already written ids_cache
-    pub current_id_offset: u32,
-    pub indirect_path: String,
-    pub data_path: String,
-    pub metadata: IndexMetaData,
+    pub(crate) current_id_offset: u32,
+    pub(crate) indirect_path: String,
+    pub(crate) data_path: String,
+    pub(crate) metadata: IndexMetaData,
 }
 
 impl<T: Default + std::fmt::Debug> IndexIdToMultipleParentIndirectFlushingInOrderVintNoDirectEncode<T> {
-    pub fn new(indirect_path: String, data_path: String, max_value_id: u32) -> Self {
+    pub(crate) fn new(indirect_path: String, data_path: String, max_value_id: u32) -> Self {
         let mut data_cache = vec![];
         data_cache.resize(1, 0); // resize data by one, because 0 is reserved for the empty buckets
         IndexIdToMultipleParentIndirectFlushingInOrderVintNoDirectEncode {
@@ -50,7 +58,7 @@ impl<T: Default + std::fmt::Debug> IndexIdToMultipleParentIndirectFlushingInOrde
         }
     }
 
-    pub fn into_im_store(mut self) -> IndexIdToMultipleParentIndirectBinarySearch<T> {
+    pub(crate) fn into_im_store(mut self) -> IndexIdToMultipleParentIndirectBinarySearch<T> {
         let mut store = IndexIdToMultipleParentIndirectBinarySearch::default();
         store.start_pos = self.ids_cache;
 
@@ -61,7 +69,7 @@ impl<T: Default + std::fmt::Debug> IndexIdToMultipleParentIndirectFlushingInOrde
     }
 
     #[inline]
-    pub fn add(&mut self, id: T, add_data: &[u32]) -> Result<(), io::Error> {
+    pub(crate) fn add(&mut self, id: T, add_data: &[u32]) -> Result<(), io::Error> {
         self.metadata.num_values += 1;
         self.metadata.num_ids += add_data.len() as u32;
 
@@ -76,16 +84,16 @@ impl<T: Default + std::fmt::Debug> IndexIdToMultipleParentIndirectFlushingInOrde
     }
 
     #[inline]
-    pub fn is_in_memory(&self) -> bool {
+    pub(crate) fn is_in_memory(&self) -> bool {
         self.current_id_offset == 0
     }
 
     #[inline]
-    pub fn is_empty(&self) -> bool {
+    pub(crate) fn is_empty(&self) -> bool {
         self.ids_cache.is_empty() && self.current_id_offset == 0
     }
 
-    pub fn flush(&mut self) -> Result<(), io::Error> {
+    pub(crate) fn flush(&mut self) -> Result<(), io::Error> {
         if self.ids_cache.is_empty() {
             return Ok(());
         }
@@ -109,11 +117,19 @@ fn to_serialized_vint_array(add_data: &[u32]) -> Vec<u8> {
     vint.serialize()
 }
 
+<<<<<<< bf95731630f8f78c4b2193f6f79a1fb0eb023b70
 #[derive(Debug, Clone, Default)]
 pub struct IndexIdToMultipleParentIndirectBinarySearch<T> {
     pub start_pos: Vec<(T, u32)>,
     pub data: Vec<u8>,
     pub metadata: IndexMetaData,
+=======
+#[derive(Debug, Clone, Default, HeapSizeOf)]
+pub(crate) struct IndexIdToMultipleParentIndirectBinarySearch<T> {
+    pub(crate) start_pos: Vec<(T, u32)>,
+    pub(crate) data: Vec<u8>,
+    pub(crate) metadata: IndexMetaData,
+>>>>>>> visiblity
 }
 
 impl<T: 'static + Ord + Copy + Default + std::fmt::Debug + Sync + Send> PhrasePairToAnchor for IndexIdToMultipleParentIndirectBinarySearch<T> {
@@ -135,12 +151,12 @@ impl<T: 'static + Ord + Copy + Default + std::fmt::Debug + Sync + Send> PhrasePa
 }
 
 #[derive(Debug)]
-pub struct IndexIdToMultipleParentIndirectBinarySearchMMAP<T> {
-    pub start_pos: Mmap,
-    pub data: Mmap,
-    pub ok: PhantomData<T>,
-    pub metadata: IndexMetaData,
-    pub size: usize,
+pub(crate) struct IndexIdToMultipleParentIndirectBinarySearchMMAP<T> {
+    pub(crate) start_pos: Mmap,
+    pub(crate) data: Mmap,
+    pub(crate) ok: PhantomData<T>,
+    pub(crate) metadata: IndexMetaData,
+    pub(crate) size: usize,
 }
 // impl<T: Ord + Copy + Default + std::fmt::Debug> HeapSizeOf for IndexIdToMultipleParentIndirectBinarySearchMMAP<T> {
 //     fn heap_size_of_children(&self) -> usize {
@@ -148,7 +164,7 @@ pub struct IndexIdToMultipleParentIndirectBinarySearchMMAP<T> {
 //     }
 // }
 impl<T: Ord + Copy + Default + std::fmt::Debug> IndexIdToMultipleParentIndirectBinarySearchMMAP<T> {
-    pub fn from_path<P: AsRef<Path>>(path: P, metadata: IndexMetaData) -> Result<Self, VelociError> {
+    pub(crate) fn from_path<P: AsRef<Path>>(path: P, metadata: IndexMetaData) -> Result<Self, VelociError> {
         let ind_file = open_file(path.as_ref().to_str().unwrap().to_string() + ".indirect")?;
         let data_file = open_file(path.as_ref().to_str().unwrap().to_string() + ".data")?;
 
@@ -182,7 +198,7 @@ fn decode_pos<T: Copy + Default, K: Copy + Default>(pos: usize, slice: &[u8]) ->
 }
 
 #[inline]
-pub fn binary_search_slice<T: Ord + Copy + Default + std::fmt::Debug, K: Copy + Default>(mut size: usize, id: T, slice: &[u8]) -> Option<(T, K)> {
+pub(crate) fn binary_search_slice<T: Ord + Copy + Default + std::fmt::Debug, K: Copy + Default>(mut size: usize, id: T, slice: &[u8]) -> Option<(T, K)> {
     // let s = self;
     // let mut size = s.size;
     if size == 0 {
