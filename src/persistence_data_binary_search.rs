@@ -23,19 +23,11 @@ impl_type_info_single_templ!(IndexIdToMultipleParentIndirectBinarySearchMMAP);
 use vint::vint::*;
 
 /// This data structure assumes that a set is only called once for a id, and ids are set in order.
-<<<<<<< bf95731630f8f78c4b2193f6f79a1fb0eb023b70
 #[derive(Debug, Clone)]
-pub struct IndexIdToMultipleParentIndirectFlushingInOrderVintNoDirectEncode<T> {
-    pub ids_cache: Vec<(T, u32)>,
-    pub data_cache: Vec<u8>,
-    pub current_data_offset: u32,
-=======
-#[derive(Debug, Clone, HeapSizeOf)]
 pub(crate) struct IndexIdToMultipleParentIndirectFlushingInOrderVintNoDirectEncode<T> {
     pub(crate) ids_cache: Vec<(T, u32)>,
     pub(crate) data_cache: Vec<u8>,
     pub(crate) current_data_offset: u32,
->>>>>>> visiblity
     /// Already written ids_cache
     pub(crate) current_id_offset: u32,
     pub(crate) indirect_path: String,
@@ -117,19 +109,11 @@ fn to_serialized_vint_array(add_data: &[u32]) -> Vec<u8> {
     vint.serialize()
 }
 
-<<<<<<< bf95731630f8f78c4b2193f6f79a1fb0eb023b70
 #[derive(Debug, Clone, Default)]
-pub struct IndexIdToMultipleParentIndirectBinarySearch<T> {
-    pub start_pos: Vec<(T, u32)>,
-    pub data: Vec<u8>,
-    pub metadata: IndexMetaData,
-=======
-#[derive(Debug, Clone, Default, HeapSizeOf)]
 pub(crate) struct IndexIdToMultipleParentIndirectBinarySearch<T> {
     pub(crate) start_pos: Vec<(T, u32)>,
     pub(crate) data: Vec<u8>,
     pub(crate) metadata: IndexMetaData,
->>>>>>> visiblity
 }
 
 impl<T: 'static + Ord + Copy + Default + std::fmt::Debug + Sync + Send> PhrasePairToAnchor for IndexIdToMultipleParentIndirectBinarySearch<T> {

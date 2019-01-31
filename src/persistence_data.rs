@@ -25,21 +25,12 @@ use memmap::MmapOptions;
 impl_type_info_single_templ!(SingleArrayMMAPPacked);
 
 /// This data structure assumes that a set is only called once for a id, and ids are set in order.
-<<<<<<< bf95731630f8f78c4b2193f6f79a1fb0eb023b70
 #[derive(Serialize, Debug, Clone, Default)]
-pub struct IndexIdToOneParentFlushing {
-    pub cache: Vec<u32>,
-    pub current_id_offset: u32,
-    pub path: String,
-    pub metadata: IndexMetaData,
-=======
-#[derive(Serialize, Debug, Clone, HeapSizeOf, Default)]
 pub(crate) struct IndexIdToOneParentFlushing {
     pub(crate) cache: Vec<u32>,
     pub(crate) current_id_offset: u32,
     pub(crate) path: String,
     pub(crate) metadata: IndexMetaData,
->>>>>>> visiblity
 }
 
 impl IndexIdToOneParentFlushing {
@@ -122,13 +113,8 @@ impl IndexIdToOneParentFlushing {
     }
 }
 
-<<<<<<< bf95731630f8f78c4b2193f6f79a1fb0eb023b70
 #[derive(Debug, Clone, Copy)]
-pub enum BytesRequired {
-=======
-#[derive(Debug, Clone, Copy, HeapSizeOf)]
 pub(crate) enum BytesRequired {
->>>>>>> visiblity
     One = 1,
     Two,
     Three,
@@ -240,19 +226,11 @@ where
     }
 }
 
-<<<<<<< bf95731630f8f78c4b2193f6f79a1fb0eb023b70
 #[derive(Debug, Default)]
-pub struct SingleArrayIM<T: IndexIdToParentData, K: IndexIdToParentData> {
-    pub data: Vec<K>,
-    pub ok: PhantomData<T>,
-    pub metadata: IndexMetaData,
-=======
-#[derive(Debug, Default, HeapSizeOf)]
 pub(crate) struct SingleArrayIM<T: IndexIdToParentData, K: IndexIdToParentData> {
     pub(crate) data: Vec<K>,
     pub(crate) ok: PhantomData<T>,
     pub(crate) metadata: IndexMetaData,
->>>>>>> visiblity
 }
 
 impl<T: IndexIdToParentData, K: IndexIdToParentData> TypeInfo for SingleArrayIM<T, K> {
