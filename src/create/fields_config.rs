@@ -108,7 +108,7 @@ fn default_tokenizer() -> TokenizerStrategy {
     TokenizerStrategy::Simple
 }
 fn default_text_length_store() -> usize {
-    32
+    64
 }
 impl Default for FulltextIndexOptions {
     fn default() -> FulltextIndexOptions {

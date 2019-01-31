@@ -24,7 +24,7 @@ const EMPTY_BUCKET_USIZE: usize = 0;
 pub trait AnchorScoreDataSize: IndexIdToParentData + ops::AddAssign + ops::Add + num::Zero {}
 impl<T> AnchorScoreDataSize for T where T: IndexIdToParentData + ops::AddAssign + ops::Add + num::Zero {}
 
-#[derive(Serialize, Deserialize, Debug, Clone, Default, HeapSizeOf)]
+#[derive(Serialize, Deserialize, Debug, Clone, Default)]
 pub struct TokenToAnchorScoreVintIM<T> {
     pub start_pos: Vec<T>,
     pub data: Vec<u8>,
@@ -53,7 +53,7 @@ impl<T: AnchorScoreDataSize> TypeInfo for TokenToAnchorScoreVintMmap<T> {
 ///
 /// Datastructure to cache and flush changes to file
 ///
-#[derive(Serialize, Deserialize, Debug, Clone, HeapSizeOf)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct TokenToAnchorScoreVintFlushing<T: AnchorScoreDataSize> {
     pub id_to_data_pos: Vec<T>,
     pub data_cache: Vec<u8>,
@@ -254,11 +254,11 @@ impl<T: AnchorScoreDataSize> TokenToAnchorScoreVintMmap<T> {
     }
 }
 
-impl<T: AnchorScoreDataSize> HeapSizeOf for TokenToAnchorScoreVintMmap<T> {
-    fn heap_size_of_children(&self) -> usize {
-        8
-    }
-}
+// impl<T: AnchorScoreDataSize> HeapSizeOf for TokenToAnchorScoreVintMmap<T> {
+//     fn heap_size_of_children(&self) -> usize {
+//         8
+//     }
+// }
 
 impl<T: AnchorScoreDataSize> TokenToAnchorScore for TokenToAnchorScoreVintMmap<T> {
     fn get_score_iter(&self, id: u32) -> AnchorScoreIter<'_> {

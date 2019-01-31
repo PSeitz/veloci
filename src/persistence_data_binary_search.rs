@@ -1,4 +1,4 @@
-use heapsize::HeapSizeOf;
+// use heapsize::HeapSizeOf;
 use std::cmp::Ordering::Greater;
 
 use crate::error::VelociError;
@@ -23,7 +23,7 @@ impl_type_info_single_templ!(IndexIdToMultipleParentIndirectBinarySearchMMAP);
 use vint::vint::*;
 
 /// This data structure assumes that a set is only called once for a id, and ids are set in order.
-#[derive(Debug, Clone, HeapSizeOf)]
+#[derive(Debug, Clone)]
 pub struct IndexIdToMultipleParentIndirectFlushingInOrderVintNoDirectEncode<T> {
     pub ids_cache: Vec<(T, u32)>,
     pub data_cache: Vec<u8>,
@@ -109,7 +109,7 @@ fn to_serialized_vint_array(add_data: &[u32]) -> Vec<u8> {
     vint.serialize()
 }
 
-#[derive(Debug, Clone, Default, HeapSizeOf)]
+#[derive(Debug, Clone, Default)]
 pub struct IndexIdToMultipleParentIndirectBinarySearch<T> {
     pub start_pos: Vec<(T, u32)>,
     pub data: Vec<u8>,
@@ -142,11 +142,11 @@ pub struct IndexIdToMultipleParentIndirectBinarySearchMMAP<T> {
     pub metadata: IndexMetaData,
     pub size: usize,
 }
-impl<T: Ord + Copy + Default + std::fmt::Debug> HeapSizeOf for IndexIdToMultipleParentIndirectBinarySearchMMAP<T> {
-    fn heap_size_of_children(&self) -> usize {
-        0
-    }
-}
+// impl<T: Ord + Copy + Default + std::fmt::Debug> HeapSizeOf for IndexIdToMultipleParentIndirectBinarySearchMMAP<T> {
+//     fn heap_size_of_children(&self) -> usize {
+//         0
+//     }
+// }
 impl<T: Ord + Copy + Default + std::fmt::Debug> IndexIdToMultipleParentIndirectBinarySearchMMAP<T> {
     pub fn from_path<P: AsRef<Path>>(path: P, metadata: IndexMetaData) -> Result<Self, VelociError> {
         let ind_file = open_file(path.as_ref().to_str().unwrap().to_string() + ".indirect")?;

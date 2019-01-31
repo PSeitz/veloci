@@ -492,16 +492,28 @@ fn boost_text_locality(persistence: &Persistence, path: &str, search_term_to_tex
             }
         }
     }
-    let text_id_to_anchor = persistence.get_valueid_to_parent(path.add(TEXT_ID_TO_ANCHOR))?;
-    trace_time!("text_locality_boost text_ids to anchor");
 
-    boost_text_ids.sort_unstable_by_key(|el| el.0);
-    for text_id in boost_text_ids {
-        let num_hits_in_same_text = text_id.1;
-        for anchor_id in text_id_to_anchor.get_values_iter(u64::from(text_id.0)) {
-            boost_anchor.push(Hit::new(anchor_id, 2. * num_hits_in_same_text as f32 * num_hits_in_same_text as f32));
+    // text_ids are already anchor_ids === identity_column
+    if persistence.metadata.fulltext_indices.get(path).map(|el|el.is_identity_column).unwrap_or(false) {
+
+        boost_text_ids.sort_unstable_by_key(|el| el.0);
+        for text_id in boost_text_ids {
+            let num_hits_in_same_text = text_id.1;
+            boost_anchor.push(Hit::new(text_id.0, 2. * num_hits_in_same_text as f32 * num_hits_in_same_text as f32));
+        }
+    }else{
+        let text_id_to_anchor = persistence.get_valueid_to_parent(path.add(TEXT_ID_TO_ANCHOR))?;
+        trace_time!("text_locality_boost text_ids to anchor");
+
+        boost_text_ids.sort_unstable_by_key(|el| el.0);
+        for text_id in boost_text_ids {
+            let num_hits_in_same_text = text_id.1;
+            for anchor_id in text_id_to_anchor.get_values_iter(u64::from(text_id.0)) {
+                boost_anchor.push(Hit::new(anchor_id, 2. * num_hits_in_same_text as f32 * num_hits_in_same_text as f32));
+            }
         }
     }
+
     boost_anchor.sort_unstable_by_key(|el| el.id);
     Ok(boost_anchor)
 }
@@ -1485,7 +1497,7 @@ fn join_and_get_text_for_ids(persistence: &Persistence, id: u32, prop: &str) -> 
     let field_name = prop.add(TEXTINDEX);
     let text_value_id_opt = join_for_1_to_1(persistence, id, &field_name.add(PARENT_TO_VALUE_ID))?;
     if let Some(text_value_id) = text_value_id_opt {
-        let text = if text_value_id >= persistence.meta_data.fulltext_indices[&field_name].num_text_ids as u32 {
+        let text = if text_value_id >= persistence.metadata.fulltext_indices[&field_name].num_text_ids as u32 {
             let text_id_to_token_ids = persistence.get_valueid_to_parent(field_name.add(TEXT_ID_TO_TOKEN_IDS))?;
             let vals = text_id_to_token_ids.get_values(u64::from(text_value_id));
             if let Some(vals) = vals {

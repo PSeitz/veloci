@@ -1,4 +1,4 @@
-use heapsize::HeapSizeOf;
+// use heapsize::HeapSizeOf;
 use lru_time_cache::LruCache;
 
 use byteorder::{LittleEndian, ReadBytesExt};
@@ -55,7 +55,7 @@ fn to_serialized_vint_array(add_data: Vec<u32>) -> Vec<u8> {
 }
 
 /// This data structure assumes that a set is only called once for a id, and ids are set in order.
-#[derive(Debug, Clone, HeapSizeOf)]
+#[derive(Debug, Clone)]
 pub struct IndexIdToMultipleParentIndirectFlushingInOrderVint {
     pub ids_cache: Vec<u32>,
     pub data_cache: Vec<u8>,
@@ -171,11 +171,11 @@ pub struct IndexIdToMultipleParentIndirect<T: IndexIdToParentData> {
     pub data: Vec<u8>,
     pub metadata: IndexMetaData,
 }
-impl<T: IndexIdToParentData> HeapSizeOf for IndexIdToMultipleParentIndirect<T> {
-    fn heap_size_of_children(&self) -> usize {
-        self.start_pos.heap_size_of_children() + self.data.heap_size_of_children() + self.metadata.heap_size_of_children()
-    }
-}
+// impl<T: IndexIdToParentData> HeapSizeOf for IndexIdToMultipleParentIndirect<T> {
+//     fn heap_size_of_children(&self) -> usize {
+//         self.start_pos.heap_size_of_children() + self.data.heap_size_of_children() + self.metadata.heap_size_of_children()
+//     }
+// }
 
 impl<T: IndexIdToParentData> fmt::Debug for IndexIdToMultipleParentIndirect<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -333,11 +333,11 @@ impl<T: IndexIdToParentData> PointingMMAPFileReader<T> {
     }
 }
 
-impl<T: IndexIdToParentData> HeapSizeOf for PointingMMAPFileReader<T> {
-    fn heap_size_of_children(&self) -> usize {
-        0
-    }
-}
+// impl<T: IndexIdToParentData> HeapSizeOf for PointingMMAPFileReader<T> {
+//     fn heap_size_of_children(&self) -> usize {
+//         0
+//     }
+// }
 
 impl<T: IndexIdToParentData> IndexIdToParent for PointingMMAPFileReader<T> {
     type Output = T;

@@ -34,7 +34,7 @@ use memmap::MmapOptions;
 use prettytable::format;
 use prettytable::Table;
 
-use heapsize::HeapSizeOf;
+// use heapsize::HeapSizeOf;
 
 use colored::*;
 use lru_time_cache::LruCache;
@@ -54,6 +54,13 @@ pub const BOOST_VALID_TO_VALUE: &str = ".boost_valid_to_value";
 pub const TOKEN_VALUES: &str = ".token_values";
 
 pub const TEXTINDEX: &str = ".textindex";
+
+//TODO consolidate metadata under columninfo
+// #[derive(Serialize, Deserialize, Debug, Clone, Default)]
+// pub struct ColumnInfo {
+//     textindex_metadata: TextIndexMetaData
+// }
+
 
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
 pub struct MetaData {
@@ -76,12 +83,14 @@ impl MetaData {
 
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
 pub struct TextIndexMetaData {
+    //id equals achor id
+    pub is_identity_column: bool,
     pub num_text_ids: usize,
     pub num_long_text_ids: usize,
     pub options: create::FulltextIndexOptions,
 }
 
-#[derive(Serialize, Deserialize, Debug, Default, Clone, Copy, HeapSizeOf, PartialEq)]
+#[derive(Serialize, Deserialize, Debug, Default, Clone, Copy, PartialEq)]
 pub struct IndexMetaData {
     pub max_value_id: u32,
     pub avg_join_size: f32,
@@ -158,7 +167,7 @@ pub enum PersistenceType {
 
 pub struct Persistence {
     pub db: String, // folder
-    pub meta_data: MetaData,
+    pub metadata: MetaData,
     // pub all_fields : Vec<String>,
     pub persistence_type: PersistenceType,
     pub indices: PersistenceIndices,
@@ -223,10 +232,10 @@ impl Default for IDDataType {
     }
 }
 
-pub trait IndexIdToParentData: Integer + Clone + num::NumCast + HeapSizeOf + Debug + Sync + Send + Copy + ToPrimitive + std::hash::Hash + 'static {}
-impl<T> IndexIdToParentData for T where T: Integer + Clone + num::NumCast + HeapSizeOf + Debug + Sync + Send + Copy + ToPrimitive + std::hash::Hash + 'static {}
+pub trait IndexIdToParentData: Integer + Clone + num::NumCast + Debug + Sync + Send + Copy + ToPrimitive + std::hash::Hash + 'static {}
+impl<T> IndexIdToParentData for T where T: Integer + Clone + num::NumCast + Debug + Sync + Send + Copy + ToPrimitive + std::hash::Hash + 'static {}
 
-pub trait TokenToAnchorScore: Debug + HeapSizeOf + Sync + Send + type_info::TypeInfo {
+pub trait TokenToAnchorScore: Debug + Sync + Send + type_info::TypeInfo {
     fn get_score_iter(&self, id: u32) -> AnchorScoreIter<'_>;
 }
 
@@ -288,7 +297,7 @@ impl<'a> Iterator for VintArrayIteratorOpt<'a> {
 
 // impl<'a> FusedIterator for VintArrayIteratorOpt<'a> {}
 
-pub trait IndexIdToParent: Debug + HeapSizeOf + Sync + Send + type_info::TypeInfo {
+pub trait IndexIdToParent: Debug + Sync + Send + type_info::TypeInfo {
     type Output: IndexIdToParentData;
 
     fn get_values_iter(&self, _id: u64) -> VintArrayIteratorOpt<'_> {
@@ -344,6 +353,37 @@ pub trait IndexIdToParent: Debug + HeapSizeOf + Sync + Send + type_info::TypeInf
     // }
 }
 
+// use crate::type_info::TypeInfo;
+// use std::marker::PhantomData;
+// impl_type_info_single_templ!(IdentityIndex);
+// #[derive(Debug)]
+// struct IdentityIndex<T>{
+//     pub ok: PhantomData<T>,
+// }
+
+// impl<T: IndexIdToParentData> IndexIdToParent for IdentityIndex<T> {
+//     type Output = T;
+
+//     #[inline]
+//     fn count_values_for_ids(&self, _ids: &[u32], _top: Option<u32>) -> FnvHashMap<T, usize> {
+//         unimplemented!()
+//     }
+
+//     // fn get_keys(&self) -> Vec<T> {
+//     //     (num::cast(0).unwrap()..num::cast(self.get_size()).unwrap()).collect()
+//     // }
+
+//     fn get_values_iter(&self, id: u64) -> VintArrayIteratorOpt<'_> {
+//         VintArrayIteratorOpt::from_single_val(id as u32)
+//     }
+
+//     #[inline]
+//     fn get_values(&self, id: u64) -> Option<Vec<T>> {
+//         Some(vec![num::cast(id).unwrap()])
+//     }
+// }
+
+
 pub fn trace_index_id_to_parent<T: IndexIdToParentData>(_val: &dyn IndexIdToParent<Output = T>) {
     if log_enabled!(log::Level::Trace) {
         // let keys = val.get_keys();
@@ -364,9 +404,9 @@ pub fn get_readable_size(value: usize) -> ColoredString {
     }
 }
 
-pub fn get_readable_size_for_children<T: HeapSizeOf>(value: T) -> ColoredString {
-    get_readable_size(value.heap_size_of_children())
-}
+// pub fn get_readable_size_for_children<T: HeapSizeOf>(value: T) -> ColoredString {
+//     get_readable_size(value.heap_size_of_children())
+// }
 
 impl Persistence {
     fn load_types_index_to_one<T: IndexIdToParentData>(data_direct_path: &str, metadata: IndexMetaData) -> Result<Box<dyn IndexIdToParent<Output = u32>>, VelociError> {
@@ -386,7 +426,7 @@ impl Persistence {
         self.indices.doc_offsets = Some(doc_offsets_mmap);
 
         //ANCHOR TO SCORE
-        for el in &self.meta_data.stores {
+        for el in &self.metadata.stores {
             let indirect_path = get_file_path(&self.db, &el.path) + ".indirect";
             let indirect_data_path = get_file_path(&self.db, &el.path) + ".data";
             let loading_type = get_loading_type(el.loading_type)?;
@@ -518,7 +558,7 @@ impl Persistence {
     }
 
     pub fn load_all_fst(&mut self) -> Result<(), VelociError> {
-        for path in self.meta_data.fulltext_indices.keys() {
+        for path in self.metadata.fulltext_indices.keys() {
             let map = self.load_fst(path)?;
             self.indices.fst.insert(path.to_string(), map);
         }
@@ -584,11 +624,11 @@ impl Persistence {
     }
 
     pub fn get_number_of_documents(&self) -> u64 {
-        self.meta_data.num_docs
+        self.metadata.num_docs
     }
 
     pub fn get_bytes_indexed(&self) -> u64 {
-        self.meta_data.bytes_indexed
+        self.metadata.bytes_indexed
     }
 
     pub fn get_buffered_writer(&self, path: &str) -> Result<io::BufWriter<fs::File>, io::Error> {
@@ -602,8 +642,8 @@ impl Persistence {
         Ok(())
     }
 
-    pub fn write_meta_data(&self) -> Result<(), io::Error> {
-        self.write_data("metaData.json", serde_json::to_string_pretty(&self.meta_data)?.as_bytes())
+    pub fn write_metadata(&self) -> Result<(), io::Error> {
+        self.write_data("metaData.json", serde_json::to_string_pretty(&self.metadata)?.as_bytes())
     }
 
     pub fn write_data_offset<T: Clone + Copy + Debug>(&self, bytes: &[u8], data: &[T]) -> Result<(), io::Error> {
@@ -625,10 +665,10 @@ impl Persistence {
         }
         fs::create_dir_all(&db)?;
         fs::create_dir(db.to_string() + "/temp")?; // for temporary index creation
-        let meta_data = MetaData { ..Default::default() };
+        let metadata = MetaData { ..Default::default() };
         Ok(Persistence {
             persistence_type,
-            meta_data,
+            metadata,
             db,
             lru_cache: HashMap::default(),
             term_boost_cache: RwLock::new(LruCache::with_expiry_duration_and_capacity(Duration::new(3600, 0), 10)),
@@ -637,10 +677,10 @@ impl Persistence {
     }
 
     pub fn load<P: AsRef<Path>>(db: P) -> Result<Self, VelociError> {
-        let meta_data = MetaData::new(db.as_ref().to_str().unwrap())?;
+        let metadata = MetaData::new(db.as_ref().to_str().unwrap())?;
         let mut pers = Persistence {
             persistence_type: PersistenceType::Persistent,
-            meta_data,
+            metadata,
             db: db.as_ref().to_str().unwrap().to_string(),
             lru_cache: HashMap::default(),
             term_boost_cache: RwLock::new(LruCache::with_expiry_duration_and_capacity(Duration::new(3600, 0), 10)),
@@ -652,28 +692,28 @@ impl Persistence {
     }
 
     pub fn print_heap_sizes(&self) {
-        info!(
-            "indices.key_value_stores {}",
-            get_readable_size(self.indices.key_value_stores.heap_size_of_children()) // get_readable_size_for_children(&self.indices.key_value_stores)
-        );
-        info!("indices.boost_valueid_to_value {}", get_readable_size_for_children(&self.indices.boost_valueid_to_value));
-        info!("indices.token_to_anchor_score {}", get_readable_size_for_children(&self.indices.token_to_anchor_score));
+        // info!(
+        //     "indices.key_value_stores {}",
+        //     get_readable_size(self.indices.key_value_stores.heap_size_of_children()) // get_readable_size_for_children(&self.indices.key_value_stores)
+        // );
+        // info!("indices.boost_valueid_to_value {}", get_readable_size_for_children(&self.indices.boost_valueid_to_value));
+        // info!("indices.token_to_anchor_score {}", get_readable_size_for_children(&self.indices.token_to_anchor_score));
         info!("indices.fst {}", get_readable_size(self.get_fst_sizes()));
         info!("------");
-        let total_size = self.get_fst_sizes()
-            + self.indices.key_value_stores.heap_size_of_children()
-            + self.indices.boost_valueid_to_value.heap_size_of_children()
-            + self.indices.token_to_anchor_score.heap_size_of_children();
+        // let total_size = self.get_fst_sizes()
+        //     + self.indices.key_value_stores.heap_size_of_children()
+        //     + self.indices.boost_valueid_to_value.heap_size_of_children()
+        //     + self.indices.token_to_anchor_score.heap_size_of_children();
 
-        info!("totale size {}", get_readable_size(total_size));
+        // info!("totale size {}", get_readable_size(total_size));
 
         let mut print_and_size = vec![];
-        for (k, v) in &self.indices.key_value_stores {
-            print_and_size.push((v.heap_size_of_children(), v.type_name(), k));
-        }
-        for (k, v) in &self.indices.token_to_anchor_score {
-            print_and_size.push((v.heap_size_of_children(), v.type_name(), k));
-        }
+        // for (k, v) in &self.indices.key_value_stores {
+        //     print_and_size.push((v.heap_size_of_children(), v.type_name(), k));
+        // }
+        // for (k, v) in &self.indices.token_to_anchor_score {
+        //     print_and_size.push((v.heap_size_of_children(), v.type_name(), k));
+        // }
         for (k, v) in &self.indices.fst {
             print_and_size.push((v.as_fst().size(), "FST".to_string(), k));
         }

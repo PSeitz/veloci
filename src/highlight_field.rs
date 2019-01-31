@@ -13,7 +13,7 @@ use crate::search_field::*;
 #[allow(unused_imports)]
 use fst::{IntoStreamer, Map, MapBuilder, Set};
 
-use heapsize::HeapSizeOf;
+// use heapsize::HeapSizeOf;
 use itertools::Itertools;
 
 use fnv::FnvHashSet;
@@ -70,7 +70,7 @@ pub fn highlight_document(persistence: &Persistence, path: &str, value_id: u64, 
             return Ok(None); //No hits
         }
     };
-    trace!("documents_token_ids {}", get_readable_size(documents_token_ids.heap_size_of_children()));
+    // trace!("documents_token_ids {}", get_readable_size(documents_token_ids.heap_size_of_children()));
     trace!("documents_token_ids {}", get_readable_size(documents_token_ids.len() * 4));
 
     let token_ids: FnvHashSet<u32> = token_ids.iter().cloned().collect(); // TOOD: Performance

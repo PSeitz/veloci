@@ -57,7 +57,7 @@ fn get_default_levenshtein(term: &str, levenshtein_auto_limit: usize) -> usize {
 
 fn get_all_search_field_names(persistence: &Persistence, fields: &Option<Vec<String>>) -> Result<Vec<String>, VelociError> {
     let res: Vec<_> = persistence
-        .meta_data
+        .metadata
         .get_all_fields()
         .into_iter()
         .filter(|path| {
@@ -246,7 +246,7 @@ fn terms_for_phrase_from_ast(ast: &UserAST) -> Vec<&String> {
 use parser;
 
 pub fn search_query(persistence: &Persistence, mut opt: SearchQueryGeneratorParameters) -> Result<Request, VelociError> {
-    // let req = persistence.meta_data.fulltext_indices.key
+    // let req = persistence.metadata.fulltext_indices.key
     opt.facetlimit = opt.facetlimit.or(Some(5));
     info_time!("generating search query");
 

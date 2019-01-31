@@ -117,16 +117,20 @@ fn store_full_text_info_and_set_ids(
     terms_data: &mut TermDataInPath,
     path: &str,
     options: &FulltextIndexOptions,
-    fulltext_indices: &mut TextIndexMetaData,
+    textindex_metadata: &mut TextIndexMetaData,
+    doc_write_res: &DocWriteRes,
 ) -> Result<(), io::Error> {
     debug_time!("store_fst strings and string offsets {:?}", path);
+
+    let id_column = !path.contains("[]") && doc_write_res.num_doc_ids as usize == terms_data.terms.len() && terms_data.terms.iter().all(|(_term, info)| info.num_occurences == 1);
+    textindex_metadata.is_identity_column = id_column;
 
     if log_enabled!(log::Level::Trace) {
         let mut all_text: Vec<_> = terms_data.terms.keys().collect();
         all_text.sort_unstable();
         trace!("{:?} Terms: {:?}", path, all_text);
     }
-    fulltext_indices.num_text_ids = terms_data.terms.len();
+    textindex_metadata.num_text_ids = terms_data.terms.len();
     let term_and_mut_val = set_ids(&mut terms_data.terms, 0);
     store_fst(persistence, &term_and_mut_val, &path, options.do_not_store_text_longer_than).expect("Could not store fst");
 
@@ -391,6 +395,7 @@ struct PathData {
     anchor_to_text_id: Option<Box<BufferedIndexWriter>>,
     boost: Option<Box<BufferedIndexWriter>>,
     fulltext_options: FulltextIndexOptions,
+    is_identity_column: bool,
     skip_tokenizing: bool,
     term_data: TermDataInPath,
 }
@@ -430,7 +435,7 @@ struct PathDataIds {
     parent_to_value: Option<BufferedIndexWriter>,
 }
 
-fn prepare_path_data(temp_dir: &str, fields_config: &FieldsConfig, path: &str, term_data: TermDataInPath) -> PathData {
+fn prepare_path_data(temp_dir: &str, persistence: &Persistence, fields_config: &FieldsConfig, path: &str, term_data: TermDataInPath) -> PathData {
     let field_config = fields_config.get(path);
     let boost_info_data = if field_config.boost.is_some() {
         Some(Box::new(BufferedIndexWriter::new_for_sorted_id_insertion(temp_dir.to_string())))
@@ -485,6 +490,9 @@ fn prepare_path_data(temp_dir: &str, fields_config: &FieldsConfig, path: &str, t
 
     let skip_tokenizing = if !fulltext_options.tokenize { fulltext_options.tokenize } else { tokens_to_text_id.is_none() && token_to_anchor_id_score.is_none() && phrase_pair_to_anchor.is_none() };
 
+    // TODO: fix don't store is_identity_column in fulltext_indices
+    let path_textindex = path.to_string() + TEXTINDEX;
+
     PathData {
         anchor_to_text_id,
         boost: boost_info_data,
@@ -498,6 +506,7 @@ fn prepare_path_data(temp_dir: &str, fields_config: &FieldsConfig, path: &str, t
         text_id_to_token_ids,
         fulltext_options,
         skip_tokenizing,
+        is_identity_column: persistence.metadata.fulltext_indices.get(&path_textindex).map(|el|el.is_identity_column).unwrap_or(false),
         term_data,
     }
 }
@@ -552,7 +561,7 @@ where
                     .terms_in_path
                     .remove(path)
                     .unwrap_or_else(|| panic!("Couldn't find path in create_cache.term_data {:?}", path));
-                prepare_path_data(&persistence.temp_dir(), &fields_config, path, term_data)
+                prepare_path_data(&persistence.temp_dir(), &persistence, &fields_config, path, term_data)
             });
 
             let text_info = get_text_info(&mut data.term_data, &value);
@@ -567,7 +576,9 @@ where
             }
 
             if let Some(el) = data.text_id_to_anchor.as_mut() {
-                el.add(text_info.id, anchor_id)?;
+                // if !data.is_identity_column { // we don't need to store the relation, if they are identity
+                    el.add(text_info.id, anchor_id)?;
+                // }
             }
             // data.text_id_to_anchor.add(text_info.id, anchor_id)?;
             if let Some(el) = data.anchor_to_text_id.as_mut() {
@@ -699,8 +710,8 @@ where
     use std::slice;
     let slice = unsafe { slice::from_raw_parts(doc_store.offsets.as_ptr() as *const u8, doc_store.offsets.len() * mem::size_of::<(u32, u64)>()) };
     persistence.write_data_offset(slice, &doc_store.offsets)?;
-    persistence.meta_data.num_docs = doc_store.curr_id.into();
-    persistence.meta_data.bytes_indexed = doc_store.bytes_indexed;
+    persistence.metadata.num_docs = doc_store.curr_id.into();
+    persistence.metadata.bytes_indexed = doc_store.bytes_indexed;
     Ok(DocWriteRes {
         num_doc_ids: doc_store.curr_id,
         bytes_indexed: doc_store.bytes_indexed,
@@ -1110,7 +1121,7 @@ where
 {
     let mut create_cache = CreateCache::default();
 
-    write_docs(&mut persistence, stream3)?;
+    let doc_write_res = write_docs(&mut persistence, stream3)?;
     get_allterms_per_path(stream1, &indices_json, &mut create_cache.term_data)?;
 
     let default_fulltext_options = FulltextIndexOptions::new_with_tokenize();
@@ -1125,11 +1136,11 @@ where
                 let options: &FulltextIndexOptions = indices_json.get(&path).fulltext.as_ref().unwrap_or_else(|| &default_fulltext_options);
                 let path = path.to_string() + TEXTINDEX;
                 fulltext_index_metadata.options = options.clone();
-                store_full_text_info_and_set_ids(&persistence, &mut terms_data, &path, &options, &mut fulltext_index_metadata)?;
+                store_full_text_info_and_set_ids(&persistence, &mut terms_data, &path, &options, &mut fulltext_index_metadata, &doc_write_res)?;
                 Ok((path.to_string(), fulltext_index_metadata))
             })
             .collect();
-        persistence.meta_data.fulltext_indices = reso?;
+        persistence.metadata.fulltext_indices = reso?;
         persistence.load_all_fst()?;
 
         info!(
@@ -1196,10 +1207,10 @@ where
                     kv_metadata.id_type = IDDataType::U64;
                 }
             }
-            persistence.meta_data.stores.push(kv_metadata);
+            persistence.metadata.stores.push(kv_metadata);
         }
 
-        persistence.write_meta_data()?;
+        persistence.write_metadata()?;
     }
 
     // load the converted indices, without writing them
@@ -1308,8 +1319,8 @@ pub fn add_token_values_to_tokens(persistence: &mut Persistence, data_str: &str,
         id_type: IDDataType::U32,
     };
 
-    persistence.meta_data.stores.push(kv_metadata);
-    persistence.write_meta_data()?;
+    persistence.metadata.stores.push(kv_metadata);
+    persistence.write_metadata()?;
 
     //TODO FIX LOAD FOR IN_MEMORY
     let store = SingleArrayMMAPPacked::<u32>::from_file(&persistence.get_file_handle(&path)?, store.metadata)?;

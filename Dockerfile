@@ -9,7 +9,7 @@ RUN ls -al src
 RUN apt-get update
 RUN apt-get install -y numactl
 
-# RUN cargo install --force
+# RUN cargo install --path . --force
 # RUN cd bin
 RUN cd bin;cargo install
 # Make port 3000 available to the world outside this container

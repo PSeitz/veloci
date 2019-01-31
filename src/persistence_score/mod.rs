@@ -3,7 +3,7 @@ use crate::type_info::TypeInfo;
 use half::f16;
 use std::path::Path;
 
-use heapsize::HeapSizeOf;
+// use heapsize::HeapSizeOf;
 
 use memmap::Mmap;
 use memmap::MmapOptions;

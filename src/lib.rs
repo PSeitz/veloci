@@ -12,8 +12,8 @@ extern crate cpuprofiler;
 #[macro_use]
 #[allow(unused_imports)]
 extern crate dump;
-#[macro_use]
-extern crate heapsize_derive;
+// #[macro_use]
+// extern crate heapsize_derive;
 #[macro_use]
 extern crate lazy_static;
 #[macro_use]

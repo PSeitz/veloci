@@ -6,7 +6,7 @@ use std::marker::PhantomData;
 use std::ptr::copy_nonoverlapping;
 use std::u32;
 // use byteorder::{LittleEndian, ReadBytesExt};
-use heapsize::HeapSizeOf;
+// use heapsize::HeapSizeOf;
 
 use crate::error::VelociError;
 use crate::persistence::EMPTY_BUCKET;
@@ -25,7 +25,7 @@ use memmap::MmapOptions;
 impl_type_info_single_templ!(SingleArrayMMAPPacked);
 
 /// This data structure assumes that a set is only called once for a id, and ids are set in order.
-#[derive(Serialize, Debug, Clone, HeapSizeOf, Default)]
+#[derive(Serialize, Debug, Clone, Default)]
 pub struct IndexIdToOneParentFlushing {
     pub cache: Vec<u32>,
     pub current_id_offset: u32,
@@ -113,7 +113,7 @@ impl IndexIdToOneParentFlushing {
     }
 }
 
-#[derive(Debug, Clone, Copy, HeapSizeOf)]
+#[derive(Debug, Clone, Copy)]
 pub enum BytesRequired {
     One = 1,
     Two,
@@ -226,7 +226,7 @@ where
     }
 }
 
-#[derive(Debug, Default, HeapSizeOf)]
+#[derive(Debug, Default)]
 pub struct SingleArrayIM<T: IndexIdToParentData, K: IndexIdToParentData> {
     pub data: Vec<K>,
     pub ok: PhantomData<T>,
@@ -334,11 +334,11 @@ impl<T: IndexIdToParentData> SingleArrayMMAPPacked<T> {
     //     })
     // }
 }
-impl<T: IndexIdToParentData> HeapSizeOf for SingleArrayMMAPPacked<T> {
-    fn heap_size_of_children(&self) -> usize {
-        0
-    }
-}
+// impl<T: IndexIdToParentData> HeapSizeOf for SingleArrayMMAPPacked<T> {
+//     fn heap_size_of_children(&self) -> usize {
+//         0
+//     }
+// }
 
 impl<T: IndexIdToParentData> IndexIdToParent for SingleArrayMMAPPacked<T> {
     type Output = T;

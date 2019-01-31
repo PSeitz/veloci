@@ -216,7 +216,7 @@ fn search_post(database: String, request: Json<search::Request>) -> Result<Searc
 #[get("/<database>/_idtree/<id>")]
 fn get_doc_for_id_tree(database: String, id: u32) -> Json<serde_json::Value> {
     let persistence = PERSISTENCES.get(&database).unwrap();
-    let all_fields = persistence.meta_data.get_all_fields();
+    let all_fields = persistence.metadata.get_all_fields();
     let tree = search::get_read_tree_from_fields(&persistence, &all_fields);
 
     Json(search::read_tree(&persistence, id, &tree).unwrap())

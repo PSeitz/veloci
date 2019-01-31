@@ -420,17 +420,24 @@ pub fn resolve_token_to_anchor(
     {
         if !result.hits_ids.is_empty() {
             //TODO FIXME Important Note: In the Filter Case we currently only resolve TEXT_IDS to anchor. No Filter are possible on tokens. Fixme: Conflicts with token based boosting
-            let text_id_to_anchor = persistence.get_valueid_to_parent(&options.path.add(TEXT_ID_TO_ANCHOR))?;
 
-            debug_time!("{} tokens to anchor_id", &options.path);
-            for id in &result.hits_ids {
-                let iter = text_id_to_anchor.get_values_iter(u64::from(*id));
-                fast_field_res_ids.reserve(iter.size_hint().1.unwrap());
-                for anchor_id in iter {
-                    // Should filter here is not used, the expensive lookup may not be worth it (untested)
-                    fast_field_res_ids.push(anchor_id);
+            // text_ids are already anchor_ids === identity_column
+            if persistence.metadata.fulltext_indices.get(&options.path).map(|el|el.is_identity_column).unwrap_or(false) {
+                fast_field_res_ids.extend(&result.hits_ids);
+            }else{
+                let text_id_to_anchor = persistence.get_valueid_to_parent(&options.path.add(TEXT_ID_TO_ANCHOR))?;
+
+                debug_time!("{} tokens to anchor_id", &options.path);
+                for id in &result.hits_ids {
+                    let iter = text_id_to_anchor.get_values_iter(u64::from(*id));
+                    fast_field_res_ids.reserve(iter.size_hint().1.unwrap());
+                    for anchor_id in iter {
+                        // Should filter here is not used, the expensive lookup may not be worth it (untested)
+                        fast_field_res_ids.push(anchor_id);
+                    }
                 }
             }
+
         }
     }
 
@@ -497,7 +504,7 @@ pub fn resolve_token_hits_to_text_id(
         path = path.add(TEXTINDEX);
     }
     let has_tokens = persistence
-        .meta_data
+        .metadata
         .fulltext_indices
         .get(&path)
         .map_or(false, |fulltext_info| fulltext_info.options.tokenize);

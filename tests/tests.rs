@@ -1259,7 +1259,7 @@ fn should_skip_existing_fields_which_are_not_existent_in_the_object_none_values(
 #[test]
 fn read_recreate_complete_object_with_read() {
     let pers = &TEST_PERSISTENCE;
-    let all_props = pers.meta_data.get_all_fields();
+    let all_props = pers.metadata.get_all_fields();
     let yay2 = search::read_data(&pers, 4, &all_props).unwrap();
 
     assert_eq!(
