@@ -56,18 +56,28 @@ pub const TOKEN_VALUES: &str = ".token_values";
 pub const TEXTINDEX: &str = ".textindex";
 
 //TODO consolidate metadata under columninfo
-// #[derive(Serialize, Deserialize, Debug, Clone, Default)]
-// pub struct ColumnInfo {
-//     textindex_metadata: TextIndexMetaData
-// }
+#[derive(Serialize, Deserialize, Debug, Clone, Default)]
+pub struct ColumnInfo {
+    pub name: String,
+    pub textindex_metadata: TextIndexMetaData,
+    pub stores: Vec<KVStoreMetaData>,
+    pub is_identity_column: bool,
+}
 
+
+// #[derive(Serialize, Deserialize, Debug, Clone, Default)]
+// pub struct MetaData {
+//     pub num_docs: u64,
+//     pub bytes_indexed: u64,
+//     pub stores: Vec<KVStoreMetaData>,
+//     pub fulltext_indices: FnvHashMap<String, TextIndexMetaData>,
+// }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
 pub struct MetaData {
     pub num_docs: u64,
     pub bytes_indexed: u64,
-    pub stores: Vec<KVStoreMetaData>,
-    pub fulltext_indices: FnvHashMap<String, TextIndexMetaData>,
+    pub columns: FnvHashMap<String, ColumnInfo>,
 }
 
 impl MetaData {
@@ -77,7 +87,8 @@ impl MetaData {
     }
 
     pub fn get_all_fields(&self) -> Vec<String> {
-        self.fulltext_indices.keys().map(|el| util::extract_field_name(el)).collect()
+        // self.fulltext_indices.keys().map(|el| util::extract_field_name(el)).collect()
+        self.columns.keys().map(|el|el.to_string()).collect()
     }
 }
 
@@ -426,7 +437,7 @@ impl Persistence {
         self.indices.doc_offsets = Some(doc_offsets_mmap);
 
         //ANCHOR TO SCORE
-        for el in &self.metadata.stores {
+        for el in self.metadata.columns.iter().flat_map(|col|col.1.stores.iter()) {
             let indirect_path = get_file_path(&self.db, &el.path) + ".indirect";
             let indirect_data_path = get_file_path(&self.db, &el.path) + ".data";
             let loading_type = get_loading_type(el.loading_type)?;
@@ -558,9 +569,10 @@ impl Persistence {
     }
 
     pub fn load_all_fst(&mut self) -> Result<(), VelociError> {
-        for path in self.metadata.fulltext_indices.keys() {
-            let map = self.load_fst(path)?;
-            self.indices.fst.insert(path.to_string(), map);
+        for column_name in self.metadata.columns.keys() {
+            let path = column_name.add(TEXTINDEX);
+            let map = self.load_fst(&path)?;
+            self.indices.fst.insert(path, map);
         }
         Ok(())
     }

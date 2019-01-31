@@ -490,9 +490,6 @@ fn prepare_path_data(temp_dir: &str, persistence: &Persistence, fields_config: &
 
     let skip_tokenizing = if !fulltext_options.tokenize { fulltext_options.tokenize } else { tokens_to_text_id.is_none() && token_to_anchor_id_score.is_none() && phrase_pair_to_anchor.is_none() };
 
-    // TODO: fix don't store is_identity_column in fulltext_indices
-    let path_textindex = path.to_string() + TEXTINDEX;
-
     PathData {
         anchor_to_text_id,
         boost: boost_info_data,
@@ -506,7 +503,7 @@ fn prepare_path_data(temp_dir: &str, persistence: &Persistence, fields_config: &
         text_id_to_token_ids,
         fulltext_options,
         skip_tokenizing,
-        is_identity_column: persistence.metadata.fulltext_indices.get(&path_textindex).map(|el|el.is_identity_column).unwrap_or(false),
+        is_identity_column: persistence.metadata.columns.get(path).map(|el|el.is_identity_column).unwrap_or(false),
         term_data,
     }
 }
@@ -1134,13 +1131,18 @@ where
             .map(|(path, mut terms_data)| {
                 let mut fulltext_index_metadata = TextIndexMetaData::default();
                 let options: &FulltextIndexOptions = indices_json.get(&path).fulltext.as_ref().unwrap_or_else(|| &default_fulltext_options);
-                let path = path.to_string() + TEXTINDEX;
+                let path_text_index = path.to_string() + TEXTINDEX;
                 fulltext_index_metadata.options = options.clone();
-                store_full_text_info_and_set_ids(&persistence, &mut terms_data, &path, &options, &mut fulltext_index_metadata, &doc_write_res)?;
+                store_full_text_info_and_set_ids(&persistence, &mut terms_data, &path_text_index, &options, &mut fulltext_index_metadata, &doc_write_res)?;
                 Ok((path.to_string(), fulltext_index_metadata))
             })
             .collect();
-        persistence.metadata.fulltext_indices = reso?;
+
+        for (path, textindex_metadata) in reso? {
+            let entry = persistence.metadata.columns.entry(path.to_string()).or_insert_with(||ColumnInfo::default());
+            entry.textindex_metadata = textindex_metadata;
+        }
+        // persistence.metadata.fulltext_indices = reso?;
         persistence.load_all_fst()?;
 
         info!(
