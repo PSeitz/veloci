@@ -573,9 +573,9 @@ where
             }
 
             if let Some(el) = data.text_id_to_anchor.as_mut() {
-                // if !data.is_identity_column { // we don't need to store the relation, if they are identity
+                if !data.is_identity_column { // we don't need to store the relation, if they are identity
                     el.add(text_info.id, anchor_id)?;
-                // }
+                }
             }
             // data.text_id_to_anchor.add(text_info.id, anchor_id)?;
             if let Some(el) = data.anchor_to_text_id.as_mut() {
