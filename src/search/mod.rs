@@ -494,8 +494,7 @@ fn boost_text_locality(persistence: &Persistence, path: &str, search_term_to_tex
     }
 
     // text_ids are already anchor_ids === identity_column
-    if persistence.metadata.fulltext_indices.get(path).map(|el|el.is_identity_column).unwrap_or(false) {
-
+    if persistence.metadata.columns.get(&extract_field_name(path)).map(|el|el.is_identity_column).unwrap_or(false) {
         boost_text_ids.sort_unstable_by_key(|el| el.0);
         for text_id in boost_text_ids {
             let num_hits_in_same_text = text_id.1;
@@ -1497,7 +1496,7 @@ fn join_and_get_text_for_ids(persistence: &Persistence, id: u32, prop: &str) -> 
     let field_name = prop.add(TEXTINDEX);
     let text_value_id_opt = join_for_1_to_1(persistence, id, &field_name.add(PARENT_TO_VALUE_ID))?;
     if let Some(text_value_id) = text_value_id_opt {
-        let text = if text_value_id >= persistence.metadata.fulltext_indices[&field_name].num_text_ids as u32 {
+        let text = if text_value_id >= persistence.metadata.columns[prop].textindex_metadata.num_text_ids as u32 {
             let text_id_to_token_ids = persistence.get_valueid_to_parent(field_name.add(TEXT_ID_TO_TOKEN_IDS))?;
             let vals = text_id_to_token_ids.get_values(u64::from(text_value_id));
             if let Some(vals) = vals {

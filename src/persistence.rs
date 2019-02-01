@@ -62,6 +62,7 @@ pub struct ColumnInfo {
     pub textindex_metadata: TextIndexMetaData,
     pub stores: Vec<KVStoreMetaData>,
     pub is_identity_column: bool,
+    pub has_fst: bool,
 }
 
 
@@ -95,7 +96,6 @@ impl MetaData {
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
 pub struct TextIndexMetaData {
     //id equals achor id
-    pub is_identity_column: bool,
     pub num_text_ids: usize,
     pub num_long_text_ids: usize,
     pub options: create::FulltextIndexOptions,
@@ -569,7 +569,7 @@ impl Persistence {
     }
 
     pub fn load_all_fst(&mut self) -> Result<(), VelociError> {
-        for column_name in self.metadata.columns.keys() {
+        for (column_name, _) in self.metadata.columns.iter().filter(|(_, info)|info.has_fst) {
             let path = column_name.add(TEXTINDEX);
             let map = self.load_fst(&path)?;
             self.indices.fst.insert(path, map);
@@ -579,7 +579,8 @@ impl Persistence {
 
     pub fn load_fst(&self, path: &str) -> Result<Map, VelociError> {
         unsafe {
-            Ok(Map::from_path(&get_file_path(&self.db, &(path.to_string() + ".fst")))?) //(path.to_string() + ".fst"))?)
+            Map::from_path(&get_file_path(&self.db, &(path.to_string() + ".fst"))).map_err(|err| VelociError::StringError(format!("Could not load fst {} {:?}", path, err)))
+            // Ok(Map::from_path(&get_file_path(&self.db, &(path.to_string() + ".fst")))?) //(path.to_string() + ".fst"))?)
         }
         // In memory version
         // let mut f = self.get_file_handle(&(path.to_string() + ".fst"))?;

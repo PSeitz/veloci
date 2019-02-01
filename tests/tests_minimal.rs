@@ -59,7 +59,9 @@ fn test_minimal_with_filter_identity_column_test() {
     let hits = search_testo_to_doc!(req).data;
     assert_eq!(hits.len(), 1);
 
-    assert_eq!(TEST_PERSISTENCE.metadata.fulltext_indices.get("field.textindex").expect("field.textindex not found").is_identity_column, true);
+
+    // panic!("{}", serde_json::to_string_pretty(&TEST_PERSISTENCE.metadata.columns).unwrap());
+    assert_eq!(TEST_PERSISTENCE.metadata.columns.get("field").expect("field.textindex not found").is_identity_column, true);
     assert_eq!(hits[0].doc["field"], "test");
 }
 

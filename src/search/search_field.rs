@@ -422,7 +422,7 @@ pub fn resolve_token_to_anchor(
             //TODO FIXME Important Note: In the Filter Case we currently only resolve TEXT_IDS to anchor. No Filter are possible on tokens. Fixme: Conflicts with token based boosting
 
             // text_ids are already anchor_ids === identity_column
-            if persistence.metadata.fulltext_indices.get(&options.path).map(|el|el.is_identity_column).unwrap_or(false) {
+            if persistence.metadata.columns.get(&extract_field_name(&options.path)).map(|el|el.is_identity_column).unwrap_or(false) {
                 fast_field_res_ids.extend(&result.hits_ids);
             }else{
                 let text_id_to_anchor = persistence.get_valueid_to_parent(&options.path.add(TEXT_ID_TO_ANCHOR))?;
@@ -505,9 +505,9 @@ pub fn resolve_token_hits_to_text_id(
     }
     let has_tokens = persistence
         .metadata
-        .fulltext_indices
-        .get(&path)
-        .map_or(false, |fulltext_info| fulltext_info.options.tokenize);
+        .columns
+        .get(&extract_field_name(&path))
+        .map_or(false, |col| col.textindex_metadata.options.tokenize);
     debug!("has_tokens {:?} {:?}", path, has_tokens);
     if !has_tokens {
         return Ok(());

@@ -1,4 +1,3 @@
-#![feature(uniform_paths)]
 #![cfg_attr(feature = "cargo-clippy", allow(clippy::implicit_hasher))]
 #![cfg_attr(feature = "cargo-clippy", allow(clippy::too_many_arguments))]
 #![feature(drain_filter)]

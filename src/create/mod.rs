@@ -117,20 +117,20 @@ fn store_full_text_info_and_set_ids(
     terms_data: &mut TermDataInPath,
     path: &str,
     options: &FulltextIndexOptions,
-    textindex_metadata: &mut TextIndexMetaData,
+    col_info: &mut ColumnInfo,
     doc_write_res: &DocWriteRes,
 ) -> Result<(), io::Error> {
     debug_time!("store_fst strings and string offsets {:?}", path);
 
     let id_column = !path.contains("[]") && doc_write_res.num_doc_ids as usize == terms_data.terms.len() && terms_data.terms.iter().all(|(_term, info)| info.num_occurences == 1);
-    textindex_metadata.is_identity_column = id_column;
+    col_info.is_identity_column = id_column;
 
     if log_enabled!(log::Level::Trace) {
         let mut all_text: Vec<_> = terms_data.terms.keys().collect();
         all_text.sort_unstable();
         trace!("{:?} Terms: {:?}", path, all_text);
     }
-    textindex_metadata.num_text_ids = terms_data.terms.len();
+    col_info.textindex_metadata.num_text_ids = terms_data.terms.len();
     let term_and_mut_val = set_ids(&mut terms_data.terms, 0);
     store_fst(persistence, &term_and_mut_val, &path, options.do_not_store_text_longer_than).expect("Could not store fst");
 
@@ -826,6 +826,7 @@ fn stream_iter_to_anchor_score<T: AnchorScoreDataSize>(
 
 pub fn add_anchor_score_flush(
     db_path: &str,
+    path_col: &str,
     path: String,
     mut buffered_index_data: BufferedIndexWriter<u32, (u32, u32)>,
     indices: &mut IndicesFromRawData,
@@ -848,6 +849,7 @@ pub fn add_anchor_score_flush(
         }
 
         indices.push(IndexData {
+            path_col:path_col.to_string(),
             path,
             index: IndexVariants::TokenToAnchorScoreU32(store),
             loading_type: LoadingType::Disk,
@@ -868,6 +870,7 @@ pub fn add_anchor_score_flush(
         }
 
         indices.push(IndexData {
+            path_col:path_col.to_string(),
             path,
             index: IndexVariants::TokenToAnchorScoreU64(store),
             loading_type: LoadingType::Disk,
@@ -909,7 +912,7 @@ fn stream_buffered_index_writer_to_phrase_index(
     }
     Ok(())
 }
-fn add_phrase_pair_flush(db_path: &str, path: String, buffered_index_data: BufferedIndexWriter<(u32, u32), u32>, indices: &mut IndicesFromRawData) -> Result<(), io::Error> {
+fn add_phrase_pair_flush(db_path: &str, path_col: &str, path: String, buffered_index_data: BufferedIndexWriter<(u32, u32), u32>, indices: &mut IndicesFromRawData) -> Result<(), io::Error> {
     let indirect_file_path = util::get_file_path(db_path, &(path.to_string() + ".indirect"));
     let data_file_path = util::get_file_path(db_path, &(path.to_string() + ".data"));
 
@@ -917,6 +920,7 @@ fn add_phrase_pair_flush(db_path: &str, path: String, buffered_index_data: Buffe
     stream_buffered_index_writer_to_phrase_index(buffered_index_data, &mut store)?;
 
     indices.push(IndexData {
+        path_col:path_col.to_string(),
         path,
         index: IndexVariants::Phrase(store),
         loading_type: LoadingType::Disk,
@@ -930,6 +934,7 @@ pub type IndicesFromRawData = Vec<IndexData>;
 #[derive(Debug)]
 pub struct IndexData {
     //TODO MAKE PRIVATE
+    path_col: String,
     path: String,
     index: IndexVariants,
     loading_type: LoadingType,
@@ -955,7 +960,8 @@ fn convert_raw_path_data_to_indices(
     info_time!("convert_raw_path_data_to_indices");
     let mut indices = IndicesFromRawData::default();
 
-    let add_index_flush = |path: String,
+    let add_index_flush = |path_col: &str,
+                           path: String,
                            buffered_index_data: BufferedIndexWriter,
                            is_always_1_to_1: bool,
                            sort_and_dedup: bool,
@@ -965,6 +971,7 @@ fn convert_raw_path_data_to_indices(
         if is_always_1_to_1 {
             let store = buffered_index_to_direct_index(db_path, &path, buffered_index_data)?;
             indices.push(IndexData {
+                path_col:path_col.to_string(),
                 path,
                 index: IndexVariants::SingleValue(store),
                 loading_type,
@@ -973,6 +980,7 @@ fn convert_raw_path_data_to_indices(
         } else {
             let store = buffered_index_to_indirect_index_multiple(db_path, &path, buffered_index_data, sort_and_dedup)?;
             indices.push(IndexData {
+                path_col:path_col.to_string(),
                 path,
                 index: IndexVariants::MultiValue(store),
                 loading_type,
@@ -985,26 +993,28 @@ fn convert_raw_path_data_to_indices(
     let indices_res: Result<Vec<_>, VelociError> = path_data
         .into_par_iter()
         .map(|(mut path, data)| {
-            let mut indices = IndicesFromRawData::default();
 
+            let mut indices = IndicesFromRawData::default();
+            let path_col = path.to_string();
             path += TEXTINDEX;
             let path = &path;
 
             if let Some(tokens_to_text_id) = data.tokens_to_text_id {
-                add_index_flush(path.add(TOKENS_TO_TEXT_ID), *tokens_to_text_id, false, true, &mut indices, LoadingType::Disk)?;
+                add_index_flush(&path_col, path.add(TOKENS_TO_TEXT_ID), *tokens_to_text_id, false, true, &mut indices, LoadingType::Disk)?;
             }
 
             if let Some(token_to_anchor_id_score) = data.token_to_anchor_id_score {
-                add_anchor_score_flush(&db_path, path.add(TO_ANCHOR_ID_SCORE), *token_to_anchor_id_score, &mut indices)?;
+                add_anchor_score_flush(&db_path, &path_col, path.add(TO_ANCHOR_ID_SCORE), *token_to_anchor_id_score, &mut indices)?;
             }
 
             if let Some(phrase_pair_to_anchor) = data.phrase_pair_to_anchor {
-                add_phrase_pair_flush(&db_path, path.add(PHRASE_PAIR_TO_ANCHOR), *phrase_pair_to_anchor, &mut indices)?;
+                add_phrase_pair_flush(&db_path, &path_col, path.add(PHRASE_PAIR_TO_ANCHOR), *phrase_pair_to_anchor, &mut indices)?;
             }
 
             let sort_and_dedup = false;
             if let Some(text_id_to_token_ids) = data.text_id_to_token_ids {
                 add_index_flush(
+                    &path_col,
                     path.add(TEXT_ID_TO_TOKEN_IDS),
                     text_id_to_token_ids.data,
                     false,
@@ -1016,6 +1026,7 @@ fn convert_raw_path_data_to_indices(
 
             if let Some(text_id_to_parent) = data.text_id_to_parent {
                 add_index_flush(
+                    &path_col,
                     path.add(VALUE_ID_TO_PARENT),
                     *text_id_to_parent,
                     false, // valueIdToParent relation is always 1 to 1, expect for text_ids, which can have multiple parents. Here we handle only text_ids therefore is this always false
@@ -1033,6 +1044,7 @@ fn convert_raw_path_data_to_indices(
 
             if let Some(parent_to_text_id) = data.parent_to_text_id {
                 add_index_flush(
+                    &path_col,
                     path.add(PARENT_TO_VALUE_ID),
                     *parent_to_text_id,
                     true, // This is parent_to_text_id here - Every Value id hat one associated text_id
@@ -1043,11 +1055,11 @@ fn convert_raw_path_data_to_indices(
             }
 
             if let Some(text_id_to_anchor) = data.text_id_to_anchor {
-                add_index_flush(path.add(TEXT_ID_TO_ANCHOR), *text_id_to_anchor, false, true, &mut indices, LoadingType::Disk)?;
+                add_index_flush(&path_col, path.add(TEXT_ID_TO_ANCHOR), *text_id_to_anchor, false, true, &mut indices, LoadingType::Disk)?;
             }
 
             if let Some(anchor_to_text_id) = data.anchor_to_text_id {
-                add_index_flush(path.add(ANCHOR_TO_TEXT_ID), *anchor_to_text_id, false, sort_and_dedup, &mut indices, LoadingType::InMemory)?;
+                add_index_flush(&path_col, path.add(ANCHOR_TO_TEXT_ID), *anchor_to_text_id, false, sort_and_dedup, &mut indices, LoadingType::InMemory)?;
             }
 
             if let Some(buffered_index_data) = data.boost {
@@ -1055,6 +1067,7 @@ fn convert_raw_path_data_to_indices(
 
                 let store = buffered_index_to_indirect_index_multiple(db_path, &boost_path, *buffered_index_data, false)?;
                 indices.push(IndexData {
+                    path_col: path_col.to_string(),
                     path: boost_path.to_string(),
                     index: IndexVariants::MultiValue(store),
                     loading_type: LoadingType::InMemory,
@@ -1074,11 +1087,12 @@ fn convert_raw_path_data_to_indices(
         .into_par_iter()
         .map(|(path, data)| {
             let mut indices = IndicesFromRawData::default();
-
+            let path_col = path.to_string();
             let path = &path;
 
             if let Some(value_to_parent) = data.value_to_parent {
                 add_index_flush(
+                    &path_col,
                     path.add(VALUE_ID_TO_PARENT),
                     value_to_parent,
                     true, // valueIdToParent relation is always 1 to 1, expect for text_ids, which can have multiple parents. Here we handle all except .textindex data therefore is this always true
@@ -1088,7 +1102,7 @@ fn convert_raw_path_data_to_indices(
                 )?;
             }
             if let Some(parent_to_value) = data.parent_to_value {
-                add_index_flush(path.add(PARENT_TO_VALUE_ID), parent_to_value, false, false, &mut indices, LoadingType::Disk)?;
+                add_index_flush(&path_col, path.add(PARENT_TO_VALUE_ID), parent_to_value, false, false, &mut indices, LoadingType::Disk)?;
             }
 
             Ok(indices)
@@ -1124,23 +1138,29 @@ where
     let default_fulltext_options = FulltextIndexOptions::new_with_tokenize();
     {
         info_time!("set term ids and write fst");
-        let reso: Result<FnvHashMap<String, TextIndexMetaData>, io::Error> = create_cache
+        let reso: Result<FnvHashMap<String, ColumnInfo>, io::Error> = create_cache
             .term_data
             .terms_in_path
             .par_iter_mut()
             .map(|(path, mut terms_data)| {
-                let mut fulltext_index_metadata = TextIndexMetaData::default();
+                let mut textindex_metadata = TextIndexMetaData::default();
                 let options: &FulltextIndexOptions = indices_json.get(&path).fulltext.as_ref().unwrap_or_else(|| &default_fulltext_options);
                 let path_text_index = path.to_string() + TEXTINDEX;
-                fulltext_index_metadata.options = options.clone();
-                store_full_text_info_and_set_ids(&persistence, &mut terms_data, &path_text_index, &options, &mut fulltext_index_metadata, &doc_write_res)?;
-                Ok((path.to_string(), fulltext_index_metadata))
+                textindex_metadata.options = options.clone();
+                let mut col_info = ColumnInfo{
+                    name: path.to_string(),
+                    has_fst:true,
+                    textindex_metadata: textindex_metadata,
+                    ..Default::default()
+                };
+
+                store_full_text_info_and_set_ids(&persistence, &mut terms_data, &path_text_index, &options, &mut col_info, &doc_write_res)?;
+                Ok((path.to_string(), col_info))
             })
             .collect();
 
-        for (path, textindex_metadata) in reso? {
-            let entry = persistence.metadata.columns.entry(path.to_string()).or_insert_with(||ColumnInfo::default());
-            entry.textindex_metadata = textindex_metadata;
+        for (path, col_info) in reso? {
+            persistence.metadata.columns.insert(path.to_string(),col_info);
         }
         // persistence.metadata.fulltext_indices = reso?;
         persistence.load_all_fst()?;
@@ -1209,7 +1229,9 @@ where
                     kv_metadata.id_type = IDDataType::U64;
                 }
             }
-            persistence.metadata.stores.push(kv_metadata);
+            // persistence.metadata.stores.push(kv_metadata);
+            let entry = persistence.metadata.columns.entry(index_data.path_col.to_string()).or_insert_with(||ColumnInfo{has_fst:false, .. Default::default()});
+            entry.stores.push(kv_metadata);
         }
 
         persistence.write_metadata()?;
@@ -1321,7 +1343,9 @@ pub fn add_token_values_to_tokens(persistence: &mut Persistence, data_str: &str,
         id_type: IDDataType::U32,
     };
 
-    persistence.metadata.stores.push(kv_metadata);
+    // persistence.metadata.stores.push(kv_metadata);
+    let entry = persistence.metadata.columns.entry(config.path).or_insert_with(||ColumnInfo{has_fst:false, .. Default::default()});
+    entry.stores.push(kv_metadata);
     persistence.write_metadata()?;
 
     //TODO FIX LOAD FOR IN_MEMORY

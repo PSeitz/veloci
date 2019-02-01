@@ -29,7 +29,7 @@ fn main() -> Result<(), io::Error> {
 
     println!("{:?}", buffered_index_writer.bytes_written());
 
-    search_lib::create::add_anchor_score_flush("test_u64", "check".to_string(), buffered_index_writer, &mut vec![]).unwrap();
+    search_lib::create::add_anchor_score_flush("test_u64", "check","check".to_string(), buffered_index_writer, &mut vec![]).unwrap();
 
     Ok(())
 }
