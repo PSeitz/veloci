@@ -30,14 +30,14 @@ pub(crate) struct IndexIdToOneParentFlushing {
     pub(crate) cache: Vec<u32>,
     pub(crate) current_id_offset: u32,
     pub(crate) path: String,
-    pub(crate) metadata: IndexMetaData,
+    pub(crate) metadata: IndexValuesMetadata,
 }
 
 impl IndexIdToOneParentFlushing {
     pub(crate) fn new(path: String, max_value_id: u32) -> IndexIdToOneParentFlushing {
         IndexIdToOneParentFlushing {
             path,
-            metadata: IndexMetaData {
+            metadata: IndexValuesMetadata {
                 max_value_id,
                 ..Default::default()
             },
@@ -230,7 +230,7 @@ where
 pub(crate) struct SingleArrayIM<T: IndexIdToParentData, K: IndexIdToParentData> {
     pub(crate) data: Vec<K>,
     pub(crate) ok: PhantomData<T>,
-    pub(crate) metadata: IndexMetaData,
+    pub(crate) metadata: IndexValuesMetadata,
 }
 
 impl<T: IndexIdToParentData, K: IndexIdToParentData> TypeInfo for SingleArrayIM<T, K> {
@@ -303,7 +303,7 @@ where
 pub(crate) struct SingleArrayMMAPPacked<T: IndexIdToParentData> {
     pub(crate) data_file: Mmap,
     pub(crate) size: usize,
-    pub(crate) metadata: IndexMetaData,
+    pub(crate) metadata: IndexValuesMetadata,
     pub(crate) ok: PhantomData<T>,
     pub(crate) bytes_required: BytesRequired,
 }
@@ -313,7 +313,7 @@ impl<T: IndexIdToParentData> SingleArrayMMAPPacked<T> {
     //     self.size
     // }
 
-    pub(crate) fn from_file(file: &File, metadata: IndexMetaData) -> Result<Self, VelociError> {
+    pub(crate) fn from_file(file: &File, metadata: IndexValuesMetadata) -> Result<Self, VelociError> {
         let data_file = unsafe { MmapOptions::new().map(&file)? };
         Ok(SingleArrayMMAPPacked {
             data_file,
@@ -323,7 +323,7 @@ impl<T: IndexIdToParentData> SingleArrayMMAPPacked<T> {
             bytes_required: get_bytes_required(metadata.max_value_id),
         })
     }
-    // pub(crate) fn from_path(path: &str, metadata: IndexMetaData) -> Result<Self, VelociError> {
+    // pub(crate) fn from_path(path: &str, metadata: IndexValuesMetadata) -> Result<Self, VelociError> {
     //     let data_file = unsafe { MmapOptions::new().map(&open_file(path)?)? };
     //     Ok(SingleArrayMMAPPacked {
     //         data_file,

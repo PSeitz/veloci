@@ -32,6 +32,7 @@ pub use doc_store;
 pub mod util;
 #[macro_use]
 pub mod type_info;
+pub mod metadata;
 pub mod create;
 pub mod error;
 pub mod execution_plan;

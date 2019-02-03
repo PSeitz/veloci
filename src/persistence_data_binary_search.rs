@@ -32,7 +32,7 @@ pub(crate) struct IndexIdToMultipleParentIndirectFlushingInOrderVintNoDirectEnco
     pub(crate) current_id_offset: u32,
     pub(crate) indirect_path: String,
     pub(crate) data_path: String,
-    pub(crate) metadata: IndexMetaData,
+    pub(crate) metadata: IndexValuesMetadata,
 }
 
 impl<T: Default + std::fmt::Debug> IndexIdToMultipleParentIndirectFlushingInOrderVintNoDirectEncode<T> {
@@ -46,7 +46,7 @@ impl<T: Default + std::fmt::Debug> IndexIdToMultipleParentIndirectFlushingInOrde
             current_id_offset: 0,
             indirect_path,
             data_path,
-            metadata: IndexMetaData::new(max_value_id),
+            metadata: IndexValuesMetadata::new(max_value_id),
         }
     }
 
@@ -113,7 +113,7 @@ fn to_serialized_vint_array(add_data: &[u32]) -> Vec<u8> {
 pub(crate) struct IndexIdToMultipleParentIndirectBinarySearch<T> {
     pub(crate) start_pos: Vec<(T, u32)>,
     pub(crate) data: Vec<u8>,
-    pub(crate) metadata: IndexMetaData,
+    pub(crate) metadata: IndexValuesMetadata,
 }
 
 impl<T: 'static + Ord + Copy + Default + std::fmt::Debug + Sync + Send> PhrasePairToAnchor for IndexIdToMultipleParentIndirectBinarySearch<T> {
@@ -139,7 +139,7 @@ pub(crate) struct IndexIdToMultipleParentIndirectBinarySearchMMAP<T> {
     pub(crate) start_pos: Mmap,
     pub(crate) data: Mmap,
     pub(crate) ok: PhantomData<T>,
-    pub(crate) metadata: IndexMetaData,
+    pub(crate) metadata: IndexValuesMetadata,
     pub(crate) size: usize,
 }
 // impl<T: Ord + Copy + Default + std::fmt::Debug> HeapSizeOf for IndexIdToMultipleParentIndirectBinarySearchMMAP<T> {
@@ -148,7 +148,7 @@ pub(crate) struct IndexIdToMultipleParentIndirectBinarySearchMMAP<T> {
 //     }
 // }
 impl<T: Ord + Copy + Default + std::fmt::Debug> IndexIdToMultipleParentIndirectBinarySearchMMAP<T> {
-    pub(crate) fn from_path<P: AsRef<Path>>(path: P, metadata: IndexMetaData) -> Result<Self, VelociError> {
+    pub(crate) fn from_path<P: AsRef<Path>>(path: P, metadata: IndexValuesMetadata) -> Result<Self, VelociError> {
         let ind_file = open_file(path.as_ref().to_str().unwrap().to_string() + ".indirect")?;
         let data_file = open_file(path.as_ref().to_str().unwrap().to_string() + ".data")?;
 

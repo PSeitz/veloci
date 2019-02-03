@@ -18,7 +18,6 @@ use fst::Map;
 use log;
 // use rayon::prelude::*;
 
-use crate::create;
 use crate::error::VelociError;
 use crate::persistence_data::*;
 use crate::persistence_data_binary_search::*;
@@ -29,11 +28,11 @@ use crate::type_info;
 use crate::util;
 use crate::util::get_file_path;
 use crate::util::*;
+pub use crate::metadata::*;
 use memmap::Mmap;
 use memmap::MmapOptions;
 use prettytable::format;
 use prettytable::Table;
-
 // use heapsize::HeapSizeOf;
 
 use colored::*;
@@ -55,95 +54,9 @@ pub const TOKEN_VALUES: &str = ".token_values";
 
 pub const TEXTINDEX: &str = ".textindex";
 
-//TODO consolidate metadata under columninfo
-#[derive(Serialize, Deserialize, Debug, Clone, Default)]
-pub struct ColumnInfo {
-    pub name: String,
-    pub textindex_metadata: TextIndexMetaData,
-    pub stores: Vec<KVStoreMetaData>,
-    pub is_identity_column: bool,
-    pub has_fst: bool,
-}
 
 
-// #[derive(Serialize, Deserialize, Debug, Clone, Default)]
-// pub struct MetaData {
-//     pub num_docs: u64,
-//     pub bytes_indexed: u64,
-//     pub stores: Vec<KVStoreMetaData>,
-//     pub fulltext_indices: FnvHashMap<String, TextIndexMetaData>,
-// }
 
-#[derive(Serialize, Deserialize, Debug, Clone, Default)]
-pub struct MetaData {
-    pub num_docs: u64,
-    pub bytes_indexed: u64,
-    pub columns: FnvHashMap<String, ColumnInfo>,
-}
-
-impl MetaData {
-    pub fn new(folder: &str) -> Result<MetaData, VelociError> {
-        let json = util::file_as_string(&(folder.to_string() + "/metaData.json"))?;
-        Ok(serde_json::from_str(&json)?)
-    }
-
-    pub fn get_all_fields(&self) -> Vec<String> {
-        // self.fulltext_indices.keys().map(|el| util::extract_field_name(el)).collect()
-        self.columns.keys().map(|el|el.to_string()).collect()
-    }
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone, Default)]
-pub struct TextIndexMetaData {
-    //id equals achor id
-    pub num_text_ids: usize,
-    pub num_long_text_ids: usize,
-    pub options: create::FulltextIndexOptions,
-}
-
-#[derive(Serialize, Deserialize, Debug, Default, Clone, Copy, PartialEq)]
-pub struct IndexMetaData {
-    pub max_value_id: u32,
-    pub avg_join_size: f32,
-    pub num_values: u64,
-    pub num_ids: u32,
-}
-
-impl IndexMetaData {
-    pub fn new(max_value_id: u32) -> Self {
-        IndexMetaData {
-            max_value_id,
-            ..Default::default()
-        }
-    }
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq)]
-pub enum IndexCategory {
-    Boost,
-    KeyValue,
-    AnchorScore,
-    Phrase,
-}
-impl Default for IndexCategory {
-    fn default() -> IndexCategory {
-        IndexCategory::KeyValue
-    }
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Default)]
-pub struct KVStoreMetaData {
-    pub index_category: IndexCategory,
-    pub path: String,
-    pub index_type: KVStoreType,
-    #[serde(default)]
-    pub is_empty: bool,
-    pub loading_type: LoadingType,
-    pub metadata: IndexMetaData,
-    pub id_type: IDDataType,
-    // pub max_value_id: u32,  // max value on the "right" side key -> value, key -> value ..
-    // pub avg_join_size: f32, // some join statistics
-}
 
 pub static EMPTY_BUCKET: u32 = 0;
 pub static VALUE_OFFSET: u32 = 1; // because 0 is reserved for EMPTY_BUCKET
@@ -178,7 +91,7 @@ pub enum PersistenceType {
 
 pub struct Persistence {
     pub db: String, // folder
-    pub metadata: MetaData,
+    pub metadata: PeristenceMetaData,
     // pub all_fields : Vec<String>,
     pub persistence_type: PersistenceType,
     pub indices: PersistenceIndices,
@@ -211,37 +124,7 @@ impl FromStr for LoadingType {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
-pub enum KVStoreType {
-    IndexIdToMultipleParentIndirect,
-    IndexIdToOneParent,
-}
 
-impl Default for KVStoreType {
-    fn default() -> KVStoreType {
-        KVStoreType::IndexIdToMultipleParentIndirect
-    }
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
-pub struct IDList {
-    pub path: String,
-    pub size: u64,
-    pub id_type: IDDataType,
-    // pub doc_id_type: bool,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
-pub enum IDDataType {
-    U32,
-    U64,
-}
-
-impl Default for IDDataType {
-    fn default() -> IDDataType {
-        IDDataType::U32
-    }
-}
 
 pub trait IndexIdToParentData: Integer + Clone + num::NumCast + Debug + Sync + Send + Copy + ToPrimitive + std::hash::Hash + 'static {}
 impl<T> IndexIdToParentData for T where T: Integer + Clone + num::NumCast + Debug + Sync + Send + Copy + ToPrimitive + std::hash::Hash + 'static {}
@@ -420,7 +303,7 @@ pub fn get_readable_size(value: usize) -> ColoredString {
 // }
 
 impl Persistence {
-    fn load_types_index_to_one<T: IndexIdToParentData>(data_direct_path: &str, metadata: IndexMetaData) -> Result<Box<dyn IndexIdToParent<Output = u32>>, VelociError> {
+    fn load_types_index_to_one<T: IndexIdToParentData>(data_direct_path: &str, metadata: IndexValuesMetadata) -> Result<Box<dyn IndexIdToParent<Output = u32>>, VelociError> {
         let store = SingleArrayIM::<u32, T> {
             data: decode_bit_packed_vals(&file_path_to_bytes(data_direct_path)?, get_bytes_required(metadata.max_value_id)),
             metadata,
@@ -437,7 +320,7 @@ impl Persistence {
         self.indices.doc_offsets = Some(doc_offsets_mmap);
 
         //ANCHOR TO SCORE
-        for el in self.metadata.columns.iter().flat_map(|col|col.1.stores.iter()) {
+        for el in self.metadata.columns.iter().flat_map(|col|col.1.indices.iter()) {
             let indirect_path = get_file_path(&self.db, &el.path) + ".indirect";
             let indirect_data_path = get_file_path(&self.db, &el.path) + ".data";
             let loading_type = get_loading_type(el.loading_type)?;
@@ -464,17 +347,17 @@ impl Persistence {
                 }
                 IndexCategory::AnchorScore => {
                     let store: Box<dyn TokenToAnchorScore> = match loading_type {
-                        LoadingType::Disk => match el.id_type {
-                            IDDataType::U32 => Box::new(TokenToAnchorScoreVintMmap::<u32>::from_path(&indirect_path, &indirect_data_path)?),
-                            IDDataType::U64 => Box::new(TokenToAnchorScoreVintMmap::<u64>::from_path(&indirect_path, &indirect_data_path)?),
+                        LoadingType::Disk => match el.data_type {
+                            DataType::U32 => Box::new(TokenToAnchorScoreVintMmap::<u32>::from_path(&indirect_path, &indirect_data_path)?),
+                            DataType::U64 => Box::new(TokenToAnchorScoreVintMmap::<u64>::from_path(&indirect_path, &indirect_data_path)?),
                         },
-                        LoadingType::InMemory => match el.id_type {
-                            IDDataType::U32 => {
+                        LoadingType::InMemory => match el.data_type {
+                            DataType::U32 => {
                                 let mut store = TokenToAnchorScoreVintIM::<u32>::default();
                                 store.read(&indirect_path, &indirect_data_path)?;
                                 Box::new(store)
                             }
-                            IDDataType::U64 => {
+                            DataType::U64 => {
                                 let mut store = TokenToAnchorScoreVintIM::<u64>::default();
                                 store.read(&indirect_path, &indirect_data_path)?;
                                 Box::new(store)
@@ -484,13 +367,13 @@ impl Persistence {
                     self.indices.token_to_anchor_score.insert(el.path.to_string(), store);
                 }
                 IndexCategory::Boost => {
-                    match el.index_type {
-                        KVStoreType::IndexIdToMultipleParentIndirect => {
-                            // let meta = IndexMetaData{max_value_id: el.metadata.max_value_id, avg_join_size:el.avg_join_size, ..Default::default()};
+                    match el.index_cardinality {
+                        IndexCardinality::IndexIdToMultipleParentIndirect => {
+                            // let meta = IndexValuesMetadata{max_value_id: el.metadata.max_value_id, avg_join_size:el.avg_join_size, ..Default::default()};
                             let store = PointingMMAPFileReader::from_path(&get_file_path(&self.db, &el.path), el.metadata)?;
                             self.indices.boost_valueid_to_value.insert(el.path.to_string(), Box::new(store));
                         }
-                        KVStoreType::IndexIdToOneParent => {
+                        IndexCardinality::IndexIdToOneParent => {
                             let store = SingleArrayMMAPPacked::<u32>::from_file(&self.get_file_handle(&el.path)?, el.metadata)?;
                             self.indices.boost_valueid_to_value.insert(el.path.to_string(), Box::new(store));
                         }
@@ -514,14 +397,14 @@ impl Persistence {
                     }
 
                     let store = match loading_type {
-                        LoadingType::InMemory => match el.index_type {
-                            KVStoreType::IndexIdToMultipleParentIndirect => {
+                        LoadingType::InMemory => match el.index_cardinality {
+                            IndexCardinality::IndexIdToMultipleParentIndirect => {
                                 let indirect_u32 = bytes_to_vec_u32(&file_path_to_bytes(&indirect_path)?);
                                 let store = IndexIdToMultipleParentIndirect {
                                     start_pos: indirect_u32,
                                     data: file_path_to_bytes(&indirect_data_path)?,
                                     cache: LruCache::with_capacity(0),
-                                    metadata: IndexMetaData {
+                                    metadata: IndexValuesMetadata {
                                         max_value_id: el.metadata.max_value_id,
                                         avg_join_size: el.metadata.avg_join_size,
                                         num_values: 0,
@@ -530,7 +413,7 @@ impl Persistence {
                                 };
                                 Box::new(store) as Box<dyn IndexIdToParent<Output = u32>>
                             }
-                            KVStoreType::IndexIdToOneParent => {
+                            IndexCardinality::IndexIdToOneParent => {
                                 let bytes_required = get_bytes_required(el.metadata.max_value_id) as u8;
                                 if bytes_required == 1 {
                                     Self::load_types_index_to_one::<u8>(&data_direct_path, el.metadata)?
@@ -541,9 +424,9 @@ impl Persistence {
                                 }
                             }
                         },
-                        LoadingType::Disk => match el.index_type {
-                            KVStoreType::IndexIdToMultipleParentIndirect => {
-                                let meta = IndexMetaData {
+                        LoadingType::Disk => match el.index_cardinality {
+                            IndexCardinality::IndexIdToMultipleParentIndirect => {
+                                let meta = IndexValuesMetadata {
                                     max_value_id: el.metadata.max_value_id,
                                     avg_join_size: el.metadata.avg_join_size,
                                     ..Default::default()
@@ -551,7 +434,7 @@ impl Persistence {
                                 let store = PointingMMAPFileReader::from_path(&get_file_path(&self.db, &el.path), meta)?;
                                 Box::new(store) as Box<dyn IndexIdToParent<Output = u32>>
                             }
-                            KVStoreType::IndexIdToOneParent => {
+                            IndexCardinality::IndexIdToOneParent => {
                                 let store = SingleArrayMMAPPacked::<u32>::from_file(&self.get_file_handle(&el.path)?, el.metadata)?;
 
                                 Box::new(store) as Box<dyn IndexIdToParent<Output = u32>>
@@ -678,7 +561,7 @@ impl Persistence {
         }
         fs::create_dir_all(&db)?;
         fs::create_dir(db.to_string() + "/temp")?; // for temporary index creation
-        let metadata = MetaData { ..Default::default() };
+        let metadata = PeristenceMetaData { ..Default::default() };
         Ok(Persistence {
             persistence_type,
             metadata,
@@ -690,7 +573,7 @@ impl Persistence {
     }
 
     pub fn load<P: AsRef<Path>>(db: P) -> Result<Self, VelociError> {
-        let metadata = MetaData::new(db.as_ref().to_str().unwrap())?;
+        let metadata = PeristenceMetaData::new(db.as_ref().to_str().unwrap())?;
         let mut pers = Persistence {
             persistence_type: PersistenceType::Persistent,
             metadata,

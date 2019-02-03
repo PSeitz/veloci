@@ -62,7 +62,7 @@ pub struct TokenToAnchorScoreVintFlushing<T: AnchorScoreDataSize> {
     pub current_id_offset: u32,
     pub indirect_path: String,
     pub data_path: String,
-    pub metadata: IndexMetaData,
+    pub metadata: IndexValuesMetadata,
 }
 
 fn get_serialized_most_common_encoded(data: &mut [u32]) -> Vec<u8> {
@@ -96,7 +96,7 @@ impl<T: AnchorScoreDataSize> TokenToAnchorScoreVintFlushing<T> {
             current_id_offset: 0,
             indirect_path,
             data_path,
-            metadata: IndexMetaData::default(),
+            metadata: IndexValuesMetadata::default(),
         }
     }
 

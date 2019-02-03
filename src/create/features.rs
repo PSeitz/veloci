@@ -33,13 +33,13 @@ impl Features {
     pub fn features_to_disabled_indices(features: &FnvHashSet<Features>) -> FnvHashSet<IndexCreationType> {
         let mut hashset = FnvHashSet::default();
 
-        let add_if_features_not_used = |f: &[Features], index_type: IndexCreationType, hashset: &mut FnvHashSet<IndexCreationType>| {
+        let add_if_features_not_used = |f: &[Features], index_cardinality: IndexCreationType, hashset: &mut FnvHashSet<IndexCreationType>| {
             for feature in f {
                 if features.contains(feature) {
                     return;
                 }
             }
-            hashset.insert(index_type);
+            hashset.insert(index_cardinality);
         };
 
         add_if_features_not_used(

@@ -63,7 +63,7 @@ pub(crate) struct IndexIdToMultipleParentIndirectFlushingInOrderVint {
     /// Already written ids_cache
     pub(crate) current_id_offset: u32,
     pub(crate) path: String,
-    pub(crate) metadata: IndexMetaData,
+    pub(crate) metadata: IndexValuesMetadata,
 }
 
 // use vint for indirect, use not highest bit in indirect, but the highest unused bit. Max(value_id, single data_id, which would be encoded in the valueid index)
@@ -78,7 +78,7 @@ impl IndexIdToMultipleParentIndirectFlushingInOrderVint {
             current_data_offset: 0,
             current_id_offset: 0,
             path,
-            metadata: IndexMetaData::new(max_value_id),
+            metadata: IndexValuesMetadata::new(max_value_id),
         }
     }
 
@@ -169,7 +169,7 @@ pub(crate) struct IndexIdToMultipleParentIndirect<T: IndexIdToParentData> {
     pub(crate) start_pos: Vec<T>,
     pub(crate) cache: LruCache<Vec<T>, u32>,
     pub(crate) data: Vec<u8>,
-    pub(crate) metadata: IndexMetaData,
+    pub(crate) metadata: IndexValuesMetadata,
 }
 // impl<T: IndexIdToParentData> HeapSizeOf for IndexIdToMultipleParentIndirect<T> {
 //     fn heap_size_of_children(&self) -> usize {
@@ -191,7 +191,7 @@ impl<T: IndexIdToParentData> Default for IndexIdToMultipleParentIndirect<T> {
             start_pos: vec![],
             cache: LruCache::with_capacity(250),
             data,
-            metadata: IndexMetaData::new(0),
+            metadata: IndexValuesMetadata::new(0),
         }
     }
 }
@@ -311,7 +311,7 @@ pub(crate) struct PointingMMAPFileReader<T: IndexIdToParentData> {
     pub(crate) data: Mmap,
     pub(crate) size: usize,
     pub(crate) ok: PhantomData<T>,
-    pub(crate) metadata: IndexMetaData,
+    pub(crate) metadata: IndexValuesMetadata,
 }
 
 impl<T: IndexIdToParentData> PointingMMAPFileReader<T> {
@@ -320,7 +320,7 @@ impl<T: IndexIdToParentData> PointingMMAPFileReader<T> {
         self.size
     }
 
-    pub(crate) fn from_path(path: &str, metadata: IndexMetaData) -> Result<Self, VelociError> {
+    pub(crate) fn from_path(path: &str, metadata: IndexValuesMetadata) -> Result<Self, VelociError> {
         let start_pos = unsafe { MmapOptions::new().map(&open_file(path.to_string() + ".indirect")?).unwrap() };
         let data = unsafe { MmapOptions::new().map(&open_file(path.to_string() + ".data")?).unwrap() };
         Ok(PointingMMAPFileReader {

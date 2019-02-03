@@ -1143,7 +1143,7 @@ where
             .terms_in_path
             .par_iter_mut()
             .map(|(path, mut terms_data)| {
-                let mut textindex_metadata = TextIndexMetaData::default();
+                let mut textindex_metadata = TextIndexValuesMetadata::default();
                 let options: &FulltextIndexOptions = indices_json.get(&path).fulltext.as_ref().unwrap_or_else(|| &default_fulltext_options);
                 let path_text_index = path.to_string() + TEXTINDEX;
                 textindex_metadata.options = options.clone();
@@ -1191,47 +1191,46 @@ where
     if persistence.persistence_type == persistence::PersistenceType::Persistent {
         info_time!("write indices");
         for index_data in &mut indices {
-            let mut kv_metadata = persistence::KVStoreMetaData {
+            let mut index_metadata = persistence::IndexMetadata {
                 loading_type: index_data.loading_type,
                 index_category: index_data.index_category,
                 path: index_data.path.to_string(),
-                id_type: IDDataType::U32,
+                data_type: DataType::U32,
                 ..Default::default()
             };
 
             match &mut index_data.index {
                 IndexVariants::Phrase(store) => {
                     store.flush()?;
-                    kv_metadata.is_empty = store.is_empty();
-                    kv_metadata.metadata = store.metadata;
+                    index_metadata.is_empty = store.is_empty();
+                    index_metadata.metadata = store.metadata;
                 }
                 IndexVariants::SingleValue(store) => {
                     store.flush()?;
-                    kv_metadata.is_empty = store.is_empty();
-                    kv_metadata.metadata = store.metadata;
-                    kv_metadata.index_type = persistence::KVStoreType::IndexIdToOneParent;
+                    index_metadata.is_empty = store.is_empty();
+                    index_metadata.metadata = store.metadata;
+                    index_metadata.index_cardinality = persistence::IndexCardinality::IndexIdToOneParent;
                 }
                 IndexVariants::MultiValue(store) => {
                     store.flush()?;
-                    kv_metadata.is_empty = store.is_empty();
-                    kv_metadata.metadata = store.metadata;
-                    kv_metadata.index_type = persistence::KVStoreType::IndexIdToMultipleParentIndirect;
+                    index_metadata.is_empty = store.is_empty();
+                    index_metadata.metadata = store.metadata;
+                    index_metadata.index_cardinality = persistence::IndexCardinality::IndexIdToMultipleParentIndirect;
                 }
                 IndexVariants::TokenToAnchorScoreU32(store) => {
                     store.flush()?;
-                    kv_metadata.is_empty = false;
-                    kv_metadata.metadata = store.metadata;
+                    index_metadata.is_empty = false;
+                    index_metadata.metadata = store.metadata;
                 }
                 IndexVariants::TokenToAnchorScoreU64(store) => {
                     store.flush()?;
-                    kv_metadata.is_empty = false;
-                    kv_metadata.metadata = store.metadata;
-                    kv_metadata.id_type = IDDataType::U64;
+                    index_metadata.is_empty = false;
+                    index_metadata.metadata = store.metadata;
+                    index_metadata.data_type = DataType::U64;
                 }
             }
-            // persistence.metadata.stores.push(kv_metadata);
             let entry = persistence.metadata.columns.entry(index_data.path_col.to_string()).or_insert_with(||ColumnInfo{has_fst:false, .. Default::default()});
-            entry.stores.push(kv_metadata);
+            entry.indices.push(index_metadata);
         }
 
         persistence.write_metadata()?;
@@ -1333,19 +1332,18 @@ pub fn add_token_values_to_tokens(persistence: &mut Persistence, data_str: &str,
     let mut store = buffered_index_to_direct_index(&persistence.db, &path, buffered_index_data)?;
 
     store.flush()?;
-    let kv_metadata = persistence::KVStoreMetaData {
+    let index_metadata = persistence::IndexMetadata {
         loading_type: LoadingType::InMemory,
         index_category: IndexCategory::Boost,
         path: path.to_string(),
         is_empty: store.is_empty(),
         metadata: store.metadata,
-        index_type: persistence::KVStoreType::IndexIdToOneParent,
-        id_type: IDDataType::U32,
+        index_cardinality: persistence::IndexCardinality::IndexIdToOneParent,
+        data_type: DataType::U32,
     };
 
-    // persistence.metadata.stores.push(kv_metadata);
     let entry = persistence.metadata.columns.entry(config.path).or_insert_with(||ColumnInfo{has_fst:false, .. Default::default()});
-    entry.stores.push(kv_metadata);
+    entry.indices.push(index_metadata);
     persistence.write_metadata()?;
 
     //TODO FIX LOAD FOR IN_MEMORY
