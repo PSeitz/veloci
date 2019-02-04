@@ -1,8 +1,8 @@
-use fnv::FnvHashMap;
+use crate::create;
 use crate::error::VelociError;
 use crate::persistence::*;
 use crate::util;
-use crate::create;
+use fnv::FnvHashMap;
 
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
 pub struct PeristenceMetaData {
@@ -11,7 +11,6 @@ pub struct PeristenceMetaData {
     pub columns: FnvHashMap<String, ColumnInfo>,
 }
 
-
 impl PeristenceMetaData {
     pub fn new(folder: &str) -> Result<PeristenceMetaData, VelociError> {
         let json = util::file_as_string(&(folder.to_string() + "/metaData.json"))?;
@@ -19,7 +18,7 @@ impl PeristenceMetaData {
     }
 
     pub fn get_all_fields(&self) -> Vec<String> {
-        self.columns.keys().map(|el|el.to_string()).collect()
+        self.columns.keys().map(|el| el.to_string()).collect()
     }
 }
 
@@ -70,7 +69,6 @@ impl Default for DataType {
     }
 }
 
-
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub enum IndexCardinality {
     IndexIdToMultipleParentIndirect,
@@ -82,7 +80,6 @@ impl Default for IndexCardinality {
         IndexCardinality::IndexIdToMultipleParentIndirect
     }
 }
-
 
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
 pub struct TextIndexValuesMetadata {
@@ -123,4 +120,3 @@ enum IndexType {
     BoostValidToValue,
     TokenValues,
 }
-

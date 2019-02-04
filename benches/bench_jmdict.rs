@@ -120,103 +120,103 @@ mod bench_jmdict {
 
 fn get_request(term: &str, levenshtein_distance: u32) -> search::Request {
     let query = json!({
-            "or": [
-                {
-                    "search": {
-                        "terms": vec![term.to_string()],
-                        "path": "kanji[].text",
-                        "levenshtein_distance": levenshtein_distance,
-                        "starts_with": true
-                    },
-                    "boost": [
-                        {
-                            "path": "commonness",
-                            "boost_fun": "Log10",
-                            "param": 1
-                        },
-                        {
-                            "path": "kanji[].commonness",
-                            "boost_fun": "Log10",
-                            "param": 1
-                        }
-                    ]
+        "or": [
+            {
+                "search": {
+                    "terms": vec![term.to_string()],
+                    "path": "kanji[].text",
+                    "levenshtein_distance": levenshtein_distance,
+                    "starts_with": true
                 },
-                {
-                    "search": {
-                        "terms": vec![term.to_string()],
-                        "path": "kana[].text",
-                        "levenshtein_distance": levenshtein_distance,
-                        "starts_with": true
+                "boost": [
+                    {
+                        "path": "commonness",
+                        "boost_fun": "Log10",
+                        "param": 1
                     },
-                    "boost": [
-                        {
-                            "path": "commonness",
-                            "boost_fun": "Log10",
-                            "param": 1
-                        },
-                        {
-                            "path": "kana[].commonness",
-                            "boost_fun": "Log10",
-                            "param": 1
-                        }
-                    ]
+                    {
+                        "path": "kanji[].commonness",
+                        "boost_fun": "Log10",
+                        "param": 1
+                    }
+                ]
+            },
+            {
+                "search": {
+                    "terms": vec![term.to_string()],
+                    "path": "kana[].text",
+                    "levenshtein_distance": levenshtein_distance,
+                    "starts_with": true
                 },
-                {
-                    "search": {
-                        "terms": vec![term.to_string()],
-                        "path": "kana[].text",
-                        "levenshtein_distance": levenshtein_distance,
-                        "starts_with": true
+                "boost": [
+                    {
+                        "path": "commonness",
+                        "boost_fun": "Log10",
+                        "param": 1
                     },
-                    "boost": [
-                        {
-                            "path": "commonness",
-                            "boost_fun": "Log10",
-                            "param": 1
-                        },
-                        {
-                            "path": "kana[].commonness",
-                            "boost_fun": "Log10",
-                            "param": 1
-                        }
-                    ]
+                    {
+                        "path": "kana[].commonness",
+                        "boost_fun": "Log10",
+                        "param": 1
+                    }
+                ]
+            },
+            {
+                "search": {
+                    "terms": vec![term.to_string()],
+                    "path": "kana[].text",
+                    "levenshtein_distance": levenshtein_distance,
+                    "starts_with": true
                 },
-                {
-                    "search": {
-                        "terms": vec![term.to_string()],
-                        "path": "meanings.ger[].text",
-                        "levenshtein_distance": levenshtein_distance
+                "boost": [
+                    {
+                        "path": "commonness",
+                        "boost_fun": "Log10",
+                        "param": 1
                     },
-                    "boost": [
-                        {
-                            "path": "commonness",
-                            "boost_fun": "Log10",
-                            "param": 0
-                        },
-                        {
-                            "path": "meanings.ger[].rank",
-                            "expression": "10 / $SCORE"
-                        }
-                    ]
+                    {
+                        "path": "kana[].commonness",
+                        "boost_fun": "Log10",
+                        "param": 1
+                    }
+                ]
+            },
+            {
+                "search": {
+                    "terms": vec![term.to_string()],
+                    "path": "meanings.ger[].text",
+                    "levenshtein_distance": levenshtein_distance
                 },
-                {
-                    "search": {
-                        "terms": vec![term.to_string()],
-                        "path": "meanings.eng[]",
-                        "levenshtein_distance": levenshtein_distance
+                "boost": [
+                    {
+                        "path": "commonness",
+                        "boost_fun": "Log10",
+                        "param": 0
                     },
-                    "boost": [
-                        {
-                            "path": "commonness",
-                            "boost_fun": "Log10",
-                            "param": 1
-                        }
-                    ]
-                }
-            ],
-            "top": 10,
-            "skip": 0
-        });
+                    {
+                        "path": "meanings.ger[].rank",
+                        "expression": "10 / $SCORE"
+                    }
+                ]
+            },
+            {
+                "search": {
+                    "terms": vec![term.to_string()],
+                    "path": "meanings.eng[]",
+                    "levenshtein_distance": levenshtein_distance
+                },
+                "boost": [
+                    {
+                        "path": "commonness",
+                        "boost_fun": "Log10",
+                        "param": 1
+                    }
+                ]
+            }
+        ],
+        "top": 10,
+        "skip": 0
+    });
 
     let requesto: search::Request = serde_json::from_str(&query.to_string()).expect("Can't parse json");
     requesto
@@ -238,27 +238,27 @@ fn search_freestyle(term: &str, pers: &persistence::Persistence) -> Vec<search::
 }
 fn suggest(term: &str, path: &str, pers: &persistence::Persistence) -> search_field::SuggestFieldResult {
     let req = json!({
-            "terms":[term],
-            "path": path,
-            "levenshtein_distance": 0,
-            "starts_with":true,
-            "top":10,
-            "skip":0
-        });
+        "terms":[term],
+        "path": path,
+        "levenshtein_distance": 0,
+        "starts_with":true,
+        "top":10,
+        "skip":0
+    });
     let requesto: search::RequestSearchPart = serde_json::from_str(&req.to_string()).expect("Can't parse json");
     search_field::suggest(pers, &requesto).unwrap()
 }
 
 fn highlight(term: &str, path: &str, pers: &persistence::Persistence) -> search_field::SuggestFieldResult {
     let req = json!({
-            "terms":[term],
-            "path": path,
-            "levenshtein_distance": 0,
-            "starts_with":true,
-            "snippet":true,
-            "top":10,
-            "skip":0
-        });
+        "terms":[term],
+        "path": path,
+        "levenshtein_distance": 0,
+        "starts_with":true,
+        "snippet":true,
+        "top":10,
+        "skip":0
+    });
     let mut requesto: search::RequestSearchPart = serde_json::from_str(&req.to_string()).expect("Can't parse json");
     search_field::highlight(pers, &mut requesto).unwrap()
 }

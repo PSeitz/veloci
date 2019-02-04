@@ -56,7 +56,11 @@ impl Features {
         add_if_features_not_used(&[Features::Select, Features::WhyFound], IndexCreationType::TextIDToTokenIds, &mut hashset);
         add_if_features_not_used(&[Features::BoostingFieldData], IndexCreationType::TextIDToParent, &mut hashset);
         add_if_features_not_used(&[Features::Facets, Features::Select], IndexCreationType::ParentToTextID, &mut hashset); //TODO can be diabled if facets is on non root element
-        add_if_features_not_used(&[Features::BoostTextLocality, Features::Select, Features::Filters], IndexCreationType::TextIDToAnchor, &mut hashset);
+        add_if_features_not_used(
+            &[Features::BoostTextLocality, Features::Select, Features::Filters],
+            IndexCreationType::TextIDToAnchor,
+            &mut hashset,
+        );
 
         hashset
     }

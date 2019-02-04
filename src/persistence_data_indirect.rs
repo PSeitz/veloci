@@ -1,4 +1,3 @@
-// use heapsize::HeapSizeOf;
 use lru_time_cache::LruCache;
 
 use byteorder::{LittleEndian, ReadBytesExt};
@@ -11,13 +10,12 @@ use crate::util::*;
 
 use num;
 use num::cast::ToPrimitive;
-use std;
-use std::fmt;
+use std::{self, fmt};
 use std::fs::File;
-use std::io;
-use std::io::Write;
+use std::io::{self, Write};
 use std::marker::PhantomData;
 use std::u32;
+use vint::vint::*;
 
 use fnv::FnvHashMap;
 use itertools::Itertools;
@@ -43,8 +41,6 @@ pub(crate) fn flush_to_file_indirect(indirect_path: &str, data_path: &str, indir
 
     Ok(())
 }
-
-use vint::vint::*;
 
 fn to_serialized_vint_array(add_data: Vec<u32>) -> Vec<u8> {
     let mut vint = VIntArray::default();
@@ -114,7 +110,7 @@ impl IndexIdToMultipleParentIndirectFlushingInOrderVint {
 
         if add_data.len() == 1 {
             let mut val: u32 = add_data[0].to_u32().unwrap();
-            set_high_bit(&mut val); // encode directly, much wow, much compression, gg memory consumption
+            set_high_bit(&mut val); // encode directly in indirect index, much wow, much compression, gg memory consumption
             self.ids_cache[id_pos] = val;
         } else if let Some(pos_in_data) = (self.current_data_offset as usize + self.data_cache.len()).to_u32() {
             self.ids_cache[id_pos] = pos_in_data;

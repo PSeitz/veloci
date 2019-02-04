@@ -495,12 +495,12 @@ fn two_tokens_h_test_fn_the_same_anchor() {
 #[test]
 fn deep_structured_objects() {
     let req = json!({
-       "search": {
-           "terms":["brook"],
-           "path": "address[].line[]",
-           "levenshtein_distance": 1
-       }
-   });
+        "search": {
+            "terms":["brook"],
+            "path": "address[].line[]",
+            "levenshtein_distance": 1
+        }
+    });
 
     let hits = search_testo_to_doc!(req).data;
     assert_eq!(hits.len(), 1);
@@ -1234,17 +1234,17 @@ fn read_object_only_partly() {
     assert_eq!(
         yay,
         json!({
-        "address": [
-            {"line": ["nuts strees"] },
-            {"line": ["asdf"] }
-        ],
-        "commonness": "500",
-        "ent_seq": "1587700",
-        "meanings": {
-            "ger": ["der test", "das ist ein guter Treffer"]
-        },
-        "kana": [{"text": "いよく"} ]
-    })
+            "address": [
+                {"line": ["nuts strees"] },
+                {"line": ["asdf"] }
+            ],
+            "commonness": "500",
+            "ent_seq": "1587700",
+            "meanings": {
+                "ger": ["der test", "das ist ein guter Treffer"]
+            },
+            "kana": [{"text": "いよく"} ]
+        })
     );
 }
 
@@ -1265,19 +1265,19 @@ fn read_recreate_complete_object_with_read() {
     assert_eq!(
         yay2,
         json!({ //TODO FIX INTEGER TO STRING
-        "id": "1234566",
-        "gender": "male",
-        "tags": ["awesome", "cool"],
-        "sinlge_value_multi": ["wert"],
-        "birthDate": "1960-08-19",
-        "address": [{"line": ["nuts strees"] }, {"line": ["asdf"] } ],
-        "commonness": "500",
-        "kanji": [{ "text": "意慾", "commonness": "20"} ],
-        "field1" : [{"text":"awesome", "rank":"1"}],
-        "kana": [{"text": "いよく"} ],
-        "meanings": {"eng" : ["test1"], "ger": ["der test", "das ist ein guter Treffer"] },
-        "ent_seq": "1587700"
-    })
+            "id": "1234566",
+            "gender": "male",
+            "tags": ["awesome", "cool"],
+            "sinlge_value_multi": ["wert"],
+            "birthDate": "1960-08-19",
+            "address": [{"line": ["nuts strees"] }, {"line": ["asdf"] } ],
+            "commonness": "500",
+            "kanji": [{ "text": "意慾", "commonness": "20"} ],
+            "field1" : [{"text":"awesome", "rank":"1"}],
+            "kana": [{"text": "いよく"} ],
+            "meanings": {"eng" : ["test1"], "ger": ["der test", "das ist ein guter Treffer"] },
+            "ent_seq": "1587700"
+        })
     );
 }
 

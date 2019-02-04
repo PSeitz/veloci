@@ -19,6 +19,7 @@ use log;
 // use rayon::prelude::*;
 
 use crate::error::VelociError;
+pub use crate::metadata::*;
 use crate::persistence_data::*;
 use crate::persistence_data_binary_search::*;
 use crate::persistence_score::*;
@@ -28,7 +29,6 @@ use crate::type_info;
 use crate::util;
 use crate::util::get_file_path;
 use crate::util::*;
-pub use crate::metadata::*;
 use memmap::Mmap;
 use memmap::MmapOptions;
 use prettytable::format;
@@ -53,10 +53,6 @@ pub const BOOST_VALID_TO_VALUE: &str = ".boost_valid_to_value";
 pub const TOKEN_VALUES: &str = ".token_values";
 
 pub const TEXTINDEX: &str = ".textindex";
-
-
-
-
 
 pub static EMPTY_BUCKET: u32 = 0;
 pub static VALUE_OFFSET: u32 = 1; // because 0 is reserved for EMPTY_BUCKET
@@ -123,8 +119,6 @@ impl FromStr for LoadingType {
         }
     }
 }
-
-
 
 pub trait IndexIdToParentData: Integer + Clone + num::NumCast + Debug + Sync + Send + Copy + ToPrimitive + std::hash::Hash + 'static {}
 impl<T> IndexIdToParentData for T where T: Integer + Clone + num::NumCast + Debug + Sync + Send + Copy + ToPrimitive + std::hash::Hash + 'static {}
@@ -277,7 +271,6 @@ pub trait IndexIdToParent: Debug + Sync + Send + type_info::TypeInfo {
 //     }
 // }
 
-
 pub fn trace_index_id_to_parent<T: IndexIdToParentData>(_val: &dyn IndexIdToParent<Output = T>) {
     if log_enabled!(log::Level::Trace) {
         // let keys = val.get_keys();
@@ -320,7 +313,7 @@ impl Persistence {
         self.indices.doc_offsets = Some(doc_offsets_mmap);
 
         //ANCHOR TO SCORE
-        for el in self.metadata.columns.iter().flat_map(|col|col.1.indices.iter()) {
+        for el in self.metadata.columns.iter().flat_map(|col| col.1.indices.iter()) {
             let indirect_path = get_file_path(&self.db, &el.path) + ".indirect";
             let indirect_data_path = get_file_path(&self.db, &el.path) + ".data";
             let loading_type = get_loading_type(el.loading_type)?;
@@ -452,7 +445,7 @@ impl Persistence {
     }
 
     pub fn load_all_fst(&mut self) -> Result<(), VelociError> {
-        for (column_name, _) in self.metadata.columns.iter().filter(|(_, info)|info.has_fst) {
+        for (column_name, _) in self.metadata.columns.iter().filter(|(_, info)| info.has_fst) {
             let path = column_name.add(TEXTINDEX);
             let map = self.load_fst(&path)?;
             self.indices.fst.insert(path, map);

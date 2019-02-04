@@ -494,13 +494,13 @@ fn boost_text_locality(persistence: &Persistence, path: &str, search_term_to_tex
     }
 
     // text_ids are already anchor_ids === identity_column
-    if persistence.metadata.columns.get(&extract_field_name(path)).map(|el|el.is_identity_column).unwrap_or(false) {
+    if persistence.metadata.columns.get(&extract_field_name(path)).map(|el| el.is_identity_column).unwrap_or(false) {
         boost_text_ids.sort_unstable_by_key(|el| el.0);
         for text_id in boost_text_ids {
             let num_hits_in_same_text = text_id.1;
             boost_anchor.push(Hit::new(text_id.0, 2. * num_hits_in_same_text as f32 * num_hits_in_same_text as f32));
         }
-    }else{
+    } else {
         let text_id_to_anchor = persistence.get_valueid_to_parent(path.add(TEXT_ID_TO_ANCHOR))?;
         trace_time!("text_locality_boost text_ids to anchor");
 
