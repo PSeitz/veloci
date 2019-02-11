@@ -531,11 +531,13 @@ impl Persistence {
         Ok(())
     }
 
-    pub fn write_metadata(&self) -> Result<(), io::Error> {
-        self.write_data("metaData.json", serde_json::to_string_pretty(&self.metadata)?.as_bytes())
+    pub fn write_metadata(&self) -> Result<(), VelociError> {
+        self.write_data("metaData.ron", ron::ser::to_string_pretty(&self.metadata, Default::default())?.as_bytes())?;
+        self.write_data("metaData.json", serde_json::to_string_pretty(&self.metadata)?.as_bytes())?;
+        Ok(())
     }
 
-    pub fn write_data_offset<T: Clone + Copy + Debug>(&self, bytes: &[u8], data: &[T]) -> Result<(), io::Error> {
+    pub fn write_data_offset<T: Clone + Copy + Debug>(&self, bytes: &[u8], data: &[T]) -> Result<(), VelociError> {
         debug_time!("Wrote data offsets with size {:?}", data.len());
         File::create(util::get_file_path(&self.db, "data.offsets"))?.write_all(bytes)?;
         info!("Wrote data offsets with size {:?}", data.len());

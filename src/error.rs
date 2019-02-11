@@ -7,6 +7,9 @@ pub enum VelociError {
     /// Placeholder error
     #[fail(display = "{:?}", _0)]
     StringError(String),
+    /// Ron Sir Error
+    #[fail(display = "{:?}", _0)]
+    RonSerError(ron::ser::Error),
     /// The Data is corrupted
     #[fail(display = "{:?}", _0)]
     JsonError(serde_json::Error),
@@ -48,5 +51,10 @@ impl From<std::str::Utf8Error> for VelociError {
 impl From<serde_json::Error> for VelociError {
     fn from(error: serde_json::Error) -> VelociError {
         VelociError::JsonError(error)
+    }
+}
+impl From<ron::ser::Error> for VelociError {
+    fn from(error: ron::ser::Error) -> VelociError {
+        VelociError::RonSerError(error)
     }
 }
