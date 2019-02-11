@@ -65,18 +65,25 @@ pub struct TokenToAnchorScoreVintFlushing<T: AnchorScoreDataSize> {
     pub metadata: IndexValuesMetadata,
 }
 
-fn get_serialized_most_common_encoded(data: &mut [u32]) -> Vec<u8> {
-    let mut vint = VIntArrayEncodeMostCommon::default();
+fn compress_data_block(data: &mut [u32]) -> Vec<u8> {
 
-    let mut last = 0;
-    for (el, _score) in data.iter_mut().tuples() {
-        let actual_val = *el;
-        *el -= last;
-        last = actual_val;
-    }
+    // if data.len() > 128 {
+    //     let out:Vec<u8> = vec![];
+    //     push_compact(data.len() as u32, &mut out);
 
-    vint.encode_vals(&data);
-    vint.serialize()
+    // }else{
+        let mut last = 0;
+        for (el, _score) in data.iter_mut().tuples() {
+            let actual_val = *el;
+            *el -= last;
+            last = actual_val;
+        }
+
+        let mut vint = VIntArrayEncodeMostCommon::default();
+        vint.encode_vals(&data);
+        vint.serialize()
+    // }
+
 }
 
 impl<T: AnchorScoreDataSize> Default for TokenToAnchorScoreVintFlushing<T> {
@@ -113,7 +120,7 @@ impl<T: AnchorScoreDataSize> TokenToAnchorScoreVintFlushing<T> {
         // self.id_to_data_pos[id_pos] = self.current_data_offset + self.data_cache.len() as u32;
 
         self.id_to_data_pos[id_pos] = self.current_data_offset + num::cast(self.data_cache.len()).unwrap();
-        self.data_cache.extend(get_serialized_most_common_encoded(&mut add_data));
+        self.data_cache.extend(compress_data_block(&mut add_data));
 
         if self.id_to_data_pos.len() + self.data_cache.len() >= 1_000_000 {
             self.flush()?;

@@ -753,6 +753,9 @@ fn trace_indices(path_data: &mut FnvHashMap<String, PathData>) {
         if let Some(el) = data.text_id_to_anchor.as_ref() {
             trace!("{}\n{}", &path.add(TEXT_ID_TO_ANCHOR), &el);
         }
+        if let Some(el) = data.anchor_to_text_id.as_ref() {
+            trace!("{}\n{}", &path.add(ANCHOR_TO_TEXT_ID), &el);
+        }
         // trace!("{}\n{}", &path.add(TEXT_ID_TO_ANCHOR), &data.text_id_to_anchor);
 
         // trace!(

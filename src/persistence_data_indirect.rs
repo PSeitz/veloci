@@ -10,11 +10,11 @@ use crate::util::*;
 
 use num;
 use num::cast::ToPrimitive;
-use std::{self, fmt};
 use std::fs::File;
 use std::io::{self, Write};
 use std::marker::PhantomData;
 use std::u32;
+use std::{self, fmt};
 use vint::vint::*;
 
 use fnv::FnvHashMap;

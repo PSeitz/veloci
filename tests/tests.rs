@@ -212,6 +212,9 @@ pub fn get_test_data() -> Value {
             "type": "taschenbuch"
         },
         {
+            "title": "COllectif"
+        },
+        {
             "commonness": 30,
             "float_value": 5.123,
             "ent_seq": "26",
@@ -262,6 +265,21 @@ fn simple_search() {
     assert_eq!(hits[0].doc["commonness"], 20);
     assert_eq!(hits[0].doc["tags"], json!(["nice".to_string()]));
 }
+
+// #[test]
+// fn levenshtein_lowercase_regression() {
+//     let req = json!({
+//         "search": {
+//             "terms":["COllectif"],
+//             "path": "title",
+//             "levenshtein_distance": 2
+//         }
+//     });
+
+//     let hits = search_testo_to_doc!(req).data;
+//     assert_eq!(hits.len(), 1);
+//     assert_eq!(hits[0].doc["title"], "COllectif");
+// }
 
 #[test]
 fn simple_search_skip_far() {
@@ -1168,7 +1186,7 @@ fn or_connect_hits_but_boost_one_term() {
 #[test]
 fn get_bytes_indexed() {
     let pers = &TEST_PERSISTENCE;
-    assert_eq!(pers.get_bytes_indexed(), 2573);
+    assert_eq!(pers.get_bytes_indexed(), 2594);
 }
 
 #[test]
@@ -1186,33 +1204,7 @@ fn boost_text_localitaet() {
     assert_eq!(hits[0].doc["meanings"]["ger"][0], "text localität");
 }
 
-#[test]
-fn search_and_get_facet_with_facet_index() {
-    let req = json!({
-        "search": {"terms":["will"], "path": "meanings.eng[]"},
-        "facets": [{"field":"tags[]"}, {"field":"commonness"}]
-    });
 
-    let hits = search_testo_to_doc!(req);
-    assert_eq!(hits.data.len(), 2);
-    let facets = hits.facets.unwrap();
-    assert_eq!(facets.get("tags[]").unwrap(), &vec![("nice".to_string(), 2), ("cool".to_string(), 1)]);
-    assert_eq!(facets.get("commonness").unwrap(), &vec![("20".to_string(), 2)]);
-}
-
-#[test]
-fn search_and_get_facet_without_facet_index() {
-    // meanings.eng[] hat no facet index and is a 1-n facet
-    let req = json!({
-        "search": {"terms":["test"], "path": "meanings.ger[]"},
-        "facets": [{"field":"meanings.eng[]"}]
-    });
-
-    let hits = search_testo_to_doc!(req);
-    assert_eq!(hits.data.len(), 1);
-    let facets = hits.facets.unwrap();
-    assert_eq!(facets.get("meanings.eng[]").unwrap(), &vec![("test1".to_string(), 1)]);
-}
 
 #[test]
 fn read_object_only_partly() {
@@ -1281,28 +1273,3 @@ fn read_recreate_complete_object_with_read() {
     );
 }
 
-#[test]
-fn facet() {
-    let pers = &TEST_PERSISTENCE;
-    let mut yep = facet::get_facet(
-        &pers,
-        &search::FacetRequest {
-            field: "tags[]".to_string(),
-            top: Some(10),
-        },
-        &vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14],
-    )
-    .unwrap();
-    // yep.sort_by_key(|yo|format!("{:?}{:?}", yo.1 , yo.0));
-    yep.sort_by(|a, b| format!("{:?}{:?}", b.1, b.0).cmp(&format!("{:?}{:?}", a.1, a.0)));
-    assert_eq!(
-        yep,
-        vec![
-            ("nice".to_string(), 8),
-            ("cool".to_string(), 8),
-            ("coolo".to_string(), 1),
-            ("awesome".to_string(), 1),
-            ("Eis".to_string(), 1),
-        ]
-    );
-}

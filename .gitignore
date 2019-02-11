@@ -51,6 +51,8 @@ Cargo.lock
 /jmdict*
 /mochaTest*
 /test_files/mochaTest*
+/test_files/facetTest/
+/test_files/facettoTest/
 /healthcare/
 /csv_test/
 /hoho/

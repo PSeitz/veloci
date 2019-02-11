@@ -89,7 +89,7 @@ where
         .ok_or_else(|| VelociError::FstNotFound(options.path.to_string()))?;
     let lev = {
         trace_time!("{} LevenshteinIC create", &options.path);
-        let lev_automaton_builder = LevenshteinAutomatonBuilder::new(options.levenshtein_distance.unwrap_or(0) as u8, options.ignore_case.unwrap_or(true));
+        let lev_automaton_builder = LevenshteinAutomatonBuilder::new(options.levenshtein_distance.unwrap_or(0).min(4) as u8, options.ignore_case.unwrap_or(true));
         lev_automaton_builder.build_dfa(&options.terms[0], true)
     };
 
