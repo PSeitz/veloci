@@ -7,16 +7,24 @@ use std::iter::FusedIterator;
 
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
 pub struct SearchFieldResult {
+    #[serde(skip_serializing_if = "FnvHashMap::is_empty")]
     pub explain: FnvHashMap<u32, Vec<Explain>>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
     pub hits_scores: Vec<search::Hit>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
     pub hits_ids: Vec<TermId>,
+    #[serde(skip_serializing_if = "FnvHashMap::is_empty")]
     pub terms: FnvHashMap<TermId, String>,
+    #[serde(skip_serializing_if = "FnvHashMap::is_empty")]
     pub highlight: FnvHashMap<TermId, String>,
     pub request: RequestSearchPart,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub phrase_boost: Option<RequestPhraseBoost>,
     /// store the term id hits field->Term->Hits, used for whyfound and term_locality_boost
+    #[serde(skip_serializing_if = "FnvHashMap::is_empty")]
     pub term_id_hits_in_field: FnvHashMap<String, FnvHashMap<String, Vec<TermId>>>,
     /// store the text of the term hit field->Terms, used for whyfound
+    #[serde(skip_serializing_if = "FnvHashMap::is_empty")]
     pub term_text_in_field: FnvHashMap<String, Vec<String>>,
 }
 
@@ -86,7 +94,8 @@ impl<'a> Iterator for SearchFieldResultIterator<'a> {
             Some(MiniHit {
                 id: hit.id,
                 term_id: self.term_id,
-                score: f16::from_f32(hit.score),
+                // score: f16::from_f32(hit.score),
+                score: hit.score,
                 // field_id: self.field_id,
             })
         }
@@ -105,7 +114,7 @@ impl<'a> FusedIterator for SearchFieldResultIterator<'a> {}
 #[derive(Debug, Clone)]
 pub struct MiniHit {
     pub id: u32,
-    pub score: f16,
+    pub score: f32,
     pub term_id: u8,
     // pub field_id: u8,
 }

@@ -114,6 +114,8 @@ fn default_skip() -> Option<usize> {
 pub struct RequestSearchPart {
     pub path: String,
     pub terms: Vec<String>, //TODO only first term used currently
+
+    #[serde(skip_serializing)]
     #[serde(default)]
     pub explain: bool,
 
@@ -462,9 +464,11 @@ fn boost_text_locality_all(persistence: &Persistence, term_id_hits_in_field: &mu
     let mergo = boosts.into_iter().kmerge_by(|a, b| a.id < b.id);
     for (id, group) in &mergo.group_by(|el| el.id) {
         let best_score = group.map(|el| el.score).max_by(|a, b| b.partial_cmp(&a).unwrap_or(Ordering::Equal)).unwrap();
+        debug_assert!(best_score != std::f32::NAN);
+        debug_assert!(best_score != std::f32::INFINITY);
         boost_anchor.push(Hit::new(id, best_score));
     }
-
+    trace!("{:?}", boost_anchor);
     Ok(boost_anchor)
 }
 
@@ -669,6 +673,8 @@ pub fn apply_boost_term(persistence: &Persistence, mut res: SearchFieldResult, b
                 .iter()
                 .map(|el| {
                     let boost_val: f32 = el.request.boost.map(|el| el.into_inner()).unwrap_or(2.0);
+                    debug_assert!(boost_val != std::f32::NAN);
+                    debug_assert!(boost_val != std::f32::INFINITY);
                     el.hits_ids.iter().map(move |id| Hit::new(*id, boost_val))
                 })
                 .kmerge_by(|a, b| a.id < b.id);
@@ -838,6 +844,7 @@ fn merge_term_id_texts(results: &mut Vec<SearchFieldResult>) -> FnvHashMap<Strin
 // }
 
 pub fn union_hits_score(mut or_results: Vec<SearchFieldResult>) -> SearchFieldResult {
+    trace!("Union Input:\n{}", serde_json::to_string_pretty(&or_results).unwrap());
     if or_results.is_empty() {
         return SearchFieldResult { ..Default::default() };
     }
@@ -911,7 +918,8 @@ pub fn union_hits_score(mut or_results: Vec<SearchFieldResult>) -> SearchFieldRe
                 *el = 0.;
             }
             for el in group {
-                max_scores_per_term[el.term_id as usize] = max_scores_per_term[el.term_id as usize].max(el.score.to_f32());
+                // max_scores_per_term[el.term_id as usize] = max_scores_per_term[el.term_id as usize].max(el.score.to_f32());
+                max_scores_per_term[el.term_id as usize] = max_scores_per_term[el.term_id as usize].max(el.score);
             }
 
             // let num_distinct_terms = term_id_hits.count_ones() as f32;
@@ -919,6 +927,8 @@ pub fn union_hits_score(mut or_results: Vec<SearchFieldResult>) -> SearchFieldRe
             // sum_score = sum_score * num_distinct_terms * num_distinct_terms;
 
             let sum_over_distinct_with_distinct_term_boost = max_scores_per_term.iter().sum::<f32>() as f32 * num_distinct_terms * num_distinct_terms;
+            debug_assert!(sum_over_distinct_with_distinct_term_boost != std::f32::NAN);
+            debug_assert!(sum_over_distinct_with_distinct_term_boost != std::f32::INFINITY);
             union_hits.push(Hit::new(id, sum_over_distinct_with_distinct_term_boost));
             if explain {
                 let explain = explain_hits.entry(id).or_insert_with(|| vec![]);
@@ -943,14 +953,16 @@ pub fn union_hits_score(mut or_results: Vec<SearchFieldResult>) -> SearchFieldRe
         }
     }
 
-    SearchFieldResult {
+    let res = SearchFieldResult {
         term_id_hits_in_field,
         term_text_in_field,
         hits_scores: union_hits,
         explain: explain_hits,
         request: or_results[0].request.clone(), // set this to transport fields like explain
         ..Default::default()
-    }
+    };
+    trace!("Union Output:\n{}", serde_json::to_string_pretty(&res).unwrap());
+    res
 }
 
 pub fn union_hits_ids(mut or_results: Vec<SearchFieldResult>) -> SearchFieldResult {
@@ -1280,6 +1292,8 @@ fn apply_boost_from_iter(mut results: SearchFieldResult, mut boost_iter: &mut dy
                 } else if b_hit.id == hit.id {
                     *hit_curr = b_hit.clone();
                     hit.score *= b_hit.score;
+                    debug_assert!(hit.score != std::f32::NAN);
+                    debug_assert!(hit.score != std::f32::INFINITY);
                     if should_explain {
                         let data = explain.entry(hit.id).or_insert_with(|| vec![]);
                         // data.push(format!("boost {:?}", b_hit.score));
@@ -1321,6 +1335,8 @@ pub fn boost_hits_ids_vec_multi(mut results: SearchFieldResult, boost: &mut Vec<
         .iter()
         .map(|el| {
             let boost_val: f32 = el.request.boost.map(|el| el.into_inner()).unwrap_or(2.0);
+            debug_assert!(boost_val != std::f32::NAN);
+            debug_assert!(boost_val != std::f32::INFINITY);
             el.hits_ids.iter().map(move |id| Hit::new(*id, boost_val))
         })
         .kmerge_by(|a, b| a.id < b.id);
@@ -1447,28 +1463,35 @@ pub fn add_boost(persistence: &Persistence, boost: &RequestBoostPart, hits: &mut
             let boost_value = *boost_value;
             match boost.boost_fun {
                 Some(BoostFunction::Log10) => {
-                    let prev_score = *score;
-                    *score += (boost_value as f32 + boost_param).log10();
                     trace!(
-                        "boosting value_id {:?} score {:?} with token_value {:?} boost_value {:?} to {:?}",
+                        "Log10 boosting value_id {:?} score {:?} to {:?} -- token_value {:?} boost_value {:?}",
                         *value_id,
-                        prev_score,
+                        score,
+                        *score * boost_value as f32 + boost_param,
                         boost_value,
                         (boost_value as f32 + boost_param).log10(),
-                        *score
                     );
+                    *score *= boost_value as f32 + boost_param;
                 }
                 Some(BoostFunction::Linear) => {
+                    trace!(
+                        "Linear boosting value_id {:?} score {:?} to {:?} -- token_value {:?} boost_value {:?}",
+                        *value_id,
+                        score,
+                        *score + (boost_value as f32 + boost_param),
+                        boost_value,
+                        (boost_value as f32 + boost_param)
+                    );
                     *score *= boost_value as f32 + boost_param;
                 }
                 Some(BoostFunction::Add) => {
                     trace!(
-                        "boosting value_id {:?} score {:?} with token_value {:?} boost_value {:?} to {:?}",
+                        "boosting value_id {:?} score {:?} to {:?} -- token_value {:?} boost_value {:?}",
                         *value_id,
                         score,
+                        *score + (boost_value as f32 + boost_param),
                         boost_value,
-                        (boost_value as f32 + boost_param),
-                        *score + (boost_value as f32 + boost_param)
+                        (boost_value as f32 + boost_param)
                     );
                     *score += boost_value as f32 + boost_param;
                 }
@@ -1486,6 +1509,9 @@ pub fn add_boost(persistence: &Persistence, boost: &RequestBoostPart, hits: &mut
                 );
             }
         }
+
+        debug_assert!(*score != std::f32::NAN);
+        debug_assert!(*score != std::f32::INFINITY);
     }
     Ok(())
 }
