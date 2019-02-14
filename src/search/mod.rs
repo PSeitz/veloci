@@ -327,7 +327,7 @@ fn highlight_on_original_document(doc: &str, why_found_terms: &FnvHashMap<String
 
     let mut id_holder = json_converter::IDHolder::new();
     {
-        let mut cb_text = |_anchor_id: u32, value: &str, path: &str, _parent_val_id: u32| -> Result<(), ()> {
+        let mut cb_text = |_anchor_id: u32, value: &str, path: &str, _parent_val_id: u32| -> Result<(), serde_json::error::Error> {
             let path = path.to_string() + TEXTINDEX;
             if let Some(terms) = why_found_terms.get(&path) {
                 if let Some(highlighted) = highlight_field::highlight_text(value, &terms, &DEFAULT_SNIPPETINFO) {
@@ -339,7 +339,7 @@ fn highlight_on_original_document(doc: &str, why_found_terms: &FnvHashMap<String
             Ok(())
         };
 
-        let mut callback_ids = |_anchor_id: u32, _path: &str, _value_id: u32, _parent_val_id: u32| -> Result<(), ()> { Ok(()) };
+        let mut callback_ids = |_anchor_id: u32, _path: &str, _value_id: u32, _parent_val_id: u32| -> Result<(), serde_json::error::Error> { Ok(()) };
 
         json_converter::for_each_element(stream, &mut id_holder, &mut cb_text, &mut callback_ids).unwrap(); // unwrap is ok here
     }
