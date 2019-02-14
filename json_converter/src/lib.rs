@@ -92,6 +92,7 @@ pub fn for_each_element<T, E, ID: IDProvider, F, F2, I: Iterator<Item = Result<s
     cb_ids: &mut F2,
 ) -> Result<(), E>
 where
+    E: std::convert::From<serde_json::error::Error>,
     F: FnMut(u32, &str, &str, u32) -> Result<T, E>,
     F2: FnMut(u32, &str, u32, u32) -> Result<T, E>,
 {
@@ -99,7 +100,7 @@ where
 
     for el in data {
         let root_id = id_provider.get_id("");
-        for_each_elemento(el.as_ref().unwrap(), root_id, id_provider, root_id, &mut path, "", cb_text, cb_ids)?;
+        for_each_elemento(&el?, root_id, id_provider, root_id, &mut path, "", cb_text, cb_ids)?;
         path.clear();
     }
     Ok(())
@@ -117,6 +118,7 @@ pub fn for_each_elemento<T, E, ID: IDProvider, F, F2>(
     cb_ids: &mut F2,
 ) -> Result<(), E>
 where
+    E: std::convert::From<serde_json::error::Error>,
     F: FnMut(u32, &str, &str, u32) -> Result<T, E>,
     F2: FnMut(u32, &str, u32, u32) -> Result<T, E>,
 {
@@ -188,13 +190,13 @@ impl IDHolder {
 #[test]
 fn test_foreach() {
     let mut id_holder = IDHolder::new();
-    let mut callback_ids = |_anchor_id: u32, _path: &str, _val_id: u32, _parent_val_id: u32|  -> Result<(), ()>{
+    let mut callback_ids = |_anchor_id: u32, _path: &str, _val_id: u32, _parent_val_id: u32|  -> Result<(), serde_json::error::Error>{
         // println!("IDS: path {} val_id {} parent_val_id {}", path, val_id, parent_val_id);
         Ok(())
     };
 
     let stream = r#"{"structure" : {"sub1" : "test"}}"#.lines().map(|line|serde_json::from_str(&line));
-    for_each_element(stream, &mut id_holder, &mut |anchor_id: u32, value: &str, path: &str, _parent_val_id: u32| -> Result<(), ()>{
+    for_each_element(stream, &mut id_holder, &mut |anchor_id: u32, value: &str, path: &str, _parent_val_id: u32| -> Result<(), serde_json::error::Error>{
         assert_eq!(path, "structure.sub1");
         assert_eq!(value, "test");
         assert_eq!(anchor_id, 0);
@@ -203,14 +205,14 @@ fn test_foreach() {
     }, &mut callback_ids).unwrap();
 
     let stream = r#"{"a" : "1"}"#.lines().map(|line|serde_json::from_str(&line));
-    for_each_element(stream, &mut id_holder, &mut |_anchor_id: u32, value: &str, path: &str, _parent_val_id: u32| -> Result<(), ()>{
+    for_each_element(stream, &mut id_holder, &mut |_anchor_id: u32, value: &str, path: &str, _parent_val_id: u32| -> Result<(), serde_json::error::Error>{
         assert_eq!(path, "a");
         assert_eq!(value, "1");
         Ok(())
     }, &mut callback_ids).unwrap();
 
     let stream = r#"{"meanings": {"ger" : ["karlo"]}}"#.lines().map(|line|serde_json::from_str(&line));
-    for_each_element(stream, &mut id_holder, &mut |_anchor_id: u32, value: &str, path: &str, _parent_val_id: u32| -> Result<(), ()>{
+    for_each_element(stream, &mut id_holder, &mut |_anchor_id: u32, value: &str, path: &str, _parent_val_id: u32| -> Result<(), serde_json::error::Error>{
         assert_eq!(path, "meanings.ger[]");
         assert_eq!(value, "karlo");
         Ok(())

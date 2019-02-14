@@ -1024,14 +1024,14 @@ fn convert_raw_path_data_to_indices(
                 add_phrase_pair_flush(&db_path, &path_col, path.add(PHRASE_PAIR_TO_ANCHOR), *phrase_pair_to_anchor, &mut indices)?;
             }
 
-            let sort_and_dedup = false;
+            let no_sort_and_dedup = false;
             if let Some(text_id_to_token_ids) = data.text_id_to_token_ids {
                 add_index_flush(
                     &path_col,
                     path.add(TEXT_ID_TO_TOKEN_IDS),
                     text_id_to_token_ids.data,
                     false,
-                    sort_and_dedup,
+                    no_sort_and_dedup,
                     &mut indices,
                     LoadingType::Disk,
                 )?;
@@ -1043,7 +1043,7 @@ fn convert_raw_path_data_to_indices(
                     path.add(VALUE_ID_TO_PARENT),
                     *text_id_to_parent,
                     false, // valueIdToParent relation is always 1 to 1, expect for text_ids, which can have multiple parents. Here we handle only text_ids therefore is this always false
-                    sort_and_dedup,
+                    no_sort_and_dedup,
                     &mut indices,
                     LoadingType::Disk,
                 )?;
@@ -1061,7 +1061,7 @@ fn convert_raw_path_data_to_indices(
                     path.add(PARENT_TO_VALUE_ID),
                     *parent_to_text_id,
                     true, // This is parent_to_text_id here - Every Value id hat one associated text_id
-                    sort_and_dedup,
+                    no_sort_and_dedup,
                     &mut indices,
                     loading_type,
                 )?;
@@ -1077,7 +1077,7 @@ fn convert_raw_path_data_to_indices(
                     path.add(ANCHOR_TO_TEXT_ID),
                     *anchor_to_text_id,
                     false,
-                    sort_and_dedup,
+                    no_sort_and_dedup,
                     &mut indices,
                     LoadingType::InMemory,
                 )?;
@@ -1459,7 +1459,7 @@ where
 {
     info_time!("total time create_indices for {:?}", persistence.db);
 
-    let mut indices_json: FieldsConfig = serde_json::from_str(indices).unwrap();
+    let mut indices_json: FieldsConfig = serde_json::from_str(indices)?;
     indices_json.features_to_indices()?;
     let mut create_cache = create_cache.unwrap_or_else(CreateCache::default);
     create_fulltext_index(stream1, stream2, stream3, &mut persistence, &indices_json, &mut create_cache, load_persistence)?;
