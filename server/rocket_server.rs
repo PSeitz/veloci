@@ -465,7 +465,7 @@ fn process_entries(entries: Entries) -> Result<(String, Option<String>), VelociE
         let mut config = String::new();
         entries
             .fields
-            .get(&"config".to_string())
+            .get("config")
             .ok_or_else(|| VelociError::StringError(format!("expecting content field, but got {:?}", entries.fields.keys().collect::<Vec<_>>())))?[0]
             .data
             .readable()?
@@ -473,7 +473,7 @@ fn process_entries(entries: Entries) -> Result<(String, Option<String>), VelociE
 
         let data_reader = entries
             .fields
-            .get(&"data".to_string())
+            .get("data")
             .ok_or_else(|| VelociError::StringError(format!("expecting data field, but got {:?}", entries.fields.keys().collect::<Vec<_>>())))?[0]
             .data
             .readable()?;
@@ -486,7 +486,7 @@ fn process_entries(entries: Entries) -> Result<(String, Option<String>), VelociE
     let mut data: Vec<u8> = vec![];
     let data_reader = entries
         .fields
-        .get(&"data".to_string())
+        .get("data")
         .ok_or_else(|| VelociError::StringError(format!("expecting data field, but got {:?}", entries.fields.keys().collect::<Vec<_>>())))?[0]
         .data
         .readable()?;
