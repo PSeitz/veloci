@@ -11,7 +11,6 @@ extern crate fnv;
 extern crate serde;
 #[macro_use]
 extern crate serde_json;
-// extern crate time;
 
 extern crate flate2;
 #[macro_use]
