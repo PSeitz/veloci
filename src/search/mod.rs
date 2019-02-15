@@ -1471,7 +1471,7 @@ pub fn add_boost(persistence: &Persistence, boost: &RequestBoostPart, hits: &mut
                         boost_value,
                         (boost_value as f32 + boost_param).log10(),
                     );
-                    *score *= boost_value as f32 + boost_param;
+                    *score += (boost_value as f32 + boost_param).log10();
                 }
                 Some(BoostFunction::Linear) => {
                     trace!(
