@@ -16,6 +16,9 @@ extern crate flate2;
 #[macro_use]
 extern crate lazy_static;
 #[macro_use]
+extern crate serde_derive;
+#[macro_use]
+#[macro_use]
 extern crate log;
 #[macro_use]
 extern crate measure_time;
@@ -96,7 +99,7 @@ impl<'r> Responder<'r> for SuggestResult {
     }
 }
 
-#[derive(FromForm)]
+#[derive(FromForm, Serialize, Deserialize)]
 struct QueryParams {
     //TODO serialize directly into SearchQueryGeneratorParameters
     query: String,
@@ -108,11 +111,12 @@ struct QueryParams {
     facets: Option<String>,
     stopword_lists: Option<String>,
     facetlimit: Option<usize>,
+    /// e.g. myfield->2.0,otherfield->0.5
     boost_fields: Option<String>,
     boost_terms: Option<String>,
     operator: Option<String>,
     select: Option<String>,
-    why_found: Option<String>,
+    why_found: Option<bool>,
     boost_queries: Option<String>,
     phrase_pairs: Option<String>,
     explain: Option<String>,
@@ -242,42 +246,26 @@ fn get_doc_for_id_direct(database: String, id: u32) -> Json<serde_json::Value> {
 //     search::read_tree(&persistence, 25000, &tree)
 // }
 
-#[get("/<database>/search?<params..>")]
-fn search_get(database: String, params: LenientForm<QueryParams>) -> Result<SearchResult, Custom<String>> {
-    // let params = params.map_err(|err| Custom(Status::BadRequest, format!("{:let params: QueryParams = params.into_inner();?}", err)))?;
-    let params: QueryParams = params.into_inner();
+fn search_from_query_params(database: String, params: QueryParams) -> Result<SearchResult, Custom<String>> {
     ensure_database(&database).map_err(search_error_to_rocket_error)?;
     let persistence = PERSISTENCES.get(&database).unwrap();
 
     let facets: Option<Vec<String>> = query_param_to_vec(params.facets);
     let stopword_lists: Option<Vec<String>> = query_param_to_vec(params.stopword_lists);
     let fields: Option<Vec<String>> = query_param_to_vec(params.fields);
-    let boost_fields: HashMap<String, f32> = query_param_to_vec(params.boost_fields)
+
+    let boost_fields: Result<HashMap<String, f32>, _> = query_param_to_vec(params.boost_fields)
         .map(|mkay| {
             mkay.into_iter()
                 .map(|el| {
                     let field_n_boost = el.split("->").collect::<Vec<&str>>();
-                    (field_n_boost[0].to_string(), field_n_boost[1].parse::<f32>().unwrap())
+
+                    let val = field_n_boost[1].parse::<f32>().map_err(|_err| Custom(Status::BadRequest, "Could not parse boost value as float".to_string()))?;
+                    Ok((field_n_boost[0].to_string(), val))
                 })
                 .collect()
         })
-        .unwrap_or(HashMap::default());
-
-    // let filter_queries = query_param_to_vec(params.filter).map(|mkay| {
-    //         mkay.into_iter()
-    //             .map(|el| {
-    //                 let field_n_term = el.split(":").collect::<Vec<&str>>();
-    //                 let field = field_n_term[0].to_string();
-    //                 let term = field_n_term[1].to_string();
-    //                 search::RequestSearchPart{
-    //                     path:field,
-    //                     terms: vec![term],
-    //                     ignore_case: Some(false),
-    //                     ..Default::default()
-    //                 }
-    //             })
-    //             .collect::<Vec<_>>()
-    //     });
+        .unwrap_or(Ok(HashMap::default()));
 
     let boost_terms: HashMap<String, f32> = query_param_to_vec(params.boost_terms)
         .map(|mkay| {
@@ -298,16 +286,17 @@ fn search_get(database: String, params: LenientForm<QueryParams>) -> Result<Sear
         levenshtein: params.levenshtein,
         levenshtein_auto_limit: params.levenshtein_auto_limit,
         facetlimit: params.facetlimit,
-        why_found: params.why_found.map(|el| el.to_lowercase() == "true"),
+        why_found: params.why_found,
         phrase_pairs: params.phrase_pairs.map(|el| el.to_lowercase() == "true"),
         text_locality: params.text_locality.map(|el| el.to_lowercase() == "true"),
         facets: facets,
         stopword_lists,
         fields: fields,
-        boost_fields: boost_fields,
+        boost_fields: boost_fields?,
         boost_terms: boost_terms,
         explain: params.explain.map(|el| el.to_lowercase() == "true"),
         boost_queries: None,
+        select: None,
         filter:params.filter,
     };
 
@@ -322,6 +311,33 @@ fn search_get(database: String, params: LenientForm<QueryParams>) -> Result<Sear
 
     debug!("{}", serde_json::to_string(&request).unwrap());
     search_in_persistence(&persistence, request).map_err(search_error_to_rocket_error)
+}
+
+
+// #[post("/<database>/search_smart", format = "application/json", data = "<request>")]
+// fn search_post_query_params(database: String, request: Json<QueryParams>) -> Result<SearchResult, Custom<String>> {
+//     search_from_query_params(database, request.0)
+// }
+
+#[post("/<database>/search_query_params", format = "application/json", data = "<request>")]
+fn search_post_query_params(database: String, request: Json<query_generator::SearchQueryGeneratorParameters>) -> Result<SearchResult, Custom<String>> {
+    let q_params = request.0;
+    let persistence = PERSISTENCES.get(&database).unwrap();
+
+    let mut request = query_generator::search_query(&persistence, q_params.clone()).map_err(|err| Custom(Status::BadRequest, format!("query_generation failed: {:?}", err)))?;
+
+    request.select = query_param_to_vec(q_params.select);
+
+    debug!("{}", serde_json::to_string(&request).unwrap());
+    search_in_persistence(&persistence, request).map_err(search_error_to_rocket_error)
+}
+
+#[get("/<database>/search?<params..>")]
+fn search_get(database: String, params: LenientForm<QueryParams>) -> Result<SearchResult, Custom<String>> {
+    // let params = params.map_err(|err| Custom(Status::BadRequest, format!("{:let params: QueryParams = params.into_inner();?}", err)))?;
+    let params: QueryParams = params.into_inner();
+        
+    search_from_query_params(database, params)
 }
 
 #[get("/<database>/search_shard?<params..>")]
@@ -378,7 +394,7 @@ fn search_get_shard(database: String, params: LenientForm<QueryParams>) -> Resul
         levenshtein: params.levenshtein,
         levenshtein_auto_limit: params.levenshtein_auto_limit,
         facetlimit: params.facetlimit,
-        why_found: params.why_found.map(|el| el.to_lowercase() == "true"),
+        why_found: params.why_found,
         phrase_pairs: params.phrase_pairs.map(|el| el.to_lowercase() == "true"),
         text_locality: params.text_locality.map(|el| el.to_lowercase() == "true"),
         facets: facets,
@@ -388,6 +404,7 @@ fn search_get_shard(database: String, params: LenientForm<QueryParams>) -> Resul
         boost_terms: boost_terms,
         explain: params.explain.map(|el| el.to_lowercase() == "true"),
         boost_queries: None,
+        select: None,
         filter: params.filter,
     };
 
@@ -596,7 +613,7 @@ fn main() {
     println!("Starting Server...");
     rocket::ignite()
         // .mount("/", routes![version, get_doc_for_id_direct, get_doc_for_id_tree, search_get, search_post, suggest_get, suggest_post, highlight_post])
-        .mount("/", routes![version, delete_db, multipart_upload, get_doc_for_id_direct, get_doc_for_id_tree, search_get, search_post, suggest_get, search_get_shard, suggest_post, highlight_post, inspect_data])
+        .mount("/", routes![version, delete_db, multipart_upload, get_doc_for_id_direct, get_doc_for_id_tree, search_get, search_post, search_post_query_params, suggest_get, search_get_shard, suggest_post, highlight_post, inspect_data])
         .attach(Gzip)
         .attach(cors_options)
         .launch();

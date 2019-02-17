@@ -27,23 +27,41 @@ use crate::test;
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
 pub struct SearchQueryGeneratorParameters {
     pub search_term: String,
+    #[serde(default)]
     pub top: Option<usize>,
+    #[serde(default)]
     pub skip: Option<usize>,
+    #[serde(default)]
     pub operator: Option<String>,
+    #[serde(default)]
     pub levenshtein: Option<usize>,
+    #[serde(default)]
     pub levenshtein_auto_limit: Option<usize>,
+    #[serde(default)]
     pub facetlimit: Option<usize>,
+    #[serde(default)]
     pub why_found: Option<bool>,
+    #[serde(default)]
     pub text_locality: Option<bool>,
+    #[serde(default)]
     pub boost_queries: Option<Vec<RequestBoostPart>>,
+    #[serde(default)]
     pub facets: Option<Vec<String>>,
+    #[serde(default)]
     pub stopword_lists: Option<Vec<String>>,
+    #[serde(default)]
     pub fields: Option<Vec<String>>,
     pub boost_fields: HashMap<String, f32>,
+    #[serde(default)]
     pub boost_terms: HashMap<String, f32>,
+    #[serde(default)]
     pub phrase_pairs: Option<bool>,
+    #[serde(default)]
     pub explain: Option<bool>,
+    #[serde(default)]
     pub filter: Option<String>,
+    #[serde(default)]
+    pub select: Option<String>,
     // pub filter: Option<Vec<RequestSearchPart>>,
 }
 
