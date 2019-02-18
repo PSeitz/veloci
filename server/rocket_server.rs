@@ -336,7 +336,6 @@ fn search_post_query_params(database: String, request: Json<query_generator::Sea
 fn search_get(database: String, params: LenientForm<QueryParams>) -> Result<SearchResult, Custom<String>> {
     // let params = params.map_err(|err| Custom(Status::BadRequest, format!("{:let params: QueryParams = params.into_inner();?}", err)))?;
     let params: QueryParams = params.into_inner();
-        
     search_from_query_params(database, params)
 }
 

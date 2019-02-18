@@ -806,7 +806,7 @@ fn merge_term_id_hits(results: &mut Vec<SearchFieldResult>) -> FnvHashMap<String
             }
         }
     }
-    debug!("term_id_hits_in_field {:?}", term_id_hits_in_field);
+    debug!("Fields: {}, term_id_hits_in_field {:?}", results.iter().map(|el| &el.request.path).join(" "), term_id_hits_in_field);
     term_id_hits_in_field
 }
 fn merge_term_id_texts(results: &mut Vec<SearchFieldResult>) -> FnvHashMap<String, Vec<String>> {
@@ -818,7 +818,8 @@ fn merge_term_id_texts(results: &mut Vec<SearchFieldResult>) -> FnvHashMap<Strin
             attr_term_hits.extend(v.iter().cloned());
         }
     }
-    debug!("term_text_in_field {:?}", term_text_in_field);
+
+    debug!("Fields: {}, term_text_in_field {:?}", results.iter().map(|el| &el.request.path).join(" "), term_text_in_field);
     term_text_in_field
 }
 
@@ -844,7 +845,8 @@ fn merge_term_id_texts(results: &mut Vec<SearchFieldResult>) -> FnvHashMap<Strin
 // }
 
 pub fn union_hits_score(mut or_results: Vec<SearchFieldResult>) -> SearchFieldResult {
-    trace!("Union Input:\n{}", serde_json::to_string_pretty(&or_results).unwrap());
+    // trace!("Union Input:\n{}", serde_json::to_string_pretty(&or_results).unwrap());
+
     if or_results.is_empty() {
         return SearchFieldResult { ..Default::default() };
     }
@@ -852,6 +854,12 @@ pub fn union_hits_score(mut or_results: Vec<SearchFieldResult>) -> SearchFieldRe
         let res = or_results.swap_remove(0);
         return res;
     }
+
+    trace!("Union Input:");
+    for el in &or_results {
+        trace!("{}", el);
+    }
+
     let term_id_hits_in_field = { merge_term_id_hits(&mut or_results) };
     let term_text_in_field = { merge_term_id_texts(&mut or_results) };
 
@@ -961,7 +969,7 @@ pub fn union_hits_score(mut or_results: Vec<SearchFieldResult>) -> SearchFieldRe
         request: or_results[0].request.clone(), // set this to transport fields like explain
         ..Default::default()
     };
-    trace!("Union Output:\n{}", serde_json::to_string_pretty(&res).unwrap());
+    trace!("Union Output:\n{}", &res);
     res
 }
 
@@ -1094,6 +1102,9 @@ fn check_score_iter_for_id(iter_n_current: &mut (impl Iterator<Item = Hit>, Hit)
     if (iter_n_current.1).id == current_id {
         return true;
     }
+    if (iter_n_current.1).id > current_id {
+        return false;
+    }
     let iter = &mut iter_n_current.0;
     for el in iter {
         let id = el.id;
@@ -1116,6 +1127,14 @@ pub fn intersect_hits_score(mut and_results: Vec<SearchFieldResult>) -> SearchFi
         let res = and_results.swap_remove(0);
         return res;
     }
+
+    trace!("Intersect Input:");
+    for el in &and_results {
+        trace!("{}", el);
+    }
+
+
+    // trace!("Intersect Input:\n{}", serde_json::to_string_pretty(&and_results).unwrap());
 
     let should_explain = and_results[0].request.explain;
     let term_id_hits_in_field = { merge_term_id_hits(&mut and_results) };
@@ -1165,20 +1184,28 @@ pub fn intersect_hits_score(mut and_results: Vec<SearchFieldResult>) -> SearchFi
             }
         }
     }
+
     // all_results
-    SearchFieldResult {
+    let res = SearchFieldResult {
         term_id_hits_in_field,
         term_text_in_field,
         explain: explain_hits,
         hits_scores: intersected_hits,
         request: and_results[0].request.clone(), // set this to transport fields like explain TODO FIX - ALL AND TERMS should be reflected
         ..Default::default()
-    }
+    };
+
+    trace!("Intersect Output:\n{}", &res);
+
+    res
 }
 
 fn check_id_iter_for_id(iter_n_current: &mut (impl Iterator<Item = u32>, u32), current_id: u32) -> bool {
     if (iter_n_current.1) == current_id {
         return true;
+    }
+    if (iter_n_current.1) > current_id {
+        return false;
     }
     let iter = &mut iter_n_current.0;
     for id in iter {
@@ -1277,6 +1304,38 @@ fn intersect_hits_scores_test() {
 
     assert_eq!(res.hits_scores, vec![Hit::new(0, 40.0), Hit::new(10, 50.0)]);
 }
+
+#[test]
+fn intersect_hits_scores_test_reg() {
+    let hits1 = vec![Hit::new(704, 13.7),
+        Hit::new(19921, 39.4),
+        Hit::new(20000, 13.7),
+        Hit::new(44650, 39.4)];
+
+    let hits2 = vec![Hit::new(18779, 28.199999),
+        Hit::new(20000, 14.400001),
+        Hit::new(32606, 39.4),
+        Hit::new(130721, 13.3),
+        Hit::new(168854, 2.0666666)
+    ];
+
+    let yop = vec![
+        SearchFieldResult {
+            hits_scores: hits1,
+            ..Default::default()
+        },
+        SearchFieldResult {
+            hits_scores: hits2,
+            ..Default::default()
+        },
+    ];
+
+    let res = intersect_hits_score(yop);
+
+    assert_eq!(res.hits_scores.len(), 1);
+    assert_eq!(res.hits_scores[0].id, 20000);
+}
+
 
 fn apply_boost_from_iter(mut results: SearchFieldResult, mut boost_iter: &mut dyn Iterator<Item = Hit>) -> SearchFieldResult {
     let mut explain = FnvHashMap::default();
