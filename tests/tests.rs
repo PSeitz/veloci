@@ -1116,8 +1116,8 @@ fn should_rank_exact_matches_pretty_good() {
         },
         "boost" : [{
             "path":"commonness",
-            "boost_fun": "Log10",
-            "param": 1
+            "boost_fun": "Log2",
+            "param": 2
         }]
     });
 

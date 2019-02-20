@@ -3,7 +3,6 @@
 use crate::error::VelociError;
 use crate::persistence::*;
 use crate::search::*;
-use crate::search_field::*;
 use crate::util;
 use crate::util::StringAdd;
 use fnv::FnvHashMap;

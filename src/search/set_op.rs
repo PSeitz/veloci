@@ -568,3 +568,29 @@ fn intersect_hits_scores_test_reg() {
     assert_eq!(res.hits_scores.len(), 1);
     assert_eq!(res.hits_scores[0].id, 20000);
 }
+
+
+
+#[cfg(test)]
+mod bench_intersect {
+    use super::*;
+    use crate::test;
+    #[bench]
+    fn bench_boost_intersect_hits_vec_multi(b: &mut test::Bencher) {
+        let hits1: Vec<Hit> = (0..4_000_00).map(|i| Hit::new(i * 5 as u32, 2.2 as f32)).collect();
+        let hits2: Vec<Hit> = (0..40_000).map(|i| Hit::new(i * 3 as u32, 2.2 as f32)).collect();
+
+        b.iter(|| {
+            boost_hits_ids_vec_multi(
+                SearchFieldResult {
+                    hits_scores: hits1.clone(),
+                    ..Default::default()
+                },
+                &mut vec![SearchFieldResult {
+                    hits_scores: hits2.clone(),
+                    ..Default::default()
+                }],
+            )
+        })
+    }
+}

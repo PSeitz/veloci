@@ -9,7 +9,6 @@ use std;
 use std::cmp;
 use std::str;
 
-use crate::search_field::*;
 #[allow(unused_imports)]
 use fst::{IntoStreamer, Map, MapBuilder, Set};
 

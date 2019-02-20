@@ -3,7 +3,6 @@ use crate::error::*;
 use crate::persistence::Persistence;
 use crate::persistence::*;
 use crate::search::*;
-use crate::search_field::*;
 use crate::util;
 use crate::util::StringAdd;
 use std::fmt::Debug;
