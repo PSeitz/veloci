@@ -110,7 +110,7 @@ pub fn union_hits_score(mut or_results: Vec<SearchFieldResult>) -> SearchFieldRe
         }
     }
 
-    let explain = or_results[0].request.explain;
+    let should_explain = or_results[0].request.explain;
 
     let mut terms = or_results.iter().map(|res| res.request.terms[0].to_string()).collect::<Vec<_>>();
     terms.sort();
@@ -122,7 +122,13 @@ pub fn union_hits_score(mut or_results: Vec<SearchFieldResult>) -> SearchFieldRe
     info!("or connect search terms {:?}", terms);
 
     let mut union_hits = Vec::with_capacity(longest_len as usize + sum_other_len as usize / 2);
-    let mut explain_hits = FnvHashMap::default();
+    let mut explain_hits: FnvHashMap<u32, Vec<Explain>> = FnvHashMap::default();
+    if should_explain {
+        for res in &or_results {
+            explain_hits.extend(res.explain.clone());
+        }
+    }
+
     {
         let iterators: Vec<_> = or_results
             .iter()
@@ -171,7 +177,7 @@ pub fn union_hits_score(mut or_results: Vec<SearchFieldResult>) -> SearchFieldRe
             debug_assert!(sum_over_distinct_with_distinct_term_boost != std::f32::NAN);
             debug_assert!(sum_over_distinct_with_distinct_term_boost != std::f32::INFINITY);
             union_hits.push(Hit::new(id, sum_over_distinct_with_distinct_term_boost));
-            if explain {
+            if should_explain {
                 let explain = explain_hits.entry(id).or_insert_with(|| vec![]);
                 // explain.push(format!("or sum_over_distinct_terms {:?}", max_scores_per_term.iter().sum::<f32>() as f32));
                 explain.push(Explain::OrSumOverDistinctTerms(max_scores_per_term.iter().sum::<f32>() as f32));
@@ -183,7 +189,7 @@ pub fn union_hits_score(mut or_results: Vec<SearchFieldResult>) -> SearchFieldRe
         }
     }
 
-    if explain {
+    if should_explain {
         for hit in union_hits.iter() {
             for res in or_results.iter() {
                 if let Some(exp) = res.explain.get(&hit.id) {
