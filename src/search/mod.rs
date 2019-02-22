@@ -752,6 +752,10 @@ pub fn join_to_parent_with_score(persistence: &Persistence, input: &SearchFieldR
     let mut hits = Vec::with_capacity(num_hits);
     let kv_store = persistence.get_valueid_to_parent(path)?;
 
+    let should_explain = input.request.explain;
+    // let explain = input.explain;
+    let mut explain_hits: FnvHashMap<u32, Vec<Explain>> = FnvHashMap::default();
+
     for hit in &input.hits_scores {
         let score = hit.score;
         if let Some(values) = kv_store.get_values(u64::from(hit.id)).as_ref() {
@@ -760,6 +764,11 @@ pub fn join_to_parent_with_score(persistence: &Persistence, input: &SearchFieldR
             // trace!("value_id: {:?} values: {:?} ", value_id, values);
             for parent_val_id in values {
                 hits.push(Hit::new(*parent_val_id, score));
+
+                if should_explain {
+                    let expains = input.explain.get(&hit.id).unwrap_or_else(||panic!("could not find explain for id {:?}", hit.id));
+                    explain_hits.entry(*parent_val_id).or_insert_with(|| expains.clone());
+                }
             }
         }
     }
@@ -776,6 +785,7 @@ pub fn join_to_parent_with_score(persistence: &Persistence, input: &SearchFieldR
     debug!("{:?} hits hit {:?} distinct ({:?} total ) in column {:?}", num_hits, hits.len(), total_values, path);
     let mut res = SearchFieldResult::new_from(&input);
     res.hits_scores = hits;
+    res.explain = explain_hits;
     Ok(res)
 }
 

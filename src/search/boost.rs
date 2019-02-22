@@ -316,6 +316,10 @@ pub(crate)  fn add_boost(persistence: &Persistence, boost: &RequestBoostPart, hi
             let boost_value = *boost_value;
             match boost.boost_fun {
                 Some(BoostFunction::Log10) => {
+                    if hits.request.explain {
+                        let entry = hits.explain.entry(*value_id).or_insert_with(|| vec![]);
+                        entry.push(Explain::Boost((boost_value as f32 + boost_param).log10()));
+                    }
                     trace!(
                         "Log10 boosting value_id {:?} score {:?} to {:?} -- token_value {:?} boost_value {:?}",
                         *value_id,
