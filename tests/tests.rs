@@ -334,7 +334,7 @@ fn or_query_explained() {
     assert_eq!(hits.len(), 2);
     assert_eq!(hits[0].doc["ent_seq"], "1587690");
     // assert_eq!(hits[0].explain, Some(to_vec(&["or sum_over_distinct_terms 36.8125", "term score 10.0 * anchor score 3.68 to 36.8", "levenshtein score 10.0 for urge"])));
-    assert_eq!(hits[0].explain.as_ref().unwrap().len(), 3);
+    assert_eq!(hits[0].explain.as_ref().unwrap().len(), 5);
 }
 
 #[test]
@@ -349,7 +349,7 @@ fn simple_search_querygenerator_explained() {
     assert_eq!(hits[0].doc["commonness"], 20);
     assert_eq!(hits[0].doc["tags"], json!(["nice".to_string()]));
     // assert_eq!(hits[0].explain, Some(to_vec(&["or sum_over_distinct_terms 36.8125", "term score 10.0 * anchor score 3.68 to 36.8", "levenshtein score 10.0 for urge"])));
-    assert_eq!(hits[0].explain.as_ref().unwrap().len(), 3);
+    assert_eq!(hits[0].explain.as_ref().unwrap().len(), 5);
 }
 
 #[test]
@@ -365,7 +365,7 @@ fn simple_search_querygenerator_or_connect_explained() {
     assert_eq!(hits[0].doc["tags"], json!(["nice".to_string()]));
     // assert_eq!(hits[0].explain, Some(vec!["or sum_over_distinct_terms 452.375".to_string(), "term score 15.0 * anchor score 3.7 to 55.5".to_string(), "term score 15.0 * anchor score 3.84 to 57.6".to_string()]));
     // assert_eq!(hits[0].explain, None);
-    assert_eq!(hits[0].explain.as_ref().unwrap().len(), 5);
+    assert_eq!(hits[0].explain.as_ref().unwrap().len(), 7);
 }
 
 #[test]
