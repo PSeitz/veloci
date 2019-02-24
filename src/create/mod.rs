@@ -433,6 +433,7 @@ fn buffered_index_to_direct_index(db_path: &str, path: &str, mut buffered_index_
 struct PathDataIds {
     value_to_parent: Option<BufferedIndexWriter>,
     parent_to_value: Option<BufferedIndexWriter>,
+    value_to_anchor: Option<BufferedIndexWriter>,
 }
 
 fn prepare_path_data(temp_dir: &str, persistence: &Persistence, fields_config: &FieldsConfig, path: &str, term_data: TermDataInPath) -> PathData {
@@ -556,7 +557,7 @@ where
         let mut tokens_to_anchor_id = Vec::with_capacity(10);
 
         let mut cb_text = |anchor_id: u32, value: &str, path: &str, parent_val_id: u32| -> Result<(), io::Error> {
-            let data = get_or_insert_prefer_get(&mut path_data as *mut FnvHashMap<_, _>, path, || {
+            let data: &mut PathData = get_or_insert_prefer_get(&mut path_data as *mut FnvHashMap<_, _>, path, || {
                 let term_data = create_cache
                     .term_data
                     .terms_in_path
@@ -656,7 +657,7 @@ where
         };
 
         let mut callback_ids = |_anchor_id: u32, path: &str, value_id: u32, parent_val_id: u32| -> Result<(), io::Error> {
-            let tuples = get_or_insert_prefer_get(&mut tuples_to_parent_in_path as *mut FnvHashMap<_, _>, path, || {
+            let tuples: &mut PathDataIds = get_or_insert_prefer_get(&mut tuples_to_parent_in_path as *mut FnvHashMap<_, _>, path, || {
                 let field_config = fields_config.get(path);
                 //TODO FIXME BUG ALL SUB LEVELS ARE NOT HANDLED (not every supath hat it's own config yet) ONLY THE LEAFES BEFORE .TEXTINDEX
                 let value_to_parent = if field_config.is_index_enabled(IndexCreationType::ValueIDToParent) {
@@ -669,7 +670,7 @@ where
                 } else {
                     None
                 };
-                PathDataIds { value_to_parent, parent_to_value }
+                PathDataIds { value_to_parent, parent_to_value, value_to_anchor:None }
             });
             if let Some(el) = tuples.value_to_parent.as_mut() {
                 el.add(value_id, parent_val_id)?;

@@ -22,6 +22,17 @@ pub fn get_test_data() -> Value {
         },
         {
             "title": "greg tagebuch"
+        },
+        {
+          "commonness": 41,
+          "meanings": {
+            "ger": [
+              {
+                "text": "Fernsehen-Schauen (n)",
+                "boost" : 20
+              }
+            ]
+          }
         }
     ])
 }
@@ -30,7 +41,11 @@ static TEST_FOLDER: &str = "mochaTest_score";
 
 lazy_static! {
     static ref TEST_PERSISTENCE: persistence::Persistence = {
-        let indices = r#"{ "title":{"fulltext":{"tokenize":true} }} "#;
+        let indices = r#"{ 
+            "title":{"fulltext":{"tokenize":true} },
+            "meanings.ger[].boost":{"boost":{"boost_type":"int"}},
+            "commonness":{"boost":{"boost_type":"int"}}
+        } "#;
         common::create_test_persistence(TEST_FOLDER, indices, &get_test_data().to_string().as_bytes(), None)
     };
 }
@@ -54,4 +69,65 @@ fn check_score_regarding_to_length() {
     assert_eq!(res.data[0].doc["title"], "greg tagebuch 05"); //hits 3 tokens and phrases
     assert_eq!(res.data[1].doc["title"], "greg tagebuch"); //hits 2 tokens and phrases
     assert_eq!(res.data[2].doc["title"], "and some some text 05 this is not relevant let tagebuch greg"); //hits 3 tokens but no phrases
+}
+
+// #[test]
+// fn check_score_sub_token() {
+//     let params = serde_json:: json!({
+//     "search_term": "schauen",
+//         "top": 3,
+//         "skip": 0,
+//         "explain": true,
+//         "why_found": true,
+//         "boost_queries": [
+//           {
+//             "path": "commonness",
+//             "boost_fun": "Log10",
+//             "param": 10
+//           }
+//         ],
+//         "boost_fields": {
+//             "meanings.ger[].text": 2.0
+//         }
+//     });
+
+//     let params = serde_json::from_value(params).unwrap();
+//     let res = search_testo_to_doco_qp!(params).data;
+//     println!("{:?}", res);
+//     assert_eq!(res[0].hit.score, 10.0); //hits 3 tokens and phrases
+// //     assert_eq!(res.data[1].doc["title"], "greg tagebuch"); //hits 2 tokens and phrases
+// //     assert_eq!(res.data[2].doc["title"], "and some some text 05 this is not relevant let tagebuch greg"); //hits 3 tokens but no phrases
+// }
+
+#[test]
+fn check_score_boost() {
+    let params = serde_json:: json!({
+    "search_term": "schauen",
+        "top": 3,
+        "skip": 0,
+        "explain": true,
+        "why_found": true,
+        "boost_queries": [
+          {
+            "path": "commonness",
+            "boost_fun": "Log10",
+            "param": 10
+          },
+          {
+            "path": "meanings.ger[].boost",
+            "boost_fun": "Log10",
+            "param": 10
+          }
+        ],
+        "boost_fields": {
+            "meanings.ger[].text": 2.0
+        }
+    });
+
+    let params = serde_json::from_value(params).unwrap();
+    let res = search_testo_to_doco_qp!(params).data;
+    println!("{:?}", res);
+    assert_eq!(res[0].hit.score, 10.0); //hits 3 tokens and phrases
+//     assert_eq!(res.data[1].doc["title"], "greg tagebuch"); //hits 2 tokens and phrases
+//     assert_eq!(res.data[2].doc["title"], "and some some text 05 this is not relevant let tagebuch greg"); //hits 3 tokens but no phrases
 }

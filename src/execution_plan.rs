@@ -778,7 +778,7 @@ fn plan_creator_search_part(
     filter_channel_step: Option<usize>,
     request_part: &RequestSearchPart,
     request: &Request,
-    boost: &mut Vec<RequestBoostPart>,
+    boosts: &mut Vec<RequestBoostPart>,
     plan: &mut Plan,
     parent_step_dependecy: Option<usize>,
     depends_on_step: Option<usize>,
@@ -786,7 +786,8 @@ fn plan_creator_search_part(
 ) -> PlanStepId {
     let paths = util::get_steps_to_anchor(&request_part.path);
     // let (mut field_tx, mut field_rx): (PlanDataSender, PlanDataReceiver) = unbounded();
-    let fast_field = boost.is_empty() && !request_part.snippet.unwrap_or(false); // fast_field disabled for boosting or _highlighting_ currently
+    let fast_field = boosts.is_empty() && !request_part.snippet.unwrap_or(false); // fast_field disabled for boosting or _highlighting_ currently
+    // let fast_field = !request_part.snippet.unwrap_or(false); // fast_field disabled for boosting or _highlighting_ currently
     let store_term_id_hits = request.why_found || request.text_locality;
     // let plan_request_part = PlanRequestSearchPart{request:request_part, get_scores: true, store_term_id_hits, store_term_texts: request.why_found, ..Default::default()};
 
@@ -799,6 +800,25 @@ fn plan_creator_search_part(
     let field_rx = field_search_step.channel.receiver_for_next_step.clone();
 
     if fast_field {
+
+
+        // if let Some(pos) = request_part.path.rfind("[]") {
+        //     let end_obj = &request_part.path[..pos];
+        //     //find where boost matches last path
+        //     let boosto:Vec<&RequestBoostPart> = boosts.iter().flat_map(|el|{
+        //         if let Some(pos) = el.path.rfind("[]") {
+        //             if &el.path[..pos] == end_obj {
+        //                 return Some(el);
+        //             }
+        //         }
+        //         None
+        //     }).collect();
+        //     if !boosto.is_empty() {
+        //         assert!(boosto.len() == 1);
+        //     }
+        // }
+        
+
         // This is the normal case, resolve field directly to anchor ids
         let mut channel = PlanStepDataChannels::open_channel(1, vec![field_rx]);
         if let Some(step_id) = filter_channel_step {
@@ -824,7 +844,7 @@ fn plan_creator_search_part(
         }
         (id1)
     } else {
-        // This is a special case, where boost indices on fields are used.
+        // This is a special case, where boosts indices on fields are used.
         let mut add_step = |step: Box<dyn PlanStepTrait>| -> usize {
             let step_id = plan.add_step(step);
             if let Some(parent_step_dependecy) = parent_step_dependecy {
@@ -848,7 +868,7 @@ fn plan_creator_search_part(
         }));
 
         for i in (0..paths.len() - 1).rev() {
-            boost.retain(|boost| {
+            boosts.retain(|boost| {
                 let apply_boost = boost.path.starts_with(&paths[i]);
                 if apply_boost {
                     let (next_tx, next_rx): (PlanDataSender, PlanDataReceiver) = unbounded();
@@ -881,7 +901,7 @@ fn plan_creator_search_part(
         }
 
         // Handling boost from anchor to value - ignoring 1:N!
-        for boost in boost.iter().filter(|el| !el.path.contains("[]")) {
+        for boost in boosts.iter().filter(|el| !el.path.contains("[]")) {
             let (next_tx, next_rx): (PlanDataSender, PlanDataReceiver) = unbounded();
             tx = next_tx;
             channel = PlanStepDataChannels::create_channel_from(1, tx.clone(), next_rx.clone(), vec![rx.clone()]);

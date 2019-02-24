@@ -50,6 +50,7 @@ pub const TEXT_ID_TO_ANCHOR: &str = ".text_id_to_anchor";
 // pub const PARENT_TO_TEXT_ID: &str = ".parent_to_text_id";
 pub const ANCHOR_TO_TEXT_ID: &str = ".anchor_to_text_id";
 pub const BOOST_VALID_TO_VALUE: &str = ".boost_valid_to_value";
+pub const VALUE_ID_TO_ANCHOR: &str = ".value_id_to_anchor";
 pub const TOKEN_VALUES: &str = ".token_values";
 
 pub const TEXTINDEX: &str = ".textindex";
