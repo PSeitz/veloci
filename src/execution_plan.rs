@@ -235,6 +235,12 @@ struct ValueIdToParent {
     channel: PlanStepDataChannels,
 }
 #[derive(Clone, Debug)]
+struct BoostToAnchor {
+    path: String,
+    trace_info: String,
+    channel: PlanStepDataChannels,
+}
+#[derive(Clone, Debug)]
 struct BoostPlanStepFromBoostRequest {
     req: RequestBoostPart,
     channel: PlanStepDataChannels,
@@ -310,6 +316,27 @@ impl PlanStepTrait for ResolveTokenIdToTextId {
 }
 
 impl PlanStepTrait for ValueIdToParent {
+    fn get_channel(&mut self) -> &mut PlanStepDataChannels {
+        &mut self.channel
+    }
+
+    fn execute_step(self: Box<Self>, persistence: &Persistence) -> Result<(), VelociError> {
+        send_result_to_channel(
+            join_to_parent_with_score(
+                persistence,
+                &self.channel.input_prev_steps[0].recv().map_err(|_| VelociError::PlanExecutionRecvFailed)?,
+                &self.path,
+                &self.trace_info,
+            )?,
+            &self.channel,
+        )?;
+        drop_channel(self.channel);
+        Ok(())
+    }
+}
+
+//TODO FIXME FOR 1:N fields
+impl PlanStepTrait for BoostToAnchor {
     fn get_channel(&mut self) -> &mut PlanStepDataChannels {
         &mut self.channel
     }
@@ -801,23 +828,93 @@ fn plan_creator_search_part(
 
     if fast_field {
 
+        // check boost on 1:n fields, boost on anchor is done seperately
+        if let Some(pos) = request_part.path.rfind("[]") {
+            let end_obj = &request_part.path[..pos];
+            //find where boost matches last path
+            let boosto:Vec<&RequestBoostPart> = boosts.iter().flat_map(|el|{
+                if let Some(pos) = el.path.rfind("[]") {
+                    if &el.path[..pos] == end_obj {
+                        return Some(el);
+                    }
+                }
+                None
+            }).collect();
+            if !boosto.is_empty() {
+                assert!(boosto.len() == 1);
 
-        // if let Some(pos) = request_part.path.rfind("[]") {
-        //     let end_obj = &request_part.path[..pos];
-        //     //find where boost matches last path
-        //     let boosto:Vec<&RequestBoostPart> = boosts.iter().flat_map(|el|{
-        //         if let Some(pos) = el.path.rfind("[]") {
-        //             if &el.path[..pos] == end_obj {
-        //                 return Some(el);
-        //             }
-        //         }
-        //         None
-        //     }).collect();
-        //     if !boosto.is_empty() {
-        //         assert!(boosto.len() == 1);
-        //     }
-        // }
-        
+                //+1 for boost
+                field_search_step.channel.num_receivers += 1;
+
+                // This is the normal case, resolve field directly to anchor ids
+                let mut channel = PlanStepDataChannels::open_channel(1, vec![field_rx.clone()]);
+                if let Some(step_id) = filter_channel_step {
+                    plan.get_step_channel(step_id).filter_channel.as_mut().unwrap().num_receivers += 1;
+                    channel.filter_receiver = Some(plan.get_step_channel(step_id).filter_channel.as_mut().unwrap().filter_receiver.clone());
+                }
+                if is_filter_channel {
+                    channel.filter_channel = Some(FilterChannel::default());
+                }
+                let token_to_anchor_step = ResolveTokenIdToAnchor {
+                    request: request_part.clone(),
+                    channel,
+                };
+                let id1 = plan.add_step(Box::new(token_to_anchor_step));
+                plan.add_dependency(id1, *id);
+
+                if let Some(parent_step_dependecy) = parent_step_dependecy {
+                    plan.add_dependency(parent_step_dependecy, *id);
+                    plan.add_dependency(parent_step_dependecy, id1);
+                }
+                if let Some(depends_on_step) = depends_on_step {
+                    plan.add_dependency(id1, depends_on_step);
+                }
+
+
+                //token to value_id -> apply boost -> vid to anchor
+
+
+
+                // ResolveTokenIdToTextId
+                let boost_channel = PlanStepDataChannels::open_channel(1, vec![field_rx.clone()]);
+                let step = Box::new(ResolveTokenIdToTextId {
+                    // path: paths.last().unwrap().add(VALUE_ID_TO_PARENT),
+                    // trace_info: "term hits hit to column".to_string(),
+                    request: request_part.clone(),
+                    channel: boost_channel.clone(),
+                });
+                let step_id = plan.add_step(step);
+                if let Some(parent_step_dependecy) = parent_step_dependecy {
+                    plan.add_dependency(parent_step_dependecy, step_id);
+                }
+
+
+                let boost_channel = PlanStepDataChannels::open_channel(1, vec![field_rx]);
+                let step = Box::new(BoostToAnchor {
+                    path: paths.last().unwrap().add(VALUE_ID_TO_PARENT),
+                    trace_info: "term hits hit to column".to_string(),
+                    channel: boost_channel.clone(),
+                });
+                let step_id = plan.add_step(step);
+                if let Some(parent_step_dependecy) = parent_step_dependecy {
+                    plan.add_dependency(parent_step_dependecy, step_id);
+                }
+
+
+                //get boost scores and resolve to anchor
+                // step_id
+                // let mut step_id = add_step();
+
+
+
+                return (id1);
+
+
+
+
+            }
+        }
+
 
         // This is the normal case, resolve field directly to anchor ids
         let mut channel = PlanStepDataChannels::open_channel(1, vec![field_rx]);
@@ -828,11 +925,11 @@ fn plan_creator_search_part(
         if is_filter_channel {
             channel.filter_channel = Some(FilterChannel::default());
         }
-        let step = ResolveTokenIdToAnchor {
+        let token_to_anchor_step = ResolveTokenIdToAnchor {
             request: request_part.clone(),
             channel,
         };
-        let id1 = plan.add_step(Box::new(step));
+        let id1 = plan.add_step(Box::new(token_to_anchor_step));
         plan.add_dependency(id1, *id);
 
         if let Some(parent_step_dependecy) = parent_step_dependecy {
