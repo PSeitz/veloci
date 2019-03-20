@@ -335,22 +335,22 @@ impl PlanStepTrait for ValueIdToParent {
     }
 }
 
-//TODO FIXME FOR 1:N fields
 impl PlanStepTrait for BoostToAnchor {
     fn get_channel(&mut self) -> &mut PlanStepDataChannels {
         &mut self.channel
     }
 
     fn execute_step(self: Box<Self>, persistence: &Persistence) -> Result<(), VelociError> {
-        send_result_to_channel(
-            join_to_parent_with_score(
-                persistence,
-                &self.channel.input_prev_steps[0].recv().map_err(|_| VelociError::PlanExecutionRecvFailed)?,
-                &self.path,
-                &self.trace_info,
-            )?,
-            &self.channel,
-        )?;
+        // resolve_token_hits_to_text_id(persistence, &self.request, &mut field_result)?;
+        // send_result_to_channel(
+        //     join_to_parent_with_score(
+        //         persistence,
+        //         &self.channel.input_prev_steps[0].recv().map_err(|_| VelociError::PlanExecutionRecvFailed)?,
+        //         &self.path,
+        //         &self.trace_info,
+        //     )?,
+        //     &self.channel,
+        // )?;
         drop_channel(self.channel);
         Ok(())
     }
@@ -813,8 +813,8 @@ fn plan_creator_search_part(
 ) -> PlanStepId {
     let paths = util::get_steps_to_anchor(&request_part.path);
     // let (mut field_tx, mut field_rx): (PlanDataSender, PlanDataReceiver) = unbounded();
-    let fast_field = boosts.is_empty() && !request_part.snippet.unwrap_or(false); // fast_field disabled for boosting or _highlighting_ currently
-    // let fast_field = !request_part.snippet.unwrap_or(false); // fast_field disabled for boosting or _highlighting_ currently
+    // let fast_field = boosts.is_empty() && !request_part.snippet.unwrap_or(false); // fast_field disabled for boosting or _highlighting_ currently
+    let fast_field = !request_part.snippet.unwrap_or(false); // fast_field disabled for boosting or _highlighting_ currently
     let store_term_id_hits = request.why_found || request.text_locality;
     // let plan_request_part = PlanRequestSearchPart{request:request_part, get_scores: true, store_term_id_hits, store_term_texts: request.why_found, ..Default::default()};
 
@@ -874,19 +874,18 @@ fn plan_creator_search_part(
                 //token to value_id -> apply boost -> vid to anchor
 
 
-
                 // ResolveTokenIdToTextId
-                let boost_channel = PlanStepDataChannels::open_channel(1, vec![field_rx.clone()]);
-                let step = Box::new(ResolveTokenIdToTextId {
-                    // path: paths.last().unwrap().add(VALUE_ID_TO_PARENT),
-                    // trace_info: "term hits hit to column".to_string(),
-                    request: request_part.clone(),
-                    channel: boost_channel.clone(),
-                });
-                let step_id = plan.add_step(step);
-                if let Some(parent_step_dependecy) = parent_step_dependecy {
-                    plan.add_dependency(parent_step_dependecy, step_id);
-                }
+                // let boost_channel = PlanStepDataChannels::open_channel(1, vec![field_rx.clone()]);
+                // let step = Box::new(ResolveTokenIdToTextId {
+                //     // path: paths.last().unwrap().add(VALUE_ID_TO_PARENT),
+                //     // trace_info: "term hits hit to column".to_string(),
+                //     request: request_part.clone(),
+                //     channel: boost_channel.clone(),
+                // });
+                // let step_id = plan.add_step(step);
+                // if let Some(parent_step_dependecy) = parent_step_dependecy {
+                //     plan.add_dependency(parent_step_dependecy, step_id);
+                // }
 
 
                 let boost_channel = PlanStepDataChannels::open_channel(1, vec![field_rx]);
