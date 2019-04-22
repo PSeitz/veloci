@@ -789,6 +789,42 @@ pub fn join_to_parent_with_score(persistence: &Persistence, input: &SearchFieldR
     Ok(res)
 }
 
+pub fn join_to_parent_ids(persistence: &Persistence, input: &SearchFieldResult, path: &str, _trace_time_info: &str) -> Result<SearchFieldResult, VelociError> {
+    let mut total_values = 0;
+    let num_hits = input.hits_ids.len();
+
+    let mut hits = Vec::with_capacity(num_hits);
+    let kv_store = persistence.get_valueid_to_parent(path)?;
+
+    let should_explain = input.request.explain;
+
+    let mut explain_hits: FnvHashMap<u32, Vec<Explain>> = FnvHashMap::default();
+
+    for id in &input.hits_ids {
+        if let Some(values) = kv_store.get_values(u64::from(*id)).as_ref() {
+            total_values += values.len();
+            hits.reserve(values.len());
+            // trace!("value_id: {:?} values: {:?} ", value_id, values);
+            for parent_val_id in values {
+                hits.push(*parent_val_id);
+
+                if should_explain {
+                    let expains = input.explain.get(&*id).unwrap_or_else(||panic!("could not find explain for id {:?}", *id));
+                    explain_hits.entry(*parent_val_id).or_insert_with(|| expains.clone());
+                }
+            }
+        }
+    }
+    hits.sort_unstable();
+    hits.dedup();
+
+    debug!("{:?} hits hit {:?} distinct ({:?} total ) in column {:?}", num_hits, hits.len(), total_values, path);
+    let mut res = SearchFieldResult::new_from(&input);
+    res.hits_ids = hits;
+    res.explain = explain_hits;
+    Ok(res)
+}
+
 //
 // pub(crate) fn join_for_read(persistence: &Persistence, input: Vec<u32>, path: &str) -> Result<FnvHashMap<u32, Vec<u32>>, VelociError> {
 //     let mut hits: FnvHashMap<u32, Vec<u32>> = FnvHashMap::default();

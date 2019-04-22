@@ -18,7 +18,7 @@ lazy_static! {
 }
 
 pub fn get_test_data() -> Value {
-    ///both fields are identity_columns
+    //both fields are identity_columns
     json!([
         {
             "field": "test",

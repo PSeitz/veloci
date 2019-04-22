@@ -239,6 +239,8 @@ struct BoostToAnchor {
     path: String,
     trace_info: String,
     channel: PlanStepDataChannels,
+    request: RequestSearchPart,
+    boost: RequestBoostPart,
 }
 #[derive(Clone, Debug)]
 struct BoostPlanStepFromBoostRequest {
@@ -335,13 +337,23 @@ impl PlanStepTrait for ValueIdToParent {
     }
 }
 
+/// Token to text ids (TEXT_IDS) 
+/// text ids to parent valueid (VALUE_IDS) 
+/// ValueIds to boost values (VALUE_IDS, BOOST_VALUES) 
+/// value ids to anchor (ANCHOR_IDS, ANCHOR_IDS)
 impl PlanStepTrait for BoostToAnchor {
     fn get_channel(&mut self) -> &mut PlanStepDataChannels {
         &mut self.channel
     }
 
     fn execute_step(self: Box<Self>, persistence: &Persistence) -> Result<(), VelociError> {
-        // resolve_token_hits_to_text_id(persistence, &self.request, &mut field_result)?;
+        let mut field_result = self.channel.input_prev_steps[0].recv().map_err(|_| VelociError::PlanExecutionRecvFailed)?;
+        let path = &self.request.path;
+        dbg!(self.boost);
+        panic!("{:?}", self.request);
+        resolve_token_hits_to_text_id_ids_only(persistence, &self.request, &mut field_result)?;
+        // let mut field_result = join_to_parent_ids(persistence, &field_result, "path: &str", "_trace_time_info: &str");
+        panic!("{:?}", field_result.hits_ids);
         // send_result_to_channel(
         //     join_to_parent_with_score(
         //         persistence,
@@ -843,6 +855,13 @@ fn plan_creator_search_part(
             if !boosto.is_empty() {
                 assert!(boosto.len() == 1);
 
+
+                //              RESOLVE TO ANCHOR  (ANCHOR, SCORE) --------------------------------------------------------------------------------------------------------------------
+                //              /                                                                                                                                                      \
+                // SEARCH FIELD                                                                                                                                                         APPLY BOOST
+                //              \                                                                                                                                                      /
+                //              Token to text ids (TEXT_IDS) -> text ids to parent valueid (VALUE_IDS) -> ValueIds to boost values (VALUE_IDS, BOOST_VALUES) ->   value ids to anchor (ANCHOR_IDS, ANCHOR_IDS)
+
                 //+1 for boost
                 field_search_step.channel.num_receivers += 1;
 
@@ -859,15 +878,15 @@ fn plan_creator_search_part(
                     request: request_part.clone(),
                     channel,
                 };
-                let id1 = plan.add_step(Box::new(token_to_anchor_step));
-                plan.add_dependency(id1, *id);
+                let token_to_anchor_step_id = plan.add_step(Box::new(token_to_anchor_step));
+                plan.add_dependency(token_to_anchor_step_id, *id);
 
                 if let Some(parent_step_dependecy) = parent_step_dependecy {
                     plan.add_dependency(parent_step_dependecy, *id);
-                    plan.add_dependency(parent_step_dependecy, id1);
+                    plan.add_dependency(parent_step_dependecy, token_to_anchor_step_id);
                 }
                 if let Some(depends_on_step) = depends_on_step {
-                    plan.add_dependency(id1, depends_on_step);
+                    plan.add_dependency(token_to_anchor_step_id, depends_on_step);
                 }
 
 
@@ -893,6 +912,8 @@ fn plan_creator_search_part(
                     path: paths.last().unwrap().add(VALUE_ID_TO_PARENT),
                     trace_info: "term hits hit to column".to_string(),
                     channel: boost_channel.clone(),
+                    request: request_part.clone(),
+                    boost: boosto[0].clone()
                 });
                 let step_id = plan.add_step(step);
                 if let Some(parent_step_dependecy) = parent_step_dependecy {
@@ -906,7 +927,7 @@ fn plan_creator_search_part(
 
 
 
-                return (id1);
+                return token_to_anchor_step_id;
 
 
 

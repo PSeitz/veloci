@@ -163,7 +163,6 @@ impl<T: AnchorScoreDataSize> TokenToAnchorScoreVintFlushing<T> {
         self.current_id_offset += self.id_to_data_pos.len() as u32;
         self.current_data_offset += num::cast(self.data_cache.len()).unwrap();
 
-        use std::mem;
         use std::slice;
         let id_to_data_pos_bytes = unsafe { slice::from_raw_parts(self.id_to_data_pos.as_ptr() as *const u8, self.id_to_data_pos.len() * mem::size_of::<T>()) };
 

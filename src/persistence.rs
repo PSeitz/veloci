@@ -551,7 +551,6 @@ impl Persistence {
     }
 
     pub fn create_type(db: String, persistence_type: PersistenceType) -> Result<Self, io::Error> {
-        use std::path::Path;
         if Path::new(&db).exists() {
             fs::remove_dir_all(&db)?;
         }

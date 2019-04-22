@@ -588,6 +588,56 @@ pub fn resolve_token_hits_to_text_id(
     // }
     Ok(())
 }
+pub fn resolve_token_hits_to_text_id_ids_only(
+    persistence: &Persistence,
+    options: &RequestSearchPart,
+    // _filter: Option<FnvHashSet<u32>>,
+    result: &mut SearchFieldResult,
+) -> Result<(), VelociError> {
+    let mut path = options.path.to_string();
+    if !path.ends_with(TEXTINDEX) {
+        path = path.add(TEXTINDEX);
+    }
+    let has_tokens = persistence
+        .metadata
+        .columns
+        .get(&extract_field_name(&path))
+        .map_or(false, |col| col.textindex_metadata.options.tokenize);
+    debug!("has_tokens {:?} {:?}", path, has_tokens);
+    if !has_tokens {
+        return Ok(());
+    }
+
+    debug_time!("{} resolve_token_hits_to_text_id", path);
+
+    let token_path = path.add(TOKENS_TO_TEXT_ID);
+    let token_kvdata = persistence.get_valueid_to_parent(&token_path)?;
+    debug!("Checking Tokens in {:?}", &token_path);
+    persistence::trace_index_id_to_parent(token_kvdata);
+
+    let mut token_hits: Vec<u32> = vec![];
+    {
+        debug_time!("{} adding parent_id from tokens", token_path);
+        for hit in &result.hits_scores {
+            if let Some(parent_ids_for_token) = token_kvdata.get_values(u64::from(hit.id)) {
+                token_hits.reserve(parent_ids_for_token.len());
+                for token_parentval_id in parent_ids_for_token {
+                    token_hits.push(token_parentval_id);
+                }
+            }else{
+                token_hits.push(hit.id); // is text_id
+            }
+        }
+
+        token_hits.sort_unstable();
+        token_hits.dedup();
+        result.hits_ids = token_hits;
+
+    }
+
+    trace!("{} hits with tokens: {:?}", path, result.hits_scores);
+    Ok(())
+}
 
 fn distance_dfa(lower_hit: &str, dfa: &DFA, lower_term: &str) -> u8 {
     // let lower_hit = hit.to_lowercase();

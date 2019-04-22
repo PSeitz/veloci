@@ -670,6 +670,8 @@ where
                 } else {
                     None
                 };
+
+                //TODO ADD shortcut value_id to anchor_id for boost
                 PathDataIds { value_to_parent, parent_to_value, value_to_anchor:None }
             });
             if let Some(el) = tuples.value_to_parent.as_mut() {
