@@ -825,8 +825,8 @@ fn plan_creator_search_part(
 ) -> PlanStepId {
     let paths = util::get_steps_to_anchor(&request_part.path);
     // let (mut field_tx, mut field_rx): (PlanDataSender, PlanDataReceiver) = unbounded();
-    // let fast_field = boosts.is_empty() && !request_part.snippet.unwrap_or(false); // fast_field disabled for boosting or _highlighting_ currently
-    let fast_field = !request_part.snippet.unwrap_or(false); // fast_field disabled for boosting or _highlighting_ currently
+    let fast_field = boosts.is_empty() && !request_part.snippet.unwrap_or(false); // fast_field disabled for boosting or _highlighting_ currently
+    // let fast_field = !request_part.snippet.unwrap_or(false); // fast_field disabled for boosting or _highlighting_ currently
     let store_term_id_hits = request.why_found || request.text_locality;
     // let plan_request_part = PlanRequestSearchPart{request:request_part, get_scores: true, store_term_id_hits, store_term_texts: request.why_found, ..Default::default()};
 
@@ -841,99 +841,77 @@ fn plan_creator_search_part(
     if fast_field {
 
         // check boost on 1:n fields, boost on anchor is done seperately
-        if let Some(pos) = request_part.path.rfind("[]") {
-            let end_obj = &request_part.path[..pos];
-            //find where boost matches last path
-            let boosto:Vec<&RequestBoostPart> = boosts.iter().flat_map(|el|{
-                if let Some(pos) = el.path.rfind("[]") {
-                    if &el.path[..pos] == end_obj {
-                        return Some(el);
-                    }
-                }
-                None
-            }).collect();
-            if !boosto.is_empty() {
-                assert!(boosto.len() == 1);
+        // if let Some(pos) = request_part.path.rfind("[]") {
+        //     let end_obj = &request_part.path[..pos];
+        //     //find where boost matches last path
+        //     let boosto:Vec<&RequestBoostPart> = boosts.iter().flat_map(|el|{
+        //         if let Some(pos) = el.path.rfind("[]") {
+        //             if &el.path[..pos] == end_obj {
+        //                 return Some(el);
+        //             }
+        //         }
+        //         None
+        //     }).collect();
+        //     if !boosto.is_empty() {
+        //         assert!(boosto.len() == 1);
 
 
-                //              RESOLVE TO ANCHOR  (ANCHOR, SCORE) --------------------------------------------------------------------------------------------------------------------
-                //              /                                                                                                                                                      \
-                // SEARCH FIELD                                                                                                                                                         APPLY BOOST
-                //              \                                                                                                                                                      /
-                //              Token to text ids (TEXT_IDS) -> text ids to parent valueid (VALUE_IDS) -> ValueIds to boost values (VALUE_IDS, BOOST_VALUES) ->   value ids to anchor (ANCHOR_IDS, ANCHOR_IDS)
+        //         //              RESOLVE TO ANCHOR  (ANCHOR, SCORE) --------------------------------------------------------------------------------------------------------------------
+        //         //              /                                                                                                                                                      \
+        //         // SEARCH FIELD                                                                                                                                                         APPLY BOOST
+        //         //              \                                                                                                                                                      /
+        //         //              Token to text ids (TEXT_IDS) -> text ids to parent valueid (VALUE_IDS) -> ValueIds to boost values (VALUE_IDS, BOOST_VALUES) ->   value ids to anchor (ANCHOR_IDS, ANCHOR_IDS)
 
-                //+1 for boost
-                field_search_step.channel.num_receivers += 1;
+        //         //+1 for boost
+        //         field_search_step.channel.num_receivers += 1;
 
-                // This is the normal case, resolve field directly to anchor ids
-                let mut channel = PlanStepDataChannels::open_channel(1, vec![field_rx.clone()]);
-                if let Some(step_id) = filter_channel_step {
-                    plan.get_step_channel(step_id).filter_channel.as_mut().unwrap().num_receivers += 1;
-                    channel.filter_receiver = Some(plan.get_step_channel(step_id).filter_channel.as_mut().unwrap().filter_receiver.clone());
-                }
-                if is_filter_channel {
-                    channel.filter_channel = Some(FilterChannel::default());
-                }
-                let token_to_anchor_step = ResolveTokenIdToAnchor {
-                    request: request_part.clone(),
-                    channel,
-                };
-                let token_to_anchor_step_id = plan.add_step(Box::new(token_to_anchor_step));
-                plan.add_dependency(token_to_anchor_step_id, *id);
+        //         // This is the normal case, resolve field directly to anchor ids
+        //         let mut channel = PlanStepDataChannels::open_channel(1, vec![field_rx.clone()]);
+        //         if let Some(step_id) = filter_channel_step {
+        //             plan.get_step_channel(step_id).filter_channel.as_mut().unwrap().num_receivers += 1;
+        //             channel.filter_receiver = Some(plan.get_step_channel(step_id).filter_channel.as_mut().unwrap().filter_receiver.clone());
+        //         }
+        //         if is_filter_channel {
+        //             channel.filter_channel = Some(FilterChannel::default());
+        //         }
+        //         let token_to_anchor_step = ResolveTokenIdToAnchor {
+        //             request: request_part.clone(),
+        //             channel,
+        //         };
+        //         let token_to_anchor_step_id = plan.add_step(Box::new(token_to_anchor_step));
+        //         plan.add_dependency(token_to_anchor_step_id, *id);
 
-                if let Some(parent_step_dependecy) = parent_step_dependecy {
-                    plan.add_dependency(parent_step_dependecy, *id);
-                    plan.add_dependency(parent_step_dependecy, token_to_anchor_step_id);
-                }
-                if let Some(depends_on_step) = depends_on_step {
-                    plan.add_dependency(token_to_anchor_step_id, depends_on_step);
-                }
-
-
-                //token to value_id -> apply boost -> vid to anchor
+        //         if let Some(parent_step_dependecy) = parent_step_dependecy {
+        //             plan.add_dependency(parent_step_dependecy, *id);
+        //             plan.add_dependency(parent_step_dependecy, token_to_anchor_step_id);
+        //         }
+        //         if let Some(depends_on_step) = depends_on_step {
+        //             plan.add_dependency(token_to_anchor_step_id, depends_on_step);
+        //         }
 
 
-                // ResolveTokenIdToTextId
-                // let boost_channel = PlanStepDataChannels::open_channel(1, vec![field_rx.clone()]);
-                // let step = Box::new(ResolveTokenIdToTextId {
-                //     // path: paths.last().unwrap().add(VALUE_ID_TO_PARENT),
-                //     // trace_info: "term hits hit to column".to_string(),
-                //     request: request_part.clone(),
-                //     channel: boost_channel.clone(),
-                // });
-                // let step_id = plan.add_step(step);
-                // if let Some(parent_step_dependecy) = parent_step_dependecy {
-                //     plan.add_dependency(parent_step_dependecy, step_id);
-                // }
+        //         let boost_channel = PlanStepDataChannels::open_channel(1, vec![field_rx]);
+        //         let step = Box::new(BoostToAnchor {
+        //             path: paths.last().unwrap().add(VALUE_ID_TO_PARENT),
+        //             trace_info: "term hits hit to column".to_string(),
+        //             channel: boost_channel.clone(),
+        //             request: request_part.clone(),
+        //             boost: boosto[0].clone()
+        //         });
+        //         let step_id = plan.add_step(step);
+        //         if let Some(parent_step_dependecy) = parent_step_dependecy {
+        //             plan.add_dependency(parent_step_dependecy, step_id);
+        //         }
 
 
-                let boost_channel = PlanStepDataChannels::open_channel(1, vec![field_rx]);
-                let step = Box::new(BoostToAnchor {
-                    path: paths.last().unwrap().add(VALUE_ID_TO_PARENT),
-                    trace_info: "term hits hit to column".to_string(),
-                    channel: boost_channel.clone(),
-                    request: request_part.clone(),
-                    boost: boosto[0].clone()
-                });
-                let step_id = plan.add_step(step);
-                if let Some(parent_step_dependecy) = parent_step_dependecy {
-                    plan.add_dependency(parent_step_dependecy, step_id);
-                }
+        //         //get boost scores and resolve to anchor
+        //         // step_id
+        //         // let mut step_id = add_step();
 
+        //         return token_to_anchor_step_id;
 
-                //get boost scores and resolve to anchor
-                // step_id
-                // let mut step_id = add_step();
-
-
-
-                return token_to_anchor_step_id;
-
-
-
-
-            }
-        }
+        //     }
+        // }
 
 
         // This is the normal case, resolve field directly to anchor ids
