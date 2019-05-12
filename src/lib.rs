@@ -1,3 +1,4 @@
+#![feature(vec_remove_item)]
 #![cfg_attr(feature = "cargo-clippy", allow(clippy::implicit_hasher))]
 #![cfg_attr(feature = "cargo-clippy", allow(clippy::too_many_arguments))]
 #![feature(drain_filter)]
@@ -46,6 +47,7 @@ pub mod persistence_data_indirect;
 pub mod persistence_score;
 pub mod query_generator;
 pub mod search;
+pub mod steps;
 pub mod shards;
 pub mod tokenizer;
 pub mod trace;

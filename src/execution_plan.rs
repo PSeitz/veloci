@@ -349,8 +349,24 @@ impl PlanStepTrait for BoostToAnchor {
     fn execute_step(self: Box<Self>, persistence: &Persistence) -> Result<(), VelociError> {
         let mut field_result = self.channel.input_prev_steps[0].recv().map_err(|_| VelociError::PlanExecutionRecvFailed)?;
         let path = &self.request.path;
+
+        //now finding steps to boost
+
+        let mut path_to_walk_down = vec![];
+
+        let mut steps:Vec<_> = self.path.split(".").collect();
+        while !self.boost.path.contains(&steps.join(".")) {
+            steps.pop();
+            path_to_walk_down.push(steps.join("."));
+        }
+
+        dbg!(path_to_walk_down);
         dbg!(self.boost);
+        dbg!(path);
         panic!("{:?}", self.request);
+
+
+
         resolve_token_hits_to_text_id_ids_only(persistence, &self.request, &mut field_result)?;
         // let mut field_result = join_to_parent_ids(persistence, &field_result, "path: &str", "_trace_time_info: &str");
         panic!("{:?}", field_result.hits_ids);
@@ -840,7 +856,7 @@ fn plan_creator_search_part(
 
     if fast_field {
 
-        // check boost on 1:n fields, boost on anchor is done seperately
+        // // check boost on 1:n fields, boost on anchor is done seperately
         // if let Some(pos) = request_part.path.rfind("[]") {
         //     let end_obj = &request_part.path[..pos];
         //     //find where boost matches last path
@@ -854,7 +870,6 @@ fn plan_creator_search_part(
         //     }).collect();
         //     if !boosto.is_empty() {
         //         assert!(boosto.len() == 1);
-
 
         //         //              RESOLVE TO ANCHOR  (ANCHOR, SCORE) --------------------------------------------------------------------------------------------------------------------
         //         //              /                                                                                                                                                      \
