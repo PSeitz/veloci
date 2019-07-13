@@ -7,11 +7,17 @@ mod tests {
     }
 }
 
-trait ToFieldPath {
+pub trait ToFieldPath {
     fn to_field_path(&self) -> FieldPath;
 }
 
 impl ToFieldPath for &str {
+    fn to_field_path(&self) -> FieldPath{
+        FieldPath::from_path(self)
+    }
+}
+
+impl ToFieldPath for &String {
     fn to_field_path(&self) -> FieldPath{
         FieldPath::from_path(self)
     }

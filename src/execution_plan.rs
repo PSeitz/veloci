@@ -12,7 +12,8 @@ use fnv::FnvHashMap;
 use fnv::FnvHashSet;
 
 use std::boxed::Box;
-
+use crate::steps::*;
+use crate::steps::ToFieldPath;
 use crossbeam_channel;
 use crossbeam_channel::unbounded;
 
@@ -235,14 +236,6 @@ struct ValueIdToParent {
     channel: PlanStepDataChannels,
 }
 #[derive(Clone, Debug)]
-struct BoostToAnchor {
-    path: String,
-    trace_info: String,
-    channel: PlanStepDataChannels,
-    request: RequestSearchPart,
-    boost: RequestBoostPart,
-}
-#[derive(Clone, Debug)]
 struct BoostPlanStepFromBoostRequest {
     req: RequestBoostPart,
     channel: PlanStepDataChannels,
@@ -337,9 +330,17 @@ impl PlanStepTrait for ValueIdToParent {
     }
 }
 
-/// Token to text ids (TEXT_IDS) 
-/// text ids to parent valueid (VALUE_IDS) 
-/// ValueIds to boost values (VALUE_IDS, BOOST_VALUES) 
+#[derive(Clone, Debug)]
+struct BoostToAnchor {
+    path: String,
+    trace_info: String,
+    channel: PlanStepDataChannels,
+    request: RequestSearchPart,
+    boost: RequestBoostPart,
+}
+/// Token to text ids (TEXT_IDS)
+/// text ids to parent valueid (VALUE_IDS)
+/// ValueIds to boost values (VALUE_IDS, BOOST_VALUES)
 /// value ids to anchor (ANCHOR_IDS, ANCHOR_IDS)
 impl PlanStepTrait for BoostToAnchor {
     fn get_channel(&mut self) -> &mut PlanStepDataChannels {
@@ -352,20 +353,33 @@ impl PlanStepTrait for BoostToAnchor {
 
         //now finding steps to boost
 
-        let mut path_to_walk_down = vec![];
+        // let mut path_to_walk_down = vec![];
 
-        let mut steps:Vec<_> = self.path.split(".").collect();
-        while !self.boost.path.contains(&steps.join(".")) {
-            steps.pop();
-            path_to_walk_down.push(steps.join("."));
-        }
+        let (walk_down, walk_up) = steps_between_field_paths(&self.path, &self.boost.path);
 
-        dbg!(path_to_walk_down);
+        //valueid to parent
+
+        // for step in &walk_down {
+        //     field_result = join_to_parent_ids(persistence, &field_result, step, "_trace_time_info: &str")?;
+        // }
+        // let mut field_result = join_to_parent_ids(persistence, &field_result, "path: &str", "_trace_time_info: &str")?;
+
+
+        //valueid to parent
+
+
+        // let boost_field_path = (&self.boost.path).to_field_path();
+        // let search_field_path = (&self.path).to_field_path();
+        // let mut steps:Vec<_> = self.path.split(".").collect();
+        // while !self.boost.path.path.contains(&steps.join(".")) {
+        //     steps.pop();
+        //     path_to_walk_down.push(steps.join("."));
+        // }
+
+        // dbg!(path_to_walk_down);
         dbg!(self.boost);
         dbg!(path);
-        panic!("{:?}", self.request);
-
-
+        panic!("{:?}", walk_up);
 
         resolve_token_hits_to_text_id_ids_only(persistence, &self.request, &mut field_result)?;
         // let mut field_result = join_to_parent_ids(persistence, &field_result, "path: &str", "_trace_time_info: &str");
@@ -841,8 +855,8 @@ fn plan_creator_search_part(
 ) -> PlanStepId {
     let paths = util::get_steps_to_anchor(&request_part.path);
     // let (mut field_tx, mut field_rx): (PlanDataSender, PlanDataReceiver) = unbounded();
-    let fast_field = boosts.is_empty() && !request_part.snippet.unwrap_or(false); // fast_field disabled for boosting or _highlighting_ currently
-    // let fast_field = !request_part.snippet.unwrap_or(false); // fast_field disabled for boosting or _highlighting_ currently
+    // let fast_field = boosts.is_empty() && !request_part.snippet.unwrap_or(false); // fast_field disabled for boosting or _highlighting_ currently
+    let fast_field = !request_part.snippet.unwrap_or(false); // fast_field disabled for boosting or _highlighting_ currently
     let store_term_id_hits = request.why_found || request.text_locality;
     // let plan_request_part = PlanRequestSearchPart{request:request_part, get_scores: true, store_term_id_hits, store_term_texts: request.why_found, ..Default::default()};
 
@@ -856,77 +870,77 @@ fn plan_creator_search_part(
 
     if fast_field {
 
-        // // check boost on 1:n fields, boost on anchor is done seperately
-        // if let Some(pos) = request_part.path.rfind("[]") {
-        //     let end_obj = &request_part.path[..pos];
-        //     //find where boost matches last path
-        //     let boosto:Vec<&RequestBoostPart> = boosts.iter().flat_map(|el|{
-        //         if let Some(pos) = el.path.rfind("[]") {
-        //             if &el.path[..pos] == end_obj {
-        //                 return Some(el);
-        //             }
-        //         }
-        //         None
-        //     }).collect();
-        //     if !boosto.is_empty() {
-        //         assert!(boosto.len() == 1);
+        // check boost on 1:n fields, boost on anchor is done seperately
+        if let Some(pos) = request_part.path.rfind("[]") {
+            let end_obj = &request_part.path[..pos];
+            //find where boost matches last path
+            let boosto:Vec<&RequestBoostPart> = boosts.iter().flat_map(|el|{
+                if let Some(pos) = el.path.rfind("[]") {
+                    if &el.path[..pos] == end_obj {
+                        return Some(el);
+                    }
+                }
+                None
+            }).collect();
+            if !boosto.is_empty() {
+                assert!(boosto.len() == 1);
 
-        //         //              RESOLVE TO ANCHOR  (ANCHOR, SCORE) --------------------------------------------------------------------------------------------------------------------
-        //         //              /                                                                                                                                                      \
-        //         // SEARCH FIELD                                                                                                                                                         APPLY BOOST
-        //         //              \                                                                                                                                                      /
-        //         //              Token to text ids (TEXT_IDS) -> text ids to parent valueid (VALUE_IDS) -> ValueIds to boost values (VALUE_IDS, BOOST_VALUES) ->   value ids to anchor (ANCHOR_IDS, ANCHOR_IDS)
+                //              RESOLVE TO ANCHOR  (ANCHOR, SCORE) --------------------------------------------------------------------------------------------------------------------
+                //              /                                                                                                                                                      \
+                // SEARCH FIELD                                                                                                                                                         APPLY BOOST
+                //              \                                                                                                                                                      /
+                //              Token to text ids (TEXT_IDS) -> text ids to parent valueid (VALUE_IDS) -> ValueIds to boost values (VALUE_IDS, BOOST_VALUES) ->   value ids to anchor (ANCHOR_IDS, ANCHOR_IDS)
 
-        //         //+1 for boost
-        //         field_search_step.channel.num_receivers += 1;
+                //+1 for boost
+                field_search_step.channel.num_receivers += 1;
 
-        //         // This is the normal case, resolve field directly to anchor ids
-        //         let mut channel = PlanStepDataChannels::open_channel(1, vec![field_rx.clone()]);
-        //         if let Some(step_id) = filter_channel_step {
-        //             plan.get_step_channel(step_id).filter_channel.as_mut().unwrap().num_receivers += 1;
-        //             channel.filter_receiver = Some(plan.get_step_channel(step_id).filter_channel.as_mut().unwrap().filter_receiver.clone());
-        //         }
-        //         if is_filter_channel {
-        //             channel.filter_channel = Some(FilterChannel::default());
-        //         }
-        //         let token_to_anchor_step = ResolveTokenIdToAnchor {
-        //             request: request_part.clone(),
-        //             channel,
-        //         };
-        //         let token_to_anchor_step_id = plan.add_step(Box::new(token_to_anchor_step));
-        //         plan.add_dependency(token_to_anchor_step_id, *id);
+                // This is the normal case, resolve field directly to anchor ids
+                let mut channel = PlanStepDataChannels::open_channel(1, vec![field_rx.clone()]);
+                if let Some(step_id) = filter_channel_step {
+                    plan.get_step_channel(step_id).filter_channel.as_mut().unwrap().num_receivers += 1;
+                    channel.filter_receiver = Some(plan.get_step_channel(step_id).filter_channel.as_mut().unwrap().filter_receiver.clone());
+                }
+                if is_filter_channel {
+                    channel.filter_channel = Some(FilterChannel::default());
+                }
+                let token_to_anchor_step = ResolveTokenIdToAnchor {
+                    request: request_part.clone(),
+                    channel,
+                };
+                let token_to_anchor_step_id = plan.add_step(Box::new(token_to_anchor_step));
+                plan.add_dependency(token_to_anchor_step_id, *id);
 
-        //         if let Some(parent_step_dependecy) = parent_step_dependecy {
-        //             plan.add_dependency(parent_step_dependecy, *id);
-        //             plan.add_dependency(parent_step_dependecy, token_to_anchor_step_id);
-        //         }
-        //         if let Some(depends_on_step) = depends_on_step {
-        //             plan.add_dependency(token_to_anchor_step_id, depends_on_step);
-        //         }
-
-
-        //         let boost_channel = PlanStepDataChannels::open_channel(1, vec![field_rx]);
-        //         let step = Box::new(BoostToAnchor {
-        //             path: paths.last().unwrap().add(VALUE_ID_TO_PARENT),
-        //             trace_info: "term hits hit to column".to_string(),
-        //             channel: boost_channel.clone(),
-        //             request: request_part.clone(),
-        //             boost: boosto[0].clone()
-        //         });
-        //         let step_id = plan.add_step(step);
-        //         if let Some(parent_step_dependecy) = parent_step_dependecy {
-        //             plan.add_dependency(parent_step_dependecy, step_id);
-        //         }
+                if let Some(parent_step_dependecy) = parent_step_dependecy {
+                    plan.add_dependency(parent_step_dependecy, *id);
+                    plan.add_dependency(parent_step_dependecy, token_to_anchor_step_id);
+                }
+                if let Some(depends_on_step) = depends_on_step {
+                    plan.add_dependency(token_to_anchor_step_id, depends_on_step);
+                }
 
 
-        //         //get boost scores and resolve to anchor
-        //         // step_id
-        //         // let mut step_id = add_step();
+                let boost_channel = PlanStepDataChannels::open_channel(1, vec![field_rx]);
+                let step = Box::new(BoostToAnchor {
+                    path: paths.last().unwrap().add(VALUE_ID_TO_PARENT),
+                    trace_info: "term hits hit to column".to_string(),
+                    channel: boost_channel.clone(),
+                    request: request_part.clone(),
+                    boost: boosto[0].clone()
+                });
+                let step_id = plan.add_step(step);
+                if let Some(parent_step_dependecy) = parent_step_dependecy {
+                    plan.add_dependency(parent_step_dependecy, step_id);
+                }
 
-        //         return token_to_anchor_step_id;
 
-        //     }
-        // }
+                //get boost scores and resolve to anchor
+                // step_id
+                // let mut step_id = add_step();
+
+                return token_to_anchor_step_id;
+
+            }
+        }
 
 
         // This is the normal case, resolve field directly to anchor ids
