@@ -25,24 +25,24 @@ impl ToFieldPath for &String {
 
 #[derive(Default, PartialEq, Eq, Clone)]
 pub struct FieldPath {
-    steps: Vec<Step>,
+    steps: Vec<FieldPathComponent>,
 }
 
 impl FieldPath {
     pub fn from_path(path: &str) -> Self {
         let steps: Vec<_> = path.split(".").map(|el| if el.ends_with("[]") { 
-            Step{path:el[0..el.len() - 2].to_string(), is_1_to_n:true}
+            FieldPathComponent{path:el[0..el.len() - 2].to_string(), is_1_to_n:true}
         } else {
-            Step{path:el.to_string(), is_1_to_n:false}
+            FieldPathComponent{path:el.to_string(), is_1_to_n:false}
         }).collect();
         FieldPath{steps}
     }
 
     pub fn to_string(&self) -> String {
-        self.steps.iter().map(|step|step.to_string()).collect::<Vec<_>>().join(".")
+        self.steps.iter().map(|sstep|sstep.to_string()).collect::<Vec<_>>().join(".")
     }
 
-    pub fn pop(&mut self) -> Option<Step> {
+    pub fn pop(&mut self) -> Option<FieldPathComponent> {
         self.steps.pop()
     }
 
@@ -73,13 +73,14 @@ impl std::fmt::Debug for FieldPath {
 }
 
 
+/// One component of a field path, e.g. fieldpath: "meanings.ger[]" has 2 fieldpath components: "meaning" and "ger[]"
 #[derive(Debug, Default, PartialEq, Eq, Clone)]
-pub struct Step {
+pub struct FieldPathComponent {
     path: String,
     is_1_to_n: bool
 }
 
-impl Step {
+impl FieldPathComponent {
     pub fn to_string(&self) -> String {
         if self.is_1_to_n {
             format!("{}[]", self.path)
@@ -103,8 +104,8 @@ pub fn steps_between_field_paths(start: &str, end:&str) -> (Vec<FieldPath>, Vec<
     end_steps.remove_stem(&start);
 
     let mut path_to_walk_up: Vec<FieldPath> = vec![];
-    while let Some(step) = end_steps.pop() {
-        start.steps.push(step);
+    while let Some(sdtep) = end_steps.pop() {
+        start.steps.push(sdtep);
         path_to_walk_up.push(start.clone());
     }
 

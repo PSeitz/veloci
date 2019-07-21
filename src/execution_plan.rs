@@ -351,17 +351,26 @@ impl PlanStepTrait for BoostToAnchor {
         let mut field_result = self.channel.input_prev_steps[0].recv().map_err(|_| VelociError::PlanExecutionRecvFailed)?;
         let path = &self.request.path;
 
+        dbg!(&"field_result**************************************************************************************");
+        dbg!(&field_result);
+        dbg!(&"field_result**************************************************************************************");
         //now finding steps to boost
 
         // let mut path_to_walk_down = vec![];
 
-        let (walk_down, walk_up) = steps_between_field_paths(&self.path, &self.boost.path);
+        let (walk_down, walk_up) = steps_between_field_paths(&path, &self.boost.path);
 
         //valueid to parent
 
-        // for step in &walk_down {
-        //     field_result = join_to_parent_ids(persistence, &field_result, step, "_trace_time_info: &str")?;
-        // }
+        let token_to_text_id = persistence.get_valueid_to_parent(path.add(TEXTINDEX).add(TOKENS_TO_TEXT_ID))?;
+
+        for step in &walk_down {
+            let step = step.to_string().add(VALUE_ID_TO_PARENT);
+            // dbg!(&field_result);
+            field_result = join_to_parent_ids(persistence, &field_result, &step, "_trace_time_info: &str")?;
+        }
+
+        // dbg!(field_result);
         // let mut field_result = join_to_parent_ids(persistence, &field_result, "path: &str", "_trace_time_info: &str")?;
 
 
