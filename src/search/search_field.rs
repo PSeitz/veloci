@@ -634,6 +634,7 @@ pub fn resolve_token_hits_to_text_id_ids_only(
         result.hits_ids = token_hits;
 
     }
+    result.hits_scores = vec![];
 
     trace!("{} hits with tokens: {:?}", path, result.hits_scores);
     Ok(())

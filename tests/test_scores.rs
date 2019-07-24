@@ -102,17 +102,12 @@ fn check_score_regarding_to_length() {
 #[test]
 fn check_score_boost() {
     let params = serde_json:: json!({
-    "search_term": "schauen",
+        "search_term": "schauen",
+        "fields": ["meanings.ger[].text"],
         "top": 3,
         "skip": 0,
-        "explain": true,
         "why_found": true,
         "boost_queries": [
-          {
-            "path": "commonness",
-            "boost_fun": "Log10",
-            "param": 10
-          },
           {
             "path": "meanings.ger[].boost",
             "boost_fun": "Log10",
@@ -131,3 +126,36 @@ fn check_score_boost() {
 //     assert_eq!(res.data[1].doc["title"], "greg tagebuch"); //hits 2 tokens and phrases
 //     assert_eq!(res.data[2].doc["title"], "and some some text 05 this is not relevant let tagebuch greg"); //hits 3 tokens but no phrases
 }
+
+// #[test]
+// fn check_score_boost() {
+//     let params = serde_json:: json!({
+//     "search_term": "schauen",
+//         "top": 3,
+//         "skip": 0,
+//         "explain": true,
+//         "why_found": true,
+//         "boost_queries": [
+//           {
+//             "path": "commonness",
+//             "boost_fun": "Log10",
+//             "param": 10
+//           },
+//           {
+//             "path": "meanings.ger[].boost",
+//             "boost_fun": "Log10",
+//             "param": 10
+//           }
+//         ],
+//         "boost_fields": {
+//             "meanings.ger[].text": 2.0
+//         }
+//     });
+
+//     let params = serde_json::from_value(params).unwrap();
+//     let res = search_testo_to_doco_qp!(params).data;
+//     println!("{:?}", res);
+//     // assert_eq!(res[0].hit.score, 10.0); //hits 3 tokens and phrases
+// //     assert_eq!(res.data[1].doc["title"], "greg tagebuch"); //hits 2 tokens and phrases
+// //     assert_eq!(res.data[2].doc["title"], "and some some text 05 this is not relevant let tagebuch greg"); //hits 3 tokens but no phrases
+// }

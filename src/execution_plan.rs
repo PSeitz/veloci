@@ -349,7 +349,6 @@ impl PlanStepTrait for BoostToAnchor {
 
     fn execute_step(self: Box<Self>, persistence: &Persistence) -> Result<(), VelociError> {
         let mut field_result = self.channel.input_prev_steps[0].recv().map_err(|_| VelociError::PlanExecutionRecvFailed)?;
-        let path = &self.request.path;
 
         dbg!(&"field_result**************************************************************************************");
         dbg!(&field_result);
@@ -358,17 +357,35 @@ impl PlanStepTrait for BoostToAnchor {
 
         // let mut path_to_walk_down = vec![];
 
-        let (walk_down, walk_up) = steps_between_field_paths(&path, &self.boost.path);
+        //TODO EXPLAIN INFO NOT RESPECTED IN THIS METHOD
+        resolve_token_hits_to_text_id_ids_only(persistence, &self.request, &mut field_result)?;
+
+        dbg!(&"field_result2**************************************************************************************");
+        dbg!(&field_result);
+        dbg!(&"field_result2**************************************************************************************");
+
+        let (walk_down, walk_up) = steps_between_field_paths(&self.request.path, &self.boost.path);
 
         //valueid to parent
+        let text_index_ids_to_value_ids = self.request.path.add(TEXTINDEX).add(VALUE_ID_TO_PARENT);
+        field_result = join_to_parent_ids(persistence, &field_result, &text_index_ids_to_value_ids, "_trace_time_info: &str")?;
 
-        let token_to_text_id = persistence.get_valueid_to_parent(path.add(TEXTINDEX).add(TOKENS_TO_TEXT_ID))?;
-
+        // let token_to_text_id = persistence.get_valueid_to_parent(path)?;
+        dbg!(self.request.path);
         for step in &walk_down {
             let step = step.to_string().add(VALUE_ID_TO_PARENT);
-            // dbg!(&field_result);
+            dbg!(&step);
             field_result = join_to_parent_ids(persistence, &field_result, &step, "_trace_time_info: &str")?;
+            dbg!(&field_result.hits_ids);
         }
+
+
+        // dbg!(self.boost);
+        // dbg!(path);
+        // panic!("{:?}", walk_up);
+
+        // let mut field_result = join_to_parent_ids(persistence, &field_result, "path: &str", "_trace_time_info: &str");
+        panic!("{:?}", field_result.hits_ids);
 
         // dbg!(field_result);
         // let mut field_result = join_to_parent_ids(persistence, &field_result, "path: &str", "_trace_time_info: &str")?;
@@ -386,13 +403,6 @@ impl PlanStepTrait for BoostToAnchor {
         // }
 
         // dbg!(path_to_walk_down);
-        dbg!(self.boost);
-        dbg!(path);
-        panic!("{:?}", walk_up);
-
-        resolve_token_hits_to_text_id_ids_only(persistence, &self.request, &mut field_result)?;
-        // let mut field_result = join_to_parent_ids(persistence, &field_result, "path: &str", "_trace_time_info: &str");
-        panic!("{:?}", field_result.hits_ids);
         // send_result_to_channel(
         //     join_to_parent_with_score(
         //         persistence,
