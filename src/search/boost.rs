@@ -287,6 +287,22 @@ fn boost_intersect_hits_vec_test_multi() {
     assert_eq!(res.hits_scores, vec![Hit::new(0, 40.0), Hit::new(5, 20.0), Hit::new(10, 160.0), Hit::new(60, 40.0)]);
 }
 
+pub(crate)  fn get_boost_ids(persistence: &Persistence, path: &str, hits: &mut SearchFieldResult) -> Result<(), VelociError> {
+    let boost_path = path.add(BOOST_VALID_TO_VALUE);
+    let boostkv_store = persistence.get_boost(&boost_path)?;
+
+    let mut boost_vals = vec![];
+    for value_id in &mut hits.hits_ids {
+        let val_opt = boostkv_store.get_value(u64::from(*value_id));
+
+        if let Some(boost_value) = val_opt.as_ref() {
+            boost_vals.push((*value_id, *boost_value));
+        }
+    }
+
+    Ok(())
+
+}
 
 pub(crate)  fn add_boost(persistence: &Persistence, boost: &RequestBoostPart, hits: &mut SearchFieldResult) -> Result<(), VelociError> {
     // let key = util::boost_path(&boost.path);

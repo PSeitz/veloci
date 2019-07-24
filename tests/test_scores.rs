@@ -100,7 +100,7 @@ fn check_score_regarding_to_length() {
 // }
 
 #[test]
-fn check_score_boost() {
+fn check_score_boost_relative_field() {
     let params = serde_json:: json!({
         "search_term": "schauen",
         "fields": ["meanings.ger[].text"],

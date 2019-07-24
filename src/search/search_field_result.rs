@@ -13,6 +13,8 @@ pub struct SearchFieldResult {
     pub hits_scores: Vec<search::Hit>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub hits_ids: Vec<TermId>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub boost_ids: Vec<(TermId, BoostVal)>,
     #[serde(skip_serializing_if = "FnvHashMap::is_empty")]
     pub terms: FnvHashMap<TermId, String>,
     #[serde(skip_serializing_if = "FnvHashMap::is_empty")]

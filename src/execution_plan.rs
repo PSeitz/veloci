@@ -364,19 +364,36 @@ impl PlanStepTrait for BoostToAnchor {
         dbg!(&field_result);
         dbg!(&"field_result2**************************************************************************************");
 
-        let (walk_down, walk_up) = steps_between_field_paths(&self.request.path, &self.boost.path);
+        let (walk_down, mut walk_up) = steps_between_field_paths(&self.request.path, &self.boost.path);
 
         //valueid to parent
         let text_index_ids_to_value_ids = self.request.path.add(TEXTINDEX).add(VALUE_ID_TO_PARENT);
-        field_result = join_to_parent_ids(persistence, &field_result, &text_index_ids_to_value_ids, "_trace_time_info: &str")?;
+        field_result = join_to_parent_ids(persistence, &field_result, &text_index_ids_to_value_ids, "boost: textindex to value id")?;
 
         // let token_to_text_id = persistence.get_valueid_to_parent(path)?;
         dbg!(self.request.path);
         for step in &walk_down {
             let step = step.to_string().add(VALUE_ID_TO_PARENT);
             dbg!(&step);
+            field_result = join_to_parent_ids(persistence, &field_result, &step, "boost: valueid to parent")?;
+            dbg!(&field_result.hits_ids);
+        }
+
+
+        let step = walk_down.last().unwrap().to_string().add(PARENT_TO_VALUE_ID);
+        dbg!(&step);
+        field_result = join_to_parent_ids(persistence, &field_result, &step, "boost: valueid to parent")?;
+        dbg!(&field_result.hits_ids);
+
+        for step in &walk_up {
+            let step = step.to_string().add(PARENT_TO_VALUE_ID);
+            dbg!(&step);
             field_result = join_to_parent_ids(persistence, &field_result, &step, "_trace_time_info: &str")?;
             dbg!(&field_result.hits_ids);
+        }
+
+                if let Some(last_step) = walk_up.pop() {
+            unimplemented!();
         }
 
 
