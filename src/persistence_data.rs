@@ -242,6 +242,10 @@ impl<T: IndexIdToParentData, K: IndexIdToParentData> TypeInfo for SingleArrayIM<
 impl<T: IndexIdToParentData, K: IndexIdToParentData> IndexIdToParent for SingleArrayIM<T, K> {
     type Output = T;
 
+    fn get_index_meta_data(&self) -> &IndexValuesMetadata{
+        &self.metadata
+    }
+
     #[inline]
     fn count_values_for_ids(&self, ids: &[u32], top: Option<u32>) -> FnvHashMap<T, usize> {
         count_values_for_ids(ids, top, self.metadata.avg_join_size, self.metadata.max_value_id, |id: u64| self.get_value(id))
@@ -351,6 +355,9 @@ impl<T: IndexIdToParentData> IndexIdToParent for SingleArrayMMAPPacked<T> {
     // default fn get_num_keys(&self) -> usize {
     //     self.get_size()
     // }
+    fn get_index_meta_data(&self) -> &IndexValuesMetadata{
+        &self.metadata
+    }
 
     #[inline]
     default fn get_values(&self, id: u64) -> Option<Vec<T>> {

@@ -235,6 +235,10 @@ impl<T: IndexIdToParentData> IndexIdToMultipleParentIndirect<T> {
 impl<T: IndexIdToParentData> IndexIdToParent for IndexIdToMultipleParentIndirect<T> {
     type Output = T;
 
+    fn get_index_meta_data(&self) -> &IndexValuesMetadata{
+        &self.metadata
+    }
+
     #[inline]
     fn count_values_for_ids(&self, ids: &[u32], top: Option<u32>) -> FnvHashMap<T, usize> {
         if should_prefer_vec(ids.len() as u32, self.metadata.avg_join_size, self.metadata.max_value_id) {
@@ -341,6 +345,10 @@ impl<T: IndexIdToParentData> IndexIdToParent for PointingMMAPFileReader<T> {
     // fn get_keys(&self) -> Vec<T> {
     //     (num::cast(0).unwrap()..num::cast(self.get_size()).unwrap()).collect()
     // }
+
+    fn get_index_meta_data(&self) -> &IndexValuesMetadata{
+        &self.metadata
+    }
 
     fn get_values_iter(&self, id: u64) -> VintArrayIteratorOpt<'_> {
         if id >= self.get_size() as u64 {

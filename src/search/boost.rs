@@ -291,14 +291,17 @@ pub(crate)  fn get_boost_ids(persistence: &Persistence, path: &str, hits: &mut S
     let boost_path = path.add(BOOST_VALID_TO_VALUE);
     let boostkv_store = persistence.get_boost(&boost_path)?;
 
-    let mut boost_vals = vec![];
+    // trace_index_id_to_parent(boostkv_store);
+
     for value_id in &mut hits.hits_ids {
         let val_opt = boostkv_store.get_value(u64::from(*value_id));
 
         if let Some(boost_value) = val_opt.as_ref() {
-            boost_vals.push((*value_id, *boost_value));
+            hits.boost_ids.push((*value_id, *boost_value));
         }
     }
+
+    hits.hits_ids = vec![];
 
     Ok(())
 

@@ -3,6 +3,7 @@ use crate::error::*;
 use crate::persistence::Persistence;
 use crate::persistence::*;
 use crate::search::*;
+use crate::search::boost::*;
 use crate::util;
 use crate::util::StringAdd;
 use std::fmt::Debug;
@@ -385,16 +386,25 @@ impl PlanStepTrait for BoostToAnchor {
         field_result = join_to_parent_ids(persistence, &field_result, &step, "boost: valueid to parent")?;
         dbg!(&field_result.hits_ids);
 
-        for step in &walk_up {
-            let step = step.to_string().add(PARENT_TO_VALUE_ID);
-            dbg!(&step);
-            field_result = join_to_parent_ids(persistence, &field_result, &step, "_trace_time_info: &str")?;
-            dbg!(&field_result.hits_ids);
+
+        if let Some((last, walk_up)) = walk_up.split_last() {
+            for step in walk_up {
+                let step = step.to_string().add(PARENT_TO_VALUE_ID);
+                dbg!(&step);
+                field_result = join_to_parent_ids(persistence, &field_result, &step, "_trace_time_info: &str")?;
+                dbg!(&field_result.hits_ids);
+            }
+
+            // let step = last.to_string().add(BOOST_VALID_TO_VALUE);
+            boost::get_boost_ids(persistence, &last.to_string(), &mut field_result)?;
+            dbg!(&field_result.boost_ids);
         }
 
-                if let Some(last_step) = walk_up.pop() {
-            unimplemented!();
-        }
+        // // BOOST_VALID_TO_VALUE
+        // if let Some(last_step) = walk_up.pop() {
+        //     let step = step.to_string().add(PARENT_TO_VALUE_ID);
+        //     step
+        // }
 
 
         // dbg!(self.boost);

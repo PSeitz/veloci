@@ -193,6 +193,8 @@ pub trait IndexIdToParent: Debug + Sync + Send + type_info::TypeInfo {
         unimplemented!()
     }
 
+    fn get_index_meta_data(&self) -> &IndexValuesMetadata;
+
     fn get_values(&self, id: u64) -> Option<Vec<Self::Output>>;
 
     #[inline]
@@ -272,15 +274,16 @@ pub trait IndexIdToParent: Debug + Sync + Send + type_info::TypeInfo {
 //     }
 // }
 
-pub fn trace_index_id_to_parent<T: IndexIdToParentData>(_val: &dyn IndexIdToParent<Output = T>) {
+pub fn trace_index_id_to_parent<T: IndexIdToParentData>(val: &dyn IndexIdToParent<Output = T>) {
     if log_enabled!(log::Level::Trace) {
+        let meta = val.get_index_meta_data();
         // let keys = val.get_keys();
-        // for key in keys.iter().take(100) {
-        //     if let Some(vals) = val.get_values(num::cast(*key).unwrap()) {
-        //         let to = std::cmp::min(vals.len(), 100);
-        //         trace!("key {:?} to {:?}", key, &vals[0..to]);
-        //     }
-        // }
+        for key in [0;100].iter().enumerate().map(|(i, _el)|i).take(meta.num_ids as usize) {
+            if let Some(vals) = val.get_values(num::cast(key).unwrap()) {
+                let to = std::cmp::min(vals.len(), 100);
+                trace!("key {:?} to {:?}", key, &vals[0..to]);
+            }
+        }
     }
 }
 

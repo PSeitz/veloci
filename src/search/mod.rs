@@ -2,7 +2,7 @@ pub mod search_field;
 pub mod search_field_result;
 pub mod stopwords;
 mod set_op;
-mod boost;
+pub(crate) mod boost;
 
 pub use self::search_field::*;
 pub use self::set_op::*;
