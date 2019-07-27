@@ -287,7 +287,7 @@ fn boost_intersect_hits_vec_test_multi() {
     assert_eq!(res.hits_scores, vec![Hit::new(0, 40.0), Hit::new(5, 20.0), Hit::new(10, 160.0), Hit::new(60, 40.0)]);
 }
 
-pub(crate)  fn get_boost_ids(persistence: &Persistence, path: &str, hits: &mut SearchFieldResult) -> Result<(), VelociError> {
+pub(crate)  fn get_boost_ids_and_resolve_to_anchor(persistence: &Persistence, path: &str, hits: &mut SearchFieldResult) -> Result<(), VelociError> {
     let boost_path = path.add(BOOST_VALID_TO_VALUE);
     let boostkv_store = persistence.get_boost(&boost_path)?;
 
@@ -302,6 +302,21 @@ pub(crate)  fn get_boost_ids(persistence: &Persistence, path: &str, hits: &mut S
     }
 
     hits.hits_ids = vec![];
+
+    // resolve to anchor
+    let mut data = vec![];
+    let kv_store = persistence.get_valueid_to_parent(&path.add(VALUE_ID_TO_ANCHOR))?; //TODO should be get_kv_store
+    for boost_pair in &mut hits.boost_ids {
+        let val_opt = kv_store.get_value(u64::from(boost_pair.0));
+
+        if let Some(anchor_id) = val_opt.as_ref() {
+            data.push((*anchor_id, boost_pair.1));
+        }else{
+            // can this happen: value_id without anchro id. I think not
+        }
+    }
+
+    hits.boost_ids = data;
 
     Ok(())
 

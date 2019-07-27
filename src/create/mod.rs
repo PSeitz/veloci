@@ -390,7 +390,10 @@ struct PathData {
     text_id_to_token_ids: Option<Box<BufferedTextIdToTokenIdsData>>,
     text_id_to_parent: Option<Box<BufferedIndexWriter>>,
 
-    parent_to_text_id: Option<Box<BufferedIndexWriter>>, //Used to recreate objects, keep oder
+    /// Used to recreate objects, keep oder
+    parent_to_text_id: Option<Box<BufferedIndexWriter>>, 
+    /// Used to recreate objects, keep oder
+    value_id_to_anchor: Option<Box<BufferedIndexWriter>>,
     text_id_to_anchor: Option<Box<BufferedIndexWriter>>,
     anchor_to_text_id: Option<Box<BufferedIndexWriter>>,
     boost: Option<Box<BufferedIndexWriter>>,
@@ -440,6 +443,12 @@ fn prepare_path_data(temp_dir: &str, persistence: &Persistence, fields_config: &
     let field_config = fields_config.get(path);
     let boost_info_data = if field_config.boost.is_some() {
         Some(Box::new(BufferedIndexWriter::new_for_sorted_id_insertion(temp_dir.to_string())))
+    } else {
+        None
+    };
+    // prepare direct access to resolve boost values directly to anchor
+    let value_id_to_anchor = if field_config.boost.is_some() {
+        Some(Box::new(BufferedIndexWriter::<u32, u32>::new_for_sorted_id_insertion(temp_dir.to_string())))
     } else {
         None
     };
@@ -498,6 +507,7 @@ fn prepare_path_data(temp_dir: &str, persistence: &Persistence, fields_config: &
     PathData {
         anchor_to_text_id,
         boost: boost_info_data,
+        value_id_to_anchor,
         // parent_id is monotonically increasing, hint buffered index writer, it's already sorted
         parent_to_text_id,
         token_to_anchor_id_score,
@@ -591,6 +601,9 @@ where
                 // if options.boost_type == "int" {
                 let my_int = value.parse::<u32>().unwrap_or_else(|_| panic!("Expected an int value but got {:?}", value));
                 el.add(parent_val_id, my_int)?;
+            }
+            if let Some(el) = data.value_id_to_anchor.as_mut() {
+                el.add(parent_val_id, anchor_id)?;
             }
 
             if let Some(el) = data.token_to_anchor_id_score.as_mut() {
@@ -1046,6 +1059,18 @@ fn convert_raw_path_data_to_indices(
                     path.add(VALUE_ID_TO_PARENT),
                     *text_id_to_parent,
                     false, // valueIdToParent relation is always 1 to 1, expect for text_ids, which can have multiple parents. Here we handle only text_ids therefore is this always false
+                    no_sort_and_dedup,
+                    &mut indices,
+                    LoadingType::Disk,
+                )?;
+            }
+
+            if let Some(value_id_to_anchor) = data.value_id_to_anchor {
+                add_index_flush(
+                    &path_col,
+                    path_col.add(VALUE_ID_TO_ANCHOR),
+                    *value_id_to_anchor,
+                    false,
                     no_sort_and_dedup,
                     &mut indices,
                     LoadingType::Disk,

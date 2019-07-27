@@ -395,8 +395,7 @@ impl PlanStepTrait for BoostToAnchor {
                 dbg!(&field_result.hits_ids);
             }
 
-            // let step = last.to_string().add(BOOST_VALID_TO_VALUE);
-            boost::get_boost_ids(persistence, &last.to_string(), &mut field_result)?;
+            boost::get_boost_ids_and_resolve_to_anchor(persistence, &last.to_string(), &mut field_result)?;
             dbg!(&field_result.boost_ids);
         }
 
