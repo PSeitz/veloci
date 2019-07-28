@@ -192,6 +192,8 @@ pub(crate) fn apply_boost_term(persistence: &Persistence, mut res: SearchFieldRe
 }
 
 
+
+
 pub(crate) fn apply_boost_from_iter(mut results: SearchFieldResult, mut boost_iter: &mut dyn Iterator<Item = Hit>) -> SearchFieldResult {
     let mut explain = FnvHashMap::default();
     mem::swap(&mut explain, &mut results.explain);
@@ -233,6 +235,120 @@ pub(crate) fn apply_boost_from_iter(mut results: SearchFieldResult, mut boost_it
     mem::swap(&mut explain, &mut results.explain);
     results
 }
+
+
+pub(crate) fn apply_boost_values_anchor(results: &mut SearchFieldResult, boost: &RequestBoostPart, mut boost_iter: &mut dyn Iterator<Item = Hit>) -> Result<(), VelociError> {
+    let boost_param = boost.param.map(|el| el.into_inner()).unwrap_or(0.0);
+    let expre = boost.expression.as_ref().map(|expression| ScoreExpression::new(expression.clone()));
+    let mut explain = if results.request.explain {
+        Some(&mut results.explain)
+    }else{
+        None
+    };
+    {
+        if let Some(yep) = boost_iter.next() {
+            let mut hit_curr = yep;
+            for hit in &mut results.hits_scores {
+
+                if hit_curr.id < hit.id {
+                    for b_hit in &mut boost_iter {
+                        if b_hit.id > hit.id {
+                            hit_curr = b_hit.clone();
+                            break;
+                        } else if b_hit.id == hit.id {
+                            hit_curr = b_hit.clone();
+                            apply_boost(hit, b_hit.score, boost_param, &boost.boost_fun, &mut explain, &expre)?;
+                        }
+                    }
+                } else if hit_curr.id == hit.id {
+                    apply_boost(hit, hit_curr.score, boost_param, &boost.boost_fun, &mut explain, &expre)?;
+                }
+            }
+        }
+    }
+
+    Ok(())
+}
+
+pub(crate)  fn apply_boost(hit:&mut Hit, boost_value:f32, boost_param:f32, boost_fun: &Option<BoostFunction>, explain: &mut Option<&mut FnvHashMap<u32, Vec<Explain>>>, expre: &Option<ScoreExpression>) -> Result<(), VelociError> {
+    match boost_fun {
+        Some(BoostFunction::Log10) => {
+            // if hits.request.explain {
+            //     let entry = hits.explain.entry(value_id).or_insert_with(|| vec![]);
+            //     entry.push(Explain::Boost((boost_value as f32 + boost_param).log10()));
+            // }
+            if let Some(explain) = explain {
+                let entry = explain.entry(hit.id).or_insert_with(|| vec![]);
+                entry.push(Explain::Boost((boost_value + boost_param).log10()));
+            }
+            trace!(
+                "Log10 boosting hit.id {:?} score {:?} to {:?} -- token_value {:?} boost_value {:?}",
+                hit.id,
+                hit.score,
+                hit.score * boost_value + boost_param,
+                boost_value,
+                (boost_value + boost_param).log10(),
+            );
+            hit.score *= (boost_value + boost_param).log10();
+        }
+        Some(BoostFunction::Log2) => {
+            trace!(
+                "Log2 boosting hit.id {:?} hit.score {:?} to {:?} -- token_value {:?} boost_value {:?}",
+                hit.id,
+                hit.score,
+                hit.score * boost_value + boost_param,
+                boost_value,
+                (boost_value + boost_param).log2(),
+            );
+            hit.score *= (boost_value + boost_param).log2();
+        }
+        Some(BoostFunction::Linear) => {
+            trace!(
+                "Linear boosting hit.id {:?} hit.score {:?} to {:?} -- token_value {:?} boost_value {:?}",
+                hit.id,
+                hit.score,
+                hit.score + (boost_value + boost_param),
+                boost_value,
+                (boost_value + boost_param)
+            );
+            hit.score *= boost_value + boost_param;
+        }
+        Some(BoostFunction::Add) => {
+            trace!(
+                "boosting hit.id {:?} hit.score {:?} to {:?} -- token_value {:?} boost_value {:?}",
+                hit.id,
+                hit.score,
+                hit.score + (boost_value + boost_param),
+                boost_value,
+                (boost_value + boost_param)
+            );
+            hit.score += boost_value + boost_param;
+        }
+        None => {}
+    }
+    if let Some(exp) = expre.as_ref() {
+        let prev_score = hit.score;
+        hit.score += exp.get_score(boost_value);
+        trace!(
+            "boost {:?} to {:?} with boost_fun({:?})={:?}",
+            prev_score,
+            hit.score,
+            boost_value,
+            exp.get_score(boost_value)
+        );
+    }
+
+    debug_assert!(hit.score != std::f32::NAN);
+    debug_assert!(hit.score != std::f32::INFINITY);
+    if let Some(explain) = explain {
+        let data = explain.entry(hit.id).or_insert_with(|| vec![]);
+        // data.push(format!("boost {:?}", b_hit.score));
+        data.push(Explain::Boost(hit.score));
+    }
+
+    Ok(())
+}
+
 
 /// applies the boost values from the boostparts to the result
 pub(crate)  fn boost_hits_ids_vec_multi(mut results: SearchFieldResult, boost: &mut Vec<SearchFieldResult>) -> SearchFieldResult {
@@ -297,7 +413,7 @@ pub(crate)  fn get_boost_ids_and_resolve_to_anchor(persistence: &Persistence, pa
         let val_opt = boostkv_store.get_value(u64::from(*value_id));
 
         if let Some(boost_value) = val_opt.as_ref() {
-            hits.boost_ids.push((*value_id, *boost_value));
+            hits.boost_ids.push(Hit::new(*value_id, *boost_value as f32));
         }
     }
 
@@ -307,10 +423,10 @@ pub(crate)  fn get_boost_ids_and_resolve_to_anchor(persistence: &Persistence, pa
     let mut data = vec![];
     let kv_store = persistence.get_valueid_to_parent(&path.add(VALUE_ID_TO_ANCHOR))?; //TODO should be get_kv_store
     for boost_pair in &mut hits.boost_ids {
-        let val_opt = kv_store.get_value(u64::from(boost_pair.0));
+        let val_opt = kv_store.get_value(u64::from(boost_pair.id));
 
         if let Some(anchor_id) = val_opt.as_ref() {
-            data.push((*anchor_id, boost_pair.1));
+            data.push(Hit::new(*anchor_id, boost_pair.score));
         }else{
             // can this happen: value_id without anchro id. I think not
         }
@@ -321,6 +437,7 @@ pub(crate)  fn get_boost_ids_and_resolve_to_anchor(persistence: &Persistence, pa
     Ok(())
 
 }
+
 
 pub(crate)  fn add_boost(persistence: &Persistence, boost: &RequestBoostPart, hits: &mut SearchFieldResult) -> Result<(), VelociError> {
     // let key = util::boost_path(&boost.path);
@@ -335,85 +452,93 @@ pub(crate)  fn add_boost(persistence: &Persistence, boost: &RequestBoostPart, hi
         .as_ref()
         .map(|vecco| vecco.iter().map(|el| el.into_inner()).collect())
         .unwrap_or(default);
+
+    let mut explain = if hits.request.explain {
+        Some(&mut hits.explain)
+    }else{
+        None
+    };
     for hit in &mut hits.hits_scores {
         if !skip_when_score.is_empty() && skip_when_score.iter().any(|x| (*x - hit.score).abs() < 0.00001) {
             // float comparisons should usually include a error margin
             continue;
         }
-        let value_id = &hit.id;
-        let score = &mut hit.score;
+        // let value_id = &hit.id;
+        // let score = &mut hit.score;
         // let ref vals_opt = boostkv_store.get(*value_id as usize);
-        let val_opt = &boostkv_store.get_value(u64::from(*value_id));
+        let val_opt = &boostkv_store.get_value(u64::from(hit.id));
 
         if let Some(boost_value) = val_opt.as_ref() {
-            debug!("Found in boosting for value_id {:?}: {:?}", value_id, val_opt);
-            let boost_value = *boost_value;
-            match boost.boost_fun {
-                Some(BoostFunction::Log10) => {
-                    if hits.request.explain {
-                        let entry = hits.explain.entry(*value_id).or_insert_with(|| vec![]);
-                        entry.push(Explain::Boost((boost_value as f32 + boost_param).log10()));
-                    }
-                    trace!(
-                        "Log10 boosting value_id {:?} score {:?} to {:?} -- token_value {:?} boost_value {:?}",
-                        *value_id,
-                        score,
-                        *score * boost_value as f32 + boost_param,
-                        boost_value,
-                        (boost_value as f32 + boost_param).log10(),
-                    );
-                    *score *= (boost_value as f32 + boost_param).log10();
-                }
-                Some(BoostFunction::Log2) => {
-                    trace!(
-                        "Log2 boosting value_id {:?} score {:?} to {:?} -- token_value {:?} boost_value {:?}",
-                        *value_id,
-                        score,
-                        *score * boost_value as f32 + boost_param,
-                        boost_value,
-                        (boost_value as f32 + boost_param).log2(),
-                    );
-                    *score *= (boost_value as f32 + boost_param).log2();
-                }
-                Some(BoostFunction::Linear) => {
-                    trace!(
-                        "Linear boosting value_id {:?} score {:?} to {:?} -- token_value {:?} boost_value {:?}",
-                        *value_id,
-                        score,
-                        *score + (boost_value as f32 + boost_param),
-                        boost_value,
-                        (boost_value as f32 + boost_param)
-                    );
-                    *score *= boost_value as f32 + boost_param;
-                }
-                Some(BoostFunction::Add) => {
-                    trace!(
-                        "boosting value_id {:?} score {:?} to {:?} -- token_value {:?} boost_value {:?}",
-                        *value_id,
-                        score,
-                        *score + (boost_value as f32 + boost_param),
-                        boost_value,
-                        (boost_value as f32 + boost_param)
-                    );
-                    *score += boost_value as f32 + boost_param;
-                }
-                None => {}
-            }
-            if let Some(exp) = expre.as_ref() {
-                let prev_score = *score;
-                *score += exp.get_score(boost_value as f32);
-                trace!(
-                    "boost {:?} to {:?} with boost_fun({:?})={:?}",
-                    prev_score,
-                    score,
-                    boost_value,
-                    exp.get_score(boost_value as f32)
-                );
-            }
+            debug!("Found in boosting for value_id {:?}: {:?}", hit.id, val_opt);
+            let boost_value = *boost_value as f32;
+
+            apply_boost(hit, boost_value, boost_param, &boost.boost_fun, &mut explain, &expre)?;
+            // match boost.boost_fun {
+            //     Some(BoostFunction::Log10) => {
+            //         if hits.request.explain {
+            //             let entry = hits.explain.entry(*value_id).or_insert_with(|| vec![]);
+            //             entry.push(Explain::Boost((boost_value as f32 + boost_param).log10()));
+            //         }
+            //         trace!(
+            //             "Log10 boosting value_id {:?} score {:?} to {:?} -- token_value {:?} boost_value {:?}",
+            //             *value_id,
+            //             score,
+            //             *score * boost_value as f32 + boost_param,
+            //             boost_value,
+            //             (boost_value as f32 + boost_param).log10(),
+            //         );
+            //         *score *= (boost_value as f32 + boost_param).log10();
+            //     }
+            //     Some(BoostFunction::Log2) => {
+            //         trace!(
+            //             "Log2 boosting value_id {:?} score {:?} to {:?} -- token_value {:?} boost_value {:?}",
+            //             *value_id,
+            //             score,
+            //             *score * boost_value as f32 + boost_param,
+            //             boost_value,
+            //             (boost_value as f32 + boost_param).log2(),
+            //         );
+            //         *score *= (boost_value as f32 + boost_param).log2();
+            //     }
+            //     Some(BoostFunction::Linear) => {
+            //         trace!(
+            //             "Linear boosting value_id {:?} score {:?} to {:?} -- token_value {:?} boost_value {:?}",
+            //             *value_id,
+            //             score,
+            //             *score + (boost_value as f32 + boost_param),
+            //             boost_value,
+            //             (boost_value as f32 + boost_param)
+            //         );
+            //         *score *= boost_value as f32 + boost_param;
+            //     }
+            //     Some(BoostFunction::Add) => {
+            //         trace!(
+            //             "boosting value_id {:?} score {:?} to {:?} -- token_value {:?} boost_value {:?}",
+            //             *value_id,
+            //             score,
+            //             *score + (boost_value as f32 + boost_param),
+            //             boost_value,
+            //             (boost_value as f32 + boost_param)
+            //         );
+            //         *score += boost_value as f32 + boost_param;
+            //     }
+            //     None => {}
+            // }
+            // if let Some(exp) = expre.as_ref() {
+            //     let prev_score = *score;
+            //     *score += exp.get_score(boost_value as f32);
+            //     trace!(
+            //         "boost {:?} to {:?} with boost_fun({:?})={:?}",
+            //         prev_score,
+            //         score,
+            //         boost_value,
+            //         exp.get_score(boost_value as f32)
+            //     );
+            // }
         }
 
-        debug_assert!(*score != std::f32::NAN);
-        debug_assert!(*score != std::f32::INFINITY);
+        debug_assert!(hit.score != std::f32::NAN);
+        debug_assert!(hit.score != std::f32::INFINITY);
     }
     Ok(())
 }

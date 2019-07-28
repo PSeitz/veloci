@@ -49,7 +49,7 @@ pub enum Explain {
 
 pub type TermId = u32;
 pub type Score = f32;
-pub type BoostVal = u32;
+pub type BoostVal = f32;
 
 fn get_default_score_for_distance(distance: u8, prefix_matches: bool) -> f32 {
     if prefix_matches {
