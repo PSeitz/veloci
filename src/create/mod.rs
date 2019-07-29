@@ -391,7 +391,7 @@ struct PathData {
     text_id_to_parent: Option<Box<BufferedIndexWriter>>,
 
     /// Used to recreate objects, keep oder
-    parent_to_text_id: Option<Box<BufferedIndexWriter>>, 
+    parent_to_text_id: Option<Box<BufferedIndexWriter>>,
     /// Used to recreate objects, keep oder
     value_id_to_anchor: Option<Box<BufferedIndexWriter>>,
     text_id_to_anchor: Option<Box<BufferedIndexWriter>>,

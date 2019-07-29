@@ -236,6 +236,21 @@ pub(crate) fn apply_boost_from_iter(mut results: SearchFieldResult, mut boost_it
     results
 }
 
+#[test]
+fn test_apply_boost_from_iter() {
+    let boost_req= RequestBoostPart {
+        boost_fun: Some(BoostFunction::Linear),
+        ..Default::default()
+    };
+    let mut res = SearchFieldResult::default();
+    res.hits_scores = vec![Hit::new(1,10.0), Hit::new(3,20.0), Hit::new(5,20.0)];
+    let mut boost_values = SearchFieldResult::default();
+    boost_values.boost_ids = vec![Hit::new(1,2.0), Hit::new(2,20.0), Hit::new(5,3.0), Hit::new(6,3.0)];
+
+    apply_boost_values_anchor(&mut res, &boost_req, &mut boost_values.boost_ids.into_iter()).unwrap();
+
+    assert_eq!(res.hits_scores, vec![Hit::new(1,20.0), Hit::new(3,20.0), Hit::new(5,60.0)]);
+}
 
 pub(crate) fn apply_boost_values_anchor(results: &mut SearchFieldResult, boost: &RequestBoostPart, mut boost_iter: &mut dyn Iterator<Item = Hit>) -> Result<(), VelociError> {
     let boost_param = boost.param.map(|el| el.into_inner()).unwrap_or(0.0);
@@ -342,7 +357,6 @@ pub(crate)  fn apply_boost(hit:&mut Hit, boost_value:f32, boost_param:f32, boost
     debug_assert!(hit.score != std::f32::INFINITY);
     if let Some(explain) = explain {
         let data = explain.entry(hit.id).or_insert_with(|| vec![]);
-        // data.push(format!("boost {:?}", b_hit.score));
         data.push(Explain::Boost(hit.score));
     }
 
@@ -408,7 +422,6 @@ pub(crate)  fn get_boost_ids_and_resolve_to_anchor(persistence: &Persistence, pa
     let boostkv_store = persistence.get_boost(&boost_path)?;
 
     // trace_index_id_to_parent(boostkv_store);
-
     for value_id in &mut hits.hits_ids {
         let val_opt = boostkv_store.get_value(u64::from(*value_id));
 
@@ -463,9 +476,6 @@ pub(crate)  fn add_boost(persistence: &Persistence, boost: &RequestBoostPart, hi
             // float comparisons should usually include a error margin
             continue;
         }
-        // let value_id = &hit.id;
-        // let score = &mut hit.score;
-        // let ref vals_opt = boostkv_store.get(*value_id as usize);
         let val_opt = &boostkv_store.get_value(u64::from(hit.id));
 
         if let Some(boost_value) = val_opt.as_ref() {
@@ -473,68 +483,6 @@ pub(crate)  fn add_boost(persistence: &Persistence, boost: &RequestBoostPart, hi
             let boost_value = *boost_value as f32;
 
             apply_boost(hit, boost_value, boost_param, &boost.boost_fun, &mut explain, &expre)?;
-            // match boost.boost_fun {
-            //     Some(BoostFunction::Log10) => {
-            //         if hits.request.explain {
-            //             let entry = hits.explain.entry(*value_id).or_insert_with(|| vec![]);
-            //             entry.push(Explain::Boost((boost_value as f32 + boost_param).log10()));
-            //         }
-            //         trace!(
-            //             "Log10 boosting value_id {:?} score {:?} to {:?} -- token_value {:?} boost_value {:?}",
-            //             *value_id,
-            //             score,
-            //             *score * boost_value as f32 + boost_param,
-            //             boost_value,
-            //             (boost_value as f32 + boost_param).log10(),
-            //         );
-            //         *score *= (boost_value as f32 + boost_param).log10();
-            //     }
-            //     Some(BoostFunction::Log2) => {
-            //         trace!(
-            //             "Log2 boosting value_id {:?} score {:?} to {:?} -- token_value {:?} boost_value {:?}",
-            //             *value_id,
-            //             score,
-            //             *score * boost_value as f32 + boost_param,
-            //             boost_value,
-            //             (boost_value as f32 + boost_param).log2(),
-            //         );
-            //         *score *= (boost_value as f32 + boost_param).log2();
-            //     }
-            //     Some(BoostFunction::Linear) => {
-            //         trace!(
-            //             "Linear boosting value_id {:?} score {:?} to {:?} -- token_value {:?} boost_value {:?}",
-            //             *value_id,
-            //             score,
-            //             *score + (boost_value as f32 + boost_param),
-            //             boost_value,
-            //             (boost_value as f32 + boost_param)
-            //         );
-            //         *score *= boost_value as f32 + boost_param;
-            //     }
-            //     Some(BoostFunction::Add) => {
-            //         trace!(
-            //             "boosting value_id {:?} score {:?} to {:?} -- token_value {:?} boost_value {:?}",
-            //             *value_id,
-            //             score,
-            //             *score + (boost_value as f32 + boost_param),
-            //             boost_value,
-            //             (boost_value as f32 + boost_param)
-            //         );
-            //         *score += boost_value as f32 + boost_param;
-            //     }
-            //     None => {}
-            // }
-            // if let Some(exp) = expre.as_ref() {
-            //     let prev_score = *score;
-            //     *score += exp.get_score(boost_value as f32);
-            //     trace!(
-            //         "boost {:?} to {:?} with boost_fun({:?})={:?}",
-            //         prev_score,
-            //         score,
-            //         boost_value,
-            //         exp.get_score(boost_value as f32)
-            //     );
-            // }
         }
 
         debug_assert!(hit.score != std::f32::NAN);
