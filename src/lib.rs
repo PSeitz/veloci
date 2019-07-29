@@ -47,13 +47,12 @@ pub mod persistence_data_indirect;
 pub mod persistence_score;
 pub mod query_generator;
 pub mod search;
-pub mod steps;
 pub mod shards;
+pub mod steps;
 pub mod tokenizer;
 pub mod trace;
 
-pub use self::search::search_field;
-pub use self::search::search_field_result;
+pub use self::search::{search_field, search_field_result};
 
 #[cfg(test)]
 extern crate test;

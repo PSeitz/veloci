@@ -1,18 +1,19 @@
-use crate::create;
-use crate::error::VelociError;
-use crate::persistence;
-use crate::persistence::*;
-use crate::query_generator;
-use crate::search;
-use crate::search::*;
+use crate::{
+    create,
+    error::VelociError,
+    persistence::{self, *},
+    query_generator,
+    search::{self, *},
+};
 use itertools::Itertools;
 use rayon::prelude::*;
 use serde_json;
-use std;
-use std::cmp::Ordering;
-use std::fs;
-use std::sync::atomic;
-use std::sync::atomic::AtomicUsize;
+use std::{
+    self,
+    cmp::Ordering,
+    fs,
+    sync::atomic::{self, AtomicUsize},
+};
 
 struct Shard {
     shard_id: u64,

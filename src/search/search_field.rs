@@ -1,24 +1,20 @@
-use crate::error::VelociError;
-use crate::highlight_field::*;
-use crate::persistence;
-use crate::persistence::Persistence;
-use crate::persistence::*;
-use crate::search;
-use crate::search::search_field_result::*;
-use crate::search::*;
-use crate::util;
-use crate::util::StringAdd;
+use crate::{
+    error::VelociError,
+    highlight_field::*,
+    persistence::{self, Persistence, *},
+    search::{self, search_field_result::*, *},
+    util::{self, StringAdd},
+};
 use fnv::FnvHashMap;
-use fst::automaton::*;
-use fst::raw::Fst;
-use fst::IntoStreamer;
+use fst::{automaton::*, raw::Fst, IntoStreamer};
 use itertools::Itertools;
 use levenshtein_automata::{Distance, LevenshteinAutomatonBuilder, DFA};
 use ordered_float::OrderedFloat;
-use std::cmp;
-use std::cmp::Ordering;
-use std::str;
-use std::sync::Arc;
+use std::{
+    cmp::{self, Ordering},
+    str,
+    sync::Arc,
+};
 
 use crate::execution_plan::*;
 
@@ -625,7 +621,7 @@ pub fn resolve_token_hits_to_text_id_ids_only(
                 for token_parentval_id in parent_ids_for_token {
                     token_hits.push(token_parentval_id);
                 }
-            }else{
+            } else {
                 token_hits.push(hit.id); // is text_id
             }
         }
@@ -633,7 +629,6 @@ pub fn resolve_token_hits_to_text_id_ids_only(
         token_hits.sort_unstable();
         token_hits.dedup();
         result.hits_ids = token_hits;
-
     }
     result.hits_scores = vec![];
 

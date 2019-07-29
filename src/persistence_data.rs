@@ -1,17 +1,19 @@
-use std;
-use std::fs::File;
-use std::io;
-use std::io::Write;
-use std::marker::PhantomData;
-use std::ptr::copy_nonoverlapping;
-use std::u32;
+use std::{
+    self,
+    fs::File,
+    io::{self, Write},
+    marker::PhantomData,
+    ptr::copy_nonoverlapping,
+    u32,
+};
 // use byteorder::{LittleEndian, ReadBytesExt};
 // use heapsize::HeapSizeOf;
 
-use crate::error::VelociError;
-use crate::persistence::EMPTY_BUCKET;
-use crate::persistence::*;
 pub(crate) use crate::persistence_data_indirect::*;
+use crate::{
+    error::VelociError,
+    persistence::{EMPTY_BUCKET, *},
+};
 
 use crate::facet::*;
 use num;
@@ -19,8 +21,7 @@ use num;
 use crate::type_info::TypeInfo;
 use fnv::FnvHashMap;
 
-use memmap::Mmap;
-use memmap::MmapOptions;
+use memmap::{Mmap, MmapOptions};
 
 impl_type_info_single_templ!(SingleArrayMMAPPacked);
 
@@ -242,7 +243,7 @@ impl<T: IndexIdToParentData, K: IndexIdToParentData> TypeInfo for SingleArrayIM<
 impl<T: IndexIdToParentData, K: IndexIdToParentData> IndexIdToParent for SingleArrayIM<T, K> {
     type Output = T;
 
-    fn get_index_meta_data(&self) -> &IndexValuesMetadata{
+    fn get_index_meta_data(&self) -> &IndexValuesMetadata {
         &self.metadata
     }
 
@@ -355,7 +356,7 @@ impl<T: IndexIdToParentData> IndexIdToParent for SingleArrayMMAPPacked<T> {
     // default fn get_num_keys(&self) -> usize {
     //     self.get_size()
     // }
-    fn get_index_meta_data(&self) -> &IndexValuesMetadata{
+    fn get_index_meta_data(&self) -> &IndexValuesMetadata {
         &self.metadata
     }
 

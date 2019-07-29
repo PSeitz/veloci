@@ -1,4 +1,3 @@
-
 #[cfg(test)]
 mod tests {
     #[test]
@@ -12,13 +11,13 @@ pub trait ToFieldPath {
 }
 
 impl ToFieldPath for &str {
-    fn to_field_path(&self) -> FieldPath{
+    fn to_field_path(&self) -> FieldPath {
         FieldPath::from_path(self)
     }
 }
 
 impl ToFieldPath for &String {
-    fn to_field_path(&self) -> FieldPath{
+    fn to_field_path(&self) -> FieldPath {
         FieldPath::from_path(self)
     }
 }
@@ -30,16 +29,27 @@ pub struct FieldPath {
 
 impl FieldPath {
     pub fn from_path(path: &str) -> Self {
-        let steps: Vec<_> = path.split(".").map(|el| if el.ends_with("[]") { 
-            FieldPathComponent{path:el[0..el.len() - 2].to_string(), is_1_to_n:true}
-        } else {
-            FieldPathComponent{path:el.to_string(), is_1_to_n:false}
-        }).collect();
-        FieldPath{steps}
+        let steps: Vec<_> = path
+            .split(".")
+            .map(|el| {
+                if el.ends_with("[]") {
+                    FieldPathComponent {
+                        path: el[0..el.len() - 2].to_string(),
+                        is_1_to_n: true,
+                    }
+                } else {
+                    FieldPathComponent {
+                        path: el.to_string(),
+                        is_1_to_n: false,
+                    }
+                }
+            })
+            .collect();
+        FieldPath { steps }
     }
 
     pub fn to_string(&self) -> String {
-        self.steps.iter().map(|sstep|sstep.to_string()).collect::<Vec<_>>().join(".")
+        self.steps.iter().map(|sstep| sstep.to_string()).collect::<Vec<_>>().join(".")
     }
 
     pub fn pop(&mut self) -> Option<FieldPathComponent> {
@@ -72,25 +82,24 @@ impl std::fmt::Debug for FieldPath {
     }
 }
 
-
 /// One component of a field path, e.g. fieldpath: "meanings.ger[]" has 2 fieldpath components: "meaning" and "ger[]"
 #[derive(Debug, Default, PartialEq, Eq, Clone)]
 pub struct FieldPathComponent {
     path: String,
-    is_1_to_n: bool
+    is_1_to_n: bool,
 }
 
 impl FieldPathComponent {
     pub fn to_string(&self) -> String {
         if self.is_1_to_n {
             format!("{}[]", self.path)
-        }else{
+        } else {
             format!("{}", self.path)
         }
     }
 }
 
-pub fn steps_between_field_paths(start: &str, end:&str) -> (Vec<FieldPath>, Vec<FieldPath>) {
+pub fn steps_between_field_paths(start: &str, end: &str) -> (Vec<FieldPath>, Vec<FieldPath>) {
     let mut start = start.to_field_path();
     let mut end_steps = end.to_field_path();
 
@@ -123,18 +132,9 @@ fn test_identity() {
 
 #[test]
 fn test_from_to_steps() {
-
     let start = "meanings.ger[].text";
     let end = "meanings.ger[].boost";
     let yops = steps_between_field_paths(start, end);
 
-    assert_eq!(yops, 
-        (vec![
-            "meanings.ger[]".to_field_path(),
-        ],
-        vec![
-            "meanings.ger[].boost".to_field_path(),
-        ])
-    );
-
+    assert_eq!(yops, (vec!["meanings.ger[]".to_field_path(),], vec!["meanings.ger[].boost".to_field_path(),]));
 }

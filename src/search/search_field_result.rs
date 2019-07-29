@@ -1,6 +1,7 @@
-use crate::search;
-use crate::search::*;
-use crate::search_field::Explain;
+use crate::{
+    search::{self, *},
+    search_field::Explain,
+};
 use fnv::FnvHashMap;
 // use half::f16;
 use std::iter::FusedIterator;
@@ -54,15 +55,22 @@ impl SearchFieldResult {
 
 impl std::fmt::Display for SearchFieldResult {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        writeln!(f, "path {}, hits_scores {}, terms {}, lev_distance {:?} ", self.request.path, self.hits_scores.len(), self.request.terms[0], self.request.levenshtein_distance)?;
+        writeln!(
+            f,
+            "path {}, hits_scores {}, terms {}, lev_distance {:?} ",
+            self.request.path,
+            self.hits_scores.len(),
+            self.request.terms[0],
+            self.request.levenshtein_distance
+        )?;
 
-        if !self.hits_scores.is_empty(){
+        if !self.hits_scores.is_empty() {
             writeln!(f, "(hits_scores {})", self.hits_scores.len())?;
             for el in &self.hits_scores {
                 writeln!(f, "({}, {})", el.id, el.score)?;
             }
         }
-        if !self.hits_ids.is_empty(){
+        if !self.hits_ids.is_empty() {
             writeln!(f, "(hits_ids {})", self.hits_ids.len())?;
             for el in &self.hits_ids {
                 writeln!(f, "({})", el)?;

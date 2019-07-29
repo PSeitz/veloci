@@ -4,8 +4,10 @@ extern crate criterion;
 
 extern crate test;
 use fnv::FnvHashMap;
-use std::collections::HashMap;
-use std::hash::{BuildHasherDefault, Hasher};
+use std::{
+    collections::HashMap,
+    hash::{BuildHasherDefault, Hasher},
+};
 
 #[allow(dead_code)]
 static K1K: u32 = 1000;
@@ -154,8 +156,7 @@ pub fn bench_vec_insert_with_group_by_in_2_vec(num_hits: u32, token_hits: u32) -
 #[cfg(test)]
 mod bench_collection {
 
-    use super::test::Bencher;
-    use super::*;
+    use super::{test::Bencher, *};
 
     // #[bench]
     // fn bench_fnvhashmap_insert_with_lookup_100k(b: &mut Bencher) {

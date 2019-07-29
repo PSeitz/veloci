@@ -1,15 +1,19 @@
-use std::collections::HashMap;
-use std::fmt::Debug;
-use std::fs::{self, File};
-use std::io::prelude::*;
-use std::marker::Sync;
-use std::path::{Path, PathBuf};
-use std::time::Duration;
-use std::{self, env, io, str, u32};
+use std::{
+    self,
+    collections::HashMap,
+    env,
+    fmt::Debug,
+    fs::{self, File},
+    io::{self, prelude::*},
+    marker::Sync,
+    path::{Path, PathBuf},
+    str,
+    time::Duration,
+    u32,
+};
 use vint::vint::VintArrayIterator;
 
-use num::cast::ToPrimitive;
-use num::{self, Integer};
+use num::{self, cast::ToPrimitive, Integer};
 
 use serde_json;
 
@@ -18,21 +22,18 @@ use fst::Map;
 use log;
 // use rayon::prelude::*;
 
-use crate::error::VelociError;
 pub use crate::metadata::*;
-use crate::persistence_data::*;
-use crate::persistence_data_binary_search::*;
-use crate::persistence_score::*;
-use crate::search::*;
-use crate::search_field_result;
-use crate::type_info;
-use crate::util;
-use crate::util::get_file_path;
-use crate::util::*;
-use memmap::Mmap;
-use memmap::MmapOptions;
-use prettytable::format;
-use prettytable::Table;
+use crate::{
+    error::VelociError,
+    persistence_data::*,
+    persistence_data_binary_search::*,
+    persistence_score::*,
+    search::*,
+    search_field_result, type_info,
+    util::{self, get_file_path, *},
+};
+use memmap::{Mmap, MmapOptions};
+use prettytable::{format, Table};
 // use heapsize::HeapSizeOf;
 
 use colored::*;
@@ -278,7 +279,7 @@ pub fn trace_index_id_to_parent<T: IndexIdToParentData>(val: &dyn IndexIdToParen
     if log_enabled!(log::Level::Trace) {
         let meta = val.get_index_meta_data();
         // let keys = val.get_keys();
-        for key in [0;100].iter().enumerate().map(|(i, _el)|i).take(meta.num_ids as usize) {
+        for key in [0; 100].iter().enumerate().map(|(i, _el)| i).take(meta.num_ids as usize) {
             if let Some(vals) = val.get_values(num::cast(key).unwrap()) {
                 let to = std::cmp::min(vals.len(), 100);
                 trace!("key {:?} to {:?}", key, &vals[0..to]);

@@ -2,8 +2,7 @@ use chrono::Local;
 use flexi_logger;
 use log::Record;
 use parking_lot::RwLock;
-use std::io;
-use std::io::Write;
+use std::io::{self, Write};
 
 /// A logline-formatter that produces log lines like
 /// <br>

@@ -1,15 +1,15 @@
 use crate::persistence::TEXTINDEX;
-use std::collections::HashMap;
-use std::{f32, str};
+use std::{collections::HashMap, f32, str};
 
 use itertools::Itertools;
 // use regex::Regex;
 
-use crate::error::VelociError;
-use crate::persistence::Persistence;
-use crate::search::stopwords;
-use crate::search::*;
-use crate::util::*;
+use crate::{
+    error::VelociError,
+    persistence::Persistence,
+    search::{stopwords, *},
+    util::*,
+};
 use ordered_float::OrderedFloat;
 use std;
 
@@ -86,9 +86,7 @@ fn get_levenshteinn(term: &str, levenshtein: Option<usize>, levenshtein_auto_lim
     std::cmp::min(levenshtein_distance, term.chars().count() - 1) as u32
 }
 
-use parser::query_parser::Operator;
-use parser::query_parser::UserAST;
-use parser::query_parser::UserFilter;
+use parser::query_parser::{Operator, UserAST, UserFilter};
 fn expand_fields_in_query_ast(ast: UserAST, all_fields: &[String]) -> UserAST {
     match ast {
         UserAST::Clause(op, subqueries) => {

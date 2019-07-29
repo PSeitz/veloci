@@ -155,8 +155,7 @@ mod tests {
     #[allow(unused_imports)]
     use crate::test;
 
-    use std::fs::File;
-    use std::io::prelude::*;
+    use std::{fs::File, io::prelude::*};
 
     #[allow(dead_code)]
     fn get_test_book() -> String {

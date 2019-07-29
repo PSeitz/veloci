@@ -1,22 +1,17 @@
 #![cfg_attr(feature = "cargo-clippy", allow(clippy::boxed_local))]
-use crate::error::*;
-use crate::persistence::Persistence;
-use crate::persistence::*;
-use crate::search::*;
-use crate::search::boost::*;
-use crate::util;
-use crate::util::StringAdd;
-use std::fmt::Debug;
-use std::sync::Arc;
+use crate::{
+    error::*,
+    persistence::{Persistence, *},
+    search::{boost::*, *},
+    util::{self, StringAdd},
+};
+use std::{fmt::Debug, sync::Arc};
 
-use fnv::FnvHashMap;
-use fnv::FnvHashSet;
+use fnv::{FnvHashMap, FnvHashSet};
 
+use crate::steps::{ToFieldPath, *};
+use crossbeam_channel::{self, unbounded};
 use std::boxed::Box;
-use crate::steps::*;
-use crate::steps::ToFieldPath;
-use crossbeam_channel;
-use crossbeam_channel::unbounded;
 
 type PlanDataSender = crossbeam_channel::Sender<SearchFieldResult>;
 type PlanDataReceiver = crossbeam_channel::Receiver<SearchFieldResult>;
@@ -380,12 +375,10 @@ impl PlanStepTrait for BoostToAnchor {
             dbg!(&field_result.hits_ids);
         }
 
-
         let step = walk_down.last().unwrap().to_string().add(PARENT_TO_VALUE_ID);
         dbg!(&step);
         field_result = join_to_parent_ids(persistence, &field_result, &step, "boost: valueid to parent")?;
         dbg!(&field_result.hits_ids);
-
 
         if let Some((last, walk_up)) = walk_up.split_last() {
             for step in walk_up {
@@ -399,13 +392,12 @@ impl PlanStepTrait for BoostToAnchor {
             dbg!(&field_result.boost_ids);
         }
 
-        // 
+        //
         // // BOOST_VALID_TO_VALUE
         // if let Some(last_step) = walk_up.pop() {
         //     let step = step.to_string().add(PARENT_TO_VALUE_ID);
         //     step
         // }
-
 
         // dbg!(self.boost);
         // dbg!(path);
@@ -417,9 +409,7 @@ impl PlanStepTrait for BoostToAnchor {
         // dbg!(field_result);
         // let mut field_result = join_to_parent_ids(persistence, &field_result, "path: &str", "_trace_time_info: &str")?;
 
-
         //valueid to parent
-
 
         // let boost_field_path = (&self.boost.path).to_field_path();
         // let search_field_path = (&self.path).to_field_path();
@@ -948,19 +938,21 @@ fn plan_creator_search_part(
     let field_rx = field_search_step.channel.receiver_for_next_step.clone();
 
     if fast_field {
-
         // check boost on 1:n fields, boost on anchor is done seperately
         if let Some(pos) = request_part.path.rfind("[]") {
             let end_obj = &request_part.path[..pos];
             //find where boost matches last path
-            let boosto:Vec<&RequestBoostPart> = boosts.iter().flat_map(|el|{
-                if let Some(pos) = el.path.rfind("[]") {
-                    if &el.path[..pos] == end_obj {
-                        return Some(el);
+            let boosto: Vec<&RequestBoostPart> = boosts
+                .iter()
+                .flat_map(|el| {
+                    if let Some(pos) = el.path.rfind("[]") {
+                        if &el.path[..pos] == end_obj {
+                            return Some(el);
+                        }
                     }
-                }
-                None
-            }).collect();
+                    None
+                })
+                .collect();
             if !boosto.is_empty() {
                 assert!(boosto.len() == 1);
 
@@ -1003,7 +995,7 @@ fn plan_creator_search_part(
                     trace_info: "BoostToAnchor".to_string(),
                     channel: boost_to_anchor_channel.clone(),
                     request: request_part.clone(),
-                    boost: boosto[0].clone()
+                    boost: boosto[0].clone(),
                 });
                 let boost_step_id = plan.add_step(boost_step);
                 plan.add_dependency(boost_step_id, *field_search_step_id); // TODO instead adding the dependency manually here, we should deduce the dependency by dataflow. In open_channel the output is connected (field_rx) and should be added as depedency
@@ -1024,13 +1016,12 @@ fn plan_creator_search_part(
                     trace_info: "ApplyAnchorBoost".to_string(),
                     channel: apply_boost_to_anchor_channel.clone(),
                     request: request_part.clone(),
-                    boost: boosto[0].clone()
+                    boost: boosto[0].clone(),
                 });
                 let step_id = plan.add_step(step);
                 plan.add_dependency(step_id, boost_step_id);
                 plan.add_dependency(step_id, token_to_anchor_step_id);
                 // plan.add_dependency(boost_step, step_id);
-                
 
                 //get boost scores and resolve to anchor
                 // step_id
@@ -1040,10 +1031,8 @@ fn plan_creator_search_part(
                     plan.add_dependency(step_id, depends_on_step);
                 }
                 return step_id;
-
             }
         }
-
 
         // This is the normal case, resolve field directly to anchor ids
         let mut channel = PlanStepDataChannels::open_channel(1, vec![field_rx]);

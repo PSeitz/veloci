@@ -1,15 +1,16 @@
-
 use super::*;
 
 pub use self::search_field_result::*;
 use std::{self, f32};
 
-use fnv::{FnvHashMap};
+use fnv::FnvHashMap;
 use itertools::Itertools;
 
-
 #[inline]
-pub(crate) fn boost_text_locality_all(persistence: &Persistence, term_id_hits_in_field: &mut FnvHashMap<String, FnvHashMap<String, Vec<TermId>>>) -> Result<(Vec<Hit>), VelociError> {
+pub(crate) fn boost_text_locality_all(
+    persistence: &Persistence,
+    term_id_hits_in_field: &mut FnvHashMap<String, FnvHashMap<String, Vec<TermId>>>,
+) -> Result<(Vec<Hit>), VelociError> {
     debug!("boost_text_locality_all {:?}", term_id_hits_in_field);
     info_time!("boost_text_locality_all");
     let mut boost_anchor: Vec<Hit> = vec![];
@@ -80,8 +81,6 @@ pub(crate) fn boost_text_locality(persistence: &Persistence, path: &str, search_
     boost_anchor.sort_unstable_by_key(|el| el.id);
     Ok(boost_anchor)
 }
-
-
 
 pub(crate) fn apply_boost_term(persistence: &Persistence, mut res: SearchFieldResult, boost_term: &[RequestSearchPart]) -> Result<SearchFieldResult, VelociError> {
     info_time!("boost_term");
@@ -191,9 +190,6 @@ pub(crate) fn apply_boost_term(persistence: &Persistence, mut res: SearchFieldRe
     Ok(res)
 }
 
-
-
-
 pub(crate) fn apply_boost_from_iter(mut results: SearchFieldResult, mut boost_iter: &mut dyn Iterator<Item = Hit>) -> SearchFieldResult {
     let mut explain = FnvHashMap::default();
     mem::swap(&mut explain, &mut results.explain);
@@ -238,33 +234,28 @@ pub(crate) fn apply_boost_from_iter(mut results: SearchFieldResult, mut boost_it
 
 #[test]
 fn test_apply_boost_from_iter() {
-    let boost_req= RequestBoostPart {
+    let boost_req = RequestBoostPart {
         boost_fun: Some(BoostFunction::Linear),
         ..Default::default()
     };
     let mut res = SearchFieldResult::default();
-    res.hits_scores = vec![Hit::new(1,10.0), Hit::new(3,20.0), Hit::new(5,20.0)];
+    res.hits_scores = vec![Hit::new(1, 10.0), Hit::new(3, 20.0), Hit::new(5, 20.0)];
     let mut boost_values = SearchFieldResult::default();
-    boost_values.boost_ids = vec![Hit::new(1,2.0), Hit::new(2,20.0), Hit::new(5,3.0), Hit::new(6,3.0)];
+    boost_values.boost_ids = vec![Hit::new(1, 2.0), Hit::new(2, 20.0), Hit::new(5, 3.0), Hit::new(6, 3.0)];
 
     apply_boost_values_anchor(&mut res, &boost_req, &mut boost_values.boost_ids.into_iter()).unwrap();
 
-    assert_eq!(res.hits_scores, vec![Hit::new(1,20.0), Hit::new(3,20.0), Hit::new(5,60.0)]);
+    assert_eq!(res.hits_scores, vec![Hit::new(1, 20.0), Hit::new(3, 20.0), Hit::new(5, 60.0)]);
 }
 
 pub(crate) fn apply_boost_values_anchor(results: &mut SearchFieldResult, boost: &RequestBoostPart, mut boost_iter: &mut dyn Iterator<Item = Hit>) -> Result<(), VelociError> {
     let boost_param = boost.param.map(|el| el.into_inner()).unwrap_or(0.0);
     let expre = boost.expression.as_ref().map(|expression| ScoreExpression::new(expression.clone()));
-    let mut explain = if results.request.explain {
-        Some(&mut results.explain)
-    }else{
-        None
-    };
+    let mut explain = if results.request.explain { Some(&mut results.explain) } else { None };
     {
         if let Some(yep) = boost_iter.next() {
             let mut hit_curr = yep;
             for hit in &mut results.hits_scores {
-
                 if hit_curr.id < hit.id {
                     for b_hit in &mut boost_iter {
                         if b_hit.id > hit.id {
@@ -285,7 +276,14 @@ pub(crate) fn apply_boost_values_anchor(results: &mut SearchFieldResult, boost: 
     Ok(())
 }
 
-pub(crate)  fn apply_boost(hit:&mut Hit, boost_value:f32, boost_param:f32, boost_fun: &Option<BoostFunction>, explain: &mut Option<&mut FnvHashMap<u32, Vec<Explain>>>, expre: &Option<ScoreExpression>) -> Result<(), VelociError> {
+pub(crate) fn apply_boost(
+    hit: &mut Hit,
+    boost_value: f32,
+    boost_param: f32,
+    boost_fun: &Option<BoostFunction>,
+    explain: &mut Option<&mut FnvHashMap<u32, Vec<Explain>>>,
+    expre: &Option<ScoreExpression>,
+) -> Result<(), VelociError> {
     match boost_fun {
         Some(BoostFunction::Log10) => {
             // if hits.request.explain {
@@ -363,9 +361,8 @@ pub(crate)  fn apply_boost(hit:&mut Hit, boost_value:f32, boost_param:f32, boost
     Ok(())
 }
 
-
 /// applies the boost values from the boostparts to the result
-pub(crate)  fn boost_hits_ids_vec_multi(mut results: SearchFieldResult, boost: &mut Vec<SearchFieldResult>) -> SearchFieldResult {
+pub(crate) fn boost_hits_ids_vec_multi(mut results: SearchFieldResult, boost: &mut Vec<SearchFieldResult>) -> SearchFieldResult {
     {
         debug_time!("boost hits sort input");
         results.hits_scores.sort_unstable_by_key(|el| el.id); //TODO SORT NEEDED??
@@ -417,7 +414,7 @@ fn boost_intersect_hits_vec_test_multi() {
     assert_eq!(res.hits_scores, vec![Hit::new(0, 40.0), Hit::new(5, 20.0), Hit::new(10, 160.0), Hit::new(60, 40.0)]);
 }
 
-pub(crate)  fn get_boost_ids_and_resolve_to_anchor(persistence: &Persistence, path: &str, hits: &mut SearchFieldResult) -> Result<(), VelociError> {
+pub(crate) fn get_boost_ids_and_resolve_to_anchor(persistence: &Persistence, path: &str, hits: &mut SearchFieldResult) -> Result<(), VelociError> {
     let boost_path = path.add(BOOST_VALID_TO_VALUE);
     let boostkv_store = persistence.get_boost(&boost_path)?;
 
@@ -440,7 +437,7 @@ pub(crate)  fn get_boost_ids_and_resolve_to_anchor(persistence: &Persistence, pa
 
         if let Some(anchor_id) = val_opt.as_ref() {
             data.push(Hit::new(*anchor_id, boost_pair.score));
-        }else{
+        } else {
             // can this happen: value_id without anchro id. I think not
         }
     }
@@ -448,11 +445,9 @@ pub(crate)  fn get_boost_ids_and_resolve_to_anchor(persistence: &Persistence, pa
     hits.boost_ids = data;
 
     Ok(())
-
 }
 
-
-pub(crate)  fn add_boost(persistence: &Persistence, boost: &RequestBoostPart, hits: &mut SearchFieldResult) -> Result<(), VelociError> {
+pub(crate) fn add_boost(persistence: &Persistence, boost: &RequestBoostPart, hits: &mut SearchFieldResult) -> Result<(), VelociError> {
     // let key = util::boost_path(&boost.path);
     let boost_path = boost.path.to_string() + BOOST_VALID_TO_VALUE;
     let boostkv_store = persistence.get_boost(&boost_path)?;
@@ -466,11 +461,7 @@ pub(crate)  fn add_boost(persistence: &Persistence, boost: &RequestBoostPart, hi
         .map(|vecco| vecco.iter().map(|el| el.into_inner()).collect())
         .unwrap_or(default);
 
-    let mut explain = if hits.request.explain {
-        Some(&mut hits.explain)
-    }else{
-        None
-    };
+    let mut explain = if hits.request.explain { Some(&mut hits.explain) } else { None };
     for hit in &mut hits.hits_scores {
         if !skip_when_score.is_empty() && skip_when_score.iter().any(|x| (*x - hit.score).abs() < 0.00001) {
             // float comparisons should usually include a error margin

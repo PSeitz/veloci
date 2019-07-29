@@ -2,26 +2,22 @@ use lru_time_cache::LruCache;
 
 use byteorder::{LittleEndian, ReadBytesExt};
 
-use crate::error::VelociError;
-use crate::facet::*;
-use crate::persistence::*;
-use crate::type_info::TypeInfo;
-use crate::util::*;
+use crate::{error::VelociError, facet::*, persistence::*, type_info::TypeInfo, util::*};
 
-use num;
-use num::cast::ToPrimitive;
-use std::fs::File;
-use std::io::{self, Write};
-use std::marker::PhantomData;
-use std::u32;
-use std::{self, fmt};
+use num::{self, cast::ToPrimitive};
+use std::{
+    self, fmt,
+    fs::File,
+    io::{self, Write},
+    marker::PhantomData,
+    u32,
+};
 use vint::vint::*;
 
 use fnv::FnvHashMap;
 use itertools::Itertools;
 
-use memmap::Mmap;
-use memmap::MmapOptions;
+use memmap::{Mmap, MmapOptions};
 
 impl_type_info_single_templ!(IndexIdToMultipleParentIndirect);
 impl_type_info_single_templ!(PointingMMAPFileReader);
@@ -235,7 +231,7 @@ impl<T: IndexIdToParentData> IndexIdToMultipleParentIndirect<T> {
 impl<T: IndexIdToParentData> IndexIdToParent for IndexIdToMultipleParentIndirect<T> {
     type Output = T;
 
-    fn get_index_meta_data(&self) -> &IndexValuesMetadata{
+    fn get_index_meta_data(&self) -> &IndexValuesMetadata {
         &self.metadata
     }
 
@@ -346,7 +342,7 @@ impl<T: IndexIdToParentData> IndexIdToParent for PointingMMAPFileReader<T> {
     //     (num::cast(0).unwrap()..num::cast(self.get_size()).unwrap()).collect()
     // }
 
-    fn get_index_meta_data(&self) -> &IndexValuesMetadata{
+    fn get_index_meta_data(&self) -> &IndexValuesMetadata {
         &self.metadata
     }
 

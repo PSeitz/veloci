@@ -1,7 +1,4 @@
-use crate::create;
-use crate::error::VelociError;
-use crate::persistence::*;
-use crate::util;
+use crate::{create, error::VelociError, persistence::*, util};
 use fnv::FnvHashMap;
 
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]

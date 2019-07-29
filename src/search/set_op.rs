@@ -3,7 +3,7 @@ use super::*;
 pub use self::search_field_result::*;
 use std::{self, f32, u32};
 
-use fnv::{FnvHashMap};
+use fnv::FnvHashMap;
 use itertools::Itertools;
 
 pub fn get_shortest_result<T: std::iter::ExactSizeIterator>(results: &[T]) -> usize {
@@ -38,7 +38,11 @@ fn merge_term_id_hits(results: &mut Vec<SearchFieldResult>) -> FnvHashMap<String
             }
         }
     }
-    debug!("Fields: {}, term_id_hits_in_field {:?}", results.iter().map(|el| &el.request.path).join(" "), term_id_hits_in_field);
+    debug!(
+        "Fields: {}, term_id_hits_in_field {:?}",
+        results.iter().map(|el| &el.request.path).join(" "),
+        term_id_hits_in_field
+    );
     term_id_hits_in_field
 }
 fn merge_term_id_texts(results: &mut Vec<SearchFieldResult>) -> FnvHashMap<String, Vec<String>> {
@@ -51,10 +55,13 @@ fn merge_term_id_texts(results: &mut Vec<SearchFieldResult>) -> FnvHashMap<Strin
         }
     }
 
-    debug!("Fields: {}, term_text_in_field {:?}", results.iter().map(|el| &el.request.path).join(" "), term_text_in_field);
+    debug!(
+        "Fields: {}, term_text_in_field {:?}",
+        results.iter().map(|el| &el.request.path).join(" "),
+        term_text_in_field
+    );
     term_text_in_field
 }
-
 
 // #[cfg(test)]
 // mod bench_union_hits_score {
@@ -372,7 +379,6 @@ pub fn intersect_hits_score(mut and_results: Vec<SearchFieldResult>) -> SearchFi
         trace!("{}", el);
     }
 
-
     // trace!("Intersect Input:\n{}", serde_json::to_string_pretty(&and_results).unwrap());
 
     let should_explain = and_results[0].request.explain;
@@ -546,16 +552,14 @@ fn intersect_hits_scores_test() {
 
 #[test]
 fn intersect_hits_scores_test_reg() {
-    let hits1 = vec![Hit::new(704, 13.7),
-        Hit::new(19921, 39.4),
-        Hit::new(20000, 13.7),
-        Hit::new(44650, 39.4)];
+    let hits1 = vec![Hit::new(704, 13.7), Hit::new(19921, 39.4), Hit::new(20000, 13.7), Hit::new(44650, 39.4)];
 
-    let hits2 = vec![Hit::new(18779, 28.199999),
+    let hits2 = vec![
+        Hit::new(18779, 28.199999),
         Hit::new(20000, 14.400001),
         Hit::new(32606, 39.4),
         Hit::new(130721, 13.3),
-        Hit::new(168854, 2.0666666)
+        Hit::new(168854, 2.0666666),
     ];
 
     let yop = vec![
@@ -574,8 +578,6 @@ fn intersect_hits_scores_test_reg() {
     assert_eq!(res.hits_scores.len(), 1);
     assert_eq!(res.hits_scores[0].id, 20000);
 }
-
-
 
 #[cfg(test)]
 mod bench_intersect {

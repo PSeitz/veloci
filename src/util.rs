@@ -1,12 +1,7 @@
-use crate::error::VelociError;
-use crate::persistence::TEXTINDEX;
+use crate::{error::VelociError, persistence::TEXTINDEX};
 use itertools::Itertools;
 use regex::Regex;
-use std;
-use std::collections::HashMap;
-use std::fs::File;
-use std::io::prelude::*;
-use std::path::Path;
+use std::{self, collections::HashMap, fs::File, io::prelude::*, path::Path};
 
 pub(crate) fn normalize_text(text: &str) -> String {
     lazy_static! {
@@ -119,7 +114,8 @@ pub(crate) fn file_as_string<P: AsRef<Path> + std::fmt::Debug>(path: P) -> Resul
     info!("Loading File {:?}", path);
     let mut file = File::open(path.as_ref()).map_err(|err| VelociError::StringError(format!("Could not open {:?} {:?}", path, err)))?;
     let mut contents = String::new();
-    file.read_to_string(&mut contents).map_err(|err| VelociError::StringError(format!("Could not read to string {:?} {:?}", path, err)))?;
+    file.read_to_string(&mut contents)
+        .map_err(|err| VelociError::StringError(format!("Could not read to string {:?} {:?}", path, err)))?;
     Ok(contents)
 }
 

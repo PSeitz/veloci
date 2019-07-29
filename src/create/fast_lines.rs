@@ -1,8 +1,6 @@
-use std::io::BufRead;
-use std::io::BufReader;
+use std::io::{BufRead, BufReader};
 // use rayon::prelude::*;
-use std::fs::File;
-use std::thread;
+use std::{fs::File, thread};
 
 use crossbeam_channel as channel;
 type PlanDataReceiver = crossbeam_channel::Receiver<Result<serde_json::Value, serde_json::Error>>;

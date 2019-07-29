@@ -1204,8 +1204,6 @@ fn boost_text_localitaet() {
     assert_eq!(hits[0].doc["meanings"]["ger"][0], "text localität");
 }
 
-
-
 #[test]
 fn read_object_only_partly() {
     let pers = &TEST_PERSISTENCE;
@@ -1272,4 +1270,3 @@ fn read_recreate_complete_object_with_read() {
         })
     );
 }
-

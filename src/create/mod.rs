@@ -2,29 +2,22 @@ mod fast_lines;
 mod features;
 mod fields_config;
 
-use self::fast_lines::FastLinesTrait;
-use self::features::IndexCreationType;
-use self::fields_config::FieldsConfig;
 pub use self::fields_config::FulltextIndexOptions;
+use self::{fast_lines::FastLinesTrait, features::IndexCreationType, fields_config::FieldsConfig};
 
-use std::fs::File;
-use std::io;
-use std::{self, str};
+use std::{self, fs::File, io, str};
 
-use crate::error::*;
-use crate::persistence;
-use crate::persistence::IndexCategory;
-use crate::persistence::*;
-use crate::persistence::{LoadingType, Persistence};
-use crate::persistence_data::*;
-use crate::persistence_data_binary_search::*;
-use crate::persistence_data_indirect::*;
-use crate::persistence_score::token_to_anchor_score_vint::*;
-use crate::search;
-use crate::search_field;
-use crate::tokenizer::*;
-use crate::util;
-use crate::util::*;
+use crate::{
+    error::*,
+    persistence::{self, IndexCategory, LoadingType, Persistence, *},
+    persistence_data::*,
+    persistence_data_binary_search::*,
+    persistence_data_indirect::*,
+    persistence_score::token_to_anchor_score_vint::*,
+    search, search_field,
+    tokenizer::*,
+    util::{self, *},
+};
 use buffered_index_writer;
 use fnv::FnvHashMap;
 use fst::{self, MapBuilder};
@@ -33,8 +26,7 @@ use json_converter;
 use log;
 use num::ToPrimitive;
 use rayon::prelude::*;
-use serde_json::Deserializer;
-use serde_json::{self, Value};
+use serde_json::{self, Deserializer, Value};
 use std::io::BufRead;
 
 use doc_store::DocWriter;
@@ -685,7 +677,11 @@ where
                 };
 
                 //TODO ADD shortcut value_id to anchor_id for boost
-                PathDataIds { value_to_parent, parent_to_value, value_to_anchor:None }
+                PathDataIds {
+                    value_to_parent,
+                    parent_to_value,
+                    value_to_anchor: None,
+                }
             });
             if let Some(el) = tuples.value_to_parent.as_mut() {
                 el.add(value_id, parent_val_id)?;

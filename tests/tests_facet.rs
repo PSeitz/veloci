@@ -103,12 +103,5 @@ fn facets() {
     .unwrap();
 
     yep.sort_by(|a, b| format!("{:?}{:?}", b.1, b.0).cmp(&format!("{:?}{:?}", a.1, a.0)));
-    assert_eq!(
-        vec![
-            ("nice".to_string(), 3),
-            ("cool".to_string(), 3),
-            ("Eis".to_string(), 1),
-        ],
-        yep
-    );
+    assert_eq!(vec![("nice".to_string(), 3), ("cool".to_string(), 3), ("Eis".to_string(), 1),], yep);
 }

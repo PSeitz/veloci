@@ -1,27 +1,28 @@
+pub(crate) mod boost;
 pub mod search_field;
 pub mod search_field_result;
-pub mod stopwords;
 mod set_op;
-pub(crate) mod boost;
+pub mod stopwords;
 
-pub use self::search_field::*;
-pub use self::set_op::*;
 pub(crate) use self::boost::*;
-pub use self::search_field_result::*;
+pub use self::{search_field::*, search_field_result::*, set_op::*};
 use super::highlight_field;
-use crate::error::VelociError;
-use crate::execution_plan::*;
-use crate::expression::ScoreExpression;
-use crate::facet;
-use crate::util;
-use crate::util::*;
+use crate::{
+    error::VelociError,
+    execution_plan::*,
+    expression::ScoreExpression,
+    facet,
+    util::{self, *},
+};
 use json_converter;
 
-use std::cmp::Ordering;
-use std::{self, cmp, f32, mem, str, u32};
+use std::{
+    self,
+    cmp::{self, Ordering},
+    f32, mem, str, u32,
+};
 
-use crate::persistence::Persistence;
-use crate::persistence::*;
+use crate::persistence::{Persistence, *};
 use doc_store::DocLoader;
 use fnv::{FnvHashMap, FnvHashSet};
 use ordered_float::OrderedFloat;
@@ -40,7 +41,6 @@ use serde_json;
 //         SearchOperation::Search(Default::default())
 //     }
 // }
-
 
 #[derive(Serialize, Deserialize, Default, Clone, Debug)]
 pub struct Request {
@@ -65,7 +65,7 @@ pub struct Request {
     #[serde(skip_serializing_if = "Option::is_none")]
     /// list of requests tuples to phrase boost
     pub phrase_boosts: Option<Vec<RequestPhraseBoost>>,
-    
+
     /// only return selected fields
     pub select: Option<Vec<String>>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -459,8 +459,6 @@ fn get_why_found(
     Ok(anchor_highlights)
 }
 
-
-
 #[inline]
 fn get_all_value_ids(ids: &[u32], token_to_text_id: &dyn IndexIdToParent<Output = u32>) -> Vec<u32> {
     let mut text_ids: Vec<u32> = vec![];
@@ -595,8 +593,6 @@ pub fn search(mut request: Request, persistence: &Persistence) -> Result<SearchR
     Ok(search_result)
 }
 
-
-
 pub fn apply_top_skip<T: Clone>(hits: &mut Vec<T>, skip: Option<usize>, top: Option<usize>) {
     if let Some(mut skip) = skip {
         skip = cmp::min(skip, hits.len());
@@ -607,11 +603,6 @@ pub fn apply_top_skip<T: Clone>(hits: &mut Vec<T>, skip: Option<usize>, top: Opt
         hits.drain(top..);
     }
 }
-
-
-
-
-
 
 // #[test]
 // fn boost_intersect_hits_vec_test() {
@@ -631,7 +622,6 @@ pub fn apply_top_skip<T: Clone>(hits: &mut Vec<T>, skip: Option<usize>, top: Opt
 
 //     assert_eq!(res.hits_scores, vec![Hit::new(0, 400.0), Hit::new(5, 20.0), Hit::new(10, 600.0)]);
 // }
-
 
 // #[bench]
 // fn bench_intersect_hits_vec(b: &mut test::Bencher) {
@@ -766,7 +756,7 @@ pub fn join_to_parent_with_score(persistence: &Persistence, input: &SearchFieldR
                 hits.push(Hit::new(*parent_val_id, score));
 
                 if should_explain {
-                    let expains = input.explain.get(&hit.id).unwrap_or_else(||panic!("could not find explain for id {:?}", hit.id));
+                    let expains = input.explain.get(&hit.id).unwrap_or_else(|| panic!("could not find explain for id {:?}", hit.id));
                     explain_hits.entry(*parent_val_id).or_insert_with(|| expains.clone());
                 }
             }
@@ -809,7 +799,7 @@ pub fn join_to_parent_ids(persistence: &Persistence, input: &SearchFieldResult, 
                 hits.push(*parent_val_id);
 
                 if should_explain {
-                    let expains = input.explain.get(&*id).unwrap_or_else(||panic!("could not find explain for id {:?}", *id));
+                    let expains = input.explain.get(&*id).unwrap_or_else(|| panic!("could not find explain for id {:?}", *id));
                     explain_hits.entry(*parent_val_id).or_insert_with(|| expains.clone());
                 }
             }

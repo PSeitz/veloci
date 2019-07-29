@@ -1,13 +1,11 @@
-use crate::error::VelociError;
-use crate::persistence;
-use crate::persistence::Persistence;
-use crate::persistence::*;
-use crate::search::*;
-use crate::tokenizer::*;
-use crate::util::StringAdd;
-use std;
-use std::cmp;
-use std::str;
+use crate::{
+    error::VelociError,
+    persistence::{self, Persistence, *},
+    search::*,
+    tokenizer::*,
+    util::StringAdd,
+};
+use std::{self, cmp, str};
 
 #[allow(unused_imports)]
 use fst::{IntoStreamer, Map, MapBuilder, Set};

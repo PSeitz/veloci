@@ -7,8 +7,7 @@ extern crate cpuprofile;
 
 use clap::{App, Arg};
 
-use std::fs::File;
-use std::io::prelude::*;
+use std::{fs::File, io::prelude::*};
 
 fn main() {
     search_lib::trace::enable_log();

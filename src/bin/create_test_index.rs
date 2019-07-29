@@ -10,10 +10,11 @@ extern crate serde_json;
 #[cfg(feature = "enable_cpuprofiler")]
 extern crate cpuprofiler;
 
-use std::fs::File;
-use std::io;
-use std::io::prelude::*;
-use std::str;
+use std::{
+    fs::File,
+    io::{self, prelude::*},
+    str,
+};
 
 #[allow(unused_imports)]
 use rayon::prelude::*;

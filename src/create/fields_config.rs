@@ -1,9 +1,7 @@
-use super::features::Features;
-use super::features::IndexCreationType;
+use super::features::{Features, IndexCreationType};
 use crate::error::VelociError;
 
-use fnv::FnvHashMap;
-use fnv::FnvHashSet;
+use fnv::{FnvHashMap, FnvHashSet};
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct CreateIndexConfig {

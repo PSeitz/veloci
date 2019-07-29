@@ -1,21 +1,17 @@
 // use heapsize::HeapSizeOf;
 use std::cmp::Ordering::Greater;
 
-use crate::error::VelociError;
-use crate::persistence::*;
-use crate::persistence_data_indirect::calc_avg_join_size;
-use crate::persistence_data_indirect::flush_to_file_indirect;
-use crate::type_info::TypeInfo;
-use crate::util::open_file;
+use crate::{
+    error::VelociError,
+    persistence::*,
+    persistence_data_indirect::{calc_avg_join_size, flush_to_file_indirect},
+    type_info::TypeInfo,
+    util::open_file,
+};
 
-use std;
-use std::io;
-use std::marker::PhantomData;
-use std::path::Path;
-use std::u32;
+use std::{self, io, marker::PhantomData, path::Path, u32};
 
-use memmap::Mmap;
-use memmap::MmapOptions;
+use memmap::{Mmap, MmapOptions};
 
 impl_type_info_single_templ!(IndexIdToMultipleParentIndirectFlushingInOrderVintNoDirectEncode);
 impl_type_info_single_templ!(IndexIdToMultipleParentIndirectBinarySearchMMAP);

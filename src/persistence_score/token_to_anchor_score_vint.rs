@@ -5,11 +5,7 @@ use vint::vint_encode_most_common::*;
 
 use crate::error::VelociError;
 use itertools::Itertools;
-use std;
-use std::io;
-use std::iter::FusedIterator;
-use std::marker::PhantomData;
-use std::mem;
+use std::{self, io, iter::FusedIterator, marker::PhantomData, mem};
 
 use crate::persistence_data_indirect;
 use num;
@@ -66,24 +62,22 @@ pub struct TokenToAnchorScoreVintFlushing<T: AnchorScoreDataSize> {
 }
 
 fn compress_data_block(data: &mut [u32]) -> Vec<u8> {
-
     // if data.len() > 128 {
     //     let out:Vec<u8> = vec![];
     //     push_compact(data.len() as u32, &mut out);
 
     // }else{
-        let mut last = 0;
-        for (el, _score) in data.iter_mut().tuples() {
-            let actual_val = *el;
-            *el -= last;
-            last = actual_val;
-        }
+    let mut last = 0;
+    for (el, _score) in data.iter_mut().tuples() {
+        let actual_val = *el;
+        *el -= last;
+        last = actual_val;
+    }
 
-        let mut vint = VIntArrayEncodeMostCommon::default();
-        vint.encode_vals(&data);
-        vint.serialize()
+    let mut vint = VIntArrayEncodeMostCommon::default();
+    vint.encode_vals(&data);
+    vint.serialize()
     // }
-
 }
 
 impl<T: AnchorScoreDataSize> Default for TokenToAnchorScoreVintFlushing<T> {
