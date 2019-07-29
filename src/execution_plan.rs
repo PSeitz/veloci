@@ -9,7 +9,7 @@ use std::{fmt::Debug, sync::Arc};
 
 use fnv::{FnvHashMap, FnvHashSet};
 
-use crate::steps::{ToFieldPath, *};
+use crate::steps::*;
 use crossbeam_channel::{self, unbounded};
 use std::boxed::Box;
 

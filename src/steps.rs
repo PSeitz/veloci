@@ -30,7 +30,7 @@ pub struct FieldPath {
 impl FieldPath {
     pub fn from_path(path: &str) -> Self {
         let steps: Vec<_> = path
-            .split(".")
+            .split('.')
             .map(|el| {
                 if el.ends_with("[]") {
                     FieldPathComponent {
@@ -94,7 +94,7 @@ impl FieldPathComponent {
         if self.is_1_to_n {
             format!("{}[]", self.path)
         } else {
-            format!("{}", self.path)
+            self.path.to_string()
         }
     }
 }

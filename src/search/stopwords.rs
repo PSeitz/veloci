@@ -1,7 +1,7 @@
 use fnv::{FnvHashMap, FnvHashSet};
 
-static EN: &'static str = include_str!("../../stopword_lists/en");
-static DE: &'static str = include_str!("../../stopword_lists/de");
+static EN: &str = include_str!("../../stopword_lists/en");
+static DE: &str = include_str!("../../stopword_lists/de");
 
 lazy_static! {
     static ref STOPWORDS: FnvHashMap<&'static str, FnvHashSet<String>> = {

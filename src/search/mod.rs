@@ -376,12 +376,12 @@ pub fn to_documents(persistence: &Persistence, hits: &[Hit], select: &Option<Vec
     hits.iter()
         .map(|hit| {
             if let Some(ref select) = select {
-                return DocWithHit {
+                DocWithHit {
                     doc: read_data(persistence, hit.id, &select).unwrap(), // TODO validate fields
                     hit: hit.clone(),
                     explain: result.explain.get(&hit.id).cloned(),
                     why_found: result.why_found_info.get(&hit.id).cloned().unwrap_or_default(),
-                };
+                }
             } else {
                 let offsets = persistence.indices.doc_offsets.as_ref().unwrap();
                 let f = persistence.get_file_handle("data").unwrap(); // TODO No unwrapo
@@ -389,13 +389,13 @@ pub fn to_documents(persistence: &Persistence, hits: &[Hit], select: &Option<Vec
                                                                                         // let doc_str = DocLoader::get_doc(persistence, hit.id as usize).unwrap(); // TODO No unwrapo
                 let ayse = highlight_on_original_document(&doc_str, &tokens_set);
 
-                return DocWithHit {
+                DocWithHit {
                     doc: serde_json::from_str(&doc_str).unwrap(),
                     hit: hit.clone(),
                     explain: result.explain.get(&hit.id).cloned(),
                     why_found: ayse,
-                };
-            };
+                }
+            }
         })
         .collect::<Vec<_>>()
 }

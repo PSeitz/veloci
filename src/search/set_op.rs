@@ -181,7 +181,7 @@ pub fn union_hits_score(mut or_results: Vec<SearchFieldResult>) -> SearchFieldRe
             // sum_score = sum_score * num_distinct_terms * num_distinct_terms;
 
             let sum_over_distinct_with_distinct_term_boost = max_scores_per_term.iter().sum::<f32>() as f32 * num_distinct_terms * num_distinct_terms;
-            debug_assert!(sum_over_distinct_with_distinct_term_boost != std::f32::NAN);
+            debug_assert!(!sum_over_distinct_with_distinct_term_boost.is_nan());
             debug_assert!(sum_over_distinct_with_distinct_term_boost != std::f32::INFINITY);
             union_hits.push(Hit::new(id, sum_over_distinct_with_distinct_term_boost));
             if should_explain {

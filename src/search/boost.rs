@@ -25,7 +25,7 @@ pub(crate) fn boost_text_locality_all(
     let mergo = boosts.into_iter().kmerge_by(|a, b| a.id < b.id);
     for (id, group) in &mergo.group_by(|el| el.id) {
         let best_score = group.map(|el| el.score).max_by(|a, b| b.partial_cmp(&a).unwrap_or(Ordering::Equal)).unwrap();
-        debug_assert!(best_score != std::f32::NAN);
+        debug_assert!(!best_score.is_nan());
         debug_assert!(best_score != std::f32::INFINITY);
         boost_anchor.push(Hit::new(id, best_score));
     }
@@ -100,7 +100,7 @@ pub(crate) fn apply_boost_term(persistence: &Persistence, mut res: SearchFieldRe
                 .iter()
                 .map(|el| {
                     let boost_val: f32 = el.request.boost.map(|el| el.into_inner()).unwrap_or(2.0);
-                    debug_assert!(boost_val != std::f32::NAN);
+                    debug_assert!(!boost_val.is_nan());
                     debug_assert!(boost_val != std::f32::INFINITY);
                     el.hits_ids.iter().map(move |id| Hit::new(*id, boost_val))
                 })
@@ -204,7 +204,7 @@ pub(crate) fn apply_boost_from_iter(mut results: SearchFieldResult, mut boost_it
                 } else if b_hit.id == hit.id {
                     *hit_curr = b_hit.clone();
                     hit.score *= b_hit.score;
-                    debug_assert!(hit.score != std::f32::NAN);
+                    debug_assert!(!hit.score.is_nan());
                     debug_assert!(hit.score != std::f32::INFINITY);
                     if should_explain {
                         let data = explain.entry(hit.id).or_insert_with(|| vec![]);
@@ -351,7 +351,7 @@ pub(crate) fn apply_boost(
         );
     }
 
-    debug_assert!(hit.score != std::f32::NAN);
+    debug_assert!(!hit.score.is_nan());
     debug_assert!(hit.score != std::f32::INFINITY);
     if let Some(explain) = explain {
         let data = explain.entry(hit.id).or_insert_with(|| vec![]);
@@ -376,7 +376,7 @@ pub(crate) fn boost_hits_ids_vec_multi(mut results: SearchFieldResult, boost: &m
         .iter()
         .map(|el| {
             let boost_val: f32 = el.request.boost.map(|el| el.into_inner()).unwrap_or(2.0);
-            debug_assert!(boost_val != std::f32::NAN);
+            debug_assert!(!boost_val.is_nan());
             debug_assert!(boost_val != std::f32::INFINITY);
             el.hits_ids.iter().map(move |id| Hit::new(*id, boost_val))
         })
@@ -476,7 +476,7 @@ pub(crate) fn add_boost(persistence: &Persistence, boost: &RequestBoostPart, hit
             apply_boost(hit, boost_value, boost_param, &boost.boost_fun, &mut explain, &expre)?;
         }
 
-        debug_assert!(hit.score != std::f32::NAN);
+        debug_assert!(!hit.score.is_nan());
         debug_assert!(hit.score != std::f32::INFINITY);
     }
     Ok(())

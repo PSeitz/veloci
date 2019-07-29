@@ -1195,7 +1195,7 @@ where
                 let mut col_info = ColumnInfo {
                     name: path.to_string(),
                     has_fst: true,
-                    textindex_metadata: textindex_metadata,
+                    textindex_metadata,
                     ..Default::default()
                 };
 
