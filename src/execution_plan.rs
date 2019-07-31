@@ -346,9 +346,9 @@ impl PlanStepTrait for BoostToAnchor {
     fn execute_step(self: Box<Self>, persistence: &Persistence) -> Result<(), VelociError> {
         let mut field_result = self.channel.input_prev_steps[0].recv().map_err(|_| VelociError::PlanExecutionRecvFailed)?;
 
-        dbg!(&"field_result**************************************************************************************");
-        dbg!(&field_result);
-        dbg!(&"field_result**************************************************************************************");
+        // dbg!(&"field_result**************************************************************************************");
+        // dbg!(&field_result);
+        // dbg!(&"field_result**************************************************************************************");
         //now finding steps to boost
 
         // let mut path_to_walk_down = vec![];
@@ -356,9 +356,9 @@ impl PlanStepTrait for BoostToAnchor {
         //TODO EXPLAIN INFO NOT RESPECTED IN THIS METHOD
         resolve_token_hits_to_text_id_ids_only(persistence, &self.request, &mut field_result)?;
 
-        dbg!(&"field_result2**************************************************************************************");
-        dbg!(&field_result);
-        dbg!(&"field_result2**************************************************************************************");
+        // dbg!(&"field_result2**************************************************************************************");
+        // dbg!(&field_result);
+        // dbg!(&"field_result2**************************************************************************************");
 
         let (walk_down, walk_up) = steps_between_field_paths(&self.request.path, &self.boost.path);
 
@@ -367,29 +367,22 @@ impl PlanStepTrait for BoostToAnchor {
         field_result = join_to_parent_ids(persistence, &field_result, &text_index_ids_to_value_ids, "boost: textindex to value id")?;
 
         // let token_to_text_id = persistence.get_valueid_to_parent(path)?;
-        dbg!(self.request.path);
+        // dbg!(self.request.path);
         for step in &walk_down {
             let step = step.to_string().add(VALUE_ID_TO_PARENT);
-            dbg!(&step);
             field_result = join_to_parent_ids(persistence, &field_result, &step, "boost: valueid to parent")?;
-            dbg!(&field_result.hits_ids);
         }
 
         let step = walk_down.last().unwrap().to_string().add(PARENT_TO_VALUE_ID);
-        dbg!(&step);
         field_result = join_to_parent_ids(persistence, &field_result, &step, "boost: valueid to parent")?;
-        dbg!(&field_result.hits_ids);
 
         if let Some((last, walk_up)) = walk_up.split_last() {
             for step in walk_up {
                 let step = step.to_string().add(PARENT_TO_VALUE_ID);
-                dbg!(&step);
                 field_result = join_to_parent_ids(persistence, &field_result, &step, "_trace_time_info: &str")?;
-                dbg!(&field_result.hits_ids);
             }
 
             boost::get_boost_ids_and_resolve_to_anchor(persistence, &last.to_string(), &mut field_result)?;
-            dbg!(&field_result.boost_ids);
         }
 
         //

@@ -1,3 +1,10 @@
+use crate::{
+    error::*,
+    persistence::{Persistence, *},
+    search::{boost::*, *},
+    util::{self, StringAdd},
+};
+
 #[cfg(test)]
 mod tests {
     #[test]
@@ -25,10 +32,23 @@ impl ToFieldPath for &String {
 #[derive(Default, PartialEq, Eq, Clone)]
 pub struct FieldPath {
     steps: Vec<FieldPathComponent>,
+    suffix: Option<String>,
 }
 
 impl FieldPath {
     pub fn from_path(path: &str) -> Self {
+
+        let mut path = path.to_string();
+        let mut suffix = None;
+        for el in INDEX_FILE_ENDINGS {
+            if path.ends_with(el){
+                suffix = Some(el.to_string());
+            }
+        }
+
+        // if path.ends_with(INDEX_FILE_ENDINGS){
+        // }
+
         let steps: Vec<_> = path
             .split('.')
             .map(|el| {
@@ -45,11 +65,15 @@ impl FieldPath {
                 }
             })
             .collect();
-        FieldPath { steps }
+        FieldPath { steps, suffix: suffix }
     }
 
     pub fn to_string(&self) -> String {
-        self.steps.iter().map(|sstep| sstep.to_string()).collect::<Vec<_>>().join(".")
+        let mut res = self.steps.iter().map(|sstep| sstep.to_string()).collect::<Vec<_>>().join(".");
+        if let Some(suffix) = &self.suffix {
+            res+=suffix;
+        }
+        res
     }
 
     pub fn pop(&mut self) -> Option<FieldPathComponent> {
@@ -124,6 +148,32 @@ pub fn steps_between_field_paths(start: &str, end: &str) -> (Vec<FieldPath>, Vec
     (path_to_walk_down, path_to_walk_up)
 }
 
+pub fn steps_between_field_paths_2(start: &str, end: &str) -> Vec<FieldPath> {
+    let mut start = start.to_field_path();
+    let mut end_steps = end.to_field_path();
+
+    let mut path_to_walk: Vec<FieldPath> = vec![];
+
+    while !end_steps.contains(&start) {
+        start.pop();
+        start.suffix = Some(VALUE_ID_TO_PARENT.to_string());
+        path_to_walk.push(start.clone());
+    }
+
+    end_steps.remove_stem(&start);
+
+    while let Some(sdtep) = end_steps.pop() {
+        start.steps.push(sdtep);
+        start.suffix = Some(PARENT_TO_VALUE_ID.to_string());
+        path_to_walk.push(start.clone());
+    }
+
+    // println!("hehe {:?}", end_steps);
+    // println!("DOWN {:?}", path_to_walk);
+    // println!("UP {:?}", path_to_walk_up);
+    (path_to_walk)
+}
+
 #[test]
 fn test_identity() {
     let path = "meanings.ger[].text";
@@ -137,4 +187,12 @@ fn test_from_to_steps() {
     let yops = steps_between_field_paths(start, end);
 
     assert_eq!(yops, (vec!["meanings.ger[]".to_field_path(),], vec!["meanings.ger[].boost".to_field_path(),]));
+}
+#[test]
+fn test_from_to_steps_2() {
+    let start = "meanings.ger[].text";
+    let end = "meanings.ger[].boost";
+    let yops = steps_between_field_paths_2(start, end);
+
+    // assert_eq!(yops, (vec!["meanings.ger[]".to_field_path(), "meanings.ger[].boost".to_field_path(),]));
 }

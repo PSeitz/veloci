@@ -56,6 +56,19 @@ pub const TOKEN_VALUES: &str = ".token_values";
 
 pub const TEXTINDEX: &str = ".textindex";
 
+pub static INDEX_FILE_ENDINGS: &[&str] = &[TOKENS_TO_TEXT_ID,
+    TEXT_ID_TO_TOKEN_IDS,
+    TO_ANCHOR_ID_SCORE,
+    PHRASE_PAIR_TO_ANCHOR,
+    VALUE_ID_TO_PARENT,
+    PARENT_TO_VALUE_ID,
+    TEXT_ID_TO_ANCHOR,
+    ANCHOR_TO_TEXT_ID,
+    BOOST_VALID_TO_VALUE,
+    VALUE_ID_TO_ANCHOR,
+    TOKEN_VALUES,
+];
+
 pub static EMPTY_BUCKET: u32 = 0;
 pub static VALUE_OFFSET: u32 = 1; // because 0 is reserved for EMPTY_BUCKET
 
