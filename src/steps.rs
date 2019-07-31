@@ -43,11 +43,9 @@ impl FieldPath {
         for el in INDEX_FILE_ENDINGS {
             if path.ends_with(el){
                 suffix = Some(el.to_string());
+                path = path.trim_end_matches(el).to_string();
             }
         }
-
-        // if path.ends_with(INDEX_FILE_ENDINGS){
-        // }
 
         let steps: Vec<_> = path
             .split('.')
@@ -87,8 +85,12 @@ impl FieldPath {
     }
 
     pub fn contains(&self, other: &FieldPath) -> bool {
-        let self_str = self.to_string();
-        self_str.contains(&other.to_string())
+        for i in 0..std::cmp::min(self.steps.len(), other.steps.len()) {
+            if self.steps[i] != other.steps[i] {
+                return false;
+            }
+        }
+        true
     }
 }
 
@@ -137,8 +139,8 @@ pub fn steps_between_field_paths(start: &str, end: &str) -> (Vec<FieldPath>, Vec
     end_steps.remove_stem(&start);
 
     let mut path_to_walk_up: Vec<FieldPath> = vec![];
-    while let Some(sdtep) = end_steps.pop() {
-        start.steps.push(sdtep);
+    while let Some(step) = end_steps.pop() {
+        start.steps.push(step);
         path_to_walk_up.push(start.clone());
     }
 
@@ -151,6 +153,7 @@ pub fn steps_between_field_paths(start: &str, end: &str) -> (Vec<FieldPath>, Vec
 pub fn steps_between_field_paths_2(start: &str, end: &str) -> Vec<FieldPath> {
     let mut start = start.to_field_path();
     let mut end_steps = end.to_field_path();
+    end_steps.suffix = Some(VALUE_ID_TO_PARENT.to_string());
 
     let mut path_to_walk: Vec<FieldPath> = vec![];
 
@@ -162,8 +165,8 @@ pub fn steps_between_field_paths_2(start: &str, end: &str) -> Vec<FieldPath> {
 
     end_steps.remove_stem(&start);
 
-    while let Some(sdtep) = end_steps.pop() {
-        start.steps.push(sdtep);
+    while let Some(step) = end_steps.pop() {
+        start.steps.push(step);
         start.suffix = Some(PARENT_TO_VALUE_ID.to_string());
         path_to_walk.push(start.clone());
     }
@@ -194,5 +197,5 @@ fn test_from_to_steps_2() {
     let end = "meanings.ger[].boost";
     let yops = steps_between_field_paths_2(start, end);
 
-    // assert_eq!(yops, (vec!["meanings.ger[]".to_field_path(), "meanings.ger[].boost".to_field_path(),]));
+    assert_eq!(yops, (vec!["meanings.ger[].value_id_to_parent".to_field_path(), "meanings.ger[].boost.parent_to_value_id".to_field_path(),]));
 }
