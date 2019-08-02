@@ -16,3 +16,12 @@ LoadingType=Disk CARGO_INCREMENTAL=1 RUST_BACKTRACE=full RUST_TEST_THREADS=1 RUS
 - Compressed Docstore
 - Support for In-Memory and MMap Indices
 - Speed
+
+
+## Webserver
+
+To install the search enginge bundled with the webserver execute in the `server` folder:
+`cd server;cargo install`
+
+To start the server and load search indices inside the jmdict folder:
+`LoadingType=InMemory ROCKET_ENV=stage RUST_BACKTRACE=1 RUST_LOG=search_lib=info ROCKET_PORT=3000 rocket_server jmdict`

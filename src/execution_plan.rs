@@ -344,84 +344,28 @@ impl PlanStepTrait for BoostToAnchor {
     }
 
     fn execute_step(self: Box<Self>, persistence: &Persistence) -> Result<(), VelociError> {
+        debug_time!("BoostToAnchor {} {}", self.request.path, self.boost.path);
         let mut field_result = self.channel.input_prev_steps[0].recv().map_err(|_| VelociError::PlanExecutionRecvFailed)?;
-
-        // dbg!(&"field_result**************************************************************************************");
-        // dbg!(&field_result);
-        // dbg!(&"field_result**************************************************************************************");
-        //now finding steps to boost
-
-        // let mut path_to_walk_down = vec![];
 
         //TODO EXPLAIN INFO NOT RESPECTED IN THIS METHOD
         resolve_token_hits_to_text_id_ids_only(persistence, &self.request, &mut field_result)?;
-
-        // dbg!(&"field_result2**************************************************************************************");
-        // dbg!(&field_result);
-        // dbg!(&"field_result2**************************************************************************************");
-
-        let (walk_down, walk_up) = steps_between_field_paths(&self.request.path, &self.boost.path);
 
         //valueid to parent
         let text_index_ids_to_value_ids = self.request.path.add(TEXTINDEX).add(VALUE_ID_TO_PARENT);
         field_result = join_to_parent_ids(persistence, &field_result, &text_index_ids_to_value_ids, "boost: textindex to value id")?;
 
-        // let token_to_text_id = persistence.get_valueid_to_parent(path)?;
-        // dbg!(self.request.path);
-        for step in &walk_down {
-            let step = step.to_string().add(VALUE_ID_TO_PARENT);
-            field_result = join_to_parent_ids(persistence, &field_result, &step, "boost: valueid to parent")?;
-        }
-
-        let step = walk_down.last().unwrap().to_string().add(PARENT_TO_VALUE_ID);
-        field_result = join_to_parent_ids(persistence, &field_result, &step, "boost: valueid to parent")?;
-
-        if let Some((last, walk_up)) = walk_up.split_last() {
-            for step in walk_up {
-                let step = step.to_string().add(PARENT_TO_VALUE_ID);
-                field_result = join_to_parent_ids(persistence, &field_result, &step, "_trace_time_info: &str")?;
-            }
-
-            boost::get_boost_ids_and_resolve_to_anchor(persistence, &last.to_string(), &mut field_result)?;
-        }
-
-        //
-        // // BOOST_VALID_TO_VALUE
-        // if let Some(last_step) = walk_up.pop() {
-        //     let step = step.to_string().add(PARENT_TO_VALUE_ID);
-        //     step
+        // let mut walk = steps_between_field_paths(&self.request.path, &self.boost.path);
+        // if let Some((last, walk)) = walk.split_last_mut() {
+        //     for step in walk {
+        //         let step = step.to_string();
+        //         field_result = join_to_parent_ids(persistence, &field_result, &step, "_trace_time_info: &str")?;
+        //     }
+        //     boost::get_boost_ids_and_resolve_to_anchor(persistence, last, &mut field_result)?;
         // }
 
-        // dbg!(self.boost);
-        // dbg!(path);
-        // panic!("{:?}", walk_up);
+        let mut boost_field_path = (&self.boost.path).to_field_path();
+        boost::get_boost_ids_and_resolve_to_anchor(persistence, &mut boost_field_path, &mut field_result)?;
 
-        // let mut field_result = join_to_parent_ids(persistence, &field_result, "path: &str", "_trace_time_info: &str");
-        // panic!("{:?}", field_result.hits_ids);
-
-        // dbg!(field_result);
-        // let mut field_result = join_to_parent_ids(persistence, &field_result, "path: &str", "_trace_time_info: &str")?;
-
-        //valueid to parent
-
-        // let boost_field_path = (&self.boost.path).to_field_path();
-        // let search_field_path = (&self.path).to_field_path();
-        // let mut steps:Vec<_> = self.path.split(".").collect();
-        // while !self.boost.path.path.contains(&steps.join(".")) {
-        //     steps.pop();
-        //     path_to_walk_down.push(steps.join("."));
-        // }
-
-        // dbg!(path_to_walk_down);
-        // send_result_to_channel(
-        //     join_to_parent_with_score(
-        //         persistence,
-        //         &self.channel.input_prev_steps[0].recv().map_err(|_| VelociError::PlanExecutionRecvFailed)?,
-        //         &self.path,
-        //         &self.trace_info,
-        //     )?,
-        //     &self.channel,
-        // )?;
         send_result_to_channel(field_result, &self.channel)?;
         drop_channel(self.channel);
         Ok(())

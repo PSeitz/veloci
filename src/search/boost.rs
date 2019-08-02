@@ -1,3 +1,4 @@
+use crate::steps::FieldPath;
 use super::*;
 
 pub use self::search_field_result::*;
@@ -414,9 +415,12 @@ fn boost_intersect_hits_vec_test_multi() {
     assert_eq!(res.hits_scores, vec![Hit::new(0, 40.0), Hit::new(5, 20.0), Hit::new(10, 160.0), Hit::new(60, 40.0)]);
 }
 
-pub(crate) fn get_boost_ids_and_resolve_to_anchor(persistence: &Persistence, path: &str, hits: &mut SearchFieldResult) -> Result<(), VelociError> {
-    let boost_path = path.add(BOOST_VALID_TO_VALUE);
-    let boostkv_store = persistence.get_boost(&boost_path)?;
+pub(crate) fn get_boost_ids_and_resolve_to_anchor(persistence: &Persistence, path: &mut FieldPath, hits: &mut SearchFieldResult) -> Result<(), VelociError> {
+    // let boost_path = path.add(BOOST_VALID_TO_VALUE);
+    path.suffix = Some(BOOST_VALID_TO_VALUE);
+    let boostkv_store = persistence.get_boost(&path.to_string())?;
+
+    hits.hits_ids.sort_unstable();
 
     // trace_index_id_to_parent(boostkv_store);
     for value_id in &mut hits.hits_ids {
@@ -431,14 +435,15 @@ pub(crate) fn get_boost_ids_and_resolve_to_anchor(persistence: &Persistence, pat
 
     // resolve to anchor
     let mut data = vec![];
-    let kv_store = persistence.get_valueid_to_parent(&path.add(VALUE_ID_TO_ANCHOR))?; //TODO should be get_kv_store
+    path.suffix = Some(VALUE_ID_TO_ANCHOR);
+    let kv_store = persistence.get_valueid_to_parent(&path.to_string())?; //TODO should be get_kv_store
     for boost_pair in &mut hits.boost_ids {
         let val_opt = kv_store.get_value(u64::from(boost_pair.id));
 
         if let Some(anchor_id) = val_opt.as_ref() {
             data.push(Hit::new(*anchor_id, boost_pair.score));
         } else {
-            // can this happen: value_id without anchro id. I think not
+            // can this happen: value_id without anchor id. I think not
         }
     }
 

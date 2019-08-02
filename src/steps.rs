@@ -1,8 +1,5 @@
 use crate::{
-    error::*,
-    persistence::{Persistence, *},
-    search::{boost::*, *},
-    util::{self, StringAdd},
+    persistence::{*},
 };
 
 #[cfg(test)]
@@ -32,7 +29,7 @@ impl ToFieldPath for &String {
 #[derive(Default, PartialEq, Eq, Clone)]
 pub struct FieldPath {
     steps: Vec<FieldPathComponent>,
-    suffix: Option<String>,
+    pub suffix: Option<&'static str>,
 }
 
 impl FieldPath {
@@ -42,7 +39,7 @@ impl FieldPath {
         let mut suffix = None;
         for el in INDEX_FILE_ENDINGS {
             if path.ends_with(el){
-                suffix = Some(el.to_string());
+                suffix = Some(*el);
                 path = path.trim_end_matches(el).to_string();
             }
         }
@@ -125,55 +122,29 @@ impl FieldPathComponent {
     }
 }
 
-pub fn steps_between_field_paths(start: &str, end: &str) -> (Vec<FieldPath>, Vec<FieldPath>) {
+pub fn steps_between_field_paths(start: &str, end: &str) -> Vec<FieldPath> {
     let mut start = start.to_field_path();
     let mut end_steps = end.to_field_path();
-
-    let mut path_to_walk_down: Vec<FieldPath> = vec![];
-
-    while !end_steps.contains(&start) {
-        start.pop();
-        path_to_walk_down.push(start.clone());
-    }
-
-    end_steps.remove_stem(&start);
-
-    let mut path_to_walk_up: Vec<FieldPath> = vec![];
-    while let Some(step) = end_steps.pop() {
-        start.steps.push(step);
-        path_to_walk_up.push(start.clone());
-    }
-
-    // println!("hehe {:?}", end_steps);
-    // println!("DOWN {:?}", path_to_walk_down);
-    // println!("UP {:?}", path_to_walk_up);
-    (path_to_walk_down, path_to_walk_up)
-}
-
-pub fn steps_between_field_paths_2(start: &str, end: &str) -> Vec<FieldPath> {
-    let mut start = start.to_field_path();
-    let mut end_steps = end.to_field_path();
-    end_steps.suffix = Some(VALUE_ID_TO_PARENT.to_string());
+    end_steps.suffix = Some(VALUE_ID_TO_PARENT);
 
     let mut path_to_walk: Vec<FieldPath> = vec![];
 
     while !end_steps.contains(&start) {
         start.pop();
-        start.suffix = Some(VALUE_ID_TO_PARENT.to_string());
+        start.suffix = Some(VALUE_ID_TO_PARENT);
         path_to_walk.push(start.clone());
     }
 
+    start.suffix = Some(PARENT_TO_VALUE_ID);
+    path_to_walk.push(start.clone());
     end_steps.remove_stem(&start);
 
     while let Some(step) = end_steps.pop() {
         start.steps.push(step);
-        start.suffix = Some(PARENT_TO_VALUE_ID.to_string());
+        start.suffix = Some(PARENT_TO_VALUE_ID);
         path_to_walk.push(start.clone());
     }
 
-    // println!("hehe {:?}", end_steps);
-    // println!("DOWN {:?}", path_to_walk);
-    // println!("UP {:?}", path_to_walk_up);
     (path_to_walk)
 }
 
@@ -184,18 +155,10 @@ fn test_identity() {
 }
 
 #[test]
-fn test_from_to_steps() {
+fn test_from_to_steps_2() {
     let start = "meanings.ger[].text";
     let end = "meanings.ger[].boost";
     let yops = steps_between_field_paths(start, end);
 
-    assert_eq!(yops, (vec!["meanings.ger[]".to_field_path(),], vec!["meanings.ger[].boost".to_field_path(),]));
-}
-#[test]
-fn test_from_to_steps_2() {
-    let start = "meanings.ger[].text";
-    let end = "meanings.ger[].boost";
-    let yops = steps_between_field_paths_2(start, end);
-
-    assert_eq!(yops, (vec!["meanings.ger[].value_id_to_parent".to_field_path(), "meanings.ger[].boost.parent_to_value_id".to_field_path(),]));
+    assert_eq!(yops, (vec!["meanings.ger[].value_id_to_parent".to_field_path(),"meanings.ger[].parent_to_value_id".to_field_path(), "meanings.ger[].boost.parent_to_value_id".to_field_path(),]));
 }
