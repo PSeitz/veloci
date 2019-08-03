@@ -522,6 +522,10 @@ pub fn search(mut request: Request, persistence: &Persistence) -> Result<SearchR
         info_time!("search terms");
         let mut plan = Plan::default();
         plan_creator(request.clone(), &mut plan);
+
+        let mut dot_graph = vec![];
+        render_plan_to(&plan, &mut dot_graph);
+        info!("{}", String::from_utf8(dot_graph).unwrap());
         // info!("{:?}", plan);
         // info!("{:?}", serde_json::to_string_pretty(&plan).unwrap());
         // let yep = plan.get_output();

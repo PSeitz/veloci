@@ -62,7 +62,7 @@ pub struct Dependency {
 /// Plan creates a plan based on a search::Request
 pub struct Plan {
     pub steps: Vec<Box<dyn PlanStepTrait>>,
-    dependencies: Vec<Dependency>,
+    pub dependencies: Vec<Dependency>,
     pub plan_result: Option<PlanDataReceiver>,
 }
 
@@ -75,6 +75,60 @@ impl Default for Plan {
         }
     }
 }
+
+
+use std::io::Write;
+
+// type Nd = usize;
+type Nd = (usize, String);
+// type Nd<'d> = String;
+// type Ed<'a> = &'a (usize, usize);
+type Ed<'a> = &'a Dependency;
+// struct Graph<'c> { nodes: &'c Vec<Box<dyn PlanStepTrait>>, edges: Vec<Dependency> }
+struct Graph<'c> { nodes: &'c Vec<Box<dyn PlanStepTrait>>, edges: Vec<Dependency> }
+
+pub fn render_plan_to<W: Write>(plan: &Plan, output: &mut W) {
+    // let nodes = vec!("{x,y}","{x}","{y}","{}");
+    // let edges = vec!((0,1), (0,2), (1,3), (2,3));
+    // let edges = plan.dependencies.iter().map(|el|(el.step))
+
+    let graph = Graph { nodes: &plan.steps, edges: plan.dependencies.to_vec() };
+
+    dot::render(&graph, output).unwrap()
+}
+
+impl<'a, 'c> dot::Labeller<'a, Nd, Ed<'a>> for Graph<'c> {
+    fn graph_id(&'a self) -> dot::Id<'a> { dot::Id::new("example2").unwrap() }
+    fn node_id(&'a self, n: &Nd) -> dot::Id<'a> {
+        dot::Id::new(format!("N{}", n.0)).unwrap()
+    }
+    // fn node_label<'b>(&'b self, n: &Nd) -> dot::LabelText<'b> {
+    fn node_label<'b>(&'b self, n: &Nd) -> dot::LabelText<'b> {
+        // dot::LabelText::LabelStr("self.nodes[*n]".into())
+        // dot::LabelText::LabelStr("self.nodes[*n]".into())
+        dot::LabelText::LabelStr(n.1.to_string().into())
+    }
+    fn edge_label<'b>(&'b self, _: &Ed) -> dot::LabelText<'b> {
+        dot::LabelText::LabelStr("".into())
+    }
+}
+
+impl<'a, 'c> dot::GraphWalk<'a, Nd, Ed<'a>> for Graph<'c> {
+    // fn nodes(&self) -> dot::Nodes<'a,Nd> { (0..self.nodes.len()).collect() }
+    fn nodes(&self) -> dot::Nodes<'a,Nd> { self.nodes.iter().enumerate().map(|(i, el)|(i, el.get_step_description())).collect() }
+    fn edges(&'a self) -> dot::Edges<'a,Ed<'a>> { self.edges.iter().collect() }
+    fn source(&self, e: &Ed) -> Nd { 
+        (e.depends_on , self.nodes[e.depends_on].get_step_description())
+        // (e.step_index , self.nodes[e.step_index].get_step_description())
+        // e.step_index
+    }
+    fn target(&self, e: &Ed) -> Nd {
+        (e.step_index, self.nodes[e.step_index].get_step_description())
+        // (e.depends_on, self.nodes[e.depends_on].get_step_description())
+        // e.depends_on
+    }
+}
+
 
 impl Plan {
     fn add_dependency(&mut self, step_index: usize, depends_on: usize) {
@@ -205,6 +259,7 @@ impl PlanStepDataChannels {
 
 pub trait PlanStepTrait: Debug + Sync + Send {
     fn get_channel(&mut self) -> &mut PlanStepDataChannels;
+    fn get_step_description(&self) -> String;
     // fn get_output(&self) -> PlanDataReceiver;
     fn execute_step(self: Box<Self>, persistence: &Persistence) -> Result<(), VelociError>;
 }
@@ -265,6 +320,9 @@ impl PlanStepTrait for PlanStepFieldSearchToTokenIds {
         &mut self.channel
     }
 
+    fn get_step_description(&self) -> String { 
+        "PlanStepFieldSearchToTokenIds".to_string()
+    }
     fn execute_step(mut self: Box<Self>, persistence: &Persistence) -> Result<(), VelociError> {
         let field_result = search_field::get_term_ids_in_field(persistence, &mut self.req)?;
         send_result_to_channel(field_result, &self.channel)?;
@@ -278,6 +336,9 @@ impl PlanStepTrait for ResolveTokenIdToAnchor {
         &mut self.channel
     }
 
+    fn get_step_description(&self) -> String { 
+        "ResolveTokenIdToAnchor".to_string()
+    }
     fn execute_step(self: Box<Self>, persistence: &Persistence) -> Result<(), VelociError> {
         let res = self.channel.input_prev_steps[0].recv().map_err(|_| VelociError::PlanExecutionRecvFailed)?;
         let filter_res = if let Some(ref filter_receiver) = self.channel.filter_receiver {
@@ -297,6 +358,9 @@ impl PlanStepTrait for ResolveTokenIdToTextId {
         &mut self.channel
     }
 
+    fn get_step_description(&self) -> String { 
+        "ResolveTokenIdToTextId".to_string()
+    }
     fn execute_step(self: Box<Self>, persistence: &Persistence) -> Result<(), VelociError> {
         let mut field_result = self.channel.input_prev_steps[0].recv().map_err(|_| VelociError::PlanExecutionRecvFailed)?;
         resolve_token_hits_to_text_id(persistence, &self.request, &mut field_result)?;
@@ -311,6 +375,9 @@ impl PlanStepTrait for ValueIdToParent {
         &mut self.channel
     }
 
+    fn get_step_description(&self) -> String { 
+        "ValueIdToParent".to_string()
+    }
     fn execute_step(self: Box<Self>, persistence: &Persistence) -> Result<(), VelociError> {
         send_result_to_channel(
             join_to_parent_with_score(
@@ -343,6 +410,9 @@ impl PlanStepTrait for BoostToAnchor {
         &mut self.channel
     }
 
+    fn get_step_description(&self) -> String { 
+        "BoostToAnchor".to_string()
+    }
     fn execute_step(self: Box<Self>, persistence: &Persistence) -> Result<(), VelociError> {
         debug_time!("BoostToAnchor {} {}", self.request.path, self.boost.path);
         let mut field_result = self.channel.input_prev_steps[0].recv().map_err(|_| VelociError::PlanExecutionRecvFailed)?;
@@ -388,6 +458,9 @@ impl PlanStepTrait for ApplyAnchorBoost {
         &mut self.channel
     }
 
+    fn get_step_description(&self) -> String { 
+        "ApplyAnchorBoost".to_string()
+    }
     fn execute_step(self: Box<Self>, _persistence: &Persistence) -> Result<(), VelociError> {
         let mut field_result = self.channel.input_prev_steps[0].recv().map_err(|_| VelociError::PlanExecutionRecvFailed)?;
 
@@ -406,6 +479,9 @@ impl PlanStepTrait for BoostPlanStepFromBoostRequest {
         &mut self.channel
     }
 
+    fn get_step_description(&self) -> String { 
+        "BoostPlanStepFromBoostRequest".to_string()
+    }
     fn execute_step(self: Box<Self>, persistence: &Persistence) -> Result<(), VelociError> {
         let mut input = self.channel.input_prev_steps[0].recv().map_err(|_| VelociError::PlanExecutionRecvFailed)?;
         add_boost(persistence, &self.req, &mut input)?;
@@ -447,6 +523,9 @@ impl PlanStepTrait for BoostAnchorFromPhraseResults {
         &mut self.channel
     }
 
+    fn get_step_description(&self) -> String { 
+        "BoostAnchorFromPhraseResults".to_string()
+    }
     fn execute_step(self: Box<Self>, _persistence: &Persistence) -> Result<(), VelociError> {
         let input = self.channel.input_prev_steps[0].recv().map_err(|_| VelociError::PlanExecutionRecvFailed)?;
         let boosts = get_data(&self.channel.input_prev_steps[1..])?;
@@ -466,6 +545,9 @@ impl PlanStepTrait for PlanStepPhrasePairToAnchorId {
         &mut self.channel
     }
 
+    fn get_step_description(&self) -> String { 
+        "PlanStepPhrasePairToAnchorId".to_string()
+    }
     fn execute_step(self: Box<Self>, persistence: &Persistence) -> Result<(), VelociError> {
         let res1 = self.channel.input_prev_steps[0].recv().map_err(|_| VelociError::PlanExecutionRecvFailed)?;
         let res2 = self.channel.input_prev_steps[1].recv().map_err(|_| VelociError::PlanExecutionRecvFailed)?;
@@ -483,6 +565,9 @@ impl PlanStepTrait for Union {
         &mut self.channel
     }
 
+    fn get_step_description(&self) -> String{
+        "Union".to_string()
+    }
     fn execute_step(self: Box<Self>, _persistence: &Persistence) -> Result<(), VelociError> {
         let res = if self.ids_only {
             union_hits_ids(get_data(&self.channel.input_prev_steps.clone())?)
@@ -501,6 +586,9 @@ impl PlanStepTrait for Intersect {
         &mut self.channel
     }
 
+    fn get_step_description(&self) -> String{
+        "Intersect".to_string()
+    }
     fn execute_step(self: Box<Self>, _persistence: &Persistence) -> Result<(), VelociError> {
         let res = if self.ids_only {
             intersect_hits_ids(get_data(&self.channel.input_prev_steps.clone())?)
@@ -517,6 +605,9 @@ impl PlanStepTrait for IntersectScoresWithIds {
         &mut self.channel
     }
 
+    fn get_step_description(&self) -> String {
+        "IntersectScoresWithIds".to_string()
+    }
     fn execute_step(self: Box<Self>, _persistence: &Persistence) -> Result<(), VelociError> {
         info_time!("IntersectScoresWithIds");
         let scores_res = self.channel.input_prev_steps[0].recv().map_err(|_| VelociError::PlanExecutionRecvFailed)?;
@@ -918,9 +1009,9 @@ fn plan_creator_search_part(
 
                 // add dependencies to ensure correct execution order
                 plan.add_dependency(token_to_anchor_step_id, *field_search_step_id);
-                if let Some(parent_step_dependecy) = parent_step_dependecy {
-                    plan.add_dependency(parent_step_dependecy, token_to_anchor_step_id);
-                }
+                // if let Some(parent_step_dependecy) = parent_step_dependecy {
+                //     plan.add_dependency(parent_step_dependecy, token_to_anchor_step_id);
+                // }
                 if let Some(depends_on_step) = depends_on_step {
                     plan.add_dependency(token_to_anchor_step_id, depends_on_step);
                 }
@@ -936,9 +1027,9 @@ fn plan_creator_search_part(
                 });
                 let boost_step_id = plan.add_step(boost_step);
                 plan.add_dependency(boost_step_id, *field_search_step_id); // TODO instead adding the dependency manually here, we should deduce the dependency by dataflow. In open_channel the output is connected (field_rx) and should be added as depedency
-                if let Some(parent_step_dependecy) = parent_step_dependecy {
-                    plan.add_dependency(parent_step_dependecy, boost_step_id);
-                }
+                // if let Some(parent_step_dependecy) = parent_step_dependecy {
+                //     plan.add_dependency(parent_step_dependecy, boost_step_id);
+                // }
 
                 // STEP2: APPLY BOOST on anchor
                 let token_to_anchor_rx = channel.receiver_for_next_step.clone();
@@ -958,6 +1049,9 @@ fn plan_creator_search_part(
                 let step_id = plan.add_step(step);
                 plan.add_dependency(step_id, boost_step_id);
                 plan.add_dependency(step_id, token_to_anchor_step_id);
+                if let Some(parent_step_dependecy) = parent_step_dependecy {
+                    plan.add_dependency(parent_step_dependecy, step_id);
+                }
                 // plan.add_dependency(boost_step, step_id);
 
                 //get boost scores and resolve to anchor
