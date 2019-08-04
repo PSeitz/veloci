@@ -321,7 +321,7 @@ impl PlanStepTrait for PlanStepFieldSearchToTokenIds {
     }
 
     fn get_step_description(&self) -> String { 
-        "PlanStepFieldSearchToTokenIds".to_string()
+        format!("search {} {}", self.req.request.path, self.req.request.terms[0])
     }
     fn execute_step(mut self: Box<Self>, persistence: &Persistence) -> Result<(), VelociError> {
         let field_result = search_field::get_term_ids_in_field(persistence, &mut self.req)?;
@@ -337,7 +337,7 @@ impl PlanStepTrait for ResolveTokenIdToAnchor {
     }
 
     fn get_step_description(&self) -> String { 
-        "ResolveTokenIdToAnchor".to_string()
+        "token to anchor".to_string()
     }
     fn execute_step(self: Box<Self>, persistence: &Persistence) -> Result<(), VelociError> {
         let res = self.channel.input_prev_steps[0].recv().map_err(|_| VelociError::PlanExecutionRecvFailed)?;
@@ -411,7 +411,8 @@ impl PlanStepTrait for BoostToAnchor {
     }
 
     fn get_step_description(&self) -> String { 
-        "BoostToAnchor".to_string()
+        // "BoostToAnchor".to_string()
+        format!("BoostToAnchor {}", self.boost.path)
     }
     fn execute_step(self: Box<Self>, persistence: &Persistence) -> Result<(), VelociError> {
         debug_time!("BoostToAnchor {} {}", self.request.path, self.boost.path);
@@ -459,6 +460,7 @@ impl PlanStepTrait for ApplyAnchorBoost {
     }
 
     fn get_step_description(&self) -> String { 
+        // format!("ApplyAnchorBoost {} {}", self.request.path, self.boost.path)
         "ApplyAnchorBoost".to_string()
     }
     fn execute_step(self: Box<Self>, _persistence: &Persistence) -> Result<(), VelociError> {
@@ -957,9 +959,9 @@ fn plan_creator_search_part(
     let (field_search_step_id, field_search_step) = field_search_cache
         .get_mut(&request_part)
         .unwrap_or_else(|| panic!("PlanCreator: Could not find  request in field_search_cache {:?}", request_part));
-    if let Some(parent_step_dependecy) = parent_step_dependecy {
-        plan.add_dependency(parent_step_dependecy, *field_search_step_id);
-    }
+    // if let Some(parent_step_dependecy) = parent_step_dependecy {
+    //     plan.add_dependency(parent_step_dependecy, *field_search_step_id);
+    // }
     field_search_step.req.store_term_texts |= request.why_found;
     field_search_step.req.store_term_id_hits |= store_term_id_hits;
     field_search_step.channel.num_receivers += 1;

@@ -15,6 +15,8 @@ pub enum VelociError {
     JsonError(serde_json::Error),
     #[fail(display = "Utf8Error: '{}'", _0)]
     Utf8Error(std::str::Utf8Error),
+    #[fail(display = "FromUtf8Error: '{}'", _0)]
+    FromUtf8Error(std::string::FromUtf8Error),
     #[fail(display = "FstError: '{:?}'", _0)]
     FstError(fst::Error),
     #[fail(display = "IoError: '{:?}'", _0)]
@@ -41,6 +43,11 @@ impl From<io::Error> for VelociError {
 impl From<fst::Error> for VelociError {
     fn from(error: fst::Error) -> VelociError {
         VelociError::FstError(error)
+    }
+}
+impl From<std::string::FromUtf8Error> for VelociError {
+    fn from(error: std::string::FromUtf8Error) -> VelociError {
+        VelociError::FromUtf8Error(error)
     }
 }
 impl From<std::str::Utf8Error> for VelociError {

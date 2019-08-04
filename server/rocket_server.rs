@@ -181,7 +181,7 @@ fn ensure_shard(database: &String) -> Result<(), VelociError> {
 
 #[get("/version")]
 fn version() -> String {
-    "0.6".to_string()
+    "0.7".to_string()
 }
 
 fn search_in_persistence(persistence: &Persistence, request: search_lib::search::Request) -> Result<SearchResult, VelociError> {
@@ -319,6 +319,19 @@ fn search_from_query_params(database: String, params: QueryParams) -> Result<Sea
 //     search_from_query_params(database, request.0)
 // }
 
+#[post("/<database>/search_query_params/explain_plan", format = "application/json", data = "<request>")]
+fn search_post_query_params_explain(database: String, request: Json<query_generator::SearchQueryGeneratorParameters>) -> Result<String, Custom<String>> {
+    let q_params = request.0;
+    let persistence = PERSISTENCES.get(&database).unwrap();
+
+    let mut request = query_generator::search_query(&persistence, q_params.clone()).map_err(|err| Custom(Status::BadRequest, format!("query_generation failed: {:?}", err)))?;
+
+    request.select = query_param_to_vec(q_params.select);
+
+    debug!("{}", serde_json::to_string(&request).unwrap());
+    search::explain_plan(request, &persistence).map_err(search_error_to_rocket_error)
+}
+
 #[post("/<database>/search_query_params", format = "application/json", data = "<request>")]
 fn search_post_query_params(database: String, request: Json<query_generator::SearchQueryGeneratorParameters>) -> Result<SearchResult, Custom<String>> {
     let q_params = request.0;
@@ -331,6 +344,21 @@ fn search_post_query_params(database: String, request: Json<query_generator::Sea
     debug!("{}", serde_json::to_string(&request).unwrap());
     search_in_persistence(&persistence, request).map_err(search_error_to_rocket_error)
 }
+
+// #[get("/<database>/search/explain_plan?<params..>")]
+// fn search_get_explain(database: String, params: LenientForm<QueryParams>) -> Result<String, VelociError> {
+//     // let params = params.map_err(|err| Custom(Status::BadRequest, format!("{:let params: QueryParams = params.into_inner();?}", err)))?;
+//     let params: QueryParams = params.into_inner();
+
+//     let q_params = request.0;
+//     let persistence = PERSISTENCES.get(&database).unwrap();
+
+//     let mut request = query_generator::search_query(&persistence, q_params.clone()).map_err(|err| Custom(Status::BadRequest, format!("query_generation failed: {:?}", err)))?;
+
+//     request.select = query_param_to_vec(q_params.select);
+
+//     search::explain_plan(request, &persistence)
+// }
 
 #[get("/<database>/search?<params..>")]
 fn search_get(database: String, params: LenientForm<QueryParams>) -> Result<SearchResult, Custom<String>> {

@@ -513,6 +513,18 @@ pub(crate) fn check_apply_top_n_sort<T: std::fmt::Debug>(new_data: &mut Vec<T>, 
     }
 }
 
+pub fn explain_plan(mut request: Request, _persistence: &Persistence) -> Result<String, VelociError> {
+    request.top = request.top.or(Some(10));
+    request.skip = request.skip;
+
+    let mut plan = Plan::default();
+    plan_creator(request.clone(), &mut plan);
+
+    let mut dot_graph = vec![];
+    render_plan_to(&plan, &mut dot_graph);
+    Ok(String::from_utf8(dot_graph)?)
+}
+
 pub fn search(mut request: Request, persistence: &Persistence) -> Result<SearchResult, VelociError> {
     info_time!("search");
     request.top = request.top.or(Some(10));
@@ -525,7 +537,7 @@ pub fn search(mut request: Request, persistence: &Persistence) -> Result<SearchR
 
         let mut dot_graph = vec![];
         render_plan_to(&plan, &mut dot_graph);
-        info!("{}", String::from_utf8(dot_graph).unwrap());
+        debug!("{}", String::from_utf8(dot_graph).unwrap());
         // info!("{:?}", plan);
         // info!("{:?}", serde_json::to_string_pretty(&plan).unwrap());
         // let yep = plan.get_output();
