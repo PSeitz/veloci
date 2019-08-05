@@ -1,15 +1,13 @@
-use crate::util::*;
-
 use super::*;
-use vint::vint_encode_most_common::*;
-
-use crate::error::VelociError;
+use crate::{
+    error::VelociError,
+    indices::{calc_avg_join_size, flush_to_file_indirect},
+    util::*,
+};
 use itertools::Itertools;
-use std::{self, io, iter::FusedIterator, marker::PhantomData, mem};
-
-use crate::indices::persistence_data_indirect;
 use num;
-use std::ops;
+use std::{self, io, iter::FusedIterator, marker::PhantomData, mem, ops};
+use vint::vint_encode_most_common::*;
 
 // impl_type_info_single_templ!(TokenToAnchorScoreVintMmap);
 // impl_type_info!(TokenToAnchorScoreVintIM);
@@ -161,12 +159,12 @@ impl<T: AnchorScoreDataSize> TokenToAnchorScoreVintFlushing<T> {
         let id_to_data_pos_bytes = unsafe { slice::from_raw_parts(self.id_to_data_pos.as_ptr() as *const u8, self.id_to_data_pos.len() * mem::size_of::<T>()) };
 
         // persistence_data_indirect::flush_to_file_indirect(&self.indirect_path, &self.data_path, &vec_to_bytes_u32(&self.id_to_data_pos), &self.data_cache)?;
-        persistence_data_indirect::flush_to_file_indirect(&self.indirect_path, &self.data_path, id_to_data_pos_bytes, &self.data_cache)?;
+        flush_to_file_indirect(&self.indirect_path, &self.data_path, id_to_data_pos_bytes, &self.data_cache)?;
 
         self.data_cache.clear();
         self.id_to_data_pos.clear();
 
-        self.metadata.avg_join_size = persistence_data_indirect::calc_avg_join_size(self.metadata.num_values, self.metadata.num_ids);
+        self.metadata.avg_join_size = calc_avg_join_size(self.metadata.num_values, self.metadata.num_ids);
 
         Ok(())
     }

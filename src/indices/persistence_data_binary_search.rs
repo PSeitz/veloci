@@ -1,4 +1,4 @@
-use super::persistence_data_indirect::{calc_avg_join_size, flush_to_file_indirect};
+use super::{calc_avg_join_size, flush_to_file_indirect};
 use crate::{error::VelociError, persistence::*, type_info::TypeInfo, util::open_file};
 use memmap::{Mmap, MmapOptions};
 use std::{self, cmp::Ordering::Greater, io, marker::PhantomData, path::Path, u32};

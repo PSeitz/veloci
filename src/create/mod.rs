@@ -9,9 +9,8 @@ use std::{self, fs::File, io, str};
 
 use crate::{
     error::*,
-    indices::*,
+    indices::{persistence_score::token_to_anchor_score_vint::*, *},
     persistence::{self, IndexCategory, LoadingType, Persistence, *},
-    indices::persistence_score::token_to_anchor_score_vint::*,
     search, search_field,
     tokenizer::*,
     util::{self, *},

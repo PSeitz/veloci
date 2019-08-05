@@ -9,19 +9,16 @@ use std::{
 // use byteorder::{LittleEndian, ReadBytesExt};
 // use heapsize::HeapSizeOf;
 
-pub(crate) use super::persistence_data_indirect::*;
+use super::*;
 use crate::{
     error::VelociError,
+    facet::*,
     persistence::{EMPTY_BUCKET, *},
+    type_info::TypeInfo,
 };
-
-use crate::facet::*;
-use num;
-
-use crate::type_info::TypeInfo;
 use fnv::FnvHashMap;
-
 use memmap::{Mmap, MmapOptions};
+use num;
 
 impl_type_info_single_templ!(SingleArrayMMAPPacked);
 
