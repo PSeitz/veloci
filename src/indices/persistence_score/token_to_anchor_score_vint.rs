@@ -7,7 +7,7 @@ use crate::error::VelociError;
 use itertools::Itertools;
 use std::{self, io, iter::FusedIterator, marker::PhantomData, mem};
 
-use crate::persistence_data_indirect;
+use crate::indices::persistence_data_indirect;
 use num;
 use std::ops;
 

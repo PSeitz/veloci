@@ -9,7 +9,7 @@ use std::{
 // use byteorder::{LittleEndian, ReadBytesExt};
 // use heapsize::HeapSizeOf;
 
-pub(crate) use crate::persistence_data_indirect::*;
+pub(crate) use super::persistence_data_indirect::*;
 use crate::{
     error::VelociError,
     persistence::{EMPTY_BUCKET, *},

@@ -9,9 +9,9 @@ pub use self::{search_field::*, search_field_result::*, set_op::*};
 use super::highlight_field;
 use crate::{
     error::VelociError,
-    execution_plan::*,
     expression::ScoreExpression,
     facet,
+    plan_creator::{execution_plan::*, plan::*},
     util::{self, *},
 };
 use json_converter;

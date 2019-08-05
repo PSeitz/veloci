@@ -1,22 +1,11 @@
-// use heapsize::HeapSizeOf;
-use std::cmp::Ordering::Greater;
-
-use crate::{
-    error::VelociError,
-    persistence::*,
-    persistence_data_indirect::{calc_avg_join_size, flush_to_file_indirect},
-    type_info::TypeInfo,
-    util::open_file,
-};
-
-use std::{self, io, marker::PhantomData, path::Path, u32};
-
+use super::persistence_data_indirect::{calc_avg_join_size, flush_to_file_indirect};
+use crate::{error::VelociError, persistence::*, type_info::TypeInfo, util::open_file};
 use memmap::{Mmap, MmapOptions};
+use std::{self, cmp::Ordering::Greater, io, marker::PhantomData, path::Path, u32};
+use vint::vint::*;
 
 impl_type_info_single_templ!(IndexIdToMultipleParentIndirectFlushingInOrderVintNoDirectEncode);
 impl_type_info_single_templ!(IndexIdToMultipleParentIndirectBinarySearchMMAP);
-
-use vint::vint::*;
 
 /// This data structure assumes that a set is only called once for a id, and ids are set in order.
 #[derive(Debug, Clone)]

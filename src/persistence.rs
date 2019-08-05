@@ -25,9 +25,7 @@ use log;
 pub use crate::metadata::*;
 use crate::{
     error::VelociError,
-    persistence_data::*,
-    persistence_data_binary_search::*,
-    persistence_score::*,
+    indices::*,
     search::*,
     search_field_result, type_info,
     util::{self, get_file_path, *},
@@ -56,7 +54,8 @@ pub const TOKEN_VALUES: &str = ".token_values";
 
 pub const TEXTINDEX: &str = ".textindex";
 
-pub static INDEX_FILE_ENDINGS: &[&str] = &[TOKENS_TO_TEXT_ID,
+pub static INDEX_FILE_ENDINGS: &[&str] = &[
+    TOKENS_TO_TEXT_ID,
     TEXT_ID_TO_TOKEN_IDS,
     TO_ANCHOR_ID_SCORE,
     PHRASE_PAIR_TO_ANCHOR,

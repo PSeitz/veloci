@@ -1,6 +1,4 @@
-use crate::{
-    persistence::{*},
-};
+use crate::persistence::*;
 
 #[cfg(test)]
 mod tests {
@@ -34,11 +32,10 @@ pub struct FieldPath {
 
 impl FieldPath {
     pub fn from_path(path: &str) -> Self {
-
         let mut path = path.to_string();
         let mut suffix = None;
         for el in INDEX_FILE_ENDINGS {
-            if path.ends_with(el){
+            if path.ends_with(el) {
                 suffix = Some(*el);
                 path = path.trim_end_matches(el).to_string();
             }
@@ -66,7 +63,7 @@ impl FieldPath {
     pub fn to_string(&self) -> String {
         let mut res = self.steps.iter().map(|sstep| sstep.to_string()).collect::<Vec<_>>().join(".");
         if let Some(suffix) = &self.suffix {
-            res+=suffix;
+            res += suffix;
         }
         res
     }
@@ -160,5 +157,12 @@ fn test_from_to_steps_2() {
     let end = "meanings.ger[].boost";
     let yops = steps_between_field_paths(start, end);
 
-    assert_eq!(yops, (vec!["meanings.ger[].value_id_to_parent".to_field_path(),"meanings.ger[].parent_to_value_id".to_field_path(), "meanings.ger[].boost.parent_to_value_id".to_field_path(),]));
+    assert_eq!(
+        yops,
+        (vec![
+            "meanings.ger[].value_id_to_parent".to_field_path(),
+            "meanings.ger[].parent_to_value_id".to_field_path(),
+            "meanings.ger[].boost.parent_to_value_id".to_field_path(),
+        ])
+    );
 }

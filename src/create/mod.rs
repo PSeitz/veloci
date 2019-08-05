@@ -9,11 +9,9 @@ use std::{self, fs::File, io, str};
 
 use crate::{
     error::*,
+    indices::*,
     persistence::{self, IndexCategory, LoadingType, Persistence, *},
-    persistence_data::*,
-    persistence_data_binary_search::*,
-    persistence_data_indirect::*,
-    persistence_score::token_to_anchor_score_vint::*,
+    indices::persistence_score::token_to_anchor_score_vint::*,
     search, search_field,
     tokenizer::*,
     util::{self, *},
@@ -1341,7 +1339,7 @@ struct TokenValueData {
     text: String,
     value: Option<u32>,
 }
-use crate::execution_plan::PlanRequestSearchPart;
+use crate::plan_creator::execution_plan::PlanRequestSearchPart;
 pub fn add_token_values_to_tokens(persistence: &mut Persistence, data_str: &str, config: &str) -> Result<(), VelociError> {
     let data: Vec<TokenValueData> = serde_json::from_str(data_str)?;
     let config: TokenValuesConfig = serde_json::from_str(config)?;

@@ -423,8 +423,7 @@ fn get_encoded(mut val: u32) -> Option<u32> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::persistence_data::*;
+    use super::{super::*, *};
 
     fn get_test_data_1_to_n_ind(path: &str) -> IndexIdToMultipleParentIndirectFlushingInOrderVint {
         let mut store = IndexIdToMultipleParentIndirectFlushingInOrderVint::new(path.to_string(), u32::MAX);

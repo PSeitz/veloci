@@ -1,5 +1,5 @@
-use crate::steps::FieldPath;
 use super::*;
+use crate::steps::FieldPath;
 
 pub use self::search_field_result::*;
 use std::{self, f32};
