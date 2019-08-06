@@ -1,8 +1,11 @@
 use super::*;
+use super::super::{EMPTY_BUCKET, EMPTY_BUCKET_USIZE};
+
 use crate::{
     error::VelociError,
     indices::{calc_avg_join_size, flush_to_file_indirect},
     util::*,
+    indices::*,
 };
 use itertools::Itertools;
 use num;
@@ -11,9 +14,6 @@ use vint::vint_encode_most_common::*;
 
 // impl_type_info_single_templ!(TokenToAnchorScoreVintMmap);
 // impl_type_info!(TokenToAnchorScoreVintIM);
-
-const EMPTY_BUCKET: u32 = 0;
-const EMPTY_BUCKET_USIZE: usize = 0;
 
 pub trait AnchorScoreDataSize: IndexIdToParentData + ops::AddAssign + ops::Add + num::Zero {}
 impl<T> AnchorScoreDataSize for T where T: IndexIdToParentData + ops::AddAssign + ops::Add + num::Zero {}

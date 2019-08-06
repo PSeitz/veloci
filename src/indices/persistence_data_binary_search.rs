@@ -1,15 +1,15 @@
 use super::{calc_avg_join_size, flush_to_file_indirect};
-use crate::{error::VelociError, persistence::*, type_info::TypeInfo, util::open_file};
+use crate::{error::VelociError, persistence::*, type_info::TypeInfo, util::open_file, indices::*};
 use memmap::{Mmap, MmapOptions};
 use std::{self, cmp::Ordering::Greater, io, marker::PhantomData, path::Path, u32};
 use vint::vint::*;
 
-impl_type_info_single_templ!(IndexIdToMultipleParentIndirectFlushingInOrderVintNoDirectEncode);
-impl_type_info_single_templ!(IndexIdToMultipleParentIndirectBinarySearchMMAP);
+impl_type_info_single_templ!(IndirectIMFlushingInOrderVintNoDirectEncode);
+impl_type_info_single_templ!(IndirectIMBinarySearchMMAP);
 
 /// This data structure assumes that a set is only called once for a id, and ids are set in order.
 #[derive(Debug, Clone)]
-pub(crate) struct IndexIdToMultipleParentIndirectFlushingInOrderVintNoDirectEncode<T> {
+pub(crate) struct IndirectIMFlushingInOrderVintNoDirectEncode<T> {
     pub(crate) ids_cache: Vec<(T, u32)>,
     pub(crate) data_cache: Vec<u8>,
     pub(crate) current_data_offset: u32,
@@ -20,11 +20,11 @@ pub(crate) struct IndexIdToMultipleParentIndirectFlushingInOrderVintNoDirectEnco
     pub(crate) metadata: IndexValuesMetadata,
 }
 
-impl<T: Default + std::fmt::Debug> IndexIdToMultipleParentIndirectFlushingInOrderVintNoDirectEncode<T> {
+impl<T: Default + std::fmt::Debug> IndirectIMFlushingInOrderVintNoDirectEncode<T> {
     pub(crate) fn new(indirect_path: String, data_path: String, max_value_id: u32) -> Self {
         let mut data_cache = vec![];
         data_cache.resize(1, 0); // resize data by one, because 0 is reserved for the empty buckets
-        IndexIdToMultipleParentIndirectFlushingInOrderVintNoDirectEncode {
+        IndirectIMFlushingInOrderVintNoDirectEncode {
             ids_cache: vec![],
             data_cache,
             current_data_offset: 0,
@@ -35,8 +35,8 @@ impl<T: Default + std::fmt::Debug> IndexIdToMultipleParentIndirectFlushingInOrde
         }
     }
 
-    pub(crate) fn into_im_store(mut self) -> IndexIdToMultipleParentIndirectBinarySearch<T> {
-        let mut store = IndexIdToMultipleParentIndirectBinarySearch::default();
+    pub(crate) fn into_im_store(mut self) -> IndirectIMBinarySearch<T> {
+        let mut store = IndirectIMBinarySearch::default();
         store.start_pos = self.ids_cache;
 
         store.data = self.data_cache;
@@ -95,13 +95,13 @@ fn to_serialized_vint_array(add_data: &[u32]) -> Vec<u8> {
 }
 
 #[derive(Debug, Clone, Default)]
-pub(crate) struct IndexIdToMultipleParentIndirectBinarySearch<T> {
+pub(crate) struct IndirectIMBinarySearch<T> {
     pub(crate) start_pos: Vec<(T, u32)>,
     pub(crate) data: Vec<u8>,
     pub(crate) metadata: IndexValuesMetadata,
 }
 
-impl<T: 'static + Ord + Copy + Default + std::fmt::Debug + Sync + Send> PhrasePairToAnchor for IndexIdToMultipleParentIndirectBinarySearch<T> {
+impl<T: 'static + Ord + Copy + Default + std::fmt::Debug + Sync + Send> PhrasePairToAnchor for IndirectIMBinarySearch<T> {
     type Input = T;
 
     #[inline]
@@ -120,26 +120,26 @@ impl<T: 'static + Ord + Copy + Default + std::fmt::Debug + Sync + Send> PhrasePa
 }
 
 #[derive(Debug)]
-pub(crate) struct IndexIdToMultipleParentIndirectBinarySearchMMAP<T> {
+pub(crate) struct IndirectIMBinarySearchMMAP<T> {
     pub(crate) start_pos: Mmap,
     pub(crate) data: Mmap,
     pub(crate) ok: PhantomData<T>,
     pub(crate) metadata: IndexValuesMetadata,
     pub(crate) size: usize,
 }
-// impl<T: Ord + Copy + Default + std::fmt::Debug> HeapSizeOf for IndexIdToMultipleParentIndirectBinarySearchMMAP<T> {
+// impl<T: Ord + Copy + Default + std::fmt::Debug> HeapSizeOf for IndirectIMBinarySearchMMAP<T> {
 //     fn heap_size_of_children(&self) -> usize {
 //         0
 //     }
 // }
-impl<T: Ord + Copy + Default + std::fmt::Debug> IndexIdToMultipleParentIndirectBinarySearchMMAP<T> {
+impl<T: Ord + Copy + Default + std::fmt::Debug> IndirectIMBinarySearchMMAP<T> {
     pub(crate) fn from_path<P: AsRef<Path>>(path: P, metadata: IndexValuesMetadata) -> Result<Self, VelociError> {
         let ind_file = open_file(path.as_ref().to_str().unwrap().to_string() + ".indirect")?;
         let data_file = open_file(path.as_ref().to_str().unwrap().to_string() + ".data")?;
 
         let start_pos = unsafe { MmapOptions::new().map(&ind_file).unwrap() };
         let data = unsafe { MmapOptions::new().map(&data_file).unwrap() };
-        Ok(IndexIdToMultipleParentIndirectBinarySearchMMAP {
+        Ok(IndirectIMBinarySearchMMAP {
             start_pos,
             data,
             size: ind_file.metadata()?.len() as usize / std::mem::size_of::<(T, u32)>(),
@@ -194,7 +194,7 @@ pub(crate) fn binary_search_slice<T: Ord + Copy + Default + std::fmt::Debug, K: 
     }
 }
 
-impl<T: 'static + Ord + Copy + Default + std::fmt::Debug + Sync + Send> PhrasePairToAnchor for IndexIdToMultipleParentIndirectBinarySearchMMAP<T> {
+impl<T: 'static + Ord + Copy + Default + std::fmt::Debug + Sync + Send> PhrasePairToAnchor for IndirectIMBinarySearchMMAP<T> {
     type Input = T;
 
     #[inline]
@@ -213,8 +213,8 @@ mod tests {
     use super::*;
     use tempfile::tempdir;
 
-    fn get_test_data_1_to_n_ind(ind_path: String, data_path: String) -> IndexIdToMultipleParentIndirectFlushingInOrderVintNoDirectEncode<(u32, u32)> {
-        let mut store = IndexIdToMultipleParentIndirectFlushingInOrderVintNoDirectEncode::new(ind_path, data_path, u32::MAX);
+    fn get_test_data_1_to_n_ind(ind_path: String, data_path: String) -> IndirectIMFlushingInOrderVintNoDirectEncode<(u32, u32)> {
+        let mut store = IndirectIMFlushingInOrderVintNoDirectEncode::new(ind_path, data_path, u32::MAX);
         store.add((0, 0), &vec![5, 6]).unwrap();
         store.add((0, 1), &vec![9]).unwrap();
         store.add((2, 0), &vec![9]).unwrap();
@@ -252,7 +252,7 @@ mod tests {
         let mut store = get_test_data_1_to_n_ind(indirect_path.to_string(), data_path.to_string());
         store.flush().unwrap();
         // let yop = store.into_im_store();
-        let store = IndexIdToMultipleParentIndirectBinarySearchMMAP::<(u32, u32)>::from_path(dir.path().join("yop"), store.metadata).unwrap();
+        let store = IndirectIMBinarySearchMMAP::<(u32, u32)>::from_path(dir.path().join("yop"), store.metadata).unwrap();
         assert_eq!(store.size, 7);
         assert_eq!(decode_pos(0, &store.start_pos), ((0, 0), 1));
         assert_eq!(decode_pos(1, &store.start_pos), ((0, 1), 4));

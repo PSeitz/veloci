@@ -68,9 +68,6 @@ pub static INDEX_FILE_ENDINGS: &[&str] = &[
     TOKEN_VALUES,
 ];
 
-pub static EMPTY_BUCKET: u32 = 0;
-pub static VALUE_OFFSET: u32 = 1; // because 0 is reserved for EMPTY_BUCKET
-
 #[derive(Debug, Default)]
 pub struct PersistenceIndices {
     pub doc_offsets: Option<Mmap>,
@@ -108,18 +105,6 @@ pub struct Persistence {
     pub lru_cache: HashMap<String, LruCache<RequestSearchPart, SearchResult>>,
     // pub lru_fst: HashMap<String, LruCache<(String, u8), Box<fst::Automaton<State=Option<usize>>>>>,
     pub term_boost_cache: RwLock<LruCache<Vec<RequestSearchPart>, Vec<search_field_result::SearchFieldResult>>>,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq)]
-pub enum LoadingType {
-    InMemory,
-    Disk,
-}
-
-impl Default for LoadingType {
-    fn default() -> LoadingType {
-        LoadingType::InMemory
-    }
 }
 
 impl FromStr for LoadingType {
@@ -338,7 +323,7 @@ impl Persistence {
                 IndexCategory::Phrase => {
                     //Insert dummy index, to seperate between emtpy indexes and nonexisting indexes
                     if el.is_empty {
-                        let store = IndexIdToMultipleParentIndirectBinarySearch::<(u32, u32)> {
+                        let store = IndirectIMBinarySearch::<(u32, u32)> {
                             start_pos: vec![],
                             data: vec![],
                             metadata: el.metadata,
@@ -350,8 +335,8 @@ impl Persistence {
                     }
 
                     let store: Box<dyn PhrasePairToAnchor<Input = (u32, u32)>> = match loading_type {
-                        LoadingType::Disk => Box::new(IndexIdToMultipleParentIndirectBinarySearchMMAP::from_path(&get_file_path(&self.db, &el.path), el.metadata)?),
-                        LoadingType::InMemory => Box::new(IndexIdToMultipleParentIndirectBinarySearchMMAP::from_path(&get_file_path(&self.db, &el.path), el.metadata)?),
+                        LoadingType::Disk => Box::new(IndirectIMBinarySearchMMAP::from_path(&get_file_path(&self.db, &el.path), el.metadata)?),
+                        LoadingType::InMemory => Box::new(IndirectIMBinarySearchMMAP::from_path(&get_file_path(&self.db, &el.path), el.metadata)?),
                     };
                     self.indices.phrase_pair_to_anchor.insert(el.path.to_string(), store);
                 }
@@ -378,9 +363,9 @@ impl Persistence {
                 }
                 IndexCategory::Boost => {
                     match el.index_cardinality {
-                        IndexCardinality::IndexIdToMultipleParentIndirect => {
+                        IndexCardinality::IndirectIM => {
                             // let meta = IndexValuesMetadata{max_value_id: el.metadata.max_value_id, avg_join_size:el.avg_join_size, ..Default::default()};
-                            let store = PointingMMAPFileReader::from_path(&get_file_path(&self.db, &el.path), el.metadata)?;
+                            let store = IndirectMMap::from_path(&get_file_path(&self.db, &el.path), el.metadata)?;
                             self.indices.boost_valueid_to_value.insert(el.path.to_string(), Box::new(store));
                         }
                         IndexCardinality::IndexIdToOneParent => {
@@ -408,9 +393,9 @@ impl Persistence {
 
                     let store = match loading_type {
                         LoadingType::InMemory => match el.index_cardinality {
-                            IndexCardinality::IndexIdToMultipleParentIndirect => {
+                            IndexCardinality::IndirectIM => {
                                 let indirect_u32 = bytes_to_vec_u32(&file_path_to_bytes(&indirect_path)?);
-                                let store = IndexIdToMultipleParentIndirect {
+                                let store = IndirectIM {
                                     start_pos: indirect_u32,
                                     data: file_path_to_bytes(&indirect_data_path)?,
                                     cache: LruCache::with_capacity(0),
@@ -435,13 +420,13 @@ impl Persistence {
                             }
                         },
                         LoadingType::Disk => match el.index_cardinality {
-                            IndexCardinality::IndexIdToMultipleParentIndirect => {
+                            IndexCardinality::IndirectIM => {
                                 let meta = IndexValuesMetadata {
                                     max_value_id: el.metadata.max_value_id,
                                     avg_join_size: el.metadata.avg_join_size,
                                     ..Default::default()
                                 };
-                                let store = PointingMMAPFileReader::from_path(&get_file_path(&self.db, &el.path), meta)?;
+                                let store = IndirectMMap::from_path(&get_file_path(&self.db, &el.path), meta)?;
                                 Box::new(store) as Box<dyn IndexIdToParent<Output = u32>>
                             }
                             IndexCardinality::IndexIdToOneParent => {

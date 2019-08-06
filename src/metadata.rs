@@ -1,11 +1,12 @@
-use crate::{create, error::VelociError, persistence::*, util};
+use crate::indices::metadata::*;
+use crate::{create, error::VelociError, util};
 use fnv::FnvHashMap;
 
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
 pub struct PeristenceMetaData {
     pub num_docs: u64,
     pub bytes_indexed: u64,
-    pub columns: FnvHashMap<String, ColumnInfo>,
+    pub columns: FnvHashMap<String, FieldInfo>,
 }
 
 impl PeristenceMetaData {
@@ -19,8 +20,10 @@ impl PeristenceMetaData {
     }
 }
 
+/// 'FieldInfo' corresponds to a field (like person.adresses[])and can have multiple indices
+/// like person.adresses[].textindex.tokens_to_text_id, person.adresses[].textindex.text_id_to_anchor
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
-pub struct ColumnInfo {
+pub struct FieldInfo {
     pub name: String,
     pub textindex_metadata: TextIndexValuesMetadata,
     pub indices: Vec<IndexMetadata>,
@@ -29,54 +32,7 @@ pub struct ColumnInfo {
     pub has_fst: bool,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq)]
-pub enum IndexCategory {
-    Boost,
-    KeyValue,
-    AnchorScore,
-    Phrase,
-}
-impl Default for IndexCategory {
-    fn default() -> IndexCategory {
-        IndexCategory::KeyValue
-    }
-}
 
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Default)]
-pub struct IndexMetadata {
-    pub path: String,
-    pub index_category: IndexCategory,
-    pub index_cardinality: IndexCardinality,
-    #[serde(default)]
-    pub is_empty: bool,
-    pub loading_type: LoadingType,
-    pub metadata: IndexValuesMetadata,
-    pub data_type: DataType,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
-pub enum DataType {
-    U32,
-    U64,
-}
-
-impl Default for DataType {
-    fn default() -> DataType {
-        DataType::U32
-    }
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
-pub enum IndexCardinality {
-    IndexIdToMultipleParentIndirect,
-    IndexIdToOneParent,
-}
-
-impl Default for IndexCardinality {
-    fn default() -> IndexCardinality {
-        IndexCardinality::IndexIdToMultipleParentIndirect
-    }
-}
 
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
 pub struct TextIndexValuesMetadata {
@@ -85,23 +41,6 @@ pub struct TextIndexValuesMetadata {
     pub options: create::FulltextIndexOptions,
 }
 
-#[derive(Serialize, Deserialize, Debug, Default, Clone, Copy, PartialEq)]
-pub struct IndexValuesMetadata {
-    /// max value on the "right" side key -> value, key -> value ..
-    pub max_value_id: u32,
-    pub avg_join_size: f32,
-    pub num_values: u64,
-    pub num_ids: u32,
-}
-
-impl IndexValuesMetadata {
-    pub fn new(max_value_id: u32) -> Self {
-        IndexValuesMetadata {
-            max_value_id,
-            ..Default::default()
-        }
-    }
-}
 
 #[derive(Debug)]
 enum IndexType {
