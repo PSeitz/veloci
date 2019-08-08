@@ -3,10 +3,9 @@ use crate::{facet::*, persistence::*, type_info::TypeInfo, util::*, indices::*};
 use fnv::FnvHashMap;
 use itertools::Itertools;
 use lru_time_cache::LruCache;
-use num::{self, cast::ToPrimitive};
+use num::{self};
 use std::{
     self, fmt,
-    io::{Write},
     u32,
 };
 use vint::vint::*;

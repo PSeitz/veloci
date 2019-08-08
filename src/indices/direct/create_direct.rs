@@ -3,15 +3,9 @@ use super::super::*;
 
 use std::{
     self,
-    fs::File,
     io::{self, Write},
     u32,
 };
-
-use crate::{
-    persistence::*,
-};
-
 
 /// This data structure assumes that a set is only called once for a id, and ids are set in order.
 #[derive(Serialize, Debug, Clone, Default)]

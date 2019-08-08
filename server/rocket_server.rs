@@ -17,8 +17,6 @@ extern crate flate2;
 extern crate lazy_static;
 #[macro_use]
 extern crate serde_derive;
-#[macro_use]
-#[macro_use]
 extern crate log;
 #[macro_use]
 extern crate measure_time;
@@ -650,7 +648,6 @@ pub struct Gzip;
 impl fairing::Fairing for Gzip {
     fn on_response(&self, request: &Request, response: &mut Response) {
         use flate2::Compression;
-        use std::io::{Cursor, Read};
         let headers = request.headers();
         if headers.get("Accept-Encoding").any(|e| e.to_lowercase().contains("gzip")) {
             response.body_bytes().and_then(|body| {
