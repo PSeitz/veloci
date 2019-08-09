@@ -1130,25 +1130,6 @@ fn real_suggest_with_boosting_score_of_begeisterung_and_token_value() {
     );
 }
 
-#[test]
-fn should_rank_exact_matches_pretty_good() {
-    let req = json!({
-        "search": {
-            "terms":["weich"], // hits welche and weich
-            "path": "meanings.ger[]",
-            "levenshtein_distance": 1,
-            "firstCharExactMatch":true
-        },
-        "boost" : [{
-            "path":"commonness",
-            "boost_fun": "Log2",
-            "param": 2
-        }]
-    });
-
-    let hits = search_testo_to_doc!(req).data;
-    assert_eq!(hits[0].doc["meanings"]["ger"][0], "(1) weich");
-}
 
 #[test]
 fn should_rank_boost_on_anchor_higher_search_on_anchor() {
@@ -1217,7 +1198,7 @@ fn should_check_explain_plan_contents() {
     let explain = search_testo_to_explain!(req).to_lowercase();
     assert_contains!(explain, "weich"); // include the term
     assert_contains!(explain, "meanings.ger[]"); // include the field
-    // assert_contains!(explain, "boost"); // TODO ENABLE something with boost from the boost step
+    assert_contains!(explain, "boost");
 }
 
 #[test]

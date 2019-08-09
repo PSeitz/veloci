@@ -52,11 +52,11 @@ pub(crate) struct ApplyAnchorBoost {
     pub(crate) request: RequestSearchPart,
     pub(crate) boost: RequestBoostPart,
 }
-// #[derive(Clone, Debug)]
-// pub(crate) struct BoostPlanStepFromBoostRequest {
-//     pub(crate) req: RequestBoostPart,
-//     pub(crate) channel: PlanStepDataChannels,
-// }
+#[derive(Clone, Debug)]
+pub(crate) struct BoostPlanStepFromBoostRequest {
+    pub(crate) req: RequestBoostPart,
+    pub(crate) channel: PlanStepDataChannels,
+}
 #[derive(Clone, Debug)]
 pub(crate) struct BoostAnchorFromPhraseResults {
     pub(crate) channel: PlanStepDataChannels,
@@ -117,12 +117,12 @@ impl std::fmt::Display for ApplyAnchorBoost {
         Ok(())
     }
 }
-// impl std::fmt::Display for BoostPlanStepFromBoostRequest {
-//     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-//         writeln!(f, "BoostPlanStepFromBoostRequest")?;
-//         Ok(())
-//     }
-// }
+impl std::fmt::Display for BoostPlanStepFromBoostRequest {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        writeln!(f, "BoostPlanStepFromBoostRequest")?;
+        Ok(())
+    }
+}
 impl std::fmt::Display for BoostAnchorFromPhraseResults {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         writeln!(f, "BoostAnchorFromPhraseResults")?;
@@ -306,23 +306,23 @@ impl PlanStepTrait for ApplyAnchorBoost {
     }
 }
 
-// impl PlanStepTrait for BoostPlanStepFromBoostRequest {
-//     fn get_channel(&mut self) -> &mut PlanStepDataChannels {
-//         &mut self.channel
-//     }
+impl PlanStepTrait for BoostPlanStepFromBoostRequest {
+    fn get_channel(&mut self) -> &mut PlanStepDataChannels {
+        &mut self.channel
+    }
 
-//     fn get_step_description(&self) -> String {
-//         "BoostPlanStepFromBoostRequest".to_string()
-//     }
+    fn get_step_description(&self) -> String {
+        "BoostPlanStepFromBoostRequest".to_string()
+    }
 
-//     fn execute_step(self: Box<Self>, persistence: &Persistence) -> Result<(), VelociError> {
-//         let mut input = self.channel.input_prev_steps[0].recv().map_err(|_| VelociError::PlanExecutionRecvFailed)?;
-//         add_boost(persistence, &self.req, &mut input)?;
-//         send_result_to_channel(input, &self.channel)?;
-//         drop_channel(self.channel);
-//         Ok(())
-//     }
-// }
+    fn execute_step(self: Box<Self>, persistence: &Persistence) -> Result<(), VelociError> {
+        let mut input = self.channel.input_prev_steps[0].recv().map_err(|_| VelociError::PlanExecutionRecvFailed)?;
+        add_boost(persistence, &self.req, &mut input)?;
+        send_result_to_channel(input, &self.channel)?;
+        drop_channel(self.channel);
+        Ok(())
+    }
+}
 
 fn sort_and_group_boosts_by_phrase_terms(mut boosts: Vec<SearchFieldResult>) -> Vec<SearchFieldResult> {
     info_time!("sort_and_group_boosts_by_phrase_terms");

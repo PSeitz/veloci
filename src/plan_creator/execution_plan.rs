@@ -136,6 +136,27 @@ pub fn plan_creator(mut request: Request, plan: &mut Plan) {
         plan.add_dependency(id_step, final_step_id);
         final_step_id = id_step;
     }
+    // Apply Boost from anchor
+    if let Some(boosts) = request.boost {
+        let anchor_boosts: Vec<&RequestBoostPart> = boosts
+            .iter()
+            .filter(|el| {
+                !el.path.contains("[]")
+            })
+            .collect();
+
+        for boost in anchor_boosts {
+            let final_step_channel = plan.get_step_channel(final_step_id).clone();
+            let channel = PlanStepDataChannels::open_channel(1, vec![final_step_channel.receiver_for_next_step.clone()]);
+            let step = BoostPlanStepFromBoostRequest {
+                req: boost.clone(),
+                channel: channel.clone(),
+            };
+            let id_step = plan.add_step(Box::new(step.clone()));
+            plan.add_dependency(id_step, final_step_id);
+            final_step_id = id_step;
+        }
+    }
 
     if let Some(phrase_boosts) = request.phrase_boosts {
         final_step_id = add_phrase_boost_plan_steps(phrase_boosts, &mut field_search_cache, final_step_id, plan);

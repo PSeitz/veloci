@@ -36,6 +36,14 @@ pub fn get_test_data() -> Value {
               }
             ]
           }
+        },
+        {
+            "commonness": 551,
+            "meanings": {"ger": ["welch"] }
+        },
+        {
+            "commonness": 1,
+            "meanings": {"ger": ["weich"] }
         }
     ])
 }
@@ -129,6 +137,27 @@ fn check_score_boost_relative_field() {
     // assert_eq!(res[0].hit.score, 10.0); //hits 3 tokens and phrases
     //     assert_eq!(res.data[1].doc["title"], "greg tagebuch"); //hits 2 tokens and phrases
     //     assert_eq!(res.data[2].doc["title"], "and some some text 05 this is not relevant let tagebuch greg"); //hits 3 tokens but no phrases
+}
+
+#[test]
+fn should_rank_exact_matches_pretty_good() { // TODO test with exact TOKEN score like: (1)weich
+    let req = json!({
+        "search": {
+            "terms":["weich"], // hits welche and weich, welche has more boost
+            "path": "meanings.ger[]",
+            "levenshtein_distance": 1,
+            "explain": true,
+            "firstCharExactMatch":true
+        },
+        "boost" : [{
+            "path":"commonness",
+            "boost_fun": "Log2",
+            "param": 2
+        }]
+    });
+
+    let hits = search_testo_to_doc!(req).data;
+    assert_eq!(hits[0].doc["meanings"]["ger"][0], "weich");
 }
 
 // #[test]
