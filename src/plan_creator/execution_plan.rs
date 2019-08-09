@@ -7,7 +7,7 @@ use crate::{
     util::{self, StringAdd},
 };
 
-use crossbeam_channel::{self, unbounded};
+
 use fnv::{FnvHashMap, FnvHashSet};
 use std::boxed::Box;
 
@@ -333,224 +333,140 @@ fn plan_creator_search_part(
     field_search_cache: &mut FieldRequestCache,
 ) -> PlanStepId {
     let paths = util::get_steps_to_anchor(&request_part.path);
-    // let (mut field_tx, mut field_rx): (PlanDataSender, PlanDataReceiver) = unbounded();
-    // let fast_field = boosts.is_empty() && !request_part.snippet.unwrap_or(false); // fast_field disabled for boosting or _highlighting_ currently
-    let fast_field = !request_part.snippet.unwrap_or(false); // fast_field disabled for boosting or _highlighting_ currently
     let store_term_id_hits = request.why_found || request.text_locality;
-    // let plan_request_part = PlanRequestSearchPart{request:request_part, get_scores: true, store_term_id_hits, store_term_texts: request.why_found, ..Default::default()};
 
     let (field_search_step_id, field_search_step) = field_search_cache
         .get_mut(&request_part)
         .unwrap_or_else(|| panic!("PlanCreator: Could not find  request in field_search_cache {:?}", request_part));
-    // if let Some(parent_step_dependecy) = parent_step_dependecy {
-    //     plan.add_dependency(parent_step_dependecy, *field_search_step_id);
-    // }
+
     field_search_step.req.store_term_texts |= request.why_found;
     field_search_step.req.store_term_id_hits |= store_term_id_hits;
     field_search_step.channel.num_receivers += 1;
     let field_rx = field_search_step.channel.receiver_for_next_step.clone();
 
-    if fast_field {
-        // check boost on 1:n fields, boost on anchor is done seperately
-        if let Some(pos) = request_part.path.rfind("[]") {
-            let end_obj = &request_part.path[..pos];
-            //find where boost matches last path
-            let boosto: Vec<&RequestBoostPart> = boosts
-                .iter()
-                .flat_map(|el| {
-                    if let Some(pos) = el.path.rfind("[]") {
-                        if &el.path[..pos] == end_obj {
-                            return Some(el);
-                        }
+    //Check if is 1 to n field
+    if let Some(pos) = request_part.path.rfind("[]") {
+        let end_obj = &request_part.path[..pos];
+        //find where boost matches last path
+        let boosto: Vec<&RequestBoostPart> = boosts
+            .iter()
+            .flat_map(|el| {
+                if let Some(pos) = el.path.rfind("[]") {
+                    if &el.path[..pos] == end_obj {
+                        return Some(el);
                     }
-                    None
-                })
-                .collect();
-            if !boosto.is_empty() {
-                assert!(boosto.len() == 1);
-
-                //              RESOLVE TO ANCHOR  (ANCHOR, SCORE) --------------------------------------------------------------------------------------------------------------------
-                //              /                                                                                                                                                      \
-                // SEARCH FIELD                                                                                                                                                         APPLY BOOST
-                //              \                                                                                                                                                      /
-                //              Token to text ids (TEXT_IDS) -> text ids to parent valueid (VALUE_IDS) -> ValueIds to boost values (VALUE_IDS, BOOST_VALUES) ->   value ids to anchor (ANCHOR_IDS, ANCHOR_IDS)
-
-                //+1 for boost
-                field_search_step.channel.num_receivers += 1;
-
-                // STEP1.1: RESOLVE TO ANCHOR  (ANCHOR, SCORE)
-                let mut channel = PlanStepDataChannels::open_channel(1, vec![field_rx.clone()]);
-
-                //connect to incoming filter channel (optional)
-                if let Some(step_id) = filter_channel_step {
-                    plan.get_step_channel(step_id).filter_channel.as_mut().unwrap().num_receivers += 1;
-                    channel.filter_receiver = Some(plan.get_step_channel(step_id).filter_channel.as_mut().unwrap().filter_receiver.clone());
                 }
-                let token_to_anchor_step = ResolveTokenIdToAnchor {
-                    request: request_part.clone(),
-                    channel: channel.clone(),
-                };
-                let token_to_anchor_step_id = plan.add_step(Box::new(token_to_anchor_step));
+                None
+            })
+            .collect();
+        if !boosto.is_empty() {
+            assert!(boosto.len() == 1);
 
-                // add dependencies to ensure correct execution order
-                plan.add_dependency(token_to_anchor_step_id, *field_search_step_id);
-                // if let Some(parent_step_dependecy) = parent_step_dependecy {
-                //     plan.add_dependency(parent_step_dependecy, token_to_anchor_step_id);
-                // }
-                if let Some(depends_on_step) = depends_on_step {
-                    plan.add_dependency(token_to_anchor_step_id, depends_on_step);
-                }
+            //              RESOLVE TO ANCHOR  (ANCHOR, SCORE) --------------------------------------------------------------------------------------------------------------------
+            //              /                                                                                                                                                      \
+            // SEARCH FIELD                                                                                                                                                         APPLY BOOST
+            //              \                                                                                                                                                      /
+            //              Token to text ids (TEXT_IDS) -> text ids to parent valueid (VALUE_IDS) -> ValueIds to boost values (VALUE_IDS, BOOST_VALUES) ->   value ids to anchor (ANCHOR_IDS, ANCHOR_IDS)
 
-                // STEP1.2: resolve anchor boost values
-                let boost_to_anchor_channel = PlanStepDataChannels::open_channel(1, vec![field_rx]);
-                let boost_step = Box::new(BoostToAnchor {
-                    path: paths.last().unwrap().add(VALUE_ID_TO_PARENT),
-                    trace_info: "BoostToAnchor".to_string(),
-                    channel: boost_to_anchor_channel.clone(),
-                    request: request_part.clone(),
-                    boost: boosto[0].clone(),
-                });
-                let boost_step_id = plan.add_step(boost_step);
-                plan.add_dependency(boost_step_id, *field_search_step_id); // TODO instead adding the dependency manually here, we should deduce the dependency by dataflow. In open_channel the output is connected (field_rx) and should be added as depedency
-                                                                           // if let Some(parent_step_dependecy) = parent_step_dependecy {
-                                                                           //     plan.add_dependency(parent_step_dependecy, boost_step_id);
-                                                                           // }
+            //+1 for boost
+            field_search_step.channel.num_receivers += 1;
 
-                // STEP2: APPLY BOOST on anchor
-                let token_to_anchor_rx = channel.receiver_for_next_step.clone();
-                let boost_vals_rx = boost_to_anchor_channel.receiver_for_next_step.clone();
-                let mut apply_boost_to_anchor_channel = PlanStepDataChannels::open_channel(1, vec![token_to_anchor_rx, boost_vals_rx]);
+            // STEP1.1: RESOLVE TO ANCHOR  (ANCHOR, SCORE)
+            let mut channel = PlanStepDataChannels::open_channel(1, vec![field_rx.clone()]);
 
-                // the last step gets set a filter channel to which he will send the result
-                if is_filter_channel {
-                    apply_boost_to_anchor_channel.filter_channel = Some(FilterChannel::default());
-                }
-                let step = Box::new(ApplyAnchorBoost {
-                    trace_info: "ApplyAnchorBoost".to_string(),
-                    channel: apply_boost_to_anchor_channel.clone(),
-                    request: request_part.clone(),
-                    boost: boosto[0].clone(),
-                });
-                let step_id = plan.add_step(step);
-                plan.add_dependency(step_id, boost_step_id);
-                plan.add_dependency(step_id, token_to_anchor_step_id);
-                if let Some(parent_step_dependecy) = parent_step_dependecy {
-                    plan.add_dependency(parent_step_dependecy, step_id);
-                }
-                // plan.add_dependency(boost_step, step_id);
-
-                //get boost scores and resolve to anchor
-                // step_id
-                // let mut step_id = add_step();
-
-                if let Some(depends_on_step) = depends_on_step {
-                    plan.add_dependency(step_id, depends_on_step);
-                }
-                return step_id;
+            //connect to incoming filter channel (optional)
+            if let Some(step_id) = filter_channel_step {
+                plan.get_step_channel(step_id).filter_channel.as_mut().unwrap().num_receivers += 1;
+                channel.filter_receiver = Some(plan.get_step_channel(step_id).filter_channel.as_mut().unwrap().filter_receiver.clone());
             }
-        }
+            let token_to_anchor_step = ResolveTokenIdToAnchor {
+                request: request_part.clone(),
+                channel: channel.clone(),
+            };
+            let token_to_anchor_step_id = plan.add_step(Box::new(token_to_anchor_step));
 
-        // This is the normal case, resolve field directly to anchor ids
-        let mut channel = PlanStepDataChannels::open_channel(1, vec![field_rx]);
-        if let Some(step_id) = filter_channel_step {
-            plan.get_step_channel(step_id).filter_channel.as_mut().unwrap().num_receivers += 1;
-            channel.filter_receiver = Some(plan.get_step_channel(step_id).filter_channel.as_mut().unwrap().filter_receiver.clone());
-        }
-        if is_filter_channel {
-            channel.filter_channel = Some(FilterChannel::default());
-        }
-        let token_to_anchor_step = ResolveTokenIdToAnchor {
-            request: request_part.clone(),
-            channel,
-        };
-        let id1 = plan.add_step(Box::new(token_to_anchor_step));
-        plan.add_dependency(id1, *field_search_step_id);
+            // add dependencies to ensure correct execution order
+            plan.add_dependency(token_to_anchor_step_id, *field_search_step_id);
+            // if let Some(parent_step_dependecy) = parent_step_dependecy {
+            //     plan.add_dependency(parent_step_dependecy, token_to_anchor_step_id);
+            // }
+            if let Some(depends_on_step) = depends_on_step {
+                plan.add_dependency(token_to_anchor_step_id, depends_on_step);
+            }
 
-        if let Some(parent_step_dependecy) = parent_step_dependecy {
-            plan.add_dependency(parent_step_dependecy, id1);
-        }
-        if let Some(depends_on_step) = depends_on_step {
-            plan.add_dependency(id1, depends_on_step);
-        }
-        (id1)
-    } else {
-        // This is a special case, where boosts indices on fields are used.
-        let mut add_step = |step: Box<dyn PlanStepTrait>| -> usize {
+            // STEP1.2: resolve anchor boost values
+            let boost_to_anchor_channel = PlanStepDataChannels::open_channel(1, vec![field_rx]);
+            let boost_step = Box::new(BoostToAnchor {
+                path: paths.last().unwrap().add(VALUE_ID_TO_PARENT),
+                trace_info: "BoostToAnchor".to_string(),
+                channel: boost_to_anchor_channel.clone(),
+                request: request_part.clone(),
+                boost: boosto[0].clone(),
+            });
+            let boost_step_id = plan.add_step(boost_step);
+            plan.add_dependency(boost_step_id, *field_search_step_id); // TODO instead adding the dependency manually here, we should deduce the dependency by dataflow. In open_channel the output is connected (field_rx) and should be added as depedency
+                                                                       // if let Some(parent_step_dependecy) = parent_step_dependecy {
+                                                                       //     plan.add_dependency(parent_step_dependecy, boost_step_id);
+                                                                       // }
+
+            // STEP2: APPLY BOOST on anchor
+            let token_to_anchor_rx = channel.receiver_for_next_step.clone();
+            let boost_vals_rx = boost_to_anchor_channel.receiver_for_next_step.clone();
+            let mut apply_boost_to_anchor_channel = PlanStepDataChannels::open_channel(1, vec![token_to_anchor_rx, boost_vals_rx]);
+
+            // the last step gets set a filter channel to which he will send the result
+            if is_filter_channel {
+                apply_boost_to_anchor_channel.filter_channel = Some(FilterChannel::default());
+            }
+            let step = Box::new(ApplyAnchorBoost {
+                trace_info: "ApplyAnchorBoost".to_string(),
+                channel: apply_boost_to_anchor_channel.clone(),
+                request: request_part.clone(),
+                boost: boosto[0].clone(),
+            });
             let step_id = plan.add_step(step);
+            plan.add_dependency(step_id, boost_step_id);
+            plan.add_dependency(step_id, token_to_anchor_step_id);
             if let Some(parent_step_dependecy) = parent_step_dependecy {
                 plan.add_dependency(parent_step_dependecy, step_id);
             }
-            step_id
-        };
+            // plan.add_dependency(boost_step, step_id);
 
-        let channel = PlanStepDataChannels::open_channel(1, vec![field_rx]);
-        add_step(Box::new(ResolveTokenIdToTextId {
-            request: request_part.clone(),
-            channel: channel.clone(),
-        }));
+            //get boost scores and resolve to anchor
+            // step_id
+            // let mut step_id = add_step();
 
-        let (mut tx, mut rx): (PlanDataSender, PlanDataReceiver) = unbounded();
-        let mut channel = PlanStepDataChannels::create_channel_from(1, tx.clone(), rx.clone(), vec![channel.receiver_for_next_step.clone()]);
-        let mut step_id = add_step(Box::new(ValueIdToParent {
-            path: paths.last().unwrap().add(VALUE_ID_TO_PARENT),
-            trace_info: "term hits hit to column".to_string(),
-            channel: channel.clone(),
-        }));
-
-        for i in (0..paths.len() - 1).rev() {
-            boosts.retain(|boost| {
-                let apply_boost = boost.path.starts_with(&paths[i]);
-                if apply_boost {
-                    let (next_tx, next_rx): (PlanDataSender, PlanDataReceiver) = unbounded();
-                    tx = next_tx;
-                    channel = PlanStepDataChannels::create_channel_from(1, tx.clone(), next_rx.clone(), vec![rx.clone()]);
-                    step_id = add_step(Box::new(BoostPlanStepFromBoostRequest {
-                        req: boost.clone(),
-                        channel: channel.clone(),
-                    }));
-
-                    debug!("PlanCreator Step {:?}", boost);
-
-                    rx = next_rx;
-                }
-                !apply_boost
-            });
-
-            let (next_tx, next_rx): (PlanDataSender, PlanDataReceiver) = unbounded();
-            tx = next_tx;
-            channel = PlanStepDataChannels::create_channel_from(1, tx.clone(), next_rx.clone(), vec![rx.clone()]);
-            step_id = add_step(Box::new(ValueIdToParent {
-                path: paths[i].add(VALUE_ID_TO_PARENT),
-                trace_info: "Joining to anchor".to_string(),
-                channel: channel.clone(),
-            }));
-
-            debug!("PlanCreator Step {}", paths[i].add(VALUE_ID_TO_PARENT));
-
-            rx = next_rx;
+            if let Some(depends_on_step) = depends_on_step {
+                plan.add_dependency(step_id, depends_on_step);
+            }
+            return step_id;
         }
-
-        // Handling boost from anchor to value - ignoring 1:N!
-        for boost in boosts.iter().filter(|el| !el.path.contains("[]")) {
-            let (next_tx, next_rx): (PlanDataSender, PlanDataReceiver) = unbounded();
-            tx = next_tx;
-            channel = PlanStepDataChannels::create_channel_from(1, tx.clone(), next_rx.clone(), vec![rx.clone()]);
-            let id = add_step(Box::new(BoostPlanStepFromBoostRequest {
-                req: boost.clone(),
-                channel: channel.clone(),
-            }));
-            debug!("PlanCreator Step {:?}", boost);
-            rx = next_rx;
-            step_id = id;
-        }
-        // for step in steps {
-        //     let id = plan.add_step(step);
-        //     if let Some(parent_step_dependecy) = parent_step_dependecy {
-        //         plan.add_dependency(parent_step_dependecy, id);
-        //     }
-        // }
-        (step_id)
     }
+
+    // This is the normal case, resolve field directly to anchor ids
+    let mut channel = PlanStepDataChannels::open_channel(1, vec![field_rx]);
+    if let Some(step_id) = filter_channel_step {
+        plan.get_step_channel(step_id).filter_channel.as_mut().unwrap().num_receivers += 1;
+        channel.filter_receiver = Some(plan.get_step_channel(step_id).filter_channel.as_mut().unwrap().filter_receiver.clone());
+    }
+    if is_filter_channel {
+        channel.filter_channel = Some(FilterChannel::default());
+    }
+    let token_to_anchor_step = ResolveTokenIdToAnchor {
+        request: request_part.clone(),
+        channel,
+    };
+    let id1 = plan.add_step(Box::new(token_to_anchor_step));
+    plan.add_dependency(id1, *field_search_step_id);
+
+    if let Some(parent_step_dependecy) = parent_step_dependecy {
+        plan.add_dependency(parent_step_dependecy, id1);
+    }
+    if let Some(depends_on_step) = depends_on_step {
+        plan.add_dependency(id1, depends_on_step);
+    }
+    (id1)
+
 }
 
 use rayon::prelude::*;

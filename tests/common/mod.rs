@@ -1,5 +1,16 @@
 use search_lib::*;
 
+#[macro_export]
+macro_rules! assert_contains {
+    ($left:expr, $right:expr) => ({
+        let (left, right) = (&($left), &($right));
+        if !(left.contains(right)) {
+            panic!("assertion failed: `(left does not contain right)`\n  left: `{:?}`,\n right: `{:?}`",
+                   left, right);
+        }
+    });
+}
+
 #[allow(dead_code)]
 pub fn create_test_persistence(folder: &str, indices: &str, test_data: &[u8], token_values: Option<(String, serde_json::Value)>) -> persistence::Persistence {
     create_test_persistence_with_logging(folder, indices, test_data, token_values, true)
@@ -60,6 +71,14 @@ macro_rules! search_testo_to_doc {
         let requesto: search::Request = serde_json::from_str(&$x.to_string()).expect("Can't parse json");
         let pers = &TEST_PERSISTENCE;
         search::to_search_result(&pers, search::search(requesto.clone(), &pers).expect("search error"), &requesto.select)
+    }};
+}
+#[allow(unused_macros)]
+macro_rules! search_testo_to_explain {
+    ($x:expr) => {{
+        let requesto: search::Request = serde_json::from_str(&$x.to_string()).expect("Can't parse json");
+        let pers = &TEST_PERSISTENCE;
+        search::explain_plan(requesto.clone(), &pers).expect("search error")
     }};
 }
 

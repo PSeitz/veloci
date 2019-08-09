@@ -1,5 +1,5 @@
 use super::*;
-use crate::{facet::*, persistence::*, type_info::TypeInfo, util::*, indices::*};
+use crate::{facet::*, persistence::*, type_info::TypeInfo, indices::*};
 use fnv::FnvHashMap;
 use itertools::Itertools;
 use lru_time_cache::LruCache;

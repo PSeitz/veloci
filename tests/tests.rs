@@ -6,6 +6,9 @@ extern crate lazy_static;
 #[macro_use]
 extern crate serde_json;
 
+#[macro_use]
+extern crate more_asserts;
+
 use search_lib::*;
 use serde_json::Value;
 
@@ -161,7 +164,7 @@ pub fn get_test_data() -> Value {
             ],
             "commonness": 1,
             "misc": [],
-            "tags": ["nice", "cool"],
+            "tags": ["nice", "cool", "Prolog:\nthis is a story of a guy who went out to rule the world, but then died. the end"],
             "kanji": [
                 {
                     "text": "柔らかい",
@@ -212,7 +215,9 @@ pub fn get_test_data() -> Value {
             "type": "taschenbuch"
         },
         {
-            "title": "COllectif"
+            "commonness": 30,
+            "title": "COllectif",
+            "meanings": {"ger": ["boostemich"] }
         },
         {
             "commonness": 30,
@@ -994,6 +999,26 @@ fn should_highlight_on_field() {
     );
 }
 
+#[test]
+fn should_highlight_on_1_n_field() {
+    let req = json!({
+        "terms":["story"],
+        "path": "tags[]",
+        "levenshtein_distance": 0,
+        "starts_with":true,
+        "snippet":true,
+        "top":10,
+        "skip":0
+    });
+    let mut requesto: search::RequestSearchPart = serde_json::from_str(&req.to_string()).expect("Can't parse json");
+    let mut pers = &TEST_PERSISTENCE;
+    let results = search_field::highlight(&mut pers, &mut requesto).unwrap();
+    assert_eq!(
+        results.iter().map(|el| el.0.clone()).collect::<Vec<String>>(),
+        ["Prolog:\nthis is a <b>story</b> of a guy who went ... "]
+    );
+}
+
 //Should this be possible?  - probably yes plz fixme
 // #[test]
 // fn should_select_on_long_text(){
@@ -1126,6 +1151,76 @@ fn should_rank_exact_matches_pretty_good() {
 }
 
 #[test]
+fn should_rank_boost_on_anchor_higher_search_on_anchor() {
+
+    let hits_boosted = search_testo_to_doc!(json!({
+        "search": {
+            "terms":["COllectif"],
+            "path": "title"
+        },
+        "boost" : [{
+            "path":"commonness",
+            "boost_fun": "Log2",
+            "param": 2
+        }]
+    })).data;
+    let hits_unboosted = search_testo_to_doc!(json!({
+        "search": {
+            "terms":["COllectif"],
+            "path": "title"
+        }
+    })).data;
+
+    assert_gt!(hits_boosted[0].hit.score, hits_unboosted[0].hit.score);
+}
+
+#[test]
+fn should_rank_boost_on_anchor_higher_search_on_1_n() {
+
+    let hits_boosted = search_testo_to_doc!(json!({
+        "search": {
+            "terms":["boostemich"],
+            "path": "meanings.ger[]"
+        },
+        "boost" : [{
+            "path":"commonness",
+            "boost_fun": "Log2",
+            "param": 2
+        }]
+    })).data;
+    let hits_unboosted = search_testo_to_doc!(json!({
+        "search": {
+            "terms":["boostemich"],
+            "path": "meanings.ger[]"
+        }
+    })).data;
+
+    assert_gt!(hits_boosted[0].hit.score, hits_unboosted[0].hit.score);
+}
+
+#[test]
+fn should_check_explain_plan_contents() {
+    let req = json!({
+        "search": {
+            "terms":["weich"], // hits welche and weich
+            "path": "meanings.ger[]",
+            "levenshtein_distance": 1,
+            "firstCharExactMatch":true
+        },
+        "boost" : [{
+            "path":"commonness",
+            "boost_fun": "Log2",
+            "param": 2
+        }]
+    });
+
+    let explain = search_testo_to_explain!(req).to_lowercase();
+    assert_contains!(explain, "weich"); // include the term
+    assert_contains!(explain, "meanings.ger[]"); // include the field
+    // assert_contains!(explain, "boost"); // TODO ENABLE something with boost from the boost step
+}
+
+#[test]
 fn should_boost_terms_and_from_cache() {
     let req = json!({
         "search": {
@@ -1186,7 +1281,7 @@ fn or_connect_hits_but_boost_one_term() {
 #[test]
 fn get_bytes_indexed() {
     let pers = &TEST_PERSISTENCE;
-    assert_eq!(pers.get_bytes_indexed(), 2594);
+    assert_gt!(pers.get_bytes_indexed(), 2685);
 }
 
 #[test]

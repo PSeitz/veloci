@@ -2,61 +2,40 @@
 #![feature(plugin, custom_attribute)]
 #![feature(type_ascription)]
 
-#[macro_use] extern crate rocket;
-extern crate rocket_contrib;
-extern crate rocket_cors;
-
-extern crate chashmap;
-extern crate fnv;
-extern crate serde;
+#[macro_use]
+extern crate rocket;
 #[macro_use]
 extern crate serde_json;
-
-extern crate flate2;
 #[macro_use]
 extern crate lazy_static;
 #[macro_use]
 extern crate serde_derive;
-extern crate log;
 #[macro_use]
 extern crate measure_time;
-extern crate multipart;
-extern crate search_lib;
-
-use rocket::request::LenientForm;
-use rocket::fairing;
-use rocket::http::Method;
-use rocket::response::{self, Responder, Response};
-use rocket::Request;
-
-// use rocket_contrib::{Json, Value};
-use rocket_contrib::json::{Json};
-use rocket_cors::{AllowedHeaders, AllowedOrigins};
-
-use multipart::server::save::Entries;
-use multipart::server::save::SaveResult::*;
-use multipart::server::Multipart;
-
-use rocket::http::{ContentType, Status};
-use rocket::Data;
-// use rocket::response::Stream;
-use rocket::response::status::Custom;
-
-use search_lib::doc_store::*;
-use search_lib::persistence;
-use search_lib::persistence::Persistence;
-use search_lib::query_generator;
-use search_lib::search;
-use search_lib::error::VelociError;
-use search_lib::search_field;
-use search_lib::shards::Shards;
 
 use chashmap::CHashMap;
-
-use std::collections::HashMap;
-
 use flate2::read::GzEncoder;
-use std::io::Cursor;
+use multipart::server::{
+    save::{Entries, SaveResult::*},
+    Multipart,
+};
+use rocket::{
+    fairing,
+    http::{ContentType, Method, Status},
+    request::LenientForm,
+    response::{self, status::Custom, Responder, Response},
+    Data, Request,
+};
+use rocket_contrib::json::Json;
+use rocket_cors::{AllowedHeaders, AllowedOrigins};
+use search_lib::{
+    doc_store::*,
+    error::VelociError,
+    persistence::{self, Persistence},
+    query_generator, search, search_field,
+    shards::Shards,
+};
+use std::{collections::HashMap, io::Cursor};
 
 lazy_static! {
     static ref PERSISTENCES: CHashMap<String, Persistence> = { CHashMap::default() };
@@ -119,7 +98,7 @@ struct QueryParams {
     phrase_pairs: Option<String>,
     explain: Option<String>,
     text_locality: Option<String>,
-    filter:Option<String>,
+    filter: Option<String>,
 }
 
 // struct MyParam {
@@ -258,7 +237,9 @@ fn search_from_query_params(database: String, params: QueryParams) -> Result<Sea
                 .map(|el| {
                     let field_n_boost = el.split("->").collect::<Vec<&str>>();
 
-                    let val = field_n_boost[1].parse::<f32>().map_err(|_err| Custom(Status::BadRequest, "Could not parse boost value as float".to_string()))?;
+                    let val = field_n_boost[1]
+                        .parse::<f32>()
+                        .map_err(|_err| Custom(Status::BadRequest, "Could not parse boost value as float".to_string()))?;
                     Ok((field_n_boost[0].to_string(), val))
                 })
                 .collect()
@@ -295,7 +276,7 @@ fn search_from_query_params(database: String, params: QueryParams) -> Result<Sea
         explain: params.explain.map(|el| el.to_lowercase() == "true"),
         boost_queries: None,
         select: None,
-        filter:params.filter,
+        filter: params.filter,
     };
 
     if let Some(el) = params.boost_queries {
@@ -310,7 +291,6 @@ fn search_from_query_params(database: String, params: QueryParams) -> Result<Sea
     debug!("{}", serde_json::to_string(&request).unwrap());
     search_in_persistence(&persistence, request).map_err(search_error_to_rocket_error)
 }
-
 
 // #[post("/<database>/search_smart", format = "application/json", data = "<request>")]
 // fn search_post_query_params(database: String, request: Json<QueryParams>) -> Result<SearchResult, Custom<String>> {
@@ -465,7 +445,8 @@ fn multipart_upload(database: String, cont_type: &ContentType, data: Data) -> Re
         &resp.1.unwrap_or("[]".to_string()),
         None,
         false,
-    ).unwrap();
+    )
+    .unwrap();
     Ok(format!("created {:?}", &database))
 }
 
@@ -551,7 +532,8 @@ fn create_db(database: String, data: rocket::data::Data) -> Result<String, Veloc
         "[]",
         None,
         false,
-    ).unwrap();
+    )
+    .unwrap();
     Ok("created".to_string())
 }
 
@@ -603,7 +585,8 @@ fn suggest_get(database: String, params: LenientForm<QueryParams>) -> Result<Sug
         params.levenshtein,
         &fields,
         params.levenshtein_auto_limit,
-    ).unwrap();
+    )
+    .unwrap();
 
     debug!("{}", serde_json::to_string(&request).unwrap());
     excute_suggest(&persistence, request, false)
@@ -638,7 +621,24 @@ fn main() {
     println!("Starting Server...");
     rocket::ignite()
         // .mount("/", routes![version, get_doc_for_id_direct, get_doc_for_id_tree, search_get, search_post, suggest_get, suggest_post, highlight_post])
-        .mount("/", routes![version, delete_db, multipart_upload, get_doc_for_id_direct, get_doc_for_id_tree, search_get, search_post, search_post_query_params, suggest_get, search_get_shard, suggest_post, highlight_post, inspect_data])
+        .mount(
+            "/",
+            routes![
+                version,
+                delete_db,
+                multipart_upload,
+                get_doc_for_id_direct,
+                get_doc_for_id_tree,
+                search_get,
+                search_post,
+                search_post_query_params,
+                suggest_get,
+                search_get_shard,
+                suggest_post,
+                highlight_post,
+                inspect_data
+            ],
+        )
         .attach(Gzip)
         .attach(cors_options)
         .launch();

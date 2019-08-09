@@ -15,9 +15,7 @@ use std::{
     str,
     sync::Arc,
 };
-
 use crate::plan_creator::execution_plan::*;
-
 use rayon::prelude::*;
 use std;
 
