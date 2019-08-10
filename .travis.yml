@@ -18,13 +18,12 @@ env:
   - TEST_DIR=server
   - TEST_DIR=json_converter
 script:
-- cd $TEST_DIR
-- cargo clean
-- cargo build
-- cargo test
+- cargo clean --manifest-path=$TEST_DIR/Cargo.toml 
+- cargo build --manifest-path=$TEST_DIR/Cargo.toml 
+- cargo test --manifest-path=$TEST_DIR/Cargo.toml 
 
 before_cache: |
-  RUSTFLAGS="--cfg procmacro2_semver_exempt" cargo install cargo-tarpaulin
+  RUSTFLAGS="--cfg procmacro2_semver_exempt" cargo install cargo-tarpaulin -f
 
 after_success: |
   # Uncomment the following line for coveralls.io
