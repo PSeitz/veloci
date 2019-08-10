@@ -1,18 +1,12 @@
-use crate::indices::EMPTY_BUCKET;
-use crate::indices::metadata::IndexValuesMetadata;
 use crate::{
     facet::*,
-    persistence::{*},
+    indices::{metadata::IndexValuesMetadata, EMPTY_BUCKET},
+    persistence::*,
     type_info::TypeInfo,
 };
 use fnv::FnvHashMap;
 use num;
-use std::{
-    self,
-    marker::PhantomData,
-    u32,
-};
-
+use std::{self, marker::PhantomData, u32};
 
 #[derive(Debug, Default)]
 pub(crate) struct SingleArrayIM<T: IndexIdToParentData, K: IndexIdToParentData> {

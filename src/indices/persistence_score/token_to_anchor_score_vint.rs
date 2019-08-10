@@ -1,11 +1,12 @@
-use super::*;
-use super::super::{EMPTY_BUCKET, EMPTY_BUCKET_USIZE};
+use super::{
+    super::{EMPTY_BUCKET, EMPTY_BUCKET_USIZE},
+    *,
+};
 
 use crate::{
     error::VelociError,
-    indices::{calc_avg_join_size, flush_to_file_indirect},
+    indices::{calc_avg_join_size, flush_to_file_indirect, *},
     util::*,
-    indices::*,
 };
 use itertools::Itertools;
 use num;

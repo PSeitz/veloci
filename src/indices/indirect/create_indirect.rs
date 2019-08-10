@@ -1,11 +1,7 @@
 use super::super::{calc_avg_join_size, flush_to_file_indirect};
-use crate::{error::VelociError, persistence::*, util::*, indices::*};
+use crate::{error::VelociError, indices::*, persistence::*, util::*};
 use num::{self, cast::ToPrimitive};
-use std::{
-    self,
-    io::{self},
-    u32,
-};
+use std::{self, io, u32};
 use vint::vint::*;
 
 fn to_serialized_vint_array(add_data: Vec<u32>) -> Vec<u8> {

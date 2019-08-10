@@ -140,7 +140,8 @@ fn check_score_boost_relative_field() {
 }
 
 #[test]
-fn should_rank_exact_matches_pretty_good() { // TODO test with exact TOKEN score like: (1)weich
+fn should_rank_exact_matches_pretty_good() {
+    // TODO test with exact TOKEN score like: (1)weich
     let req = json!({
         "search": {
             "terms":["weich"], // hits welche and weich, welche has more boost

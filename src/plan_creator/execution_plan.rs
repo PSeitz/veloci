@@ -7,7 +7,6 @@ use crate::{
     util::{self, StringAdd},
 };
 
-
 use fnv::{FnvHashMap, FnvHashSet};
 use std::boxed::Box;
 
@@ -138,12 +137,7 @@ pub fn plan_creator(mut request: Request, plan: &mut Plan) {
     }
     // Apply Boost from anchor
     if let Some(boosts) = request.boost {
-        let anchor_boosts: Vec<&RequestBoostPart> = boosts
-            .iter()
-            .filter(|el| {
-                !el.path.contains("[]")
-            })
-            .collect();
+        let anchor_boosts: Vec<&RequestBoostPart> = boosts.iter().filter(|el| !el.path.contains("[]")).collect();
 
         for boost in anchor_boosts {
             let final_step_channel = plan.get_step_channel(final_step_id).clone();
@@ -487,7 +481,6 @@ fn plan_creator_search_part(
         plan.add_dependency(id1, depends_on_step);
     }
     (id1)
-
 }
 
 use rayon::prelude::*;

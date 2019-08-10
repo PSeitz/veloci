@@ -1,14 +1,9 @@
 use super::*;
-use crate::{error::VelociError, persistence::*, type_info::TypeInfo, util::*, indices::*};
+use crate::{error::VelociError, indices::*, persistence::*, type_info::TypeInfo, util::*};
 use byteorder::{LittleEndian, ReadBytesExt};
 use memmap::{Mmap, MmapOptions};
 use num::{self, cast::ToPrimitive};
-use std::{
-    self,
-    fs::File,
-    marker::PhantomData,
-    u32,
-};
+use std::{self, fs::File, marker::PhantomData, u32};
 use vint::vint::*;
 
 impl_type_info_single_templ!(IndirectMMap);

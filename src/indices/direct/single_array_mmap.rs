@@ -1,23 +1,10 @@
-use crate::indices::metadata::IndexValuesMetadata;
-use crate::{
-    error::VelociError,
-    persistence::*,
-    type_info::TypeInfo,
-};
-use std::{
-    self,
-    fs::File,
-    marker::PhantomData,
-    io,
-    ptr::copy_nonoverlapping,
-    u32,
-};
+use crate::{error::VelociError, indices::metadata::IndexValuesMetadata, persistence::*, type_info::TypeInfo};
+use std::{self, fs::File, io, marker::PhantomData, ptr::copy_nonoverlapping, u32};
 
 use memmap::{Mmap, MmapOptions};
 use num;
 
 impl_type_info_single_templ!(SingleArrayMMAPPacked);
-
 
 #[derive(Debug, Clone, Copy)]
 pub(crate) enum BytesRequired {
@@ -116,7 +103,6 @@ fn test_encodsing_and_decoding_bitpacking() {
     assert_eq!(decode_bit_packed_val::<u32>(&bytes, bytes_required, 2), None);
 }
 
-
 #[derive(Debug)]
 // Loads integer with flexibel widths 1, 2 or 4 byte
 pub(crate) struct SingleArrayMMAPPacked<T: IndexIdToParentData> {
@@ -128,7 +114,6 @@ pub(crate) struct SingleArrayMMAPPacked<T: IndexIdToParentData> {
 }
 
 impl<T: IndexIdToParentData> SingleArrayMMAPPacked<T> {
-
     pub(crate) fn from_file(file: &File, metadata: IndexValuesMetadata) -> Result<Self, VelociError> {
         let data_file = unsafe { MmapOptions::new().map(&file)? };
         Ok(SingleArrayMMAPPacked {

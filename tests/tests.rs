@@ -1130,10 +1130,8 @@ fn real_suggest_with_boosting_score_of_begeisterung_and_token_value() {
     );
 }
 
-
 #[test]
 fn should_rank_boost_on_anchor_higher_search_on_anchor() {
-
     let hits_boosted = search_testo_to_doc!(json!({
         "search": {
             "terms":["COllectif"],
@@ -1144,20 +1142,21 @@ fn should_rank_boost_on_anchor_higher_search_on_anchor() {
             "boost_fun": "Log2",
             "param": 2
         }]
-    })).data;
+    }))
+    .data;
     let hits_unboosted = search_testo_to_doc!(json!({
         "search": {
             "terms":["COllectif"],
             "path": "title"
         }
-    })).data;
+    }))
+    .data;
 
     assert_gt!(hits_boosted[0].hit.score, hits_unboosted[0].hit.score);
 }
 
 #[test]
 fn should_rank_boost_on_anchor_higher_search_on_1_n() {
-
     let hits_boosted = search_testo_to_doc!(json!({
         "search": {
             "terms":["boostemich"],
@@ -1168,13 +1167,15 @@ fn should_rank_boost_on_anchor_higher_search_on_1_n() {
             "boost_fun": "Log2",
             "param": 2
         }]
-    })).data;
+    }))
+    .data;
     let hits_unboosted = search_testo_to_doc!(json!({
         "search": {
             "terms":["boostemich"],
             "path": "meanings.ger[]"
         }
-    })).data;
+    }))
+    .data;
 
     assert_gt!(hits_boosted[0].hit.score, hits_unboosted[0].hit.score);
 }

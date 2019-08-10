@@ -1,13 +1,10 @@
 use super::*;
-use crate::{facet::*, persistence::*, type_info::TypeInfo, indices::*};
+use crate::{facet::*, indices::*, persistence::*, type_info::TypeInfo};
 use fnv::FnvHashMap;
 use itertools::Itertools;
 use lru_time_cache::LruCache;
-use num::{self};
-use std::{
-    self, fmt,
-    u32,
-};
+use num;
+use std::{self, fmt, u32};
 use vint::vint::*;
 
 impl_type_info_single_templ!(IndirectIM);

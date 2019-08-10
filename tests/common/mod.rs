@@ -2,13 +2,12 @@ use search_lib::*;
 
 #[macro_export]
 macro_rules! assert_contains {
-    ($left:expr, $right:expr) => ({
+    ($left:expr, $right:expr) => {{
         let (left, right) = (&($left), &($right));
         if !(left.contains(right)) {
-            panic!("assertion failed: `(left does not contain right)`\n  left: `{:?}`,\n right: `{:?}`",
-                   left, right);
+            panic!("assertion failed: `(left does not contain right)`\n  left: `{:?}`,\n right: `{:?}`", left, right);
         }
-    });
+    }};
 }
 
 #[allow(dead_code)]

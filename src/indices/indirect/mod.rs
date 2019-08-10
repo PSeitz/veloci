@@ -2,8 +2,7 @@ mod create_indirect;
 mod indirect_im;
 mod indirect_mmap;
 
-use crate::util::is_hight_bit_set;
-use crate::util::unset_high_bit;
+use crate::util::{is_hight_bit_set, unset_high_bit};
 pub(crate) use create_indirect::*;
 pub(crate) use indirect_im::*;
 pub(crate) use indirect_mmap::*;
@@ -20,8 +19,8 @@ fn get_encoded(mut val: u32) -> Option<u32> {
 
 #[cfg(test)]
 mod tests {
-    use crate::persistence::IndexIdToParent;
     use super::*;
+    use crate::persistence::IndexIdToParent;
 
     fn get_test_data_1_to_n_ind(path: &str) -> IndirectIMFlushingInOrderVint {
         let mut store = IndirectIMFlushingInOrderVint::new(path.to_string(), std::u32::MAX);

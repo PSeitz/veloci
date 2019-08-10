@@ -2,6 +2,7 @@ use crate::{
     error::VelociError,
     highlight_field::*,
     persistence::{self, Persistence, *},
+    plan_creator::execution_plan::*,
     search::{self, search_field_result::*, *},
     util::{self, StringAdd},
 };
@@ -10,14 +11,15 @@ use fst::{automaton::*, raw::Fst, IntoStreamer};
 use itertools::Itertools;
 use levenshtein_automata::{Distance, LevenshteinAutomatonBuilder, DFA};
 use ordered_float::OrderedFloat;
-use std::{
-    cmp::{self, Ordering},
-    str,
-    sync::Arc,
-};
-use crate::plan_creator::execution_plan::*;
 use rayon::prelude::*;
-use std;
+use std::{
+    self,
+    {
+        cmp::{self, Ordering},
+        str,
+        sync::Arc,
+    },
+};
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum Explain {

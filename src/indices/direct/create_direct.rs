@@ -1,12 +1,10 @@
-use super::*;
-use super::super::*;
+use super::{super::*, *};
 
 use std::{
     self,
     io::{self, Write},
     u32,
 };
-
 
 /// This data structure assumes that a set is only called once for a id, and ids are set in order.
 #[derive(Serialize, Debug, Clone, Default)]
@@ -97,12 +95,10 @@ impl IndexIdToOneParentFlushing {
     }
 }
 
-
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{persistence::*};
+    use crate::persistence::*;
     // use rand;
     // use test;
 
@@ -141,8 +137,8 @@ mod tests {
 
     mod test_direct_1_to_1 {
         use super::*;
-        use tempfile::tempdir;
         use std::fs::File;
+        use tempfile::tempdir;
 
         #[test]
         fn test_index_id_to_parent_flushing() {

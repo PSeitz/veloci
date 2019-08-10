@@ -1,5 +1,4 @@
-use crate::indices::metadata::*;
-use crate::{create, error::VelociError, util};
+use crate::{create, error::VelociError, indices::metadata::*, util};
 use fnv::FnvHashMap;
 
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
@@ -32,15 +31,12 @@ pub struct FieldInfo {
     pub has_fst: bool,
 }
 
-
-
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
 pub struct TextIndexValuesMetadata {
     pub num_text_ids: usize,
     pub num_long_text_ids: usize,
     pub options: create::FulltextIndexOptions,
 }
-
 
 #[derive(Debug)]
 enum IndexType {
