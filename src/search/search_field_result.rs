@@ -76,8 +76,16 @@ impl std::fmt::Display for SearchFieldResult {
                 writeln!(f, "({})", el)?;
             }
         }
+        if !self.highlight.is_empty() {
+            writeln!(f, "(highlight {:?})", self.highlight)?;
+        }
 
-        //TODO explain, terms, highlight, term_id_hits_in_field, term_text_in_field
+        for (field, hits) in &self.term_text_in_field {
+            writeln!(f, "(field {} -> {:?})", field, hits)?;
+        }
+        for (field, hits) in &self.term_id_hits_in_field {
+            writeln!(f, "(field {} -> {:?})", field, hits)?;
+        }
         Ok(())
     }
 }

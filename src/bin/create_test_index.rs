@@ -25,9 +25,9 @@ fn main() {
 
     for jeppo in std::env::args().skip(1) {
         match jeppo.as_ref() {
-            "jmdict" => println!("{:?}", create_jmdict_index()),
-            "jmdict_shards" => println!("{:?}", create_jmdict_index_shards()),
-            "gutenberg" => println!("{:?}", create_book_index()),
+            "jmdict" => info!("{:?}", create_jmdict_index()),
+            "jmdict_shards" => info!("{:?}", create_jmdict_index_shards()),
+            "gutenberg" => info!("{:?}", create_book_index()),
             _ => {}
         };
     }
@@ -56,9 +56,9 @@ fn create_jmdict_index_shards() -> Result<(), io::Error> {
     let time_in_ms = (start.elapsed().as_secs() as f64 * 1_000.0) + (f64::from(start.elapsed().subsec_nanos()) / 1_000_000.0);
 
     let mbs = total_bytes as f64 / 1_000_000.;
-    println!("total_bytes {:?}", total_bytes);
-    println!("time_in_s {:?}", time_in_ms / 1_000.);
-    println!("MB/s {:?}", mbs / (time_in_ms as f64 / 1000.));
+    info!("total_bytes {:?}", total_bytes);
+    info!("time_in_s {:?}", time_in_ms / 1_000.);
+    info!("MB/s {:?}", mbs / (time_in_ms as f64 / 1000.));
 
     Ok(())
 }

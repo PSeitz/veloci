@@ -420,10 +420,6 @@ fn plan_creator_search_part(
             });
             let boost_step_id = plan.add_step(boost_step);
             plan.add_dependency(boost_step_id, *field_search_step_id); // TODO instead adding the dependency manually here, we should deduce the dependency by dataflow. In open_channel the output is connected (field_rx) and should be added as depedency
-                                                                       // if let Some(parent_step_dependecy) = parent_step_dependecy {
-                                                                       //     plan.add_dependency(parent_step_dependecy, boost_step_id);
-                                                                       // }
-
             // STEP2: APPLY BOOST on anchor
             let token_to_anchor_rx = channel.receiver_for_next_step.clone();
             let boost_vals_rx = boost_to_anchor_channel.receiver_for_next_step.clone();

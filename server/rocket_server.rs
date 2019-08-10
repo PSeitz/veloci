@@ -13,6 +13,8 @@ extern crate serde_derive;
 #[macro_use]
 extern crate measure_time;
 
+// #[cfg(test)] mod tests;
+
 use chashmap::CHashMap;
 use flate2::read::GzEncoder;
 use multipart::server::{
@@ -300,6 +302,7 @@ fn search_from_query_params(database: String, params: QueryParams) -> Result<Sea
 #[post("/<database>/search_query_params/explain_plan", format = "application/json", data = "<request>")]
 fn search_post_query_params_explain(database: String, request: Json<query_generator::SearchQueryGeneratorParameters>) -> Result<String, Custom<String>> {
     let q_params = request.0;
+    ensure_database(&database).unwrap();
     let persistence = PERSISTENCES.get(&database).unwrap();
 
     let mut request = query_generator::search_query(&persistence, q_params.clone()).map_err(|err| Custom(Status::BadRequest, format!("query_generation failed: {:?}", err)))?;
@@ -313,6 +316,7 @@ fn search_post_query_params_explain(database: String, request: Json<query_genera
 #[post("/<database>/search_query_params", format = "application/json", data = "<request>")]
 fn search_post_query_params(database: String, request: Json<query_generator::SearchQueryGeneratorParameters>) -> Result<SearchResult, Custom<String>> {
     let q_params = request.0;
+    ensure_database(&database).unwrap();
     let persistence = PERSISTENCES.get(&database).unwrap();
 
     let mut request = query_generator::search_query(&persistence, q_params.clone()).map_err(|err| Custom(Status::BadRequest, format!("query_generation failed: {:?}", err)))?;
@@ -421,6 +425,7 @@ fn search_get_shard(database: String, params: LenientForm<QueryParams>) -> Resul
     Ok(SearchResult(shard.search_all_shards_from_qp(&q_params, &query_param_to_vec(params.select))?))
 }
 
+// ******************************************** PERMISSION CRITICAL START ********************************************
 // ******************************************** UPLOAD UPLOAD ********************************************
 // use std::io;
 #[post("/<database>", data = "<data>")]
@@ -516,28 +521,28 @@ fn process_entries(entries: Entries) -> Result<(String, Option<String>), VelociE
     Ok((unsafe { String::from_utf8_unchecked(data) }, None))
 }
 
-#[post("/<database>", data = "<data>")]
-fn create_db(database: String, data: rocket::data::Data) -> Result<String, VelociError> {
-    if PERSISTENCES.contains_key(&database) {
-        //TODO @BUG @FixMe ERROR OWASP
-        PERSISTENCES.remove(&database);
-    }
+// #[post("/<database>", data = "<data>", format = "application/json")]
+// fn create_db(database: String, data: rocket::data::Data) -> Result<String, VelociError> {
+//     if PERSISTENCES.contains_key(&database) {
+//         //TODO @BUG @FixMe ERROR OWASP
+//         PERSISTENCES.remove(&database);
+//     }
 
-    let mut out: Vec<u8> = vec![];
-    search_lib::create::convert_any_json_data_to_line_delimited(data.open(), &mut out).unwrap();
+//     let mut out: Vec<u8> = vec![];
+//     search_lib::create::convert_any_json_data_to_line_delimited(data.open(), &mut out).unwrap();
 
-    search_lib::create::create_indices_from_str(
-        &mut search_lib::persistence::Persistence::create(database).unwrap(),
-        unsafe { std::str::from_utf8_unchecked(&out) },
-        "[]",
-        None,
-        false,
-    )
-    .unwrap();
-    Ok("created".to_string())
-}
+//     search_lib::create::create_indices_from_str(
+//         &mut search_lib::persistence::Persistence::create(database).unwrap(),
+//         unsafe { std::str::from_utf8_unchecked(&out) },
+//         "[]",
+//         None,
+//         false,
+//     )
+//     .unwrap();
+//     Ok("created".to_string())
+// }
 
-// ******************************************** UPLOAD UPLOAD ********************************************
+
 
 #[delete("/<database>")]
 fn delete_db(database: String) -> Result<String, VelociError> {
@@ -552,14 +557,6 @@ fn delete_db(database: String) -> Result<String, VelociError> {
     Ok("deleted".to_string())
 }
 
-#[post("/<database>/suggest", format = "application/json", data = "<request>")]
-fn suggest_post(database: String, request: Json<search::Request>) -> Json<serde_json::Value> {
-    ensure_database(&database).unwrap();
-    let persistence = PERSISTENCES.get(&database).unwrap();
-    let hits = search_field::suggest_multi(&persistence, request.0).unwrap();
-    Json(serde_json::from_str(&serde_json::to_string(&hits).unwrap()).unwrap())
-}
-
 #[get("/<database>/inspect/<path>/<id>")]
 fn inspect_data(database: String, path: String, id: u64) -> Result<String, VelociError> {
     ensure_database(&database)?;
@@ -567,6 +564,16 @@ fn inspect_data(database: String, path: String, id: u64) -> Result<String, Veloc
     // persistence.get(path)
     let data = persistence.get_valueid_to_parent(&path)?;
     Ok(serde_json::to_string(&data.get_values(id)).unwrap())
+}
+
+// ******************************************** PERMISSION CRITICAL END ********************************************
+
+#[post("/<database>/suggest", format = "application/json", data = "<request>")]
+fn suggest_post(database: String, request: Json<search::Request>) -> Json<serde_json::Value> {
+    ensure_database(&database).unwrap();
+    let persistence = PERSISTENCES.get(&database).unwrap();
+    let hits = search_field::suggest_multi(&persistence, request.0).unwrap();
+    Json(serde_json::from_str(&serde_json::to_string(&hits).unwrap()).unwrap())
 }
 
 #[get("/<database>/suggest?<params..>", format = "application/json")]
@@ -600,6 +607,40 @@ fn highlight_post(database: String, mut request: Json<search::RequestSearchPart>
     serde_json::to_string(&hits).unwrap()
 }
 
+fn rocket() -> rocket::Rocket {
+    let cors_options = rocket_cors::Cors {
+        allowed_origins: AllowedOrigins::all(),
+        allowed_methods: vec![Method::Get, Method::Post].into_iter().map(From::from).collect(),
+        allowed_headers: AllowedHeaders::all(),
+        allow_credentials: true,
+        ..Default::default()
+    };
+    rocket::ignite()
+        // .mount("/", routes![version, get_doc_for_id_direct, get_doc_for_id_tree, search_get, search_post, suggest_get, suggest_post, highlight_post])
+        .mount(
+            "/",
+            routes![
+                version,
+                delete_db,
+                // create_db,
+                multipart_upload,
+                get_doc_for_id_direct,
+                get_doc_for_id_tree,
+                search_get,
+                search_post,
+                search_post_query_params,
+                search_post_query_params_explain,
+                suggest_get,
+                search_get_shard,
+                suggest_post,
+                highlight_post,
+                inspect_data
+            ],
+        )
+        .attach(Gzip)
+        .attach(cors_options)
+}
+
 fn main() {
     search_lib::trace::enable_log();
 
@@ -610,38 +651,10 @@ fn main() {
     //     ensure_shard(&preload_db).unwrap();
     // }
 
-    let cors_options = rocket_cors::Cors {
-        allowed_origins: AllowedOrigins::all(),
-        allowed_methods: vec![Method::Get, Method::Post].into_iter().map(From::from).collect(),
-        allowed_headers: AllowedHeaders::all(),
-        allow_credentials: true,
-        ..Default::default()
-    };
+    
 
     println!("Starting Server...");
-    rocket::ignite()
-        // .mount("/", routes![version, get_doc_for_id_direct, get_doc_for_id_tree, search_get, search_post, suggest_get, suggest_post, highlight_post])
-        .mount(
-            "/",
-            routes![
-                version,
-                delete_db,
-                multipart_upload,
-                get_doc_for_id_direct,
-                get_doc_for_id_tree,
-                search_get,
-                search_post,
-                search_post_query_params,
-                suggest_get,
-                search_get_shard,
-                suggest_post,
-                highlight_post,
-                inspect_data
-            ],
-        )
-        .attach(Gzip)
-        .attach(cors_options)
-        .launch();
+    rocket().launch();
 }
 
 pub struct Gzip;
@@ -671,3 +684,124 @@ impl fairing::Fairing for Gzip {
         }
     }
 }
+
+
+#[cfg(test)]
+mod test {
+    use super::rocket;
+    use search_lib::*;
+    use rocket::local::Client;
+    use rocket::{
+        http::{ContentType, Status},
+    };
+
+    #[macro_export]
+    macro_rules! assert_contains {
+        ($left:expr, $right:expr) => {{
+            let (left, right) = (&($left), &($right));
+            if !(left.contains(right)) {
+                panic!("assertion failed: `(left does not contain right)`\n  left: `{:?}`,\n right: `{:?}`", left, right);
+            }
+        }};
+    }
+
+
+    static TEST_DATA: &str=r#"{"text": "hi there", "name": "fred"}"#;
+
+    fn create_db() {
+
+        use std::sync::Once;
+
+        static START: Once = Once::new();
+
+        START.call_once(|| {
+             let mut pers = persistence::Persistence::create_type("test_rocket".to_string(), persistence::PersistenceType::Persistent).unwrap();
+            println!("{:?}", create::create_indices_from_str(&mut pers, TEST_DATA, "{}", None, true));
+        });
+
+    }
+
+    #[test]
+    fn get_version() {
+        let client = Client::new(rocket()).expect("valid rocket instance");
+        let response = client.get("/version").dispatch();
+        assert_eq!(response.status(), Status::Ok);
+    }
+
+    #[test]
+    fn get_request() {
+        create_db();
+        let client = Client::new(rocket()).expect("valid rocket instance");
+        let mut response = client.get("/test_rocket/search?query=fred&top=10").dispatch();
+        assert_eq!(response.status(), Status::Ok);
+        assert_contains!(response.body_string().unwrap(), "name");
+    }    
+
+    #[test]
+    fn get_suggest() {
+        create_db();
+        let client = Client::new(rocket()).expect("valid rocket instance");
+
+        let mut response = client.get("/test_rocket/suggest?query=fr&top=10").dispatch();
+        assert_eq!(response.status(), Status::Ok);
+        assert_contains!(response.body_string().unwrap(), "fred");
+    }    
+
+    #[test]
+    fn post_request() {
+        create_db();
+        let client = Client::new(rocket()).expect("valid rocket instance");
+        let mut response = client.post("/test_rocket/search_query_params")
+            .body(r#"{
+"search_term": "fred",
+    "top": 3,
+    "skip": 0,
+    "why_found": true
+}"#)
+            .header(ContentType::JSON)
+            .dispatch();
+        assert_eq!(response.status(), Status::Ok);
+        assert_contains!(response.body_string().unwrap(), "name");
+    }
+
+    #[test]
+    fn post_request_explain_plan() {
+        create_db();
+        let client = Client::new(rocket()).expect("valid rocket instance");
+        let mut response = client.post("/test_rocket/search_query_params/explain_plan")
+            .body(r#"{
+"search_term": "fred",
+    "top": 3,
+    "skip": 0,
+    "why_found": true
+}"#)
+            .header(ContentType::JSON)
+            .dispatch();
+        assert_eq!(response.status(), Status::Ok);
+        let resp = response.body_string().unwrap();
+        assert_contains!(resp, "name");
+        assert_contains!(resp, "fred");
+        assert_contains!(resp, "search");
+    }
+
+    #[test]
+    fn post_suggest() {
+        create_db();
+        let client = Client::new(rocket()).expect("valid rocket instance");
+        let mut response = client.post("/test_rocket/suggest")
+            .body(r#"{
+                "suggest":[
+                {
+                  "terms": ["fre"],
+                  "path": "name",
+                  "starts_with": true
+                }
+                ]
+            }"#)
+            .header(ContentType::JSON)
+            .dispatch();
+        assert_eq!(response.status(), Status::Ok);
+        assert_contains!(response.body_string().unwrap(), "fred");
+    }
+}
+

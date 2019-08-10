@@ -673,7 +673,6 @@ where
                     None
                 };
 
-                //TODO ADD shortcut value_id to anchor_id for boost
                 PathDataIds {
                     value_to_parent,
                     parent_to_value,
@@ -956,7 +955,6 @@ pub type IndicesFromRawData = Vec<IndexData>;
 
 #[derive(Debug)]
 pub struct IndexData {
-    //TODO MAKE PRIVATE
     path_col: String,
     path: String,
     index: IndexVariants,

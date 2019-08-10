@@ -30,7 +30,7 @@ impl<T: IndexIdToParentData, K: IndexIdToParentData> IndexIdToParent for SingleA
 
     #[inline]
     fn count_values_for_ids(&self, ids: &[u32], top: Option<u32>) -> FnvHashMap<T, usize> {
-        count_values_for_ids(ids, top, self.metadata.avg_join_size, self.metadata.max_value_id, |id: u64| self.get_value(id))
+        count_values_for_ids(ids, top, &self.metadata, |id: u64| self.get_value(id))
     }
 
     // fn get_keys(&self) -> Vec<T> {
@@ -85,13 +85,13 @@ where
 }
 
 #[inline]
-fn count_values_for_ids<F, T: IndexIdToParentData>(ids: &[u32], top: Option<u32>, avg_join_size: f32, max_value_id: u32, get_value: F) -> FnvHashMap<T, usize>
+fn count_values_for_ids<F, T: IndexIdToParentData>(ids: &[u32], top: Option<u32>, metadata: &IndexValuesMetadata, get_value: F) -> FnvHashMap<T, usize>
 where
     F: Fn(u64) -> Option<T>,
 {
-    if should_prefer_vec(ids.len() as u32, avg_join_size, max_value_id) {
+    if should_prefer_vec(ids.len() as u32, metadata.avg_join_size, metadata.max_value_id) {
         let mut dat = vec![];
-        dat.resize(max_value_id as usize + 1, T::zero());
+        dat.resize(metadata.max_value_id as usize + 1, T::zero());
         count_values_for_ids_for_agg(ids, top, dat, get_value)
     } else {
         let map = FnvHashMap::default();

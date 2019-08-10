@@ -47,7 +47,6 @@ fn main() {
     let pers = load_persistence_disk();
     info_time!("wo");
     let _results = search_freestyle("taschenbuch", &pers);
-    // println!("{:?}", results[0]);
 }
 
 fn search_freestyle(term: &str, pers: &persistence::Persistence) -> Vec<search::DocWithHit> {
