@@ -18,17 +18,17 @@ env:
   - TEST_DIR=server
   - TEST_DIR=json_converter
 script:
-- cargo clean --manifest-path=$TEST_DIR/Cargo.toml 
-- cargo build --manifest-path=$TEST_DIR/Cargo.toml 
-- cargo test --manifest-path=$TEST_DIR/Cargo.toml 
+- cargo clean --manifest-path=$TEST_DIR/Cargo.toml
+- cargo build --manifest-path=$TEST_DIR/Cargo.toml
+- cargo test --manifest-path=$TEST_DIR/Cargo.toml
 
 before_cache: |
-  RUSTFLAGS="--cfg procmacro2_semver_exempt" cargo install cargo-tarpaulin -f
+  RUSTFLAGS="--cfg procmacro2_semver_exempt" cargo install --git https://github.com/PSeitz/tarpaulin.git --force
 
 after_success: |
   # Uncomment the following line for coveralls.io
   RAYON_NUM_THREADS=1 cargo tarpaulin --root=$TEST_DIR --all --exclude-files "src/bin/*" "benches/*" --ciserver travis-ci --coveralls $TRAVIS_JOB_ID
 
   # Uncomment the following two lines create and upload a report for codecov.io
-  # cargo tarpaulin --out Xml
-  # bash <(curl -s https://codecov.io/bash)
+  RAYON_NUM_THREADS=1 cargo tarpaulin --root=$TEST_DIR --all --exclude-files "src/bin/*" "benches/*" --out Xml
+  bash <(curl -s https://codecov.io/bash)
