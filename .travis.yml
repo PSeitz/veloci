@@ -32,3 +32,4 @@ after_success: |
   # Uncomment the following two lines create and upload a report for codecov.io
   RAYON_NUM_THREADS=1 cargo tarpaulin --root=$TEST_DIR --all --exclude-files "src/bin/*" "benches/*" --out Xml
   bash <(curl -s https://codecov.io/bash)
+
