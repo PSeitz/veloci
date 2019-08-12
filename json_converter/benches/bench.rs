@@ -115,11 +115,11 @@ fn criterion_benchmark(c: &mut Criterion) {
     c.bench_function("walk json", move |b| {
 
         b.iter(|| {
-            let mut cb_text = |_anchor_id: u32, _value: &str, _path: &str, _parent_val_id: u32| -> Result<(), ()>{
+            let mut cb_text = |_anchor_id: u32, _value: &str, _path: &str, _parent_val_id: u32| -> Result<(), serde_json::Error>{
                 // println!("TEXT: path {} value {} parent_val_id {}",path, value, parent_val_id);
                 Ok(())
             };
-            let mut cb_ids = |_anchor_id: u32, _path: &str, _val_id: u32, _parent_val_id: u32| -> Result<(), ()>{
+            let mut cb_ids = |_anchor_id: u32, _path: &str, _val_id: u32, _parent_val_id: u32| -> Result<(), serde_json::Error>{
                 // println!("IDS: path {} val_id {} parent_val_id {}",path, val_id, parent_val_id);
                 Ok(())
             };
@@ -146,7 +146,7 @@ fn criterion_benchmark(c: &mut Criterion) {
 
     c.bench_function("walk json text", move |b| {
         b.iter(|| {
-            let mut cb_text = | _value: &str, _path: &str| -> Result<(), ()>{
+            let mut cb_text = | _value: &str, _path: &str| -> Result<(), serde_json::Error>{
                 // println!("TEXT: path {} value {} parent_val_id {}",path, value, parent_val_id);
                 Ok(())
             };
