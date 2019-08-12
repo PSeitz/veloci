@@ -484,7 +484,7 @@ fn simple_search_querygenerator_and_no_hit() {
 }
 
 #[test]
-fn select_single_field() {
+fn select_fields() {
     let req = json!({
         "search": {
             "terms":["urge"],

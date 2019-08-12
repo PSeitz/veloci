@@ -20,7 +20,7 @@ lazy_static! {
         { "tags[]":{"facet":true}}
         "#;
 
-        let data:String = std::iter::repeat(r#"
+        let mut data:String = std::iter::repeat(r#"
             {
                 "category": "superb",
                 "tags": ["nice", "cool"]
@@ -30,6 +30,10 @@ lazy_static! {
                 "tags": ["is", "cool"]
             }
         "#).take(300).collect();
+
+        data += r#"{
+            "text": "a long text with more than 64 characters so that the option do_not_store_text_longer_than is active. then the whole text won't be store in the fst, only its tokens"
+        }"#;
 
         common::create_test_persistence_with_logging(TEST_FOLDER, indices, data.as_bytes(), None, false)
 
@@ -47,6 +51,23 @@ mod tests_large {
             }
         });
         assert_eq!(search_testo_to_doc!(req).num_hits, 300);
+    }
+
+
+    #[test]
+    fn select_on_large_text() {
+        let req = json!({
+            "search": {
+                "terms":["long"],
+                "path": "text"
+            },
+            "select": ["text"]
+        });
+
+        let hits = search_testo_to_doc!(req).data;
+        assert_eq!(hits.len(), 1);
+        assert_eq!(hits[0].doc["text"], "a long text with more than 64 characters so that the option do_not_store_text_longer_than is active. then the whole text won't be store in the fst, only its tokens");
+        assert_eq!(hits[0].doc.get("category"), None); // didn't select
     }
 
     #[test]
