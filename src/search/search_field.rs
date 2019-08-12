@@ -236,7 +236,7 @@ pub fn get_term_ids_in_field(persistence: &Persistence, options: &mut PlanReques
         *d = std::cmp::min(*d, lower_term.chars().count() as u32 - 1); //limit levenshtein distance to reasonable values
     }
 
-    trace!("Will Check distance {:?}", options.request.levenshtein_distance.unwrap_or(0) != 0);
+    trace!("Will distance {:?}", options.request.levenshtein_distance);
     trace!("Will Check starts_with {:?}", options.request.starts_with);
 
     let limit_result = options.request.top.is_some();

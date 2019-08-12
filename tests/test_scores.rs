@@ -140,6 +140,32 @@ fn check_score_boost_relative_field() {
 }
 
 #[test]
+fn check_score_boost_add_value_from_field() {
+
+    let params = serde_json::from_value(json!({
+        "search_term": "weich",
+        "fields": ["meanings.ger[]"],
+        "levenshtein": 0,
+        "boost_queries": [
+          {
+            "path": "commonness",
+            "boost_fun": "Add"
+          }
+        ]
+    })).unwrap();
+    let res_boosted = search_testo_to_doco_qp!(params).data;
+
+    let params = serde_json::from_value(json!({
+        "search_term": "weich",
+        "levenshtein": 0,
+        "fields": ["meanings.ger[]"]
+    })).unwrap();
+    let res_unboosted = search_testo_to_doco_qp!(params).data;
+
+    assert_eq!(res_unboosted[0].hit.score + 1.0, res_boosted[0].hit.score);
+}
+
+#[test]
 fn should_rank_exact_matches_pretty_good() {
     // TODO test with exact TOKEN score like: (1)weich
     let req = json!({
