@@ -26,42 +26,42 @@ fn main() {
     for jeppo in std::env::args().skip(1) {
         match jeppo.as_ref() {
             "jmdict" => info!("{:?}", create_jmdict_index()),
-            "jmdict_shards" => info!("{:?}", create_jmdict_index_shards()),
+            // "jmdict_shards" => info!("{:?}", create_jmdict_index_shards()),
             "gutenberg" => info!("{:?}", create_book_index()),
             _ => {}
         };
     }
 }
 
-#[allow(dead_code)]
-fn create_jmdict_index_shards() -> Result<(), io::Error> {
-    let threshold_bytes: usize = std::env::args().nth(2).expect("require command line parameter").parse().unwrap();
-    let mut jmdict_shards = search_lib::shards::Shards::new("jmdict_shards".to_string());
+// #[allow(dead_code)]
+// fn create_jmdict_index_shards() -> Result<(), io::Error> {
+//     let threshold_bytes: usize = std::env::args().nth(2).expect("require command line parameter").parse().unwrap();
+//     let mut jmdict_shards = search_lib::shards::Shards::new("jmdict_shards".to_string());
 
-    let start = std::time::Instant::now();
-    let mut lines = String::new();
-    let mut total_bytes = 0;
-    for line in std::io::BufReader::new(File::open("jmdict_split.json")?).lines().take(threshold_bytes) {
-        let line = line?;
-        lines += &line;
-        lines += "\n";
+//     let start = std::time::Instant::now();
+//     let mut lines = String::new();
+//     let mut total_bytes = 0;
+//     for line in std::io::BufReader::new(File::open("jmdict_split.json")?).lines().take(threshold_bytes) {
+//         let line = line?;
+//         lines += &line;
+//         lines += "\n";
 
-        total_bytes += line.len();
-        if lines.len() > threshold_bytes {
-            jmdict_shards.insert(&lines, JMDICT_INDICES).unwrap();
-            lines.clear();
-        }
-    }
+//         total_bytes += line.len();
+//         if lines.len() > threshold_bytes {
+//             jmdict_shards.insert(&lines, JMDICT_INDICES).unwrap();
+//             lines.clear();
+//         }
+//     }
 
-    let time_in_ms = (start.elapsed().as_secs() as f64 * 1_000.0) + (f64::from(start.elapsed().subsec_nanos()) / 1_000_000.0);
+//     let time_in_ms = (start.elapsed().as_secs() as f64 * 1_000.0) + (f64::from(start.elapsed().subsec_nanos()) / 1_000_000.0);
 
-    let mbs = total_bytes as f64 / 1_000_000.;
-    info!("total_bytes {:?}", total_bytes);
-    info!("time_in_s {:?}", time_in_ms / 1_000.);
-    info!("MB/s {:?}", mbs / (time_in_ms as f64 / 1000.));
+//     let mbs = total_bytes as f64 / 1_000_000.;
+//     info!("total_bytes {:?}", total_bytes);
+//     info!("time_in_s {:?}", time_in_ms / 1_000.);
+//     info!("MB/s {:?}", mbs / (time_in_ms as f64 / 1000.));
 
-    Ok(())
-}
+//     Ok(())
+// }
 
 const JMDICT_INDICES: &str = r#"
 {

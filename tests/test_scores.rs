@@ -42,7 +42,7 @@ pub fn get_test_data() -> Value {
             "meanings": {"ger": ["welch"] }
         },
         {
-            "commonness": 1,
+            "commonness": 2,
             "meanings": {"ger": ["weich"] }
         }
     ])
@@ -162,7 +162,33 @@ fn check_score_boost_add_value_from_field() {
     })).unwrap();
     let res_unboosted = search_testo_to_doco_qp!(params).data;
 
-    assert_eq!(res_unboosted[0].hit.score + 1.0, res_boosted[0].hit.score);
+    assert_eq!(res_unboosted[0].hit.score + 2.0, res_boosted[0].hit.score);
+}
+
+#[test]
+fn check_score_boost_multiply_value_from_field() {
+
+    let params = serde_json::from_value(json!({
+        "search_term": "weich",
+        "fields": ["meanings.ger[]"],
+        "levenshtein": 0,
+        "boost_queries": [
+          {
+            "path": "commonness",
+            "boost_fun": "Multiply"
+          }
+        ]
+    })).unwrap();
+    let res_boosted = search_testo_to_doco_qp!(params).data;
+
+    let params = serde_json::from_value(json!({
+        "search_term": "weich",
+        "levenshtein": 0,
+        "fields": ["meanings.ger[]"]
+    })).unwrap();
+    let res_unboosted = search_testo_to_doco_qp!(params).data;
+
+    assert_eq!(res_unboosted[0].hit.score * 2.0, res_boosted[0].hit.score);
 }
 
 #[test]

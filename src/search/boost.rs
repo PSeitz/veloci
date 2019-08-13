@@ -236,7 +236,7 @@ pub(crate) fn apply_boost_from_iter(mut results: SearchFieldResult, mut boost_it
 #[test]
 fn test_apply_boost_from_iter() {
     let boost_req = RequestBoostPart {
-        boost_fun: Some(BoostFunction::Linear),
+        boost_fun: Some(BoostFunction::Multiply),
         ..Default::default()
     };
     let mut res = SearchFieldResult::default();
@@ -316,9 +316,9 @@ pub(crate) fn apply_boost(
             );
             hit.score *= (boost_value + boost_param).log2();
         }
-        Some(BoostFunction::Linear) => {
+        Some(BoostFunction::Multiply) => {
             trace!(
-                "Linear boosting hit.id {:?} hit.score {:?} to {:?} -- token_value {:?} boost_value {:?}",
+                "Multiply boosting hit.id {:?} hit.score {:?} to {:?} -- token_value {:?} boost_value {:?}",
                 hit.id,
                 hit.score,
                 hit.score + (boost_value + boost_param),

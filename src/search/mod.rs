@@ -226,7 +226,7 @@ pub struct RequestBoostPart {
 pub enum BoostFunction {
     Log2,
     Log10,
-    Linear,
+    Multiply,
     Add,
 }
 
