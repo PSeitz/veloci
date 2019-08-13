@@ -5,26 +5,26 @@ use itertools::Itertools;
 use memmap::MmapOptions;
 use std::fmt::Display;
 
-use std::cmp::Ord;
-use std::cmp::PartialOrd;
-use std::default::Default;
-use std::fmt;
-use std::io;
-use std::io::prelude::*;
-use std::io::BufWriter;
-use std::iter::FusedIterator;
-use std::mem;
-use std::boxed::Box;
+use std::{
+    boxed::Box,
+    cmp::{Ord, PartialOrd},
+    default::Default,
+    fmt,
+    io::{self, prelude::*, BufWriter},
+    iter::{FusedIterator, Iterator},
+    marker::PhantomData,
+    mem,
+};
 use vint::vint::*;
-use std::marker::PhantomData;
-use std::iter::Iterator;
 
 pub trait SerializeInto {
     fn serialize_into(&self, sink: &mut Vec<u8>);
 }
 
 pub trait DeserializeFrom {
-    fn deserialize_from_slice(source: &[u8], pos:&mut usize) -> Option<Self> where Self: std::marker::Sized;
+    fn deserialize_from_slice(source: &[u8], pos: &mut usize) -> Option<Self>
+    where
+        Self: std::marker::Sized;
 }
 
 pub trait GetValue {
@@ -63,16 +63,18 @@ const DESER_ERROR: &str = "Could not deserialize from map in buffered index writ
 
 impl<K: PartialOrd + Ord + Default + Copy + SerializeInto + DeserializeFrom, T: GetValue + SerializeInto + DeserializeFrom> DeserializeFrom for KeyValue<K, T> {
     #[inline]
-    fn deserialize_from_slice(source: &[u8], pos:&mut usize) -> Option<Self> where Self: std::marker::Sized{
+    fn deserialize_from_slice(source: &[u8], pos: &mut usize) -> Option<Self>
+    where
+        Self: std::marker::Sized,
+    {
         if let Some(key) = K::deserialize_from_slice(source, pos) {
             let value = T::deserialize_from_slice(source, pos).expect(DESER_ERROR);
-            Some(KeyValue{key, value})
-        }else{
+            Some(KeyValue { key, value })
+        } else {
             None
         }
     }
 }
-
 
 impl SerializeInto for u32 {
     #[inline(always)]
@@ -83,7 +85,10 @@ impl SerializeInto for u32 {
 
 impl DeserializeFrom for u32 {
     #[inline(always)]
-    fn deserialize_from_slice(source: &[u8], pos:&mut usize) -> Option<Self> where Self: std::marker::Sized{
+    fn deserialize_from_slice(source: &[u8], pos: &mut usize) -> Option<Self>
+    where
+        Self: std::marker::Sized,
+    {
         decode_varint_slice(source, pos)
     }
 }
@@ -97,11 +102,14 @@ impl SerializeInto for (u32, u32) {
 }
 impl DeserializeFrom for (u32, u32) {
     #[inline(always)]
-    fn deserialize_from_slice(source: &[u8], pos:&mut usize) -> Option<Self> where Self: std::marker::Sized{
+    fn deserialize_from_slice(source: &[u8], pos: &mut usize) -> Option<Self>
+    where
+        Self: std::marker::Sized,
+    {
         if let Some(first) = decode_varint_slice(source, pos) {
             Some((first, decode_varint_slice(source, pos).expect(DESER_ERROR)))
-        }else{
-            None    
+        } else {
+            None
         }
     }
 }
@@ -122,7 +130,7 @@ pub struct BufferedIndexWriter<K: PartialOrd + Ord + Default + Copy + SerializeI
     pub max_value_id: u32,
     pub num_values: u32,
     last_id: Option<K>,
-    flush_data: Box<FlushStruct>
+    flush_data: Box<FlushStruct>,
 }
 
 #[derive(Debug)]
@@ -155,37 +163,37 @@ impl<
         T: GetValue + Default + Clone + Copy + Send + Sync + SerializeInto + DeserializeFrom,
     > BufferedIndexWriter<K, T>
 {
-
     pub fn bytes_written(&self) -> u64 {
         self.flush_data.bytes_written
     }
-    pub fn new_with_opt(stable_sort: bool, ids_are_sorted: bool, temp_file_folder : String) -> Self {
-        let flush_data = Box::new(FlushStruct{
+
+    pub fn new_with_opt(stable_sort: bool, ids_are_sorted: bool, temp_file_folder: String) -> Self {
+        let flush_data = Box::new(FlushStruct {
             bytes_written: 0,
             temp_file: None,
             parts: vec![],
             stable_sort,
             ids_are_sorted,
-            temp_file_folder
+            temp_file_folder,
         });
         BufferedIndexWriter {
             cache: vec![],
             max_value_id: 0,
             num_values: 0,
             last_id: None,
-            flush_data
+            flush_data,
         }
     }
 
-    pub fn new_for_sorted_id_insertion(temp_file_folder : String) -> Self {
+    pub fn new_for_sorted_id_insertion(temp_file_folder: String) -> Self {
         BufferedIndexWriter::new_with_opt(false, true, temp_file_folder)
     }
 
-    pub fn new_stable_sorted(temp_file_folder : String) -> Self {
+    pub fn new_stable_sorted(temp_file_folder: String) -> Self {
         BufferedIndexWriter::new_with_opt(true, false, temp_file_folder)
     }
 
-    pub fn new_unstable_sorted(temp_file_folder : String) -> Self {
+    pub fn new_unstable_sorted(temp_file_folder: String) -> Self {
         BufferedIndexWriter::new_with_opt(false, false, temp_file_folder)
     }
 
@@ -241,15 +249,16 @@ impl<
         let prev_part = self.flush_data.parts.last().cloned().unwrap_or(Part { offset: 0, len: 0 });
         let serialized_len = {
             let temp_folder = &self.flush_data.temp_file_folder;
-            let mut data_file = BufWriter::new(self.flush_data.temp_file.get_or_insert_with(|| {
-                tempfile::NamedTempFile::new_in(temp_folder)
-                    .unwrap_or_else(|_| panic!("could not create temp file {:?}", temp_folder))
-            }));
+            let mut data_file = BufWriter::new(
+                self.flush_data
+                    .temp_file
+                    .get_or_insert_with(|| tempfile::NamedTempFile::new_in(temp_folder).unwrap_or_else(|_| panic!("could not create temp file {:?}", temp_folder))),
+            );
             let mut sink = Vec::with_capacity(self.cache.len() * mem::size_of::<KeyValue<K, T>>());
             for value in self.cache.iter() {
                 value.serialize_into(&mut sink);
             }
-    
+
             data_file.write_all(&sink)?;
             sink.len()
         };
@@ -346,7 +355,9 @@ impl<
     // }
 }
 
-impl<K: Display + PartialOrd + Ord + Default + Copy + SerializeInto + DeserializeFrom, T: GetValue + Default + SerializeInto + DeserializeFrom> fmt::Display for BufferedIndexWriter<K, T> {
+impl<K: Display + PartialOrd + Ord + Default + Copy + SerializeInto + DeserializeFrom, T: GetValue + Default + SerializeInto + DeserializeFrom> fmt::Display
+    for BufferedIndexWriter<K, T>
+{
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         for el in &self.cache {
             writeln!(f, "{}\t{}", el.key, el.value.get_value())?;
@@ -438,9 +449,10 @@ impl<K: PartialOrd + Ord + Default + Copy + SerializeInto + DeserializeFrom, T: 
     fn next(&mut self) -> Option<KeyValue<K, T>> {
         KeyValue::deserialize_from_slice(&self.mmap, &mut self.pos)
     }
+
     #[inline]
     fn size_hint(&self) -> (usize, Option<usize>) {
-        let lower_bound = (self.mmap.len() - self.pos) / mem::size_of::<KeyValue<K,T>>();
+        let lower_bound = (self.mmap.len() - self.pos) / mem::size_of::<KeyValue<K, T>>();
         let upper_bound = self.mmap.len() - self.pos;
         (lower_bound, Some(upper_bound))
     }

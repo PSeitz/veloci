@@ -1,12 +1,9 @@
 #[macro_use]
 extern crate criterion;
 
-
 use buffered_index_writer::*;
 
-use criterion::Criterion;
-use criterion::*;
-
+use criterion::{Criterion, *};
 
 fn pseudo_rand(i: u32) -> u32 {
     if i % 2 == 0 {
@@ -35,8 +32,6 @@ fn criterion_benchmark(c: &mut Criterion) {
     .plot_config(plot_config)
     .throughput(|s| Throughput::Bytes(s * 8 as u32));
     c.bench("insert throughput", benchmark);
-
-
 }
 
 criterion_group!(benches, criterion_benchmark);
