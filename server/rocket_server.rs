@@ -41,19 +41,19 @@ use search_lib::{
     error::VelociError,
     persistence::{self, Persistence},
     query_generator, search, search_field,
-    shards::Shards,
+    // shards::Shards,
 };
 use std::{collections::HashMap, io::Cursor};
 use std::io::prelude::*;
 
 lazy_static! {
     static ref PERSISTENCES: CHashMap<String, Persistence> = { CHashMap::default() };
-    static ref SHARDS: CHashMap<String, Shards> = { CHashMap::default() };
+    // static ref SHARDS: CHashMap<String, Shards> = { CHashMap::default() };
 }
 
 #[derive(Debug)]
 struct SearchResult(search::SearchResultWithDoc);
-struct SearchErroro(VelociError);
+// struct SearchErroro(VelociError);
 
 #[derive(Debug)]
 struct SuggestResult(search_field::SuggestFieldResult);
@@ -66,15 +66,15 @@ impl<'r> Responder<'r> for SearchResult {
             .ok()
     }
 }
-impl<'r> Responder<'r> for SearchErroro {
-    fn respond_to(self, _req: &Request) -> response::Result<'r> {
-        let formatted_error: String = format!("{:?}", &self.0);
-        Response::build()
-            .header(ContentType::JSON)
-            .sized_body(Cursor::new(serde_json::to_string(&json!({ "error": formatted_error })).unwrap()))
-            .ok()
-    }
-}
+// impl<'r> Responder<'r> for SearchErroro {
+//     fn respond_to(self, _req: &Request) -> response::Result<'r> {
+//         let formatted_error: String = format!("{:?}", &self.0);
+//         Response::build()
+//             .header(ContentType::JSON)
+//             .sized_body(Cursor::new(serde_json::to_string(&json!({ "error": formatted_error })).unwrap()))
+//             .ok()
+//     }
+// }
 
 impl<'r> Responder<'r> for SuggestResult {
     fn respond_to(self, _req: &Request) -> response::Result<'r> {
@@ -157,13 +157,13 @@ fn ensure_database(database: &String) -> Result<(), VelociError> {
     Ok(())
 }
 
-fn ensure_shard(database: &String) -> Result<(), VelociError> {
-    if !SHARDS.contains_key(database) {
-        SHARDS.insert(database.clone(), Shards::load(database.clone())?);
-        // SHARDS.insert(database.clone(), Shards::load(database.clone(), 1)?);
-    }
-    Ok(())
-}
+// fn ensure_shard(database: &String) -> Result<(), VelociError> {
+//     if !SHARDS.contains_key(database) {
+//         SHARDS.insert(database.clone(), Shards::load(database.clone())?);
+//         // SHARDS.insert(database.clone(), Shards::load(database.clone(), 1)?);
+//     }
+//     Ok(())
+// }
 
 #[get("/version")]
 fn version() -> String {
@@ -357,81 +357,81 @@ fn search_get(database: String, params: LenientForm<QueryParams>) -> Result<Sear
     search_from_query_params(database, params)
 }
 
-#[get("/<database>/search_shard?<params..>")]
-fn search_get_shard(database: String, params: LenientForm<QueryParams>) -> Result<SearchResult, VelociError> {
-    let params: QueryParams = params.into_inner();
-    ensure_shard(&database)?;
-    let shard = SHARDS.get(&database).unwrap();
+// #[get("/<database>/search_shard?<params..>")]
+// fn search_get_shard(database: String, params: LenientForm<QueryParams>) -> Result<SearchResult, VelociError> {
+//     let params: QueryParams = params.into_inner();
+//     ensure_shard(&database)?;
+//     let shard = SHARDS.get(&database).unwrap();
 
-    let facets: Option<Vec<String>> = query_param_to_vec(params.facets);
-    let stopword_lists: Option<Vec<String>> = query_param_to_vec(params.stopword_lists);
-    let fields: Option<Vec<String>> = query_param_to_vec(params.fields);
-    let boost_fields: HashMap<String, f32> = query_param_to_vec(params.boost_fields)
-        .map(|mkay| {
-            mkay.into_iter()
-                .map(|el| {
-                    let field_n_boost = el.split("->").collect::<Vec<&str>>();
-                    (field_n_boost[0].to_string(), field_n_boost[1].parse::<f32>().unwrap())
-                })
-                .collect()
-        })
-        .unwrap_or(HashMap::default());
+//     let facets: Option<Vec<String>> = query_param_to_vec(params.facets);
+//     let stopword_lists: Option<Vec<String>> = query_param_to_vec(params.stopword_lists);
+//     let fields: Option<Vec<String>> = query_param_to_vec(params.fields);
+//     let boost_fields: HashMap<String, f32> = query_param_to_vec(params.boost_fields)
+//         .map(|mkay| {
+//             mkay.into_iter()
+//                 .map(|el| {
+//                     let field_n_boost = el.split("->").collect::<Vec<&str>>();
+//                     (field_n_boost[0].to_string(), field_n_boost[1].parse::<f32>().unwrap())
+//                 })
+//                 .collect()
+//         })
+//         .unwrap_or(HashMap::default());
 
-    // let filter_queries = query_param_to_vec(params.filter).map(|mkay| {
-    //         mkay.into_iter()
-    //             .map(|el| {
-    //                 let field_n_term = el.split(":").collect::<Vec<&str>>();
-    //                 let field = field_n_term[0].to_string();
-    //                 let term = field_n_term[1].to_string();
-    //                 search::RequestSearchPart{
-    //                     path:field,
-    //                     terms: vec![term],
-    //                     ..Default::default()
-    //                 }
-    //             })
-    //             .collect::<Vec<_>>()
-    //     });
+//     // let filter_queries = query_param_to_vec(params.filter).map(|mkay| {
+//     //         mkay.into_iter()
+//     //             .map(|el| {
+//     //                 let field_n_term = el.split(":").collect::<Vec<&str>>();
+//     //                 let field = field_n_term[0].to_string();
+//     //                 let term = field_n_term[1].to_string();
+//     //                 search::RequestSearchPart{
+//     //                     path:field,
+//     //                     terms: vec![term],
+//     //                     ..Default::default()
+//     //                 }
+//     //             })
+//     //             .collect::<Vec<_>>()
+//     //     });
 
-    let boost_terms: HashMap<String, f32> = query_param_to_vec(params.boost_terms)
-        .map(|mkay| {
-            mkay.into_iter()
-                .map(|el| {
-                    let field_n_boost = el.split("->").collect::<Vec<&str>>();
-                    (field_n_boost[0].to_string(), field_n_boost.get(1).map(|el| el.parse::<f32>().unwrap()).unwrap_or(2.0))
-                })
-                .collect()
-        })
-        .unwrap_or(HashMap::default());
+//     let boost_terms: HashMap<String, f32> = query_param_to_vec(params.boost_terms)
+//         .map(|mkay| {
+//             mkay.into_iter()
+//                 .map(|el| {
+//                     let field_n_boost = el.split("->").collect::<Vec<&str>>();
+//                     (field_n_boost[0].to_string(), field_n_boost.get(1).map(|el| el.parse::<f32>().unwrap()).unwrap_or(2.0))
+//                 })
+//                 .collect()
+//         })
+//         .unwrap_or(HashMap::default());
 
-    let q_params = query_generator::SearchQueryGeneratorParameters {
-        search_term: params.query.to_string(),
-        top: params.top,
-        skip: params.skip,
-        operator: params.operator,
-        levenshtein: params.levenshtein,
-        levenshtein_auto_limit: params.levenshtein_auto_limit,
-        facetlimit: params.facetlimit,
-        why_found: params.why_found,
-        phrase_pairs: params.phrase_pairs.map(|el| el.to_lowercase() == "true"),
-        text_locality: params.text_locality.map(|el| el.to_lowercase() == "true"),
-        facets: facets,
-        fields: fields,
-        stopword_lists,
-        boost_fields: boost_fields,
-        boost_terms: boost_terms,
-        explain: params.explain.map(|el| el.to_lowercase() == "true"),
-        boost_queries: None,
-        select: None,
-        filter: params.filter,
-    };
+//     let q_params = query_generator::SearchQueryGeneratorParameters {
+//         search_term: params.query.to_string(),
+//         top: params.top,
+//         skip: params.skip,
+//         operator: params.operator,
+//         levenshtein: params.levenshtein,
+//         levenshtein_auto_limit: params.levenshtein_auto_limit,
+//         facetlimit: params.facetlimit,
+//         why_found: params.why_found,
+//         phrase_pairs: params.phrase_pairs.map(|el| el.to_lowercase() == "true"),
+//         text_locality: params.text_locality.map(|el| el.to_lowercase() == "true"),
+//         facets: facets,
+//         fields: fields,
+//         stopword_lists,
+//         boost_fields: boost_fields,
+//         boost_terms: boost_terms,
+//         explain: params.explain.map(|el| el.to_lowercase() == "true"),
+//         boost_queries: None,
+//         select: None,
+//         filter: params.filter,
+//     };
 
-    //TODO enable
-    // if let Some(el) = params.boost_queries {
-    //     q_params.boost_queries = serde_json::from_str(&el).map_err(|_err| Custom(Status::BadRequest, "wrong format boost_queries".to_string()) )?;
-    // }
+//     //TODO enable
+//     // if let Some(el) = params.boost_queries {
+//     //     q_params.boost_queries = serde_json::from_str(&el).map_err(|_err| Custom(Status::BadRequest, "wrong format boost_queries".to_string()) )?;
+//     // }
 
-    Ok(SearchResult(shard.search_all_shards_from_qp(&q_params, &query_param_to_vec(params.select))?))
-}
+//     Ok(SearchResult(shard.search_all_shards_from_qp(&q_params, &query_param_to_vec(params.select))?))
+// }
 
 
 fn search_error_to_rocket_error(err: VelociError) -> Custom<String> {
@@ -638,7 +638,7 @@ fn rocket() -> rocket::Rocket {
                 search_post_query_params,
                 search_post_query_params_explain,
                 suggest_get,
-                search_get_shard,
+                // search_get_shard,
                 suggest_post,
                 highlight_post,
                 inspect_data
@@ -738,7 +738,7 @@ mod test {
         create_db();
 
         let client = Client::new(rocket()).expect("valid rocket instance");
-        let mut response = client.get("/test_rocket/search?query=fred&top=10").dispatch();
+        let mut response = client.get("/test_rocket/search?query=fred&top=10&boost_fields=name-%3E2.5&boost_terms=boost:me-%3E2.0").dispatch(); // -> == -%3E, url escaping is needed here for some reason
         assert_eq!(response.status(), Status::Ok);
         assert_contains!(response.body_string().unwrap(), "name");
     }
@@ -771,6 +771,26 @@ mod test {
             .dispatch();
         assert_eq!(response.status(), Status::Ok);
         assert_contains!(response.body_string().unwrap(), "name");
+    }
+
+        #[test]
+    fn post_request_invalid() {
+        create_db();
+        let client = Client::new(rocket()).expect("valid rocket instance");
+        let mut response = client.post("/test_rocket/search_query_params")
+            .body(r#"{
+"search_term": "fred",
+    "top": 3,
+    "skip": 0,
+    "select":"name",
+    "fields": ["invalid"],
+    "boost_terms": {"boost:me":2.0},
+    "why_found": true
+}"#)
+            .header(ContentType::JSON)
+            .dispatch();
+        assert_eq!(response.status(), Status::BadRequest);
+        assert_contains!(response.body_string().unwrap(), "Did not find any fields for");
     }
 
     #[test]

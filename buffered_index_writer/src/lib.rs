@@ -16,13 +16,13 @@ use std::iter::FusedIterator;
 use std::mem;
 use std::boxed::Box;
 use vint::vint::*;
-// use rayon::prelude::*;
 use std::marker::PhantomData;
+use std::iter::Iterator;
 
 pub trait SerializeInto {
     fn serialize_into(&self, sink: &mut Vec<u8>);
 }
-use std::iter::Iterator;
+
 pub trait DeserializeFrom {
     fn deserialize_from_slice(source: &[u8], pos:&mut usize) -> Option<Self> where Self: std::marker::Sized;
 }
@@ -81,13 +81,6 @@ impl SerializeInto for u32 {
     }
 }
 
-impl SerializeInto for (u32, u32) {
-    #[inline(always)]
-    fn serialize_into(&self, sink: &mut Vec<u8>) {
-        encode_varint_into(sink, self.0);
-        encode_varint_into(sink, self.1);
-    }
-}
 impl DeserializeFrom for u32 {
     #[inline(always)]
     fn deserialize_from_slice(source: &[u8], pos:&mut usize) -> Option<Self> where Self: std::marker::Sized{
@@ -95,6 +88,13 @@ impl DeserializeFrom for u32 {
     }
 }
 
+impl SerializeInto for (u32, u32) {
+    #[inline(always)]
+    fn serialize_into(&self, sink: &mut Vec<u8>) {
+        encode_varint_into(sink, self.0);
+        encode_varint_into(sink, self.1);
+    }
+}
 impl DeserializeFrom for (u32, u32) {
     #[inline(always)]
     fn deserialize_from_slice(source: &[u8], pos:&mut usize) -> Option<Self> where Self: std::marker::Sized{

@@ -121,7 +121,7 @@ fn should_and_boost_phrase_query_generator_and_explain() {
 }
 
 #[test]
-fn should_and_boost_phrase_o_r_query_generator() {
+fn should_and_boost_phrase_or_query_generator() {
     let mut params = query_generator::SearchQueryGeneratorParameters::default();
     params.search_term = "die erbin".to_string();
     params.phrase_pairs = Some(true);
