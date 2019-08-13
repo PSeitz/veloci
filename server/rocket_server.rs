@@ -2,6 +2,11 @@
 #![feature(plugin, custom_attribute)]
 #![feature(type_ascription)]
 
+///
+/// A werserver connecting the search engine
+/// The api is a horrible mess, don't use it.
+///
+
 #[macro_use]
 extern crate rocket;
 #[macro_use]
@@ -197,6 +202,7 @@ fn search_post(database: String, request: Json<search::Request>) -> Result<Searc
 
 #[get("/<database>/_idtree/<id>")]
 fn get_doc_for_id_tree(database: String, id: u32) -> Json<serde_json::Value> {
+    ensure_database(&database).unwrap();
     let persistence = PERSISTENCES.get(&database).unwrap();
     let all_fields = persistence.metadata.get_all_fields();
     let tree = search::get_read_tree_from_fields(&persistence, &all_fields);
@@ -651,8 +657,6 @@ fn main() {
     //     ensure_shard(&preload_db).unwrap();
     // }
 
-    
-
     println!("Starting Server...");
     rocket().launch();
 }
@@ -706,7 +710,7 @@ mod test {
     }
 
 
-    static TEST_DATA: &str=r#"{"text": "hi there", "name": "fred"}"#;
+    static TEST_DATA: &str=r#"{"text": "hi there", "name": "fred", "boost": "me"}"#;
 
     fn create_db() {
 
@@ -731,11 +735,12 @@ mod test {
     #[test]
     fn get_request() {
         create_db();
+
         let client = Client::new(rocket()).expect("valid rocket instance");
         let mut response = client.get("/test_rocket/search?query=fred&top=10").dispatch();
         assert_eq!(response.status(), Status::Ok);
         assert_contains!(response.body_string().unwrap(), "name");
-    }    
+    }
 
     #[test]
     fn get_suggest() {
@@ -745,7 +750,7 @@ mod test {
         let mut response = client.get("/test_rocket/suggest?query=fr&top=10").dispatch();
         assert_eq!(response.status(), Status::Ok);
         assert_contains!(response.body_string().unwrap(), "fred");
-    }    
+    }
 
     #[test]
     fn post_request() {
@@ -756,6 +761,9 @@ mod test {
 "search_term": "fred",
     "top": 3,
     "skip": 0,
+    "select":"name",
+    "boost_fields": {"name":2.50},
+    "boost_terms": {"boost:me":2.0},
     "why_found": true
 }"#)
             .header(ContentType::JSON)
@@ -802,6 +810,39 @@ mod test {
             .dispatch();
         assert_eq!(response.status(), Status::Ok);
         assert_contains!(response.body_string().unwrap(), "fred");
+    }
+
+    #[test]
+    fn get_doc_id() {
+        create_db();
+        let client = Client::new(rocket()).expect("valid rocket instance");
+        let mut response = client.get("/test_rocket/_id/0")
+            .dispatch();
+        assert_eq!(response.status(), Status::Ok);
+        let ret = response.body_string().unwrap();
+        assert_contains!(ret, r#""name":"fred""#);
+        assert_contains!(ret, r#""text":"hi there""#);
+    }
+    #[test]
+    fn get_doc_id_tree() {
+        create_db();
+        let client = Client::new(rocket()).expect("valid rocket instance");
+        let mut response = client.get("/test_rocket/_idtree/0")
+            .dispatch();
+        assert_eq!(response.status(), Status::Ok);
+        let ret = response.body_string().unwrap();
+        assert_contains!(ret, r#""name":"fred""#);
+        assert_contains!(ret, r#""text":"hi there""#);
+    }
+    #[test]
+    fn test_inspect_data() {
+        create_db();
+        let client = Client::new(rocket()).expect("valid rocket instance");
+        let mut response = client.get("/test_rocket/inspect/boost.textindex.parent_to_value_id/0")
+            .dispatch();
+        assert_eq!(response.status(), Status::Ok);
+        let ret = response.body_string().unwrap();
+        assert_contains!(ret, r#"[0]"#);
     }
 }
 
