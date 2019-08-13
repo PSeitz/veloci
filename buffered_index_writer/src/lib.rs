@@ -512,3 +512,48 @@ fn test_buffered_index_writer() {
     assert_eq!(iter.next(), Some(KeyValue { key: 2, value: 2 }));
     assert_eq!(iter.next(), Some(KeyValue { key: 2, value: 2000 }));
 }
+
+#[test]
+fn test_buffered_index_writer_pairs() {
+    use std::env;
+    let mut ind = BufferedIndexWriter::new_unstable_sorted(env::temp_dir().to_str().unwrap().to_string());
+
+    ind.add((2_u32, 3_u32), 2).unwrap();
+    ind.flush().unwrap();
+
+    let mut iters = ind.multi_iter().unwrap();
+    assert_eq!(iters[0].next(), Some(KeyValue { key: (2_u32, 3_u32), value: 2 }));
+    assert_eq!(iters[0].next(), None);
+
+    let mut iters = ind.multi_iter().unwrap();
+    assert_eq!(iters[0].next(), Some(KeyValue { key: (2_u32, 3_u32), value: 2 }));
+    assert_eq!(iters[0].next(), None);
+
+    ind.add((1, 2), 3).unwrap();
+    ind.flush().unwrap();
+    ind.add((4, 4), 4).unwrap();
+    ind.flush().unwrap();
+    ind.flush().unwrap(); // double flush test
+
+    let mut iters = ind.multi_iter().unwrap();
+    assert_eq!(iters[1].next(), Some(KeyValue { key: (1, 2), value: 3 }));
+    assert_eq!(iters[1].next(), None);
+
+    let mut mergo = ind.flush_and_kmerge().unwrap();
+    assert_eq!(mergo.next(), Some(KeyValue { key: (1, 2), value: 3 }));
+    assert_eq!(mergo.next(), Some(KeyValue { key: (2_u32, 3_u32), value: 2 }));
+    assert_eq!(mergo.next(), Some(KeyValue { key: (4, 4), value: 4 }));
+
+    let mut ind = BufferedIndexWriter::new_unstable_sorted(env::temp_dir().to_str().unwrap().to_string());
+    ind.add_all((2_u32, 1500_u32), &vec![2, 2000]).unwrap();
+    ind.flush().unwrap();
+    let mut iters = ind.multi_iter().unwrap();
+    assert_eq!(iters[0].next(), Some(KeyValue { key: (2_u32, 1500_u32), value: 2 }));
+    assert_eq!(iters[0].next(), Some(KeyValue { key: (2_u32, 1500_u32), value: 2000 }));
+
+    let mut ind = BufferedIndexWriter::new_unstable_sorted(env::temp_dir().to_str().unwrap().to_string());
+    ind.add_all((2_u32, 1500_u32), &vec![2, 2000]).unwrap();
+    let mut iter = ind.into_iter_inmemory();
+    assert_eq!(iter.next(), Some(KeyValue { key: (2_u32, 1500_u32), value: 2 }));
+    assert_eq!(iter.next(), Some(KeyValue { key: (2_u32, 1500_u32), value: 2000 }));
+}
