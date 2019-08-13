@@ -22,16 +22,17 @@ extern crate measure_time;
 
 use chashmap::CHashMap;
 use flate2::read::GzEncoder;
-use multipart::server::{
-    save::{Entries, SaveResult::*},
-    Multipart,
-};
+// use multipart::server::{
+//     save::{Entries, SaveResult::*},
+//     Multipart,
+// };
 use rocket::{
     fairing,
     http::{ContentType, Method, Status},
     request::LenientForm,
     response::{self, status::Custom, Responder, Response},
-    Data, Request,
+    // Data,
+    Request,
 };
 use rocket_contrib::json::Json;
 use rocket_cors::{AllowedHeaders, AllowedOrigins};
@@ -43,6 +44,7 @@ use search_lib::{
     shards::Shards,
 };
 use std::{collections::HashMap, io::Cursor};
+use std::io::prelude::*;
 
 lazy_static! {
     static ref PERSISTENCES: CHashMap<String, Persistence> = { CHashMap::default() };
@@ -431,35 +433,6 @@ fn search_get_shard(database: String, params: LenientForm<QueryParams>) -> Resul
     Ok(SearchResult(shard.search_all_shards_from_qp(&q_params, &query_param_to_vec(params.select))?))
 }
 
-// ******************************************** PERMISSION CRITICAL START ********************************************
-// ******************************************** UPLOAD UPLOAD ********************************************
-// use std::io;
-#[post("/<database>", data = "<data>")]
-// signature requires the request to have a `Content-Type`
-fn multipart_upload(database: String, cont_type: &ContentType, data: Data) -> Result<String, Custom<String>> {
-    // this and the next check can be implemented as a request guard but it seems like just
-    // more boilerplate than necessary
-    if !cont_type.is_form_data() {
-        return Err(Custom(Status::BadRequest, "Content-Type not multipart/form-data".into()));
-    }
-
-    let (_, boundary) = cont_type
-        .params()
-        .find(|&(k, _)| k == "boundary")
-        .ok_or_else(|| Custom(Status::BadRequest, "`Content-Type: multipart/form-data` boundary param not provided".into()))?;
-
-    let resp = process_upload(boundary, data).map_err(search_error_to_rocket_error)?;
-
-    search_lib::create::create_indices_from_str(
-        &mut search_lib::persistence::Persistence::create(database.to_string()).unwrap(),
-        &resp.0,
-        &resp.1.unwrap_or("[]".to_string()),
-        None,
-        false,
-    )
-    .unwrap();
-    Ok(format!("created {:?}", &database))
-}
 
 fn search_error_to_rocket_error(err: VelociError) -> Custom<String> {
     match err {
@@ -468,100 +441,128 @@ fn search_error_to_rocket_error(err: VelociError) -> Custom<String> {
     }
 }
 
-fn process_upload(boundary: &str, data: Data) -> Result<(String, Option<String>), VelociError> {
-    // let mut out = Vec::new();
 
-    // saves all fields, any field longer than 10kB goes to a temporary directory
-    // Entries could implement FromData though that would give zero control over
-    // how the files are saved; Multipart would be a good impl candidate though
-    match Multipart::with_body(data.open(), boundary).save().size_limit(500_000_000).temp() {
-        Full(entries) => process_entries(entries),
-        Partial(partial, reason) => {
-            error!("Request partially processed: {:?}", reason);
-            // writeln!(out, "Request partially processed: {:?}", reason)?;
-            // if let Some(field) = partial.partial {
-            //     writeln!(out, "Stopped on field: {:?}", field.source.headers)?;
-            // }
-
-            process_entries(partial.entries)
-        }
-        Error(e) => return Err(VelociError::Io(e)),
-    }
-
-    // Ok(out)
-}
-use std::io::prelude::*;
-// having a streaming output would be nice; there's one for returning a `Read` impl
-// but not one that you can `write()` to
-fn process_entries(entries: Entries) -> Result<(String, Option<String>), VelociError> {
-    if entries.fields_count() == 2 {
-        let mut config = String::new();
-        entries
-            .fields
-            .get("config")
-            .ok_or_else(|| VelociError::StringError(format!("expecting content field, but got {:?}", entries.fields.keys().collect::<Vec<_>>())))?[0]
-            .data
-            .readable()?
-            .read_to_string(&mut config)?;
-
-        let data_reader = entries
-            .fields
-            .get("data")
-            .ok_or_else(|| VelociError::StringError(format!("expecting data field, but got {:?}", entries.fields.keys().collect::<Vec<_>>())))?[0]
-            .data
-            .readable()?;
-
-        let mut data: Vec<u8> = vec![];
-        search_lib::create::convert_any_json_data_to_line_delimited(data_reader, &mut data)?;
-        return Ok((unsafe { String::from_utf8_unchecked(data) }, Some(config)));
-    }
-
-    let mut data: Vec<u8> = vec![];
-    let data_reader = entries
-        .fields
-        .get("data")
-        .ok_or_else(|| VelociError::StringError(format!("expecting data field, but got {:?}", entries.fields.keys().collect::<Vec<_>>())))?[0]
-        .data
-        .readable()?;
-    search_lib::create::convert_any_json_data_to_line_delimited(data_reader, &mut data)?;
-    Ok((unsafe { String::from_utf8_unchecked(data) }, None))
-}
-
-// #[post("/<database>", data = "<data>", format = "application/json")]
-// fn create_db(database: String, data: rocket::data::Data) -> Result<String, VelociError> {
-//     if PERSISTENCES.contains_key(&database) {
-//         //TODO @BUG @FixMe ERROR OWASP
-//         PERSISTENCES.remove(&database);
+// ******************************************** PERMISSION CRITICAL START ********************************************
+// ******************************************** UPLOAD UPLOAD ********************************************
+// #[post("/<database>", data = "<data>")]
+// // signature requires the request to have a `Content-Type`
+// fn multipart_upload(database: String, cont_type: &ContentType, data: Data) -> Result<String, Custom<String>> {
+//     // this and the next check can be implemented as a request guard but it seems like just
+//     // more boilerplate than necessary
+//     if !cont_type.is_form_data() {
+//         return Err(Custom(Status::BadRequest, "Content-Type not multipart/form-data".into()));
 //     }
 
-//     let mut out: Vec<u8> = vec![];
-//     search_lib::create::convert_any_json_data_to_line_delimited(data.open(), &mut out).unwrap();
+//     let (_, boundary) = cont_type
+//         .params()
+//         .find(|&(k, _)| k == "boundary")
+//         .ok_or_else(|| Custom(Status::BadRequest, "`Content-Type: multipart/form-data` boundary param not provided".into()))?;
+
+//     let resp = process_upload(boundary, data).map_err(search_error_to_rocket_error)?;
 
 //     search_lib::create::create_indices_from_str(
-//         &mut search_lib::persistence::Persistence::create(database).unwrap(),
-//         unsafe { std::str::from_utf8_unchecked(&out) },
-//         "[]",
+//         &mut search_lib::persistence::Persistence::create(database.to_string()).unwrap(),
+//         &resp.0,
+//         &resp.1.unwrap_or("[]".to_string()),
 //         None,
 //         false,
 //     )
 //     .unwrap();
-//     Ok("created".to_string())
+//     Ok(format!("created {:?}", &database))
 // }
 
+// fn process_upload(boundary: &str, data: Data) -> Result<(String, Option<String>), VelociError> {
+//     // let mut out = Vec::new();
+
+//     // saves all fields, any field longer than 10kB goes to a temporary directory
+//     // Entries could implement FromData though that would give zero control over
+//     // how the files are saved; Multipart would be a good impl candidate though
+//     match Multipart::with_body(data.open(), boundary).save().size_limit(500_000_000).temp() {
+//         Full(entries) => process_entries(entries),
+//         Partial(partial, reason) => {
+//             error!("Request partially processed: {:?}", reason);
+//             // writeln!(out, "Request partially processed: {:?}", reason)?;
+//             // if let Some(field) = partial.partial {
+//             //     writeln!(out, "Stopped on field: {:?}", field.source.headers)?;
+//             // }
+
+//             process_entries(partial.entries)
+//         }
+//         Error(e) => return Err(VelociError::Io(e)),
+//     }
+
+//     // Ok(out)
+// }
+
+// fn process_entries(entries: Entries) -> Result<(String, Option<String>), VelociError> {
+//     if entries.fields_count() == 2 {
+//         let mut config = String::new();
+//         entries
+//             .fields
+//             .get("config")
+//             .ok_or_else(|| VelociError::StringError(format!("expecting content field, but got {:?}", entries.fields.keys().collect::<Vec<_>>())))?[0]
+//             .data
+//             .readable()?
+//             .read_to_string(&mut config)?;
+
+//         let data_reader = entries
+//             .fields
+//             .get("data")
+//             .ok_or_else(|| VelociError::StringError(format!("expecting data field, but got {:?}", entries.fields.keys().collect::<Vec<_>>())))?[0]
+//             .data
+//             .readable()?;
+
+//         let mut data: Vec<u8> = vec![];
+//         search_lib::create::convert_any_json_data_to_line_delimited(data_reader, &mut data)?;
+//         return Ok((unsafe { String::from_utf8_unchecked(data) }, Some(config)));
+//     }
+
+//     let mut data: Vec<u8> = vec![];
+//     let data_reader = entries
+//         .fields
+//         .get("data")
+//         .ok_or_else(|| VelociError::StringError(format!("expecting data field, but got {:?}", entries.fields.keys().collect::<Vec<_>>())))?[0]
+//         .data
+//         .readable()?;
+//     search_lib::create::convert_any_json_data_to_line_delimited(data_reader, &mut data)?;
+//     Ok((unsafe { String::from_utf8_unchecked(data) }, None))
+// }
+
+// // #[post("/<database>", data = "<data>", format = "application/json")]
+// // fn create_db(database: String, data: rocket::data::Data) -> Result<String, VelociError> {
+// //     if PERSISTENCES.contains_key(&database) {
+// //         //TODO @BUG @FixMe ERROR OWASP
+// //         PERSISTENCES.remove(&database);
+// //     }
+
+// //     let mut out: Vec<u8> = vec![];
+// //     search_lib::create::convert_any_json_data_to_line_delimited(data.open(), &mut out).unwrap();
+
+// //     search_lib::create::create_indices_from_str(
+// //         &mut search_lib::persistence::Persistence::create(database).unwrap(),
+// //         unsafe { std::str::from_utf8_unchecked(&out) },
+// //         "[]",
+// //         None,
+// //         false,
+// //     )
+// //     .unwrap();
+// //     Ok("created".to_string())
+// // }
 
 
-#[delete("/<database>")]
-fn delete_db(database: String) -> Result<String, VelociError> {
-    if PERSISTENCES.contains_key(&database) {
-        PERSISTENCES.remove(&database);
-    }
-    use std::path::Path;
-    if Path::new(&database).exists() {
-        std::fs::remove_dir_all(&database)?; //TODO @BUG @FixMe ERROR OWASP
-    }
 
-    Ok("deleted".to_string())
-}
+// #[delete("/<database>")]
+// fn delete_db(database: String) -> Result<String, VelociError> {
+//     if PERSISTENCES.contains_key(&database) {
+//         PERSISTENCES.remove(&database);
+//     }
+//     use std::path::Path;
+//     if Path::new(&database).exists() {
+//         std::fs::remove_dir_all(&database)?; //TODO @BUG @FixMe ERROR OWASP
+//     }
+
+//     Ok("deleted".to_string())
+// }
 
 #[get("/<database>/inspect/<path>/<id>")]
 fn inspect_data(database: String, path: String, id: u64) -> Result<String, VelociError> {
@@ -627,9 +628,9 @@ fn rocket() -> rocket::Rocket {
             "/",
             routes![
                 version,
-                delete_db,
+                // delete_db,
                 // create_db,
-                multipart_upload,
+                // multipart_upload,
                 get_doc_for_id_direct,
                 get_doc_for_id_tree,
                 search_get,
