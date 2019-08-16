@@ -15,7 +15,6 @@ env:
   - TEST_DIR=buffered_index_writer
   - TEST_DIR=parser
   - TEST_DIR=doc_store
-  - TEST_DIR=server
   - TEST_DIR=json_converter
 script:
 - cargo clean --manifest-path=$TEST_DIR/Cargo.toml
