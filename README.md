@@ -26,3 +26,4 @@ To install the search enginge bundled with the webserver execute in the `server`
 To start the server and load search indices inside the jmdict folder:
 `LoadingType=InMemory ROCKET_ENV=stage RUST_BACKTRACE=1 RUST_LOG=search_lib=info ROCKET_PORT=3000 rocket_server jmdict`
 
+
