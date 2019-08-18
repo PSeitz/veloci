@@ -10,12 +10,19 @@ rust:
   - nightly
 env:
   - TEST_DIR=./ PersistenceType=Persistent LoadingType=Disk RUST_BACKTRACE=full RUST_LOG=search_lib=trace
+  - TEST_DIR=./ PersistenceType=Persistent LoadingType=InMemory RUST_BACKTRACE=full RUST_LOG=search_lib=trace
+  - TEST_DIR=./ PersistenceType=Transient RUST_BACKTRACE=full RUST_LOG=search_lib=trace
+  - TEST_DIR=buffered_index_writer
+  - TEST_DIR=parser
+  - TEST_DIR=doc_store
+  - TEST_DIR=server
+  - TEST_DIR=json_converter
 script:
 - cargo build --manifest-path=$TEST_DIR/Cargo.toml
 - cargo test --manifest-path=$TEST_DIR/Cargo.toml
 
 before_cache: |
-  RUSTFLAGS="--cfg procmacro2_semver_exempt" cargo install --git https://github.com/PSeitz/tarpaulin.git --force
+  RUSTFLAGS="--cfg procmacro2_semver_exempt" cargo install cargo-tarpaulin -f
 
 after_success: |
   # Uncomment the following line for coveralls.io
