@@ -22,13 +22,12 @@ script:
 - cargo test --manifest-path=$TEST_DIR/Cargo.toml
 
 before_cache: |
-  RUSTFLAGS="--cfg procmacro2_semver_exempt" cargo install --git https://github.com/PSeitz/tarpaulin.git --force
+  RUSTFLAGS="--cfg procmacro2_semver_exempt" cargo install --git https://github.com/PSeitz/tarpaulin.git --branch develop --force
 
 after_success: |
   # Uncomment the following line for coveralls.io
   RAYON_NUM_THREADS=1 cargo tarpaulin --manifest-path=$TEST_DIR/Cargo.toml --all --exclude-files "src/bin/*" "benches/*" --ciserver travis-ci --coveralls $TRAVIS_JOB_ID
 
   # Uncomment the following two lines create and upload a report for codecov.io
-  RAYON_NUM_THREADS=1 cargo tarpaulin --root=$TEST_DIR --all --exclude-files "src/bin/*" "benches/*" --out Xml
+  RAYON_NUM_THREADS=1 cargo tarpaulin --manifest-path=$TEST_DIR/Cargo.toml --all --exclude-files "src/bin/*" "benches/*" --out Xml
   bash <(curl -s https://codecov.io/bash)
-
