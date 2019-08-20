@@ -141,7 +141,6 @@ fn check_score_boost_relative_field() {
 
 #[test]
 fn check_score_boost_add_value_from_field() {
-
     let params = serde_json::from_value(json!({
         "search_term": "weich",
         "fields": ["meanings.ger[]"],
@@ -152,14 +151,16 @@ fn check_score_boost_add_value_from_field() {
             "boost_fun": "Add"
           }
         ]
-    })).unwrap();
+    }))
+    .unwrap();
     let res_boosted = search_testo_to_doco_qp!(params).data;
 
     let params = serde_json::from_value(json!({
         "search_term": "weich",
         "levenshtein": 0,
         "fields": ["meanings.ger[]"]
-    })).unwrap();
+    }))
+    .unwrap();
     let res_unboosted = search_testo_to_doco_qp!(params).data;
 
     assert_eq!(res_unboosted[0].hit.score + 2.0, res_boosted[0].hit.score);
@@ -167,7 +168,6 @@ fn check_score_boost_add_value_from_field() {
 
 #[test]
 fn check_score_boost_multiply_value_from_field() {
-
     let params = serde_json::from_value(json!({
         "search_term": "weich",
         "fields": ["meanings.ger[]"],
@@ -178,14 +178,16 @@ fn check_score_boost_multiply_value_from_field() {
             "boost_fun": "Multiply"
           }
         ]
-    })).unwrap();
+    }))
+    .unwrap();
     let res_boosted = search_testo_to_doco_qp!(params).data;
 
     let params = serde_json::from_value(json!({
         "search_term": "weich",
         "levenshtein": 0,
         "fields": ["meanings.ger[]"]
-    })).unwrap();
+    }))
+    .unwrap();
     let res_unboosted = search_testo_to_doco_qp!(params).data;
 
     assert_eq!(res_unboosted[0].hit.score * 2.0, res_boosted[0].hit.score);

@@ -114,7 +114,7 @@ impl<'a, 'c> dot::Labeller<'a, Nd, Ed<'a>> for Graph<'c> {
 impl<'a, 'c> dot::GraphWalk<'a, Nd, Ed<'a>> for Graph<'c> {
     // fn nodes(&self) -> dot::Nodes<'a,Nd> { (0..self.nodes.len()).collect() }
     fn nodes(&self) -> dot::Nodes<'a, Nd> {
-        self.nodes.iter().enumerate().map(|(i, el)| (i, el.get_step_description())).collect()
+        self.nodes.iter().enumerate().map(|(i, el)| (i, format!("{}", el))).collect()
     }
 
     fn edges(&'a self) -> dot::Edges<'a, Ed<'a>> {
@@ -122,10 +122,10 @@ impl<'a, 'c> dot::GraphWalk<'a, Nd, Ed<'a>> for Graph<'c> {
     }
 
     fn source(&self, e: &Ed) -> Nd {
-        (e.depends_on, self.nodes[e.depends_on].get_step_description())
+        (e.depends_on, format!("{}", self.nodes[e.depends_on]))
     }
 
     fn target(&self, e: &Ed) -> Nd {
-        (e.step_index, self.nodes[e.step_index].get_step_description())
+        (e.step_index, format!("{}", self.nodes[e.step_index]))
     }
 }

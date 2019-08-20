@@ -4,6 +4,7 @@ pub mod search_field_result;
 mod set_op;
 pub mod stopwords;
 
+use crate::highlight_field::highlight_on_original_document;
 pub(crate) use self::boost::*;
 pub use self::{search_field::*, search_field_result::*, set_op::*};
 use super::highlight_field;
@@ -14,7 +15,6 @@ use crate::{
     plan_creator::{execution_plan::*, plan::*},
     util::{self, *},
 };
-use json_converter;
 
 use std::{
     self,
@@ -332,31 +332,6 @@ impl std::fmt::Display for DocWithHit {
         write!(f, "\n{}", serde_json::to_string_pretty(&self.doc).unwrap())?;
         Ok(())
     }
-}
-
-fn highlight_on_original_document(doc: &str, why_found_terms: &FnvHashMap<String, FnvHashSet<String>>) -> FnvHashMap<String, Vec<String>> {
-    let mut highlighted_texts: FnvHashMap<_, Vec<_>> = FnvHashMap::default();
-    let stream = serde_json::Deserializer::from_str(&doc).into_iter::<serde_json::Value>();
-
-    let mut id_holder = json_converter::IDHolder::new();
-    {
-        let mut cb_text = |_anchor_id: u32, value: &str, path: &str, _parent_val_id: u32| -> Result<(), serde_json::error::Error> {
-            let path = path.to_string() + TEXTINDEX;
-            if let Some(terms) = why_found_terms.get(&path) {
-                if let Some(highlighted) = highlight_field::highlight_text(value, &terms, &DEFAULT_SNIPPETINFO) {
-                    let field_name = extract_field_name(&path); // extract_field_name removes .textindex
-                    let jepp = highlighted_texts.entry(field_name).or_default();
-                    jepp.push(highlighted);
-                }
-            }
-            Ok(())
-        };
-
-        let mut callback_ids = |_anchor_id: u32, _path: &str, _value_id: u32, _parent_val_id: u32| -> Result<(), serde_json::error::Error> { Ok(()) };
-
-        json_converter::for_each_element(stream, &mut id_holder, &mut cb_text, &mut callback_ids).unwrap(); // unwrap is ok here
-    }
-    highlighted_texts
 }
 
 // @FixMe Tests should use to_search_result

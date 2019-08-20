@@ -14,11 +14,9 @@ use ordered_float::OrderedFloat;
 use rayon::prelude::*;
 use std::{
     self,
-    {
-        cmp::{self, Ordering},
-        str,
-        sync::Arc,
-    },
+    cmp::{self, Ordering},
+    str,
+    sync::Arc,
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]

@@ -89,7 +89,7 @@ impl std::fmt::Display for PlanStepFieldSearchToTokenIds {
 }
 impl std::fmt::Display for ResolveTokenIdToAnchor {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        writeln!(f, "ResolveTokenIdToAnchor")?;
+        writeln!(f, "token to anchor")?;
         Ok(())
     }
 }
@@ -159,10 +159,6 @@ impl PlanStepTrait for PlanStepFieldSearchToTokenIds {
         &mut self.channel
     }
 
-    fn get_step_description(&self) -> String {
-        format!("search {} {}", self.req.request.path, self.req.request.terms[0])
-    }
-
     fn execute_step(mut self: Box<Self>, persistence: &Persistence) -> Result<(), VelociError> {
         let field_result = search_field::get_term_ids_in_field(persistence, &mut self.req)?;
         send_result_to_channel(field_result, &self.channel)?;
@@ -174,10 +170,6 @@ impl PlanStepTrait for PlanStepFieldSearchToTokenIds {
 impl PlanStepTrait for ResolveTokenIdToAnchor {
     fn get_channel(&mut self) -> &mut PlanStepDataChannels {
         &mut self.channel
-    }
-
-    fn get_step_description(&self) -> String {
-        "token to anchor".to_string()
     }
 
     fn execute_step(self: Box<Self>, persistence: &Persistence) -> Result<(), VelociError> {
@@ -199,10 +191,6 @@ impl PlanStepTrait for ResolveTokenIdToAnchor {
 //         &mut self.channel
 //     }
 
-//     fn get_step_description(&self) -> String {
-//         "ResolveTokenIdToTextId".to_string()
-//     }
-
 //     fn execute_step(self: Box<Self>, persistence: &Persistence) -> Result<(), VelociError> {
 //         let mut field_result = self.channel.input_prev_steps[0].recv().map_err(|_| VelociError::PlanExecutionRecvFailed)?;
 //         resolve_token_hits_to_text_id(persistence, &self.request, &mut field_result)?;
@@ -215,10 +203,6 @@ impl PlanStepTrait for ResolveTokenIdToAnchor {
 // impl PlanStepTrait for ValueIdToParent {
 //     fn get_channel(&mut self) -> &mut PlanStepDataChannels {
 //         &mut self.channel
-//     }
-
-//     fn get_step_description(&self) -> String {
-//         "ValueIdToParent".to_string()
 //     }
 
 //     fn execute_step(self: Box<Self>, persistence: &Persistence) -> Result<(), VelociError> {
@@ -243,11 +227,6 @@ impl PlanStepTrait for ResolveTokenIdToAnchor {
 impl PlanStepTrait for BoostToAnchor {
     fn get_channel(&mut self) -> &mut PlanStepDataChannels {
         &mut self.channel
-    }
-
-    fn get_step_description(&self) -> String {
-        // "BoostToAnchor".to_string()
-        format!("BoostToAnchor {}", self.boost.path)
     }
 
     fn execute_step(self: Box<Self>, persistence: &Persistence) -> Result<(), VelociError> {
@@ -288,11 +267,6 @@ impl PlanStepTrait for ApplyAnchorBoost {
         &mut self.channel
     }
 
-    fn get_step_description(&self) -> String {
-        // format!("ApplyAnchorBoost {} {}", self.request.path, self.boost.path)
-        "ApplyAnchorBoost".to_string()
-    }
-
     fn execute_step(self: Box<Self>, _persistence: &Persistence) -> Result<(), VelociError> {
         let mut field_result = self.channel.input_prev_steps[0].recv().map_err(|_| VelociError::PlanExecutionRecvFailed)?;
 
@@ -309,10 +283,6 @@ impl PlanStepTrait for ApplyAnchorBoost {
 impl PlanStepTrait for BoostPlanStepFromBoostRequest {
     fn get_channel(&mut self) -> &mut PlanStepDataChannels {
         &mut self.channel
-    }
-
-    fn get_step_description(&self) -> String {
-        "BoostPlanStepFromBoostRequest".to_string()
     }
 
     fn execute_step(self: Box<Self>, persistence: &Persistence) -> Result<(), VelociError> {
@@ -354,10 +324,6 @@ impl PlanStepTrait for BoostAnchorFromPhraseResults {
         &mut self.channel
     }
 
-    fn get_step_description(&self) -> String {
-        "BoostAnchorFromPhraseResults".to_string()
-    }
-
     fn execute_step(self: Box<Self>, _persistence: &Persistence) -> Result<(), VelociError> {
         let input = self.channel.input_prev_steps[0].recv().map_err(|_| VelociError::PlanExecutionRecvFailed)?;
         let boosts = get_data(&self.channel.input_prev_steps[1..])?;
@@ -377,10 +343,6 @@ impl PlanStepTrait for PlanStepPhrasePairToAnchorId {
         &mut self.channel
     }
 
-    fn get_step_description(&self) -> String {
-        "PlanStepPhrasePairToAnchorId".to_string()
-    }
-
     fn execute_step(self: Box<Self>, persistence: &Persistence) -> Result<(), VelociError> {
         let res1 = self.channel.input_prev_steps[0].recv().map_err(|_| VelociError::PlanExecutionRecvFailed)?;
         let res2 = self.channel.input_prev_steps[1].recv().map_err(|_| VelociError::PlanExecutionRecvFailed)?;
@@ -396,10 +358,6 @@ impl PlanStepTrait for PlanStepPhrasePairToAnchorId {
 impl PlanStepTrait for Union {
     fn get_channel(&mut self) -> &mut PlanStepDataChannels {
         &mut self.channel
-    }
-
-    fn get_step_description(&self) -> String {
-        "Union".to_string()
     }
 
     fn execute_step(self: Box<Self>, _persistence: &Persistence) -> Result<(), VelociError> {
@@ -420,10 +378,6 @@ impl PlanStepTrait for Intersect {
         &mut self.channel
     }
 
-    fn get_step_description(&self) -> String {
-        "Intersect".to_string()
-    }
-
     fn execute_step(self: Box<Self>, _persistence: &Persistence) -> Result<(), VelociError> {
         let res = if self.ids_only {
             intersect_hits_ids(get_data(&self.channel.input_prev_steps.clone())?)
@@ -438,10 +392,6 @@ impl PlanStepTrait for Intersect {
 impl PlanStepTrait for IntersectScoresWithIds {
     fn get_channel(&mut self) -> &mut PlanStepDataChannels {
         &mut self.channel
-    }
-
-    fn get_step_description(&self) -> String {
-        "IntersectScoresWithIds".to_string()
     }
 
     fn execute_step(self: Box<Self>, _persistence: &Persistence) -> Result<(), VelociError> {

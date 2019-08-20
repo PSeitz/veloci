@@ -53,7 +53,6 @@ mod tests_large {
         assert_eq!(search_testo_to_doc!(req).num_hits, 300);
     }
 
-
     #[test]
     fn select_on_large_text() {
         let req = json!({
@@ -66,7 +65,10 @@ mod tests_large {
 
         let hits = search_testo_to_doc!(req).data;
         assert_eq!(hits.len(), 1);
-        assert_eq!(hits[0].doc["text"], "a long text with more than 64 characters so that the option do_not_store_text_longer_than is active. then the whole text won't be store in the fst, only its tokens");
+        assert_eq!(
+            hits[0].doc["text"],
+            "a long text with more than 64 characters so that the option do_not_store_text_longer_than is active. then the whole text won't be store in the fst, only its tokens"
+        );
         assert_eq!(hits[0].doc.get("category"), None); // didn't select
     }
 

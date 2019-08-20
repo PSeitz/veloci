@@ -8,12 +8,7 @@
 // use itertools::Itertools;
 // use rayon::prelude::*;
 // use serde_json;
-use std::{
-    self,
-    cmp::Ordering,
-    // fs,
-    // sync::atomic::{self, AtomicUsize},
-};
+use std::{self, cmp::Ordering};
 
 // struct Shard {
 //     shard_id: u64,
@@ -26,52 +21,52 @@ use std::{
 //     current_id: atomic::AtomicUsize,
 // }
 
-fn get_top_n_sort_from_iter<'a, F: Clone, T, I: Iterator<Item = &'a T>>(mut iter: I, top: usize, mut compare: F) -> Vec<(&'a T)>
-where
-    for<'r, 's> F: FnMut(&'r &T, &'s &T) -> Ordering,
-{
-    let mut num = 0;
-    let mut top_n: Vec<&T> = vec![];
-    while let Some(el) = iter.next() {
-        top_n.push(el);
-        num += 1;
-        if num == top {
-            break;
-        }
-    }
+// fn get_top_n_sort_from_iter<'a, F: Clone, T, I: Iterator<Item = &'a T>>(mut iter: I, top: usize, mut compare: F) -> Vec<(&'a T)>
+// where
+//     for<'r, 's> F: FnMut(&'r &T, &'s &T) -> Ordering,
+// {
+//     let mut num = 0;
+//     let mut top_n: Vec<&T> = vec![];
+//     while let Some(el) = iter.next() {
+//         top_n.push(el);
+//         num += 1;
+//         if num == top {
+//             break;
+//         }
+//     }
 
-    let mut current_worst = top_n.last().cloned().unwrap();
+//     let mut current_worst = top_n.last().cloned().unwrap();
 
-    for el in iter {
-        if let Ordering::Greater = compare(&el, &current_worst) {
-            continue;
-        }
+//     for el in iter {
+//         if let Ordering::Greater = compare(&el, &current_worst) {
+//             continue;
+//         }
 
-        if !top_n.is_empty() && (top_n.len() % (top * 5)) == 0 {
-            top_n.sort_unstable_by(compare.clone());
-            top_n.truncate(top);
-            current_worst = top_n.last().unwrap();
-        }
+//         if !top_n.is_empty() && (top_n.len() % (top * 5)) == 0 {
+//             top_n.sort_unstable_by(compare.clone());
+//             top_n.truncate(top);
+//             current_worst = top_n.last().unwrap();
+//         }
 
-        top_n.push(el);
-    }
+//         top_n.push(el);
+//     }
 
-    top_n.sort_unstable_by(compare.clone());
-    top_n.truncate(top);
+//     top_n.sort_unstable_by(compare.clone());
+//     top_n.truncate(top);
 
-    top_n
-}
+//     top_n
+// }
 
-#[test]
-fn test_top_n_sort() {
-    let dat = vec![
-        3, 5, 9, 10, 10, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9,
-    ];
-    let yops = get_top_n_sort_from_iter(dat.iter(), 2, |a, b| b.cmp(&a));
-    assert_eq!(yops, vec![&10, &10]);
-    let yops = get_top_n_sort_from_iter(dat.iter(), 2, |a, b| a.cmp(&b));
-    assert_eq!(yops, vec![&3, &5]);
-}
+// #[test]
+// fn test_top_n_sort() {
+//     let dat = vec![
+//         3, 5, 9, 10, 10, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9,
+//     ];
+//     let yops = get_top_n_sort_from_iter(dat.iter(), 2, |a, b| b.cmp(&a));
+//     assert_eq!(yops, vec![&10, &10]);
+//     let yops = get_top_n_sort_from_iter(dat.iter(), 2, |a, b| a.cmp(&b));
+//     assert_eq!(yops, vec![&3, &5]);
+// }
 
 // struct ShardResult<'a> {
 //     result: SearchResult,

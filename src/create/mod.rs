@@ -4,37 +4,32 @@ mod fields_config;
 
 pub use self::fields_config::FulltextIndexOptions;
 use self::{fast_lines::FastLinesTrait, features::IndexCreationType, fields_config::FieldsConfig};
-
-use std::{self, fs::File, io, str};
-
 use crate::{
     error::*,
     indices::{persistence_score::token_to_anchor_score_vint::*, *},
     persistence::{self, Persistence, *},
     search, search_field,
     tokenizer::*,
-    util::{self, *},
+    util::{self, StringAdd, *},
 };
-use buffered_index_writer;
+use buffered_index_writer::{self, BufferedIndexWriter};
+use doc_store::DocWriter;
+use fixedbitset::FixedBitSet;
 use fnv::FnvHashMap;
 use fst::{self, MapBuilder};
 use itertools::Itertools;
 use json_converter;
 use log;
+use memmap::MmapOptions;
 use num::ToPrimitive;
 use rayon::prelude::*;
 use serde_json::{self, Deserializer, Value};
-use std::io::BufRead;
-
-use doc_store::DocWriter;
-use memmap::MmapOptions;
-use std::mem;
-
-use buffered_index_writer::BufferedIndexWriter;
-use fixedbitset::FixedBitSet;
-
-use crate::util::StringAdd;
-
+use std::{
+    self,
+    fs::File,
+    io::{self, BufRead},
+    mem, str,
+};
 use term_hashmap;
 
 type TermMap = term_hashmap::HashMap<TermInfo>;

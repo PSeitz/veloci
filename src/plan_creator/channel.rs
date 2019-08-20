@@ -52,22 +52,22 @@ impl Default for PlanStepDataChannels {
 }
 
 impl PlanStepDataChannels {
-    pub(crate) fn create_channel_from(
-        num_receivers: u32,
-        sender_to_next_steps: PlanDataSender,
-        receiver_for_next_step: PlanDataReceiver,
-        input_prev_steps: Vec<PlanDataReceiver>,
-    ) -> Self {
-        PlanStepDataChannels {
-            num_receivers,
-            input_prev_steps,
-            sender_to_next_steps,
-            receiver_for_next_step,
-            // output_sending_to_next_steps_as_filter: None,
-            filter_receiver: None,
-            filter_channel: None,
-        }
-    }
+    // pub(crate) fn create_channel_from(
+    //     num_receivers: u32,
+    //     sender_to_next_steps: PlanDataSender,
+    //     receiver_for_next_step: PlanDataReceiver,
+    //     input_prev_steps: Vec<PlanDataReceiver>,
+    // ) -> Self {
+    //     PlanStepDataChannels {
+    //         num_receivers,
+    //         input_prev_steps,
+    //         sender_to_next_steps,
+    //         receiver_for_next_step,
+    //         // output_sending_to_next_steps_as_filter: None,
+    //         filter_receiver: None,
+    //         filter_channel: None,
+    //     }
+    // }
 
     pub(crate) fn open_channel(num_receivers: u32, input_prev_steps: Vec<PlanDataReceiver>) -> Self {
         let (tx, rx): (PlanDataSender, PlanDataReceiver) = unbounded();

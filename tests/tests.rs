@@ -1019,23 +1019,23 @@ fn should_highlight_on_1_n_field() {
     );
 }
 
-//Should this be possible?  - probably yes plz fixme
-// #[test]
-// fn should_select_on_long_text(){
+#[test]
+fn should_select_on_long_text() {
+    let req = json!({
+        "search": {
+            "terms":["story"],
+            "path": "mylongtext"
+        },
+        "select": ["mylongtext"]
+    });
 
-//     let req = json!({
-//         "search": {
-//             "terms":["story"],
-//             "path": "mylongtext"
-//         },
-//         "select": ["mylongtext"]
-//     });
-
-//     let hits = search_testo_to_doc!(req).data;
-//     assert_eq!(hits.len(), 1);
-//     assert_eq!(hits[0].doc["mylongtext"], json!("Prolog:\nthis is a story of a guy who went out to rule the world, but then died. the end".to_string()));
-
-// }
+    let hits = search_testo_to_doc!(req).data;
+    assert_eq!(hits.len(), 1);
+    assert_eq!(
+        hits[0].doc["mylongtext"],
+        json!("Prolog:\nthis is a story of a guy who went out to rule the world, but then died. the end".to_string())
+    );
+}
 
 #[test]
 fn should_highlight_on_sub_level_field() {
