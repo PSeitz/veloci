@@ -5,7 +5,7 @@ addons:
     apt:
         packages:
             - libssl-dev
-cache: cargo
+# cache: cargo
 rust:
   - nightly
 env:
