@@ -49,6 +49,27 @@ pub fn grouped_to_positions_for_snippet<'a, T>(vec: &Vec<i64>, tokens: &'a [T], 
 }
 
 
+pub fn build_snippet<'a, T: 'static, I: Iterator<Item = (i64, i64, &'a[T])>>(windows: I, opt: &SnippetInfo) -> String {
+
+    windows
+    .map(|group| {
+        group.2.iter().fold(String::with_capacity(group.2.len() * 10), |snippet_part_acc, token_id| {
+            // if token_ids.contains(token_id) {
+            //     snippet_part_acc + &opt.snippet_start_tag + &id_to_text[token_id] + &opt.snippet_end_tag // TODO store token and add
+            // } else {
+            //     snippet_part_acc + &id_to_text[token_id]
+            // }
+
+            snippet_part_acc + "&id_to_text[token_id]"
+        })
+    })
+    .take(opt.max_snippets as usize)
+    .intersperse(opt.snippet_connector.to_string())
+    .fold(String::with_capacity(10 as usize), |snippet, snippet_part| snippet + &snippet_part)
+
+}
+
+
 /// Highlights text
 /// * `text` - The text to hightlight.
 /// * `set` - The tokens to hightlight in the text.
@@ -204,7 +225,7 @@ pub fn highlight_document(persistence: &Persistence, path: &str, value_id: u64, 
     let mut snippet = grouped
         .iter()
         .map(get_document_windows)
-        .map(|group| {
+        .map(|group:(i64, i64, &[u32])| {
             group.2.iter().fold(String::with_capacity(group.2.len() * 10), |snippet_part_acc, token_id| {
                 if token_ids.contains(token_id) {
                     snippet_part_acc + &opt.snippet_start_tag + &id_to_text[token_id] + &opt.snippet_end_tag // TODO store token and add
