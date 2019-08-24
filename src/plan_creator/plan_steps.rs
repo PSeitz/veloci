@@ -423,7 +423,7 @@ fn send_result_to_channel(field_result: SearchFieldResult, channel: &PlanStepDat
         let res = Arc::new(FilterResult::from_result(&field_result.hits_ids));
         // let res = Arc::new(field_result.clone());
         for _ in 0..filter_channel.num_receivers {
-            filter_channel.filter_sender.send(Arc::clone(&res)).map_err(|_| VelociError::PlanExecutionSendFailed)?;;
+            filter_channel.filter_sender.send(Arc::clone(&res)).map_err(|_| VelociError::PlanExecutionSendFailed)?;
         }
     }
     let mut data = vec![field_result]; //splat data to vec, first one is free
@@ -432,7 +432,7 @@ fn send_result_to_channel(field_result: SearchFieldResult, channel: &PlanStepDat
         data.push(clone);
     }
     for el in data {
-        channel.sender_to_next_steps.send(el).map_err(|_| VelociError::PlanExecutionSendFailed)?;;
+        channel.sender_to_next_steps.send(el).map_err(|_| VelociError::PlanExecutionSendFailed)?;
     }
     Ok(())
 }

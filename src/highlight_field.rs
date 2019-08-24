@@ -11,23 +11,21 @@ use std::{self, cmp, str};
 
 #[allow(unused_imports)]
 use fst::{IntoStreamer, Map, MapBuilder, Set};
-
-// use heapsize::HeapSizeOf;
 use itertools::Itertools;
-
 use fnv::FnvHashSet;
 
+//TODO merge with grouped_to_positions_for_snippet
 pub fn group_hit_positions_for_snippet(hit_pos_of_tokens_in_doc: &[usize], opt: &SnippetInfo) -> Vec<Vec<i64>> {
 
-    let num_tokens = opt.num_words_around_snippet * 2; // token seperator token seperator
+    let token_around_snippets = opt.num_words_around_snippet * 2; // double token_around_snippets, because seperator is every 2. token. token seperator token seperator
 
     //group near tokens
     let mut grouped: Vec<Vec<i64>> = vec![];
     {
         trace_time!("group near tokens");
-        let mut previous_token_pos = -num_tokens;
+        let mut previous_token_pos = -token_around_snippets;
         for token_pos in hit_pos_of_tokens_in_doc {
-            if *token_pos as i64 - previous_token_pos >= num_tokens {
+            if *token_pos as i64 - previous_token_pos >= token_around_snippets {
                 grouped.push(vec![]);
             }
             previous_token_pos = *token_pos as i64;
@@ -39,29 +37,35 @@ pub fn group_hit_positions_for_snippet(hit_pos_of_tokens_in_doc: &[usize], opt: 
 
 }
 
+pub fn grouped_to_positions_for_snippet(vec: &Vec<i64>, token_len: usize, token_around_snippets: i64) -> (usize, usize) {
 
-pub fn grouped_to_positions_for_snippet<'a, T>(vec: &Vec<i64>, tokens: &'a [T], num_tokens: i64) -> (i64, i64, &'a [T]) {
-
-    let start_index = cmp::max(*vec.first().unwrap() as i64 - num_tokens, 0);
-    let end_index = cmp::min(*vec.last().unwrap() as i64 + num_tokens + 1, tokens.len() as i64);
-    (start_index, end_index, &tokens[start_index as usize..end_index as usize])
+    let start_index = cmp::max(*vec.first().unwrap() as i64 - token_around_snippets, 0) as usize;
+    let end_index = cmp::min((*vec.last().unwrap() + token_around_snippets + 1) as usize, token_len);
+    (start_index, end_index)
 
 }
 
-
-pub fn build_snippet<'a, T: 'static, I: Iterator<Item = (i64, i64, &'a[T])>>(windows: I, opt: &SnippetInfo) -> String {
+pub fn build_snippet<'a, 'b, F1, F2, I: Iterator<Item = (usize, usize)>>(windows: I, is_hit: &mut F1, get_text: &mut F2, opt: &SnippetInfo) -> String 
+where
+    F1: FnMut(usize) -> bool,
+    F2: Fn(usize) -> &'b str,
+{
 
     windows
     .map(|group| {
-        group.2.iter().fold(String::with_capacity(group.2.len() * 10), |snippet_part_acc, token_id| {
-            // if token_ids.contains(token_id) {
-            //     snippet_part_acc + &opt.snippet_start_tag + &id_to_text[token_id] + &opt.snippet_end_tag // TODO store token and add
-            // } else {
-            //     snippet_part_acc + &id_to_text[token_id]
-            // }
 
-            snippet_part_acc + "&id_to_text[token_id]"
-        })
+        let mut snippet = String::with_capacity((group.1 - group.0) * 10);
+        for i in group.0 .. group.1 {
+            if is_hit(i) {
+                snippet += &opt.snippet_start_tag;
+                snippet += get_text(i);
+                snippet += &opt.snippet_end_tag; // TODO store token and add
+            } else {
+                snippet += get_text(i);
+            }
+        }
+        snippet
+
     })
     .take(opt.max_snippets as usize)
     .intersperse(opt.snippet_connector.to_string())
@@ -69,52 +73,70 @@ pub fn build_snippet<'a, T: 'static, I: Iterator<Item = (i64, i64, &'a[T])>>(win
 
 }
 
+/// Adds ... at the beginning and end.
+pub fn ellipsis_snippet(snippet: &mut String, hit_pos_of_tokens_in_doc:&[usize], token_len: usize, opt: &SnippetInfo) {
+    let token_around_snippets = opt.num_words_around_snippet * 2; // token seperator token seperator
+    if !hit_pos_of_tokens_in_doc.is_empty() {
+        let first_index = *hit_pos_of_tokens_in_doc.first().unwrap() as i64;
+        let last_index = *hit_pos_of_tokens_in_doc.last().unwrap() as i64;
+        if first_index > token_around_snippets {
+            // add ... add the beginning
+            snippet.insert_str(0, &opt.snippet_connector);
+        }
+
+        if last_index < token_len as i64 - token_around_snippets {
+            // add ... add the end
+            snippet.push_str(&opt.snippet_connector);
+        }
+    }
+
+}
+
+
 
 /// Highlights text
 /// * `text` - The text to hightlight.
 /// * `set` - The tokens to hightlight in the text.
 pub fn highlight_text(text: &str, set: &FnvHashSet<String>, opt: &SnippetInfo) -> Option<String> {
     let mut contains_any_token = false;
-    let mut highlighted = String::with_capacity(text.len() + 10);
 
-    // let mut tokens = vec![];
-    // let mut hit_pos_of_tokens_in_doc = vec![];
-    // let tokenizer = SimpleTokenizerCharsIterateGroupTokens {};
-    // let mut pos = 0;
-    // tokenizer.get_tokens(text, &mut |token: &str, _is_seperator: bool| {
-    //     tokens.push(token);
-    //     hit_pos_of_tokens_in_doc.push(pos);
-    //     pos+=1;
-    // });
-
-    // let num_tokens = opt.num_words_around_snippet * 2; // token seperator token seperator
-
-    // //group near tokens
-    // let grouped = group_hit_positions_for_snippet(&hit_pos_of_tokens_in_doc, opt);
-
-    // let get_document_windows = &(|vec: &Vec<i64>| {
-    //     grouped_to_positions_for_snippet(vec, &tokens, num_tokens)
-    // });
-    // //get all required tokenids and their text
-    // let mut all_tokens = grouped.iter().map(get_document_windows).flat_map(|el| el.2).cloned().collect_vec();
-    // all_tokens.sort();
-    // all_tokens = all_tokens.into_iter().dedup().collect_vec();
-
-    // opt.num_words_around_snippet;
+    let mut tokens = vec![];
+    let mut hit_pos_of_tokens_in_doc = vec![];
     let tokenizer = SimpleTokenizerCharsIterateGroupTokens {};
+    let mut pos = 0;
     tokenizer.get_tokens(text, &mut |token: &str, _is_seperator: bool| {
-        if set.contains(token) {
-            contains_any_token = true;
-            highlighted.push_str(&opt.snippet_start_tag);
-            highlighted.push_str(token);
-            highlighted.push_str(&opt.snippet_end_tag);
-        } else {
-            highlighted.push_str(token);
+        tokens.push(token);
+        if set.contains(token){
+            hit_pos_of_tokens_in_doc.push(pos);
         }
+        pos+=1;
     });
 
+    let token_around_snippets = opt.num_words_around_snippet * 2; // token seperator token seperator
+
+    // //group near tokens
+    let grouped = group_hit_positions_for_snippet(&hit_pos_of_tokens_in_doc, opt);
+
+    let get_document_windows = &(|vec: &Vec<i64>| {
+        grouped_to_positions_for_snippet(vec, tokens.len(), token_around_snippets)
+    });
+
+    let window_iter = grouped
+        .iter()
+        .map(get_document_windows);
+    let mut snippet = build_snippet(window_iter, &mut |pos:usize| {
+        if set.contains(tokens[pos]) {
+            contains_any_token = true;
+            true
+        }else{
+            false
+        }
+    },  &mut  |pos:usize| {&tokens[pos]}, &opt);
+
+    ellipsis_snippet(&mut snippet, &hit_pos_of_tokens_in_doc, tokens.len(), &opt);
+
     if contains_any_token {
-        Some(highlighted)
+        Some(snippet)
     } else {
         None
     }
@@ -201,56 +223,36 @@ pub fn highlight_document(persistence: &Persistence, path: &str, value_id: u64, 
     }
     hit_pos_of_tokens_in_doc.sort();
 
-    let num_tokens = opt.num_words_around_snippet * 2; // token seperator token seperator
+    let token_around_snippets = opt.num_words_around_snippet * 2; // token seperator token seperator
 
     //group near tokens
     let grouped = group_hit_positions_for_snippet(&hit_pos_of_tokens_in_doc, opt);
 
     let get_document_windows = &(|vec: &Vec<i64>| {
-        grouped_to_positions_for_snippet(vec, &documents_token_ids, num_tokens)
-        // let start_index = cmp::max(*vec.first().unwrap() as i64 - num_tokens, 0);
-        // let end_index = cmp::min(*vec.last().unwrap() as i64 + num_tokens + 1, documents_token_ids.len() as i64);
-        // (start_index, end_index, &documents_token_ids[start_index as usize..end_index as usize])
+        grouped_to_positions_for_snippet(vec, documents_token_ids.len(), token_around_snippets)
     });
 
     //get all required tokenids and their text
-    let mut all_tokens = grouped.iter().map(get_document_windows).flat_map(|el| el.2).cloned().collect_vec();
+    // let mut all_tokens = grouped.iter().map(get_document_windows).flat_map(|el| (el.0..el.1).map(|pos|documents_token_ids[pos]).collect_vec()).cloned().collect_vec();
+    let mut all_tokens = grouped.iter().map(get_document_windows).fold(Vec::with_capacity(10), |mut vecco, el| {
+        vecco.extend((el.0..el.1).map(|pos|documents_token_ids[pos]));
+        vecco
+    });
+    // let mut all_tokens = grouped.iter().map(get_document_windows).flat_map(|el| el.2).cloned().collect_vec();
     all_tokens.sort();
     all_tokens = all_tokens.into_iter().dedup().collect_vec();
     let id_to_text = get_id_text_map_for_ids(persistence, path, all_tokens.as_slice());
 
-    let estimated_snippet_size = std::cmp::min(u64::from(opt.max_snippets) * 100, documents_token_ids.len() as u64 * 10);
+    // let estimated_snippet_size = std::cmp::min(u64::from(opt.max_snippets) * 100, documents_token_ids.len() as u64 * 10);
 
     trace_time!("create snippet string");
-    let mut snippet = grouped
+
+    let window_iter = grouped
         .iter()
-        .map(get_document_windows)
-        .map(|group:(i64, i64, &[u32])| {
-            group.2.iter().fold(String::with_capacity(group.2.len() * 10), |snippet_part_acc, token_id| {
-                if token_ids.contains(token_id) {
-                    snippet_part_acc + &opt.snippet_start_tag + &id_to_text[token_id] + &opt.snippet_end_tag // TODO store token and add
-                } else {
-                    snippet_part_acc + &id_to_text[token_id]
-                }
-            })
-        })
-        .take(opt.max_snippets as usize)
-        .intersperse(opt.snippet_connector.to_string())
-        .fold(String::with_capacity(estimated_snippet_size as usize), |snippet, snippet_part| snippet + &snippet_part);
+        .map(get_document_windows);
+    let mut snippet = build_snippet(window_iter, &mut |pos:usize| {token_ids.contains(&documents_token_ids[pos])},  &mut  |pos:usize| {&id_to_text[&documents_token_ids[pos]]}, &opt);
 
-    if !hit_pos_of_tokens_in_doc.is_empty() {
-        let first_index = *hit_pos_of_tokens_in_doc.first().unwrap() as i64;
-        let last_index = *hit_pos_of_tokens_in_doc.last().unwrap() as i64;
-        if first_index > num_tokens {
-            // add ... add the beginning
-            snippet.insert_str(0, &opt.snippet_connector);
-        }
-
-        if last_index < documents_token_ids.len() as i64 - num_tokens {
-            // add ... add the end
-            snippet.push_str(&opt.snippet_connector);
-        }
-    }
+    ellipsis_snippet(&mut snippet, &hit_pos_of_tokens_in_doc, documents_token_ids.len(), &opt);
 
     Ok(Some(snippet))
 }

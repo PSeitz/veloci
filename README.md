@@ -9,12 +9,14 @@ LoadingType=Disk CARGO_INCREMENTAL=1 RUST_BACKTRACE=full RUST_TEST_THREADS=1 RUS
 - Query Boosting
 - Term Boosting
 - Phrase Boosting
+- Boost by Indexed Data
 - Facets
 - Filters
+- WhyFound
 - Stopwordlists (EN, DE)
 - Queryparser
 - Compressed Docstore
-- Support for In-Memory and MMap Indices
+- Support for In-Memory and Diskbased (MMap) Indices
 - Speed
 
 

@@ -109,7 +109,7 @@ fn should_add_why_found_from_1_n_terms_because_when_select_is_used_a_different_w
     assert_eq!(hits[0].doc["richtig"], "shön");
     assert_eq!(
         hits[0].why_found["viele[]"],
-        vec!["ein längerer Text, um zu checken, dass da nicht <b>umsortiert</b> wird"] // TODO FIXME 2. Should not behave differently, why found on doc
+        vec![" ... zu checken, dass da nicht <b>umsortiert</b> wird"] // TODO FIXME 2. Should not behave differently, why found on doc
     );
 }
 
