@@ -6,6 +6,7 @@ use memmap::MmapOptions;
 use std::fmt::Display;
 
 use std::{
+    env,
     boxed::Box,
     cmp::{Ord, PartialOrd},
     default::Default,
@@ -136,6 +137,8 @@ pub struct BufferedIndexWriter<K: PartialOrd + Ord + Default + Copy + SerializeI
 #[derive(Debug)]
 struct FlushStruct {
     bytes_written: u64,
+    /// flush to disk in bytes after threshold
+    flush_threshold: usize,
     /// keep order of values
     stable_sort: bool,
     /// Ids are already sorted inserted, so there is no need to sort them
@@ -168,8 +171,14 @@ impl<
     }
 
     pub fn new_with_opt(stable_sort: bool, ids_are_sorted: bool, temp_file_folder: String) -> Self {
+
+        let flush_threshold = env::var_os("FlushThreshold").map(|el|{
+            el.into_string().unwrap().parse::<usize>().unwrap()
+        }).unwrap_or(4_000_000);
+
         let flush_data = Box::new(FlushStruct {
             bytes_written: 0,
+            flush_threshold,
             temp_file: None,
             parts: vec![],
             stable_sort,
@@ -217,7 +226,7 @@ impl<
 
     #[inline]
     pub fn check_flush(&mut self, id_has_changed: bool) -> Result<(), io::Error> {
-        if id_has_changed && self.cache.len() * mem::size_of::<KeyValue<K, T>>() >= 4_000_000 {
+        if id_has_changed && self.cache.len() * mem::size_of::<KeyValue<K, T>>() >= self.flush_data.flush_threshold {
             self.flush()?;
         }
         Ok(())

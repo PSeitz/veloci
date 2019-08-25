@@ -329,4 +329,9 @@ mod test {
         test_parse_query_to_ast_helper("buch~2", "\"buch\"~2");
     }
 
+    #[test]
+    fn test_parse_field_with_levenshtein() {
+        test_parse_query_to_ast_helper("feld:buch~2", "feld:\"buch\"~2");
+    }
+
 }
