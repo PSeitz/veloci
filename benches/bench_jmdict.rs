@@ -113,7 +113,6 @@ mod bench_jmdict {
     //     let pers = load_gutenberg_persistence();
     //     assert_eq!(highlight("pride", "content", &pers)[0].0, "QUAARK");
     // }
-
 }
 
 fn get_request(term: &str, levenshtein_distance: u32) -> search::Request {

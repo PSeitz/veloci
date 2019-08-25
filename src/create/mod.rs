@@ -1,7 +1,7 @@
+mod create_fulltext;
 mod fast_lines;
 mod features;
 mod fields_config;
-mod create_fulltext;
 
 pub use self::fields_config::FulltextIndexOptions;
 use self::{fast_lines::FastLinesTrait, features::IndexCreationType, fields_config::FieldsConfig};
@@ -14,10 +14,11 @@ use crate::{
     util::{self, StringAdd, *},
 };
 use buffered_index_writer::{self, BufferedIndexWriter};
+use create_fulltext::{get_allterms_per_path, store_full_text_info_and_set_ids};
 use doc_store::DocWriter;
 use fixedbitset::FixedBitSet;
 use fnv::FnvHashMap;
-use fst::{self};
+use fst::self;
 use itertools::Itertools;
 use json_converter;
 use log;
@@ -32,7 +33,6 @@ use std::{
     mem, str,
 };
 use term_hashmap;
-use create_fulltext::{store_full_text_info_and_set_ids, get_allterms_per_path};
 
 type TermMap = term_hashmap::HashMap<TermInfo>;
 
@@ -85,9 +85,6 @@ pub(crate) struct TokenToAnchorScore {
 //             .collect::<Vec<_>>()
 //             .join("")
 // }
-
-
-
 
 #[inline]
 // *mut FnvHashMap here or the borrow checker will complain, because of 'if let' expands the scope of the mutable ownership to the complete function
@@ -170,8 +167,6 @@ pub struct AllTermsAndDocumentBuilder {
     id_holder: json_converter::IDHolder,
     terms_in_path: FnvHashMap<String, TermDataInPath>,
 }
-
-
 
 // fn check_similarity(data: &FnvHashMap<String, TermMap>) {
 //     let mut map: FnvHashMap<String, FnvHashMap<String, (f32, f32)>> = FnvHashMap::default();

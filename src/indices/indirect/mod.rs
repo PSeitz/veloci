@@ -113,7 +113,5 @@ mod tests {
             check_test_data_1_to_n(&store);
             check_test_data_1_to_n_iter(&store);
         }
-
     }
-
 }

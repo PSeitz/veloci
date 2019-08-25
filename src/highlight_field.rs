@@ -1,22 +1,20 @@
-use fnv::FnvHashMap;
-use crate::util::extract_field_name;
 use crate::{
     error::VelociError,
     persistence::{self, Persistence, *},
     search::*,
     tokenizer::*,
-    util::StringAdd,
+    util::{extract_field_name, StringAdd},
 };
+use fnv::FnvHashMap;
 use std::{self, cmp, str};
 
+use fnv::FnvHashSet;
 #[allow(unused_imports)]
 use fst::{IntoStreamer, Map, MapBuilder, Set};
 use itertools::Itertools;
-use fnv::FnvHashSet;
 
 //TODO merge with grouped_to_positions_for_snippet
 pub fn group_hit_positions_for_snippet(hit_pos_of_tokens_in_doc: &[usize], opt: &SnippetInfo) -> Vec<Vec<i64>> {
-
     let token_around_snippets = opt.num_words_around_snippet * 2; // double token_around_snippets, because seperator is every 2. token. token seperator token seperator
 
     //group near tokens
@@ -34,47 +32,40 @@ pub fn group_hit_positions_for_snippet(hit_pos_of_tokens_in_doc: &[usize], opt: 
     }
 
     grouped
-
 }
 
 pub fn grouped_to_positions_for_snippet(vec: &Vec<i64>, token_len: usize, token_around_snippets: i64) -> (usize, usize) {
-
     let start_index = cmp::max(*vec.first().unwrap() as i64 - token_around_snippets, 0) as usize;
     let end_index = cmp::min((*vec.last().unwrap() + token_around_snippets + 1) as usize, token_len);
     (start_index, end_index)
-
 }
 
-pub fn build_snippet<'a, 'b, F1, F2, I: Iterator<Item = (usize, usize)>>(windows: I, is_hit: &mut F1, get_text: &mut F2, opt: &SnippetInfo) -> String 
+pub fn build_snippet<'a, 'b, F1, F2, I: Iterator<Item = (usize, usize)>>(windows: I, is_hit: &mut F1, get_text: &mut F2, opt: &SnippetInfo) -> String
 where
     F1: FnMut(usize) -> bool,
     F2: Fn(usize) -> &'b str,
 {
-
     windows
-    .map(|group| {
-
-        let mut snippet = String::with_capacity((group.1 - group.0) * 10);
-        for i in group.0 .. group.1 {
-            if is_hit(i) {
-                snippet += &opt.snippet_start_tag;
-                snippet += get_text(i);
-                snippet += &opt.snippet_end_tag; // TODO store token and add
-            } else {
-                snippet += get_text(i);
+        .map(|group| {
+            let mut snippet = String::with_capacity((group.1 - group.0) * 10);
+            for i in group.0..group.1 {
+                if is_hit(i) {
+                    snippet += &opt.snippet_start_tag;
+                    snippet += get_text(i);
+                    snippet += &opt.snippet_end_tag; // TODO store token and add
+                } else {
+                    snippet += get_text(i);
+                }
             }
-        }
-        snippet
-
-    })
-    .take(opt.max_snippets as usize)
-    .intersperse(opt.snippet_connector.to_string())
-    .fold(String::with_capacity(10 as usize), |snippet, snippet_part| snippet + &snippet_part)
-
+            snippet
+        })
+        .take(opt.max_snippets as usize)
+        .intersperse(opt.snippet_connector.to_string())
+        .fold(String::with_capacity(10 as usize), |snippet, snippet_part| snippet + &snippet_part)
 }
 
 /// Adds ... at the beginning and end.
-pub fn ellipsis_snippet(snippet: &mut String, hit_pos_of_tokens_in_doc:&[usize], token_len: usize, opt: &SnippetInfo) {
+pub fn ellipsis_snippet(snippet: &mut String, hit_pos_of_tokens_in_doc: &[usize], token_len: usize, opt: &SnippetInfo) {
     let token_around_snippets = opt.num_words_around_snippet * 2; // token seperator token seperator
     if !hit_pos_of_tokens_in_doc.is_empty() {
         let first_index = *hit_pos_of_tokens_in_doc.first().unwrap() as i64;
@@ -89,10 +80,7 @@ pub fn ellipsis_snippet(snippet: &mut String, hit_pos_of_tokens_in_doc:&[usize],
             snippet.push_str(&opt.snippet_connector);
         }
     }
-
 }
-
-
 
 /// Highlights text
 /// * `text` - The text to hightlight.
@@ -106,10 +94,10 @@ pub fn highlight_text(text: &str, set: &FnvHashSet<String>, opt: &SnippetInfo) -
     let mut pos = 0;
     tokenizer.get_tokens(text, &mut |token: &str, _is_seperator: bool| {
         tokens.push(token);
-        if set.contains(token){
+        if set.contains(token) {
             hit_pos_of_tokens_in_doc.push(pos);
         }
-        pos+=1;
+        pos += 1;
     });
 
     let token_around_snippets = opt.num_words_around_snippet * 2; // token seperator token seperator
@@ -117,21 +105,22 @@ pub fn highlight_text(text: &str, set: &FnvHashSet<String>, opt: &SnippetInfo) -
     // //group near tokens
     let grouped = group_hit_positions_for_snippet(&hit_pos_of_tokens_in_doc, opt);
 
-    let get_document_windows = &(|vec: &Vec<i64>| {
-        grouped_to_positions_for_snippet(vec, tokens.len(), token_around_snippets)
-    });
+    let get_document_windows = &(|vec: &Vec<i64>| grouped_to_positions_for_snippet(vec, tokens.len(), token_around_snippets));
 
-    let window_iter = grouped
-        .iter()
-        .map(get_document_windows);
-    let mut snippet = build_snippet(window_iter, &mut |pos:usize| {
-        if set.contains(tokens[pos]) {
-            contains_any_token = true;
-            true
-        }else{
-            false
-        }
-    },  &mut  |pos:usize| {&tokens[pos]}, &opt);
+    let window_iter = grouped.iter().map(get_document_windows);
+    let mut snippet = build_snippet(
+        window_iter,
+        &mut |pos: usize| {
+            if set.contains(tokens[pos]) {
+                contains_any_token = true;
+                true
+            } else {
+                false
+            }
+        },
+        &mut |pos: usize| &tokens[pos],
+        &opt,
+    );
 
     ellipsis_snippet(&mut snippet, &hit_pos_of_tokens_in_doc, tokens.len(), &opt);
 
@@ -144,10 +133,27 @@ pub fn highlight_text(text: &str, set: &FnvHashSet<String>, opt: &SnippetInfo) -
 
 #[test]
 fn test_highlight_text() {
-    assert_eq!(highlight_text("mein treffer", &vec!["treffer"].iter().map(|el|el.to_string()).collect(), &DEFAULT_SNIPPETINFO).unwrap(), "mein <b>treffer</b>");
-    assert_eq!(highlight_text("mein treffer treffers", &vec!["treffers", "treffer"].iter().map(|el|el.to_string()).collect(), &DEFAULT_SNIPPETINFO).unwrap(), "mein <b>treffer</b> <b>treffers</b>");
-    assert_eq!(highlight_text("Schön-Hans", &vec!["Hans"].iter().map(|el|el.to_string()).collect(), &DEFAULT_SNIPPETINFO).unwrap(), "Schön-<b>Hans</b>");
-    assert_eq!(highlight_text("Schön-Hans", &vec!["Haus"].iter().map(|el|el.to_string()).collect(), &DEFAULT_SNIPPETINFO), None);
+    assert_eq!(
+        highlight_text("mein treffer", &vec!["treffer"].iter().map(|el| el.to_string()).collect(), &DEFAULT_SNIPPETINFO).unwrap(),
+        "mein <b>treffer</b>"
+    );
+    assert_eq!(
+        highlight_text(
+            "mein treffer treffers",
+            &vec!["treffers", "treffer"].iter().map(|el| el.to_string()).collect(),
+            &DEFAULT_SNIPPETINFO
+        )
+        .unwrap(),
+        "mein <b>treffer</b> <b>treffers</b>"
+    );
+    assert_eq!(
+        highlight_text("Schön-Hans", &vec!["Hans"].iter().map(|el| el.to_string()).collect(), &DEFAULT_SNIPPETINFO).unwrap(),
+        "Schön-<b>Hans</b>"
+    );
+    assert_eq!(
+        highlight_text("Schön-Hans", &vec!["Haus"].iter().map(|el| el.to_string()).collect(), &DEFAULT_SNIPPETINFO),
+        None
+    );
 }
 
 pub(crate) fn highlight_on_original_document(doc: &str, why_found_terms: &FnvHashMap<String, FnvHashSet<String>>) -> FnvHashMap<String, Vec<String>> {
@@ -187,7 +193,8 @@ pub fn highlight_document(persistence: &Persistence, path: &str, value_id: u64, 
         let vals = text_id_to_token_ids.get_values(value_id);
         if let Some(vals) = vals {
             vals
-        } else if token_ids.contains(&(value_id as u32)) { // highlight whole text
+        } else if token_ids.contains(&(value_id as u32)) {
+            // highlight whole text
             return Ok(Some(
                 opt.snippet_start_tag.to_string() + &get_text_for_id(persistence, path, value_id as u32) + &opt.snippet_end_tag,
             ));
@@ -228,14 +235,12 @@ pub fn highlight_document(persistence: &Persistence, path: &str, value_id: u64, 
     //group near tokens
     let grouped = group_hit_positions_for_snippet(&hit_pos_of_tokens_in_doc, opt);
 
-    let get_document_windows = &(|vec: &Vec<i64>| {
-        grouped_to_positions_for_snippet(vec, documents_token_ids.len(), token_around_snippets)
-    });
+    let get_document_windows = &(|vec: &Vec<i64>| grouped_to_positions_for_snippet(vec, documents_token_ids.len(), token_around_snippets));
 
     //get all required tokenids and their text
     // let mut all_tokens = grouped.iter().map(get_document_windows).flat_map(|el| (el.0..el.1).map(|pos|documents_token_ids[pos]).collect_vec()).cloned().collect_vec();
     let mut all_tokens = grouped.iter().map(get_document_windows).fold(Vec::with_capacity(10), |mut vecco, el| {
-        vecco.extend((el.0..el.1).map(|pos|documents_token_ids[pos]));
+        vecco.extend((el.0..el.1).map(|pos| documents_token_ids[pos]));
         vecco
     });
     // let mut all_tokens = grouped.iter().map(get_document_windows).flat_map(|el| el.2).cloned().collect_vec();
@@ -247,10 +252,13 @@ pub fn highlight_document(persistence: &Persistence, path: &str, value_id: u64, 
 
     trace_time!("create snippet string");
 
-    let window_iter = grouped
-        .iter()
-        .map(get_document_windows);
-    let mut snippet = build_snippet(window_iter, &mut |pos:usize| {token_ids.contains(&documents_token_ids[pos])},  &mut  |pos:usize| {&id_to_text[&documents_token_ids[pos]]}, &opt);
+    let window_iter = grouped.iter().map(get_document_windows);
+    let mut snippet = build_snippet(
+        window_iter,
+        &mut |pos: usize| token_ids.contains(&documents_token_ids[pos]),
+        &mut |pos: usize| &id_to_text[&documents_token_ids[pos]],
+        &opt,
+    );
 
     ellipsis_snippet(&mut snippet, &hit_pos_of_tokens_in_doc, documents_token_ids.len(), &opt);
 

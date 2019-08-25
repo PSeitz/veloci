@@ -252,5 +252,4 @@ mod bench_collection {
     //     let mut hits:NaiveHashMap<u64, f32> = NaiveHashMap::default();
     //     map_bench(&mut hits, b, K300K, K300K);
     // }
-
 }

@@ -144,5 +144,4 @@ mod tests {
     fn bench_mult(b: &mut Bencher) {
         b.iter(|| mult(10.0));
     }
-
 }

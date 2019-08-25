@@ -1,21 +1,17 @@
-
+use self::fields_config::FieldsConfig;
 pub use self::fields_config::FulltextIndexOptions;
-use self::{fields_config::FieldsConfig};
 use crate::{
     persistence::{Persistence, *},
     tokenizer::*,
-    util::{StringAdd},
+    util::StringAdd,
 };
 use fnv::FnvHashMap;
 use fst::{self, MapBuilder};
 use json_converter;
 use log;
 use num::ToPrimitive;
-use serde_json::{self};
-use std::{
-    self,
-    io::{self}, str,
-};
+use serde_json::self;
+use std::{self, io::self, str};
 
 use super::*;
 

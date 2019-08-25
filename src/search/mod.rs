@@ -4,7 +4,6 @@ pub mod search_field_result;
 mod set_op;
 pub mod stopwords;
 
-use crate::highlight_field::highlight_on_original_document;
 pub(crate) use self::boost::*;
 pub use self::{search_field::*, search_field_result::*, set_op::*};
 use super::highlight_field;
@@ -12,6 +11,7 @@ use crate::{
     error::VelociError,
     expression::ScoreExpression,
     facet,
+    highlight_field::highlight_on_original_document,
     plan_creator::{execution_plan::*, plan::*},
     util::{self, *},
 };

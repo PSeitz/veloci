@@ -112,5 +112,4 @@ mod tests_large {
         yep.sort_by(|a, b| format!("{:?}{:?}", b.1, b.0).cmp(&format!("{:?}{:?}", a.1, a.0)));
         assert_eq!(yep, vec![("nice".to_string(), 300), ("cool".to_string(), 300)]);
     }
-
 }

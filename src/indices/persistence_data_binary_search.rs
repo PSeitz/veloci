@@ -266,5 +266,4 @@ mod tests {
         assert_eq!(store.get_values((5, 9)), Some(vec![0]));
         assert_eq!(store.get_values((5, 10)), Some(vec![0]));
     }
-
 }

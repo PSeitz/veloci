@@ -163,7 +163,6 @@ mod tests {
             }
             check_test_data_1_to_1(&ind.into_im_store());
         }
-
     }
 
     mod test_indirect {
@@ -261,7 +260,5 @@ mod tests {
 
         //     b.iter(|| mayda.get_values(between.ind_sample(&mut rng)))
         // }
-
     }
-
 }
