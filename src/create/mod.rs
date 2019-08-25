@@ -18,7 +18,7 @@ use create_fulltext::{get_allterms_per_path, store_full_text_info_and_set_ids};
 use doc_store::DocWriter;
 use fixedbitset::FixedBitSet;
 use fnv::FnvHashMap;
-use fst::self;
+use fst;
 use itertools::Itertools;
 use json_converter;
 use log;

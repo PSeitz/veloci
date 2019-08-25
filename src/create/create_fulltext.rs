@@ -10,8 +10,8 @@ use fst::{self, MapBuilder};
 use json_converter;
 use log;
 use num::ToPrimitive;
-use serde_json::self;
-use std::{self, io::self, str};
+use serde_json;
+use std::{self, io, str};
 
 use super::*;
 
