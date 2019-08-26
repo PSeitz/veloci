@@ -1,8 +1,11 @@
+#[cfg(feature = "create")]
 mod create_indirect;
 mod indirect_im;
 mod indirect_mmap;
 
 use crate::util::{is_hight_bit_set, unset_high_bit};
+
+#[cfg(feature = "create")]
 pub(crate) use create_indirect::*;
 pub(crate) use indirect_im::*;
 pub(crate) use indirect_mmap::*;

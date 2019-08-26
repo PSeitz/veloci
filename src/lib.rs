@@ -33,7 +33,10 @@ pub use doc_store;
 pub mod util;
 #[macro_use]
 pub mod type_info;
+
+#[cfg(feature = "create")]
 pub mod create;
+
 pub mod error;
 pub mod expression;
 pub mod facet;

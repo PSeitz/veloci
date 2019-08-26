@@ -85,48 +85,6 @@ pub struct BoostIndexOptions {
     boost_type: String,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct FulltextIndexOptions {
-    pub tokenize: bool,
-    #[serde(default = "default_tokenizer")]
-    pub tokenizer: TokenizerStrategy,
-    pub stopwords: Option<FnvHashSet<String>>,
-    #[serde(default = "default_text_length_store")]
-    pub do_not_store_text_longer_than: usize,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone, Copy)]
-#[serde(rename_all = "lowercase")]
-pub enum TokenizerStrategy {
-    Simple,
-    Jp,
-}
-
-fn default_tokenizer() -> TokenizerStrategy {
-    TokenizerStrategy::Simple
-}
-fn default_text_length_store() -> usize {
-    64
-}
-impl Default for FulltextIndexOptions {
-    fn default() -> FulltextIndexOptions {
-        FulltextIndexOptions {
-            tokenize: true,
-            stopwords: None,
-            tokenizer: TokenizerStrategy::Simple,
-            do_not_store_text_longer_than: default_text_length_store(),
-        }
-    }
-}
-
-impl FulltextIndexOptions {
-    pub fn new_with_tokenize() -> FulltextIndexOptions {
-        FulltextIndexOptions {
-            tokenize: true,
-            ..Default::default()
-        }
-    }
-}
 
 #[test]
 fn test_field_config_from_json() {

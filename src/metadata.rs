@@ -1,4 +1,5 @@
-use crate::{create, error::VelociError, indices::metadata::*, util};
+use fnv::FnvHashSet;
+use crate::{ error::VelociError, indices::metadata::*, util};
 use fnv::FnvHashMap;
 
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
@@ -31,11 +32,55 @@ pub struct FieldInfo {
     pub has_fst: bool,
 }
 
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct FulltextIndexOptions {
+    pub tokenize: bool,
+    #[serde(default = "default_tokenizer")]
+    pub tokenizer: TokenizerStrategy,
+    pub stopwords: Option<FnvHashSet<String>>,
+    #[serde(default = "default_text_length_store")]
+    pub do_not_store_text_longer_than: usize,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, Copy)]
+#[serde(rename_all = "lowercase")]
+pub enum TokenizerStrategy {
+    Simple,
+    Jp,
+}
+
+fn default_tokenizer() -> TokenizerStrategy {
+    TokenizerStrategy::Simple
+}
+fn default_text_length_store() -> usize {
+    64
+}
+impl Default for FulltextIndexOptions {
+    fn default() -> FulltextIndexOptions {
+        FulltextIndexOptions {
+            tokenize: true,
+            stopwords: None,
+            tokenizer: TokenizerStrategy::Simple,
+            do_not_store_text_longer_than: default_text_length_store(),
+        }
+    }
+}
+
+impl FulltextIndexOptions {
+    pub fn new_with_tokenize() -> FulltextIndexOptions {
+        FulltextIndexOptions {
+            tokenize: true,
+            ..Default::default()
+        }
+    }
+}
+
+
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
 pub struct TextIndexValuesMetadata {
     pub num_text_ids: usize,
     pub num_long_text_ids: usize,
-    pub options: create::FulltextIndexOptions,
+    pub options: FulltextIndexOptions,
 }
 
 #[derive(Debug)]

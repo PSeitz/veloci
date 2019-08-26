@@ -14,13 +14,13 @@ itertools = "0.8.0"
 memmap = "0.7.0"
 rayon = "1.0.3"
 tempfile = "3.0.5"
-criterion = "0.2.5"
 
 [dependencies.vint]
 git = "https://github.com/PSeitz/rust_vint"
 
 [dev-dependencies]
 measure_time = "0.6.0"
+criterion = "0.2.5"
 
 [profile.release]
 codegen-units = 1
