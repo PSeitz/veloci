@@ -1,3 +1,4 @@
+use crate::metadata::FulltextIndexOptions;
 use super::features::{Features, IndexCreationType};
 use crate::error::VelociError;
 

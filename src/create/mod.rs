@@ -3,7 +3,7 @@ mod fast_lines;
 mod features;
 mod fields_config;
 
-pub use self::fields_config::FulltextIndexOptions;
+use crate::metadata::FulltextIndexOptions;
 use self::{fast_lines::FastLinesTrait, features::IndexCreationType, fields_config::FieldsConfig};
 use crate::{
     error::*,

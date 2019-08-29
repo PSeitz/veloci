@@ -1,6 +1,6 @@
 use self::fields_config::FieldsConfig;
-pub use self::fields_config::FulltextIndexOptions;
 use crate::{
+	metadata::FulltextIndexOptions,
     persistence::{Persistence, *},
     tokenizer::*,
     util::StringAdd,
