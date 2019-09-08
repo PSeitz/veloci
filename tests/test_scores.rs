@@ -52,7 +52,7 @@ static TEST_FOLDER: &str = "mochaTest_score";
 
 lazy_static! {
     static ref TEST_PERSISTENCE: persistence::Persistence = {
-        let indices = r#"{ 
+        let indices = r#"{
             "title":{"fulltext":{"tokenize":true} },
             "meanings.ger[].boost":{"boost":{"boost_type":"int"}},
             "commonness":{"boost":{"boost_type":"int"}}

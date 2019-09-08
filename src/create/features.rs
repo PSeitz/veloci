@@ -14,6 +14,9 @@ pub enum Features {
 }
 
 impl Features {
+    pub fn get_default_features() -> FnvHashSet<Features>{
+        [Features::Search].iter().cloned().collect()
+    }
     pub fn invert(features: &FnvHashSet<Features>) -> FnvHashSet<Features> {
         let all_features: &[Features] = &[
             Features::BoostTextLocality,
@@ -30,6 +33,7 @@ impl Features {
         all_features.iter().filter(|feature| features.contains(feature)).cloned().collect()
     }
 
+    /// detects the needed index types from features
     pub fn features_to_disabled_indices(features: &FnvHashSet<Features>) -> FnvHashSet<IndexCreationType> {
         let mut hashset = FnvHashSet::default();
 

@@ -1,11 +1,10 @@
 [package]
 authors = ["Pascal Seitz <pascal.seitz@gmail.com>"]
 autobenches = false
+cargo-features = ["edition"]
 edition = "2018"
 name = "veloci"
 version = "0.1.0"
-cargo-features = ["edition"]
-
 [[bench]]
 harness = false
 name = "bench_jmdict"
@@ -25,14 +24,13 @@ chrono = "0.4.6"
 colored = "1.6.1"
 cpuprofiler = "0.0.3"
 crossbeam-channel = "0.3.4"
+dot = "0.1.4"
 dump = "0.1.1"
 failure = "0.1.3"
 fixedbitset = "0.1.9"
 flexi_logger = "0.10.3"
 fnv = "1.0.6"
 fst = "0.3.3"
-# heapsize = "0.4.2"
-# heapsize_derive = "0.1.4"
 itertools = "0.8.0"
 lazy_static = "1.2.0"
 log = "0.4.6"
@@ -44,19 +42,19 @@ num = "0.2.0"
 prettytable-rs = "0.8.0"
 rayon = "1.0.3"
 regex = "1.1.0"
+ron = "0.4.1"
 serde = "1.0.82"
 serde_derive = "1.0.82"
 serde_json = "1.0.33"
+structopt = "0.3.0"
 tempfile = "3.0.5"
-ron = "0.4.1"
-dot = "0.1.4"
+
+[dependencies.buffered_index_writer]
+path = "buffered_index_writer"
 
 [dependencies.clap]
 features = ["suggestions", "color"]
 version = "2.32.0"
-
-[dependencies.buffered_index_writer]
-path = "buffered_index_writer"
 
 [dependencies.doc_store]
 path = "doc_store"
@@ -90,17 +88,17 @@ git = "https://github.com/PSeitz/rust_string_hashmap"
 git = "https://github.com/PSeitz/rust_vint"
 
 [dev-dependencies]
+more-asserts = "0.2.1"
 pretty_assertions = "0.5.1"
 rand = "0.6.1"
-more-asserts = "0.2.1"
 
 [dev-dependencies.criterion]
 features = []
 version = "0.2.5"
 
 [features]
-default = ["create"]
 create = []
+default = ["create"]
 
 [lib]
 name = "search_lib"

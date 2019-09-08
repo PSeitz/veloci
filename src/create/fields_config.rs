@@ -12,6 +12,8 @@ pub struct CreateIndexConfig {
     do_not_store_document: bool,
 }
 
+const ALL_FIELD_CONFIG: &str = "*GLOBAL*";
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct FieldsConfig(FnvHashMap<String, FieldConfig>);
 impl FieldsConfig {
@@ -24,27 +26,19 @@ impl FieldsConfig {
         if let Some(el) = el {
             el
         } else {
-            &self.0["*GLOBAL*"]
+            &self.0[ALL_FIELD_CONFIG]
         }
     }
 
     pub fn features_to_indices(&mut self) -> Result<(), VelociError> {
-        if self.0.get("*GLOBAL*").is_none() {
-            let default_fulltext_options = FulltextIndexOptions::new_with_tokenize();
-            let default_field_config = FieldConfig {
-                facet: false,
-                features: None,
-                disabled_features: None,
-                fulltext: Some(default_fulltext_options.clone()),
-                disabled_indices: None,
-                boost: None,
-            };
-            self.0.insert("*GLOBAL*".to_string(), default_field_config);
+        if self.0.get(ALL_FIELD_CONFIG).is_none() {
+            let default_field_config = FieldConfig::default();
+            self.0.insert(ALL_FIELD_CONFIG.to_string(), default_field_config);
         }
         for (key, val) in self.0.iter_mut() {
             if val.features.is_some() && val.disabled_features.is_some() {
                 return Err(VelociError::InvalidConfig(format!(
-                    "features and disabled_features are not allowed at the same time in field{:?}",
+                    "features and disabled_features are not allowed at the same time in field {:?}",
                     key
                 )));
             }
@@ -75,6 +69,20 @@ pub struct FieldConfig {
     pub disabled_features: Option<FnvHashSet<Features>>,
     pub boost: Option<BoostIndexOptions>,
 }
+
+impl Default for FieldConfig {
+    fn default() -> FieldConfig {
+        FieldConfig {
+            facet: false,
+            features: Some(Features::get_default_features()),
+            disabled_features: None,
+            fulltext: Some(FulltextIndexOptions::new_with_tokenize()),
+            disabled_indices: None,
+            boost: None,
+        }
+    }
+}
+
 impl FieldConfig {
     pub fn is_index_enabled(&self, index: IndexCreationType) -> bool {
         self.disabled_indices.as_ref().map(|el| !el.contains(&index)).unwrap_or(true)

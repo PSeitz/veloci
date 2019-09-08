@@ -21,7 +21,6 @@ lazy_static! {
             "commonness":{"facet":true}
         }
         "#;
-
         common::create_test_persistence(TEST_FOLDER, indices, get_test_data().to_string().as_bytes(), None)
     };
 }
