@@ -26,7 +26,7 @@ pub(crate) fn store_full_text_info_and_set_ids(
     debug_time!("store_fst strings and string offsets {:?}", path);
 
     let id_column = !path.contains("[]") && doc_write_res.num_doc_ids as usize == terms_data.terms.len() && terms_data.terms.iter().all(|(_term, info)| info.num_occurences == 1);
-    col_info.is_identity_column = id_column;
+    col_info.is_anchor_identity_column = id_column;
 
     if log_enabled!(log::Level::Trace) {
         let mut all_text: Vec<_> = terms_data.terms.keys().collect();
@@ -68,6 +68,7 @@ fn set_ids(all_terms: &mut TermMap, offset: u32) -> Vec<(&str, &mut TermInfo)> {
     term_and_mut_val
 }
 
+//TODO: Detect id columns and store text directly in fst
 #[inline]
 fn add_count_text(terms: &mut TermMap, text: &str) {
     let stat = terms.get_or_insert(text, TermInfo::default);

@@ -28,7 +28,7 @@ pub struct FieldInfo {
     pub textindex_metadata: TextIndexValuesMetadata,
     pub indices: Vec<IndexMetadata>,
     /// special case when text_id equals document id
-    pub is_identity_column: bool,
+    pub is_anchor_identity_column: bool,
     pub has_fst: bool,
 }
 

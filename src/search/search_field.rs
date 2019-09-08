@@ -421,7 +421,7 @@ pub fn resolve_token_to_anchor(
                 .metadata
                 .columns
                 .get(&extract_field_name(&options.path))
-                .map(|el| el.is_identity_column)
+                .map(|el| el.is_anchor_identity_column)
                 .unwrap_or(false)
             {
                 fast_field_res_ids.extend(&result.hits_ids);

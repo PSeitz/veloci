@@ -264,7 +264,7 @@ struct PathData {
     anchor_to_text_id: Option<Box<BufferedIndexWriter>>,
     boost: Option<Box<BufferedIndexWriter>>,
     fulltext_options: FulltextIndexOptions,
-    is_identity_column: bool,
+    is_anchor_identity_column: bool,
     skip_tokenizing: bool,
     term_data: TermDataInPath,
 }
@@ -384,7 +384,7 @@ fn prepare_path_data(temp_dir: &str, persistence: &Persistence, fields_config: &
         text_id_to_token_ids,
         fulltext_options,
         skip_tokenizing,
-        is_identity_column: persistence.metadata.columns.get(path).map(|el| el.is_identity_column).unwrap_or(false),
+        is_anchor_identity_column: persistence.metadata.columns.get(path).map(|el| el.is_anchor_identity_column).unwrap_or(false),
         term_data,
     }
 }
@@ -454,7 +454,7 @@ where
             }
 
             if let Some(el) = data.text_id_to_anchor.as_mut() {
-                if !data.is_identity_column {
+                if !data.is_anchor_identity_column {
                     // we don't need to store the relation, if they are identity
                     el.add(text_info.id, anchor_id)?;
                 }
