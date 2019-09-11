@@ -3,6 +3,7 @@ mod fast_lines;
 mod features;
 mod fields_config;
 
+use crate::create::fields_config::config_from_string;
 use crate::metadata::FulltextIndexOptions;
 use self::{fast_lines::FastLinesTrait, features::IndexCreationType, fields_config::FieldsConfig};
 use crate::{
@@ -1351,7 +1352,7 @@ where
 {
     info_time!("total time create_indices for {:?}", persistence.db);
 
-    let mut indices_json: FieldsConfig = serde_json::from_str(indices)?;
+    let mut indices_json: FieldsConfig = config_from_string(indices)?;
     indices_json.features_to_indices()?;
     let mut create_cache = create_cache.unwrap_or_else(CreateCache::default);
     create_fulltext_index(stream1, stream2, stream3, &mut persistence, &indices_json, &mut create_cache, load_persistence)?;

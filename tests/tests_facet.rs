@@ -17,6 +17,7 @@ lazy_static! {
     static ref TEST_PERSISTENCE: persistence::Persistence = {
         let indices = r#"
         {
+            "*GLOBAL*":{"features":["All"]},
             "tags[]":{"facet":true, "features":["Facets"]},
             "commonness":{"facet":true}
         }

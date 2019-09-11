@@ -94,10 +94,18 @@ pub struct BoostIndexOptions {
     boost_type: String,
 }
 
+pub fn config_from_string(indices: &str) -> Result<FieldsConfig, VelociError> {
+    if indices.trim().starts_with("{"){
+        Ok(serde_json::from_str(indices)?)
+    }else{
+        let map: FnvHashMap<String, FieldConfig> = toml::from_str(indices)?;
+        Ok(FieldsConfig(map))
+    }
+}
 
 #[test]
 fn test_field_config_from_json() {
-    use serde_json;
+
     let json = r#"{
         "MATNR" : {
            "facet":true,
@@ -115,7 +123,7 @@ fn test_field_config_from_json() {
         "EAN11"        : {"fulltext": {"tokenize":false} },
         "ISMORIDCODE"  : {"fulltext": {"tokenize":false} }
     }"#;
-    let mut data: FieldsConfig = serde_json::from_str(json).unwrap();
+    let mut data: FieldsConfig = config_from_string(json).unwrap();
     data.features_to_indices().unwrap();
     assert_eq!(data.get("MATNR").facet, true);
     assert_eq!(data.get("MATNR").is_index_enabled(IndexCreationType::TokensToTextID), false);
@@ -123,3 +131,40 @@ fn test_field_config_from_json() {
     assert_eq!(data.get("ISMTITLE").is_index_enabled(IndexCreationType::TokensToTextID), false);
     assert_eq!(data.get("ISMORIDCODE").fulltext.as_ref().unwrap().tokenize, false);
 }
+
+#[test]
+fn test_field_config_from_toml() {
+    let indices = r#"
+        ["*GLOBAL*"]
+            features = ["All"]
+        ["commonness"]
+            facet = true
+        ["commonness".boost]
+            boost_type = "int"
+        ["ent_seq".fulltext]
+            tokenize = true
+        ["nofulltext".fulltext]
+            tokenize = false
+        ["tags[]"]
+            facet = true
+        ["field1[].rank".boost]
+            boost_type = "int"
+        ["field1[].text"]
+            tokenize = true
+        ["kanji[].text"]
+            tokenize = true
+        ["meanings.ger[]"]
+            stopwords = ["stopword"]
+            ["meanings.ger[]".fulltext]
+                tokenize = true
+        ["meanings.eng[]".fulltext]
+            tokenize = true
+        ["kanji[].commonness".boost]
+            boost_type = "int"
+        ["kana[].commonness".boost]
+            boost_type = "int"
+    "#;
+
+    config_from_string(indices).unwrap();
+}
+

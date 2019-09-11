@@ -13,6 +13,8 @@ pub enum VelociError {
     /// The Data is corrupted
     #[fail(display = "{:?}", _0)]
     JsonError(serde_json::Error),
+    #[fail(display = "{:?}", _0)]
+    TomlError(toml::de::Error),
     #[fail(display = "Utf8Error: '{}'", _0)]
     Utf8Error(std::str::Utf8Error),
     #[fail(display = "FromUtf8Error: '{}'", _0)]
@@ -58,6 +60,11 @@ impl From<std::str::Utf8Error> for VelociError {
 impl From<serde_json::Error> for VelociError {
     fn from(error: serde_json::Error) -> VelociError {
         VelociError::JsonError(error)
+    }
+}
+impl From<toml::de::Error> for VelociError {
+    fn from(error: toml::de::Error) -> VelociError {
+        VelociError::TomlError(error)
     }
 }
 impl From<ron::ser::Error> for VelociError {

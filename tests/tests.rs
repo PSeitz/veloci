@@ -19,20 +19,34 @@ static TEST_FOLDER: &str = "mochaTest";
 lazy_static! {
     static ref TEST_PERSISTENCE: persistence::Persistence = {
         let indices = r#"
-        {
-            "ignore_field":{"features":[]},
-            "tags[]":{"facet":true},
-            "commonness":{"facet":true, "boost":{"boost_type":"int"}},
-            "ent_seq": {"fulltext":{"tokenize":true}},
-            "field1[].rank": {"boost":{"boost_type":"int"}},
-            "field1[].text": {"fulltext":{"tokenize":true}},
-            "kanji[].text": {"fulltext":{"tokenize":true}},
-            "meanings.ger[]": {"fulltext":{"tokenize":true}, "stopwords": ["stopword"]},
-            "meanings.eng[]": {"fulltext":{"tokenize":true}},
-            "nofulltext": {"fulltext":{"tokenize":false}},
-            "kanji[].commonness": {"boost":{"boost_type":"int"}},
-            "kana[].commonness": {"boost":{"boost_type":"int"}}
-        }
+        ["*GLOBAL*"]
+            features = ["All"]
+        ["commonness"]
+            facet = true
+        ["commonness".boost]
+            boost_type = "int"
+        ["ent_seq".fulltext]
+            tokenize = true
+        ["nofulltext".fulltext]
+            tokenize = false
+        ["tags[]"]
+            facet = true
+        ["field1[].rank".boost]
+            boost_type = "int"
+        ["field1[].text"]
+            tokenize = true
+        ["kanji[].text"]
+            tokenize = true
+        ["meanings.ger[]"]
+            stopwords = ["stopword"]
+            ["meanings.ger[]".fulltext]
+                tokenize = true
+        ["meanings.eng[]".fulltext]
+            tokenize = true
+        ["kanji[].commonness".boost]
+            boost_type = "int"
+        ["kana[].commonness".boost]
+            boost_type = "int"
         "#;
 
         let token_values = Some((r#"[{"text": "Begeisterung", "value": 20 } ]"#.to_string(), json!({"path": "meanings.ger[]"})));

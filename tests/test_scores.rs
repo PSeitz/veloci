@@ -55,6 +55,7 @@ lazy_static! {
         let indices = r#"{
             "title":{"fulltext":{"tokenize":true} },
             "meanings.ger[].boost":{"boost":{"boost_type":"int"}},
+            "meanings.ger[].text":{"fulltext":{"tokenize":true}},
             "commonness":{"boost":{"boost_type":"int"}}
         } "#;
         common::create_test_persistence(TEST_FOLDER, indices, &get_test_data().to_string().as_bytes(), None)

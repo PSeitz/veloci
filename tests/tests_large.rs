@@ -17,7 +17,10 @@ lazy_static! {
     static ref TEST_PERSISTENCE:persistence::Persistence = {
         // Start up a test.
         let indices = r#"
-        { "tags[]":{"facet":true}}
+        {
+            "*GLOBAL*":{"features":["All"]},
+            "tags[]":{"facet":true}
+        }
         "#;
 
         let mut data:String = std::iter::repeat(r#"
