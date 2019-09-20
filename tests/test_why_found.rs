@@ -36,7 +36,12 @@ static TEST_FOLDER: &str = "mochaTest_wf";
 
 lazy_static! {
     static ref TEST_PERSISTENCE: persistence::Persistence = {
-        let indices = r#"{ "*GLOBAL*":{ "features":["All"] }, "richtig":{"fulltext":{"tokenize":true} } } "#;
+        let indices = r#"
+        ["*GLOBAL*"]
+        features = ['All']
+        [richtig.fulltext]
+        tokenize = true
+        "#;
         common::create_test_persistence(TEST_FOLDER, indices, &get_test_data().to_string().as_bytes(), None)
     };
 }

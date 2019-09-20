@@ -16,11 +16,16 @@ static TEST_FOLDER: &str = "facetTest";
 lazy_static! {
     static ref TEST_PERSISTENCE: persistence::Persistence = {
         let indices = r#"
-        {
-            "*GLOBAL*":{"features":["All"]},
-            "tags[]":{"facet":true, "features":["Facets"]},
-            "commonness":{"facet":true}
-        }
+        ["*GLOBAL*"]
+        features = ['All']
+
+        ["tags[]"]
+        facet = true
+        features = ['Facets']
+
+        [commonness]
+        facet = true
+
         "#;
         common::create_test_persistence(TEST_FOLDER, indices, get_test_data().to_string().as_bytes(), None)
     };

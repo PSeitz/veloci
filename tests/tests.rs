@@ -39,8 +39,7 @@ lazy_static! {
             tokenize = true
         ["meanings.ger[]"]
             stopwords = ["stopword"]
-            ["meanings.ger[]".fulltext]
-                tokenize = true
+            fulltext.tokenize = true
         ["meanings.eng[]".fulltext]
             tokenize = true
         ["kanji[].commonness".boost]
