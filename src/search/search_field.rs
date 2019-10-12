@@ -358,7 +358,7 @@ pub fn resolve_token_to_anchor(
     }
 
     let mut res = SearchFieldResult::new_from(&result);
-    debug_time!("{} fast_field", &options.path);
+    debug_time!("{} token to anchor", &options.path);
     let mut anchor_ids_hits = vec![];
 
     let token_to_anchor_score = persistence.get_token_to_anchor(&options.path)?;
