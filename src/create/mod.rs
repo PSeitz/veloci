@@ -425,7 +425,7 @@ where
     let mut id_holder = json_converter::IDHolder::new();
     let mut tuples_to_parent_in_path: FnvHashMap<String, PathDataIds> = FnvHashMap::default();
 
-    let tokenizer = SimpleTokenizerCharsIterateGroupTokens {};
+    let tokenizer = SimpleTokenizerCharsIterateGroupTokens::default();
 
     {
         info_time!("build path data");
@@ -485,8 +485,7 @@ where
 
                 let mut prev_token: Option<u32> = None;
 
-                for (token, is_seperator) in value.iter_tokens() {
-                    // tokenizer.get_tokens(value, &mut |token: &str, is_seperator: bool| {
+                for (token, is_seperator) in tokenizer.iter(value) {
                     let token_info = data.term_data.terms.get(token).expect("did not found token");
                     trace!("Adding to tokens_ids {:?} : {:?}", token, token_info);
 

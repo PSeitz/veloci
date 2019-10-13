@@ -5,7 +5,7 @@ use std::path::PathBuf;
 use structopt::StructOpt;
 use serde::de::{Deserializer, Visitor, SeqAccess};
 use std::io::{BufWriter, BufReader};
-use std::io::{BufRead};
+// use std::io::{BufRead};
 use std::fmt;
 use std::io::{self, Write};
 

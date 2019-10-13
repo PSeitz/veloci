@@ -90,15 +90,15 @@ pub fn highlight_text(text: &str, set: &FnvHashSet<String>, opt: &SnippetInfo) -
 
     let mut tokens = vec![];
     let mut hit_pos_of_tokens_in_doc = vec![];
-    let tokenizer = SimpleTokenizerCharsIterateGroupTokens {};
+    let tokenizer = SimpleTokenizerCharsIterateGroupTokens::default();
     let mut pos = 0;
-    tokenizer.get_tokens(text, &mut |token: &str, _is_seperator: bool| {
+    for (token, _) in tokenizer.iter(text) {
         tokens.push(token);
         if set.contains(token) {
             hit_pos_of_tokens_in_doc.push(pos);
         }
         pos += 1;
-    });
+    }
 
     let token_around_snippets = opt.num_words_around_snippet * 2; // token seperator token seperator
 

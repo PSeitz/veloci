@@ -88,13 +88,9 @@ fn add_text<T: Tokenizer>(text: &str, term_data: &mut TermDataInPath, options: &
     }
 
     if options.tokenize && tokenizer.has_tokens(&text) {
-        for (token, _is_seperator) in text.iter_tokens() {
+        for (token, _is_seperator) in tokenizer.iter(text) {
             add_count_text(&mut term_data.terms, token);
         }
-        // tokenizer.get_tokens(&text, &mut |token: &str, _is_seperator: bool| {
-        //     // debug_assert!(!_is_seperator && text.contains(" "));
-
-        // });
     }
 }
 
@@ -106,7 +102,7 @@ pub(crate) fn get_allterms_per_path<I: Iterator<Item = Result<serde_json::Value,
 ) -> Result<(), io::Error> {
     info_time!("get_allterms_per_path");
 
-    let tokenizer = SimpleTokenizerCharsIterateGroupTokens {};
+    let tokenizer = SimpleTokenizerCharsIterateGroupTokens::default(); // TODO get sepereators
     let default_fulltext_options = FulltextIndexOptions::new_with_tokenize();
 
     let mut id_holder = json_converter::IDHolder::new();
