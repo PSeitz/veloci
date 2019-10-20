@@ -5,8 +5,11 @@ use crate::tokenizer::*;
 #[derive(Debug)]
 pub struct SimpleTokenizer {}
 impl Tokenizer for SimpleTokenizer {
-    fn has_tokens(&self, orignal: &str) -> bool {
-        SEPERATORS.is_match(orignal)
+    fn has_tokens(&self, text: &str) -> bool {
+        // SEPERATORS.is_match(orignal)
+        let mut iter = self.iter(text);
+        iter.next();
+        iter.next().is_some()
     }
 
     // fn get_tokens<'a, F>(&self, orignal: &'a str, cb_text: &mut F)

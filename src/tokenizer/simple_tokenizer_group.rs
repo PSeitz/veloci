@@ -5,11 +5,14 @@ use crate::tokenizer::*;
 /// "ok---nice" -> ["ok", "---", "nice"]
 #[derive(Debug)]
 pub struct SimpleTokenizerCharsIterateGroupTokens {
-    seperators: Vec<char>
+    pub seperators: Vec<char>
 }
 impl Tokenizer for SimpleTokenizerCharsIterateGroupTokens {
-    fn has_tokens(&self, orignal: &str) -> bool {
-        SEPERATORS.is_match(orignal) // TODO
+    fn has_tokens(&self, text: &str) -> bool {
+        let mut iter = self.iter(text);
+        iter.next();
+        iter.next().is_some()
+        // SEPERATORS.is_match(orignal) // TODO
     }
 
     // fn get_tokens<'a, F>(&self, orignal: &'a str, cb_text: &mut F)

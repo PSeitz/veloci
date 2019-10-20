@@ -307,7 +307,7 @@ impl Persistence {
         Ok(Box::new(store) as Box<dyn IndexIdToParent<Output = u32>>)
     }
 
-    pub fn load_from_disk(&mut self) -> Result<(), VelociError> {
+    fn load_indices(&mut self) -> Result<(), VelociError> {
         info_time!("loaded persistence {:?}", &self.db);
 
         let doc_offsets_file = self.get_file_handle("data.offsets")?;
@@ -578,7 +578,7 @@ impl Persistence {
             term_boost_cache: RwLock::new(LruCache::with_expiry_duration_and_capacity(Duration::new(3600, 0), 10)),
             indices: PersistenceIndices::default(),
         };
-        pers.load_from_disk()?;
+        pers.load_indices()?;
         pers.print_heap_sizes();
         Ok(pers)
     }

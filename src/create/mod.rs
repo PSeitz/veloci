@@ -425,8 +425,6 @@ where
     let mut id_holder = json_converter::IDHolder::new();
     let mut tuples_to_parent_in_path: FnvHashMap<String, PathDataIds> = FnvHashMap::default();
 
-    let tokenizer = SimpleTokenizerCharsIterateGroupTokens::default();
-
     {
         info_time!("build path data");
 
@@ -478,59 +476,64 @@ where
                 el.add(text_info.id, (anchor_id, score))?;
             }
 
-            if data.fulltext_options.tokenize && tokenizer.has_tokens(value) {
-                let mut current_token_pos = 0;
+            if data.fulltext_options.tokenize {
 
-                let text_ids_to_token_ids_already_stored = data.text_id_to_token_ids.as_ref().map(|el| el.contains(text_info.id)).unwrap_or(false);
+                let tokenizer = data.fulltext_options.tokenizer.as_ref().expect(&format!("no tokenizer created for {:?}", path));
+                if tokenizer.has_tokens(value) {
+                    let mut current_token_pos = 0;
 
-                let mut prev_token: Option<u32> = None;
+                    let text_ids_to_token_ids_already_stored = data.text_id_to_token_ids.as_ref().map(|el| el.contains(text_info.id)).unwrap_or(false);
 
-                for (token, is_seperator) in tokenizer.iter(value) {
-                    let token_info = data.term_data.terms.get(token).expect("did not found token");
-                    trace!("Adding to tokens_ids {:?} : {:?}", token, token_info);
+                    let mut prev_token: Option<u32> = None;
 
-                    if !text_ids_to_token_ids_already_stored {
-                        tokens_ids.push(token_info.id);
-                    }
+                    for (token, is_seperator) in tokenizer.iter(value) {
+                        let token_info = data.term_data.terms.get(token).expect("did not found token");
+                        trace!("Adding to tokens_ids {:?} : {:?}", token, token_info);
 
-                    if let Some(el) = data.tokens_to_text_id.as_mut() {
-                        // el.add(anchor_id, text_info.id)?;
-                        el.add(token_info.id, text_info.id).unwrap(); // TODO Error Handling in closure
-                    }
+                        if !text_ids_to_token_ids_already_stored {
+                            tokens_ids.push(token_info.id);
+                        }
 
-                    if data.token_to_anchor_id_score.is_some() {
-                        tokens_to_anchor_id.push(ValIdPairToken {
-                            token_or_text_id: token_info.id,
-                            num_occurences: token_info.num_occurences,
-                            token_pos: current_token_pos,
-                        });
-                        current_token_pos += 1;
-                    }
+                        if let Some(el) = data.tokens_to_text_id.as_mut() {
+                            // el.add(anchor_id, text_info.id)?;
+                            el.add(token_info.id, text_info.id)?;
+                        }
 
-                    if !is_seperator {
-                        if let Some(el) = data.phrase_pair_to_anchor.as_mut() {
-                            if let Some(prev_token) = prev_token {
-                                el.add((prev_token, token_info.id), anchor_id).unwrap(); // TODO Error Handling in closure
+                        if data.token_to_anchor_id_score.is_some() {
+                            tokens_to_anchor_id.push(ValIdPairToken {
+                                token_or_text_id: token_info.id,
+                                num_occurences: token_info.num_occurences,
+                                token_pos: current_token_pos,
+                            });
+                            current_token_pos += 1;
+                        }
+
+                        if !is_seperator {
+                            if let Some(el) = data.phrase_pair_to_anchor.as_mut() {
+                                if let Some(prev_token) = prev_token {
+                                    el.add((prev_token, token_info.id), anchor_id)?;
+                                }
+                                prev_token = Some(token_info.id);
                             }
-                            prev_token = Some(token_info.id);
                         }
                     }
-                }
 
-                if !text_ids_to_token_ids_already_stored {
-                    trace!("Adding for {:?} {:?} token_ids {:?}", value, text_info.id, tokens_ids);
-                    if let Some(el) = data.text_id_to_token_ids.as_mut() {
-                        el.add_all(text_info.id, &tokens_ids).unwrap();
+                    if !text_ids_to_token_ids_already_stored {
+                        trace!("Adding for {:?} {:?} token_ids {:?}", value, text_info.id, tokens_ids);
+                        if let Some(el) = data.text_id_to_token_ids.as_mut() {
+                            el.add_all(text_info.id, &tokens_ids).unwrap();
+                        }
                     }
-                }
 
-                if let Some(el) = data.token_to_anchor_id_score.as_mut() {
-                    calculate_and_add_token_score_in_doc(&mut tokens_to_anchor_id, anchor_id, current_token_pos, el)?;
+                    if let Some(el) = data.token_to_anchor_id_score.as_mut() {
+                        calculate_and_add_token_score_in_doc(&mut tokens_to_anchor_id, anchor_id, current_token_pos, el)?;
+                    }
+                    // calculate_and_add_token_score_in_doc(&mut phrase_to_anchor_id, anchor_id, current_token_pos, &mut data.token_to_anchor_id_score, true)?;
+                    tokens_to_anchor_id.clear();
+                    // phrase_to_anchor_id.clear();
+                    tokens_ids.clear();
                 }
-                // calculate_and_add_token_score_in_doc(&mut phrase_to_anchor_id, anchor_id, current_token_pos, &mut data.token_to_anchor_id_score, true)?;
-                tokens_to_anchor_id.clear();
-                // phrase_to_anchor_id.clear();
-                tokens_ids.clear();
+                
             }
             Ok(())
         };

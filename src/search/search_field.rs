@@ -503,13 +503,13 @@ pub fn resolve_token_hits_to_text_id(
     if !path.ends_with(TEXTINDEX) {
         path = path.add(TEXTINDEX);
     }
-    let has_tokens = persistence
+    let is_tokenized = persistence
         .metadata
         .columns
         .get(&extract_field_name(&path))
         .map_or(false, |col| col.textindex_metadata.options.tokenize);
-    debug!("has_tokens {:?} {:?}", path, has_tokens);
-    if !has_tokens {
+    debug!("is_tokenized {:?} {:?}", path, is_tokenized);
+    if !is_tokenized {
         return Ok(());
     }
     let add_snippets = options.snippet.unwrap_or(false);
@@ -593,13 +593,13 @@ pub fn resolve_token_hits_to_text_id_ids_only(
     if !path.ends_with(TEXTINDEX) {
         path = path.add(TEXTINDEX);
     }
-    let has_tokens = persistence
+    let is_tokenized = persistence
         .metadata
         .columns
         .get(&extract_field_name(&path))
         .map_or(false, |col| col.textindex_metadata.options.tokenize);
-    debug!("has_tokens {:?} {:?}", path, has_tokens);
-    if !has_tokens {
+    debug!("is_tokenized {:?} {:?}", path, is_tokenized);
+    if !is_tokenized {
         return Ok(());
     }
 

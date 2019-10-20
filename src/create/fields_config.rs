@@ -95,12 +95,20 @@ pub struct BoostIndexOptions {
 }
 
 pub fn config_from_string(indices: &str) -> Result<FieldsConfig, VelociError> {
-    if indices.trim().starts_with("{"){
-        Ok(serde_json::from_str(indices)?)
+    let mut configs = if indices.trim().starts_with("{"){
+        serde_json::from_str(indices)?
     }else{
         let map: FnvHashMap<String, FieldConfig> = toml::from_str(indices)?;
-        Ok(FieldsConfig(map))
+        FieldsConfig(map)
+    };
+    for (_key, value) in &mut configs.0 {
+        if let Some(fulltext) = &mut value.fulltext {
+            fulltext.create_tokenizer();
+            // if let Some(fulltext) = &fulltext.tokenize_on_chars {
+            // }
+        }
     }
+    Ok(configs)
 }
 
 #[test]

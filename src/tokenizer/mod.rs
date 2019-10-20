@@ -1,10 +1,11 @@
 mod simple_tokenizer;
+use std::fmt::Debug;
 pub use simple_tokenizer::*;
 
 mod simple_tokenizer_group;
 pub use simple_tokenizer_group::*;
 
-pub trait Tokenizer {
+pub trait Tokenizer: Debug + Sync + Send {
     // fn get_tokens<'a, F>(&self, original: &'a str, cb_text: &mut F)
     // where
     //     F: FnMut(&'a str, bool);

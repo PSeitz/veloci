@@ -12,7 +12,7 @@ use serde_json::Value;
 #[macro_use]
 mod common;
 
-static TEST_FOLDER: &str = "mochaTest";
+static TEST_FOLDER: &str = "mochaTest_minimal";
 lazy_static! {
     static ref TEST_PERSISTENCE: persistence::Persistence = { common::create_test_persistence(TEST_FOLDER, "{}", &get_test_data().to_string().as_bytes(), None) };
 }

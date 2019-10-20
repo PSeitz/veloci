@@ -1,3 +1,4 @@
+use std::sync::Arc;
 use self::fields_config::FieldsConfig;
 use crate::{
 	metadata::FulltextIndexOptions,
@@ -77,7 +78,8 @@ fn add_count_text(terms: &mut TermMap, text: &str) {
 }
 
 #[inline]
-fn add_text<T: Tokenizer>(text: &str, term_data: &mut TermDataInPath, options: &FulltextIndexOptions, tokenizer: &T) {
+// fn add_text<T: Tokenizer>(text: &str, term_data: &mut TermDataInPath, options: &FulltextIndexOptions, tokenizer: &T) {
+fn add_text(text: &str, term_data: &mut TermDataInPath, options: &FulltextIndexOptions, tokenizer: &Arc<dyn Tokenizer>) {
     trace!("text: {:?}", text);
 
     if term_data.do_not_store_text_longer_than < text.len() {
@@ -102,8 +104,8 @@ pub(crate) fn get_allterms_per_path<I: Iterator<Item = Result<serde_json::Value,
 ) -> Result<(), io::Error> {
     info_time!("get_allterms_per_path");
 
-    let tokenizer = SimpleTokenizerCharsIterateGroupTokens::default(); // TODO get sepereators
     let default_fulltext_options = FulltextIndexOptions::new_with_tokenize();
+    let default_tokenizer: Arc<dyn Tokenizer> = Arc::new(SimpleTokenizerCharsIterateGroupTokens::default());
 
     let mut id_holder = json_converter::IDHolder::new();
     {
@@ -115,7 +117,7 @@ pub(crate) fn get_allterms_per_path<I: Iterator<Item = Result<serde_json::Value,
                 ..Default::default()
             });
 
-            add_text(value, &mut terms_data, &options, &tokenizer);
+            add_text(value, &mut terms_data, &options, options.tokenizer.as_ref().unwrap_or_else(||&default_tokenizer));
             Ok(())
         };
         let mut callback_ids = |_anchor_id: u32, _path: &str, _value_id: u32, _parent_val_id: u32| -> Result<(), io::Error> { Ok(()) };
