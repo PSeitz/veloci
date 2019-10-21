@@ -60,7 +60,13 @@ pub(crate) fn boost_text_locality(persistence: &Persistence, path: &str, search_
     }
 
     // text_ids are already anchor_ids === identity_column
-    if persistence.metadata.columns.get(&extract_field_name(path)).map(|el| el.is_anchor_identity_column).unwrap_or(false) {
+    if persistence
+        .metadata
+        .columns
+        .get(&extract_field_name(path))
+        .map(|el| el.is_anchor_identity_column)
+        .unwrap_or(false)
+    {
         boost_text_ids.sort_unstable_by_key(|el| el.0);
         for text_id in boost_text_ids {
             let num_hits_in_same_text = text_id.1;

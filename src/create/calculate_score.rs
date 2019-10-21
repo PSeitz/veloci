@@ -1,9 +1,7 @@
 use crate::create::ValIdPairToken;
-use itertools::Itertools;
 use buffered_index_writer::BufferedIndexWriter;
-use std::{
-    io::{self},
-};
+use itertools::Itertools;
+use std::io::self;
 
 pub(crate) fn calculate_and_add_token_score_in_doc(
     tokens_to_anchor_id: &mut Vec<ValIdPairToken>,

@@ -1,8 +1,9 @@
+use crate::{
+    create::{fields_config::FieldsConfig, *},
+    metadata::FulltextIndexOptions,
+    persistence::Persistence,
+};
 use buffered_index_writer::BufferedIndexWriter;
-use crate::metadata::FulltextIndexOptions;
-use crate::create::*;
-use crate::persistence::Persistence;
-use crate::create::fields_config::FieldsConfig;
 
 #[derive(Debug, Default)]
 pub(crate) struct PathData {
@@ -51,7 +52,6 @@ impl BufferedTextIdToTokenIdsData {
         self.data.add_all(text_id, token_ids)
     }
 }
-
 
 pub(crate) fn prepare_path_data(temp_dir: &str, persistence: &Persistence, fields_config: &FieldsConfig, path: &str, term_data: TermDataInPath) -> PathData {
     let field_config = fields_config.get(path);

@@ -1,6 +1,5 @@
-use crate::metadata::FulltextIndexOptions;
 use super::features::{Features, IndexCreationType};
-use crate::error::VelociError;
+use crate::{error::VelociError, metadata::FulltextIndexOptions};
 
 use fnv::{FnvHashMap, FnvHashSet};
 
@@ -95,9 +94,9 @@ pub struct BoostIndexOptions {
 }
 
 pub fn config_from_string(indices: &str) -> Result<FieldsConfig, VelociError> {
-    let mut configs = if indices.trim().starts_with("{"){
+    let mut configs = if indices.trim().starts_with("{") {
         serde_json::from_str(indices)?
-    }else{
+    } else {
         let map: FnvHashMap<String, FieldConfig> = toml::from_str(indices)?;
         FieldsConfig(map)
     };
@@ -113,7 +112,6 @@ pub fn config_from_string(indices: &str) -> Result<FieldsConfig, VelociError> {
 
 #[test]
 fn test_field_config_from_json() {
-
     let json = r#"{
         "MATNR" : {
            "facet":true,
@@ -175,4 +173,3 @@ fn test_field_config_from_toml() {
 
     config_from_string(indices).unwrap();
 }
-

@@ -1,23 +1,23 @@
+mod calculate_score;
 mod create_fulltext;
 mod fast_lines;
 mod features;
 mod fields_config;
-mod calculate_score;
-mod write_docs;
 mod path_data;
+mod write_docs;
 
-use crate::create::create_fulltext::AllTermsAndDocumentBuilder;
-use crate::create::path_data::PathData;
-use crate::create::path_data::prepare_path_data;
-use crate::create::write_docs::write_docs;
-use crate::create::calculate_score::calculate_token_score_for_entry;
-use crate::create::calculate_score::calculate_and_add_token_score_in_doc;
-use crate::create::fields_config::config_from_string;
-use crate::metadata::FulltextIndexOptions;
 use self::{fast_lines::FastLinesTrait, features::IndexCreationType, fields_config::FieldsConfig};
 use crate::{
+    create::{
+        calculate_score::{calculate_and_add_token_score_in_doc, calculate_token_score_for_entry},
+        create_fulltext::AllTermsAndDocumentBuilder,
+        fields_config::config_from_string,
+        path_data::{prepare_path_data, PathData},
+        write_docs::write_docs,
+    },
     error::*,
     indices::{persistence_score::token_to_anchor_score_vint::*, *},
+    metadata::FulltextIndexOptions,
     persistence::{self, Persistence, *},
     search, search_field,
     util::{self, StringAdd, *},
@@ -38,7 +38,8 @@ use serde_json::{self, Deserializer, Value};
 use std::{
     self,
     fs::File,
-    io::{self, BufRead}, str,
+    io::{self, BufRead},
+    str,
 };
 use term_hashmap;
 
@@ -167,7 +168,6 @@ pub(crate) struct TermDataInPath {
 //     assert_eq!(yep, vec![ValIdPair::new(10 as u32, 2 as u32)]);
 // }
 
-
 fn is_1_to_n(path: &str) -> bool {
     path.contains("[]")
 }
@@ -291,7 +291,6 @@ where
             }
 
             if data.fulltext_options.tokenize {
-
                 let tokenizer = data.fulltext_options.tokenizer.as_ref().expect(&format!("no tokenizer created for {:?}", path));
                 if tokenizer.has_tokens(value) {
                     let mut current_token_pos = 0;
@@ -347,7 +346,6 @@ where
                     // phrase_to_anchor_id.clear();
                     tokens_ids.clear();
                 }
-                
             }
             Ok(())
         };

@@ -1,9 +1,11 @@
+use crate::{
+    error::VelociError,
+    indices::metadata::*,
+    tokenizer::{Tokenizer, *},
+    util,
+};
+use fnv::{FnvHashMap, FnvHashSet};
 use std::sync::Arc;
-use crate::tokenizer::Tokenizer;
-use fnv::FnvHashSet;
-use crate::{ error::VelociError, indices::metadata::*, util};
-use fnv::FnvHashMap;
-use crate::tokenizer::*;
 
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
 pub struct PeristenceMetaData {
@@ -17,7 +19,7 @@ impl PeristenceMetaData {
         let json = util::file_as_string(&(folder.to_string() + "/metaData.json"))?;
         let mut obj: PeristenceMetaData = serde_json::from_str(&json)?;
 
-        for (_key, val) in &mut obj.columns{
+        for (_key, val) in &mut obj.columns {
             val.textindex_metadata.options.create_tokenizer(); //  TODO reuse default tokenizer
         }
         Ok(obj)
@@ -53,7 +55,6 @@ pub struct FulltextIndexOptions {
     #[serde(default = "default_text_length_store")]
     pub do_not_store_text_longer_than: usize,
 }
-
 
 #[derive(Serialize, Deserialize, Debug, Clone, Copy)]
 #[serde(rename_all = "lowercase")]
@@ -96,15 +97,16 @@ impl FulltextIndexOptions {
     pub fn create_tokenizer(&mut self) {
         if self.tokenize {
             if let Some(tokenize_on_chars) = &self.tokenize_on_chars {
-                let t = SimpleTokenizerCharsIterateGroupTokens{seperators:tokenize_on_chars.to_vec()};
+                let t = SimpleTokenizerCharsIterateGroupTokens {
+                    seperators: tokenize_on_chars.to_vec(),
+                };
                 self.tokenizer = Some(Arc::new(t));
-            }else{
+            } else {
                 self.tokenizer = Some(Arc::new(SimpleTokenizerCharsIterateGroupTokens::default()));
             }
         }
     }
 }
-
 
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
 pub struct TextIndexValuesMetadata {

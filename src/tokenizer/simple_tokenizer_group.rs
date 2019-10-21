@@ -1,11 +1,10 @@
 use crate::tokenizer::*;
 
-
-/// This will group consecutive seperator tokens 
+/// This will group consecutive seperator tokens
 /// "ok---nice" -> ["ok", "---", "nice"]
 #[derive(Debug)]
 pub struct SimpleTokenizerCharsIterateGroupTokens {
-    pub seperators: Vec<char>
+    pub seperators: Vec<char>,
 }
 impl Tokenizer for SimpleTokenizerCharsIterateGroupTokens {
     fn has_tokens(&self, text: &str) -> bool {
@@ -42,21 +41,18 @@ impl Tokenizer for SimpleTokenizerCharsIterateGroupTokens {
     //     }
     // }
 
-    fn iter<'a>(&'a self, original: &'a str) -> Box<dyn Iterator<Item = (&'a str, bool)> + 'a>
-    {
+    fn iter<'a>(&'a self, original: &'a str) -> Box<dyn Iterator<Item = (&'a str, bool)> + 'a> {
         Box::new(SimpleTokenizerGroupTokenIter::from_str(original, &self.seperators))
     }
 }
 
 impl Default for SimpleTokenizerCharsIterateGroupTokens {
     fn default() -> SimpleTokenizerCharsIterateGroupTokens {
-        SimpleTokenizerCharsIterateGroupTokens{
-            seperators: DEFAULT_SEPERATORS.to_vec()
+        SimpleTokenizerCharsIterateGroupTokens {
+            seperators: DEFAULT_SEPERATORS.to_vec(),
         }
     }
 }
-
-
 
 // #[derive(Debug, Clone)]
 // pub struct SimpleTokenizerGroupTokenIter<'a> {
@@ -163,6 +159,3 @@ impl<'a, 'b> Iterator for SimpleTokenizerGroupTokenIter<'a, 'b> {
         }
     }
 }
-
-
-

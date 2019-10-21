@@ -1,6 +1,6 @@
 mod simple_tokenizer;
-use std::fmt::Debug;
 pub use simple_tokenizer::*;
+use std::fmt::Debug;
 
 mod simple_tokenizer_group;
 pub use simple_tokenizer_group::*;
@@ -22,7 +22,9 @@ lazy_static! {
     static ref SEPERATORS:Regex = Regex::new(r#"(?P<seperator>[\s:\(\),.…;・’\-\[\]{}<>'"“]+)"#).unwrap();
 }
 
-pub const DEFAULT_SEPERATORS: [char;26] =  [' ' , '\t' , '\n' , '\r' , ':' , '(' , ')' , ',' , '.' , '…' , ';' , '・' , '’' , '—' , '-' , '\\' , '[' , ']' , '{' , '}' , '<' , '>' , '\'' , '"' , '“' , '™'];
+pub const DEFAULT_SEPERATORS: [char; 26] = [
+    ' ', '\t', '\n', '\r', ':', '(', ')', ',', '.', '…', ';', '・', '’', '—', '-', '\\', '[', ']', '{', '}', '<', '>', '\'', '"', '“', '™',
+];
 
 fn is_default_seperator(char: char) -> bool {
     match char {
@@ -32,7 +34,6 @@ fn is_default_seperator(char: char) -> bool {
         _ => false,
     }
 }
-
 
 // pub trait TokenizerIter {
 //     fn iter_tokens(&self) -> SimpleTokenizerGroupTokenIter;
@@ -54,7 +55,6 @@ fn is_default_seperator(char: char) -> bool {
 //     }
 // }
 
-
 #[cfg(test)]
 mod tests {
     #[allow(unused_imports)]
@@ -75,7 +75,7 @@ mod tests {
     #[test]
     fn test_tokenizer_control_sequences_grouped() {
         let tokenizer = SimpleTokenizerCharsIterateGroupTokens::default();
-        let vec: Vec<_> =  tokenizer.iter("das \n ist ein txt, test").map(|(token, _is_seperator)| {token}).collect();
+        let vec: Vec<_> = tokenizer.iter("das \n ist ein txt, test").map(|(token, _is_seperator)| token).collect();
         assert_eq!(vec, vec!["das", " \n ", "ist", " ", "ein", " ", "txt", ", ", "test"])
     }
     #[test]
@@ -88,14 +88,14 @@ mod tests {
     fn test_tokenizer_control_sequences_alt() {
         let tokenizer = SimpleTokenizer {};
         assert_eq!(tokenizer.has_tokens("das \n ist ein txt, test"), true);
-        let vec: Vec<_> =  tokenizer.iter("das \n ist ein txt, test",).map(|(token, _is_seperator)| {token}).collect();
+        let vec: Vec<_> = tokenizer.iter("das \n ist ein txt, test").map(|(token, _is_seperator)| token).collect();
         assert_eq!(vec, vec!["das", " ", "\n", " ", "ist", " ", "ein", " ", "txt", ",", " ", "test"])
     }
     #[test]
     fn test_tokenize_taschenbuch_start_with_seperator() {
         let tokenizer = SimpleTokenizerCharsIterateGroupTokens::default();
         // let mut vec: Vec<String> = vec![];
-        let vec: Vec<_> =  tokenizer.iter(" Taschenbuch (kartoniert)").map(|(token, _is_seperator)| {token}).collect();
+        let vec: Vec<_> = tokenizer.iter(" Taschenbuch (kartoniert)").map(|(token, _is_seperator)| token).collect();
         // tokenizer.get_tokens(" Taschenbuch (kartoniert)", &mut |token: &str, _is_seperator: bool| {
         //     vec.push(token.to_string());
         // });
@@ -105,7 +105,7 @@ mod tests {
     fn test_tokenize_start_with_single_token() {
         let tokenizer = SimpleTokenizerCharsIterateGroupTokens::default();
         // let mut vec: Vec<String> = vec![];
-        let vec: Vec<_> =  tokenizer.iter("T oll").map(|(token, _is_seperator)| {token}).collect();
+        let vec: Vec<_> = tokenizer.iter("T oll").map(|(token, _is_seperator)| token).collect();
         // tokenizer.get_tokens("T oll", &mut |token: &str, _is_seperator: bool| {
         //     vec.push(token.to_string());
         // });
@@ -170,7 +170,7 @@ mod tests {
         let text = get_test_book();
         b.iter(|| {
             // let mut vec = vec![];
-            let vec: Vec<&str> = tokenizer.iter(&text).map(|(token, _is_seperator)| {token}).collect();
+            let vec: Vec<&str> = tokenizer.iter(&text).map(|(token, _is_seperator)| token).collect();
             vec
         })
     }
@@ -181,7 +181,9 @@ mod tests {
         let text = get_test_book();
         b.iter(|| {
             // let mut vec = vec![];
-            let vec: Vec<&str> = SimpleTokenizerGroupTokenIter::from_str(&text, &DEFAULT_SEPERATORS).map(|(token, _is_seperator)| {token}).collect();
+            let vec: Vec<&str> = SimpleTokenizerGroupTokenIter::from_str(&text, &DEFAULT_SEPERATORS)
+                .map(|(token, _is_seperator)| token)
+                .collect();
             vec
         })
     }

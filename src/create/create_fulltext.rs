@@ -1,8 +1,7 @@
-use crate::create::write_docs::DocWriteRes;
-use std::sync::Arc;
 use self::fields_config::FieldsConfig;
 use crate::{
-	metadata::FulltextIndexOptions,
+    create::write_docs::DocWriteRes,
+    metadata::FulltextIndexOptions,
     persistence::{Persistence, *},
     tokenizer::*,
     util::StringAdd,
@@ -13,7 +12,7 @@ use json_converter;
 use log;
 use num::ToPrimitive;
 use serde_json;
-use std::{self, io, str};
+use std::{self, io, str, sync::Arc};
 
 use super::*;
 
@@ -126,7 +125,7 @@ pub(crate) fn get_allterms_per_path<I: Iterator<Item = Result<serde_json::Value,
                 ..Default::default()
             });
 
-            add_text(value, &mut terms_data, &options, options.tokenizer.as_ref().unwrap_or_else(||&default_tokenizer));
+            add_text(value, &mut terms_data, &options, options.tokenizer.as_ref().unwrap_or_else(|| &default_tokenizer));
             Ok(())
         };
         let mut callback_ids = |_anchor_id: u32, _path: &str, _value_id: u32, _parent_val_id: u32| -> Result<(), io::Error> { Ok(()) };

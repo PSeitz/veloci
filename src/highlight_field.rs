@@ -1,13 +1,12 @@
-use std::sync::Arc;
 use crate::{
     error::VelociError,
     persistence::{self, Persistence, *},
     search::*,
     tokenizer::*,
-    util::{StringAdd},
+    util::StringAdd,
 };
 use fnv::FnvHashMap;
-use std::{self, cmp, str};
+use std::{self, cmp, str, sync::Arc};
 
 use fnv::FnvHashSet;
 #[allow(unused_imports)]
@@ -90,8 +89,8 @@ pub fn highlight_text(text: &str, set: &FnvHashSet<String>, opt: &SnippetInfo, t
     let mut contains_any_token = false;
 
     // hit complete text
-    if set.contains(text){
-        return Some(opt.snippet_start_tag.to_string() + text + &opt.snippet_end_tag)
+    if set.contains(text) {
+        return Some(opt.snippet_start_tag.to_string() + text + &opt.snippet_end_tag);
     }
 
     let mut tokens = vec![];
@@ -147,29 +146,46 @@ mod tests {
     #[test]
     fn test_highlight_text() {
         assert_eq!(
-            highlight_text("mein treffer", &vec!["treffer"].iter().map(|el| el.to_string()).collect(), &DEFAULT_SNIPPETINFO, &get_test_tokenizer()).unwrap(),
+            highlight_text(
+                "mein treffer",
+                &vec!["treffer"].iter().map(|el| el.to_string()).collect(),
+                &DEFAULT_SNIPPETINFO,
+                &get_test_tokenizer()
+            )
+            .unwrap(),
             "mein <b>treffer</b>"
         );
         assert_eq!(
             highlight_text(
                 "mein treffer treffers",
                 &vec!["treffers", "treffer"].iter().map(|el| el.to_string()).collect(),
-                &DEFAULT_SNIPPETINFO, &get_test_tokenizer()
+                &DEFAULT_SNIPPETINFO,
+                &get_test_tokenizer()
             )
             .unwrap(),
             "mein <b>treffer</b> <b>treffers</b>"
         );
         assert_eq!(
-            highlight_text("Schön-Hans", &vec!["Hans"].iter().map(|el| el.to_string()).collect(), &DEFAULT_SNIPPETINFO, &get_test_tokenizer()).unwrap(),
+            highlight_text(
+                "Schön-Hans",
+                &vec!["Hans"].iter().map(|el| el.to_string()).collect(),
+                &DEFAULT_SNIPPETINFO,
+                &get_test_tokenizer()
+            )
+            .unwrap(),
             "Schön-<b>Hans</b>"
         );
         assert_eq!(
-            highlight_text("Schön-Hans", &vec!["Haus"].iter().map(|el| el.to_string()).collect(), &DEFAULT_SNIPPETINFO, &get_test_tokenizer()),
+            highlight_text(
+                "Schön-Hans",
+                &vec!["Haus"].iter().map(|el| el.to_string()).collect(),
+                &DEFAULT_SNIPPETINFO,
+                &get_test_tokenizer()
+            ),
             None
         );
     }
 }
-
 
 pub(crate) fn highlight_on_original_document(persistence: &Persistence, doc: &str, why_found_terms: &FnvHashMap<String, FnvHashSet<String>>) -> FnvHashMap<String, Vec<String>> {
     let mut highlighted_texts: FnvHashMap<_, Vec<_>> = FnvHashMap::default();
@@ -180,7 +196,21 @@ pub(crate) fn highlight_on_original_document(persistence: &Persistence, doc: &st
         let mut cb_text = |_anchor_id: u32, value: &str, field_name: &str, _parent_val_id: u32| -> Result<(), serde_json::error::Error> {
             let path_text = field_name.add(TEXTINDEX);
             if let Some(terms) = why_found_terms.get(&path_text) {
-                if let Some(highlighted) = highlight_text(value, &terms, &DEFAULT_SNIPPETINFO, &persistence.metadata.columns.get(field_name).expect(&format!("could not find metadata for {:?}", field_name)).textindex_metadata.options.tokenizer.as_ref().unwrap()) {
+                if let Some(highlighted) = highlight_text(
+                    value,
+                    &terms,
+                    &DEFAULT_SNIPPETINFO,
+                    &persistence
+                        .metadata
+                        .columns
+                        .get(field_name)
+                        .expect(&format!("could not find metadata for {:?}", field_name))
+                        .textindex_metadata
+                        .options
+                        .tokenizer
+                        .as_ref()
+                        .unwrap(),
+                ) {
                     let jepp = highlighted_texts.entry(field_name.to_string()).or_default();
                     jepp.push(highlighted);
                 }

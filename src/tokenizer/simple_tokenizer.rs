@@ -1,6 +1,6 @@
 use crate::tokenizer::*;
 
-/// This will group consecutive seperator tokens 
+/// This will group consecutive seperator tokens
 /// "ok---nice" -> ["ok", "-", "-", "-", "nice"]
 #[derive(Debug)]
 pub struct SimpleTokenizer {}
@@ -33,12 +33,10 @@ impl Tokenizer for SimpleTokenizer {
     //     }
     // }
 
-    fn iter<'a>(&'a self, original: &'a str) -> Box<dyn Iterator<Item = (&'a str, bool)> + 'a>
-    {
+    fn iter<'a>(&'a self, original: &'a str) -> Box<dyn Iterator<Item = (&'a str, bool)> + 'a> {
         Box::new(SimpleTokenIter::from_str(original))
     }
 }
-
 
 #[derive(Debug, Clone)]
 pub struct SimpleTokenIter<'a> {
@@ -64,7 +62,7 @@ impl<'a> Iterator for SimpleTokenIter<'a> {
 
     #[inline]
     fn next(&mut self) -> Option<(&'a str, bool)> {
-         while let Some((char_byte_pos, char)) = self.char_iter.next() {
+        while let Some((char_byte_pos, char)) = self.char_iter.next() {
             if is_default_seperator(char) {
                 if char_byte_pos == 0 {
                     self.last_was_token = true;

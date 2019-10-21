@@ -60,7 +60,10 @@ fn test_minimal_with_filter_identity_column_test() {
     assert_eq!(hits.len(), 1);
 
     // panic!("{}", serde_json::to_string_pretty(&TEST_PERSISTENCE.metadata.columns).unwrap());
-    assert_eq!(TEST_PERSISTENCE.metadata.columns.get("field").expect("field.textindex not found").is_anchor_identity_column, true);
+    assert_eq!(
+        TEST_PERSISTENCE.metadata.columns.get("field").expect("field.textindex not found").is_anchor_identity_column,
+        true
+    );
     assert_eq!(hits[0].doc["field"], "test");
 }
 

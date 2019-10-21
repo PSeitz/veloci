@@ -1,9 +1,6 @@
-use crate::persistence::Persistence;
-use crate::error::VelociError;
+use crate::{error::VelociError, persistence::Persistence};
 use doc_store::DocWriter;
-use std::{
-    mem, str,
-};
+use std::{mem, str};
 
 #[derive(Debug)]
 pub(crate) struct DocWriteRes {

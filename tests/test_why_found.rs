@@ -81,7 +81,6 @@ fn should_highlight_properly_with_custom_tokenized() {
     let hits = search_testo_to_doc!(req).data;
     assert_eq!(hits[0].why_found["custom_tokenized"], vec!["test<b>§</b>_ cool _"]);
 
-
     let req = json!({
         "search": {
             "terms":["_ cool _"],
@@ -103,7 +102,6 @@ fn should_highlight_properly_with_custom_tokenized() {
 
     let hits = search_testo_to_doc!(req).data;
     assert_eq!(hits[0].why_found["custom_tokenized"], vec!["<b><<</b>cool>>"]);
-
 }
 
 //TODO FIXME BUG: THIS API SHOULD TOKENIZE THE TERM appropriately. CURRENTLY NO TOKENIZING IS DONE, AND THEREFORE NOTHING IS HIT
@@ -125,7 +123,6 @@ fn should_highlight_properly_with_custom_tokenized() {
 //TODO ADD TEST FOR WITHOUT WHY_FOUND
 #[test]
 fn should_highlight_properly_when_complete_text_is_hit() {
-
     let req = json!({
         "search": {
             "terms":["<<cool>>"],
@@ -136,7 +133,6 @@ fn should_highlight_properly_when_complete_text_is_hit() {
 
     let hits = search_testo_to_doc!(req).data;
     assert_eq!(hits[0].why_found["custom_tokenized"], vec!["<b><<cool>></b>"]);
-
 }
 
 #[test]
@@ -152,7 +148,6 @@ fn should_not_hit_because_in_custom_tokenizer_space_is_not_a_seperator() {
     let hits = search_testo_to_doc!(req).data;
     assert_eq!(hits.len(), 0);
 }
-
 
 #[test]
 fn should_add_why_found_terms_highlight_tokens_and_also_text_ids() {
