@@ -29,19 +29,6 @@ use ordered_float::OrderedFloat;
 use rayon::prelude::*;
 use serde_json;
 
-// #[derive(Serialize, Deserialize, Clone, Debug)]
-// pub enum SearchOperation {
-//     And(Vec<SearchOperation>),
-//     Or(Vec<SearchOperation>),
-//     Search(RequestSearchPart),
-// }
-
-// impl Default for SearchOperation {
-//     fn default() -> SearchOperation {
-//         SearchOperation::Search(Default::default())
-//     }
-// }
-
 #[derive(Serialize, Deserialize, Default, Clone, Debug)]
 pub struct Request {
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -251,12 +238,6 @@ pub struct SearchResult {
     pub why_found_terms: FnvHashMap<String, Vec<String>>,
 }
 
-// #[derive(Serialize, Deserialize, Default, Clone, Debug)]
-// pub struct FilterResult {
-//     pub hits_vec: Vec<TermId>,
-//     pub hits_ids: FnvHashSet<TermId>,
-// }
-
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub enum FilterResult {
     Vec(Vec<TermId>),
@@ -273,7 +254,6 @@ impl FilterResult {
                 filter.insert(*id);
             }
             FilterResult::Set(filter)
-            // FilterResult::Set(res.iter().collect())
         }
     }
 }

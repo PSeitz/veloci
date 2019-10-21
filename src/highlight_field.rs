@@ -4,7 +4,7 @@ use crate::{
     persistence::{self, Persistence, *},
     search::*,
     tokenizer::*,
-    util::{extract_field_name, StringAdd},
+    util::{StringAdd},
 };
 use fnv::FnvHashMap;
 use std::{self, cmp, str};
@@ -140,31 +140,31 @@ pub fn highlight_text(text: &str, set: &FnvHashSet<String>, opt: &SnippetInfo, t
 mod tests {
     use super::*;
 
-    fn get_default_tokenizer() -> Arc<dyn Tokenizer> {
+    fn get_test_tokenizer() -> Arc<dyn Tokenizer> {
         Arc::new(SimpleTokenizerCharsIterateGroupTokens::default())
     }
 
     #[test]
     fn test_highlight_text() {
         assert_eq!(
-            highlight_text("mein treffer", &vec!["treffer"].iter().map(|el| el.to_string()).collect(), &DEFAULT_SNIPPETINFO, &get_default_tokenizer()).unwrap(),
+            highlight_text("mein treffer", &vec!["treffer"].iter().map(|el| el.to_string()).collect(), &DEFAULT_SNIPPETINFO, &get_test_tokenizer()).unwrap(),
             "mein <b>treffer</b>"
         );
         assert_eq!(
             highlight_text(
                 "mein treffer treffers",
                 &vec!["treffers", "treffer"].iter().map(|el| el.to_string()).collect(),
-                &DEFAULT_SNIPPETINFO, &get_default_tokenizer()
+                &DEFAULT_SNIPPETINFO, &get_test_tokenizer()
             )
             .unwrap(),
             "mein <b>treffer</b> <b>treffers</b>"
         );
         assert_eq!(
-            highlight_text("Schön-Hans", &vec!["Hans"].iter().map(|el| el.to_string()).collect(), &DEFAULT_SNIPPETINFO, &get_default_tokenizer()).unwrap(),
+            highlight_text("Schön-Hans", &vec!["Hans"].iter().map(|el| el.to_string()).collect(), &DEFAULT_SNIPPETINFO, &get_test_tokenizer()).unwrap(),
             "Schön-<b>Hans</b>"
         );
         assert_eq!(
-            highlight_text("Schön-Hans", &vec!["Haus"].iter().map(|el| el.to_string()).collect(), &DEFAULT_SNIPPETINFO, &get_default_tokenizer()),
+            highlight_text("Schön-Hans", &vec!["Haus"].iter().map(|el| el.to_string()).collect(), &DEFAULT_SNIPPETINFO, &get_test_tokenizer()),
             None
         );
     }
