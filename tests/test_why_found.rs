@@ -121,22 +121,23 @@ fn should_highlight_properly_with_custom_tokenized() {
 //     assert_eq!(hits[0].why_found["custom_tokenized"], vec!["<b><<cool</b>>>"]);
 
 // }
-//TODO FIXME BUG: NO HIGHLIGHTING IS DONE, TODO ADD TEST FOR WITHOUT WHY_FOUND
-// #[test]
-// fn should_highlight_properly_when_complete_text_is_hit() {
 
-//     let req = json!({
-//         "search": {
-//             "terms":["<<cool>>"],
-//             "path": "custom_tokenized",
-//         },
-//         "why_found":true
-//     });
+//TODO ADD TEST FOR WITHOUT WHY_FOUND
+#[test]
+fn should_highlight_properly_when_complete_text_is_hit() {
 
-//     let hits = search_testo_to_doc!(req).data;
-//     assert_eq!(hits[0].why_found["custom_tokenized"], vec!["<b><<cool>></b>"]);
+    let req = json!({
+        "search": {
+            "terms":["<<cool>>"],
+            "path": "custom_tokenized",
+        },
+        "why_found":true
+    });
 
-// }
+    let hits = search_testo_to_doc!(req).data;
+    assert_eq!(hits[0].why_found["custom_tokenized"], vec!["<b><<cool>></b>"]);
+
+}
 
 #[test]
 fn should_not_hit_because_in_custom_tokenizer_space_is_not_a_seperator() {
