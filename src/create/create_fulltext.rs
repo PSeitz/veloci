@@ -1,3 +1,4 @@
+use crate::create::write_docs::DocWriteRes;
 use std::sync::Arc;
 use self::fields_config::FieldsConfig;
 use crate::{
@@ -15,6 +16,14 @@ use serde_json;
 use std::{self, io, str};
 
 use super::*;
+
+#[derive(Debug, Default)]
+pub struct AllTermsAndDocumentBuilder {
+    offsets: Vec<u64>,
+    current_offset: u64,
+    pub(crate) id_holder: json_converter::IDHolder,
+    pub(crate) terms_in_path: FnvHashMap<String, TermDataInPath>,
+}
 
 pub(crate) fn store_full_text_info_and_set_ids(
     persistence: &Persistence,

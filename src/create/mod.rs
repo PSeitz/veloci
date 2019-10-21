@@ -2,7 +2,16 @@ mod create_fulltext;
 mod fast_lines;
 mod features;
 mod fields_config;
+mod calculate_score;
+mod write_docs;
+mod path_data;
 
+use crate::create::create_fulltext::AllTermsAndDocumentBuilder;
+use crate::create::path_data::PathData;
+use crate::create::path_data::prepare_path_data;
+use crate::create::write_docs::write_docs;
+use crate::create::calculate_score::calculate_token_score_for_entry;
+use crate::create::calculate_score::calculate_and_add_token_score_in_doc;
 use crate::create::fields_config::config_from_string;
 use crate::metadata::FulltextIndexOptions;
 use self::{fast_lines::FastLinesTrait, features::IndexCreationType, fields_config::FieldsConfig};
@@ -11,12 +20,11 @@ use crate::{
     indices::{persistence_score::token_to_anchor_score_vint::*, *},
     persistence::{self, Persistence, *},
     search, search_field,
-    tokenizer::*,
     util::{self, StringAdd, *},
 };
 use buffered_index_writer::{self, BufferedIndexWriter};
 use create_fulltext::{get_allterms_per_path, store_full_text_info_and_set_ids};
-use doc_store::DocWriter;
+
 use fixedbitset::FixedBitSet;
 use fnv::FnvHashMap;
 use fst;
@@ -30,8 +38,7 @@ use serde_json::{self, Deserializer, Value};
 use std::{
     self,
     fs::File,
-    io::{self, BufRead},
-    mem, str,
+    io::{self, BufRead}, str,
 };
 use term_hashmap;
 
@@ -103,51 +110,6 @@ where
     }
 }
 
-fn calculate_and_add_token_score_in_doc(
-    tokens_to_anchor_id: &mut Vec<ValIdPairToken>,
-    anchor_id: u32,
-    num_tokens_in_text: u32,
-    index: &mut BufferedIndexWriter<u32, (u32, u32)>,
-) -> Result<(), io::Error> {
-    // Sort by tokenid, token_pos
-    tokens_to_anchor_id.sort_unstable_by(|a, b| {
-        let sort_valid = a.token_or_text_id.cmp(&b.token_or_text_id);
-        if sort_valid == std::cmp::Ordering::Equal {
-            a.token_pos.cmp(&b.token_pos)
-        } else {
-            sort_valid
-        }
-    });
-
-    for (_, mut group) in &tokens_to_anchor_id.iter_mut().group_by(|el| el.token_or_text_id) {
-        if let Some(first) = group.next() {
-            let best_pos = first.token_pos;
-            let num_occurences = first.num_occurences;
-            let score = calculate_token_score_for_entry(best_pos, num_occurences, num_tokens_in_text, false);
-            index.add(first.token_or_text_id, (anchor_id, score))?;
-        }
-    }
-    Ok(())
-}
-
-#[inline]
-fn calculate_token_score_for_entry(token_best_pos: u32, num_occurences: u32, num_tokens_in_text: u32, is_exact: bool) -> u32 {
-    let mut score = if is_exact { 400. } else { 2000. / ((token_best_pos as f32 + 10.).log2() + 10.) };
-    let mut num_occurence_modifier = (num_occurences as f32 + 1000.).log10() - 2.; // log 1000 is 3
-    num_occurence_modifier -= (num_occurence_modifier - 1.) * 0.7; //reduce by 70%
-    score /= num_occurence_modifier;
-    let mut text_length_modifier = ((num_tokens_in_text + 10) as f32).log10();
-    text_length_modifier -= (text_length_modifier - 1.) * 0.7; //reduce by 70%
-    score /= text_length_modifier;
-    let score = score as u32;
-    debug_assert_ne!(
-        score, 0,
-        "token_best_pos:{:?} num_occurences:{:?} num_tokens_in_text:{:?} {:?}",
-        token_best_pos, num_occurences, num_tokens_in_text, is_exact
-    );
-    score
-}
-
 #[derive(Debug, Default)]
 pub struct CreateCache {
     term_data: AllTermsAndDocumentBuilder,
@@ -159,14 +121,6 @@ pub(crate) struct TermDataInPath {
     /// does not store texts longer than this in the fst in bytes
     pub(crate) do_not_store_text_longer_than: usize,
     pub(crate) id_counter_for_large_texts: u32,
-}
-
-#[derive(Debug, Default)]
-pub struct AllTermsAndDocumentBuilder {
-    offsets: Vec<u64>,
-    current_offset: u64,
-    id_holder: json_converter::IDHolder,
-    terms_in_path: FnvHashMap<String, TermDataInPath>,
 }
 
 // fn check_similarity(data: &FnvHashMap<String, TermMap>) {
@@ -213,62 +167,6 @@ pub struct AllTermsAndDocumentBuilder {
 //     assert_eq!(yep, vec![ValIdPair::new(10 as u32, 2 as u32)]);
 // }
 
-#[derive(Debug)]
-struct BufferedTextIdToTokenIdsData {
-    text_id_flag: FixedBitSet,
-    data: BufferedIndexWriter,
-}
-
-// impl Default for BufferedTextIdToTokenIdsData {
-//     fn default() -> BufferedTextIdToTokenIdsData {
-//         BufferedTextIdToTokenIdsData {
-//             text_id_flag: FixedBitSet::default(),
-//             data: BufferedIndexWriter::new_stable_sorted(), // Stable sort, else the token_ids will be reorderer in the wrong order
-//         }
-//     }
-// }
-
-impl BufferedTextIdToTokenIdsData {
-    #[inline]
-    fn contains(&self, text_id: u32) -> bool {
-        self.text_id_flag.contains(text_id as usize)
-    }
-
-    #[inline]
-    fn flag(&mut self, text_id: u32) {
-        if self.text_id_flag.len() <= text_id as usize {
-            self.text_id_flag.grow(text_id as usize + 1);
-        }
-        self.text_id_flag.insert(text_id as usize);
-    }
-
-    #[inline]
-    fn add_all(&mut self, text_id: u32, token_ids: &[u32]) -> Result<(), io::Error> {
-        self.flag(text_id);
-        self.data.add_all(text_id, token_ids)
-    }
-}
-
-#[derive(Debug, Default)]
-struct PathData {
-    tokens_to_text_id: Option<Box<BufferedIndexWriter>>,
-    token_to_anchor_id_score: Option<Box<BufferedIndexWriter<u32, (u32, u32)>>>,
-    phrase_pair_to_anchor: Option<Box<BufferedIndexWriter<(u32, u32), u32>>>, // phrase_pair
-    text_id_to_token_ids: Option<Box<BufferedTextIdToTokenIdsData>>,
-    text_id_to_parent: Option<Box<BufferedIndexWriter>>,
-
-    /// Used to recreate objects, keep oder
-    parent_to_text_id: Option<Box<BufferedIndexWriter>>,
-    /// Used to recreate objects, keep oder
-    value_id_to_anchor: Option<Box<BufferedIndexWriter>>,
-    text_id_to_anchor: Option<Box<BufferedIndexWriter>>,
-    anchor_to_text_id: Option<Box<BufferedIndexWriter>>,
-    boost: Option<Box<BufferedIndexWriter>>,
-    fulltext_options: FulltextIndexOptions,
-    is_anchor_identity_column: bool,
-    skip_tokenizing: bool,
-    term_data: TermDataInPath,
-}
 
 fn is_1_to_n(path: &str) -> bool {
     path.contains("[]")
@@ -304,90 +202,6 @@ struct PathDataIds {
     value_to_parent: Option<BufferedIndexWriter>,
     parent_to_value: Option<BufferedIndexWriter>,
     value_to_anchor: Option<BufferedIndexWriter>,
-}
-
-fn prepare_path_data(temp_dir: &str, persistence: &Persistence, fields_config: &FieldsConfig, path: &str, term_data: TermDataInPath) -> PathData {
-    let field_config = fields_config.get(path);
-    let boost_info_data = if field_config.boost.is_some() {
-        Some(Box::new(BufferedIndexWriter::new_for_sorted_id_insertion(temp_dir.to_string())))
-    } else {
-        None
-    };
-    // prepare direct access to resolve boost values directly to anchor
-    let value_id_to_anchor = if field_config.boost.is_some() {
-        Some(Box::new(BufferedIndexWriter::<u32, u32>::new_for_sorted_id_insertion(temp_dir.to_string())))
-    } else {
-        None
-    };
-    let anchor_to_text_id = if field_config.facet && is_1_to_n(path) {
-        //Create facet index only for 1:N
-        // anchor_id is monotonically increasing, hint buffered index writer, it's already sorted
-        Some(Box::new(BufferedIndexWriter::new_for_sorted_id_insertion(temp_dir.to_string())))
-    } else {
-        None
-    };
-
-    let get_buffered_if_enabled = |val: IndexCreationType| -> Option<Box<BufferedIndexWriter>> {
-        if field_config.is_index_enabled(val) {
-            Some(Box::new(BufferedIndexWriter::new_unstable_sorted(temp_dir.to_string())))
-        } else {
-            None
-        }
-    };
-
-    let tokens_to_text_id = get_buffered_if_enabled(IndexCreationType::TokensToTextID);
-    let text_id_to_parent = get_buffered_if_enabled(IndexCreationType::TextIDToParent);
-    let text_id_to_anchor = get_buffered_if_enabled(IndexCreationType::TextIDToAnchor);
-    let phrase_pair_to_anchor = if field_config.is_index_enabled(IndexCreationType::PhrasePairToAnchor) {
-        Some(Box::new(BufferedIndexWriter::new_unstable_sorted(temp_dir.to_string())))
-    } else {
-        None
-    };
-    let text_id_to_token_ids = if field_config.is_index_enabled(IndexCreationType::TextIDToTokenIds) {
-        Some(Box::new(BufferedTextIdToTokenIdsData {
-            text_id_flag: FixedBitSet::default(),
-            data: BufferedIndexWriter::new_stable_sorted(temp_dir.to_string()), // Stable sort, else the token_ids will be reorderer in the wrong order
-        }))
-    } else {
-        None
-    };
-    let parent_to_text_id = if field_config.is_index_enabled(IndexCreationType::ParentToTextID) {
-        Some(Box::new(BufferedIndexWriter::new_for_sorted_id_insertion(temp_dir.to_string())))
-    } else {
-        None
-    };
-
-    let token_to_anchor_id_score = if field_config.is_index_enabled(IndexCreationType::TokenToAnchorIDScore) {
-        Some(Box::new(BufferedIndexWriter::<u32, (u32, u32)>::new_unstable_sorted(temp_dir.to_string())))
-    } else {
-        None
-    };
-
-    let fulltext_options = field_config.fulltext.clone().unwrap_or_else(FulltextIndexOptions::new_with_tokenize);
-
-    let skip_tokenizing = if !fulltext_options.tokenize {
-        fulltext_options.tokenize
-    } else {
-        tokens_to_text_id.is_none() && token_to_anchor_id_score.is_none() && phrase_pair_to_anchor.is_none()
-    };
-
-    PathData {
-        anchor_to_text_id,
-        boost: boost_info_data,
-        value_id_to_anchor,
-        // parent_id is monotonically increasing, hint buffered index writer, it's already sorted
-        parent_to_text_id,
-        token_to_anchor_id_score,
-        tokens_to_text_id,
-        text_id_to_parent,
-        text_id_to_anchor,
-        phrase_pair_to_anchor,
-        text_id_to_token_ids,
-        fulltext_options,
-        skip_tokenizing,
-        is_anchor_identity_column: persistence.metadata.columns.get(path).map(|el| el.is_anchor_identity_column).unwrap_or(false),
-        term_data,
-    }
 }
 
 fn get_text_info(all_terms: &mut TermDataInPath, value: &str) -> TermInfo {
@@ -574,39 +388,6 @@ where
     std::mem::swap(&mut create_cache.term_data.id_holder, &mut id_holder);
 
     Ok((path_data, tuples_to_parent_in_path))
-}
-
-#[derive(Debug)]
-pub(crate) struct DocWriteRes {
-    pub(crate) num_doc_ids: u32,
-    pub(crate) bytes_indexed: u64,
-    pub(crate) offset: u64,
-}
-
-fn write_docs<K, S: AsRef<str>>(persistence: &mut Persistence, stream3: K) -> Result<DocWriteRes, VelociError>
-where
-    K: Iterator<Item = S>,
-{
-    info_time!("write_docs");
-    let mut file_out = persistence.get_buffered_writer("data")?;
-
-    // let mut doc_store = DocWriter::new(create_cache.term_data.current_offset);
-    let mut doc_store = DocWriter::new(0);
-    for doc in stream3 {
-        doc_store.add_doc(doc.as_ref(), &mut file_out)?;
-    }
-    doc_store.finish(&mut file_out)?;
-    // create_cache.term_data.current_offset = doc_store.current_offset;
-    use std::slice;
-    let slice = unsafe { slice::from_raw_parts(doc_store.offsets.as_ptr() as *const u8, doc_store.offsets.len() * mem::size_of::<(u32, u64)>()) };
-    persistence.write_data_offset(slice, &doc_store.offsets)?;
-    persistence.metadata.num_docs = doc_store.curr_id.into();
-    persistence.metadata.bytes_indexed = doc_store.bytes_indexed;
-    Ok(DocWriteRes {
-        num_doc_ids: doc_store.curr_id,
-        bytes_indexed: doc_store.bytes_indexed,
-        offset: doc_store.current_offset,
-    })
 }
 
 /// Only trace im data
