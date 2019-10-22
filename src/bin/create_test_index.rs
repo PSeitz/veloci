@@ -89,7 +89,6 @@ fn create_jmdict_index() -> Result<(), io::Error> {
         &mut search_lib::persistence::Persistence::create("jmdict".to_string()).unwrap(),
         "jmdict_split.json",
         JMDICT_INDICES,
-        None,
         false,
     )
     .unwrap();
@@ -283,7 +282,7 @@ fn create_single_data_index_() -> Result<(), io::Error> {
             .collect::<Vec<_>>();
 
         let mut persistence = search_lib::persistence::Persistence::create_type("single_data".to_string(), search_lib::persistence::PersistenceType::Transient).unwrap();
-        search_lib::create::create_indices_from_str(&mut persistence, &serde_json::to_string_pretty(&books).unwrap(), indices, None, false).unwrap();
+        search_lib::create::create_indices_from_str(&mut persistence, &serde_json::to_string_pretty(&books).unwrap(), indices, false).unwrap();
     }
 
     Ok(())
@@ -308,7 +307,6 @@ fn create_book_index() -> Result<(), io::Error> {
         &mut search_lib::persistence::Persistence::create("gutenberg".to_string()).unwrap(),
         &serde_json::to_string_pretty(&books).unwrap(),
         indices,
-        None,
         false,
     )
     .unwrap();

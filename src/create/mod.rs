@@ -5,6 +5,8 @@ mod features;
 mod fields_config;
 mod path_data;
 mod write_docs;
+mod token_values_to_tokens;
+pub use token_values_to_tokens::*;
 
 use self::{fast_lines::FastLinesTrait, features::IndexCreationType, fields_config::FieldsConfig};
 use crate::{
@@ -19,7 +21,6 @@ use crate::{
     indices::{persistence_score::token_to_anchor_score_vint::*, *},
     metadata::FulltextIndexOptions,
     persistence::{self, Persistence, *},
-    search, search_field,
     util::{self, StringAdd, *},
 };
 use buffered_index_writer::{self, BufferedIndexWriter};
@@ -34,7 +35,7 @@ use log;
 use memmap::MmapOptions;
 use num::ToPrimitive;
 use rayon::prelude::*;
-use serde_json::{self, Deserializer, Value};
+use serde_json::{self};
 use std::{
     self,
     fs::File,
@@ -51,11 +52,6 @@ const NUM_TERM_LIMIT_MSG: &str = "number of terms per field is currently limited
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct FacetIndex {
     facet: String,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct TokenValuesConfig {
-    path: String,
 }
 
 #[derive(Debug, Default, Clone, Copy)]
@@ -111,10 +107,10 @@ where
     }
 }
 
-#[derive(Debug, Default)]
-pub struct CreateCache {
-    term_data: AllTermsAndDocumentBuilder,
-}
+// #[derive(Debug, Default)]
+// pub struct CreateCache {
+//     term_data: AllTermsAndDocumentBuilder,
+// }
 
 #[derive(Debug, Default)]
 pub(crate) struct TermDataInPath {
@@ -229,7 +225,7 @@ fn parse_json_and_prepare_indices<I>(
     stream1: I,
     persistence: &Persistence,
     fields_config: &FieldsConfig,
-    create_cache: &mut CreateCache,
+    term_data: &mut AllTermsAndDocumentBuilder,
 ) -> Result<(FnvHashMap<String, PathData>, FnvHashMap<String, PathDataIds>), io::Error>
 where
     I: Iterator<Item = Result<serde_json::Value, serde_json::Error>>,
@@ -247,11 +243,10 @@ where
 
         let mut cb_text = |anchor_id: u32, value: &str, path: &str, parent_val_id: u32| -> Result<(), io::Error> {
             let data: &mut PathData = get_or_insert_prefer_get(&mut path_data as *mut FnvHashMap<_, _>, path, || {
-                let term_data = create_cache
-                    .term_data
+                let term_data = term_data
                     .terms_in_path
                     .remove(path)
-                    .unwrap_or_else(|| panic!("Couldn't find path in create_cache.term_data {:?}", path));
+                    .unwrap_or_else(|| panic!("Couldn't find path in term_data {:?}", path));
                 prepare_path_data(&persistence.temp_dir(), &persistence, &fields_config, path, term_data)
             });
 
@@ -383,7 +378,7 @@ where
         json_converter::for_each_element(stream1, &mut id_holder, &mut cb_text, &mut callback_ids)?;
     }
 
-    std::mem::swap(&mut create_cache.term_data.id_holder, &mut id_holder);
+    // std::mem::swap(&mut create_cache.term_data.id_holder, &mut id_holder);
 
     Ok((path_data, tuples_to_parent_in_path))
 }
@@ -815,13 +810,47 @@ fn convert_raw_path_data_to_indices(
     Ok(indices)
 }
 
+
+pub fn convert_any_json_data_to_line_delimited<I: std::io::Read, O: std::io::Write>(input: I, mut out: O) -> Result<(), io::Error> {
+    let stream = serde_json::Deserializer::from_reader(input).into_iter::<serde_json::Value>();
+
+    for value in stream {
+        let value = value?;
+        if let Some(arr) = value.as_array() {
+            for el in arr {
+                out.write_all(el.to_string().as_bytes())?;
+                out.write_all(b"\n")?;
+            }
+        } else {
+            out.write_all(value.to_string().as_bytes())?;
+            out.write_all(b"\n")?;
+        }
+    }
+    Ok(())
+}
+
+#[test]
+fn test_json_to_line_delimited() {
+    let value = r#"[
+        {"a": "b"},
+        {"c": "d"}
+    ]"#;
+    let mut out: Vec<u8> = vec![];
+    convert_any_json_data_to_line_delimited(value.as_bytes(), &mut out).unwrap();
+    assert_eq!(String::from_utf8(out).unwrap(), "{\"a\":\"b\"}\n{\"c\":\"d\"}\n");
+
+    let value = r#"{  "a": "b"}{"c": "d"}"#;
+    let mut out: Vec<u8> = vec![];
+    convert_any_json_data_to_line_delimited(value.as_bytes(), &mut out).unwrap();
+    assert_eq!(String::from_utf8(out).unwrap(), "{\"a\":\"b\"}\n{\"c\":\"d\"}\n");
+}
+
 pub fn create_fulltext_index<I, J, K, S: AsRef<str>>(
     stream1: I,
     stream2: J,
     stream3: K,
     mut persistence: &mut Persistence,
     indices_json: &FieldsConfig,
-    _create_cache: &mut CreateCache,
     load_persistence: bool,
 ) -> Result<(), VelociError>
 where
@@ -829,16 +858,15 @@ where
     J: Iterator<Item = Result<serde_json::Value, serde_json::Error>>,
     K: Iterator<Item = S>,
 {
-    let mut create_cache = CreateCache::default();
+    let mut term_data = AllTermsAndDocumentBuilder::default();
 
     let doc_write_res = write_docs(&mut persistence, stream3)?;
-    get_allterms_per_path(stream1, &indices_json, &mut create_cache.term_data)?;
+    get_allterms_per_path(stream1, &indices_json, &mut term_data)?;
 
     let default_fulltext_options = FulltextIndexOptions::new_with_tokenize();
     {
         info_time!("set term ids and write fst");
-        let reso: Result<FnvHashMap<String, FieldInfo>, io::Error> = create_cache
-            .term_data
+        let reso: Result<FnvHashMap<String, FieldInfo>, io::Error> = term_data
             .terms_in_path
             .par_iter_mut()
             .map(|(path, mut terms_data)| {
@@ -866,21 +894,21 @@ where
 
         info!(
             "All text memory {}",
-            persistence::get_readable_size(create_cache.term_data.terms_in_path.iter().map(|el| el.1.terms.memory_footprint()).sum())
+            persistence::get_readable_size(term_data.terms_in_path.iter().map(|el| el.1.terms.memory_footprint()).sum())
         );
         info!(
             "All raw text data memory {}",
-            persistence::get_readable_size(create_cache.term_data.terms_in_path.iter().map(|el| el.1.terms.total_size_of_text_data()).sum())
+            persistence::get_readable_size(term_data.terms_in_path.iter().map(|el| el.1.terms.total_size_of_text_data()).sum())
         );
     }
 
     // check_similarity(&data.terms_in_path);
     info_time!("create and (write) fulltext_index");
-    trace!("all_terms {:?}", create_cache.term_data.terms_in_path);
+    trace!("all_terms {:?}", term_data.terms_in_path);
 
-    let (mut path_data, tuples_to_parent_in_path) = parse_json_and_prepare_indices(stream2, &persistence, &indices_json, &mut create_cache)?;
+    let (mut path_data, tuples_to_parent_in_path) = parse_json_and_prepare_indices(stream2, &persistence, &indices_json, &mut term_data)?;
 
-    std::mem::drop(create_cache);
+    // std::mem::drop(create_cache);
 
     if log_enabled!(log::Level::Trace) {
         trace_indices(&mut path_data);
@@ -990,131 +1018,29 @@ where
     //TEST FST AS ID MAPPER
     Ok(())
 }
-#[derive(Serialize, Deserialize, Debug)]
-struct TokenValueData {
-    text: String,
-    value: Option<u32>,
-}
-use crate::plan_creator::execution_plan::PlanRequestSearchPart;
-pub fn add_token_values_to_tokens(persistence: &mut Persistence, data_str: &str, config: &str) -> Result<(), VelociError> {
-    let data: Vec<TokenValueData> = serde_json::from_str(data_str)?;
-    let config: TokenValuesConfig = serde_json::from_str(config)?;
-
-    let mut options: search::RequestSearchPart = search::RequestSearchPart {
-        path: config.path.clone(),
-        levenshtein_distance: Some(0),
-        ..Default::default()
-    };
-
-    let mut buffered_index_data = BufferedIndexWriter::new_unstable_sorted(persistence.temp_dir());
-
-    for el in data {
-        if let Some(value) = el.value {
-            options.terms = vec![el.text];
-            options.ignore_case = Some(false);
-
-            let mut options = PlanRequestSearchPart {
-                request: options.clone(),
-                get_scores: true,
-                ..Default::default()
-            };
-
-            let hits = search_field::get_term_ids_in_field(persistence, &mut options)?;
-            if !hits.hits_scores.is_empty() {
-                // tuples.push(ValIdToValue {
-                //     valid: hits.hits_scores[0].id,
-                //     value: el.value.unwrap(),
-                // });
-                buffered_index_data.add(hits.hits_scores[0].id, value)?;
-            }
-        }
-    }
-
-    let path = config.path.add(TEXTINDEX).add(TOKEN_VALUES).add(BOOST_VALID_TO_VALUE);
-    let mut store = buffered_index_to_direct_index(&persistence.db, &path, buffered_index_data)?;
-
-    store.flush()?;
-    let index_metadata = IndexMetadata {
-        loading_type: LoadingType::InMemory,
-        index_category: IndexCategory::Boost,
-        path: path.to_string(),
-        is_empty: store.is_empty(),
-        metadata: store.metadata,
-        index_cardinality: IndexCardinality::IndexIdToOneParent,
-        data_type: DataType::U32,
-    };
-
-    let entry = persistence.metadata.columns.entry(config.path).or_insert_with(|| FieldInfo {
-        has_fst: false,
-        ..Default::default()
-    });
-    entry.indices.push(index_metadata);
-    persistence.write_metadata()?;
-
-    //TODO FIX LOAD FOR IN_MEMORY
-    let store = SingleArrayMMAPPacked::<u32>::from_file(&persistence.get_file_handle(&path)?, store.metadata)?;
-    persistence.indices.boost_valueid_to_value.insert(path.to_string(), Box::new(store));
-    Ok(())
-}
-
-pub fn convert_any_json_data_to_line_delimited<I: std::io::Read, O: std::io::Write>(input: I, mut out: O) -> Result<(), io::Error> {
-    let stream = Deserializer::from_reader(input).into_iter::<Value>();
-
-    for value in stream {
-        let value = value?;
-        if let Some(arr) = value.as_array() {
-            for el in arr {
-                out.write_all(el.to_string().as_bytes())?;
-                out.write_all(b"\n")?;
-            }
-        } else {
-            out.write_all(value.to_string().as_bytes())?;
-            out.write_all(b"\n")?;
-        }
-    }
-    Ok(())
-}
-
-#[test]
-fn test_json_to_line_delimited() {
-    let value = r#"[
-        {"a": "b"},
-        {"c": "d"}
-    ]"#;
-    let mut out: Vec<u8> = vec![];
-    convert_any_json_data_to_line_delimited(value.as_bytes(), &mut out).unwrap();
-    assert_eq!(String::from_utf8(out).unwrap(), "{\"a\":\"b\"}\n{\"c\":\"d\"}\n");
-
-    let value = r#"{  "a": "b"}{"c": "d"}"#;
-    let mut out: Vec<u8> = vec![];
-    convert_any_json_data_to_line_delimited(value.as_bytes(), &mut out).unwrap();
-    assert_eq!(String::from_utf8(out).unwrap(), "{\"a\":\"b\"}\n{\"c\":\"d\"}\n");
-}
 
 pub fn create_indices_from_str(
     persistence: &mut Persistence,
     data_str: &str,
     indices: &str,
-    create_cache: Option<CreateCache>,
     load_persistence: bool,
-) -> Result<(CreateCache), VelociError> {
+) -> Result<(), VelociError> {
     let stream1 = data_str.lines().map(|line| serde_json::from_str(&line));
     let stream2 = data_str.lines().map(|line| serde_json::from_str(&line));
 
-    create_indices_from_streams(persistence, stream1, stream2, data_str.lines(), indices, create_cache, load_persistence)
+    create_indices_from_streams(persistence, stream1, stream2, data_str.lines(), indices, load_persistence)
 }
 pub fn create_indices_from_file(
     persistence: &mut Persistence,
     data_path: &str,
     indices: &str,
-    create_cache: Option<CreateCache>,
     load_persistence: bool,
-) -> Result<(CreateCache), VelociError> {
+) -> Result<(), VelociError> {
     let stream1 = std::io::BufReader::new(File::open(data_path)?).fast_lines();
     let stream2 = std::io::BufReader::new(File::open(data_path)?).fast_lines();
     let stream3 = std::io::BufReader::new(File::open(data_path)?).lines().map(|line| line.unwrap());
 
-    create_indices_from_streams(persistence, stream1, stream2, stream3, indices, create_cache, load_persistence)
+    create_indices_from_streams(persistence, stream1, stream2, stream3, indices, load_persistence)
 }
 
 pub fn create_indices_from_streams<I, J, K, S: AsRef<str>>(
@@ -1123,9 +1049,8 @@ pub fn create_indices_from_streams<I, J, K, S: AsRef<str>>(
     stream2: J,
     stream3: K,
     indices: &str,
-    create_cache: Option<CreateCache>,
     load_persistence: bool,
-) -> Result<(CreateCache), VelociError>
+) -> Result<(), VelociError>
 where
     I: Iterator<Item = Result<serde_json::Value, serde_json::Error>>,
     J: Iterator<Item = Result<serde_json::Value, serde_json::Error>>,
@@ -1135,10 +1060,9 @@ where
 
     let mut indices_json: FieldsConfig = config_from_string(indices)?;
     indices_json.features_to_indices()?;
-    let mut create_cache = create_cache.unwrap_or_else(CreateCache::default);
-    create_fulltext_index(stream1, stream2, stream3, &mut persistence, &indices_json, &mut create_cache, load_persistence)?;
+    create_fulltext_index(stream1, stream2, stream3, &mut persistence, &indices_json, load_persistence)?;
 
     info_time!("write json and metadata {:?}", persistence.db);
 
-    Ok(create_cache)
+    Ok(())
 }

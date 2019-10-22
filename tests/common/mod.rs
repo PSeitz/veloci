@@ -42,7 +42,7 @@ pub fn create_test_persistence_with_logging(
 
     let mut out: Vec<u8> = vec![];
     search_lib::create::convert_any_json_data_to_line_delimited(test_data, &mut out).unwrap();
-    println!("{:?}", create::create_indices_from_str(&mut pers, std::str::from_utf8(&out).unwrap(), indices, None, true));
+    println!("{:?}", create::create_indices_from_str(&mut pers, std::str::from_utf8(&out).unwrap(), indices, true));
 
     {
         if let Some(token_values) = token_values {

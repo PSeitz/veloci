@@ -35,7 +35,7 @@ fn main() {
     let target = matches.value_of("target").unwrap();
 
     start_profiler("./create-prof.profile");
-    search_lib::create::create_indices_from_file(&mut search_lib::persistence::Persistence::create(target.to_string()).unwrap(), file, &config, None, false).unwrap();
+    search_lib::create::create_indices_from_file(&mut search_lib::persistence::Persistence::create(target.to_string()).unwrap(), file, &config, false).unwrap();
     stop_profiler();
 }
 
