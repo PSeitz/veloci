@@ -1,3 +1,4 @@
+use crate::search::request::*;
 use super::*;
 use crate::steps::FieldPath;
 

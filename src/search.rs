@@ -1,9 +1,11 @@
 pub(crate) mod boost;
 pub mod search_field;
+pub mod request;
 pub mod search_field_result;
 mod set_op;
 pub mod stopwords;
 
+pub use crate::search::request::*;
 pub(crate) use self::boost::*;
 pub use self::{search_field::*, search_field_result::*, set_op::*};
 use super::highlight_field;
@@ -15,65 +17,16 @@ use crate::{
     plan_creator::{execution_plan::*, plan::*},
     util::{self, *},
 };
-
 use std::{
     self,
     cmp::{self, Ordering},
     f32, mem, str, u32,
 };
-
 use crate::persistence::{Persistence, *};
 use doc_store::DocLoader;
 use fnv::{FnvHashMap, FnvHashSet};
-use ordered_float::OrderedFloat;
 use rayon::prelude::*;
 use serde_json;
-
-#[derive(Serialize, Deserialize, Default, Clone, Debug)]
-pub struct Request {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    /// or/and/search and suggest are mutually exclusive
-    pub or: Option<Vec<Request>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    /// or/and/search and suggest are mutually exclusive
-    pub and: Option<Vec<Request>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    /// or/and/search and suggest are mutually exclusive
-    pub search: Option<RequestSearchPart>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    /// or/and/search and suggest are mutually exclusive
-    pub suggest: Option<Vec<RequestSearchPart>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub boost: Option<Vec<RequestBoostPart>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub boost_term: Option<Vec<RequestSearchPart>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub facets: Option<Vec<FacetRequest>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    /// list of requests tuples to phrase boost
-    pub phrase_boosts: Option<Vec<RequestPhraseBoost>>,
-
-    /// only return selected fields
-    pub select: Option<Vec<String>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    /// filter does not affect the score, it just filters the result
-    pub filter: Option<Box<Request>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    #[serde(default = "default_top")]
-    pub top: Option<usize>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    #[serde(default = "default_skip")]
-    pub skip: Option<usize>,
-    #[serde(skip_serializing_if = "skip_false")]
-    #[serde(default)]
-    pub why_found: bool,
-    #[serde(skip_serializing_if = "skip_false")]
-    #[serde(default)]
-    pub text_locality: bool,
-    #[serde(skip_serializing_if = "skip_false")]
-    #[serde(default)]
-    pub explain: bool,
-}
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 enum TextLocalitySetting {
@@ -92,135 +45,11 @@ pub fn skip_false(val: &bool) -> bool {
     !*val
 }
 
-#[derive(Serialize, Deserialize, Default, Clone, Debug)]
-pub struct FacetRequest {
-    pub field: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    #[serde(default = "default_top")]
-    pub top: Option<usize>,
-}
-
 fn default_top() -> Option<usize> {
     Some(10)
 }
 fn default_skip() -> Option<usize> {
     None
-}
-
-#[derive(Serialize, Deserialize, Default, Clone, Debug, Hash, PartialEq, Eq, PartialOrd)]
-pub struct RequestSearchPart {
-    pub path: String,
-    pub terms: Vec<String>, //TODO only first term used currently
-
-    #[serde(skip_serializing)]
-    #[serde(default)]
-    pub explain: bool,
-
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub levenshtein_distance: Option<u32>,
-
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub starts_with: Option<bool>,
-
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub token_value: Option<RequestBoostPart>,
-
-    /// boosts the search part with this value
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub boost: Option<OrderedFloat<f32>>,
-
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub top: Option<usize>,
-
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub skip: Option<usize>,
-
-    /// default is true
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub ignore_case: Option<bool>,
-
-    /// return the snippet hit
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub snippet: Option<bool>,
-
-    /// Override default SnippetInfo
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub snippet_info: Option<SnippetInfo>,
-}
-
-impl Ord for RequestSearchPart {
-    fn cmp(&self, other: &RequestSearchPart) -> Ordering {
-        format!("{:?}", self).cmp(&format!("{:?}", other))
-    }
-}
-
-#[derive(Serialize, Deserialize, Default, Clone, Debug, Hash, PartialEq, Eq)]
-pub struct RequestPhraseBoost {
-    pub search1: RequestSearchPart,
-    pub search2: RequestSearchPart,
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug, Hash, PartialEq, Eq, PartialOrd)]
-pub struct SnippetInfo {
-    #[serde(default = "default_num_words_around_snippet")]
-    pub num_words_around_snippet: i64,
-    #[serde(default = "default_snippet_start")]
-    pub snippet_start_tag: String,
-    #[serde(default = "default_snippet_end")]
-    pub snippet_end_tag: String,
-    #[serde(default = "default_snippet_connector")]
-    pub snippet_connector: String,
-    #[serde(default = "default_max_snippets")]
-    pub max_snippets: u32,
-}
-
-fn default_num_words_around_snippet() -> i64 {
-    5
-}
-fn default_snippet_start() -> String {
-    "<b>".to_string()
-}
-fn default_snippet_end() -> String {
-    "</b>".to_string()
-}
-fn default_snippet_connector() -> String {
-    " ... ".to_string()
-}
-fn default_max_snippets() -> u32 {
-    std::u32::MAX
-}
-
-lazy_static! {
-    pub(crate) static ref DEFAULT_SNIPPETINFO: SnippetInfo = SnippetInfo {
-        num_words_around_snippet: default_num_words_around_snippet(),
-        snippet_start_tag: default_snippet_start(),
-        snippet_end_tag: default_snippet_end(),
-        snippet_connector: default_snippet_connector(),
-        max_snippets: default_max_snippets(),
-    };
-}
-
-#[derive(Serialize, Deserialize, Default, Clone, Debug, Hash, PartialEq, Eq, PartialOrd)]
-pub struct RequestBoostPart {
-    pub path: String,
-    pub boost_fun: Option<BoostFunction>,
-    pub param: Option<OrderedFloat<f32>>,
-    pub skip_when_score: Option<Vec<OrderedFloat<f32>>>,
-    pub expression: Option<String>,
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug, Hash, PartialEq, Eq, PartialOrd)]
-pub enum BoostFunction {
-    Log2,
-    Log10,
-    Multiply,
-    Add,
-}
-
-impl Default for BoostFunction {
-    fn default() -> BoostFunction {
-        BoostFunction::Log10
-    }
 }
 
 #[derive(Serialize, Deserialize, Default, Clone, Debug)]
