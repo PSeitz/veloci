@@ -22,7 +22,7 @@ script:
 - cargo test --manifest-path=$TEST_DIR/Cargo.toml
 
 before_cache: |
-  RUSTFLAGS="--cfg procmacro2_semver_exempt" cargo install --git https://github.com/PSeitz/tarpaulin.git --branch develop --force
+  cargo install cargo-tarpaulin --force
 
 after_success: |
   # Uncomment the following line for coveralls.io
