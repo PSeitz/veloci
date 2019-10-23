@@ -9,14 +9,14 @@ addons:
 rust:
   - nightly
 env:
-  - TEST_DIR=./ PersistenceType=Persistent LoadingType=Disk RUST_BACKTRACE=full RUST_LOG=search_lib=trace FlushThreshold=20
-  - TEST_DIR=./ PersistenceType=Persistent LoadingType=InMemory RUST_BACKTRACE=full RUST_LOG=search_lib=trace
-  - TEST_DIR=./ PersistenceType=Transient RUST_BACKTRACE=full RUST_LOG=search_lib=trace
-  - TEST_DIR=buffered_index_writer
-  - TEST_DIR=parser
-  - TEST_DIR=doc_store
-  - TEST_DIR=server
-  - TEST_DIR=json_converter
+  - TEST_DIR=./Cargo.toml PersistenceType=Persistent LoadingType=Disk RUST_BACKTRACE=full RUST_LOG=search_lib=trace FlushThreshold=20
+  - TEST_DIR=./Cargo.toml PersistenceType=Persistent LoadingType=InMemory RUST_BACKTRACE=full RUST_LOG=search_lib=trace
+  - TEST_DIR=./Cargo.toml PersistenceType=Transient RUST_BACKTRACE=full RUST_LOG=search_lib=trace
+  - TEST_DIR=buffered_index_writer/Cargo.toml
+  - TEST_DIR=parser/Cargo.toml
+  - TEST_DIR=doc_store/Cargo.toml
+  - TEST_DIR=server/Cargo.toml
+  - TEST_DIR=json_converter/Cargo.toml
 script:
 - cargo build --manifest-path=$TEST_DIR/Cargo.toml
 - cargo test --manifest-path=$TEST_DIR/Cargo.toml
@@ -26,8 +26,8 @@ before_cache: |
 
 after_success: |
   # Uncomment the following line for coveralls.io
-  RAYON_NUM_THREADS=1 cargo tarpaulin --manifest-path=$TEST_DIR/Cargo.toml --all --exclude-files "src/bin/*" "benches/*" --ciserver travis-ci --coveralls $TRAVIS_JOB_ID
+  RAYON_NUM_THREADS=1 cargo tarpaulin --manifest-path=$TEST_DIR --all --exclude-files "src/bin/*" "benches/*" --ciserver travis-ci --coveralls $TRAVIS_JOB_ID
 
   # Uncomment the following two lines create and upload a report for codecov.io
-  RAYON_NUM_THREADS=1 cargo tarpaulin --manifest-path=$TEST_DIR/Cargo.toml --all --exclude-files "src/bin/*" "benches/*" --out Xml
+  RAYON_NUM_THREADS=1 cargo tarpaulin --manifest-path=$TEST_DIR --all --exclude-files "src/bin/*" "benches/*" --out Xml
   bash <(curl -s https://codecov.io/bash)
