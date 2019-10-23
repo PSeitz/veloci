@@ -9,7 +9,7 @@ extern crate serde_json;
 #[macro_use]
 extern crate more_asserts;
 
-use search_lib::*;
+use veloci::*;
 use serde_json::Value;
 
 #[macro_use]
@@ -854,7 +854,7 @@ fn should_use_search_on_field_for_suggest_without_sorting_etc() {
     });
     let requesto: search::RequestSearchPart = serde_json::from_str(&req.to_string()).expect("Can't parse json");
     let mut pers = &TEST_PERSISTENCE;
-    use search_lib::plan_creator::execution_plan::PlanRequestSearchPart;
+    use veloci::plan_creator::execution_plan::PlanRequestSearchPart;
     let mut requesto = PlanRequestSearchPart {
         request: requesto,
         return_term: true,

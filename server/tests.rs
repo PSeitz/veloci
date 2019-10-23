@@ -3,7 +3,7 @@ mod test {
     use super::super::rocket;
     use rocket::local::Client;
 
-    use search_lib::*;
+    use veloci::*;
     use rocket::{
         http::{ContentType, Status},
     };

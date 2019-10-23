@@ -9,7 +9,7 @@ extern crate serde_json;
 #[macro_use]
 extern crate more_asserts;
 
-use search_lib::*;
+use veloci::*;
 use serde_json::Value;
 
 #[macro_use]

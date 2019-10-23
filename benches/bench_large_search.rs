@@ -13,7 +13,7 @@ extern crate flexi_logger;
 extern crate serde_json;
 
 extern crate rand;
-extern crate search_lib;
+extern crate veloci;
 extern crate serde;
 extern crate test;
 
@@ -21,7 +21,7 @@ extern crate test;
 extern crate criterion;
 
 use criterion::Criterion;
-use search_lib::*;
+use veloci::*;
 static TEST_FOLDER: &str = "bench_taschenbuch";
 
 
@@ -56,7 +56,7 @@ fn search_freestyle(term: &str, pers: &persistence::Persistence) -> Vec<search::
 }
 
 fn searches(c: &mut Criterion) {
-    // search_lib::trace::enable_log();
+    // veloci::trace::enable_log();
     let pers = load_persistence_disk();
 
     // c.bench_function("jmdict_search_anschauen", |b| b.iter(|| search("anschauen", &pers, 1)));

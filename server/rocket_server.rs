@@ -34,7 +34,7 @@ use rocket::{
 };
 use rocket_contrib::json::Json;
 use rocket_cors::{AllowedHeaders, AllowedOrigins};
-use search_lib::{
+use veloci::{
     doc_store::*,
     error::VelociError,
     persistence::{self, Persistence},
@@ -168,7 +168,7 @@ fn version() -> String {
     "0.7".to_string()
 }
 
-fn search_in_persistence(persistence: &Persistence, request: search_lib::search::Request) -> Result<SearchResult, VelociError> {
+fn search_in_persistence(persistence: &Persistence, request: veloci::search::Request) -> Result<SearchResult, VelociError> {
     // info!("Searching ... ");
     let select = request.select.clone();
     let hits = {
@@ -458,8 +458,8 @@ fn search_error_to_rocket_error(err: VelociError) -> Custom<String> {
 
 //     let resp = process_upload(boundary, data).map_err(search_error_to_rocket_error)?;
 
-//     search_lib::create::create_indices_from_str(
-//         &mut search_lib::persistence::Persistence::create(database.to_string()).unwrap(),
+//     veloci::create::create_indices_from_str(
+//         &mut veloci::persistence::Persistence::create(database.to_string()).unwrap(),
 //         &resp.0,
 //         &resp.1.unwrap_or("[]".to_string()),
 //         None,
@@ -511,7 +511,7 @@ fn search_error_to_rocket_error(err: VelociError) -> Custom<String> {
 //             .readable()?;
 
 //         let mut data: Vec<u8> = vec![];
-//         search_lib::create::convert_any_json_data_to_line_delimited(data_reader, &mut data)?;
+//         veloci::create::convert_any_json_data_to_line_delimited(data_reader, &mut data)?;
 //         return Ok((unsafe { String::from_utf8_unchecked(data) }, Some(config)));
 //     }
 
@@ -522,7 +522,7 @@ fn search_error_to_rocket_error(err: VelociError) -> Custom<String> {
 //         .ok_or_else(|| VelociError::StringError(format!("expecting data field, but got {:?}", entries.fields.keys().collect::<Vec<_>>())))?[0]
 //         .data
 //         .readable()?;
-//     search_lib::create::convert_any_json_data_to_line_delimited(data_reader, &mut data)?;
+//     veloci::create::convert_any_json_data_to_line_delimited(data_reader, &mut data)?;
 //     Ok((unsafe { String::from_utf8_unchecked(data) }, None))
 // }
 
@@ -534,10 +534,10 @@ fn search_error_to_rocket_error(err: VelociError) -> Custom<String> {
 // //     }
 
 // //     let mut out: Vec<u8> = vec![];
-// //     search_lib::create::convert_any_json_data_to_line_delimited(data.open(), &mut out).unwrap();
+// //     veloci::create::convert_any_json_data_to_line_delimited(data.open(), &mut out).unwrap();
 
-// //     search_lib::create::create_indices_from_str(
-// //         &mut search_lib::persistence::Persistence::create(database).unwrap(),
+// //     veloci::create::create_indices_from_str(
+// //         &mut veloci::persistence::Persistence::create(database).unwrap(),
 // //         unsafe { std::str::from_utf8_unchecked(&out) },
 // //         "[]",
 // //         None,
@@ -646,7 +646,7 @@ fn rocket() -> rocket::Rocket {
 }
 
 fn main() {
-    search_lib::trace::enable_log();
+    veloci::trace::enable_log();
 
     for preload_db in std::env::args().skip(1) {
         ensure_database(&preload_db).unwrap();

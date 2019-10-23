@@ -11,7 +11,7 @@ extern crate criterion;
 
 use criterion::Criterion;
 // use rand::distributions::Range;
-use search_lib::{doc_store::*, search::*, *};
+use veloci::{doc_store::*, search::*, *};
 static TEST_FOLDER: &str = "jmdict";
 
 use std::env;

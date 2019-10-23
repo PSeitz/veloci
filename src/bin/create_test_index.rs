@@ -3,7 +3,7 @@
 #[macro_use]
 extern crate measure_time;
 
-use search_lib;
+use veloci;
 #[macro_use]
 extern crate serde_json;
 
@@ -20,7 +20,7 @@ use std::{
 use rayon::prelude::*;
 
 fn main() {
-    search_lib::trace::enable_log();
+    veloci::trace::enable_log();
     std::env::args().nth(1).expect("require command line parameter");
 
     for jeppo in std::env::args().skip(1) {
@@ -36,7 +36,7 @@ fn main() {
 // #[allow(dead_code)]
 // fn create_jmdict_index_shards() -> Result<(), io::Error> {
 //     let threshold_bytes: usize = std::env::args().nth(2).expect("require command line parameter").parse().unwrap();
-//     let mut jmdict_shards = search_lib::shards::Shards::new("jmdict_shards".to_string());
+//     let mut jmdict_shards = veloci::shards::Shards::new("jmdict_shards".to_string());
 
 //     let start = std::time::Instant::now();
 //     let mut lines = String::new();
@@ -85,8 +85,8 @@ const JMDICT_INDICES: &str = r#"
 fn create_jmdict_index() -> Result<(), io::Error> {
     // PROFILER.lock().unwrap().start("./my-prof.profile").unwrap();
 
-    search_lib::create::create_indices_from_file(
-        &mut search_lib::persistence::Persistence::create("jmdict".to_string()).unwrap(),
+    veloci::create::create_indices_from_file(
+        &mut veloci::persistence::Persistence::create("jmdict".to_string()).unwrap(),
         "jmdict_split.json",
         JMDICT_INDICES,
         false,
@@ -281,8 +281,8 @@ fn create_single_data_index_() -> Result<(), io::Error> {
             })
             .collect::<Vec<_>>();
 
-        let mut persistence = search_lib::persistence::Persistence::create_type("single_data".to_string(), search_lib::persistence::PersistenceType::Transient).unwrap();
-        search_lib::create::create_indices_from_str(&mut persistence, &serde_json::to_string_pretty(&books).unwrap(), indices, false).unwrap();
+        let mut persistence = veloci::persistence::Persistence::create_type("single_data".to_string(), veloci::persistence::PersistenceType::Transient).unwrap();
+        veloci::create::create_indices_from_str(&mut persistence, &serde_json::to_string_pretty(&books).unwrap(), indices, false).unwrap();
     }
 
     Ok(())
@@ -303,8 +303,8 @@ fn create_book_index() -> Result<(), io::Error> {
         books += &double;
     }
 
-    search_lib::create::create_indices_from_str(
-        &mut search_lib::persistence::Persistence::create("gutenberg".to_string()).unwrap(),
+    veloci::create::create_indices_from_str(
+        &mut veloci::persistence::Persistence::create("gutenberg".to_string()).unwrap(),
         &serde_json::to_string_pretty(&books).unwrap(),
         indices,
         false,

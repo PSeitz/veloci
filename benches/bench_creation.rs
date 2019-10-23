@@ -2,7 +2,7 @@
 
 #[macro_use]
 extern crate criterion;
-extern crate search_lib;
+extern crate veloci;
 #[macro_use]
 extern crate serde_json;
 extern crate test;
@@ -12,7 +12,7 @@ mod bench_creation {
 
     use criterion::Criterion;
 
-    use search_lib::*;
+    use veloci::*;
     use serde_json::Value;
     use serde_json;
     use std::fs::File;

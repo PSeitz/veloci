@@ -61,11 +61,10 @@ pub struct Request {
     pub skip: Option<usize>,
 
     /// Enables highlighting to show where in the text the tokens have hit
-    /// each document hit will contain informatio with a list of hightlighted text per field
+    /// each document in [`SearchResult`] hit will contain informatio with a list of hightlighted text per field
     /// When select is enabled, the selected field will be reconstructed from the indices and why_found will be active during reconstruction.
     /// When select is not enabled, why_found will tokenize the hits and apply hightlighting with the list of term hits on the field.
     /// see also test boost_text_localitaet in tests folder
-    /// [`SearchResult`]: ../SearchResult.html
     #[serde(skip_serializing_if = "skip_false")]
     #[serde(default)]
     pub why_found: bool,

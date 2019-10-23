@@ -1,4 +1,4 @@
-use search_lib;
+use veloci;
 use serde::de::{Deserializer, SeqAccess, Visitor};
 use std::{
     fs::File,
@@ -26,7 +26,7 @@ struct Opt {
 }
 
 fn main() -> Result<(), io::Error> {
-    search_lib::trace::enable_log();
+    veloci::trace::enable_log();
     let opt = Opt::from_args();
 
     let mut file = File::open(&opt.input).unwrap();
@@ -63,7 +63,7 @@ fn main() -> Result<(), io::Error> {
         let action = JsonArrayVisitor { out: File::create(opt.output)? };
         de.deserialize_seq(action)?;
     } else {
-        search_lib::create::convert_any_json_data_to_line_delimited(BufReader::new(File::open(opt.input)?), BufWriter::new(File::create(opt.output)?))?;
+        veloci::create::convert_any_json_data_to_line_delimited(BufReader::new(File::open(opt.input)?), BufWriter::new(File::create(opt.output)?))?;
     }
 
     Ok(())

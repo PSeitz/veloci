@@ -1,4 +1,4 @@
-use search_lib::*;
+use veloci::*;
 
 #[macro_export]
 macro_rules! assert_contains {
@@ -41,7 +41,7 @@ pub fn create_test_persistence_with_logging(
     let mut pers = persistence::Persistence::create_type(path.to_string(), persistence_type.clone()).unwrap();
 
     let mut out: Vec<u8> = vec![];
-    search_lib::create::convert_any_json_data_to_line_delimited(test_data, &mut out).unwrap();
+    veloci::create::convert_any_json_data_to_line_delimited(test_data, &mut out).unwrap();
     println!("{:?}", create::create_indices_from_str(&mut pers, std::str::from_utf8(&out).unwrap(), indices, true));
 
     {

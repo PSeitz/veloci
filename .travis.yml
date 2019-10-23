@@ -9,9 +9,9 @@ addons:
 rust:
   - nightly
 env:
-  - TEST_DIR=Cargo.toml PersistenceType=Persistent LoadingType=Disk RUST_BACKTRACE=full RUST_LOG=search_lib=trace FlushThreshold=20
-  - TEST_DIR=Cargo.toml PersistenceType=Persistent LoadingType=InMemory RUST_BACKTRACE=full RUST_LOG=search_lib=trace
-  - TEST_DIR=Cargo.toml PersistenceType=Transient RUST_BACKTRACE=full RUST_LOG=search_lib=trace
+  - TEST_DIR=Cargo.toml PersistenceType=Persistent LoadingType=Disk RUST_BACKTRACE=full RUST_LOG=veloci=trace FlushThreshold=20
+  - TEST_DIR=Cargo.toml PersistenceType=Persistent LoadingType=InMemory RUST_BACKTRACE=full RUST_LOG=veloci=trace
+  - TEST_DIR=Cargo.toml PersistenceType=Transient RUST_BACKTRACE=full RUST_LOG=veloci=trace
   - TEST_DIR=buffered_index_writer/Cargo.toml
   - TEST_DIR=parser/Cargo.toml
   - TEST_DIR=doc_store/Cargo.toml

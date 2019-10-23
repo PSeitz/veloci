@@ -102,8 +102,9 @@ create = []
 default = ["create"]
 
 [lib]
-name = "search_lib"
+name = "veloci"
 path = "src/lib.rs"
+
 [profile.release]
 codegen-units = 1
 debug = true

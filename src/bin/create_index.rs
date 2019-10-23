@@ -1,6 +1,6 @@
 #![recursion_limit = "128"]
 
-use search_lib;
+use veloci;
 
 #[cfg(feature = "enable_cpuprofiler")]
 extern crate cpuprofile;
@@ -10,7 +10,7 @@ use clap::{App, Arg};
 use std::{fs::File, io::prelude::*};
 
 fn main() {
-    search_lib::trace::enable_log();
+    veloci::trace::enable_log();
 
     let matches = App::new("Veloci Index Creator")
         .version("1.0")
@@ -35,7 +35,7 @@ fn main() {
     let target = matches.value_of("target").unwrap();
 
     start_profiler("./create-prof.profile");
-    search_lib::create::create_indices_from_file(&mut search_lib::persistence::Persistence::create(target.to_string()).unwrap(), file, &config, false).unwrap();
+    veloci::create::create_indices_from_file(&mut veloci::persistence::Persistence::create(target.to_string()).unwrap(), file, &config, false).unwrap();
     stop_profiler();
 }
 

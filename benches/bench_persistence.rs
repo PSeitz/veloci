@@ -11,11 +11,11 @@
 
 // use criterion::Criterion;
 // use rand::distributions::{IndependentSample, Range};
-// use search_lib::doc_store::*;
-// use search_lib::persistence::*;
-// use search_lib::persistence_data_indirect::*;
-// use search_lib::search::*;
-// use search_lib::*;
+// use veloci::doc_store::*;
+// use veloci::persistence::*;
+// use veloci::persistence_data_indirect::*;
+// use veloci::search::*;
+// use veloci::*;
 // use std::env;
 
 // fn prepare_indirect_pointing_file_array(folder: &str, store: &IndexIdToParent<Output = u32>) -> PointingArrayFileReader<u32> {

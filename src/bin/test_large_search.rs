@@ -5,7 +5,7 @@
 #[macro_use]
 extern crate measure_time;
 
-use search_lib;
+use veloci;
 
 #[allow(unused_imports)]
 #[macro_use]
@@ -15,7 +15,7 @@ extern crate serde_json;
 use fst::{IntoStreamer, MapBuilder, Set};
 // use fst_levenshtein::Levenshtein;
 // use serde_json::{Deserializer, Value};
-use search_lib::*;
+use veloci::*;
 use std::str;
 
 #[allow(unused_imports)]
@@ -43,7 +43,7 @@ fn load_persistence_disk() -> persistence::Persistence {
 }
 
 fn main() {
-    search_lib::trace::enable_log();
+    veloci::trace::enable_log();
     let pers = load_persistence_disk();
     info_time!("wo");
     let _results = search_freestyle("taschenbuch", &pers);

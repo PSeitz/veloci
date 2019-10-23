@@ -17,7 +17,7 @@ EXPOSE 3000
 
 #ENV LoadingType=Disk
 ENV RUST_BACKTRACE=full
-#ENV RUST_LOG=server=info,search_lib=info,measure_time=debug
+#ENV RUST_LOG=server=info,veloci=info,measure_time=debug
 #ENV measure_time=debug
 
 
