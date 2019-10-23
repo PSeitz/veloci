@@ -315,7 +315,6 @@ impl std::fmt::Display for DocWithHit {
 }
 
 // @FixMe Tests should use to_search_result
-
 pub fn to_documents(persistence: &Persistence, hits: &[Hit], select: &Option<Vec<String>>, result: &SearchResult) -> Vec<DocWithHit> {
     let tokens_set = {
         result

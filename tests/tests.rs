@@ -356,37 +356,6 @@ fn or_query_explained() {
 }
 
 #[test]
-fn simple_search_querygenerator_explained() {
-    let mut params = query_generator::SearchQueryGeneratorParameters::default();
-    params.explain = Some(true);
-    params.search_term = "urge".to_string();
-
-    let hits = search_testo_to_doco_qp!(params).data;
-    assert_eq!(hits.len(), 1);
-    assert_eq!(hits[0].doc["ent_seq"], "1587690");
-    assert_eq!(hits[0].doc["commonness"], 20);
-    assert_eq!(hits[0].doc["tags"], json!(["nice".to_string()]));
-    // assert_eq!(hits[0].explain, Some(to_vec(&["or sum_over_distinct_terms 36.8125", "term score 10.0 * anchor score 3.68 to 36.8", "levenshtein score 10.0 for urge"])));
-    assert_eq!(hits[0].explain.as_ref().unwrap().len(), 5);
-}
-
-#[test]
-fn simple_search_querygenerator_or_connect_explained() {
-    let mut params = query_generator::SearchQueryGeneratorParameters::default();
-    params.explain = Some(true);
-    params.search_term = "urge OR いよく".to_string();
-
-    let hits = search_testo_to_doco_qp!(params).data;
-    assert_eq!(hits.len(), 3);
-    assert_eq!(hits[0].doc["ent_seq"], "1587690");
-    assert_eq!(hits[0].doc["commonness"], 20);
-    assert_eq!(hits[0].doc["tags"], json!(["nice".to_string()]));
-    // assert_eq!(hits[0].explain, Some(vec!["or sum_over_distinct_terms 452.375".to_string(), "term score 15.0 * anchor score 3.7 to 55.5".to_string(), "term score 15.0 * anchor score 3.84 to 57.6".to_string()]));
-    // assert_eq!(hits[0].explain, None);
-    assert_eq!(hits[0].explain.as_ref().unwrap().len(), 7);
-}
-
-#[test]
 fn test_float() {
     let req = json!({
         "search": {
@@ -426,74 +395,6 @@ fn should_return_an_error_when_trying_to_query_an_invalid_field() {
     let hits = search_to_hits!(requesto);
 
     assert_eq!(format!("{}", hits.unwrap_err()), "field does not exist notexisting.textindex (fst not found)".to_string())
-}
-
-#[test]
-fn simple_search_querygenerator() {
-    let mut params = query_generator::SearchQueryGeneratorParameters::default();
-    params.search_term = "urge".to_string();
-
-    let hits = search_testo_to_doco_qp!(params).data;
-    assert_eq!(hits.len(), 1);
-    assert_eq!(hits[0].doc["ent_seq"], "1587690");
-    assert_eq!(hits[0].doc["commonness"], 20);
-    assert_eq!(hits[0].doc["tags"], json!(["nice".to_string()]));
-}
-
-#[test]
-fn simple_search_querygenerator_or_connect() {
-    let mut params = query_generator::SearchQueryGeneratorParameters::default();
-    params.search_term = "urge OR いよく".to_string();
-
-    let hits = search_testo_to_doco_qp!(params).data;
-    assert_eq!(hits.len(), 3);
-    assert_eq!(hits[0].doc["ent_seq"], "1587690");
-    assert_eq!(hits[0].doc["commonness"], 20);
-    assert_eq!(hits[0].doc["tags"], json!(["nice".to_string()]));
-}
-
-#[test]
-fn simple_search_querygenerator_and() {
-    let mut params = query_generator::SearchQueryGeneratorParameters::default();
-    params.search_term = "urge AND いよく".to_string();
-
-    let hits = search_testo_to_doco_qp!(params).data;
-    assert_eq!(hits.len(), 1);
-    assert_eq!(hits[0].doc["ent_seq"], "1587690");
-    assert_eq!(hits[0].doc["commonness"], 20);
-    assert_eq!(hits[0].doc["tags"], json!(["nice".to_string()]));
-}
-#[test]
-fn simple_search_querygenerator_and_emtpy_stopword_list() {
-    let mut params = query_generator::SearchQueryGeneratorParameters::default();
-    params.stopword_lists = Some(vec![]);
-    params.search_term = "urge AND いよく".to_string();
-
-    let hits = search_testo_to_doco_qp!(params).data;
-    assert_eq!(hits.len(), 1);
-    assert_eq!(hits[0].doc["ent_seq"], "1587690");
-    assert_eq!(hits[0].doc["commonness"], 20);
-    assert_eq!(hits[0].doc["tags"], json!(["nice".to_string()]));
-}
-#[test]
-fn simple_search_querygenerator_and_stopword_list() {
-    let mut params = query_generator::SearchQueryGeneratorParameters::default();
-    params.stopword_lists = Some(vec!["en".to_string()]);
-    params.search_term = "urge AND いよく".to_string();
-
-    let hits = search_testo_to_doco_qp!(params).data;
-    assert_eq!(hits.len(), 1);
-    assert_eq!(hits[0].doc["ent_seq"], "1587690");
-    assert_eq!(hits[0].doc["commonness"], 20);
-    assert_eq!(hits[0].doc["tags"], json!(["nice".to_string()]));
-}
-#[test]
-fn simple_search_querygenerator_and_no_hit() {
-    let mut params = query_generator::SearchQueryGeneratorParameters::default();
-    params.search_term = "urge AND いよく AND awesome".to_string();
-
-    let hits = search_testo_to_doco_qp!(params).data;
-    assert_eq!(hits.len(), 0);
 }
 
 #[test]

@@ -81,6 +81,20 @@ fn search_and_get_facet_with_facet_index() {
 }
 
 #[test]
+fn search_query_params_and_get_facet_with_facet_index() {
+    let mut params = query_generator::SearchQueryGeneratorParameters::default();
+    params.search_term = "will".to_string();
+    params.facets = Some(vec!["tags[]".to_string(), "commonness".to_string()]);
+    params.fields = Some(vec!["meanings.eng[]".to_string()]);
+
+    let hits = search_testo_to_doco_qp!(params);
+    assert_eq!(hits.data.len(), 2);
+    let facets = hits.facets.unwrap();
+    assert_eq!(facets.get("tags[]").unwrap(), &vec![("nice".to_string(), 2), ("cool".to_string(), 1)]);
+    assert_eq!(facets.get("commonness").unwrap(), &vec![("20".to_string(), 2)]);
+}
+
+#[test]
 fn search_and_get_facet_without_facet_index() {
     // meanings.eng[] hat no facet index and is a 1-n facet
     let req = json!({
