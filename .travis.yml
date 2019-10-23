@@ -18,8 +18,8 @@ env:
   - TEST_DIR=server/Cargo.toml
   - TEST_DIR=json_converter/Cargo.toml
 script:
-- cargo build --manifest-path=$TEST_DIR/Cargo.toml
-- cargo test --manifest-path=$TEST_DIR/Cargo.toml
+- cargo build --manifest-path=$TEST_DIR
+- cargo test --manifest-path=$TEST_DIR
 
 before_cache: |
   cargo install cargo-tarpaulin --force
