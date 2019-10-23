@@ -6,8 +6,8 @@ extern crate lazy_static;
 #[macro_use]
 extern crate serde_json;
 
-use veloci::*;
 use serde_json::Value;
+use veloci::*;
 
 #[macro_use]
 mod common;

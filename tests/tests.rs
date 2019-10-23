@@ -9,8 +9,8 @@ extern crate serde_json;
 #[macro_use]
 extern crate more_asserts;
 
-use veloci::*;
 use serde_json::Value;
+use veloci::*;
 
 #[macro_use]
 mod common;

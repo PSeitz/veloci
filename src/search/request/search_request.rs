@@ -1,8 +1,6 @@
-
-use crate::search::request::snippet_info::SnippetInfo;
+use crate::search::request::{boost_request::RequestBoostPart, snippet_info::SnippetInfo};
 use core::cmp::Ordering;
 use ordered_float::OrderedFloat;
-use crate::search::request::boost_request::RequestBoostPart;
 
 #[derive(Serialize, Deserialize, Default, Clone, Debug, Hash, PartialEq, Eq, PartialOrd)]
 pub struct RequestSearchPart {

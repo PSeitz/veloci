@@ -9,8 +9,8 @@ extern crate serde_json;
 #[macro_use]
 extern crate more_asserts;
 
-use veloci::*;
 use serde_json::Value;
+use veloci::*;
 
 #[macro_use]
 mod common;
@@ -145,7 +145,6 @@ pub fn get_test_data() -> Value {
     ])
 }
 
-
 #[test]
 fn simple_search_querygenerator_explained() {
     let mut params = query_generator::SearchQueryGeneratorParameters::default();
@@ -254,7 +253,6 @@ fn simple_search_querygenerator_and_stopword_list_from_json() {
 
 #[test]
 fn complex_search_querygenerator_from_json() {
-
     let params = json!({
         "search_term": "will",
         "top": 10,
@@ -281,7 +279,6 @@ fn complex_search_querygenerator_from_json() {
     let hits = search_testo_to_doco_qp!(params).data;
     assert_eq!(hits.len(), 2);
     assert_eq!(hits[0].doc["meanings"]["eng"][0], "will testo");
-
 }
 
 #[test]
@@ -309,4 +306,3 @@ fn simple_search_querygenerator_and_no_hit() {
 //     let hits = search_to_hits!(query).unwrap();
 //     assert_eq!(hits.data.len(), 2);
 // }
-

@@ -15,8 +15,8 @@ extern crate serde_json;
 use fst::{IntoStreamer, MapBuilder, Set};
 // use fst_levenshtein::Levenshtein;
 // use serde_json::{Deserializer, Value};
-use veloci::*;
 use std::str;
+use veloci::*;
 
 #[allow(unused_imports)]
 use rayon::prelude::*;

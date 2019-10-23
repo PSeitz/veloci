@@ -4,8 +4,8 @@ mod fast_lines;
 mod features;
 mod fields_config;
 mod path_data;
-mod write_docs;
 mod token_values_to_tokens;
+mod write_docs;
 pub use token_values_to_tokens::*;
 
 use self::{fast_lines::FastLinesTrait, features::IndexCreationType, fields_config::FieldsConfig};
@@ -35,7 +35,7 @@ use log;
 use memmap::MmapOptions;
 use num::ToPrimitive;
 use rayon::prelude::*;
-use serde_json::{self};
+use serde_json::self;
 use std::{
     self,
     fs::File,
@@ -243,10 +243,7 @@ where
 
         let mut cb_text = |anchor_id: u32, value: &str, path: &str, parent_val_id: u32| -> Result<(), io::Error> {
             let data: &mut PathData = get_or_insert_prefer_get(&mut path_data as *mut FnvHashMap<_, _>, path, || {
-                let term_data = term_data
-                    .terms_in_path
-                    .remove(path)
-                    .unwrap_or_else(|| panic!("Couldn't find path in term_data {:?}", path));
+                let term_data = term_data.terms_in_path.remove(path).unwrap_or_else(|| panic!("Couldn't find path in term_data {:?}", path));
                 prepare_path_data(&persistence.temp_dir(), &persistence, &fields_config, path, term_data)
             });
 
@@ -810,7 +807,6 @@ fn convert_raw_path_data_to_indices(
     Ok(indices)
 }
 
-
 pub fn convert_any_json_data_to_line_delimited<I: std::io::Read, O: std::io::Write>(input: I, mut out: O) -> Result<(), io::Error> {
     let stream = serde_json::Deserializer::from_reader(input).into_iter::<serde_json::Value>();
 
@@ -1019,23 +1015,13 @@ where
     Ok(())
 }
 
-pub fn create_indices_from_str(
-    persistence: &mut Persistence,
-    data_str: &str,
-    indices: &str,
-    load_persistence: bool,
-) -> Result<(), VelociError> {
+pub fn create_indices_from_str(persistence: &mut Persistence, data_str: &str, indices: &str, load_persistence: bool) -> Result<(), VelociError> {
     let stream1 = data_str.lines().map(|line| serde_json::from_str(&line));
     let stream2 = data_str.lines().map(|line| serde_json::from_str(&line));
 
     create_indices_from_streams(persistence, stream1, stream2, data_str.lines(), indices, load_persistence)
 }
-pub fn create_indices_from_file(
-    persistence: &mut Persistence,
-    data_path: &str,
-    indices: &str,
-    load_persistence: bool,
-) -> Result<(), VelociError> {
+pub fn create_indices_from_file(persistence: &mut Persistence, data_path: &str, indices: &str, load_persistence: bool) -> Result<(), VelociError> {
     let stream1 = std::io::BufReader::new(File::open(data_path)?).fast_lines();
     let stream2 = std::io::BufReader::new(File::open(data_path)?).fast_lines();
     let stream3 = std::io::BufReader::new(File::open(data_path)?).lines().map(|line| line.unwrap());

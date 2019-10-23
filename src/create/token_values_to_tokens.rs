@@ -1,24 +1,18 @@
-
-
-use buffered_index_writer::{self, BufferedIndexWriter};
-use crate::indices::metadata::*;
-use crate::error::VelociError;
-use crate::plan_creator::execution_plan::PlanRequestSearchPart;
 use crate::{
-    create::{
-        buffered_index_to_direct_index
-    },
-    indices::*,
+    create::buffered_index_to_direct_index,
+    error::VelociError,
+    indices::{metadata::*, *},
     persistence::{Persistence, *},
+    plan_creator::execution_plan::PlanRequestSearchPart,
     search, search_field,
-    util::{StringAdd},
+    util::StringAdd,
 };
+use buffered_index_writer::{self, BufferedIndexWriter};
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct TokenValuesConfig {
     path: String,
 }
-
 
 #[derive(Serialize, Deserialize, Debug)]
 struct TokenValueData {

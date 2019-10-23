@@ -1,4 +1,3 @@
-use veloci;
 use serde::de::{Deserializer, SeqAccess, Visitor};
 use std::{
     fs::File,
@@ -6,6 +5,7 @@ use std::{
     path::PathBuf,
 };
 use structopt::StructOpt;
+use veloci;
 // use std::io::{BufRead};
 use std::{
     fmt,

@@ -1,13 +1,13 @@
-pub mod search_request;
 pub mod boost_request;
-pub mod snippet_info;
 pub mod facet_request;
+pub mod search_request;
+pub mod snippet_info;
 
 use crate::search::*;
-pub use search_request::*;
 pub use boost_request::*;
-pub use snippet_info::*;
 pub use facet_request::*;
+pub use search_request::*;
+pub use snippet_info::*;
 
 /// Internal and External structure for requests. Suitable for easy requests.
 /// For more complex requests, e.g. with phrase boost, currently the convenience api `query_generator` is recommended.
@@ -71,7 +71,7 @@ pub struct Request {
 
     /// text locality is when multiple tokens will hit in the same text
     ///
-    /// e.g. if you have 2 documents with an array of texts with: 
+    /// e.g. if you have 2 documents with an array of texts with:
     /// doc1: ["my nice search engine"]
     /// doc2: ["my nice", "search engine"]
     /// search terms: "nice" and "engine"

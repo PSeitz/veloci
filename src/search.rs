@@ -1,32 +1,32 @@
 pub(crate) mod boost;
-pub mod search_field;
 pub mod request;
+pub mod search_field;
 pub mod search_field_result;
 mod set_op;
 pub mod stopwords;
 
-pub use crate::search::request::*;
 pub(crate) use self::boost::*;
 pub use self::{search_field::*, search_field_result::*, set_op::*};
 use super::highlight_field;
+pub use crate::search::request::*;
 use crate::{
     error::VelociError,
     expression::ScoreExpression,
     facet,
     highlight_field::highlight_on_original_document,
+    persistence::{Persistence, *},
     plan_creator::{execution_plan::*, plan::*},
     util::{self, *},
 };
+use doc_store::DocLoader;
+use fnv::{FnvHashMap, FnvHashSet};
+use rayon::prelude::*;
+use serde_json;
 use std::{
     self,
     cmp::{self, Ordering},
     f32, mem, str, u32,
 };
-use crate::persistence::{Persistence, *};
-use doc_store::DocLoader;
-use fnv::{FnvHashMap, FnvHashSet};
-use rayon::prelude::*;
-use serde_json;
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 enum TextLocalitySetting {

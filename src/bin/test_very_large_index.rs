@@ -9,9 +9,9 @@ use veloci;
 #[macro_use]
 extern crate serde_json;
 
+use std::io;
 #[allow(unused_imports)]
 use veloci::*;
-use std::io;
 
 #[allow(unused_imports)]
 use rayon::prelude::*;
