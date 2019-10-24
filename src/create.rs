@@ -283,7 +283,7 @@ where
             }
 
             if data.fulltext_options.tokenize {
-                let tokenizer = data.fulltext_options.tokenizer.as_ref().expect(&format!("no tokenizer created for {:?}", path));
+                let tokenizer = data.fulltext_options.tokenizer.as_ref().unwrap_or_else(|| panic!("no tokenizer created for {:?}", path));
                 if tokenizer.has_tokens(value) {
                     let mut current_token_pos = 0;
 

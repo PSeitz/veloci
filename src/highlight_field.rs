@@ -34,7 +34,7 @@ pub fn group_hit_positions_for_snippet(hit_pos_of_tokens_in_doc: &[usize], opt: 
     grouped
 }
 
-pub fn grouped_to_positions_for_snippet(vec: &Vec<i64>, token_len: usize, token_around_snippets: i64) -> (usize, usize) {
+pub fn grouped_to_positions_for_snippet(vec: &[i64], token_len: usize, token_around_snippets: i64) -> (usize, usize) {
     let start_index = cmp::max(*vec.first().unwrap() as i64 - token_around_snippets, 0) as usize;
     let end_index = cmp::min((*vec.last().unwrap() + token_around_snippets + 1) as usize, token_len);
     (start_index, end_index)
@@ -95,13 +95,11 @@ pub fn highlight_text(text: &str, set: &FnvHashSet<String>, opt: &SnippetInfo, t
 
     let mut tokens = vec![];
     let mut hit_pos_of_tokens_in_doc = vec![];
-    let mut pos = 0;
-    for (token, _) in tokenizer.iter(text) {
+    for (pos, (token, _)) in tokenizer.iter(text).enumerate(){
         tokens.push(token);
         if set.contains(token) {
             hit_pos_of_tokens_in_doc.push(pos);
         }
-        pos += 1;
     }
 
     let token_around_snippets = opt.num_words_around_snippet * 2; // token seperator token seperator
@@ -204,7 +202,7 @@ pub(crate) fn highlight_on_original_document(persistence: &Persistence, doc: &st
                         .metadata
                         .columns
                         .get(field_name)
-                        .expect(&format!("could not find metadata for {:?}", field_name))
+                        .unwrap_or_else(|| panic!("could not find metadata for {:?}", field_name))
                         .textindex_metadata
                         .options
                         .tokenizer

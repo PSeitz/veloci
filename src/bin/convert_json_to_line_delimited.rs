@@ -29,24 +29,24 @@ fn main() -> Result<(), io::Error> {
     veloci::trace::enable_log();
     let opt = Opt::from_args();
 
-    let mut file = File::open(&opt.input).unwrap();
+    let file = File::open(&opt.input).unwrap();
 
     let mut is_array = false;
-    let mut data = Vec::new();
-    file.read(&mut data).unwrap();
+    // let mut data = Vec::new();
+    // file.read(&mut data).unwrap();
 
     for byte in file.bytes().take(20) {
         let byte = byte.unwrap();
-        if byte == '\n' as u8 {
+        if byte == b'\n' {
             continue;
         }
-        if byte == '\r' as u8 {
+        if byte == b'\r' {
             continue;
         }
-        if byte == ' ' as u8 {
+        if byte == b' ' {
             continue;
         }
-        if byte == '[' as u8 {
+        if byte == b'[' {
             is_array = true;
             break;
         }

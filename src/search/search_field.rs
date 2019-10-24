@@ -516,7 +516,7 @@ pub fn resolve_token_hits_to_text_id(
             }
         }
 
-        result.hits_ids = result.hits_ids.iter().flat_map(|id| token_kvdata.get_values(u64::from(*id))).flat_map(|el| el).collect();
+        result.hits_ids = result.hits_ids.iter().flat_map(|id| token_kvdata.get_values(u64::from(*id))).flatten().collect();
     }
 
     debug!("found {:?} token in {:?} texts", result.hits_scores.iter().count(), token_hits.iter().count());

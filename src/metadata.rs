@@ -19,7 +19,7 @@ impl PeristenceMetaData {
         let json = util::file_as_string(&(folder.to_string() + "/metaData.json"))?;
         let mut obj: PeristenceMetaData = serde_json::from_str(&json)?;
 
-        for (_key, val) in &mut obj.columns {
+        for val in obj.columns.values_mut() {
             val.textindex_metadata.options.create_tokenizer(); //  TODO reuse default tokenizer
         }
         Ok(obj)

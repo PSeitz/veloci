@@ -522,9 +522,9 @@ use rayon::prelude::*;
 pub fn execute_steps(steps: Vec<Box<dyn PlanStepTrait>>, persistence: &Persistence) -> Result<(), VelociError> {
     let r: Result<Vec<_>, VelociError> = steps.into_par_iter().map(|step: Box<dyn PlanStepTrait>| step.execute_step(persistence)).collect();
 
-    if r.is_err() {
-        Err(r.unwrap_err())
-    } else {
+    if let Err(err) = r {
+        Err(err)
+    }else{
         Ok(())
     }
 

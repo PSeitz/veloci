@@ -57,11 +57,11 @@ impl FieldPath {
                 }
             })
             .collect();
-        FieldPath { steps, suffix: suffix }
+        FieldPath { steps, suffix }
     }
 
-    pub fn to_string(&self) -> String {
-        let mut res = self.steps.iter().map(|sstep| sstep.to_string()).collect::<Vec<_>>().join(".");
+    pub fn as_string(&self) -> String {
+        let mut res = self.steps.iter().map(|sstep| sstep.as_string()).collect::<Vec<_>>().join(".");
         if let Some(suffix) = &self.suffix {
             res += suffix;
         }
@@ -110,7 +110,7 @@ pub struct FieldPathComponent {
 }
 
 impl FieldPathComponent {
-    pub fn to_string(&self) -> String {
+    pub fn as_string(&self) -> String {
         if self.is_1_to_n {
             format!("{}[]", self.path)
         } else {
@@ -148,7 +148,7 @@ pub fn steps_between_field_paths(start: &str, end: &str) -> Vec<FieldPath> {
 #[test]
 fn test_identity() {
     let path = "meanings.ger[].text";
-    assert_eq!(path.to_field_path().to_string(), path);
+    assert_eq!(path.to_field_path().as_string(), path);
 }
 
 #[test]

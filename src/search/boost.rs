@@ -424,7 +424,7 @@ fn boost_intersect_hits_vec_test_multi() {
 pub(crate) fn get_boost_ids_and_resolve_to_anchor(persistence: &Persistence, path: &mut FieldPath, hits: &mut SearchFieldResult) -> Result<(), VelociError> {
     // let boost_path = path.add(BOOST_VALID_TO_VALUE);
     path.suffix = Some(BOOST_VALID_TO_VALUE);
-    let boostkv_store = persistence.get_boost(&path.to_string())?;
+    let boostkv_store = persistence.get_boost(&path.as_string())?;
 
     hits.hits_ids.sort_unstable();
 
@@ -442,7 +442,7 @@ pub(crate) fn get_boost_ids_and_resolve_to_anchor(persistence: &Persistence, pat
     // resolve to anchor
     let mut data = vec![];
     path.suffix = Some(VALUE_ID_TO_ANCHOR);
-    let kv_store = persistence.get_valueid_to_parent(&path.to_string())?; //TODO should be get_kv_store
+    let kv_store = persistence.get_valueid_to_parent(&path.as_string())?; //TODO should be get_kv_store
     for boost_pair in &mut hits.boost_ids {
         let val_opt = kv_store.get_value(u64::from(boost_pair.id));
 

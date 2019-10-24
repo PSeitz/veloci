@@ -64,8 +64,8 @@ impl ScoreExpression {
             if let ' ' = next_char {
                 let val = current.parse::<f32>();
                 // trace!("{:?}", val);
-                if val.is_ok() {
-                    operations.push(OperatorType::Float(val.unwrap()));
+                if let Ok(val) = val {
+                    operations.push(OperatorType::Float(val));
                 }
                 current.clear();
             }
@@ -98,9 +98,8 @@ impl ScoreExpression {
             }
         }
 
-        let val = current.parse::<f32>();
-        if val.is_ok() {
-            operations.push(OperatorType::Float(val.unwrap()));
+        if let Ok(val) = current.parse::<f32>() {
+            operations.push(OperatorType::Float(val));
         }
         // trace!("{:?}", operations);
         operations
