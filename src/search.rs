@@ -8,7 +8,7 @@ mod set_op;
 pub mod stopwords;
 
 pub(crate) use self::boost::*;
-pub use self::{search_field::*, result::*, set_op::*};
+pub use self::{result::*, search_field::*, set_op::*};
 use super::highlight_field;
 pub use crate::search::request::*;
 // pub use self::search_result::*;

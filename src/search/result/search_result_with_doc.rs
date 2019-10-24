@@ -1,7 +1,5 @@
-
-use crate::search::result::explain::Explain;
-use crate::search::Hit;
-use fnv::{FnvHashMap};
+use crate::search::{result::explain::Explain, Hit};
+use fnv::FnvHashMap;
 
 #[derive(Serialize, Deserialize, Default, Clone, Debug)]
 pub struct SearchResultWithDoc {
@@ -20,7 +18,6 @@ pub struct SearchResultWithDoc {
 //         // }
 //     }
 // }
-
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct DocWithHit {

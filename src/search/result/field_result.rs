@@ -1,6 +1,4 @@
-use crate::{
-    search::{self, *},
-};
+use crate::search::{self, *};
 use fnv::FnvHashMap;
 // use half::f16;
 use std::iter::FusedIterator;

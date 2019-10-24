@@ -1,3 +1,21 @@
+pub use crate::metadata::*;
+use crate::{
+    error::VelociError,
+    indices::*,
+    search::*,
+    type_info,
+    util::{self, get_file_path, *},
+};
+use colored::*;
+use fnv::FnvHashMap;
+use fst::Map;
+use log;
+use lru_time_cache::LruCache;
+use memmap::{Mmap, MmapOptions};
+use num::{self, cast::ToPrimitive, Integer};
+use parking_lot::RwLock;
+use prettytable::{format, Table};
+use serde_json;
 use std::{
     self,
     collections::HashMap,
@@ -8,29 +26,11 @@ use std::{
     marker::Sync,
     path::{Path, PathBuf},
     str,
+    str::FromStr,
     time::Duration,
     u32,
 };
 use vint::vint::VintArrayIterator;
-use num::{self, cast::ToPrimitive, Integer};
-use serde_json;
-use fnv::FnvHashMap;
-use fst::Map;
-use log;
-pub use crate::metadata::*;
-use crate::{
-    error::VelociError,
-    indices::*,
-    search::*,
-    type_info,
-    util::{self, get_file_path, *},
-};
-use memmap::{Mmap, MmapOptions};
-use prettytable::{format, Table};
-use colored::*;
-use lru_time_cache::LruCache;
-use parking_lot::RwLock;
-use std::str::FromStr;
 
 pub const TOKENS_TO_TEXT_ID: &str = ".tokens_to_text_id";
 pub const TEXT_ID_TO_TOKEN_IDS: &str = ".text_id_to_token_ids";

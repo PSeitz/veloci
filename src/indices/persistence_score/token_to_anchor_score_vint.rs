@@ -35,13 +35,13 @@ pub struct TokenToAnchorScoreVintMmap<T> {
 
 impl<T: AnchorScoreDataSize> TypeInfo for TokenToAnchorScoreVintIM<T> {
     fn type_name(&self) -> String {
-        unsafe { std::intrinsics::type_name::<Self>().to_string() }
+        std::intrinsics::type_name::<Self>().to_string()
     }
 }
 
 impl<T: AnchorScoreDataSize> TypeInfo for TokenToAnchorScoreVintMmap<T> {
     fn type_name(&self) -> String {
-        unsafe { std::intrinsics::type_name::<Self>().to_string() }
+        std::intrinsics::type_name::<Self>().to_string()
     }
 }
 

@@ -17,7 +17,7 @@ pub(crate) struct SingleArrayIM<T: IndexIdToParentData, K: IndexIdToParentData> 
 
 impl<T: IndexIdToParentData, K: IndexIdToParentData> TypeInfo for SingleArrayIM<T, K> {
     fn type_name(&self) -> String {
-        unsafe { std::intrinsics::type_name::<Self>().to_string() }
+        std::intrinsics::type_name::<Self>().to_string()
     }
 }
 

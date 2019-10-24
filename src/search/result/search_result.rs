@@ -1,6 +1,5 @@
-use crate::search::result::explain::Explain;
-use crate::search::Hit;
-use fnv::{FnvHashMap};
+use crate::search::{result::explain::Explain, Hit};
+use fnv::FnvHashMap;
 
 #[derive(Serialize, Deserialize, Default, Clone, Debug)]
 pub struct SearchResult {
@@ -16,5 +15,3 @@ pub struct SearchResult {
     #[serde(skip_serializing_if = "FnvHashMap::is_empty")]
     pub why_found_terms: FnvHashMap<String, Vec<String>>,
 }
-
-

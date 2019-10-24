@@ -52,7 +52,7 @@ pub mod steps;
 pub mod tokenizer;
 pub mod trace;
 
-pub use self::search::{search_field, result};
+pub use self::search::{result, search_field};
 
 #[cfg(test)]
 extern crate test;
