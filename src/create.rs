@@ -35,7 +35,7 @@ use log;
 use memmap::MmapOptions;
 use num::ToPrimitive;
 use rayon::prelude::*;
-use serde_json::self;
+use serde_json;
 use std::{
     self,
     fs::File,
