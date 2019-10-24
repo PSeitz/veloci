@@ -1,4 +1,4 @@
-use crate::search::{search_field_result::SearchFieldResult, FilterResult};
+use crate::search::{result::SearchFieldResult, FilterResult};
 use crossbeam_channel::{self, unbounded};
 use std::sync::Arc;
 

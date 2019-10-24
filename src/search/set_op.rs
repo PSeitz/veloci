@@ -1,6 +1,6 @@
 use super::*;
 
-pub use self::search_field_result::*;
+pub use self::result::*;
 use std::{self, f32, u32};
 
 use fnv::FnvHashMap;

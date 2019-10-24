@@ -1,14 +1,17 @@
 pub(crate) mod boost;
 pub mod request;
+pub mod result;
 pub mod search_field;
-pub mod search_field_result;
+// pub mod search_field_result;
+// pub mod search_result;
 mod set_op;
 pub mod stopwords;
 
 pub(crate) use self::boost::*;
-pub use self::{search_field::*, search_field_result::*, set_op::*};
+pub use self::{search_field::*, result::*, set_op::*};
 use super::highlight_field;
 pub use crate::search::request::*;
+// pub use self::search_result::*;
 use crate::{
     error::VelociError,
     expression::ScoreExpression,
@@ -52,21 +55,6 @@ fn default_skip() -> Option<usize> {
     None
 }
 
-#[derive(Serialize, Deserialize, Default, Clone, Debug)]
-pub struct SearchResult {
-    pub num_hits: u64,
-    pub data: Vec<Hit>,
-    pub ids: Vec<u32>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub facets: Option<FnvHashMap<String, Vec<(String, usize)>>>,
-    #[serde(skip_serializing_if = "FnvHashMap::is_empty")]
-    pub explain: FnvHashMap<u32, Vec<Explain>>,
-    #[serde(skip_serializing_if = "FnvHashMap::is_empty")]
-    pub why_found_info: FnvHashMap<u32, FnvHashMap<String, Vec<String>>>,
-    #[serde(skip_serializing_if = "FnvHashMap::is_empty")]
-    pub why_found_terms: FnvHashMap<String, Vec<String>>,
-}
-
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub enum FilterResult {
     Vec(Vec<TermId>),
@@ -85,34 +73,6 @@ impl FilterResult {
             FilterResult::Set(filter)
         }
     }
-}
-
-#[derive(Serialize, Deserialize, Default, Clone, Debug)]
-pub struct SearchResultWithDoc {
-    pub num_hits: u64,
-    pub data: Vec<DocWithHit>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub facets: Option<FnvHashMap<String, Vec<(String, usize)>>>,
-}
-
-impl SearchResultWithDoc {
-    pub fn merge(&mut self, other: &SearchResultWithDoc) {
-        self.num_hits += other.num_hits;
-        self.data.extend(other.data.iter().cloned());
-        // if let Some(mut facets) = self.facets {  //TODO FACETS MERGE
-        //     // facets.extend()
-        // }
-    }
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct DocWithHit {
-    pub doc: serde_json::Value,
-    pub hit: Hit,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub explain: Option<Vec<Explain>>,
-    #[serde(skip_serializing_if = "FnvHashMap::is_empty")]
-    pub why_found: FnvHashMap<String, Vec<String>>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]

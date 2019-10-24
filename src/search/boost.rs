@@ -1,7 +1,7 @@
 use super::*;
 use crate::{search::request::*, steps::FieldPath};
 
-pub use self::search_field_result::*;
+pub use self::result::*;
 use std::{self, f32};
 
 use fnv::FnvHashMap;

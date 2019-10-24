@@ -3,7 +3,7 @@ use crate::{
     highlight_field::*,
     persistence::{self, Persistence, *},
     plan_creator::execution_plan::*,
-    search::{self, search_field_result::*, *},
+    search::{self, *},
     util::{self, StringAdd},
 };
 use fnv::FnvHashMap;
@@ -18,28 +18,6 @@ use std::{
     str,
     sync::Arc,
 };
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub enum Explain {
-    Boost(f32),
-    MaxTokenToTextId(f32),
-    TermToAnchor {
-        term_score: f32,
-        anchor_score: f32,
-        final_score: f32,
-        term_id: u32,
-    },
-    LevenshteinScore {
-        score: f32,
-        text_or_token_id: String,
-        term_id: u32,
-    },
-    OrSumOverDistinctTerms(f32),
-    NumDistintTermsBoost {
-        distinct_boost: u32,
-        new_score: u32,
-    },
-}
 
 pub type TermId = u32;
 pub type Score = f32;
@@ -72,7 +50,6 @@ pub fn ord_to_term(fst: &Fst, mut ord: u64, bytes: &mut Vec<u8>) -> bool {
 }
 
 #[inline]
-
 fn get_text_lines<F>(persistence: &Persistence, options: &RequestSearchPart, mut fun: F) -> Result<(), VelociError>
 where
     F: FnMut(String, u32),
@@ -138,6 +115,7 @@ fn get_text_score_id_from_result(suggest_text: bool, results: &[SearchFieldResul
     search::apply_top_skip(&mut suggest_result, skip, top);
     suggest_result
 }
+
 pub fn suggest_multi(persistence: &Persistence, req: Request) -> Result<SuggestFieldResult, VelociError> {
     info_time!("suggest time");
     let search_parts: Vec<RequestSearchPart> = req
@@ -165,7 +143,6 @@ pub fn suggest_multi(persistence: &Persistence, req: Request) -> Result<SuggestF
     Ok(get_text_score_id_from_result(true, &search_results?, req.skip, req.top))
 }
 
-// just adds sorting to search
 pub fn suggest(persistence: &Persistence, options: &RequestSearchPart) -> Result<SuggestFieldResult, VelociError> {
     let mut req = Request {
         suggest: Some(vec![options.clone()]),

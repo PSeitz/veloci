@@ -1,6 +1,5 @@
 use crate::{
     search::{self, *},
-    search_field::Explain,
 };
 use fnv::FnvHashMap;
 // use half::f16;
@@ -43,6 +42,7 @@ impl SearchFieldResult {
     //Creates a new result, while keeping metadata for original hits
     pub(crate) fn new_from(other: &SearchFieldResult) -> Self {
         let mut res = SearchFieldResult::default();
+        res.explain = other.explain.clone();
         res.terms = other.terms.clone();
         res.highlight = other.highlight.clone();
         res.request = other.request.clone();

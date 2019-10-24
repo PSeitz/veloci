@@ -12,28 +12,21 @@ use std::{
     u32,
 };
 use vint::vint::VintArrayIterator;
-
 use num::{self, cast::ToPrimitive, Integer};
-
 use serde_json;
-
 use fnv::FnvHashMap;
 use fst::Map;
 use log;
-// use rayon::prelude::*;
-
 pub use crate::metadata::*;
 use crate::{
     error::VelociError,
     indices::*,
     search::*,
-    search_field_result, type_info,
+    type_info,
     util::{self, get_file_path, *},
 };
 use memmap::{Mmap, MmapOptions};
 use prettytable::{format, Table};
-// use heapsize::HeapSizeOf;
-
 use colored::*;
 use lru_time_cache::LruCache;
 use parking_lot::RwLock;
@@ -104,7 +97,7 @@ pub struct Persistence {
     pub indices: PersistenceIndices,
     pub lru_cache: HashMap<String, LruCache<RequestSearchPart, SearchResult>>,
     // pub lru_fst: HashMap<String, LruCache<(String, u8), Box<fst::Automaton<State=Option<usize>>>>>,
-    pub term_boost_cache: RwLock<LruCache<Vec<RequestSearchPart>, Vec<search_field_result::SearchFieldResult>>>,
+    pub term_boost_cache: RwLock<LruCache<Vec<RequestSearchPart>, Vec<SearchFieldResult>>>,
 }
 
 impl FromStr for LoadingType {
