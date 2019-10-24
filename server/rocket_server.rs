@@ -205,9 +205,8 @@ fn get_doc_for_id_tree(database: String, id: u32) -> Json<serde_json::Value> {
     ensure_database(&database).unwrap();
     let persistence = PERSISTENCES.get(&database).unwrap();
     let all_fields = persistence.metadata.get_all_fields();
-    let tree = search::get_read_tree_from_fields(&persistence, &all_fields);
 
-    Json(search::read_tree(&persistence, id, &tree).unwrap())
+    Json(search::read_data(&persistence, id, &all_fields).unwrap())
 }
 
 #[get("/<database>/_id/<id>")]
