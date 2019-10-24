@@ -1,5 +1,6 @@
 #![cfg_attr(feature = "cargo-clippy", allow(clippy::boxed_local))]
 
+use crate::search::sort::check_apply_top_n_sort;
 use crate::{
     error::VelociError,
     persistence::*,

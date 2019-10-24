@@ -28,3 +28,12 @@ pub struct DocWithHit {
     #[serde(skip_serializing_if = "FnvHashMap::is_empty")]
     pub why_found: FnvHashMap<String, Vec<String>>,
 }
+
+
+impl std::fmt::Display for DocWithHit {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
+        write!(f, "\n{}\t{}", self.hit.id, self.hit.score)?;
+        write!(f, "\n{}", serde_json::to_string_pretty(&self.doc).unwrap())?;
+        Ok(())
+    }
+}

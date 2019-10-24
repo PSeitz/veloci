@@ -1,9 +1,10 @@
+use self::sort::check_apply_top_n_sort;
 use crate::{
     error::VelociError,
     highlight_field::*,
     persistence::{self, Persistence, *},
     plan_creator::execution_plan::*,
-    search::{self, *},
+    search::{self, result::*, *},
     util::{self, StringAdd},
 };
 use fnv::FnvHashMap;
@@ -250,7 +251,7 @@ pub fn get_term_ids_in_field(persistence: &Persistence, options: &mut PlanReques
                         return;
                     }
 
-                    search::check_apply_top_n_sort(&mut result.hits_scores, top_n_search, &search::sort_by_score_and_id, &mut |the_worst: &Hit| {
+                    check_apply_top_n_sort(&mut result.hits_scores, top_n_search, &search::sort_by_score_and_id, &mut |the_worst: &Hit| {
                         worst_score = the_worst.score
                     });
                 }

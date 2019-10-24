@@ -1,17 +1,19 @@
 pub(crate) mod boost;
 pub mod request;
 pub mod result;
+pub mod why_found;
+pub mod sort;
+pub mod read_document;
 pub mod search_field;
-// pub mod search_field_result;
-// pub mod search_result;
-mod set_op;
 pub mod stopwords;
+mod set_op;
 
+pub use crate::search::read_document::read_data;
+use self::why_found::get_why_found;
+use self::sort::top_n_sort;
 pub(crate) use self::boost::*;
 pub use self::{result::*, search_field::*, set_op::*};
-use super::highlight_field;
 pub use crate::search::request::*;
-// pub use self::search_result::*;
 use crate::{
     error::VelociError,
     expression::ScoreExpression,
@@ -55,26 +57,6 @@ fn default_skip() -> Option<usize> {
     None
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
-pub enum FilterResult {
-    Vec(Vec<TermId>),
-    Set(FnvHashSet<TermId>),
-}
-
-impl FilterResult {
-    pub fn from_result(res: &[TermId]) -> FilterResult {
-        if res.len() > 100_000 {
-            FilterResult::Vec(res.to_vec())
-        } else {
-            let mut filter = FnvHashSet::with_capacity_and_hasher(100_000, Default::default());
-            for id in res {
-                filter.insert(*id);
-            }
-            FilterResult::Set(filter)
-        }
-    }
-}
-
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct Hit {
     pub id: u32,
@@ -95,15 +77,6 @@ impl Hit {
 //     res
 // }
 
-impl std::fmt::Display for DocWithHit {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
-        write!(f, "\n{}\t{}", self.hit.id, self.hit.score)?;
-        write!(f, "\n{}", serde_json::to_string_pretty(&self.doc).unwrap())?;
-        Ok(())
-    }
-}
-
-// @FixMe Tests should use to_search_result
 pub fn to_documents(persistence: &Persistence, hits: &[Hit], select: &Option<Vec<String>>, result: &SearchResult) -> Vec<DocWithHit> {
     let tokens_set = {
         result
@@ -150,65 +123,11 @@ pub fn to_search_result(persistence: &Persistence, hits: SearchResult, select: &
     }
 }
 
-// pub fn get_search_result(persistence: &Persistence, request: Request) -> Result<SearchResultWithDoc, VelociError> {
-//     let select = request.select.clone();
-//     let res = search(request, &persistence)?;
-//     Ok(to_search_result(&persistence, res, &select))
-// }
-
-// #[inline]
-// fn to_bucket_and_id(value: u32) -> (u16, u16) {
-//     ((value >> 16) as u16, value as u16)
-// }
-
-fn get_why_found(
-    persistence: &Persistence,
-    anchor_ids: &[u32],
-    term_id_hits_in_field: &FnvHashMap<String, FnvHashMap<String, Vec<TermId>>>,
-) -> Result<FnvHashMap<u32, FnvHashMap<String, Vec<String>>>, VelociError> {
-    debug!("why_found info {:?}", term_id_hits_in_field);
-    info_time!("why_found");
-    let mut anchor_highlights: FnvHashMap<_, FnvHashMap<_, Vec<_>>> = FnvHashMap::default();
-
-    for (path, term_with_ids) in term_id_hits_in_field.iter() {
-        let field_name = &extract_field_name(path); // extract_field_name removes .textindex
-        let paths = util::get_steps_to_anchor(field_name);
-
-        let all_term_ids_hits_in_path = term_with_ids.iter().fold(vec![], |mut acc, (ref _term, ref hits)| {
-            acc.extend(hits.iter());
-            acc
-        });
-
-        if all_term_ids_hits_in_path.is_empty() {
-            continue;
-        }
-
-        for anchor_id in anchor_ids {
-            let ids = facet::join_anchor_to_leaf(persistence, &[*anchor_id], &paths)?;
-
-            for value_id in ids {
-                let path = paths.last().unwrap().to_string();
-                let highlighted_document = highlight_field::highlight_document(persistence, &path, u64::from(value_id), &all_term_ids_hits_in_path, &DEFAULT_SNIPPETINFO).unwrap();
-                if let Some(highlighted_document) = highlighted_document {
-                    let jepp = anchor_highlights.entry(*anchor_id).or_default();
-                    let field_highlights = jepp.entry(field_name.clone()).or_default();
-                    field_highlights.push(highlighted_document);
-                }
-            }
-        }
-    }
-
-    Ok(anchor_highlights)
-}
-
 #[inline]
 fn get_all_value_ids(ids: &[u32], token_to_text_id: &dyn IndexIdToParent<Output = u32>) -> Vec<u32> {
     let mut text_ids: Vec<u32> = vec![];
     for id in ids {
         text_ids.extend(token_to_text_id.get_values_iter(u64::from(*id)))
-        // if let Some(ids) = token_to_text_id.get_values(u64::from(*id)) {
-        //     text_ids.extend(ids.iter()); // TODO move data, swap first
-        // }
     }
     text_ids
 }
@@ -220,38 +139,6 @@ pub fn sort_by_score_and_id(a: &Hit, b: &Hit) -> Ordering {
         b.id.partial_cmp(&a.id).unwrap_or(Ordering::Equal)
     } else {
         cmp.unwrap()
-    }
-}
-
-#[inline]
-fn top_n_sort(data: Vec<Hit>, top_n: u32) -> Vec<Hit> {
-    let mut worst_score = std::f32::MIN;
-
-    let mut new_data: Vec<Hit> = Vec::with_capacity(top_n as usize * 5 + 1);
-    for el in data {
-        if el.score < worst_score {
-            continue;
-        }
-
-        check_apply_top_n_sort(&mut new_data, top_n, &sort_by_score_and_id, &mut |the_worst: &Hit| worst_score = the_worst.score);
-
-        new_data.push(el);
-    }
-
-    // Sort by score and anchor_id -- WITHOUT anchor_id SORTING SKIP MAY WORK NOT CORRECTLY FOR SAME SCORED ANCHOR_IDS
-    new_data.sort_unstable_by(sort_by_score_and_id);
-    new_data
-}
-
-#[inline]
-pub(crate) fn check_apply_top_n_sort<T: std::fmt::Debug>(new_data: &mut Vec<T>, top_n: u32, sort_compare: &dyn Fn(&T, &T) -> Ordering, new_worst: &mut dyn FnMut(&T)) {
-    if !new_data.is_empty() && new_data.len() as u32 == top_n + 200 {
-        new_data.sort_unstable_by(sort_compare);
-        new_data.truncate(top_n as usize);
-        let new_worst_value = new_data.last().unwrap();
-        trace!("new worst {:?}", new_worst_value);
-        new_worst(new_worst_value);
-        // worst_score = new_data.last().unwrap().score;
     }
 }
 
@@ -277,15 +164,12 @@ pub fn search(mut request: Request, persistence: &Persistence) -> Result<SearchR
         let mut plan = Plan::default();
         plan_creator(request.clone(), &mut plan);
 
-        let mut dot_graph = vec![];
-        render_plan_to(&plan, &mut dot_graph);
-        debug!("{}", String::from_utf8(dot_graph).unwrap());
-        // info!("{:?}", plan);
-        // info!("{:?}", serde_json::to_string_pretty(&plan).unwrap());
-        // let yep = plan.get_output();
-
-        // execute_steps(plan.steps, &persistence)?;
-        // execute_step_in_parrael(steps, persistence).unwrap();
+        if log_enabled!(log::Level::Debug) {
+            let mut dot_graph = vec![];
+            render_plan_to(&plan, &mut dot_graph);
+            debug!("{}", String::from_utf8(dot_graph)?);
+        }
+        
         let plan_result = plan.plan_result.as_ref().unwrap().clone();
         for stepso in plan.get_ordered_steps() {
             execute_steps(stepso, &persistence)?;
@@ -339,8 +223,7 @@ pub fn search(mut request: Request, persistence: &Persistence) -> Result<SearchR
             search_result.data.sort_unstable_by(sort_by_score_and_id);
         }
     }
-    // let topn_results = apply_top_skip(&search_result.data, request.skip, request.top);
-    // search_result.data = topn_results;
+
     apply_top_skip(&mut search_result.data, request.skip, request.top);
 
     if request.why_found && request.select.is_some() {
@@ -428,59 +311,6 @@ fn join_and_get_text_for_ids(persistence: &Persistence, id: u32, prop: &str) -> 
     } else {
         Ok(None)
     }
-}
-
-pub fn read_data(persistence: &Persistence, id: u32, fields: &[String]) -> Result<serde_json::Value, VelociError> {
-    let tree = get_read_tree_from_fields(persistence, fields);
-    read_tree(persistence, id, &tree)
-}
-
-pub fn read_tree(persistence: &Persistence, id: u32, tree: &NodeTree) -> Result<serde_json::Value, VelociError> {
-    let mut json = json!({});
-    match *tree {
-        NodeTree::Map(ref map) => {
-            for (prop, sub_tree) in map.iter() {
-                let current_path = prop.add(PARENT_TO_VALUE_ID);
-                let is_array = prop.ends_with("[]");
-                match *sub_tree {
-                    NodeTree::IsLeaf => {
-                        if is_array {
-                            if let Some(sub_ids) = join_for_1_to_n(persistence, id, &current_path)? {
-                                let mut sub_data = vec![];
-                                for sub_id in sub_ids {
-                                    if let Some(texto) = join_and_get_text_for_ids(persistence, sub_id, prop)? {
-                                        sub_data.push(json!(texto));
-                                    }
-                                }
-                                json[extract_prop_name(prop)] = json!(sub_data);
-                            }
-                        } else if let Some(texto) = join_and_get_text_for_ids(persistence, id, prop)? {
-                            json[extract_prop_name(prop)] = json!(texto);
-                        }
-                    }
-                    NodeTree::Map(ref _next) => {
-                        if !persistence.has_index(&current_path) {
-                            // Special case a node without information an object in object e.g. there is no information 1:n to store
-                            json[extract_prop_name(prop)] = read_tree(persistence, id, &sub_tree)?;
-                        } else if let Some(sub_ids) = join_for_1_to_n(persistence, id, &current_path)? {
-                            if is_array {
-                                let mut sub_data = vec![];
-                                for sub_id in sub_ids {
-                                    sub_data.push(read_tree(persistence, sub_id, &sub_tree)?);
-                                }
-                                json[extract_prop_name(prop)] = json!(sub_data);
-                            } else if let Some(sub_id) = sub_ids.get(0) {
-                                json[extract_prop_name(prop)] = read_tree(persistence, *sub_id, &sub_tree)?;
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        NodeTree::IsLeaf => {}
-    }
-
-    Ok(json)
 }
 
 //TODO CHECK FIELD VALIDTY

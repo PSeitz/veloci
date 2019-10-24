@@ -32,8 +32,6 @@ fn main() -> Result<(), io::Error> {
     let file = File::open(&opt.input).unwrap();
 
     let mut is_array = false;
-    // let mut data = Vec::new();
-    // file.read(&mut data).unwrap();
 
     for byte in file.bytes().take(20) {
         let byte = byte.unwrap();
