@@ -7,3 +7,4 @@ mod single_array_mmap;
 pub(crate) use create_direct::*;
 pub(crate) use single_array_im::*;
 pub(crate) use single_array_mmap::*;
+pub(crate) use std::path::PathBuf;

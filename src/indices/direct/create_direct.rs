@@ -1,3 +1,4 @@
+
 use super::{super::*, *};
 
 use std::{
@@ -11,12 +12,12 @@ use std::{
 pub(crate) struct IndexIdToOneParentFlushing {
     pub(crate) cache: Vec<u32>,
     pub(crate) current_id_offset: u32,
-    pub(crate) path: String,
+    pub(crate) path: PathBuf,
     pub(crate) metadata: IndexValuesMetadata,
 }
 
 impl IndexIdToOneParentFlushing {
-    pub(crate) fn new(path: String, max_value_id: u32) -> IndexIdToOneParentFlushing {
+    pub(crate) fn new(path: PathBuf, max_value_id: u32) -> IndexIdToOneParentFlushing {
         IndexIdToOneParentFlushing {
             path,
             metadata: IndexValuesMetadata {
@@ -34,16 +35,6 @@ impl IndexIdToOneParentFlushing {
         store.metadata = self.metadata;
         store
     }
-
-    // pub(crate) fn into_store(mut self) -> Result<Box<dyn IndexIdToParent<Output = u32>>, VelociError> {
-    //     if self.is_in_memory() {
-    //         Ok(Box::new(self.into_im_store()))
-    //     } else {
-    //         self.flush()?;
-    //         let store = SingleArrayMMAPPacked::<u32>::from_file(&File::open(self.path)?, self.metadata)?;
-    //         Ok(Box::new(store))
-    //     }
-    // }
 
     #[inline]
     pub(crate) fn add(&mut self, id: u32, val: u32) -> Result<(), io::Error> {
@@ -99,8 +90,6 @@ impl IndexIdToOneParentFlushing {
 mod tests {
     use super::*;
     use crate::persistence::*;
-    // use rand;
-    // use test;
 
     // fn get_test_data_1_to_1<T: IndexIdToParentData>() -> SingleArrayIM<T> {
     //     let values = vec![5, 6, 9, 9, 9, 50000];
@@ -143,8 +132,8 @@ mod tests {
         #[test]
         fn test_index_id_to_parent_flushing() {
             let dir = tempdir().unwrap();
-            let data_path = dir.path().join("data").to_str().unwrap().to_string();
-            let mut ind = IndexIdToOneParentFlushing::new(data_path.to_string(), *get_test_data_1_to_1().iter().max().unwrap());
+            let data_path = dir.path().join("data");
+            let mut ind = IndexIdToOneParentFlushing::new(data_path.clone(), *get_test_data_1_to_1().iter().max().unwrap());
             for (key, val) in get_test_data_1_to_1().iter().enumerate() {
                 ind.add(key as u32, *val as u32).unwrap();
                 ind.flush().unwrap();
@@ -156,8 +145,8 @@ mod tests {
         #[test]
         fn test_index_id_to_parent_im() {
             let dir = tempdir().unwrap();
-            let data_path = dir.path().join("data").to_str().unwrap().to_string();
-            let mut ind = IndexIdToOneParentFlushing::new(data_path.to_string(), *get_test_data_1_to_1().iter().max().unwrap());
+            let data_path = dir.path().join("data");
+            let mut ind = IndexIdToOneParentFlushing::new(data_path, *get_test_data_1_to_1().iter().max().unwrap());
             for (key, val) in get_test_data_1_to_1().iter().enumerate() {
                 ind.add(key as u32, *val as u32).unwrap();
             }

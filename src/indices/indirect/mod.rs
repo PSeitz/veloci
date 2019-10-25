@@ -22,11 +22,12 @@ fn get_encoded(mut val: u32) -> Option<u32> {
 
 #[cfg(test)]
 mod tests {
+    use std::path::PathBuf;
     use super::*;
     use crate::persistence::IndexIdToParent;
 
-    fn get_test_data_1_to_n_ind(path: &str) -> IndirectIMFlushingInOrderVint {
-        let mut store = IndirectIMFlushingInOrderVint::new(path.to_string(), std::u32::MAX);
+    fn get_test_data_1_to_n_ind(path: PathBuf) -> IndirectIMFlushingInOrderVint {
+        let mut store = IndirectIMFlushingInOrderVint::new(path, std::u32::MAX);
         store.add(0, vec![5, 6]).unwrap();
         store.add(1, vec![9]).unwrap();
         store.add(2, vec![9]).unwrap();
@@ -79,8 +80,8 @@ mod tests {
         #[test]
         fn test_pointing_file_andmmap_array() {
             let dir = tempdir().unwrap();
-            let path = dir.path().join("testfile").to_str().unwrap().to_string();
-            let mut store = get_test_data_1_to_n_ind(&path);
+            let path = dir.path().join("testfile");
+            let mut store = get_test_data_1_to_n_ind(path.clone());
             store.flush().unwrap();
 
             let store = IndirectMMap::from_path(&path, store.metadata).unwrap();
@@ -111,7 +112,7 @@ mod tests {
 
         #[test]
         fn test_pointing_array_index_id_to_multiple_parent_indirect() {
-            let store = get_test_data_1_to_n_ind("test_ind");
+            let store = get_test_data_1_to_n_ind(PathBuf::from("test_ind"));
             let store = store.into_im_store();
             check_test_data_1_to_n(&store);
             check_test_data_1_to_n_iter(&store);

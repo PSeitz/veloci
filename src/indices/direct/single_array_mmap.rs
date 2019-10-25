@@ -1,7 +1,8 @@
+use crate::indices::mmap_from_file;
 use crate::{error::VelociError, indices::metadata::IndexValuesMetadata, persistence::*, type_info::TypeInfo};
 use std::{self, fs::File, io, marker::PhantomData, ptr::copy_nonoverlapping, u32};
 
-use memmap::{Mmap, MmapOptions};
+use memmap::{Mmap};
 use num;
 
 impl_type_info_single_templ!(SingleArrayMMAPPacked);
@@ -115,25 +116,14 @@ pub(crate) struct SingleArrayMMAPPacked<T: IndexIdToParentData> {
 
 impl<T: IndexIdToParentData> SingleArrayMMAPPacked<T> {
     pub(crate) fn from_file(file: &File, metadata: IndexValuesMetadata) -> Result<Self, VelociError> {
-        let data_file = unsafe { MmapOptions::new().map(&file)? };
         Ok(SingleArrayMMAPPacked {
-            data_file,
+            data_file: mmap_from_file(file)?,
             size: file.metadata()?.len() as usize / get_bytes_required(metadata.max_value_id) as usize,
             metadata,
             ok: PhantomData,
             bytes_required: get_bytes_required(metadata.max_value_id),
         })
     }
-    // pub(crate) fn from_path(path: &str, metadata: IndexValuesMetadata) -> Result<Self, VelociError> {
-    //     let data_file = unsafe { MmapOptions::new().map(&open_file(path)?)? };
-    //     Ok(SingleArrayMMAPPacked {
-    //         data_file,
-    //         size: File::open(path)?.metadata()?.len() as usize / get_bytes_required(metadata.max_value_id) as usize,
-    //         metadata,
-    //         ok: PhantomData,
-    //         bytes_required: get_bytes_required(metadata.max_value_id),
-    //     })
-    // }
 }
 // impl<T: IndexIdToParentData> HeapSizeOf for SingleArrayMMAPPacked<T> {
 //     fn heap_size_of_children(&self) -> usize {

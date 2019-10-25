@@ -1,13 +1,9 @@
 use crate::{persistence::*, type_info::TypeInfo};
 use half::f16;
 use std::path::Path;
-
-// use heapsize::HeapSizeOf;
-
-use memmap::{Mmap, MmapOptions};
+use memmap::{Mmap};
 
 pub mod token_to_anchor_score_vint;
-
 pub(crate) use self::token_to_anchor_score_vint::*;
 
 #[repr(packed)]

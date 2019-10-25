@@ -25,7 +25,6 @@ use crate::{
 };
 use buffered_index_writer::{self, BufferedIndexWriter};
 use create_fulltext::{get_allterms_per_path, store_full_text_info_and_set_ids};
-
 use fixedbitset::FixedBitSet;
 use fnv::FnvHashMap;
 use fst;
@@ -36,6 +35,7 @@ use memmap::MmapOptions;
 use num::ToPrimitive;
 use rayon::prelude::*;
 use serde_json;
+use std::path::PathBuf;
 use std::{
     self,
     fs::File,
@@ -177,7 +177,7 @@ fn stream_iter_to_direct_index(iter: impl Iterator<Item = buffered_index_writer:
 }
 
 fn buffered_index_to_direct_index(db_path: &str, path: &str, mut buffered_index_data: BufferedIndexWriter) -> Result<IndexIdToOneParentFlushing, io::Error> {
-    let data_file_path = util::get_file_path(db_path, path);
+    let data_file_path = PathBuf::from(db_path).join(path);
     let mut store = IndexIdToOneParentFlushing::new(data_file_path, buffered_index_data.max_value_id);
     if buffered_index_data.is_in_memory() {
         stream_iter_to_direct_index(buffered_index_data.into_iter_inmemory(), &mut store)?;
@@ -498,8 +498,8 @@ pub fn add_anchor_score_flush(
     mut buffered_index_data: BufferedIndexWriter<u32, (u32, u32)>,
     indices: &mut IndicesFromRawData,
 ) -> Result<(), io::Error> {
-    let indirect_file_path = util::get_file_path(db_path, &(path.to_string() + ".indirect"));
-    let data_file_path = util::get_file_path(db_path, &(path.to_string() + ".data"));
+    let indirect_file_path = util::get_file_path(db_path, &path).set_ext(Ext::Indirect);
+    let data_file_path = util::get_file_path(db_path, &path).set_ext(Ext::Data);
     //If the buffered index_data is larger than 4GB, we switch to u64 for addressing the data block
     if buffered_index_data.bytes_written() < 2_u64.pow(32) {
         let mut store = TokenToAnchorScoreVintFlushing::<u32>::new(indirect_file_path, data_file_path);

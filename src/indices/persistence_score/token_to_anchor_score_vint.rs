@@ -1,3 +1,4 @@
+use std::path::PathBuf;
 use super::{
     super::{EMPTY_BUCKET, EMPTY_BUCKET_USIZE},
     *,
@@ -55,8 +56,8 @@ pub struct TokenToAnchorScoreVintFlushing<T: AnchorScoreDataSize> {
     pub current_data_offset: T,
     /// Already written id_to_data_pos
     pub current_id_offset: u32,
-    pub indirect_path: String,
-    pub data_path: String,
+    pub indirect_path: PathBuf,
+    pub data_path: PathBuf,
     pub metadata: IndexValuesMetadata,
 }
 
@@ -81,12 +82,12 @@ fn compress_data_block(data: &mut [u32]) -> Vec<u8> {
 
 impl<T: AnchorScoreDataSize> Default for TokenToAnchorScoreVintFlushing<T> {
     fn default() -> TokenToAnchorScoreVintFlushing<T> {
-        TokenToAnchorScoreVintFlushing::new("".to_string(), "".to_string())
+        TokenToAnchorScoreVintFlushing::new(PathBuf::default(), PathBuf::default())
     }
 }
 
 impl<T: AnchorScoreDataSize> TokenToAnchorScoreVintFlushing<T> {
-    pub fn new(indirect_path: String, data_path: String) -> Self {
+    pub fn new(indirect_path: PathBuf, data_path: PathBuf) -> Self {
         let mut data_cache = vec![];
         data_cache.resize(1, 0); // resize data by one, because 0 is reserved for the empty buckets
         TokenToAnchorScoreVintFlushing {
@@ -239,14 +240,11 @@ impl<T: AnchorScoreDataSize> TokenToAnchorScore for TokenToAnchorScoreVintIM<T> 
     }
 }
 
-use crate::util::open_file;
 impl<T: AnchorScoreDataSize> TokenToAnchorScoreVintMmap<T> {
-    pub fn from_path(start_and_end_file: &str, data_file: &str) -> Result<Self, VelociError> {
-        let start_and_end_file = unsafe { MmapOptions::new().map(&open_file(start_and_end_file)?).unwrap() };
-        let data_file = unsafe { MmapOptions::new().map(&open_file(data_file)?).unwrap() };
+    pub fn from_path<P: AsRef<Path>>(start_and_end_file: P, data_file: P) -> Result<Self, VelociError> {
         Ok(TokenToAnchorScoreVintMmap {
-            start_pos: start_and_end_file,
-            data: data_file,
+            start_pos: mmap_from_path(start_and_end_file)?,
+            data: mmap_from_path(data_file)?,
             max_value_id: 0,
             ok: std::marker::PhantomData,
         })
@@ -300,8 +298,8 @@ fn test_token_to_anchor_score_vint() {
     assert_eq!(store.get_score_iter(6).collect::<Vec<_>>(), vec![]);
 
     let dir = tempdir().unwrap();
-    let data = dir.path().join("TokenToAnchorScoreVintTestData").to_str().unwrap().to_string();
-    let indirect = dir.path().join("TokenToAnchorScoreVintTestIndirect").to_str().unwrap().to_string();
+    let data = dir.path().join("TokenToAnchorScoreVintTestData");
+    let indirect = dir.path().join("TokenToAnchorScoreVintTestIndirect");
 
     let mut store = TokenToAnchorScoreVintFlushing::<u32>::new(indirect, data);
     store.set_scores(1, &mut vec![1, 1]).unwrap();

@@ -1,7 +1,9 @@
+use std::path::PathBuf;
 use crate::{error::VelociError, persistence::TEXTINDEX};
 use itertools::Itertools;
 use regex::Regex;
 use std::{self, collections::HashMap, fs::File, io::prelude::*, path::Path};
+use std::ffi::{OsString};
 
 pub(crate) fn normalize_text(text: &str) -> String {
     lazy_static! {
@@ -28,6 +30,76 @@ pub fn open_file<P: AsRef<Path>>(path: P) -> Result<File, VelociError> {
         .map_err(|err| VelociError::StringError(format!("Could not open {} {:?}", path.as_ref().to_str().expect("could not convert path to string"), err)))?)
 }
 
+#[derive(Debug)]
+pub(crate) enum Ext {
+    Indirect,
+    Data,
+}
+
+pub(crate) trait SetExt {
+    fn set_ext(&self, other: Ext) -> PathBuf;
+}
+
+impl SetExt for PathBuf {
+    #[inline]
+    fn set_ext(&self, other: Ext) -> PathBuf{
+        self.as_path().set_ext(other)
+    }
+}
+
+impl SetExt for Path {
+    #[inline]
+    fn set_ext(&self, other: Ext) -> PathBuf{
+        let ext = match other {
+            Ext::Indirect => "indirect",
+            Ext::Data => "data",
+        };
+        let mut new_path = PathBuf::from(self);
+        if !new_path.ends_with(ext){
+            if let Some(curr_ext) = new_path.extension() {
+                let mut new_ext = OsString::from(curr_ext);
+                new_ext.push(".");
+                new_ext.push(ext);
+                new_path.set_extension(new_ext);
+            }else{
+                new_path.set_extension(ext);
+            }
+        }
+        new_path
+    }
+}
+
+// pub(crate) trait SetExt2 {
+//     fn set_ext(self, other: Ext) -> PathBuf;
+// }
+
+// impl SetExt2 for PathBuf {
+//     #[inline]
+//     fn set_ext(self, other: Ext) -> PathBuf{
+//         self.as_path().set_ext(other)
+//     }
+// }
+
+// impl SetExt2 for Path {
+//     #[inline]
+//     fn set_ext(self, other: Ext) -> PathBuf{
+//         let ext = match other {
+//             Ext::Indirect => ".indirect",
+//             Ext::Data => ".data",
+//         };
+//         let mut new_path = PathBuf::from(&self);
+//         if !new_path.ends_with(ext){
+//             if let Some(curr_ext) = new_path.extension() {
+//                 let mut new_ext = OsString::from(curr_ext);
+//                 new_ext.push(ext);
+//                 new_path.set_extension(new_ext);
+//             }else{
+//                 new_path.set_extension(ext);
+//             }
+//         }
+//         new_path
+//     }
+// }
 // pub(crate) fn get_bit_at(input: u32, n: u8) -> bool {
 //     if n < 32 {
 //         input & (1 << n) != 0
@@ -106,8 +178,9 @@ impl<S: AsRef<str>> StringAdd for S {
     }
 }
 
-pub(crate) fn get_file_path(folder: &str, path: &str) -> String {
-    folder.to_string() + "/" + path
+pub(crate) fn get_file_path(folder: &str, path: &str) -> PathBuf {
+    PathBuf::from(folder).join(path)
+    // folder.to_string() + "/" + path
 }
 
 pub(crate) fn file_as_string<P: AsRef<Path> + std::fmt::Debug>(path: P) -> Result<(String), VelociError> {

@@ -1,3 +1,9 @@
+use std::fs::File;
+use memmap::{Mmap, MmapOptions};
+
+use crate::error::VelociError;
+use crate::util::open_file;
+use std::path::Path;
 use num::{self, cast::ToPrimitive};
 use std::io::{self, Write};
 
@@ -21,7 +27,7 @@ pub(crate) fn calc_avg_join_size(num_values: u64, num_ids: u32) -> f32 {
     num_values as f32 / std::cmp::max(1, num_ids).to_f32().unwrap()
 }
 
-pub(crate) fn flush_to_file_indirect(indirect_path: &str, data_path: &str, indirect_data: &[u8], data: &[u8]) -> Result<(), io::Error> {
+pub(crate) fn flush_to_file_indirect<P: AsRef<Path>>(indirect_path: P, data_path: P, indirect_data: &[u8], data: &[u8]) -> Result<(), io::Error> {
     let mut indirect = std::fs::OpenOptions::new().read(true).write(true).append(true).create(true).open(&indirect_path).unwrap();
     let mut data_cache = std::fs::OpenOptions::new().read(true).write(true).append(true).create(true).open(&data_path).unwrap();
 
@@ -29,4 +35,12 @@ pub(crate) fn flush_to_file_indirect(indirect_path: &str, data_path: &str, indir
     data_cache.write_all(data)?;
 
     Ok(())
+}
+
+pub fn mmap_from_path<P: AsRef<Path>>(path: P) -> Result<Mmap, VelociError> {
+    mmap_from_file(&open_file(path)?)
+}
+
+pub fn mmap_from_file(file: &File) -> Result<Mmap, VelociError> {
+    Ok(unsafe { MmapOptions::new().map(file).unwrap() })
 }

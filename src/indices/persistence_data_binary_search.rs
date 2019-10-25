@@ -1,8 +1,10 @@
+use std::path::PathBuf;
 use super::{calc_avg_join_size, flush_to_file_indirect};
 use crate::{error::VelociError, indices::*, persistence::*, type_info::TypeInfo, util::open_file};
-use memmap::{Mmap, MmapOptions};
+use memmap::{Mmap};
 use std::{self, cmp::Ordering::Greater, io, marker::PhantomData, path::Path, u32};
 use vint::vint::*;
+use crate::util::*;
 
 impl_type_info_single_templ!(IndirectIMFlushingInOrderVintNoDirectEncode);
 impl_type_info_single_templ!(IndirectIMBinarySearchMMAP);
@@ -15,13 +17,13 @@ pub(crate) struct IndirectIMFlushingInOrderVintNoDirectEncode<T> {
     pub(crate) current_data_offset: u32,
     /// Already written ids_cache
     pub(crate) current_id_offset: u32,
-    pub(crate) indirect_path: String,
-    pub(crate) data_path: String,
+    pub(crate) indirect_path: PathBuf,
+    pub(crate) data_path: PathBuf,
     pub(crate) metadata: IndexValuesMetadata,
 }
 
 impl<T: Default + std::fmt::Debug> IndirectIMFlushingInOrderVintNoDirectEncode<T> {
-    pub(crate) fn new(indirect_path: String, data_path: String, max_value_id: u32) -> Self {
+    pub(crate) fn new(indirect_path: PathBuf, data_path: PathBuf, max_value_id: u32) -> Self {
         let mut data_cache = vec![];
         data_cache.resize(1, 0); // resize data by one, because 0 is reserved for the empty buckets
         IndirectIMFlushingInOrderVintNoDirectEncode {
@@ -127,21 +129,13 @@ pub(crate) struct IndirectIMBinarySearchMMAP<T> {
     pub(crate) metadata: IndexValuesMetadata,
     pub(crate) size: usize,
 }
-// impl<T: Ord + Copy + Default + std::fmt::Debug> HeapSizeOf for IndirectIMBinarySearchMMAP<T> {
-//     fn heap_size_of_children(&self) -> usize {
-//         0
-//     }
-// }
+
 impl<T: Ord + Copy + Default + std::fmt::Debug> IndirectIMBinarySearchMMAP<T> {
     pub(crate) fn from_path<P: AsRef<Path>>(path: P, metadata: IndexValuesMetadata) -> Result<Self, VelociError> {
-        let ind_file = open_file(path.as_ref().to_str().unwrap().to_string() + ".indirect")?;
-        let data_file = open_file(path.as_ref().to_str().unwrap().to_string() + ".data")?;
-
-        let start_pos = unsafe { MmapOptions::new().map(&ind_file).unwrap() };
-        let data = unsafe { MmapOptions::new().map(&data_file).unwrap() };
+        let ind_file = open_file(path.as_ref().set_ext(Ext::Indirect))?;
         Ok(IndirectIMBinarySearchMMAP {
-            start_pos,
-            data,
+            start_pos: mmap_from_path(path.as_ref().set_ext(Ext::Indirect))?,
+            data: mmap_from_path(path.as_ref().set_ext(Ext::Data))?,
             size: ind_file.metadata()?.len() as usize / std::mem::size_of::<(T, u32)>(),
             ok: PhantomData,
             metadata,
@@ -168,8 +162,6 @@ fn decode_pos<T: Copy + Default, K: Copy + Default>(pos: usize, slice: &[u8]) ->
 
 #[inline]
 pub(crate) fn binary_search_slice<T: Ord + Copy + Default + std::fmt::Debug, K: Copy + Default>(mut size: usize, id: T, slice: &[u8]) -> Option<(T, K)> {
-    // let s = self;
-    // let mut size = s.size;
     if size == 0 {
         return None;
     }
@@ -213,7 +205,7 @@ mod tests {
     use super::*;
     use tempfile::tempdir;
 
-    fn get_test_data_1_to_n_ind(ind_path: String, data_path: String) -> IndirectIMFlushingInOrderVintNoDirectEncode<(u32, u32)> {
+    fn get_test_data_1_to_n_ind(ind_path: PathBuf, data_path: PathBuf) -> IndirectIMFlushingInOrderVintNoDirectEncode<(u32, u32)> {
         let mut store = IndirectIMFlushingInOrderVintNoDirectEncode::new(ind_path, data_path, u32::MAX);
         store.add((0, 0), &vec![5, 6]).unwrap();
         store.add((0, 1), &vec![9]).unwrap();
@@ -228,9 +220,9 @@ mod tests {
     #[test]
     fn test_in_memory() {
         let dir = tempdir().unwrap();
-        let indirect_path = dir.path().join("indirect").to_str().unwrap().to_string();
-        let data_path = dir.path().join("data").to_str().unwrap().to_string();
-        let store = get_test_data_1_to_n_ind(indirect_path.to_string(), data_path.to_string());
+        let indirect_path = dir.path().join("indirect");
+        let data_path = dir.path().join("data");
+        let store = get_test_data_1_to_n_ind(indirect_path, data_path);
 
         let yop = store.into_im_store();
 
@@ -247,9 +239,9 @@ mod tests {
     #[test]
     fn test_mmap() {
         let dir = tempdir().unwrap();
-        let indirect_path = dir.path().join("yop.indirect").to_str().unwrap().to_string();
-        let data_path = dir.path().join("yop.data").to_str().unwrap().to_string();
-        let mut store = get_test_data_1_to_n_ind(indirect_path.to_string(), data_path.to_string());
+        let indirect_path = dir.path().join("yop.indirect");
+        let data_path = dir.path().join("yop.data");
+        let mut store = get_test_data_1_to_n_ind(indirect_path, data_path);
         store.flush().unwrap();
         // let yop = store.into_im_store();
         let store = IndirectIMBinarySearchMMAP::<(u32, u32)>::from_path(dir.path().join("yop"), store.metadata).unwrap();

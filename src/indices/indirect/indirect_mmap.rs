@@ -1,10 +1,11 @@
 use super::*;
-use crate::{error::VelociError, indices::*, persistence::*, type_info::TypeInfo, util::*};
+use crate::{error::VelociError, indices::*, persistence::*, type_info::TypeInfo};
 use byteorder::{LittleEndian, ReadBytesExt};
-use memmap::{Mmap, MmapOptions};
+use memmap::{Mmap};
 use num::{self, cast::ToPrimitive};
 use std::{self, fs::File, marker::PhantomData, u32};
 use vint::vint::*;
+use crate::util::*;
 
 impl_type_info_single_templ!(IndirectMMap);
 
@@ -23,13 +24,11 @@ impl<T: IndexIdToParentData> IndirectMMap<T> {
         self.size
     }
 
-    pub(crate) fn from_path(path: &str, metadata: IndexValuesMetadata) -> Result<Self, VelociError> {
-        let start_pos = unsafe { MmapOptions::new().map(&open_file(path.to_string() + ".indirect")?).unwrap() };
-        let data = unsafe { MmapOptions::new().map(&open_file(path.to_string() + ".data")?).unwrap() };
+    pub(crate) fn from_path<P: AsRef<Path>>(path: P, metadata: IndexValuesMetadata) -> Result<Self, VelociError> {
         Ok(IndirectMMap {
-            start_pos,
-            data,
-            size: File::open(path.to_string() + ".indirect")?.metadata()?.len() as usize / std::mem::size_of::<T>(),
+            start_pos: mmap_from_path(path.as_ref().set_ext(Ext::Indirect))?,
+            data: mmap_from_path(path.as_ref().set_ext(Ext::Data))?,
+            size: File::open(path.as_ref().set_ext(Ext::Indirect))?.metadata()?.len() as usize / std::mem::size_of::<T>(),
             ok: PhantomData,
             metadata,
         })

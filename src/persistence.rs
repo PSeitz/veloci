@@ -291,7 +291,7 @@ pub fn get_readable_size(value: usize) -> ColoredString {
 // }
 
 impl Persistence {
-    fn load_types_index_to_one<T: IndexIdToParentData>(data_direct_path: &str, metadata: IndexValuesMetadata) -> Result<Box<dyn IndexIdToParent<Output = u32>>, VelociError> {
+    fn load_types_index_to_one<T: IndexIdToParentData, P: AsRef<Path> + std::fmt::Debug>(data_direct_path: P, metadata: IndexValuesMetadata) -> Result<Box<dyn IndexIdToParent<Output = u32>>, VelociError> {
         let store = SingleArrayIM::<u32, T> {
             data: decode_bit_packed_vals(&file_path_to_bytes(data_direct_path)?, get_bytes_required(metadata.max_value_id)),
             metadata,
@@ -309,8 +309,8 @@ impl Persistence {
 
         //ANCHOR TO SCORE
         for el in self.metadata.columns.iter().flat_map(|col| col.1.indices.iter()) {
-            let indirect_path = get_file_path(&self.db, &el.path) + ".indirect";
-            let indirect_data_path = get_file_path(&self.db, &el.path) + ".data";
+            let indirect_path = get_file_path(&self.db, &el.path).set_ext(Ext::Indirect);
+            let indirect_data_path = get_file_path(&self.db, &el.path).set_ext(Ext::Data);
             let loading_type = get_loading_type(el.loading_type)?;
             match el.index_category {
                 IndexCategory::Phrase => {
@@ -404,11 +404,11 @@ impl Persistence {
                             IndexCardinality::IndexIdToOneParent => {
                                 let bytes_required = get_bytes_required(el.metadata.max_value_id) as u8;
                                 if bytes_required == 1 {
-                                    Self::load_types_index_to_one::<u8>(&data_direct_path, el.metadata)?
+                                    Self::load_types_index_to_one::<u8, _>(&data_direct_path, el.metadata)?
                                 } else if bytes_required == 2 {
-                                    Self::load_types_index_to_one::<u16>(&data_direct_path, el.metadata)?
+                                    Self::load_types_index_to_one::<u16, _>(&data_direct_path, el.metadata)?
                                 } else {
-                                    Self::load_types_index_to_one::<u32>(&data_direct_path, el.metadata)?
+                                    Self::load_types_index_to_one::<u32, _>(&data_direct_path, el.metadata)?
                                 }
                             }
                         },

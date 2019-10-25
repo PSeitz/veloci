@@ -3,6 +3,7 @@ use crate::{error::VelociError, indices::*, persistence::*, util::*};
 use num::{self, cast::ToPrimitive};
 use std::{self, io, u32};
 use vint::vint::*;
+use std::path::PathBuf;
 
 fn to_serialized_vint_array(add_data: Vec<u32>) -> Vec<u8> {
     let mut vint = VIntArray::default();
@@ -20,14 +21,14 @@ pub(crate) struct IndirectIMFlushingInOrderVint {
     pub(crate) current_data_offset: u32,
     /// Already written ids_cache
     pub(crate) current_id_offset: u32,
-    pub(crate) path: String,
+    pub(crate) path: PathBuf,
     pub(crate) metadata: IndexValuesMetadata,
 }
 
 // use vint for indirect, use not highest bit in indirect, but the highest unused bit. Max(value_id, single data_id, which would be encoded in the valueid index)
 //
 impl IndirectIMFlushingInOrderVint {
-    pub(crate) fn new(path: String, max_value_id: u32) -> Self {
+    pub(crate) fn new(path: PathBuf, max_value_id: u32) -> Self {
         let mut data_cache = vec![];
         data_cache.resize(1, 0); // resize data by one, because 0 is reserved for the empty buckets
         IndirectIMFlushingInOrderVint {
@@ -107,8 +108,8 @@ impl IndirectIMFlushingInOrderVint {
         self.current_data_offset += self.data_cache.len() as u32;
 
         flush_to_file_indirect(
-            &(self.path.to_string() + ".indirect"),
-            &(self.path.to_string() + ".data"),
+            &(self.path.set_ext(Ext::Indirect)),
+            &(self.path.set_ext(Ext::Data)),
             &vec_to_bytes(&self.ids_cache),
             &self.data_cache,
         )?;
