@@ -69,37 +69,7 @@ impl SetExt for Path {
     }
 }
 
-// pub(crate) trait SetExt2 {
-//     fn set_ext(self, other: Ext) -> PathBuf;
-// }
 
-// impl SetExt2 for PathBuf {
-//     #[inline]
-//     fn set_ext(self, other: Ext) -> PathBuf{
-//         self.as_path().set_ext(other)
-//     }
-// }
-
-// impl SetExt2 for Path {
-//     #[inline]
-//     fn set_ext(self, other: Ext) -> PathBuf{
-//         let ext = match other {
-//             Ext::Indirect => ".indirect",
-//             Ext::Data => ".data",
-//         };
-//         let mut new_path = PathBuf::from(&self);
-//         if !new_path.ends_with(ext){
-//             if let Some(curr_ext) = new_path.extension() {
-//                 let mut new_ext = OsString::from(curr_ext);
-//                 new_ext.push(ext);
-//                 new_path.set_extension(new_ext);
-//             }else{
-//                 new_path.set_extension(ext);
-//             }
-//         }
-//         new_path
-//     }
-// }
 // pub(crate) fn get_bit_at(input: u32, n: u8) -> bool {
 //     if n < 32 {
 //         input & (1 << n) != 0

@@ -1,3 +1,50 @@
+
+
+#[macro_export]
+macro_rules! get_values_iter {
+    ($self:expr, $id:expr, $data:expr, $get_index:block) => {
+        if $id >= $self.get_size() as u64 {
+            VintArrayIteratorOpt::empty()
+        } else {
+            let data_start_pos = $get_index;
+            let data_start_pos_or_data = data_start_pos.to_u32().unwrap();
+            if let Some(val) = get_encoded(data_start_pos_or_data) { // TODO handle u64 indices
+                return VintArrayIteratorOpt {
+                    single_value: i64::from(val),
+                    iter: Box::new(VintArrayIterator::from_serialized_vint_array(&[])),
+                };
+            }
+            if data_start_pos_or_data == EMPTY_BUCKET {
+                return VintArrayIteratorOpt::empty();
+            }
+            VintArrayIteratorOpt::from_slice(&$data[data_start_pos.to_usize().unwrap()..])
+        }
+    };
+}
+
+#[macro_export]
+macro_rules! get_values {
+    ($self:expr, $id:expr, $data:expr, $get_index:block) => {
+        if $id >= $self.get_size() as u64 {
+            None
+        } else {
+            let data_start_pos = $get_index;
+            let data_start_pos_or_data = data_start_pos.to_u32().unwrap();  // TODO handle u64 indices
+            if let Some(val) = get_encoded(data_start_pos_or_data) {
+                return Some(vec![num::cast(val).unwrap()]);
+            }
+            if data_start_pos_or_data == EMPTY_BUCKET {
+                return None;
+            }
+
+            let iter = VintArrayIterator::from_serialized_vint_array(&$self.data[data_start_pos.to_usize().unwrap()..]);
+            let decoded_data: Vec<u32> = iter.collect();
+            Some(decoded_data.iter().map(|el| num::cast(*el).unwrap()).collect())
+        }
+    };
+}
+
+
 #[cfg(feature = "create")]
 mod create_indirect;
 mod indirect_im;
@@ -10,6 +57,7 @@ pub(crate) use create_indirect::*;
 pub(crate) use indirect_im::*;
 pub(crate) use indirect_mmap::*;
 
+// TODO handle u64
 fn get_encoded(mut val: u32) -> Option<u32> {
     if is_hight_bit_set(val) {
         //data encoded in indirect array

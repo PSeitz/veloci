@@ -106,50 +106,11 @@ impl<T: IndexIdToParentData> IndexIdToParent for IndirectIM<T> {
     // }
 
     fn get_values_iter(&self, id: u64) -> VintArrayIteratorOpt<'_> {
-        if id >= self.get_size() as u64 {
-            VintArrayIteratorOpt {
-                single_value: -2,
-                iter: Box::new(VintArrayIterator::from_serialized_vint_array(&[])),
-            }
-        } else {
-            let data_start_pos = self.start_pos[id as usize];
-            let data_start_pos_or_data = data_start_pos.to_u32().unwrap();
-            if let Some(val) = get_encoded(data_start_pos_or_data) {
-                return VintArrayIteratorOpt {
-                    single_value: i64::from(val),
-                    iter: Box::new(VintArrayIterator::from_serialized_vint_array(&[])),
-                };
-            }
-            if data_start_pos_or_data == EMPTY_BUCKET {
-                return VintArrayIteratorOpt {
-                    single_value: -2,
-                    iter: Box::new(VintArrayIterator::from_serialized_vint_array(&[])),
-                };
-            }
-            VintArrayIteratorOpt {
-                single_value: -1,
-                iter: Box::new(VintArrayIterator::from_serialized_vint_array(&self.data[data_start_pos.to_usize().unwrap()..])),
-            }
-        }
+        get_values_iter!(self, id, self.data, {self.start_pos[id as usize]})
     }
 
     #[inline]
     default fn get_values(&self, id: u64) -> Option<Vec<T>> {
-        if id >= self.get_size() as u64 {
-            None
-        } else {
-            let data_start_pos = self.start_pos[id as usize];
-            let data_start_pos_or_data = data_start_pos.to_u32().unwrap();
-            if let Some(val) = get_encoded(data_start_pos_or_data) {
-                return Some(vec![num::cast(val).unwrap()]);
-            }
-            if data_start_pos_or_data == EMPTY_BUCKET {
-                return None;
-            }
-
-            let iter = VintArrayIterator::from_serialized_vint_array(&self.data[data_start_pos.to_usize().unwrap()..]);
-            let decoded_data: Vec<u32> = iter.collect();
-            Some(decoded_data.iter().map(|el| num::cast(*el).unwrap()).collect())
-        }
+        get_values!(self, id, self.data, {self.start_pos[id as usize]})
     }
 }

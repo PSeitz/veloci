@@ -586,8 +586,8 @@ fn add_phrase_pair_flush(
     buffered_index_data: BufferedIndexWriter<(u32, u32), u32>,
     indices: &mut IndicesFromRawData,
 ) -> Result<(), io::Error> {
-    let indirect_file_path = util::get_file_path(db_path, &(path.to_string() + ".indirect"));
-    let data_file_path = util::get_file_path(db_path, &(path.to_string() + ".data"));
+    let indirect_file_path = util::get_file_path(db_path, &path).set_ext(Ext::Indirect);
+    let data_file_path = util::get_file_path(db_path, &path).set_ext(Ext::Data);
 
     let mut store = IndirectIMFlushingInOrderVintNoDirectEncode::<(u32, u32)>::new(indirect_file_path, data_file_path, buffered_index_data.max_value_id);
     stream_buffered_index_writer_to_phrase_index(buffered_index_data, &mut store)?;

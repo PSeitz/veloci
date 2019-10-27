@@ -8,6 +8,7 @@ use num::{self, cast::ToPrimitive};
 use std::io::{self, Write};
 
 pub mod direct;
+#[macro_use]
 pub mod indirect;
 pub mod metadata;
 pub mod persistence_data_binary_search;
