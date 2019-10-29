@@ -2,6 +2,7 @@ use crate::indices::mmap_from_file;
 use crate::{error::VelociError, indices::metadata::IndexValuesMetadata, persistence::*, type_info::TypeInfo};
 use std::{self, fs::File, io, marker::PhantomData, ptr::copy_nonoverlapping, u32};
 
+use std::mem;
 use memmap::{Mmap};
 use num;
 
@@ -28,7 +29,7 @@ pub(crate) fn get_bytes_required(mut val: u32) -> BytesRequired {
         BytesRequired::Four
     }
 }
-use std::mem;
+
 #[inline]
 pub(crate) fn encode_vals<O: std::io::Write>(vals: &[u32], bytes_required: BytesRequired, out: &mut O) -> Result<(), io::Error> {
     //Maximum speed, Maximum unsafe
@@ -147,12 +148,12 @@ impl<T: IndexIdToParentData> IndexIdToParent for SingleArrayMMAPPacked<T> {
     }
 
     #[inline]
-    default fn get_values(&self, id: u64) -> Option<Vec<T>> {
+    fn get_values(&self, id: u64) -> Option<Vec<T>> {
         self.get_value(id).map(|el| vec![el])
     }
 
     #[inline]
-    default fn get_value(&self, id: u64) -> Option<T> {
+    fn get_value(&self, id: u64) -> Option<T> {
         decode_bit_packed_val::<T>(&self.data_file, self.bytes_required, id as usize)
     }
 

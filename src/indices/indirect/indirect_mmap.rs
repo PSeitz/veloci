@@ -61,7 +61,7 @@ impl<T: IndexIdToParentData> IndexIdToParent for IndirectMMap<T> {
         })
     }
 
-    default fn get_values(&self, id: u64) -> Option<Vec<T>> {
+    fn get_values(&self, id: u64) -> Option<Vec<T>> {
         get_values!(self, id, self.data, {
             (&self.start_pos[id as usize * std::mem::size_of::<T>() as usize..id as usize * std::mem::size_of::<T>() + std::mem::size_of::<T>()]).read_u32::<LittleEndian>().unwrap()
         })

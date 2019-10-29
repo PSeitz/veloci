@@ -110,7 +110,7 @@ impl<T: IndexIdToParentData> IndexIdToParent for IndirectIM<T> {
     }
 
     #[inline]
-    default fn get_values(&self, id: u64) -> Option<Vec<T>> {
+    fn get_values(&self, id: u64) -> Option<Vec<T>> {
         get_values!(self, id, self.data, {self.start_pos[id as usize]})
     }
 }
