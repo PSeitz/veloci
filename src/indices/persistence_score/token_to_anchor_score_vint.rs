@@ -291,6 +291,7 @@ mod tests {
         use tempfile::tempdir;
         let mut store = TokenToAnchorScoreVintFlushing::<T>::default();
 
+        // test im
         store.set_scores(1, &mut vec![1, 1]).unwrap();
         let store = store.into_im_store();
         assert_eq!(store.get_score_iter(0).collect::<Vec<_>>(), vec![]);
@@ -305,8 +306,11 @@ mod tests {
             store.get_score_iter(5).collect::<Vec<_>>(),
             vec![AnchorScore::new(1, f16::from_f32(1.0)), AnchorScore::new(2, f16::from_f32(3.0))]
         );
-        assert_eq!(store.get_score_iter(6).collect::<Vec<_>>(), vec![]);
+        for i in 6..18 {
+            assert_eq!(store.get_score_iter(i).collect::<Vec<_>>(), vec![]);
+        }
 
+        // test flush to file
         let dir = tempdir().unwrap();
         let data = dir.path().join("TokenToAnchorScoreVintTestData");
         let indirect = dir.path().join("TokenToAnchorScoreVintTestIndirect");
@@ -326,19 +330,9 @@ mod tests {
             store.get_score_iter(5).collect::<Vec<_>>(),
             vec![AnchorScore::new(1, f16::from_f32(1.0)), AnchorScore::new(2, f16::from_f32(3.0))]
         );
-        assert_eq!(store.get_score_iter(6).collect::<Vec<_>>(), vec![]);
-        assert_eq!(store.get_score_iter(7).collect::<Vec<_>>(), vec![]);
-        assert_eq!(store.get_score_iter(8).collect::<Vec<_>>(), vec![]);
-        assert_eq!(store.get_score_iter(9).collect::<Vec<_>>(), vec![]);
-        assert_eq!(store.get_score_iter(10).collect::<Vec<_>>(), vec![]);
-        assert_eq!(store.get_score_iter(11).collect::<Vec<_>>(), vec![]);
-        assert_eq!(store.get_score_iter(12).collect::<Vec<_>>(), vec![]);
-        assert_eq!(store.get_score_iter(13).collect::<Vec<_>>(), vec![]);
-        assert_eq!(store.get_score_iter(14).collect::<Vec<_>>(), vec![]);
-        assert_eq!(store.get_score_iter(15).collect::<Vec<_>>(), vec![]);
-        assert_eq!(store.get_score_iter(16).collect::<Vec<_>>(), vec![]);
-        assert_eq!(store.get_score_iter(17).collect::<Vec<_>>(), vec![]);
-        assert_eq!(store.get_score_iter(18).collect::<Vec<_>>(), vec![]);
+        for i in 6..18 {
+            assert_eq!(store.get_score_iter(i).collect::<Vec<_>>(), vec![]);
+        }
     }
 
 
