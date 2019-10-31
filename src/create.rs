@@ -44,6 +44,9 @@ use std::{
 };
 use term_hashmap;
 
+type ValueId = u32;
+type TokenId = u32;
+
 type TermMap = term_hashmap::HashMap<TermInfo>;
 
 const NUM_TERM_LIMIT_MSG: &str = "number of terms per field is currently limited to u32";
@@ -221,6 +224,14 @@ fn get_text_info(all_terms: &mut TermDataInPath, value: &str) -> TermInfo {
     }
 }
 
+macro_rules! add {
+    ($index:expr, $val1:expr, $val2:expr) => {
+        if let Some(el) = $index.as_mut() {
+            el.add($val1, $val2)?;
+        }
+    };
+}
+
 fn parse_json_and_prepare_indices<I>(
     stream1: I,
     persistence: &Persistence,
@@ -250,13 +261,8 @@ where
             let text_info = get_text_info(&mut data.term_data, &value);
             trace!("Found id {:?} for {:?}", text_info, value);
 
-            if let Some(el) = data.text_id_to_parent.as_mut() {
-                el.add(text_info.id, parent_val_id)?;
-            }
-
-            if let Some(el) = data.parent_to_text_id.as_mut() {
-                el.add(parent_val_id, text_info.id)?;
-            }
+            add!(data.text_id_to_parent, text_info.id, parent_val_id);
+            add!(data.parent_to_text_id, parent_val_id, text_info.id);
 
             if let Some(el) = data.text_id_to_anchor.as_mut() {
                 if !data.is_anchor_identity_column {
@@ -265,22 +271,15 @@ where
                 }
             }
             // data.text_id_to_anchor.add(text_info.id, anchor_id)?;
-            if let Some(el) = data.anchor_to_text_id.as_mut() {
-                el.add(anchor_id, text_info.id)?;
-            }
+            add!(data.anchor_to_text_id, anchor_id, text_info.id);
             if let Some(el) = data.boost.as_mut() {
                 // if options.boost_type == "int" {
                 let my_int = value.parse::<u32>().unwrap_or_else(|_| panic!("Expected an int value but got {:?}", value));
                 el.add(parent_val_id, my_int)?;
             }
-            if let Some(el) = data.value_id_to_anchor.as_mut() {
-                el.add(parent_val_id, anchor_id)?;
-            }
+            add!(data.value_id_to_anchor, parent_val_id, anchor_id);
 
-            if let Some(el) = data.token_to_anchor_id_score.as_mut() {
-                let score = calculate_token_score_for_entry(0, text_info.num_occurences, 1, true);
-                el.add(text_info.id, (anchor_id, score))?;
-            }
+            add!(data.token_to_anchor_id_score, text_info.id, (anchor_id, calculate_token_score_for_entry(0, text_info.num_occurences, 1, true)));
 
             if data.fulltext_options.tokenize {
                 let tokenizer = data.fulltext_options.tokenizer.as_ref().unwrap_or_else(|| panic!("no tokenizer created for {:?}", path));
@@ -289,7 +288,7 @@ where
 
                     let text_ids_to_token_ids_already_stored = data.text_id_to_token_ids.as_ref().map(|el| el.contains(text_info.id)).unwrap_or(false);
 
-                    let mut prev_token: Option<u32> = None;
+                    let mut prev_token: Option<TokenId> = None;
 
                     for (token, is_seperator) in tokenizer.iter(value) {
                         let token_info = data.term_data.terms.get(token).expect("did not found token");
@@ -299,10 +298,7 @@ where
                             tokens_ids.push(token_info.id);
                         }
 
-                        if let Some(el) = data.tokens_to_text_id.as_mut() {
-                            // el.add(anchor_id, text_info.id)?;
-                            el.add(token_info.id, text_info.id)?;
-                        }
+                        add!(data.tokens_to_text_id, token_info.id, text_info.id);
 
                         if data.token_to_anchor_id_score.is_some() {
                             tokens_to_anchor_id.push(ValIdPairToken {
@@ -313,6 +309,11 @@ where
                             current_token_pos += 1;
                         }
 
+                        // seperators are currently ignored for the phrase_pairs, but this is questionable.
+                        // there are cases where a seperator are still important, eg.
+                        // <<cool>> , with < and > as seperators
+                        // we still would want a phrase boost if we search for <<cool
+                        // so we would need maybe two categories of seperators
                         if !is_seperator {
                             if let Some(el) = data.phrase_pair_to_anchor.as_mut() {
                                 if let Some(prev_token) = prev_token {
@@ -466,12 +467,12 @@ fn buffered_index_to_indirect_index_multiple(
 }
 
 fn stream_iter_to_anchor_score<T: AnchorScoreDataSize>(
-    iter: impl Iterator<Item = buffered_index_writer::KeyValue<u32, (u32, u32)>>,
+    iter: impl Iterator<Item = buffered_index_writer::KeyValue<u32, (ValueId, ValueId)>>,
     target: &mut TokenToAnchorScoreVintFlushing<T>,
 ) -> Result<(), io::Error> {
     use std::slice::from_raw_parts_mut;
     for (id, group) in &iter.group_by(|el| el.key) {
-        let mut group: Vec<(u32, u32)> = group.map(|el| el.value).collect();
+        let mut group: Vec<(ValueId, ValueId)> = group.map(|el| el.value).collect();
         group.sort_unstable_by_key(|el| el.0);
         group.dedup_by(|a, b| {
             //store only best hit
@@ -483,7 +484,7 @@ fn stream_iter_to_anchor_score<T: AnchorScoreDataSize>(
             }
         });
         let mut slice: &mut [u32] = unsafe {
-            &mut *(from_raw_parts_mut(group.as_mut_ptr(), group.len() * 2) as *mut [(u32, u32)] as *mut [u32]) //DANGER ZONE: THIS COULD BREAK IF THE MEMORY LAYOUT OF TUPLE CHANGES
+            &mut *(from_raw_parts_mut(group.as_mut_ptr(), group.len() * 2) as *mut [(ValueId, ValueId)] as *mut [u32]) //DANGER ZONE: THIS COULD BREAK IF THE MEMORY LAYOUT OF TUPLE CHANGES
         };
         target.set_scores(id, &mut slice)?;
     }
@@ -495,7 +496,7 @@ pub fn add_anchor_score_flush(
     db_path: &str,
     path_col: &str,
     path: String,
-    mut buffered_index_data: BufferedIndexWriter<u32, (u32, u32)>,
+    mut buffered_index_data: BufferedIndexWriter<ValueId, (ValueId, ValueId)>,
     indices: &mut IndicesFromRawData,
 ) -> Result<(), io::Error> {
     let indirect_file_path = util::get_file_path(db_path, &path).set_ext(Ext::Indirect);
@@ -549,8 +550,8 @@ pub fn add_anchor_score_flush(
 }
 
 fn stream_iter_to_phrase_index(
-    iter: impl Iterator<Item = buffered_index_writer::KeyValue<(u32, u32), u32>>,
-    target: &mut IndirectIMFlushingInOrderVintNoDirectEncode<(u32, u32)>,
+    iter: impl Iterator<Item = buffered_index_writer::KeyValue<(ValueId, ValueId), u32>>,
+    target: &mut IndirectIMFlushingInOrderVintNoDirectEncode<(ValueId, ValueId)>,
 ) -> Result<(), io::Error> {
     for (id, group) in &iter.group_by(|el| el.key) {
         let mut group: Vec<u32> = group.map(|el| el.value).collect();
@@ -563,8 +564,8 @@ fn stream_iter_to_phrase_index(
 }
 
 fn stream_buffered_index_writer_to_phrase_index(
-    mut index_writer: BufferedIndexWriter<(u32, u32), u32>,
-    target: &mut IndirectIMFlushingInOrderVintNoDirectEncode<(u32, u32)>,
+    mut index_writer: BufferedIndexWriter<(ValueId, ValueId), u32>,
+    target: &mut IndirectIMFlushingInOrderVintNoDirectEncode<(ValueId, ValueId)>,
 ) -> Result<(), io::Error> {
     // flush_and_kmerge will flush elements to disk, this is unnecessary for small indices, so we check for im
     if index_writer.is_in_memory() {
@@ -583,13 +584,13 @@ fn add_phrase_pair_flush(
     db_path: &str,
     path_col: &str,
     path: String,
-    buffered_index_data: BufferedIndexWriter<(u32, u32), u32>,
+    buffered_index_data: BufferedIndexWriter<(ValueId, ValueId), u32>,
     indices: &mut IndicesFromRawData,
 ) -> Result<(), io::Error> {
     let indirect_file_path = util::get_file_path(db_path, &path).set_ext(Ext::Indirect);
     let data_file_path = util::get_file_path(db_path, &path).set_ext(Ext::Data);
 
-    let mut store = IndirectIMFlushingInOrderVintNoDirectEncode::<(u32, u32)>::new(indirect_file_path, data_file_path, buffered_index_data.max_value_id);
+    let mut store = IndirectIMFlushingInOrderVintNoDirectEncode::<(ValueId, ValueId)>::new(indirect_file_path, data_file_path, buffered_index_data.max_value_id);
     stream_buffered_index_writer_to_phrase_index(buffered_index_data, &mut store)?;
 
     indices.push(IndexData {
@@ -615,7 +616,7 @@ pub struct IndexData {
 
 #[derive(Debug)]
 enum IndexVariants {
-    Phrase(IndirectIMFlushingInOrderVintNoDirectEncode<(u32, u32)>),
+    Phrase(IndirectIMFlushingInOrderVintNoDirectEncode<(ValueId, ValueId)>),
     SingleValue(IndexIdToOneParentFlushing),
     MultiValue(IndirectIMFlushingInOrderVint),
     TokenToAnchorScoreU32(TokenToAnchorScoreVintFlushing<u32>),

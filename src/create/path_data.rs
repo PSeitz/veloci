@@ -9,7 +9,7 @@ use buffered_index_writer::BufferedIndexWriter;
 pub(crate) struct PathData {
     pub(crate) tokens_to_text_id: Option<Box<BufferedIndexWriter>>,
     pub(crate) token_to_anchor_id_score: Option<Box<BufferedIndexWriter<u32, (u32, u32)>>>,
-    pub(crate) phrase_pair_to_anchor: Option<Box<BufferedIndexWriter<(u32, u32), u32>>>, // phrase_pair
+    pub(crate) phrase_pair_to_anchor: Option<Box<BufferedIndexWriter<(TokenId, TokenId), ValueId>>>, // phrase_pair
     pub(crate) text_id_to_token_ids: Option<Box<BufferedTextIdToTokenIdsData>>,
     pub(crate) text_id_to_parent: Option<Box<BufferedIndexWriter>>,
 

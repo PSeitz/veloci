@@ -21,6 +21,46 @@ LoadingType=Disk CARGO_INCREMENTAL=1 RUST_BACKTRACE=full RUST_TEST_THREADS=1 RUS
 - Speed
 - Love💖
 
+## Goals
+
+- Baby easy indexing and searching on data
+- Ultrahigh performance
+
+## Non-Goals (Currently)
+
+- Delta update in indices
+
+
+## Creating Indices
+
+Use the tool in `bin/create_index.rs` to create indices on your data.
+Currently the data needs to be stored in the `json` format one json per line:
+```json
+{"text": "my first object", "sub_objects": [{"description": "this works"}]}
+{"text": "my second object"}
+```
+
+If your json is not in this format, there is a tool to convert it in `bin/convert_json_to_line_delimited.rs`
+
+
+## Addressing fields
+```json
+{
+    "text": "my first object",
+    "sub_objects": [
+        {"description": "this works", "deeper": ["tag1", "tag2"]}
+    ],
+    "structured":{
+        "name": "a"
+    }
+}
+```
+The fields would be adressed like this:
+text
+sub_objects[].description
+sub_objects[].deeper[]
+structured.name
+
 
 ## Webserver
 
