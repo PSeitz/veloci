@@ -138,7 +138,7 @@ impl<T: AnchorScoreDataSize> TokenToAnchorScoreVintFlushing<T> {
 
     pub fn into_im_store(self) -> TokenToAnchorScoreVintIM<T> {
         TokenToAnchorScoreVintIM {
-            start_pos: self.id_to_data_pos, //TODO
+            start_pos: self.id_to_data_pos,
             data: self.data_cache,
         }
     }
@@ -181,19 +181,21 @@ impl<T: AnchorScoreDataSize> TokenToAnchorScoreVintIM<T> {
 }
 
 impl TokenToAnchorScoreVintIM<u32> {
-    pub(crate) fn read<P: AsRef<Path> + std::fmt::Debug>(&mut self, path_indirect: P, path_data: P) -> Result<(), VelociError> {
-        self.start_pos = load_index_u32(&path_indirect)?;
-        self.data = file_path_to_bytes(&path_data)?;
-        Ok(())
+    pub(crate) fn from_path<P: AsRef<Path> + std::fmt::Debug>(path_indirect: P, path_data: P) -> Result<TokenToAnchorScoreVintIM<u32>, VelociError> {
+        Ok(TokenToAnchorScoreVintIM {
+            start_pos: load_index_u32(&path_indirect)?,
+            data: file_path_to_bytes(&path_data)?,
+        })
     }
 }
 
 impl TokenToAnchorScoreVintIM<u64> {
 
-    pub(crate) fn read<P: AsRef<Path> + std::fmt::Debug>(&mut self, path_indirect: P, path_data: P) -> Result<(), VelociError> {
-        self.start_pos = load_index_u64(&path_indirect)?;
-        self.data = file_path_to_bytes(&path_data)?;
-        Ok(())
+    pub(crate) fn from_path<P: AsRef<Path> + std::fmt::Debug>(path_indirect: P, path_data: P) -> Result<TokenToAnchorScoreVintIM<u64>, VelociError> {
+        Ok(TokenToAnchorScoreVintIM {
+            start_pos: load_index_u64(&path_indirect)?,
+            data: file_path_to_bytes(&path_data)?,
+        })
     }
 }
 
@@ -287,63 +289,78 @@ impl<T: AnchorScoreDataSize> TokenToAnchorScore for TokenToAnchorScoreVintMmap<T
 mod tests {
     use super::*;
 
-    fn test_token_to_anchor_score_vint_templ<T: AnchorScoreDataSize>() {
-        use tempfile::tempdir;
-        let mut store = TokenToAnchorScoreVintFlushing::<T>::default();
+    macro_rules! test_token_to_anchor_score_vint {
+        ($type1:ty, $type2:ty) => {
+            use tempfile::tempdir;
+            let mut store = <$type1>::default();
 
-        // test im
-        store.set_scores(1, &mut vec![1, 1]).unwrap();
-        let store = store.into_im_store();
-        assert_eq!(store.get_score_iter(0).collect::<Vec<_>>(), vec![]);
-        assert_eq!(store.get_score_iter(1).collect::<Vec<_>>(), vec![AnchorScore::new(1, f16::from_f32(1.0))]);
-        assert_eq!(store.get_score_iter(2).collect::<Vec<_>>(), vec![]);
+            // test im
+            store.set_scores(1, &mut vec![1, 1]).unwrap();
+            let store = store.into_im_store();
+            assert_eq!(store.get_score_iter(0).collect::<Vec<_>>(), vec![]);
+            assert_eq!(store.get_score_iter(1).collect::<Vec<_>>(), vec![AnchorScore::new(1, f16::from_f32(1.0))]);
+            assert_eq!(store.get_score_iter(2).collect::<Vec<_>>(), vec![]);
 
-        let mut store = TokenToAnchorScoreVintFlushing::<T>::default();
-        store.set_scores(5, &mut vec![1, 1, 2, 3]).unwrap();
-        let store = store.into_im_store();
-        assert_eq!(store.get_score_iter(4).collect::<Vec<_>>(), vec![]);
-        assert_eq!(
-            store.get_score_iter(5).collect::<Vec<_>>(),
-            vec![AnchorScore::new(1, f16::from_f32(1.0)), AnchorScore::new(2, f16::from_f32(3.0))]
-        );
-        for i in 6..18 {
-            assert_eq!(store.get_score_iter(i).collect::<Vec<_>>(), vec![]);
-        }
+            let mut store = <$type1>::default();
+            store.set_scores(5, &mut vec![1, 1, 2, 3]).unwrap();
+            let store = store.into_im_store();
+            assert_eq!(store.get_score_iter(4).collect::<Vec<_>>(), vec![]);
+            assert_eq!(
+                store.get_score_iter(5).collect::<Vec<_>>(),
+                vec![AnchorScore::new(1, f16::from_f32(1.0)), AnchorScore::new(2, f16::from_f32(3.0))]
+            );
+            for i in 6..18 {
+                assert_eq!(store.get_score_iter(i).collect::<Vec<_>>(), vec![]);
+            }
 
-        // test flush to file
-        let dir = tempdir().unwrap();
-        let data = dir.path().join("TokenToAnchorScoreVintTestData");
-        let indirect = dir.path().join("TokenToAnchorScoreVintTestIndirect");
+            // test flush to file
+            let dir = tempdir().unwrap();
+            let data = dir.path().join("TokenToAnchorScoreVintTestData");
+            let indirect = dir.path().join("TokenToAnchorScoreVintTestIndirect");
 
-        let mut store = TokenToAnchorScoreVintFlushing::<T>::new(indirect, data);
-        store.set_scores(1, &mut vec![1, 1]).unwrap();
-        store.flush().unwrap();
-        store.set_scores(5, &mut vec![1, 1, 2, 3]).unwrap();
-        store.flush().unwrap();
-        store.flush().unwrap(); // double flush test
+            let mut store = <$type1>::new(indirect.clone(), data.clone());
+            store.set_scores(1, &mut vec![1, 1]).unwrap();
+            store.flush().unwrap();
+            store.set_scores(5, &mut vec![1, 1, 2, 3]).unwrap();
+            store.flush().unwrap();
+            store.flush().unwrap(); // double flush test
 
-        let store = store.into_mmap().unwrap();
-        assert_eq!(store.get_score_iter(0).collect::<Vec<_>>(), vec![]);
-        assert_eq!(store.get_score_iter(1).collect::<Vec<_>>(), vec![AnchorScore::new(1, f16::from_f32(1.0))]);
-        assert_eq!(store.get_score_iter(2).collect::<Vec<_>>(), vec![]);
-        assert_eq!(
-            store.get_score_iter(5).collect::<Vec<_>>(),
-            vec![AnchorScore::new(1, f16::from_f32(1.0)), AnchorScore::new(2, f16::from_f32(3.0))]
-        );
-        for i in 6..18 {
-            assert_eq!(store.get_score_iter(i).collect::<Vec<_>>(), vec![]);
-        }
+            let store = store.into_mmap().unwrap();
+            assert_eq!(store.get_score_iter(0).collect::<Vec<_>>(), vec![]);
+            assert_eq!(store.get_score_iter(1).collect::<Vec<_>>(), vec![AnchorScore::new(1, f16::from_f32(1.0))]);
+            assert_eq!(store.get_score_iter(2).collect::<Vec<_>>(), vec![]);
+            assert_eq!(
+                store.get_score_iter(5).collect::<Vec<_>>(),
+                vec![AnchorScore::new(1, f16::from_f32(1.0)), AnchorScore::new(2, f16::from_f32(3.0))]
+            );
+            for i in 6..18 {
+                assert_eq!(store.get_score_iter(i).collect::<Vec<_>>(), vec![]);
+            }
+
+            let store = <$type2>::from_path(&indirect, &data).unwrap();
+            assert_eq!(store.get_score_iter(0).collect::<Vec<_>>(), vec![]);
+            assert_eq!(store.get_score_iter(1).collect::<Vec<_>>(), vec![AnchorScore::new(1, f16::from_f32(1.0))]);
+            assert_eq!(store.get_score_iter(2).collect::<Vec<_>>(), vec![]);
+            assert_eq!(
+                store.get_score_iter(5).collect::<Vec<_>>(),
+                vec![AnchorScore::new(1, f16::from_f32(1.0)), AnchorScore::new(2, f16::from_f32(3.0))]
+            );
+            for i in 6..18 {
+                assert_eq!(store.get_score_iter(i).collect::<Vec<_>>(), vec![]);
+            }
+
+        };
     }
-
 
     #[test]
     fn test_token_to_anchor_score_vint_u32() {
-        test_token_to_anchor_score_vint_templ::<u32>();
+        test_token_to_anchor_score_vint!(TokenToAnchorScoreVintFlushing::<u32>, TokenToAnchorScoreVintIM::<u32>);
+        
 
     }
     #[test]
     fn test_token_to_anchor_score_vint_u64() {
-        test_token_to_anchor_score_vint_templ::<u64>();
+        test_token_to_anchor_score_vint!(TokenToAnchorScoreVintFlushing::<u64>, TokenToAnchorScoreVintIM::<u64>);
     }
 }
 

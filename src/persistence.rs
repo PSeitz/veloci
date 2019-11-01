@@ -341,13 +341,11 @@ impl Persistence {
                         },
                         LoadingType::InMemory => match el.data_type {
                             DataType::U32 => {
-                                let mut store = TokenToAnchorScoreVintIM::<u32>::default();
-                                store.read(&indirect_path, &indirect_data_path)?;
+                                let store = TokenToAnchorScoreVintIM::<u32>::from_path(&indirect_path, &indirect_data_path)?;
                                 Box::new(store)
                             }
                             DataType::U64 => {
-                                let mut store = TokenToAnchorScoreVintIM::<u64>::default();
-                                store.read(&indirect_path, &indirect_data_path)?;
+                                let store = TokenToAnchorScoreVintIM::<u64>::from_path(&indirect_path, &indirect_data_path)?;
                                 Box::new(store)
                             }
                         },
