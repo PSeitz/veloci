@@ -21,12 +21,13 @@ LoadingType=Disk CARGO_INCREMENTAL=1 RUST_BACKTRACE=full RUST_TEST_THREADS=1 RUS
 - Speed
 - Love💖
 
-## Goals
 
-- Baby easy indexing and searching on data
+### Goals
+
+- Super easy indexing and searching on data
 - Ultrahigh performance
 
-## Non-Goals (Currently)
+### Non-Goals (Currently)
 
 - Delta update in indices
 
