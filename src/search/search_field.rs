@@ -629,15 +629,15 @@ fn distance_dfa(lower_hit: &str, dfa: &DFA, lower_term: &str) -> u8 {
 fn distance(s1: &str, s2: &str) -> u8 {
     debug_assert!(s1.len() < 256);
     debug_assert!(s2.len() < 256);
-    trace_time!("distance {:?} {:?}", s1, s2);
+    // trace_time!("distance {:?} {:?}", s1, s2);
     if s1.len() >= 255 || s2.len() >= 255 {
         return 255;
     }
     let len_s1 = s1.chars().count();
 
-    let mut column: Vec<u8> = Vec::with_capacity(len_s1 + 1);
-    unsafe {
-        column.set_len(len_s1 + 1);
+    let mut column: [u8; 255] = [0; 255];
+    for i in 0..255 {
+        column[i] = i as u8+1;
     }
     for (i, item) in column.iter_mut().enumerate().take(len_s1 + 1) {
         *item = i as u8;
@@ -656,7 +656,21 @@ fn distance(s1: &str, s2: &str) -> u8 {
         }
     }
     column[len_s1]
+
 }
+
+#[test]
+fn test_distance() {
+    assert_eq!(distance("a", "a"), 0);
+    assert_eq!(distance("a", "b"), 1);
+    assert_eq!(distance("", "a"), 1);
+    assert_eq!(distance("a", ""), 1);
+    assert_eq!(distance("aa", "a"), 1);
+    assert_eq!(distance("a", "aa"), 1);
+    assert_eq!(distance("a", "bbb"), 3);
+    assert_eq!(distance("bbb", "a"), 3);
+}
+
 
 // #[test]
 // fn test_dfa() {
