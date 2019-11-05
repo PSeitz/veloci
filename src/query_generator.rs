@@ -211,19 +211,24 @@ fn query_ast_to_request(ast: UserAST, opt: &SearchQueryGeneratorParameters) -> R
         }
         UserAST::Leaf(filter) => {
             let field_name = filter.field_name.as_ref().unwrap();
-            let term = &filter.phrase;
+            let mut term = filter.phrase;
 
+            let starts_with = term.ends_with("*");
+            if term.ends_with("*"){
+                term.pop();
+            }
             let levenshtein_distance = if let Some(levenshtein) = filter.levenshtein {
                 Some(u32::from(levenshtein))
             } else {
-                Some(get_levenshteinn(term, opt.levenshtein, opt.levenshtein_auto_limit))
+                Some(get_levenshteinn(&term, opt.levenshtein, opt.levenshtein_auto_limit))
             };
 
             let part = RequestSearchPart {
                 boost: opt.boost_fields.get(field_name).map(|el| OrderedFloat(*el)),
                 levenshtein_distance,
                 path: field_name.to_string(),
-                terms: vec![term.to_string()],
+                terms: vec![term],
+                starts_with: Some(starts_with),
                 ..Default::default()
             };
             Request {

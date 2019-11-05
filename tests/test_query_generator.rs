@@ -289,6 +289,20 @@ fn simple_search_querygenerator_and_no_hit() {
     assert_eq!(hits.len(), 0);
 }
 
+#[test]
+fn simple_search_wildcard_starts_with() {
+    let mut params = query_generator::SearchQueryGeneratorParameters::default();
+    params.search_term = "awes*".to_string();
+
+    let hits = search_testo_to_doco_qp!(params.clone()).data;
+    assert_eq!(hits.len(), 1);
+
+    params.search_term = "いよ*".to_string();
+    let hits = search_testo_to_doco_qp!(params).data;
+    assert_eq!(hits.len(), 3);
+}
+
+
 // TODO FIXME
 // #[test]
 // fn simple_search_querygenerator_suggest() {
