@@ -302,6 +302,30 @@ fn simple_search_wildcard_starts_with() {
     assert_eq!(hits.len(), 3);
 }
 
+#[test]
+fn no_matching_fields_from_field_list() {
+    let mut params = query_generator::SearchQueryGeneratorParameters::default();
+    params.search_term = "awes*".to_string();
+    params.fields = Some(vec!["notexistingfield".to_string()]);
+
+    let pers = &TEST_PERSISTENCE;
+    let requesto = query_generator::search_query(&pers, params);
+    assert_eq!(requesto.is_err(), true);
+    assert_eq!(requesto.unwrap_err().to_string(), "Did not find any fields, filter was Some([\"notexistingfield\"])");
+
+}
+
+#[test]
+fn no_matching_fields_from_query() {
+    let mut params = query_generator::SearchQueryGeneratorParameters::default();
+    params.search_term = "notexistingfield:awes*".to_string();
+
+    let pers = &TEST_PERSISTENCE;
+    let requesto = query_generator::search_query(&pers, params);
+    assert_eq!(requesto.is_err(), true);
+    assert_eq!(requesto.unwrap_err().to_string(), "Did not find any fields for \"notexistingfield\"");
+}
+
 
 // TODO FIXME
 // #[test]

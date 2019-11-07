@@ -53,6 +53,7 @@ Cargo.lock
 /test_files/mochaTest*
 /test_files/facetTest/
 /test_files/facettoTest/
+/test_files/test_from_file/
 /healthcare/
 /csv_test/
 /hoho/

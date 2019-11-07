@@ -180,9 +180,7 @@ impl<'a> Iterator for VintArrayIteratorOpt<'a> {
 pub trait IndexIdToParent: Debug + Sync + Send + type_info::TypeInfo {
     type Output: IndexIdToParentData;
 
-    fn get_values_iter(&self, _id: u64) -> VintArrayIteratorOpt<'_> {
-        unimplemented!()
-    }
+    fn get_values_iter(&self, _id: u64) -> VintArrayIteratorOpt<'_>;
 
     fn get_index_meta_data(&self) -> &IndexValuesMetadata;
 

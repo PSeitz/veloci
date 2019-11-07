@@ -5,7 +5,7 @@ use std::io;
 #[derive(Debug, Fail)]
 pub enum VelociError {
     /// Placeholder error
-    #[fail(display = "{:?}", _0)]
+    #[fail(display = "{}", _0)]
     StringError(String),
     /// Ron Sir Error
     #[fail(display = "{:?}", _0)]
