@@ -7,6 +7,18 @@ pub enum VelociError {
     /// Placeholder error
     #[fail(display = "{}", _0)]
     StringError(String),
+
+    #[fail(display = "Field {} not found in {:?}", _0, _1)]
+    FieldNotFound{
+        field: String, 
+        all_fields: Vec<String>
+    },
+
+    #[fail(display = "All fields filtered {:?} and {:?}", _0, _1)]
+    AllFieldsFiltered{
+        all_fields: Vec<String>,
+        filter: Option<Vec<String>> 
+    },
     /// Ron Sir Error
     #[fail(display = "{:?}", _0)]
     RonSerError(ron::ser::Error),

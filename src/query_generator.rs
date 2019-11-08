@@ -78,7 +78,7 @@ fn get_all_search_field_names(persistence: &Persistence, fields: &Option<Vec<Str
         })
         .collect();
     if res.is_empty() {
-        Err(VelociError::StringError(format!("Did not find any fields, filter was {:?}", fields)))
+        Err(VelociError::AllFieldsFiltered{all_fields: persistence.metadata.get_all_fields(), filter: fields.to_owned()})
     } else {
         Ok(res)
     }
@@ -99,11 +99,8 @@ fn expand_fields_in_query_ast(ast: UserAST, all_fields: &[String]) -> Result<Use
         UserAST::Leaf(filter) => {
 
             if let Some(field_name) = &filter.field_name {
-                if !all_fields.contains(field_name) {
-                    Err(VelociError::StringError(format!("Did not find any fields for {:?}", field_name)))
-                }else{
-                    Ok(UserAST::Leaf(filter)) 
-                }
+                check_field(&field_name, &all_fields)?;
+                Ok(UserAST::Leaf(filter)) 
             } else {
                 let field_queries = all_fields
                     .iter()
@@ -258,26 +255,44 @@ fn terms_for_phrase_from_ast(ast: &UserAST) -> Vec<&String> {
 
 use parser;
 
+fn check_field(field: &String, all_fields: &[String]) -> Result<(), VelociError> {
+    if !all_fields.contains(field) {
+        Err(VelociError::FieldNotFound{field: field.to_string(), all_fields: all_fields.to_vec()})
+    }else{
+        Ok(())
+    }
+}
+
 pub fn search_query(persistence: &Persistence, mut opt: SearchQueryGeneratorParameters) -> Result<Request, VelociError> {
     // let req = persistence.metadata.fulltext_indices.key
     opt.facetlimit = opt.facetlimit.or(Some(5));
     info_time!("generating search query");
 
-    let all_fields = get_all_search_field_names(&persistence, &opt.fields)?; // all fields with applied field_filter
+    let all_fields = persistence
+        .metadata
+        .get_all_fields();
+    let all_search_fields = get_all_search_field_names(&persistence, &opt.fields)?; // all fields with applied field_filter
     let query_ast = parser::query_parser::parse(&opt.search_term).unwrap().0;
     let terms: Vec<String> = terms_for_phrase_from_ast(&query_ast).iter().map(|el| el.to_string()).collect();
     info!("Terms for Phrase{:?}", terms);
-    let mut request = ast_to_request(query_ast, &all_fields, &opt)?;
+    let mut request = ast_to_request(query_ast, &all_search_fields, &opt)?;
 
-    let facets_req: Option<Vec<FacetRequest>> = opt.facets.as_ref().map(|facets_fields| {
+    let facetlimit = opt.facetlimit;
+
+    let facets_req: Option<Result<Vec<FacetRequest>,_>> = opt.facets.map(|facets_fields| {
         facets_fields
-            .iter()
-            .map(|f| FacetRequest {
-                field: f.to_string(),
-                top: opt.facetlimit,
+            .into_iter()
+            .map(|field| {
+                check_field(&field, &all_fields)?;
+                Ok(FacetRequest {
+                    field,
+                    top: facetlimit,
+                })
             })
-            .collect()
+            .collect::<Result<Vec<FacetRequest>,VelociError>>()
     });
+
+    let facets_req = facets_req.map_or(Ok(None), |r| r.map(Some))?;
 
     let boost_terms_req: Vec<RequestSearchPart> = opt
         .boost_terms
