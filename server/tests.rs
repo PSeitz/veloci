@@ -102,7 +102,7 @@ mod test {
             .header(ContentType::JSON)
             .dispatch();
         assert_eq!(response.status(), Status::BadRequest);
-        assert_contains!(response.body_string().unwrap(), "Did not find any fields for");
+        assert_contains!(response.body_string().unwrap(), "Did not find any fields");
     }
 
     #[test]
