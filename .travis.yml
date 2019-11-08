@@ -22,7 +22,7 @@ script:
 - cargo test --manifest-path=$MANIFEST_PATH
 
 before_cache: |
-  cargo install --git https://github.com/PSeitz/tarpaulin.git --branch develop --force
+  cargo install cargo-tarpaulin
 
 after_success: |
   # Uncomment the following line for coveralls.io
