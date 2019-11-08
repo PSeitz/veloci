@@ -1,19 +1,17 @@
 pub(crate) mod boost;
+pub mod read_document;
 pub mod request;
 pub mod result;
-pub mod why_found;
-pub mod sort;
-pub mod read_document;
 pub mod search_field;
-pub mod stopwords;
 mod set_op;
+pub mod sort;
+pub mod stopwords;
+pub mod why_found;
 
-pub use crate::search::read_document::read_data;
-use self::why_found::get_why_found;
-use self::sort::top_n_sort;
 pub(crate) use self::boost::*;
 pub use self::{result::*, search_field::*, set_op::*};
-pub use crate::search::request::*;
+use self::{sort::top_n_sort, why_found::get_why_found};
+pub use crate::search::{read_document::read_data, request::*};
 use crate::{
     error::VelociError,
     expression::ScoreExpression,
@@ -169,7 +167,7 @@ pub fn search(mut request: Request, persistence: &Persistence) -> Result<SearchR
             render_plan_to(&plan, &mut dot_graph);
             debug!("{}", String::from_utf8(dot_graph)?);
         }
-        
+
         let plan_result = plan.plan_result.as_ref().unwrap().clone();
         for stepso in plan.get_ordered_steps() {
             execute_steps(stepso, &persistence)?;

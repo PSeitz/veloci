@@ -78,7 +78,10 @@ fn get_all_search_field_names(persistence: &Persistence, fields: &Option<Vec<Str
         })
         .collect();
     if res.is_empty() {
-        Err(VelociError::AllFieldsFiltered{all_fields: persistence.metadata.get_all_fields(), filter: fields.to_owned()})
+        Err(VelociError::AllFieldsFiltered {
+            all_fields: persistence.metadata.get_all_fields(),
+            filter: fields.to_owned(),
+        })
     } else {
         Ok(res)
     }
@@ -90,17 +93,16 @@ fn get_levenshteinn(term: &str, levenshtein: Option<usize>, levenshtein_auto_lim
 }
 
 use parser::query_parser::{Operator, UserAST, UserFilter};
-fn expand_fields_in_query_ast(ast: UserAST, all_fields: &[String]) -> Result<UserAST, VelociError>  {
+fn expand_fields_in_query_ast(ast: UserAST, all_fields: &[String]) -> Result<UserAST, VelociError> {
     match ast {
         UserAST::Clause(op, subqueries) => {
             let subqueries: Result<_, _> = subqueries.into_iter().map(|ast| expand_fields_in_query_ast(ast, all_fields)).collect();
             Ok(UserAST::Clause(op, subqueries?))
         }
         UserAST::Leaf(filter) => {
-
             if let Some(field_name) = &filter.field_name {
                 check_field(&field_name, &all_fields)?;
-                Ok(UserAST::Leaf(filter)) 
+                Ok(UserAST::Leaf(filter))
             } else {
                 let field_queries = all_fields
                     .iter()
@@ -219,7 +221,7 @@ fn query_ast_to_request(ast: UserAST, opt: &SearchQueryGeneratorParameters) -> R
             let mut term = filter.phrase;
 
             let starts_with = term.ends_with("*");
-            if term.ends_with("*"){
+            if term.ends_with("*") {
                 term.pop();
             }
             let levenshtein_distance = if let Some(levenshtein) = filter.levenshtein {
@@ -257,8 +259,11 @@ use parser;
 
 fn check_field(field: &String, all_fields: &[String]) -> Result<(), VelociError> {
     if !all_fields.contains(field) {
-        Err(VelociError::FieldNotFound{field: field.to_string(), all_fields: all_fields.to_vec()})
-    }else{
+        Err(VelociError::FieldNotFound {
+            field: field.to_string(),
+            all_fields: all_fields.to_vec(),
+        })
+    } else {
         Ok(())
     }
 }
@@ -268,9 +273,7 @@ pub fn search_query(persistence: &Persistence, mut opt: SearchQueryGeneratorPara
     opt.facetlimit = opt.facetlimit.or(Some(5));
     info_time!("generating search query");
 
-    let all_fields = persistence
-        .metadata
-        .get_all_fields();
+    let all_fields = persistence.metadata.get_all_fields();
     let all_search_fields = get_all_search_field_names(&persistence, &opt.fields)?; // all fields with applied field_filter
     let query_ast = parser::query_parser::parse(&opt.search_term).unwrap().0;
     let terms: Vec<String> = terms_for_phrase_from_ast(&query_ast).iter().map(|el| el.to_string()).collect();
@@ -279,17 +282,14 @@ pub fn search_query(persistence: &Persistence, mut opt: SearchQueryGeneratorPara
 
     let facetlimit = opt.facetlimit;
 
-    let facets_req: Option<Result<Vec<FacetRequest>,_>> = opt.facets.map(|facets_fields| {
+    let facets_req: Option<Result<Vec<FacetRequest>, _>> = opt.facets.map(|facets_fields| {
         facets_fields
             .into_iter()
             .map(|field| {
                 check_field(&field, &all_fields)?;
-                Ok(FacetRequest {
-                    field,
-                    top: facetlimit,
-                })
+                Ok(FacetRequest { field, top: facetlimit })
             })
-            .collect::<Result<Vec<FacetRequest>,VelociError>>()
+            .collect::<Result<Vec<FacetRequest>, VelociError>>()
     });
 
     let facets_req = facets_req.map_or(Ok(None), |r| r.map(Some))?;

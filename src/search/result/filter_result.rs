@@ -1,5 +1,5 @@
-use fnv::FnvHashSet;
 use crate::search::search_field::TermId;
+use fnv::FnvHashSet;
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub enum FilterResult {

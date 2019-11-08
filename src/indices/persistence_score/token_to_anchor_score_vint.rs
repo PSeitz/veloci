@@ -1,8 +1,8 @@
-use std::path::PathBuf;
 use super::{
     super::{EMPTY_BUCKET, EMPTY_BUCKET_USIZE},
     *,
 };
+use std::path::PathBuf;
 
 use crate::{
     error::VelociError,
@@ -177,7 +177,6 @@ impl<T: AnchorScoreDataSize> TokenToAnchorScoreVintIM<T> {
     default fn get_size(&self) -> usize {
         self.start_pos.len()
     }
-
 }
 
 impl TokenToAnchorScoreVintIM<u32> {
@@ -190,7 +189,6 @@ impl TokenToAnchorScoreVintIM<u32> {
 }
 
 impl TokenToAnchorScoreVintIM<u64> {
-
     pub(crate) fn from_path<P: AsRef<Path> + std::fmt::Debug>(path_indirect: P, path_data: P) -> Result<TokenToAnchorScoreVintIM<u64>, VelociError> {
         Ok(TokenToAnchorScoreVintIM {
             start_pos: load_index_u64(&path_indirect)?,
@@ -198,7 +196,6 @@ impl TokenToAnchorScoreVintIM<u64> {
         })
     }
 }
-
 
 #[derive(Debug, Clone)]
 pub struct AnchorScoreIter<'a> {
@@ -348,20 +345,15 @@ mod tests {
             for i in 6..18 {
                 assert_eq!(store.get_score_iter(i).collect::<Vec<_>>(), vec![]);
             }
-
         };
     }
 
     #[test]
     fn test_token_to_anchor_score_vint_u32() {
         test_token_to_anchor_score_vint!(TokenToAnchorScoreVintFlushing::<u32>, TokenToAnchorScoreVintIM::<u32>);
-        
-
     }
     #[test]
     fn test_token_to_anchor_score_vint_u64() {
         test_token_to_anchor_score_vint!(TokenToAnchorScoreVintFlushing::<u64>, TokenToAnchorScoreVintIM::<u64>);
     }
 }
-
-

@@ -3,10 +3,8 @@ mod test {
     use super::super::rocket;
     use rocket::local::Client;
 
+    use rocket::http::{ContentType, Status};
     use veloci::*;
-    use rocket::{
-        http::{ContentType, Status},
-    };
 
     #[macro_export]
     macro_rules! assert_contains {
@@ -18,11 +16,9 @@ mod test {
         }};
     }
 
-
-    static TEST_DATA: &str=r#"{"text": "hi there", "name": "fred", "boost": "me"}"#;
+    static TEST_DATA: &str = r#"{"text": "hi there", "name": "fred", "boost": "me"}"#;
 
     fn create_db() {
-
         use std::sync::Once;
 
         static START: Once = Once::new();
@@ -32,10 +28,9 @@ mod test {
             features = ["All"]
         "#;
         START.call_once(|| {
-             let mut pers = persistence::Persistence::create_type("test_rocket".to_string(), persistence::PersistenceType::Persistent).unwrap();
+            let mut pers = persistence::Persistence::create_type("test_rocket".to_string(), persistence::PersistenceType::Persistent).unwrap();
             println!("{:?}", create::create_indices_from_str(&mut pers, TEST_DATA, CONFIG, true));
         });
-
     }
 
     #[test]
@@ -50,7 +45,9 @@ mod test {
         create_db();
 
         let client = Client::new(rocket()).expect("valid rocket instance");
-        let mut response = client.get("/test_rocket/search?query=fred&top=10&boost_fields=name-%3E2.5&boost_terms=boost:me-%3E2.0").dispatch(); // -> == -%3E, url escaping is needed here for some reason
+        let mut response = client
+            .get("/test_rocket/search?query=fred&top=10&boost_fields=name-%3E2.5&boost_terms=boost:me-%3E2.0")
+            .dispatch(); // -> == -%3E, url escaping is needed here for some reason
         assert_eq!(response.status(), Status::Ok);
         assert_contains!(response.body_string().unwrap(), "name");
     }
@@ -69,8 +66,10 @@ mod test {
     fn post_request() {
         create_db();
         let client = Client::new(rocket()).expect("valid rocket instance");
-        let mut response = client.post("/test_rocket/search_query_params")
-            .body(r#"{
+        let mut response = client
+            .post("/test_rocket/search_query_params")
+            .body(
+                r#"{
 "search_term": "fred",
     "top": 3,
     "skip": 0,
@@ -78,19 +77,22 @@ mod test {
     "boost_fields": {"name":2.50},
     "boost_terms": {"boost:me":2.0},
     "why_found": true
-}"#)
+}"#,
+            )
             .header(ContentType::JSON)
             .dispatch();
         assert_eq!(response.status(), Status::Ok);
         assert_contains!(response.body_string().unwrap(), "name");
     }
 
-        #[test]
+    #[test]
     fn post_request_invalid() {
         create_db();
         let client = Client::new(rocket()).expect("valid rocket instance");
-        let mut response = client.post("/test_rocket/search_query_params")
-            .body(r#"{
+        let mut response = client
+            .post("/test_rocket/search_query_params")
+            .body(
+                r#"{
 "search_term": "fred",
     "top": 3,
     "skip": 0,
@@ -98,7 +100,8 @@ mod test {
     "fields": ["invalid"],
     "boost_terms": {"boost:me":2.0},
     "why_found": true
-}"#)
+}"#,
+            )
             .header(ContentType::JSON)
             .dispatch();
         assert_eq!(response.status(), Status::BadRequest);
@@ -109,13 +112,16 @@ mod test {
     fn post_request_explain_plan() {
         create_db();
         let client = Client::new(rocket()).expect("valid rocket instance");
-        let mut response = client.post("/test_rocket/search_query_params/explain_plan")
-            .body(r#"{
+        let mut response = client
+            .post("/test_rocket/search_query_params/explain_plan")
+            .body(
+                r#"{
 "search_term": "fred",
     "top": 3,
     "skip": 0,
     "why_found": true
-}"#)
+}"#,
+            )
             .header(ContentType::JSON)
             .dispatch();
         assert_eq!(response.status(), Status::Ok);
@@ -129,8 +135,10 @@ mod test {
     fn post_suggest() {
         create_db();
         let client = Client::new(rocket()).expect("valid rocket instance");
-        let mut response = client.post("/test_rocket/suggest")
-            .body(r#"{
+        let mut response = client
+            .post("/test_rocket/suggest")
+            .body(
+                r#"{
                 "suggest":[
                 {
                   "terms": ["fre"],
@@ -138,7 +146,8 @@ mod test {
                   "starts_with": true
                 }
                 ]
-            }"#)
+            }"#,
+            )
             .header(ContentType::JSON)
             .dispatch();
         assert_eq!(response.status(), Status::Ok);
@@ -149,8 +158,7 @@ mod test {
     fn get_doc_id() {
         create_db();
         let client = Client::new(rocket()).expect("valid rocket instance");
-        let mut response = client.get("/test_rocket/_id/0")
-            .dispatch();
+        let mut response = client.get("/test_rocket/_id/0").dispatch();
         assert_eq!(response.status(), Status::Ok);
         let ret = response.body_string().unwrap();
         assert_contains!(ret, r#""name":"fred""#);
@@ -160,8 +168,7 @@ mod test {
     fn get_doc_id_tree() {
         create_db();
         let client = Client::new(rocket()).expect("valid rocket instance");
-        let mut response = client.get("/test_rocket/_idtree/0")
-            .dispatch();
+        let mut response = client.get("/test_rocket/_idtree/0").dispatch();
         assert_eq!(response.status(), Status::Ok);
         let ret = response.body_string().unwrap();
         assert_contains!(ret, r#""name":"fred""#);
@@ -171,8 +178,7 @@ mod test {
     fn test_inspect_data() {
         create_db();
         let client = Client::new(rocket()).expect("valid rocket instance");
-        let mut response = client.get("/test_rocket/inspect/boost.textindex.parent_to_value_id/0")
-            .dispatch();
+        let mut response = client.get("/test_rocket/inspect/boost.textindex.parent_to_value_id/0").dispatch();
         assert_eq!(response.status(), Status::Ok);
         let ret = response.body_string().unwrap();
         assert_contains!(ret, r#"[0]"#);

@@ -1,5 +1,4 @@
-use crate::search::Hit;
-use crate::search::sort_by_score_and_id;
+use crate::search::{sort_by_score_and_id, Hit};
 use core::cmp::Ordering;
 
 #[inline]

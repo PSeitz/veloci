@@ -16,9 +16,10 @@ pub enum Features {
 }
 
 impl Features {
-    pub fn get_default_features() -> FnvHashSet<Features>{
+    pub fn get_default_features() -> FnvHashSet<Features> {
         [Features::Search, Features::TokensToTextID].iter().cloned().collect()
     }
+
     pub fn invert(features: &FnvHashSet<Features>) -> FnvHashSet<Features> {
         let all_features: &[Features] = &[
             Features::TokensToTextID,
@@ -50,7 +51,13 @@ impl Features {
         };
 
         add_if_features_not_used(
-            &[Features::All, Features::TokensToTextID, Features::BoostTextLocality, Features::Highlight, Features::BoostingFieldData],
+            &[
+                Features::All,
+                Features::TokensToTextID,
+                Features::BoostTextLocality,
+                Features::Highlight,
+                Features::BoostingFieldData,
+            ],
             IndexCreationType::TokensToTextID,
             &mut hashset,
         );
@@ -75,13 +82,13 @@ impl Features {
 
 #[derive(Debug, Serialize, Deserialize, Clone, Copy, Eq, PartialEq, Hash)]
 pub enum IndexCreationType {
-    TokensToTextID,       // Used by boost_text_locality, highlighting(why?), when resolving from a field to boost data (boost but indirectly) TODO: detect when boost is on same level and activate
+    TokensToTextID, // Used by boost_text_locality, highlighting(why?), when resolving from a field to boost data (boost but indirectly) TODO: detect when boost is on same level and activate
     TokenToAnchorIDScore, //normal search
-    PhrasePairToAnchor,   //phrase boost
-    TextIDToTokenIds,     // highlight document(why_found, when select), select
-    TextIDToParent,       // queries with boost indices on fields (slow search path)
-    ParentToTextID,       // facets on root, facets on sublevel with no special direct index, select
-    ParentToValueID,      // select
-    ValueIDToParent,      // select
-    TextIDToAnchor,       // Boost text locality, exact filters like facets
+    PhrasePairToAnchor, //phrase boost
+    TextIDToTokenIds, // highlight document(why_found, when select), select
+    TextIDToParent, // queries with boost indices on fields (slow search path)
+    ParentToTextID, // facets on root, facets on sublevel with no special direct index, select
+    ParentToValueID, // select
+    ValueIDToParent, // select
+    TextIDToAnchor, // Boost text locality, exact filters like facets
 }

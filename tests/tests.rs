@@ -270,7 +270,6 @@ fn test_json_request() {
 
 #[test]
 fn test_create_index_from_file() {
-
     let mut pers = persistence::Persistence::create_type("test_files/test_from_file".to_string(), persistence::PersistenceType::Persistent).unwrap();
     create::create_indices_from_file(&mut pers, "test_files/test_data.json", "", false).unwrap();
 }

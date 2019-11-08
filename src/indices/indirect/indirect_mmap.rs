@@ -1,11 +1,10 @@
 use super::*;
-use crate::{error::VelociError, indices::*, persistence::*, type_info::TypeInfo};
+use crate::{error::VelociError, indices::*, persistence::*, type_info::TypeInfo, util::*};
 use byteorder::{LittleEndian, ReadBytesExt};
-use memmap::{Mmap};
+use memmap::Mmap;
 use num::{self, cast::ToPrimitive};
 use std::{self, fs::File, marker::PhantomData, u32};
 use vint::vint::*;
-use crate::util::*;
 
 // use super::get_values_iter;
 
@@ -43,7 +42,6 @@ impl<T: IndexIdToParentData> IndirectMMap<T> {
 //     }
 // }
 
-
 impl<T: IndexIdToParentData> IndexIdToParent for IndirectMMap<T> {
     type Output = T;
 
@@ -57,14 +55,17 @@ impl<T: IndexIdToParentData> IndexIdToParent for IndirectMMap<T> {
 
     fn get_values_iter(&self, id: u64) -> VintArrayIteratorOpt<'_> {
         get_values_iter!(self, id, self.data, {
-            (&self.start_pos[id as usize * std::mem::size_of::<T>() as usize..id as usize * std::mem::size_of::<T>() + std::mem::size_of::<T>()]).read_u32::<LittleEndian>().unwrap()
+            (&self.start_pos[id as usize * std::mem::size_of::<T>() as usize..id as usize * std::mem::size_of::<T>() + std::mem::size_of::<T>()])
+                .read_u32::<LittleEndian>()
+                .unwrap()
         })
     }
 
     fn get_values(&self, id: u64) -> Option<Vec<T>> {
         get_values!(self, id, self.data, {
-            (&self.start_pos[id as usize * std::mem::size_of::<T>() as usize..id as usize * std::mem::size_of::<T>() + std::mem::size_of::<T>()]).read_u32::<LittleEndian>().unwrap()
+            (&self.start_pos[id as usize * std::mem::size_of::<T>() as usize..id as usize * std::mem::size_of::<T>() + std::mem::size_of::<T>()])
+                .read_u32::<LittleEndian>()
+                .unwrap()
         })
     }
 }
-

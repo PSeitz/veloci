@@ -1,7 +1,7 @@
 use crate::{persistence::*, type_info::TypeInfo};
 use half::f16;
+use memmap::Mmap;
 use std::path::Path;
-use memmap::{Mmap};
 
 pub mod token_to_anchor_score_vint;
 pub(crate) use self::token_to_anchor_score_vint::*;

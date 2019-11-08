@@ -637,7 +637,7 @@ fn distance(s1: &str, s2: &str) -> u8 {
 
     let mut column: [u8; 255] = [0; 255];
     for i in 0..255 {
-        column[i] = i as u8+1;
+        column[i] = i as u8 + 1;
     }
     for (i, item) in column.iter_mut().enumerate().take(len_s1 + 1) {
         *item = i as u8;
@@ -656,7 +656,6 @@ fn distance(s1: &str, s2: &str) -> u8 {
         }
     }
     column[len_s1]
-
 }
 
 #[test]
@@ -670,7 +669,6 @@ fn test_distance() {
     assert_eq!(distance("a", "bbb"), 3);
     assert_eq!(distance("bbb", "a"), 3);
 }
-
 
 // #[test]
 // fn test_dfa() {

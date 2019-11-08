@@ -310,8 +310,7 @@ fn no_matching_fields_from_field_list() {
 
     let requesto = query_generator::search_query(&TEST_PERSISTENCE, params);
     assert_eq!(requesto.is_err(), true);
-    assert_eq!(requesto.unwrap_err().to_string(), "Did not find any fields, filter was Some([\"notexistingfield\"])");
-
+    assert_contains!(requesto.unwrap_err().to_string(), "All fields filtered");
 }
 
 #[test]
@@ -340,8 +339,7 @@ fn no_matching_fields_from_query() {
 
 // }
 
-
-// // TODO tags[] is configured as a field, but no data is provided, it should still be in the get_all_search_field_names list 
+// // TODO tags[] is configured as a field, but no data is provided, it should still be in the get_all_search_field_names list
 // #[test]
 // fn no_matching_fields_in_facet_todo() {
 //     let params = json!({
@@ -359,8 +357,6 @@ fn no_matching_fields_from_query() {
 // }
 
 //TODO validate boost_fields
-
-
 
 // TODO FIXME
 // #[test]

@@ -1,5 +1,3 @@
-
-
 #[macro_export]
 macro_rules! get_values_iter {
     ($self:expr, $id:expr, $data:expr, $get_index:block) => {
@@ -8,7 +6,8 @@ macro_rules! get_values_iter {
         } else {
             let data_start_pos = $get_index;
             let data_start_pos_or_data = data_start_pos.to_u32().unwrap();
-            if let Some(val) = get_encoded(data_start_pos_or_data) { // TODO handle u64 indices
+            if let Some(val) = get_encoded(data_start_pos_or_data) {
+                // TODO handle u64 indices
                 return VintArrayIteratorOpt {
                     single_value: i64::from(val),
                     iter: Box::new(VintArrayIterator::from_serialized_vint_array(&[])),
@@ -29,7 +28,7 @@ macro_rules! get_values {
             None
         } else {
             let data_start_pos = $get_index;
-            let data_start_pos_or_data = data_start_pos.to_u32().unwrap();  // TODO handle u64 indices
+            let data_start_pos_or_data = data_start_pos.to_u32().unwrap(); // TODO handle u64 indices
             if let Some(val) = get_encoded(data_start_pos_or_data) {
                 return Some(vec![num::cast(val).unwrap()]);
             }
@@ -43,7 +42,6 @@ macro_rules! get_values {
         }
     };
 }
-
 
 #[cfg(feature = "create")]
 mod create_indirect;
@@ -70,9 +68,9 @@ fn get_encoded(mut val: u32) -> Option<u32> {
 
 #[cfg(test)]
 mod tests {
-    use std::path::PathBuf;
     use super::*;
     use crate::persistence::IndexIdToParent;
+    use std::path::PathBuf;
 
     fn get_test_data_1_to_n_ind(path: PathBuf) -> IndirectIMFlushingInOrderVint {
         let mut store = IndirectIMFlushingInOrderVint::new(path, std::u32::MAX);

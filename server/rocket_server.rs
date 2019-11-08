@@ -16,7 +16,8 @@ extern crate serde_derive;
 #[macro_use]
 extern crate measure_time;
 
-#[cfg(test)] mod tests;
+#[cfg(test)]
+mod tests;
 
 use chashmap::CHashMap;
 use flate2::read::GzEncoder;
@@ -29,20 +30,20 @@ use rocket::{
     http::{ContentType, Method, Status},
     request::LenientForm,
     response::{self, status::Custom, Responder, Response},
-    // Data,
     Request,
 };
 use rocket_contrib::json::Json;
 use rocket_cors::{AllowedHeaders, AllowedOrigins};
+use std::{
+    collections::HashMap,
+    io::{prelude::*, Cursor},
+};
 use veloci::{
     doc_store::*,
     error::VelociError,
     persistence::{self, Persistence},
     query_generator, search, search_field,
-    // shards::Shards,
 };
-use std::{collections::HashMap, io::Cursor};
-use std::io::prelude::*;
 
 lazy_static! {
     static ref PERSISTENCES: CHashMap<String, Persistence> = { CHashMap::default() };
@@ -430,14 +431,12 @@ fn search_get(database: String, params: LenientForm<QueryParams>) -> Result<Sear
 //     Ok(SearchResult(shard.search_all_shards_from_qp(&q_params, &query_param_to_vec(params.select))?))
 // }
 
-
 fn search_error_to_rocket_error(err: VelociError) -> Custom<String> {
     match err {
         VelociError::StringError(msg) => Custom(Status::BadRequest, msg),
         _ => Custom(Status::InternalServerError, format!("SearchError: {:?}", err)),
     }
 }
-
 
 // ******************************************** PERMISSION CRITICAL START ********************************************
 // ******************************************** UPLOAD UPLOAD ********************************************
@@ -545,8 +544,6 @@ fn search_error_to_rocket_error(err: VelociError) -> Custom<String> {
 // //     .unwrap();
 // //     Ok("created".to_string())
 // // }
-
-
 
 // #[delete("/<database>")]
 // fn delete_db(database: String) -> Result<String, VelociError> {
@@ -685,4 +682,3 @@ impl fairing::Fairing for Gzip {
         }
     }
 }
-

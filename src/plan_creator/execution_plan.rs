@@ -524,7 +524,7 @@ pub fn execute_steps(steps: Vec<Box<dyn PlanStepTrait>>, persistence: &Persisten
 
     if let Err(err) = r {
         Err(err)
-    }else{
+    } else {
         Ok(())
     }
 

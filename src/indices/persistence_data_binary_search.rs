@@ -1,10 +1,21 @@
-use std::path::PathBuf;
 use super::{calc_avg_join_size, flush_to_file_indirect};
-use crate::{error::VelociError, indices::*, persistence::*, type_info::TypeInfo, util::open_file};
-use memmap::{Mmap};
-use std::{self, cmp::Ordering::Greater, io, marker::PhantomData, path::Path, u32};
+use crate::{
+    error::VelociError,
+    indices::*,
+    persistence::*,
+    type_info::TypeInfo,
+    util::{open_file, *},
+};
+use memmap::Mmap;
+use std::{
+    self,
+    cmp::Ordering::Greater,
+    io,
+    marker::PhantomData,
+    path::{Path, PathBuf},
+    u32,
+};
 use vint::vint::*;
-use crate::util::*;
 
 impl_type_info_single_templ!(IndirectIMFlushingInOrderVintNoDirectEncode);
 impl_type_info_single_templ!(IndirectIMBinarySearchMMAP);
