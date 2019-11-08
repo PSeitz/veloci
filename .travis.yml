@@ -26,7 +26,7 @@ before_cache: |
 
 after_success: |
   # Uncomment the following line for coveralls.io
-  # RAYON_NUM_THREADS=1 cargo tarpaulin --manifest-path=$MANIFEST_PATH --all --exclude-files "src/bin/*" "benches/*" --ciserver travis-ci --coveralls $TRAVIS_JOB_ID -- --test-threads=1
+  RAYON_NUM_THREADS=1 cargo tarpaulin --manifest-path=$MANIFEST_PATH --all --exclude-files "src/bin/*" "benches/*" --ciserver travis-ci --coveralls $TRAVIS_JOB_ID -- --test-threads=1
 
   # Uncomment the following two lines create and upload a report for codecov.io
   RAYON_NUM_THREADS=1 cargo tarpaulin --manifest-path=$MANIFEST_PATH --all --exclude-files "src/bin/*" "benches/*" --out Xml -- --test-threads=1
