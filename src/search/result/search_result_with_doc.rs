@@ -29,7 +29,6 @@ pub struct DocWithHit {
     pub why_found: FnvHashMap<String, Vec<String>>,
 }
 
-
 impl std::fmt::Display for DocWithHit {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
         write!(f, "\n{}\t{}", self.hit.id, self.hit.score)?;

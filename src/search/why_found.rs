@@ -1,15 +1,11 @@
-
-use fnv::FnvHashMap;
-use crate::search::search_field::TermId;
-use crate::util::extract_field_name;
-use crate::search::request::snippet_info::DEFAULT_SNIPPETINFO;
 use crate::{
     error::VelociError,
-    facet,
-    highlight_field,
-    persistence::{Persistence},
-    util::{self},
+    facet, highlight_field,
+    persistence::Persistence,
+    search::{request::snippet_info::DEFAULT_SNIPPETINFO, search_field::TermId},
+    util::{self, extract_field_name},
 };
+use fnv::FnvHashMap;
 pub fn get_why_found(
     persistence: &Persistence,
     anchor_ids: &[u32],

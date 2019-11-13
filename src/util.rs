@@ -1,9 +1,14 @@
-use std::path::PathBuf;
 use crate::{error::VelociError, persistence::TEXTINDEX};
 use itertools::Itertools;
 use regex::Regex;
-use std::{self, collections::HashMap, fs::File, io::prelude::*, path::Path};
-use std::ffi::{OsString};
+use std::{
+    self,
+    collections::HashMap,
+    ffi::OsString,
+    fs::File,
+    io::prelude::*,
+    path::{Path, PathBuf},
+};
 
 pub(crate) fn normalize_text(text: &str) -> String {
     lazy_static! {
@@ -42,33 +47,32 @@ pub(crate) trait SetExt {
 
 impl SetExt for PathBuf {
     #[inline]
-    fn set_ext(&self, other: Ext) -> PathBuf{
+    fn set_ext(&self, other: Ext) -> PathBuf {
         self.as_path().set_ext(other)
     }
 }
 
 impl SetExt for Path {
     #[inline]
-    fn set_ext(&self, other: Ext) -> PathBuf{
+    fn set_ext(&self, other: Ext) -> PathBuf {
         let ext = match other {
             Ext::Indirect => "indirect",
             Ext::Data => "data",
         };
         let mut new_path = PathBuf::from(self);
-        if !new_path.ends_with(ext){
+        if !new_path.ends_with(ext) {
             if let Some(curr_ext) = new_path.extension() {
                 let mut new_ext = OsString::from(curr_ext);
                 new_ext.push(".");
                 new_ext.push(ext);
                 new_path.set_extension(new_ext);
-            }else{
+            } else {
                 new_path.set_extension(ext);
             }
         }
         new_path
     }
 }
-
 
 // pub(crate) fn get_bit_at(input: u32, n: u8) -> bool {
 //     if n < 32 {

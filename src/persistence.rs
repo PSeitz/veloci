@@ -180,9 +180,7 @@ impl<'a> Iterator for VintArrayIteratorOpt<'a> {
 pub trait IndexIdToParent: Debug + Sync + Send + type_info::TypeInfo {
     type Output: IndexIdToParentData;
 
-    fn get_values_iter(&self, _id: u64) -> VintArrayIteratorOpt<'_> {
-        unimplemented!()
-    }
+    fn get_values_iter(&self, _id: u64) -> VintArrayIteratorOpt<'_>;
 
     fn get_index_meta_data(&self) -> &IndexValuesMetadata;
 
@@ -291,7 +289,10 @@ pub fn get_readable_size(value: usize) -> ColoredString {
 // }
 
 impl Persistence {
-    fn load_types_index_to_one<T: IndexIdToParentData, P: AsRef<Path> + std::fmt::Debug>(data_direct_path: P, metadata: IndexValuesMetadata) -> Result<Box<dyn IndexIdToParent<Output = u32>>, VelociError> {
+    fn load_types_index_to_one<T: IndexIdToParentData, P: AsRef<Path> + std::fmt::Debug>(
+        data_direct_path: P,
+        metadata: IndexValuesMetadata,
+    ) -> Result<Box<dyn IndexIdToParent<Output = u32>>, VelociError> {
         let store = SingleArrayIM::<u32, T> {
             data: decode_bit_packed_vals(&file_path_to_bytes(data_direct_path)?, get_bytes_required(metadata.max_value_id)),
             metadata,

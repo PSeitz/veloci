@@ -255,7 +255,7 @@ fn complex_search_querygenerator_from_json() {
     let params = json!({
         "search_term": "will",
         "top": 10,
-        "facets": ["commonness","tags[]"], // TODO CHECK ERRO HANDLING for nonexistens field like "tagso"
+        "facets": ["commonness","kanji[].commonness"],
         "levenshtein": 0,
         "boost_fields": {"meanings.eng[]": 1.5}
     });
@@ -268,7 +268,7 @@ fn complex_search_querygenerator_from_json() {
     let params = json!({
         "search_term": "will",
         "top": 10,
-        "facets": ["commonness","tags[]"],
+        "facets": ["commonness","kanji[].commonness"],
         "levenshtein": 0,
         "boost_fields": {"meanings.eng[]": 1.5},
         "boost_terms": {"meanings.ger[]:majestätisches Aussehen (n)": 20.0}
@@ -302,6 +302,61 @@ fn simple_search_wildcard_starts_with() {
     assert_eq!(hits.len(), 3);
 }
 
+#[test]
+fn no_matching_fields_from_field_list() {
+    let mut params = query_generator::SearchQueryGeneratorParameters::default();
+    params.search_term = "awes*".to_string();
+    params.fields = Some(vec!["notexistingfield".to_string()]);
+
+    let requesto = query_generator::search_query(&TEST_PERSISTENCE, params);
+    assert_eq!(requesto.is_err(), true);
+    assert_contains!(requesto.unwrap_err().to_string(), "All fields filtered");
+}
+
+#[test]
+fn no_matching_fields_from_query() {
+    let mut params = query_generator::SearchQueryGeneratorParameters::default();
+    params.search_term = "notexistingfield:awes*".to_string();
+
+    let requesto = query_generator::search_query(&TEST_PERSISTENCE, params);
+    assert_eq!(requesto.is_err(), true);
+    assert_contains!(requesto.unwrap_err().to_string(), "Field notexistingfield not found in");
+}
+
+// #[test]
+// fn no_matching_fields_in_facet() {
+//     let params = json!({
+//         "search_term": "will",
+//         "facets": ["tagso[]"],
+//         "boost_fields": {"meanings.eng[]": 1.5}
+//     });
+
+//     let params: query_generator::SearchQueryGeneratorParameters = serde_json::from_str(&params.to_string()).expect("Can't parse json");
+//     let requesto = query_generator::search_query(&TEST_PERSISTENCE, params);
+
+//     assert_eq!(requesto.is_err(), true);
+//     assert_contains!(requesto.unwrap_err().to_string(), "Field tagso[] not found in");
+
+// }
+
+// // TODO tags[] is configured as a field, but no data is provided, it should still be in the get_all_search_field_names list
+// #[test]
+// fn no_matching_fields_in_facet_todo() {
+//     let params = json!({
+//         "search_term": "will",
+//         "facets": ["tags[]"],
+//         "boost_fields": {"meanings.eng[]": 1.5}
+//     });
+
+//     let params: query_generator::SearchQueryGeneratorParameters = serde_json::from_str(&params.to_string()).expect("Can't parse json");
+//     let requesto = query_generator::search_query(&TEST_PERSISTENCE, params);
+
+//     assert_eq!(requesto.is_err(), true);
+//     assert_contains!(requesto.unwrap_err().to_string(), "Field tags[] not found in");
+
+// }
+
+//TODO validate boost_fields
 
 // TODO FIXME
 // #[test]

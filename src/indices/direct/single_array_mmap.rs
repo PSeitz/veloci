@@ -1,10 +1,14 @@
-use crate::indices::mmap_from_file;
-use crate::{error::VelociError, indices::metadata::IndexValuesMetadata, persistence::*, type_info::TypeInfo};
+use crate::{
+    error::VelociError,
+    indices::{metadata::IndexValuesMetadata, mmap_from_file},
+    persistence::*,
+    type_info::TypeInfo,
+};
 use std::{self, fs::File, io, marker::PhantomData, ptr::copy_nonoverlapping, u32};
 
-use std::mem;
-use memmap::{Mmap};
+use memmap::Mmap;
 use num;
+use std::mem;
 
 impl_type_info_single_templ!(SingleArrayMMAPPacked);
 

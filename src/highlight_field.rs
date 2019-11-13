@@ -95,7 +95,7 @@ pub fn highlight_text(text: &str, set: &FnvHashSet<String>, opt: &SnippetInfo, t
 
     let mut tokens = vec![];
     let mut hit_pos_of_tokens_in_doc = vec![];
-    for (pos, (token, _)) in tokenizer.iter(text).enumerate(){
+    for (pos, (token, _)) in tokenizer.iter(text).enumerate() {
         tokens.push(token);
         if set.contains(token) {
             hit_pos_of_tokens_in_doc.push(pos);

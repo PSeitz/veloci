@@ -1,11 +1,12 @@
-use std::fs::File;
 use memmap::{Mmap, MmapOptions};
+use std::fs::File;
 
-use crate::error::VelociError;
-use crate::util::open_file;
-use std::path::Path;
+use crate::{error::VelociError, util::open_file};
 use num::{self, cast::ToPrimitive};
-use std::io::{self, Write};
+use std::{
+    io::{self, Write},
+    path::Path,
+};
 
 pub mod direct;
 #[macro_use]

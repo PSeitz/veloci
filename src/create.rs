@@ -35,11 +35,11 @@ use memmap::MmapOptions;
 use num::ToPrimitive;
 use rayon::prelude::*;
 use serde_json;
-use std::path::PathBuf;
 use std::{
     self,
     fs::File,
     io::{self, BufRead},
+    path::PathBuf,
     str,
 };
 use term_hashmap;
@@ -279,7 +279,11 @@ where
             }
             add!(data.value_id_to_anchor, parent_val_id, anchor_id);
 
-            add!(data.token_to_anchor_id_score, text_info.id, (anchor_id, calculate_token_score_for_entry(0, text_info.num_occurences, 1, true)));
+            add!(
+                data.token_to_anchor_id_score,
+                text_info.id,
+                (anchor_id, calculate_token_score_for_entry(0, text_info.num_occurences, 1, true))
+            );
 
             if data.fulltext_options.tokenize {
                 let tokenizer = data.fulltext_options.tokenizer.as_ref().unwrap_or_else(|| panic!("no tokenizer created for {:?}", path));

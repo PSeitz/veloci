@@ -1,9 +1,9 @@
-
-use crate::search::*;
-use crate::persistence::Persistence;
-use crate::util::NodeTree;
-use crate::error::VelociError;
-use crate::persistence::PARENT_TO_VALUE_ID;
+use crate::{
+    error::VelociError,
+    persistence::{Persistence, PARENT_TO_VALUE_ID},
+    search::*,
+    util::NodeTree,
+};
 
 pub fn read_data(persistence: &Persistence, id: u32, fields: &[String]) -> Result<serde_json::Value, VelociError> {
     let tree = get_read_tree_from_fields(persistence, fields);

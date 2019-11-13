@@ -106,11 +106,11 @@ impl<T: IndexIdToParentData> IndexIdToParent for IndirectIM<T> {
     // }
 
     fn get_values_iter(&self, id: u64) -> VintArrayIteratorOpt<'_> {
-        get_values_iter!(self, id, self.data, {self.start_pos[id as usize]})
+        get_values_iter!(self, id, self.data, { self.start_pos[id as usize] })
     }
 
     #[inline]
     fn get_values(&self, id: u64) -> Option<Vec<T>> {
-        get_values!(self, id, self.data, {self.start_pos[id as usize]})
+        get_values!(self, id, self.data, { self.start_pos[id as usize] })
     }
 }
