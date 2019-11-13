@@ -292,7 +292,7 @@ impl<
         }
     }
 
-    pub fn multi_iter(&self) -> Result<(Vec<MMapIter<K, T>>), io::Error> {
+    pub fn multi_iter(&self) -> Result<Vec<MMapIter<K, T>>, io::Error> {
         let mut vecco = vec![];
 
         if let Some(file) = &self.flush_data.temp_file {
