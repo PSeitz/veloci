@@ -153,7 +153,7 @@ pub(crate) fn get_file_path(folder: &str, path: &str) -> PathBuf {
     // folder.to_string() + "/" + path
 }
 
-pub(crate) fn file_as_string<P: AsRef<Path> + std::fmt::Debug>(path: P) -> Result<(String), VelociError> {
+pub(crate) fn file_as_string<P: AsRef<Path> + std::fmt::Debug>(path: P) -> Result<String, VelociError> {
     info!("Loading File {:?}", path);
     let mut file = File::open(path.as_ref()).map_err(|err| VelociError::StringError(format!("Could not open {:?} {:?}", path, err)))?;
     let mut contents = String::new();

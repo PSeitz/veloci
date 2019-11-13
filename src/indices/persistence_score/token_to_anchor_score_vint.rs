@@ -143,7 +143,7 @@ impl<T: AnchorScoreDataSize> TokenToAnchorScoreVintFlushing<T> {
         }
     }
 
-    pub fn into_mmap(self) -> Result<(TokenToAnchorScoreVintMmap<T>), VelociError> {
+    pub fn into_mmap(self) -> Result<TokenToAnchorScoreVintMmap<T>, VelociError> {
         //TODO MAX VALUE ID IS NOT SET
         Ok(TokenToAnchorScoreVintMmap::from_path(&self.indirect_path, &self.data_path)?)
     }

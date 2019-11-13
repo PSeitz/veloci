@@ -314,6 +314,31 @@ fn simple_search_skip_far() {
 }
 
 #[test]
+fn simple_search_case_sensitive() {
+    let req = json!({
+        "search": {
+            "ignore_case": true,
+            "terms":["Urge"],
+            "path": "meanings.eng[]"
+        }
+    });
+
+    let hits = search_testo_to_doc!(req).data;
+    assert_eq!(hits.len(), 1);
+
+    let req = json!({
+        "search": {
+            "ignore_case": false,
+            "terms":["Urge"],
+            "path": "meanings.eng[]"
+        }
+    });
+
+    let hits = search_testo_to_doc!(req).data;
+    assert_eq!(hits.len(), 0);
+}
+
+#[test]
 fn simple_search_explained() {
     let req = json!({
         "search": {

@@ -343,7 +343,7 @@ impl<
 
     /// flushed changes on disk and returns iterator over sorted elements
     #[inline]
-    pub fn flush_and_kmerge(&mut self) -> Result<(impl Iterator<Item = KeyValue<K, T>>), io::Error> {
+    pub fn flush_and_kmerge(&mut self) -> Result<impl Iterator<Item = KeyValue<K, T>>, io::Error> {
         self.flush()?;
 
         Ok(self.kmerge())

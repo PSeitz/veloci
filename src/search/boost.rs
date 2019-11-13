@@ -11,7 +11,7 @@ use itertools::Itertools;
 pub(crate) fn boost_text_locality_all(
     persistence: &Persistence,
     term_id_hits_in_field: &mut FnvHashMap<String, FnvHashMap<String, Vec<TermId>>>,
-) -> Result<(Vec<Hit>), VelociError> {
+) -> Result<Vec<Hit>, VelociError> {
     debug!("boost_text_locality_all {:?}", term_id_hits_in_field);
     info_time!("boost_text_locality_all");
     let mut boost_anchor: Vec<Hit> = vec![];
@@ -34,7 +34,7 @@ pub(crate) fn boost_text_locality_all(
     Ok(boost_anchor)
 }
 
-pub(crate) fn boost_text_locality(persistence: &Persistence, path: &str, search_term_to_text_ids: &mut FnvHashMap<String, Vec<TermId>>) -> Result<(Vec<Hit>), VelociError> {
+pub(crate) fn boost_text_locality(persistence: &Persistence, path: &str, search_term_to_text_ids: &mut FnvHashMap<String, Vec<TermId>>) -> Result<Vec<Hit>, VelociError> {
     let mut boost_anchor = vec![];
     if search_term_to_text_ids.len() <= 1 {
         // No boost for single term hits

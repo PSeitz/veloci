@@ -62,8 +62,8 @@ where
         .ok_or_else(|| VelociError::FstNotFound(options.path.to_string()))?;
     let lev = {
         trace_time!("{} LevenshteinIC create", &options.path);
-        let lev_automaton_builder = LevenshteinAutomatonBuilder::new(options.levenshtein_distance.unwrap_or(0).min(4) as u8, options.ignore_case.unwrap_or(true));
-        lev_automaton_builder.build_dfa(&options.terms[0], true)
+        let lev_automaton_builder = LevenshteinAutomatonBuilder::new(options.levenshtein_distance.unwrap_or(0).min(4) as u8, options.ignore_case.unwrap_or(false));
+        lev_automaton_builder.build_dfa(&options.terms[0], options.ignore_case.unwrap_or(true))
     };
 
     let hits = if options.starts_with.unwrap_or(false) {
@@ -175,7 +175,7 @@ pub fn get_anchor_for_phrases_in_search_results(
     path: &str,
     res1: &SearchFieldResult,
     res2: &SearchFieldResult,
-) -> Result<(SearchFieldResult), VelociError> {
+) -> Result<SearchFieldResult, VelociError> {
     let mut path = path.to_string();
     if !path.ends_with(TEXTINDEX) {
         path = path.add(TEXTINDEX);
@@ -186,7 +186,7 @@ pub fn get_anchor_for_phrases_in_search_results(
     get_anchor_for_phrases_in_field(persistence, &path, &res1.hits_ids, &res2.hits_ids)
 }
 
-pub fn get_anchor_for_phrases_in_field(persistence: &Persistence, path: &str, term_id_pairs_1: &[u32], term_id_pairs_2: &[u32]) -> Result<(SearchFieldResult), VelociError> {
+pub fn get_anchor_for_phrases_in_field(persistence: &Persistence, path: &str, term_id_pairs_1: &[u32], term_id_pairs_2: &[u32]) -> Result<SearchFieldResult, VelociError> {
     let mut result = SearchFieldResult::default();
     let store = persistence.get_phrase_pair_to_anchor(path)?;
     for term_id_1 in term_id_pairs_1 {
