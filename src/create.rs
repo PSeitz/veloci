@@ -273,9 +273,10 @@ where
             // data.text_id_to_anchor.add(text_info.id, anchor_id)?;
             add!(data.anchor_to_text_id, anchor_id, text_info.id);
             if let Some(el) = data.boost.as_mut() {
-                // if options.boost_type == "int" {
-                let my_int = value.parse::<u32>().unwrap_or_else(|_| panic!("Expected an int value but got {:?}", value));
-                el.add(parent_val_id, my_int)?;
+                if value.trim() != "" {
+                    let my_int = value.parse::<u32>().unwrap_or_else(|_| panic!("Expected an int value but got {:?}", value));
+                    el.add(parent_val_id, my_int)?;
+                }
             }
             add!(data.value_id_to_anchor, parent_val_id, anchor_id);
 
