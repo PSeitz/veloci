@@ -4,7 +4,7 @@ use std::{
     io::{BufReader, BufWriter, Read},
     path::PathBuf,
 };
-use structopt::StructOpt;
+use argh::FromArgs;
 use veloci;
 // use std::io::{BufRead};
 use std::{
@@ -12,22 +12,22 @@ use std::{
     io::{self, Write},
 };
 
+#[derive(FromArgs)]
 /// Veloci Convert Json to Line Delimited
-#[derive(StructOpt, Debug)]
-#[structopt(name = "Convert Json to Line Delimited")]
 struct Opt {
-    /// Output file
-    #[structopt(short, long, parse(from_os_str))]
+    /// input file
+    #[argh(option)]
     input: PathBuf,
 
-    /// Output file
-    #[structopt(short, long, parse(from_os_str))]
+    /// output file
+    #[argh(option)]
     output: PathBuf,
 }
 
+
 fn main() -> Result<(), io::Error> {
     veloci::trace::enable_log();
-    let opt = Opt::from_args();
+    let opt: Opt = argh::from_env();
 
     let file = File::open(&opt.input).unwrap();
 
