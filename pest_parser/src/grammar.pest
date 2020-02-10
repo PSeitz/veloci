@@ -1,0 +1,36 @@
+expr = {
+    (paren_bool | query_part) ~ ( (and_op|or_op)~ (paren_bool| query_part))*
+}
+
+paren_bool = { "(" ~ expr ~  ")" }
+
+and_op = { "AND" }
+or_op = { "OR" }
+
+
+
+query_part = { attr_string ~ ":" ~ string ~ levensthein? | string ~ levensthein? }
+string = _{ quoted_string | unquoted_string }
+
+levensthein = {"~" ~ ("1"|"2"|"3"|"4")}
+
+attr_string = @{ attr_chars* }
+attr_chars = {!(":" | " ") ~ ANY}
+
+
+unquoted_string = @{ unquoted_chars* }
+unquoted_chars = {
+    (!("\"" | "\\" | " OR" | " AND" | "~" ) ~ ANY) | escaped_chars_1 | escaped_chars_2
+}
+
+//everything allowed except \"
+quoted_string = ${ "\"" ~ (quoted_inner) ~ "\"" }
+quoted_inner = @{ term_quoted_char* }
+term_quoted_char = {
+    !("\"" | "\\") ~ ANY | escaped_chars_1 | escaped_chars_2
+}
+
+escaped_chars_1 = {"\\" ~ ("\"" | "\\" | "/" | "b" | "f" | "n" | "r" | "t")}
+escaped_chars_2 = {"\\" ~ ("u" ~ ASCII_HEX_DIGIT{4})}
+
+WHITESPACE = _{ " " | "\n" | "\r" }
