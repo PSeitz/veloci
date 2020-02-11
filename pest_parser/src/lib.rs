@@ -3,6 +3,10 @@
 #[macro_use]
 extern crate pest_derive;
 
+#[macro_use]
+extern crate pest_ast;
+
+extern crate from_pest;
 // use pest::prec_climber::{Assoc, Operator, PrecClimber};
 
 //use pest::error::Error;
@@ -19,6 +23,46 @@ pub struct ParseError {
     pub expected: String,
 }
 
+
+// mod ast {
+//     use super::Rule;
+//     use pest::Span;
+
+
+//     #[derive(Debug, FromPest)]
+//     #[pest_ast(rule(Rule::quoted_string))]
+//     pub struct SearchTerm {
+//         pub term: String,
+//     }
+
+// }
+
+
+// fn parse_query(query: String) {
+//     let mut parse_result = ExprParser::parse(Rule::expr, &query).unwrap().next().unwrap().into_inner();
+
+//     let first_block = parse_result.next().unwrap();
+//     match first_block.as_rule() {
+//         Rule::paren_bool => {
+//             // let mut inner_rules = line.into_inner(); // { name }
+//             // current_section_name = inner_rules.next().unwrap().as_str();
+//         }
+//         Rule::query_part => {
+//             // let mut inner_rules = line.into_inner(); // { name ~ "=" ~ value }
+
+//             // let name: &str = inner_rules.next().unwrap().as_str();
+//             // let value: &str = inner_rules.next().unwrap().as_str();
+
+//             // // Insert an empty inner hash map if the outer hash map hasn't
+//             // // seen this section name before.
+//             // let section = properties.entry(current_section_name).or_default();
+//             // section.insert(name, value);
+//         }
+//         // Rule::EOI => (),
+//         _ => unreachable!(),
+//     }
+
+// }
 
 #[cfg(test)]
 mod tests {
