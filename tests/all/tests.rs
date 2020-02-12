@@ -1,19 +1,7 @@
-#![recursion_limit = "128"]
-
-#[macro_use]
-extern crate lazy_static;
-
-#[macro_use]
-extern crate serde_json;
-
-#[macro_use]
-extern crate more_asserts;
-
 use serde_json::Value;
 use veloci::*;
 
-#[macro_use]
-mod common;
+use super::common;
 
 static TEST_FOLDER: &str = "mochaTest";
 lazy_static! {
@@ -53,6 +41,7 @@ lazy_static! {
         common::create_test_persistence(TEST_FOLDER, indices, get_test_data().to_string().as_bytes(), token_values)
     };
 }
+
 
 pub fn get_test_data() -> Value {
     json!([

@@ -1,16 +1,10 @@
-#![recursion_limit = "128"]
 
-#[macro_use]
-extern crate lazy_static;
-
-#[macro_use]
-extern crate serde_json;
-
+use super::common;
 use serde_json::Value;
 use veloci::*;
 
-#[macro_use]
-mod common;
+// #[macro_use]
+// mod common;
 
 pub fn get_test_data() -> Value {
     json!([
