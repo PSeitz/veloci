@@ -16,3 +16,6 @@ serde_json = "1.0.33"
 [dev-dependencies.criterion]
 features = []
 version = "0.2.5"
+
+[profile.dev]
+debug = false
