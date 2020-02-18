@@ -3,10 +3,10 @@
 #[macro_use]
 extern crate pest_derive;
 
-#[macro_use]
-extern crate pest_ast;
+// #[macro_use]
+// extern crate pest_ast;
+// extern crate from_pest;
 
-extern crate from_pest;
 // use pest::prec_climber::{Assoc, Operator, PrecClimber};
 
 //use pest::error::Error;
@@ -24,18 +24,18 @@ pub struct ParseError {
 }
 
 
-// mod ast {
-//     use super::Rule;
-//     use pest::Span;
+mod ast {
+    use super::Rule;
+    use pest::Span;
 
 
-//     #[derive(Debug, FromPest)]
-//     #[pest_ast(rule(Rule::quoted_string))]
-//     pub struct SearchTerm {
-//         pub term: String,
-//     }
+    // #[derive(Debug, FromPest)]
+    // #[pest_ast(rule(Rule::quoted_string))]
+    // pub struct SearchTerm {
+    //     pub term: String,
+    // }
 
-// }
+}
 
 
 // fn parse_query(query: String) {

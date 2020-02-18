@@ -98,6 +98,10 @@ git = "https://github.com/PSeitz/rust_string_hashmap"
 [dependencies.vint]
 git = "https://github.com/PSeitz/rust_vint"
 
+[dev-dependencies.color-backtrace]
+version = "0.3.0"
+default-features = false
+
 [dev-dependencies]
 more-asserts = "0.2.1"
 pretty_assertions = "0.6.1"
