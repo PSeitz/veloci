@@ -24,7 +24,7 @@ where
     doc_store.finish(&mut file_out)?;
     // create_cache.term_data.current_offset = doc_store.current_offset;
     use std::slice;
-    let slice = unsafe { slice::from_raw_parts(doc_store.offsets.as_ptr() as *const u8, doc_store.offsets.len() * mem::size_of::<(u32, u64)>()) };
+    let slice = doc_store.get_offsets_as_byte_slice();;
     persistence.write_data_offset(slice, &doc_store.offsets)?;
     persistence.metadata.num_docs = doc_store.curr_id.into();
     persistence.metadata.bytes_indexed = doc_store.bytes_indexed;

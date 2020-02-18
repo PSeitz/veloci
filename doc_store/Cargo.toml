@@ -5,10 +5,32 @@ edition = "2018"
 name = "doc_store"
 version = "0.1.0"
 [dependencies]
-lz4 = "1.23.1"
+lz4 = { version = "1.23.1", optional = true}
+lz4-compress = { version = "0.1.1", optional = true}
 
 [dependencies.vint]
 git = "https://github.com/PSeitz/rust_vint"
 
 [profile.dev]
 debug = false
+
+[features]
+default = []
+lz4_linked = ["lz4"]
+lz4_rust = ["lz4-compress"]
+lz4_flexx = ["lz4_flex"]
+
+[dependencies.color-backtrace]
+version = "0.3.0"
+default-features = false
+
+[dependencies.lz4_flex]
+optional = true
+path = "../../lz4_flex"
+
+[profile.release]
+codegen-units = 1
+debug = true
+lto = true
+opt-level = 3
+panic = "unwind"
