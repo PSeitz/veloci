@@ -5,8 +5,8 @@ use veloci;
 #[cfg(feature = "enable_cpuprofiler")]
 extern crate cpuprofile;
 
-use std::{fs::File, io::prelude::*};
 use argh::FromArgs;
+use std::{fs::File, io::prelude::*};
 
 #[derive(FromArgs)]
 /// Veloci Index Creator
@@ -24,12 +24,12 @@ struct Opt {
     config: Option<String>,
 }
 
-
 fn main() {
     veloci::trace::enable_log();
 
     let matches: Opt = argh::from_env();
-    let config: String = matches.config
+    let config: String = matches
+        .config
         .map(|path| {
             let mut f = File::open(path).expect("file not found");
             let mut contents = String::new();
@@ -37,7 +37,6 @@ fn main() {
             contents
         })
         .unwrap_or_else(|| "{}".to_string());
-
 
     start_profiler("./create-prof.profile");
     veloci::create::create_indices_from_file(&mut veloci::persistence::Persistence::create(matches.target).unwrap(), &matches.data, &config, false).unwrap();

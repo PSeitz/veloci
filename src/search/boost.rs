@@ -8,10 +8,7 @@ use fnv::FnvHashMap;
 use itertools::Itertools;
 
 #[inline]
-pub(crate) fn boost_text_locality_all(
-    persistence: &Persistence,
-    term_id_hits_in_field: &mut FnvHashMap<String, FnvHashMap<String, Vec<TermId>>>,
-) -> Result<Vec<Hit>, VelociError> {
+pub(crate) fn boost_text_locality_all(persistence: &Persistence, term_id_hits_in_field: &mut FnvHashMap<String, FnvHashMap<String, Vec<TermId>>>) -> Result<Vec<Hit>, VelociError> {
     debug!("boost_text_locality_all {:?}", term_id_hits_in_field);
     info_time!("boost_text_locality_all");
     let mut boost_anchor: Vec<Hit> = vec![];

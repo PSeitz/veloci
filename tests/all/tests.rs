@@ -42,7 +42,6 @@ lazy_static! {
     };
 }
 
-
 pub fn get_test_data() -> Value {
     json!([
         {

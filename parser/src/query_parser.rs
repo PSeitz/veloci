@@ -1,7 +1,4 @@
-use combine::char::*;
-use combine::error::StreamError;
-use combine::stream::StreamErrorFor;
-use combine::*;
+use combine::{char::*, error::StreamError, stream::StreamErrorFor, *};
 use std::fmt;
 // use user_input_ast::*;
 
@@ -9,7 +6,7 @@ use std::fmt;
 pub struct UserFilter {
     pub field_name: Option<String>,
     pub phrase: String,
-    pub levenshtein: Option<u8>
+    pub levenshtein: Option<u8>,
 }
 
 impl fmt::Debug for UserFilter {
@@ -19,7 +16,7 @@ impl fmt::Debug for UserFilter {
                 Some(ref field_name) => write!(formatter, "{}:\"{}\"~{:?}", field_name, self.phrase, levenshtein),
                 None => write!(formatter, "\"{}\"~{:?}", self.phrase, levenshtein),
             }
-        }else{
+        } else {
             match self.field_name {
                 Some(ref field_name) => write!(formatter, "{}:\"{}\"", field_name, self.phrase),
                 None => write!(formatter, "\"{}\"", self.phrase),
@@ -83,7 +80,7 @@ fn test_simplify() {
     let leaf = UserAST::Leaf(Box::new(UserFilter {
         field_name: None,
         phrase: "test".to_string(),
-        levenshtein: None
+        levenshtein: None,
     }));
     let ast = UserAST::Clause(Operator::Or, vec![UserAST::Clause(Operator::Or, vec![leaf])]);
 
@@ -230,7 +227,7 @@ parser! {
 }
 
 macro_rules! combine_if_same_op {
-    ($ast:expr,$opa:expr, $other:expr) => (
+    ($ast:expr,$opa:expr, $other:expr) => {
         if let UserAST::Clause(op, ref queries) = $ast {
             if op == $opa {
                 let mut queries = queries.clone();
@@ -238,7 +235,7 @@ macro_rules! combine_if_same_op {
                 return UserAST::Clause(op, queries);
             }
         }
-    );
+    };
 }
 
 parser! {
@@ -333,5 +330,4 @@ mod test {
     fn test_parse_field_with_levenshtein() {
         test_parse_query_to_ast_helper("feld:buch~2", "feld:\"buch\"~2");
     }
-
 }

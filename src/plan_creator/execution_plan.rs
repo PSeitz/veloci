@@ -208,7 +208,7 @@ fn add_phrase_boost_plan_steps(
     let step = BoostAnchorFromPhraseResults { channel };
     let id_step = plan.add_step(Box::new(step));
     plan.add_dependency(id_step, search_output_step);
-    (id_step)
+    id_step
 }
 fn merge_vec(boost: &[RequestBoostPart], opt: &Option<Vec<RequestBoostPart>>) -> Vec<RequestBoostPart> {
     let mut boost = boost.to_owned();
@@ -272,7 +272,7 @@ fn plan_creator_2(
             plan.add_dependency(step_id, depends_on_step);
         }
 
-        (step_id)
+        step_id
     } else if let Some(ands) = request.and.as_ref() {
         let mut channel = PlanStepDataChannels::default();
         if let Some(step_id) = filter_channel_step {
@@ -313,7 +313,7 @@ fn plan_creator_2(
             plan.add_dependency(step_id, depends_on_step);
         }
 
-        (step_id)
+        step_id
     } else if let Some(part) = request.search.as_ref() {
         // TODO Tokenize query according to field
         // part.terms = part.terms.iter().map(|el| util::normalize_text(el)).collect::<Vec<_>>();
@@ -476,7 +476,7 @@ fn plan_creator_search_part(
     if let Some(depends_on_step) = depends_on_step {
         plan.add_dependency(id1, depends_on_step);
     }
-    (id1)
+    id1
 }
 
 use rayon::prelude::*;

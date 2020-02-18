@@ -2,7 +2,7 @@ use chrono::Local;
 // use flexi_logger;
 // use log::Record;
 use parking_lot::RwLock;
-use std::io::{Write};
+use std::io::Write;
 
 // /// A logline-formatter that produces log lines like
 // /// <br>
@@ -38,12 +38,12 @@ use std::io::{Write};
 // }
 // #[test]
 // fn parse_env_string(text: &str) {
-    // match env::var("RUST_LOG") {
-    //     Ok(logo) => {
+// match env::var("RUST_LOG") {
+//     Ok(logo) => {
 
-    //     },
-    //     Err(..) => Ok(Self::off()),
-    // }
+//     },
+//     Err(..) => Ok(Self::off()),
+// }
 //     // veloci=info,otherlib=warn
 //     text.split(",").map(|el|)
 // }
@@ -54,20 +54,19 @@ pub fn enable_log() {
     let mut log_enabledo = LOG_ENABLED.write();
 
     if !*log_enabledo {
-
         env_logger::builder()
-        .format(|w, record| {
-            writeln!(
-                w,
-                "[{}] {} [{}:{}] {}",
-                Local::now().format("%Y-%m-%d %H:%M:%S%.6f %:z"),
-                record.level(),
-                record.file().unwrap_or("<unnamed>"),
-                record.line().unwrap_or(0),
-                &record.args()
-            )
-        })
-        .init();
+            .format(|w, record| {
+                writeln!(
+                    w,
+                    "[{}] {} [{}:{}] {}",
+                    Local::now().format("%Y-%m-%d %H:%M:%S%.6f %:z"),
+                    record.level(),
+                    record.file().unwrap_or("<unnamed>"),
+                    record.line().unwrap_or(0),
+                    &record.args()
+                )
+            })
+            .init();
 
         // flexi_logger::Logger::with_env().format(format_log).start().expect("could not create logger");
         *log_enabledo = true;

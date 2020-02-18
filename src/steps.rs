@@ -142,7 +142,7 @@ pub fn steps_between_field_paths(start: &str, end: &str) -> Vec<FieldPath> {
         path_to_walk.push(start.clone());
     }
 
-    (path_to_walk)
+    path_to_walk
 }
 
 #[test]

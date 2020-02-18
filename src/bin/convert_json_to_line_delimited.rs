@@ -1,10 +1,10 @@
+use argh::FromArgs;
 use serde::de::{Deserializer, SeqAccess, Visitor};
 use std::{
     fs::File,
     io::{BufReader, BufWriter, Read},
     path::PathBuf,
 };
-use argh::FromArgs;
 use veloci;
 // use std::io::{BufRead};
 use std::{
@@ -23,7 +23,6 @@ struct Opt {
     #[argh(option)]
     output: PathBuf,
 }
-
 
 fn main() -> Result<(), io::Error> {
     veloci::trace::enable_log();
