@@ -43,8 +43,11 @@ pub struct SearchQueryGeneratorParameters {
     pub facets: Option<Vec<String>>,
     pub stopword_lists: Option<Vec<String>>,
     pub fields: Option<Vec<String>>,
-    pub boost_fields: HashMap<String, f32>,
-    pub boost_terms: HashMap<String, f32>,
+    pub boost_fields: Option<HashMap<String, f32>>,
+
+    /// format is term:field_name(optional)->boost_value
+    /// city:berlin->2.0
+    pub boost_terms: Option<HashMap<String, f32>>,
     pub phrase_pairs: Option<bool>,
     pub explain: Option<bool>,
     pub filter: Option<String>,
@@ -231,7 +234,7 @@ fn query_ast_to_request(ast: UserAST, opt: &SearchQueryGeneratorParameters) -> R
             };
 
             let part = RequestSearchPart {
-                boost: opt.boost_fields.get(field_name).map(|el| OrderedFloat(*el)),
+                boost: opt.boost_fields.as_ref().and_then(|boost|boost.get(field_name).map(|el| OrderedFloat(*el))),
                 levenshtein_distance,
                 path: field_name.to_string(),
                 terms: vec![term],
@@ -268,6 +271,31 @@ fn check_field(field: &String, all_fields: &[String]) -> Result<(), VelociError>
     }
 }
 
+
+/// format is term:field_name(optional)->boost_value
+/// city:berlin->2.0
+pub fn handle_boost_term_query(persistence: &Persistence, boost_term: &str, boost_value: &f32) -> Vec<RequestSearchPart> {
+    let mut boost_term = boost_term.to_string();
+    let field_filter: Option<Vec<String>> = if boost_term.contains(':') {
+        let mut parts: Vec<String> = boost_term.split(':').map(|el| el.to_string()).collect();
+        boost_term = parts.remove(1);
+        Some(parts)
+    } else {
+        None
+    };
+
+    get_all_search_field_names(&persistence, &field_filter)
+        .unwrap()
+        .iter()
+        .map(|field_name| RequestSearchPart {
+            path: field_name.to_string(),
+            terms: vec![boost_term.to_string()],
+            boost: Some(OrderedFloat(*boost_value)),
+            ..Default::default()
+        })
+        .collect::<Vec<_>>()
+}
+
 pub fn search_query(persistence: &Persistence, mut opt: SearchQueryGeneratorParameters) -> Result<Request, VelociError> {
     // let req = persistence.metadata.fulltext_indices.key
     opt.facetlimit = opt.facetlimit.or(Some(5));
@@ -294,33 +322,19 @@ pub fn search_query(persistence: &Persistence, mut opt: SearchQueryGeneratorPara
 
     let facets_req = facets_req.map_or(Ok(None), |r| r.map(Some))?;
 
-    let boost_terms_req: Vec<RequestSearchPart> = opt
+    let boost_term = opt
         .boost_terms
-        .iter()
-        .flat_map(|(boost_term, boost_value): (&String, &f32)| {
-            let mut boost_term = boost_term.to_string();
-            let field_filter: Option<Vec<String>> = if boost_term.contains(':') {
-                let mut parts: Vec<String> = boost_term.split(':').map(|el| el.to_string()).collect();
-                boost_term = parts.remove(1);
-                Some(parts)
-            } else {
-                None
-            };
+        .and_then(|boosts:HashMap<String, f32>|{
+            let requests = boosts.iter()
+            .flat_map(|(boost_term, boost_value): (&String, &f32)| {
+                handle_boost_term_query(persistence, boost_term, boost_value)
+            })
+            .collect::<Vec<RequestSearchPart>>();
+            Some(requests)
+        });
 
-            get_all_search_field_names(&persistence, &field_filter)
-                .unwrap()
-                .iter()
-                .map(|field_name| RequestSearchPart {
-                    path: field_name.to_string(),
-                    terms: vec![boost_term.to_string()],
-                    boost: Some(OrderedFloat(*boost_value)),
-                    ..Default::default()
-                })
-                .collect::<Vec<_>>()
-        })
-        .collect();
 
-    let boost_term = if boost_terms_req.is_empty() { None } else { Some(boost_terms_req) };
+    // let boost_term = if boost_terms_req.is_empty() { None } else { Some(boost_terms_req) };
 
     if opt.phrase_pairs.unwrap_or(false) && terms.len() >= 2 {
         request.phrase_boosts = Some(generate_phrase_queries_for_searchterm(
@@ -359,7 +373,7 @@ pub fn generate_phrase_queries_for_searchterm(
     terms: &[String],
     levenshtein: Option<usize>,
     levenshtein_auto_limit: Option<usize>,
-    boost_fields: &HashMap<String, f32>,
+    boost_fields: &Option<HashMap<String, f32>>,
 ) -> Result<Vec<RequestPhraseBoost>, VelociError> {
     let mut phase_boost_requests = vec![];
     for (term_a, term_b) in terms.iter().tuple_windows() {
@@ -367,14 +381,14 @@ pub fn generate_phrase_queries_for_searchterm(
             search1: RequestSearchPart {
                 path: field_name.to_string(),
                 terms: vec![term_a.to_string()],
-                boost: boost_fields.get(field_name).map(|el| OrderedFloat(*el)),
+                boost: boost_fields.as_ref().and_then(|boost_fields|boost_fields.get(field_name).map(|el| OrderedFloat(*el))),
                 levenshtein_distance: Some(get_levenshteinn(term_a, levenshtein, levenshtein_auto_limit)),
                 ..Default::default()
             },
             search2: RequestSearchPart {
                 path: field_name.to_string(),
                 terms: vec![term_b.to_string()],
-                boost: boost_fields.get(field_name).map(|el| OrderedFloat(*el)),
+                boost: boost_fields.as_ref().and_then(|boost_fields|boost_fields.get(field_name).map(|el| OrderedFloat(*el))),
                 levenshtein_distance: Some(get_levenshteinn(term_b, levenshtein, levenshtein_auto_limit)),
                 ..Default::default()
             },
