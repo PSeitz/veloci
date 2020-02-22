@@ -278,6 +278,19 @@ fn simple_search() {
     assert_eq!(hits[0].doc["tags"], json!(["nice".to_string()]));
 }
 
+#[test]
+fn return_execution_time() {
+    let req = json!({
+        "search": {
+            "terms":["urge"],
+            "path": "meanings.eng[]"
+        }
+    });
+
+    let res = search_testo_to_doc!(req);
+    assert_gt!(res.execution_time_ns, 1);
+}
+
 // #[test]
 // fn levenshtein_lowercase_regression() {
 //     let req = json!({
