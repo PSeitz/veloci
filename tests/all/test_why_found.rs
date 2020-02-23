@@ -10,10 +10,14 @@ pub fn get_test_data() -> Value {
             "viele": ["nette", "leute"]
         },
         {
+            "not_tokenized": "ID1000",
+            "not_tokenized_1_n": ["ID1000"],
             "custom_tokenized": "test§_ cool _",
             "richtig": "hajoe genau"
         },
         {
+            "not_tokenized": "ID2000",
+            "not_tokenized_1_n": ["ID2000"],
             "richtig": "shön",
             "custom_tokenized": "<<cool>>",
             "viele": ["treffers", "und so", "super treffers", "ein längerer Text, um zu checken, dass da nicht umsortiert wird"] //same text "super treffers" multiple times
@@ -34,6 +38,13 @@ lazy_static! {
         features = ['All']
         [richtig.fulltext]
         tokenize = true
+
+        [not_tokenized.fulltext]
+        tokenize = false
+
+        ["not_tokenized_1_n[]".fulltext]
+        tokenize = false
+
         [custom_tokenized.fulltext]
             tokenize = true
             tokenize_on_chars = ['§', '<']
@@ -124,6 +135,65 @@ fn should_highlight_properly_when_complete_text_is_hit() {
 
     let hits = search_testo_to_doc!(req).data;
     assert_eq!(hits[0].why_found["custom_tokenized"], vec!["<b><<cool>></b>"]);
+}
+
+
+#[test]
+fn should_highlight_properly_when_complete_text_is_hit_untokenized() {
+    let req = json!({
+        "search": {
+            "terms":["ID1000"],
+            "path": "not_tokenized",
+        },
+        "why_found":true
+    });
+
+    let hits = search_testo_to_doc!(req).data;
+    assert_eq!(hits[0].why_found["not_tokenized"], vec!["<b>ID1000</b>"]);
+}
+
+#[test]
+fn should_highlight_properly_when_complete_text_is_hit_untokenized_with_select() {
+    let req = json!({
+        "search": {
+            "terms":["ID1000"],
+            "path": "not_tokenized",
+        },
+        "select": ["not_tokenized"],
+        "why_found":true
+    });
+
+    let hits = search_testo_to_doc!(req).data;
+    assert_eq!(hits[0].why_found["not_tokenized"], vec!["<b>ID1000</b>"]);
+}
+
+#[test]
+fn should_highlight_properly_when_complete_text_is_hit_untokenized_1_n() {
+    let req = json!({
+        "search": {
+            "terms":["ID1000"],
+            "path": "not_tokenized_1_n[]",
+        },
+        "why_found":true
+    });
+
+    let hits = search_testo_to_doc!(req).data;
+    assert_eq!(hits[0].why_found["not_tokenized_1_n[]"], vec!["<b>ID1000</b>"]);
+}
+
+#[test]
+fn should_highlight_properly_when_complete_text_is_hit_untokenized_with_select_1_n() {
+    let req = json!({
+        "search": {
+            "terms":["ID1000"],
+            "path": "not_tokenized_1_n[]",
+        },
+        "select": ["not_tokenized_1_n[]"],
+        "why_found":true
+    });
+
+    let hits = search_testo_to_doc!(req).data;
+    assert_eq!(hits[0].why_found["not_tokenized_1_n[]"], vec!["<b>ID1000</b>"]);
 }
 
 #[test]
