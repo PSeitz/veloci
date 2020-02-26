@@ -52,11 +52,19 @@ pub struct SearchQueryGeneratorParameters {
     // pub filter: Option<Vec<RequestSearchPart>>,
 }
 
-fn get_default_levenshtein(term: &str, levenshtein_auto_limit: usize) -> usize {
-    match term.chars().count() {
-        0..=2 => 0,
-        3..=5 => std::cmp::min(1, levenshtein_auto_limit),
-        _ => std::cmp::min(2, levenshtein_auto_limit),
+fn get_default_levenshtein(term: &str, levenshtein_auto_limit: usize, wildcard: bool) -> usize {
+    if wildcard{
+        match term.chars().count() {
+            0..=3 => 0,
+            4..=5 => std::cmp::min(1, levenshtein_auto_limit),
+            _ => std::cmp::min(2, levenshtein_auto_limit),
+        }
+    }else{
+        match term.chars().count() {
+            0..=2 => 0,
+            3..=5 => std::cmp::min(1, levenshtein_auto_limit),
+            _ => std::cmp::min(2, levenshtein_auto_limit),
+        }
     }
 }
 
@@ -87,8 +95,8 @@ fn get_all_search_field_names(persistence: &Persistence, fields: &Option<Vec<Str
     }
 }
 
-fn get_levenshteinn(term: &str, levenshtein: Option<usize>, levenshtein_auto_limit: Option<usize>) -> u32 {
-    let levenshtein_distance = levenshtein.unwrap_or_else(|| get_default_levenshtein(term, levenshtein_auto_limit.unwrap_or(1)));
+fn get_levenshteinn(term: &str, levenshtein: Option<usize>, levenshtein_auto_limit: Option<usize>, wildcard: bool) -> u32 {
+    let levenshtein_distance = levenshtein.unwrap_or_else(|| get_default_levenshtein(term, levenshtein_auto_limit.unwrap_or(1), wildcard));
     std::cmp::min(levenshtein_distance, term.chars().count() - 1) as u32
 }
 
@@ -227,7 +235,7 @@ fn query_ast_to_request(ast: UserAST, opt: &SearchQueryGeneratorParameters) -> R
             let levenshtein_distance = if let Some(levenshtein) = filter.levenshtein {
                 Some(u32::from(levenshtein))
             } else {
-                Some(get_levenshteinn(&term, opt.levenshtein, opt.levenshtein_auto_limit))
+                Some(get_levenshteinn(&term, opt.levenshtein, opt.levenshtein_auto_limit, starts_with))
             };
 
             let part = RequestSearchPart {
@@ -368,14 +376,14 @@ pub fn generate_phrase_queries_for_searchterm(
                 path: field_name.to_string(),
                 terms: vec![term_a.to_string()],
                 boost: boost_fields.get(field_name).map(|el| OrderedFloat(*el)),
-                levenshtein_distance: Some(get_levenshteinn(term_a, levenshtein, levenshtein_auto_limit)),
+                levenshtein_distance: Some(get_levenshteinn(term_a, levenshtein, levenshtein_auto_limit, false)),
                 ..Default::default()
             },
             search2: RequestSearchPart {
                 path: field_name.to_string(),
                 terms: vec![term_b.to_string()],
                 boost: boost_fields.get(field_name).map(|el| OrderedFloat(*el)),
-                levenshtein_distance: Some(get_levenshteinn(term_b, levenshtein, levenshtein_auto_limit)),
+                levenshtein_distance: Some(get_levenshteinn(term_b, levenshtein, levenshtein_auto_limit, false )),
                 ..Default::default()
             },
         }));
@@ -399,7 +407,7 @@ pub fn suggest_query(
     let requests = get_all_search_field_names(&persistence, &fields)?
         .iter()
         .map(|field_name| {
-            let levenshtein_distance = levenshtein.unwrap_or_else(|| get_default_levenshtein(request, levenshtein_auto_limit.unwrap_or(1)));
+            let levenshtein_distance = levenshtein.unwrap_or_else(|| get_default_levenshtein(request, levenshtein_auto_limit.unwrap_or(1), true));
             let starts_with = Some(true);
             RequestSearchPart {
                 path: field_name.to_string(),

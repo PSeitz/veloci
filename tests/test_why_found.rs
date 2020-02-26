@@ -15,6 +15,7 @@ mod common;
 pub fn get_test_data() -> Value {
     json!([
         {
+            "url": "https://github.com/PSeitz/veloci",
             "richtig": "schön super",
             "viele": ["nette", "leute"]
         },
@@ -46,6 +47,9 @@ lazy_static! {
         [custom_tokenized.fulltext]
             tokenize = true
             tokenize_on_chars = ['§', '<']
+        [url.fulltext]
+            tokenize = true
+            tokenize_on_chars = ['/', ':', '.']
         "#;
         common::create_test_persistence(TEST_FOLDER, indices, &get_test_data().to_string().as_bytes(), None)
     };
@@ -55,6 +59,17 @@ lazy_static! {
 fn get_number_of_docs() {
     let pers = &TEST_PERSISTENCE;
     assert_eq!(pers.get_number_of_documents(), 4);
+}
+
+#[test]
+fn should_tokenize_url() {
+    let req = json!({"search": { "terms":["veloci"], "path": "url", } });
+    let hits = search_testo_to_doc!(req).data;
+    assert_eq!(hits.len(), 1);
+
+    let req = json!({"search": { "terms":["pseitz"], "path": "url", } });
+    let hits = search_testo_to_doc!(req).data;
+    assert_eq!(hits.len(), 1);
 }
 
 #[test]

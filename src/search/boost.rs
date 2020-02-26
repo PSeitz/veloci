@@ -481,7 +481,7 @@ pub(crate) fn add_boost(persistence: &Persistence, boost: &RequestBoostPart, hit
         let val_opt = &boostkv_store.get_value(u64::from(hit.id));
 
         if let Some(boost_value) = val_opt.as_ref() {
-            debug!("Found in boosting for value_id {:?}: {:?}", hit.id, val_opt);
+            trace!("Found in boosting for value_id {:?}: {:?}", hit.id, val_opt);
             let boost_value = *boost_value as f32;
 
             apply_boost(hit, boost_value, boost_param, &boost.boost_fun, &mut explain, &expre)?;
