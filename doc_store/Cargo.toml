@@ -9,3 +9,6 @@ lz4 = "1.23.1"
 
 [dependencies.vint]
 git = "https://github.com/PSeitz/rust_vint"
+
+[profile.dev]
+debug = false

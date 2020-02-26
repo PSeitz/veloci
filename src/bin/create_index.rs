@@ -5,24 +5,31 @@ use veloci;
 #[cfg(feature = "enable_cpuprofiler")]
 extern crate cpuprofile;
 
-use clap::{App, Arg};
-
+use argh::FromArgs;
 use std::{fs::File, io::prelude::*};
+
+#[derive(FromArgs)]
+/// Veloci Index Creator
+struct Opt {
+    /// sets the input data file to use
+    #[argh(option, short = 'd')]
+    data: String,
+
+    /// sets target folder, will be deleted first if it exist
+    #[argh(option, short = 't')]
+    target: String,
+
+    /// path to config file
+    #[argh(option, short = 'c')]
+    config: Option<String>,
+}
 
 fn main() {
     veloci::trace::enable_log();
 
-    let matches = App::new("Veloci Index Creator")
-        .version("1.0")
-        .author("Pascal Seitz <pascal.seitz@gmail.com>")
-        .about("creates an index from json data")
-        .arg(Arg::with_name("data").short("d").help("Sets the input data file to use").required(true).takes_value(true))
-        .arg(Arg::with_name("target").short("t").help("sets target folder").required(true).takes_value(true))
-        .arg(Arg::with_name("config").short("c").long("config").help("Sets a custom config file").takes_value(true))
-        .get_matches();
-
+    let matches: Opt = argh::from_env();
     let config: String = matches
-        .value_of("config")
+        .config
         .map(|path| {
             let mut f = File::open(path).expect("file not found");
             let mut contents = String::new();
@@ -31,11 +38,8 @@ fn main() {
         })
         .unwrap_or_else(|| "{}".to_string());
 
-    let file = matches.value_of("data").unwrap();
-    let target = matches.value_of("target").unwrap();
-
     start_profiler("./create-prof.profile");
-    veloci::create::create_indices_from_file(&mut veloci::persistence::Persistence::create(target.to_string()).unwrap(), file, &config, false).unwrap();
+    veloci::create::create_indices_from_file(&mut veloci::persistence::Persistence::create(matches.target).unwrap(), &matches.data, &config, false).unwrap();
     stop_profiler();
 }
 

@@ -35,3 +35,6 @@ debug = false
 lto = true
 opt-level = 3
 panic = "unwind"
+
+[profile.dev]
+debug = false

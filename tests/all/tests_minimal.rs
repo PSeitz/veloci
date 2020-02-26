@@ -1,16 +1,7 @@
-#![recursion_limit = "128"]
-
-#[macro_use]
-extern crate lazy_static;
-
-#[macro_use]
-extern crate serde_json;
-
 use serde_json::Value;
 use veloci::*;
 
-#[macro_use]
-mod common;
+use super::common;
 
 static TEST_FOLDER: &str = "mochaTest_minimal";
 lazy_static! {

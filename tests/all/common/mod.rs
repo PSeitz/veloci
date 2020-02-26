@@ -22,6 +22,7 @@ pub fn create_test_persistence_with_logging(
     token_values: Option<(String, serde_json::Value)>,
     enable_tracing: bool,
 ) -> persistence::Persistence {
+    color_backtrace::install();
     if enable_tracing {
         trace::enable_log();
     }

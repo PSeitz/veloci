@@ -1,19 +1,7 @@
-#![recursion_limit = "128"]
-
-#[macro_use]
-extern crate lazy_static;
-
-#[macro_use]
-extern crate serde_json;
-
-#[macro_use]
-extern crate more_asserts;
-
 use serde_json::Value;
 use veloci::*;
 
-#[macro_use]
-mod common;
+use super::common;
 
 static TEST_FOLDER: &str = "mochaTest";
 lazy_static! {
@@ -288,6 +276,19 @@ fn simple_search() {
     assert_eq!(hits[0].doc["ent_seq"], "1587690");
     assert_eq!(hits[0].doc["commonness"], 20);
     assert_eq!(hits[0].doc["tags"], json!(["nice".to_string()]));
+}
+
+#[test]
+fn return_execution_time() {
+    let req = json!({
+        "search": {
+            "terms":["urge"],
+            "path": "meanings.eng[]"
+        }
+    });
+
+    let res = search_testo_to_doc!(req);
+    assert_gt!(res.execution_time_ns, 1);
 }
 
 // #[test]

@@ -85,17 +85,21 @@ pub fn ellipsis_snippet(snippet: &mut String, hit_pos_of_tokens_in_doc: &[usize]
 /// Highlights text
 /// * `text` - The text to hightlight.
 /// * `set` - The tokens to hightlight in the text. They need to be properly tokenized for that field
-pub fn highlight_text(text: &str, set: &FnvHashSet<String>, opt: &SnippetInfo, tokenizer: &Arc<dyn Tokenizer>) -> Option<String> {
+/// * `tokenizer` - The tokenizer for the field. If the field is not tokenized, there is no tokenizer
+pub fn highlight_text(text: &str, set: &FnvHashSet<String>, opt: &SnippetInfo, tokenizer: Option<&Arc<dyn Tokenizer>>) -> Option<String> {
     let mut contains_any_token = false;
 
     // hit complete text
     if set.contains(text) {
         return Some(opt.snippet_start_tag.to_string() + text + &opt.snippet_end_tag);
     }
+    if tokenizer.is_none() { // Field is not tokenized
+        return None;
+    }
 
     let mut tokens = vec![];
     let mut hit_pos_of_tokens_in_doc = vec![];
-    for (pos, (token, _)) in tokenizer.iter(text).enumerate() {
+    for (pos, (token, _)) in tokenizer.unwrap().iter(text).enumerate() {
         tokens.push(token);
         if set.contains(token) {
             hit_pos_of_tokens_in_doc.push(pos);
@@ -148,7 +152,7 @@ mod tests {
                 "mein treffer",
                 &vec!["treffer"].iter().map(|el| el.to_string()).collect(),
                 &DEFAULT_SNIPPETINFO,
-                &get_test_tokenizer()
+                Some(&get_test_tokenizer())
             )
             .unwrap(),
             "mein <b>treffer</b>"
@@ -158,7 +162,7 @@ mod tests {
                 "mein treffer treffers",
                 &vec!["treffers", "treffer"].iter().map(|el| el.to_string()).collect(),
                 &DEFAULT_SNIPPETINFO,
-                &get_test_tokenizer()
+                Some(&get_test_tokenizer())
             )
             .unwrap(),
             "mein <b>treffer</b> <b>treffers</b>"
@@ -168,7 +172,7 @@ mod tests {
                 "Schön-Hans",
                 &vec!["Hans"].iter().map(|el| el.to_string()).collect(),
                 &DEFAULT_SNIPPETINFO,
-                &get_test_tokenizer()
+                Some(&get_test_tokenizer())
             )
             .unwrap(),
             "Schön-<b>Hans</b>"
@@ -178,7 +182,7 @@ mod tests {
                 "Schön-Hans",
                 &vec!["Haus"].iter().map(|el| el.to_string()).collect(),
                 &DEFAULT_SNIPPETINFO,
-                &get_test_tokenizer()
+                Some(&get_test_tokenizer())
             ),
             None
         );
@@ -191,6 +195,7 @@ pub(crate) fn highlight_on_original_document(persistence: &Persistence, doc: &st
 
     let mut id_holder = json_converter::IDHolder::new();
     {
+        //cb_text returns the content of an json value
         let mut cb_text = |_anchor_id: u32, value: &str, field_name: &str, _parent_val_id: u32| -> Result<(), serde_json::error::Error> {
             let path_text = field_name.add(TEXTINDEX);
             if let Some(terms) = why_found_terms.get(&path_text) {
@@ -198,7 +203,7 @@ pub(crate) fn highlight_on_original_document(persistence: &Persistence, doc: &st
                     value,
                     &terms,
                     &DEFAULT_SNIPPETINFO,
-                    &persistence
+                    persistence
                         .metadata
                         .columns
                         .get(field_name)
@@ -206,8 +211,7 @@ pub(crate) fn highlight_on_original_document(persistence: &Persistence, doc: &st
                         .textindex_metadata
                         .options
                         .tokenizer
-                        .as_ref()
-                        .unwrap(),
+                        .as_ref(),
                 ) {
                     let jepp = highlighted_texts.entry(field_name.to_string()).or_default();
                     jepp.push(highlighted);

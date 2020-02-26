@@ -6,11 +6,10 @@ use memmap::MmapOptions;
 use std::fmt::Display;
 
 use std::{
-    env,
     boxed::Box,
     cmp::{Ord, PartialOrd},
     default::Default,
-    fmt,
+    env, fmt,
     io::{self, prelude::*, BufWriter},
     iter::{FusedIterator, Iterator},
     marker::PhantomData,
@@ -171,10 +170,9 @@ impl<
     }
 
     pub fn new_with_opt(stable_sort: bool, ids_are_sorted: bool, temp_file_folder: String) -> Self {
-
-        let flush_threshold = env::var_os("FlushThreshold").map(|el|{
-            el.into_string().unwrap().parse::<usize>().unwrap()
-        }).unwrap_or(4_000_000);
+        let flush_threshold = env::var_os("FlushThreshold")
+            .map(|el| el.into_string().unwrap().parse::<usize>().unwrap())
+            .unwrap_or(4_000_000);
 
         let flush_data = Box::new(FlushStruct {
             bytes_written: 0,
@@ -558,11 +556,23 @@ fn test_buffered_index_writer_pairs() {
     ind.flush().unwrap();
     let mut iters = ind.multi_iter().unwrap();
     assert_eq!(iters[0].next(), Some(KeyValue { key: (2_u32, 1500_u32), value: 2 }));
-    assert_eq!(iters[0].next(), Some(KeyValue { key: (2_u32, 1500_u32), value: 2000 }));
+    assert_eq!(
+        iters[0].next(),
+        Some(KeyValue {
+            key: (2_u32, 1500_u32),
+            value: 2000
+        })
+    );
 
     let mut ind = BufferedIndexWriter::new_unstable_sorted(env::temp_dir().to_str().unwrap().to_string());
     ind.add_all((2_u32, 1500_u32), &vec![2, 2000]).unwrap();
     let mut iter = ind.into_iter_inmemory();
     assert_eq!(iter.next(), Some(KeyValue { key: (2_u32, 1500_u32), value: 2 }));
-    assert_eq!(iter.next(), Some(KeyValue { key: (2_u32, 1500_u32), value: 2000 }));
+    assert_eq!(
+        iter.next(),
+        Some(KeyValue {
+            key: (2_u32, 1500_u32),
+            value: 2000
+        })
+    );
 }
