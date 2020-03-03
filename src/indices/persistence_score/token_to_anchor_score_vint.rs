@@ -174,7 +174,7 @@ impl<T: AnchorScoreDataSize> TokenToAnchorScoreVintFlushing<T> {
 
 impl<T: AnchorScoreDataSize> TokenToAnchorScoreVintIM<T> {
     #[inline]
-    default fn get_size(&self) -> usize {
+    fn get_size(&self) -> usize {
         self.start_pos.len()
     }
 }

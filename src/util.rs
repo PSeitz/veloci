@@ -106,7 +106,7 @@ impl SetExt for Path {
 //     input & (1 << n) != 0
 // }
 
-const ONLY_HIGH_BIT_SET: u32 = (1 << 31);
+const ONLY_HIGH_BIT_SET: u32 = 1 << 31;
 const ALL_BITS_BUT_HIGHEST_SET: u32 = (1 << 31) - 1;
 
 #[inline]
