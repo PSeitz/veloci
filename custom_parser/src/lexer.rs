@@ -1,6 +1,7 @@
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TokenType {
     // Unlimited
+    AttributeLiteral,
     Literal,
 
     // 1-char - will break up literals
@@ -9,7 +10,7 @@ pub enum TokenType {
     // DoubleQuotes,
     // SingleQuotes,
     Tilde,
-    Colon,
+    // Colon,
 
     // 2-char
     // EscapedDoubleQuotes,
@@ -27,7 +28,7 @@ impl TokenType {
             // '"'  => Some(TokenType::DoubleQuotes),
             // '\'' => Some(TokenType::SingleQuotes),
             '~' => Some(TokenType::Tilde),
-            ':' => Some(TokenType::Colon),
+            // ':' => Some(TokenType::Colon),
             _ => None,
         }
     }
@@ -101,7 +102,7 @@ impl Lexer {
 
         if let Some(c) = self.cur_char() {
             // whitespace is ignored except in phrases
-            let start_pos = self.current_pos;
+            let mut start_pos = self.current_pos;
             let mut token_type = match self.chars[self.current_pos..] {
                 ['A', 'N', 'D', ' ', ..] if self.prev_char_is_whitespace() => {
                     // AND requires whitespace
@@ -116,15 +117,23 @@ impl Lexer {
                 _ => None,
             };
 
-            // println!("{:?} {:?}", self.is_doublequote(self.current_pos), self.cur_char());
             if self.is_doublequote(self.current_pos) {
                 self.current_pos += 1;
+                start_pos += 1; // move behind quote
                 while self.cur_char().is_some() && !self.is_doublequote(self.current_pos) {
                     self.current_pos += 1;
                 }
                 let stop_pos = self.current_pos;
+                self.current_pos += 1;
+                let token_type = if self.is_colon_at(self.current_pos){
+                    self.current_pos +=1;
+                    TokenType::AttributeLiteral
+                }else{
+                    TokenType::Literal
+                };
+
                 return Some(Token {
-                    token_type: TokenType::Literal,
+                    token_type: token_type,
                     start_pos,
                     stop_pos,
                 });
@@ -145,10 +154,16 @@ impl Lexer {
 
             // Literal
             move_pos(&mut self.current_pos, 1);
-            self.eat_while(|c| !c.is_whitespace() && TokenType::from_single_char(c).is_none());
+            self.eat_while(|c| !c.is_whitespace() && c != ':' && TokenType::from_single_char(c).is_none());
             let stop_pos = self.current_pos;
+            let token_type = if self.is_colon_at(self.current_pos){
+                self.current_pos +=1;
+                TokenType::AttributeLiteral
+            }else{
+                TokenType::Literal
+            };
             return Some(Token {
-                token_type: TokenType::Literal,
+                token_type: token_type,
                 start_pos,
                 stop_pos,
             });
@@ -157,9 +172,13 @@ impl Lexer {
         }
     }
 
+
+    pub fn is_colon_at(&self, pos:usize) -> bool {
+        self.chars.get(pos).map(|c| *c==':').unwrap_or(false)
+    }
     // is quote and not escaped
     pub fn is_doublequote(&self, pos: usize) -> bool {
-        self.chars.get(pos).cloned().map(|c| c == '"').unwrap_or(false) && (self.current_pos == 0 || self.chars.get(pos - 1).cloned().map(|c| c == '\\').unwrap_or(false))
+        self.chars.get(pos).cloned().map(|c| c == '"').unwrap_or(false) && (self.current_pos == 0 || self.chars.get(pos - 1).cloned().map(|c| c != '\\').unwrap_or(false))
     }
 
     pub fn eat_while<F>(&mut self, mut cond: F)
@@ -234,7 +253,7 @@ mod tests {
 
     #[test]
     fn test_quotes() {
-        assert_eq!(Lexer::new(r#""my quote""#).get_tokens_text(), ["\"my quote\""]);
+        assert_eq!(Lexer::new(r#""my quote""#).get_tokens_text(), ["my quote"]);
 
         // this unclosed parentheses are allowed and will be part of the literal
         assert_eq!(Lexer::new(r#"asdf""#).get_tokens_text(), ["asdf\""]);
@@ -253,6 +272,9 @@ mod tests {
 
     #[test]
     fn test_colon() {
-        assert_eq!(Lexer::new("cool:nice").get_tokens_text(), ["cool", ":", "nice"]);
+        assert_eq!(Lexer::new("cool:nice").get_tokens_text(), ["cool", "nice"]);
+        assert_eq!(Lexer::new("cool:nice").get_token_types(), [TT::AttributeLiteral, TT::Literal]);
+        assert_eq!(Lexer::new("\"cool\":nice").get_tokens_text(), ["cool", "nice"]);
+        assert_eq!(Lexer::new(r#""cool":nice"#).get_token_types(), [TT::AttributeLiteral, TT::Literal]);
     }
 }

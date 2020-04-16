@@ -7,3 +7,7 @@ version = "0.1.0"
 
 [dependencies]
 combine = "3.6.3"
+
+[[bench]]
+name = "bench"
+path = "bench/bench.rs"
