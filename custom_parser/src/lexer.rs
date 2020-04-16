@@ -125,10 +125,10 @@ impl Lexer {
                 }
                 let stop_pos = self.current_pos;
                 self.current_pos += 1;
-                let token_type = if self.is_colon_at(self.current_pos){
-                    self.current_pos +=1;
+                let token_type = if self.is_colon_at(self.current_pos) {
+                    self.current_pos += 1;
                     TokenType::AttributeLiteral
-                }else{
+                } else {
                     TokenType::Literal
                 };
 
@@ -156,10 +156,10 @@ impl Lexer {
             move_pos(&mut self.current_pos, 1);
             self.eat_while(|c| !c.is_whitespace() && c != ':' && TokenType::from_single_char(c).is_none());
             let stop_pos = self.current_pos;
-            let token_type = if self.is_colon_at(self.current_pos){
-                self.current_pos +=1;
+            let token_type = if self.is_colon_at(self.current_pos) {
+                self.current_pos += 1;
                 TokenType::AttributeLiteral
-            }else{
+            } else {
                 TokenType::Literal
             };
             return Some(Token {
@@ -172,10 +172,10 @@ impl Lexer {
         }
     }
 
-
-    pub fn is_colon_at(&self, pos:usize) -> bool {
-        self.chars.get(pos).map(|c| *c==':').unwrap_or(false)
+    pub fn is_colon_at(&self, pos: usize) -> bool {
+        self.chars.get(pos).map(|c| *c == ':').unwrap_or(false)
     }
+
     // is quote and not escaped
     pub fn is_doublequote(&self, pos: usize) -> bool {
         self.chars.get(pos).cloned().map(|c| c == '"').unwrap_or(false) && (self.current_pos == 0 || self.chars.get(pos - 1).cloned().map(|c| c != '\\').unwrap_or(false))
