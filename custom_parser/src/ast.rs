@@ -2,13 +2,9 @@ use std::{convert::From, fmt};
 
 #[derive(Clone, PartialEq, Eq)]
 pub struct UserFilter<'a> {
+    /// the search term
     pub phrase: &'a str,
-    pub levenshtein: Option<u8>,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct FilterDef {
-    pub field_name: Option<String>,
+    /// levenshtein edit distance https://en.wikipedia.org/wiki/Levenshtein_distance
     pub levenshtein: Option<u8>,
 }
 
@@ -22,12 +18,6 @@ impl<'a> fmt::Debug for UserFilter<'a> {
     }
 }
 
-// impl<'a> UserFilter<'a> {
-//     pub fn into_ast(self) -> UserAST {
-//         UserAST::Leaf(Box::new(self))
-//     }
-// }
-
 // conversion for tests
 impl<'a> From<&'static str> for UserAST<'a> {
     fn from(item: &'a str) -> Self {
@@ -38,7 +28,6 @@ impl<'a> From<&'static str> for UserAST<'a> {
         if item.chars().next().map(|c| c != '\"').unwrap_or(false) {
             let parts_field = item.splitn(2, ':').collect::<Vec<_>>();
             if parts_field.len() > 1 {
-                // filter.field_name = Some(parts_field[0].to_string());
                 filter.phrase = parts_field[1];
             }
 
@@ -114,12 +103,14 @@ use std::collections::HashSet;
 
 
 impl UserAST<'_> {
+    /// walking the ast and grouping adjacent terms for phrase boosting
     pub fn get_phrase_pairs(&self) -> HashSet<[&str; 2]> {
         let mut collect = HashSet::new();
         self._get_phrase_pairs(&mut collect, &mut None, None);
         collect
     }
-    pub fn _get_phrase_pairs<'a>(&'a self, collect: &mut HashSet<[&'a str; 2]>, last_term: &mut Option<&'a str>, curr_attr: Option<&'a str>) {
+
+    fn _get_phrase_pairs<'a>(&'a self, collect: &mut HashSet<[&'a str; 2]>, last_term: &mut Option<&'a str>, curr_attr: Option<&'a str>) {
         match self {
             UserAST::Attributed(attr, ast) => {
                 if curr_attr == Some(attr) || curr_attr.is_none(){
@@ -168,6 +159,7 @@ impl UserAST<'_> {
         }
     }
 
+    /// walking the ast in order, emitting all terms
     pub fn walk_terms<F>(&self, cb: &mut F)
     where
         F: FnMut(&str),
