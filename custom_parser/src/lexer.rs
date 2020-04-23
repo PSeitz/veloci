@@ -7,13 +7,9 @@ pub enum TokenType {
     // 1-char - will break up literals
     ParenthesesOpen,
     ParenthesesClose,
-    // DoubleQuotes,
-    // SingleQuotes,
     Tilde,
-    // Colon,
 
     // 2-char
-    // EscapedDoubleQuotes,
     Or,
 
     //3-char
@@ -34,11 +30,11 @@ impl TokenType {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub(crate) struct Token {
+    pub(crate) byte_start_pos: u32,
+    pub(crate) byte_stop_pos: u32,
     pub(crate) token_type: TokenType,
-    pub(crate) start_pos: usize,
-    pub(crate) stop_pos: usize,
     // pub(crate) in_quotes: bool,
 }
 
@@ -49,52 +45,44 @@ pub(crate) struct TokenWithText {
 }
 
 #[derive(Debug, Clone)]
-pub(crate) struct Lexer {
+pub(crate) struct Lexer<'a> {
     // in_quotes: bool,
+    text: &'a str,
     chars: Vec<char>,
-    current_pos: usize,
+    current_pos: u32,
+    current_byte_pos: u32,
 }
 
-impl Lexer {
-    pub(crate) fn new(input: &str) -> Self {
+impl<'a> Lexer<'a> {
+    pub(crate) fn new(text: &'a str) -> Self {
         Lexer {
-            chars: input.chars().collect(),
+            chars: text.chars().collect(),
             current_pos: 0,
+            current_byte_pos: 0,
+            text,
             // in_quotes:false,
         }
     }
 
-    pub(crate) fn get_tokens_text(&mut self) -> Vec<String> {
-        self.get_tokens()
-            .into_iter()
-            .map(|token| self.chars[token.start_pos..token.stop_pos].into_iter().collect())
-            .collect()
-    }
-
-    pub(crate) fn get_tokens_with_text(&mut self) -> Vec<TokenWithText> {
-        self.get_tokens()
-            .into_iter()
-            .map(|token| TokenWithText {
-                matched_text: self.get_matched_chars(&token).into_iter().collect(),
-                token,
-            })
-            .collect()
-    }
-
     pub(crate) fn get_tokens(&mut self) -> Vec<Token> {
-        let mut tokens = vec![];
+        let mut tokens = Vec::with_capacity(self.chars.len() / 4);
         while let Some(token) = self.next_token() {
             tokens.push(token);
         }
         tokens
     }
 
+    #[cfg(test)]
     pub(crate) fn get_token_types(&mut self) -> Vec<TokenType> {
         self.get_tokens().iter().map(|t| t.token_type).collect()
     }
 
-    pub(crate) fn get_matched_chars(&self, token: &Token) -> &[char] {
-        &self.chars[token.start_pos..token.stop_pos]
+    #[cfg(test)]
+    pub(crate) fn get_tokens_text(&mut self) -> Vec<String> {
+        self.get_tokens()
+            .into_iter()
+            .map(|token| self.text[token.byte_start_pos as usize ..token.byte_stop_pos as usize ].to_string())
+            .collect()
     }
 
     pub(crate) fn next_token(&mut self) -> Option<Token> {
@@ -102,83 +90,81 @@ impl Lexer {
 
         if let Some(c) = self.cur_char() {
             // whitespace is ignored except in phrases
-            let mut start_pos = self.current_pos;
-            let mut token_type = match self.chars[self.current_pos..] {
+            let mut byte_start_pos = self.current_byte_pos;
+            let mut token_type = match self.chars[self.current_pos as usize ..] {
                 ['A', 'N', 'D', ' ', ..] if self.prev_char_is_whitespace() => {
                     // AND requires whitespace
-                    move_pos(&mut self.current_pos, 3);
+                    self.eat_chars(3);
                     Some(TokenType::And)
                 }
                 ['O', 'R', ' ', ..] if self.prev_char_is_whitespace() => {
                     // OR requires whitespace
-                    move_pos(&mut self.current_pos, 2);
+                    self.eat_chars(2);
                     Some(TokenType::Or)
                 }
                 _ => None,
             };
 
             if self.is_doublequote(self.current_pos) {
-                self.current_pos += 1;
-                start_pos += 1; // move behind quote
+                self.eat_char();
+                byte_start_pos += 1; // move behind quote
                 while self.cur_char().is_some() && !self.is_doublequote(self.current_pos) {
-                    self.current_pos += 1;
+                    self.eat_char();
                 }
-                let stop_pos = self.current_pos;
-                self.current_pos += 1;
+                let byte_stop_pos = self.current_byte_pos;
+                self.eat_char();
                 let token_type = if self.is_colon_at(self.current_pos) {
-                    self.current_pos += 1;
+                    self.eat_char();
                     TokenType::AttributeLiteral
                 } else {
                     TokenType::Literal
                 };
 
                 return Some(Token {
-                    token_type: token_type,
-                    start_pos,
-                    stop_pos,
+                    token_type,
+                    byte_start_pos,
+                    byte_stop_pos,
                 });
             }
 
             if let Some(tt) = TokenType::from_single_char(c) {
                 token_type = Some(tt);
-                move_pos(&mut self.current_pos, 1);
+                self.eat_char();
             }
 
             if let Some(token_type) = token_type {
-                let stop_pos = self.current_pos;
-
-                let next_token = Some(Token { token_type, start_pos, stop_pos });
-
+                let byte_stop_pos = self.current_byte_pos;
+                let next_token = Some(Token { token_type, byte_start_pos, byte_stop_pos });
                 return next_token;
             }
 
             // Literal
-            move_pos(&mut self.current_pos, 1);
+            self.eat_char();
             self.eat_while(|c| !c.is_whitespace() && c != ':' && TokenType::from_single_char(c).is_none());
-            let stop_pos = self.current_pos;
+            let byte_stop_pos = self.current_byte_pos;
             let token_type = if self.is_colon_at(self.current_pos) {
-                self.current_pos += 1;
+                self.eat_char();
                 TokenType::AttributeLiteral
             } else {
                 TokenType::Literal
             };
             return Some(Token {
-                token_type: token_type,
-                start_pos,
-                stop_pos,
+                token_type,
+                byte_start_pos,
+                byte_stop_pos,
             });
         } else {
             None
         }
     }
 
-    pub fn is_colon_at(&self, pos: usize) -> bool {
-        self.chars.get(pos).map(|c| *c == ':').unwrap_or(false)
+    pub fn is_colon_at(&self, pos: u32) -> bool {
+        self.chars.get(pos as usize).map(|c| *c == ':').unwrap_or(false)
     }
 
     // is quote and not escaped
-    pub fn is_doublequote(&self, pos: usize) -> bool {
-        self.chars.get(pos).cloned().map(|c| c == '"').unwrap_or(false) && (self.current_pos == 0 || self.chars.get(pos - 1).cloned().map(|c| c != '\\').unwrap_or(false))
+    pub fn is_doublequote(&self, pos: u32) -> bool {
+        self.chars.get(pos as usize).cloned().map(|c| c == '"').unwrap_or(false) && (self.current_pos == 0 || self.chars.get(pos as usize  - 1).cloned().map(|c| c != '\\').unwrap_or(false))
     }
 
     pub fn eat_while<F>(&mut self, mut cond: F)
@@ -186,21 +172,31 @@ impl Lexer {
         F: FnMut(char) -> bool,
     {
         while self.cur_char().map(|c| cond(c)).unwrap_or(false) {
+            self.eat_char();
+        }
+    }
+
+    pub fn eat_char(&mut self)
+    {
+        if let Some(cur_char) = self.cur_char() {
             self.current_pos += 1;
+            self.current_byte_pos += cur_char.len_utf8() as u32;
         }
     }
 
     pub fn prev_char_is_whitespace(&self) -> bool {
-        self.current_pos != 0 && self.chars.get(self.current_pos - 1).cloned().map(char::is_whitespace).unwrap_or(false)
+        self.current_pos != 0 && self.chars.get(self.current_pos as usize - 1).cloned().map(char::is_whitespace).unwrap_or(false)
     }
 
     pub fn cur_char(&self) -> Option<char> {
-        self.chars.get(self.current_pos).cloned()
+        self.chars.get(self.current_pos as usize ).cloned()
     }
-}
 
-pub fn move_pos(current_pos: &mut usize, num: usize) {
-    *current_pos += num;
+    pub fn eat_chars(&mut self, num: usize) {
+        for _ in 0..num {
+            self.eat_char();
+        }
+    }
 }
 
 #[cfg(test)]
@@ -255,7 +251,7 @@ mod tests {
     fn test_quotes() {
         assert_eq!(Lexer::new(r#""my quote""#).get_tokens_text(), ["my quote"]);
 
-        // this unclosed parentheses are allowed and will be part of the literal
+        // this unclosed quotes here are allowed and will be part of the literal
         assert_eq!(Lexer::new(r#"asdf""#).get_tokens_text(), ["asdf\""]);
 
         // assert_eq!(Lexer::new(r#""my quote""#).get_tokens_text(), ["\"", "my", "quote", "\""]);

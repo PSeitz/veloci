@@ -132,33 +132,10 @@ parser! {
     }
 }
 
-// parser! {
-//     fn words[I]()(I) -> Operator
-//     where [I: Stream<Item = char>] {
-//         (skip_many1(space()),
-//         (
-//             word()
-//         ),
-//         skip_many1(space())).map(|(_, op,_)| op)
-//     }
-// }
-
-// fn to_filter(phrase: &str) -> UserAST {
-//     UserFilter {
-//         field_name: None,
-//         phrase: phrase.to_string(),
-//     }.into_ast()
-// }
-
 parser! {
     fn user_literal[I]()(I) -> UserAST
     where [I: Stream<Item = char>]
     {
-        // let two_words = (word(), space(), word()).map(|(w1, _, w2)|{
-        //     UserAST::Or(vec![to_filter(&w1),to_filter(&w2)])
-        // });
-        // let multi_words = sep_by(word(), space())
-        //     .map(|mut words: Vec<String>| UserAST::Or(words.iter().map(|w|to_filter(w)).collect()));
         let term_val = || {
             let phrase = (char('"'), many1(satisfy(|c| c != '"')), char('"')).map(|(_, s, _)| s);
             phrase.or(word())
