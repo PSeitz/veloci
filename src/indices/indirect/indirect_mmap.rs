@@ -55,7 +55,7 @@ impl<T: IndexIdToParentData> IndexIdToParent for IndirectMMap<T> {
 
     fn get_values_iter(&self, id: u64) -> VintArrayIteratorOpt<'_> {
         get_values_iter!(self, id, self.data, {
-            (&self.start_pos[id as usize * std::mem::size_of::<T>() as usize..id as usize * std::mem::size_of::<T>() + std::mem::size_of::<T>()])
+            (&self.start_pos[id as usize * std::mem::size_of::<T>()..id as usize * std::mem::size_of::<T>() + std::mem::size_of::<T>()])
                 .read_u32::<LittleEndian>()
                 .unwrap()
         })
@@ -63,7 +63,7 @@ impl<T: IndexIdToParentData> IndexIdToParent for IndirectMMap<T> {
 
     fn get_values(&self, id: u64) -> Option<Vec<T>> {
         get_values!(self, id, self.data, {
-            (&self.start_pos[id as usize * std::mem::size_of::<T>() as usize..id as usize * std::mem::size_of::<T>() + std::mem::size_of::<T>()])
+            (&self.start_pos[id as usize * std::mem::size_of::<T>()..id as usize * std::mem::size_of::<T>() + std::mem::size_of::<T>()])
                 .read_u32::<LittleEndian>()
                 .unwrap()
         })

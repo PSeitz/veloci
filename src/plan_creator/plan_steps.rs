@@ -82,13 +82,13 @@ pub(crate) struct IntersectScoresWithIds {
 }
 
 impl std::fmt::Display for PlanStepFieldSearchToTokenIds {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         writeln!(f, "search {} {}", self.req.request.path, self.req.request.terms[0])?;
         Ok(())
     }
 }
 impl std::fmt::Display for ResolveTokenIdToAnchor {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         writeln!(f, "token to anchor")?;
         Ok(())
     }
@@ -106,49 +106,49 @@ impl std::fmt::Display for ResolveTokenIdToAnchor {
 //     }
 // }
 impl std::fmt::Display for BoostToAnchor {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         writeln!(f, "BoostToAnchor {}", self.boost.path)?;
         Ok(())
     }
 }
 impl std::fmt::Display for ApplyAnchorBoost {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         writeln!(f, "ApplyAnchorBoost",)?;
         Ok(())
     }
 }
 impl std::fmt::Display for BoostPlanStepFromBoostRequest {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         writeln!(f, "BoostPlanStepFromBoostRequest")?;
         Ok(())
     }
 }
 impl std::fmt::Display for BoostAnchorFromPhraseResults {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         writeln!(f, "BoostAnchorFromPhraseResults")?;
         Ok(())
     }
 }
 impl std::fmt::Display for PlanStepPhrasePairToAnchorId {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         writeln!(f, "PlanStepPhrasePairToAnchorId")?;
         Ok(())
     }
 }
 impl std::fmt::Display for Union {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         writeln!(f, "Union")?;
         Ok(())
     }
 }
 impl std::fmt::Display for Intersect {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         writeln!(f, "Intersect")?;
         Ok(())
     }
 }
 impl std::fmt::Display for IntersectScoresWithIds {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         writeln!(f, "IntersectScoresWithIds")?;
         Ok(())
     }

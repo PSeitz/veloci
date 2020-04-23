@@ -19,7 +19,7 @@ fn hashset_from_stop_word_list(text: &str) -> FnvHashSet<String> {
 //TODO: EROR HANDLING
 pub fn is_stopword(language: &str, text: &str) -> bool {
     let language = language.to_lowercase();
-    STOPWORDS.get(&language as &str).unwrap().contains(text)
+    STOPWORDS.get(language.as_str()).unwrap().contains(text)
 }
 
 #[test]

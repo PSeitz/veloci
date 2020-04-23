@@ -52,7 +52,7 @@ impl SearchFieldResult {
 }
 
 impl std::fmt::Display for SearchFieldResult {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         writeln!(
             f,
             "path {}, hits_scores {}, terms {}, lev_distance {:?} ",

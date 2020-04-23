@@ -35,7 +35,7 @@ pub fn group_hit_positions_for_snippet(hit_pos_of_tokens_in_doc: &[usize], opt: 
 }
 
 pub fn grouped_to_positions_for_snippet(vec: &[i64], token_len: usize, token_around_snippets: i64) -> (usize, usize) {
-    let start_index = cmp::max(*vec.first().unwrap() as i64 - token_around_snippets, 0) as usize;
+    let start_index = cmp::max(*vec.first().unwrap() - token_around_snippets, 0) as usize;
     let end_index = cmp::min((*vec.last().unwrap() + token_around_snippets + 1) as usize, token_len);
     (start_index, end_index)
 }
@@ -61,7 +61,7 @@ where
         })
         .take(opt.max_snippets as usize)
         .intersperse(opt.snippet_connector.to_string())
-        .fold(String::with_capacity(10 as usize), |snippet, snippet_part| snippet + &snippet_part)
+        .fold(String::with_capacity(10), |snippet, snippet_part| snippet + &snippet_part)
 }
 
 /// Adds ... at the beginning and end.

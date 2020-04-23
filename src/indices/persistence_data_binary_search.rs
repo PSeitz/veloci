@@ -160,11 +160,12 @@ impl<T: Ord + Copy + Default + std::fmt::Debug> IndirectIMBinarySearchMMAP<T> {
 }
 
 #[inline]
+#[allow(trivial_casts)]
 fn decode_pos<T: Copy + Default, K: Copy + Default>(pos: usize, slice: &[u8]) -> (T, K) {
     let mut out: (T, K) = Default::default();
     let byte_pos = std::mem::size_of::<(T, K)>() * pos;
     unsafe {
-        slice[byte_pos as usize..]
+        slice[byte_pos..]
             .as_ptr()
             .copy_to_nonoverlapping(&mut out as *mut (T, K) as *mut u8, std::mem::size_of::<(T, K)>());
     }

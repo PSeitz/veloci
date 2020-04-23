@@ -50,6 +50,7 @@ pub(crate) fn encode_vals<O: std::io::Write>(vals: &[u32], bytes_required: Bytes
 }
 
 #[inline]
+#[allow(trivial_casts)]
 pub(crate) fn decode_bit_packed_val<T: IndexIdToParentData>(data: &[u8], bytes_required: BytesRequired, index: usize) -> Option<T> {
     let bit_pos_start = index * bytes_required as usize;
     if bit_pos_start >= data.len() {

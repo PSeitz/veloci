@@ -180,14 +180,14 @@ pub fn union_hits_score(mut or_results: Vec<SearchFieldResult>) -> SearchFieldRe
             let num_distinct_terms = max_scores_per_term.iter().filter(|el| *el >= &0.00001).count() as f32;
             // sum_score = sum_score * num_distinct_terms * num_distinct_terms;
 
-            let sum_over_distinct_with_distinct_term_boost = max_scores_per_term.iter().sum::<f32>() as f32 * num_distinct_terms * num_distinct_terms;
+            let sum_over_distinct_with_distinct_term_boost = max_scores_per_term.iter().sum::<f32>() * num_distinct_terms * num_distinct_terms;
             debug_assert!(!sum_over_distinct_with_distinct_term_boost.is_nan());
             debug_assert!(sum_over_distinct_with_distinct_term_boost != std::f32::INFINITY);
             union_hits.push(Hit::new(id, sum_over_distinct_with_distinct_term_boost));
             if should_explain {
                 let explain = explain_hits.entry(id).or_insert_with(|| vec![]);
-                // explain.push(format!("or sum_over_distinct_terms {:?}", max_scores_per_term.iter().sum::<f32>() as f32));
-                explain.push(Explain::OrSumOverDistinctTerms(max_scores_per_term.iter().sum::<f32>() as f32));
+                // explain.push(format!("or sum_over_distinct_terms {:?}", max_scores_per_term.iter().sum::<f32>()));
+                explain.push(Explain::OrSumOverDistinctTerms(max_scores_per_term.iter().sum::<f32>()));
                 if num_distinct_terms > 1. {
                     // explain.push(format!("num_distinct_terms boost {:?} to {:?}", num_distinct_terms * num_distinct_terms, sum_over_distinct_with_distinct_term_boost));
                     // explain.push(Explain::NumDistinctTermsBoost{distinct_boost:num_distinct_terms * num_distinct_terms, new_score:sum_over_distinct_with_distinct_term_boost});

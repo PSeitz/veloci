@@ -120,7 +120,7 @@ pub(crate) fn get_allterms_per_path<I: Iterator<Item = Result<serde_json::Value,
         let mut cb_text = |_anchor_id: u32, value: &str, path: &str, _parent_val_id: u32| -> Result<(), io::Error> {
             let options: &FulltextIndexOptions = fulltext_info_for_path.get(path).fulltext.as_ref().unwrap_or(&default_fulltext_options);
 
-            let mut terms_data = get_or_insert_prefer_get(&mut data.terms_in_path as *mut FnvHashMap<_, _>, path, || TermDataInPath {
+            let mut terms_data = get_or_insert_prefer_get(&mut data.terms_in_path, path, || TermDataInPath {
                 do_not_store_text_longer_than: options.do_not_store_text_longer_than,
                 ..Default::default()
             });

@@ -128,6 +128,7 @@ use std::ptr::copy_nonoverlapping;
 pub(crate) fn get_u32_from_bytes(data: &[u8], pos: usize) -> u32 {
     let mut out: u32 = 0;
     unsafe {
+        #[allow(trivial_casts)]
         copy_nonoverlapping(data[pos..].as_ptr(), &mut out as *mut u32 as *mut u8, 4);
     }
     out
@@ -137,6 +138,7 @@ pub(crate) fn get_u32_from_bytes(data: &[u8], pos: usize) -> u32 {
 pub(crate) fn get_u64_from_bytes(data: &[u8], pos: usize) -> u64 {
     let mut out: u64 = 0;
     unsafe {
+        #[allow(trivial_casts)]
         copy_nonoverlapping(data[pos..].as_ptr(), &mut out as *mut u64 as *mut u8, 8);
     }
     out
