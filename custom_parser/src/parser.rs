@@ -25,13 +25,14 @@ pub(crate) fn get_text_for_token<'a>(text: &'a str, start: u32, stop: u32) -> &'
     &text[start as usize ..stop as usize ]
 }
 
+pub fn parse(text: &str) -> Result<UserAST<'_>, ParseError> {
+    Parser::new(text)._parse()
+}
+
 impl<'b,> Parser<'b> {
     pub fn new(text: &'b str) -> Self {
         let tokens = Lexer::new(text).get_tokens();
         Parser { tokens, pos: 0, text }
-    }
-    pub fn parse(text: &str) -> Result<UserAST<'_>, ParseError> {
-        Parser::new(text)._parse()
     }
 
     fn unexpected_token_type(&self, message: &'static str, allowed_types: Option<&[Option<TokenType>]>) -> Result<(), ParseError> {
@@ -180,51 +181,51 @@ mod tests {
 
     #[test]
     fn simple() {
-        assert_eq!(Parser::parse("hallo").unwrap(), "hallo".into());
+        assert_eq!(parse("hallo").unwrap(), "hallo".into());
     }
     #[test]
     fn test_invalid() {
         assert_eq!(
-            Parser::parse("field:what:ok").is_err(),
+            parse("field:what:ok").is_err(),
             true // Err(UnexpectedTokenType("Expecting a levenshtein number after a \'~\' at position 2, but got None".to_string()))
         );
     }
 
     #[test]
     fn test_phrases() {
-        assert_eq!(Parser::parse("\"cool\")").unwrap(), ("cool".into()));
-        assert_eq!(Parser::parse("\"cooles teil\")").unwrap(), ("cooles teil".into()));
+        assert_eq!(parse("\"cool\")").unwrap(), ("cool".into()));
+        assert_eq!(parse("\"cooles teil\")").unwrap(), ("cooles teil".into()));
     }
 
     #[test]
     fn test_parentheses() {
-        assert_eq!(Parser::parse("(cool)").unwrap(), ("cool".into()));
+        assert_eq!(parse("(cool)").unwrap(), ("cool".into()));
 
-        assert_eq!(Parser::parse("((((((cool))))))").unwrap(), ("cool".into()));
-        assert_eq!(Parser::parse("((((((cool)))))) AND ((((((cool))))))").unwrap(), ("cool".into(), And, "cool".into()).into());
+        assert_eq!(parse("((((((cool))))))").unwrap(), ("cool".into()));
+        assert_eq!(parse("((((((cool)))))) AND ((((((cool))))))").unwrap(), ("cool".into(), And, "cool".into()).into());
         assert_eq!(
-            Parser::parse("(super AND cool) OR fancy").unwrap(),
+            parse("(super AND cool) OR fancy").unwrap(),
             ((("super".into(), And, "cool".into()).into()), Or, "fancy".into()).into()
         );
         assert_eq!(
-            Parser::parse("(super AND cool) OR (fancy)").unwrap(),
+            parse("(super AND cool) OR (fancy)").unwrap(),
             ((("super".into(), And, "cool".into()).into()), Or, "fancy".into()).into()
         );
         assert_eq!(
-            Parser::parse("((super AND cool)) OR (fancy)").unwrap(),
+            parse("((super AND cool)) OR (fancy)").unwrap(),
             ((("super".into(), And, "cool".into()).into()), Or, "fancy".into()).into()
         );
-        // println!("{:?}", Parser::parse("(cool)"));
+        // println!("{:?}", parse("(cool)"));
     }
     #[test]
     fn test_and_or() {
         assert_eq!(
-            Parser::parse("super AND cool OR fancy").unwrap(),
+            parse("super AND cool OR fancy").unwrap(),
             ("super".into(), And, ("cool".into(), Or, "fancy".into()).into()).into() // BinaryClause("super".into(), And, Box::new(("cool", Operator::Or, "fancy").into()))
         );
-        // println!("asd {:?}", Parser::parse("super OR cool AND fancy"));
+        // println!("asd {:?}", parse("super OR cool AND fancy"));
         assert_eq!(
-            Parser::parse("super OR cool AND fancy").unwrap(),
+            parse("super OR cool AND fancy").unwrap(),
             ("super".into(), Or, ("cool".into(), And, "fancy".into()).into()).into()
         );
     }
@@ -232,17 +233,17 @@ mod tests {
     #[test]
     fn test_implicit_or() {
         assert_eq!(
-            Parser::parse("super cool OR fancy").unwrap(),
+            parse("super cool OR fancy").unwrap(),
             ("super".into(), Or, ("cool".into(), Or, "fancy".into()).into()).into()
         );
-        assert_eq!(Parser::parse("super cool").unwrap(), ("super".into(), Or, "cool".into()).into());
-        assert_eq!(Parser::parse("super cool").unwrap(), Parser::parse("super OR cool").unwrap());
+        assert_eq!(parse("super cool").unwrap(), ("super".into(), Or, "cool".into()).into());
+        assert_eq!(parse("super cool").unwrap(), parse("super OR cool").unwrap());
     }
 
     #[test]
     fn test_levenshtein() {
         assert_eq!(
-            Parser::parse("fancy~1").unwrap(),
+            parse("fancy~1").unwrap(),
             UserAST::Leaf(Box::new(UserFilter {
                 // field_name: None,
                 phrase: "fancy",
@@ -250,12 +251,12 @@ mod tests {
             }))
         );
         assert_eq!(
-            Parser::parse("fancy~"),
+            parse("fancy~"),
             Err(ParseError::UnexpectedTokenType("fancy~﹏﹏".to_string(), "Expecting a levenshtein number after a \'~\' ".to_string()))
         );
-        assert_eq!(Parser::parse("fancy~1").unwrap(), "fancy~1".into());
+        assert_eq!(parse("fancy~1").unwrap(), "fancy~1".into());
         assert_eq!(
-            Parser::parse("super cool OR fancy~1").unwrap(),
+            parse("super cool OR fancy~1").unwrap(),
             ("super".into(), Or, ("cool".into(), Or, "fancy~1".into()).into()).into()
         );
     }
@@ -263,7 +264,7 @@ mod tests {
     #[test]
     fn test_attribute_and_levenshtein() {
         assert_eq!(
-            Parser::parse("field:fancy~1").unwrap(),
+            parse("field:fancy~1").unwrap(),
             UserAST::Attributed(
                 "field".into(),
                 Box::new(UserAST::Leaf(Box::new(UserFilter {
@@ -274,7 +275,7 @@ mod tests {
         );
 
         assert_eq!(
-            Parser::parse("field:fancy~1").unwrap(),
+            parse("field:fancy~1").unwrap(),
             UserAST::Attributed(
                 "field".into(),
                 Box::new(UserAST::Leaf(Box::new(UserFilter {
@@ -283,13 +284,13 @@ mod tests {
                 })))
             )
         );
-        assert_eq!(Parser::parse("field:fancy~1").unwrap(), "field:fancy~1".into());
+        assert_eq!(parse("field:fancy~1").unwrap(), "field:fancy~1".into());
     }
 
     #[test]
     fn test_attribute_and_implicit_or_on_all() {
         assert_eq!(
-            Parser::parse("\"field\":fancy unlimited").unwrap(),
+            parse("\"field\":fancy unlimited").unwrap(),
             (UserAST::Attributed("field", "fancy".into()), Or, "unlimited".into()).into()
         );
     }
@@ -297,15 +298,15 @@ mod tests {
     #[test]
     fn test_attribute_quoted_field() {
         assert_eq!(
-            Parser::parse("\"field\":fancy unlimited").unwrap(),
+            parse("\"field\":fancy unlimited").unwrap(),
             (UserAST::Attributed("field", "fancy".into()), Or, "unlimited".into()).into()
         );
     }
     #[test]
     fn test_attribute_simple() {
-        assert_eq!(Parser::parse("field:fancy").unwrap(), "field:fancy".into());
+        assert_eq!(parse("field:fancy").unwrap(), "field:fancy".into());
         assert_eq!(
-            Parser::parse("field:fancy").unwrap(),
+            parse("field:fancy").unwrap(),
             UserAST::Attributed(
                 "field".into(),
                 Box::new(UserAST::Leaf(Box::new(UserFilter {
@@ -318,7 +319,7 @@ mod tests {
     #[test]
     fn test_attribute_after_text() {
         assert_eq!(
-            Parser::parse("freestyle myattr:(super cool)").unwrap(), 
+            parse("freestyle myattr:(super cool)").unwrap(), 
             ("freestyle".into(), 
                 Or, 
                 (UserAST::Attributed("myattr", Box::new(("super".into(), Or, "cool".into()).into()) )) ).into());
@@ -328,7 +329,7 @@ mod tests {
     #[test]
     fn test_attribute_errors() {
         assert_eq!(
-            Parser::parse("fancy:"),
+            parse("fancy:"),
             Err(ParseError::UnexpectedTokenType(
                 "fancy:﹏﹏".to_string(),
                 "only token or ( allowed after attribute ('attr:') ".to_string()
@@ -339,13 +340,13 @@ mod tests {
     #[test]
     fn test_attributed_block_1() {
         assert_eq!(
-            Parser::parse("field:(fancy unlimited)").unwrap(),
+            parse("field:(fancy unlimited)").unwrap(),
             UserAST::Attributed("field", Box::new(("fancy".into(), Or, "unlimited".into()).into()))
         );
     }
 
     fn test_parse_query_to_ast_helper(query: &str, expected: &str) {
-        let query_str = Parser::parse(query).unwrap();
+        let query_str = parse(query).unwrap();
         assert_eq!(format!("{:?}", query_str), expected);
     }
 

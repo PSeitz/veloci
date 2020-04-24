@@ -1,3 +1,6 @@
+mod ast_to_request_custom_parser;
+mod ast_to_request;
+use ast_to_request::*;
 use crate::persistence::TEXTINDEX;
 use std::{collections::HashMap, f32, str};
 
@@ -13,9 +16,6 @@ use crate::{
 use ordered_float::OrderedFloat;
 use std;
 
-#[cfg(test)]
-use crate::test;
-
 // fn get_default_levenshtein(term: &str, levenshtein_auto_limit: usize) -> usize {
 //     match term.chars().count() {
 //         0..=3 => 0,
@@ -24,6 +24,12 @@ use crate::test;
 //     }
 // }
 
+/// SearchQueryGeneratorParameters is convience layer to generatre requests.
+///
+/// `SearchQueryGeneratorParameters` provides defaults for a lot of search cases,
+/// which can be hard to generate in a query. For example searching on all fields or generating phrase boosts.
+///
+/// The method `search_query` does the conversion from `SearchQueryGeneratorParameters` to Request.
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
 #[serde(default)]
 pub struct SearchQueryGeneratorParameters {
@@ -33,7 +39,8 @@ pub struct SearchQueryGeneratorParameters {
     pub operator: Option<String>,
     pub levenshtein: Option<usize>, // TODO, it's called levenshtein here, but levenshtein_distance in the request.
 
-    /// terms will have an automatic levenshtein assigned depending on their length
+    /// Terms will have an automatic levenshtein assigned depending on their length, with levenshtein_auto_limit it's possible to limit the levenshtein distance
+    /// This should be replaced by a mor powerful api
     /// 0..=2 => 0, 3..=5 => 1 or levenshtein_auto_limit, other = 2 or levenshtein_auto_limit
     pub levenshtein_auto_limit: Option<usize>,
     pub facetlimit: Option<usize>,
@@ -103,170 +110,8 @@ fn get_levenshteinn(term: &str, levenshtein: Option<usize>, levenshtein_auto_lim
     std::cmp::min(levenshtein_distance, term.chars().count() - 1) as u32
 }
 
-use parser::query_parser::{Operator, UserAST, UserFilter};
-fn expand_fields_in_query_ast(ast: UserAST, all_fields: &[String]) -> Result<UserAST, VelociError> {
-    match ast {
-        UserAST::Clause(op, subqueries) => {
-            let subqueries: Result<_, _> = subqueries.into_iter().map(|ast| expand_fields_in_query_ast(ast, all_fields)).collect();
-            Ok(UserAST::Clause(op, subqueries?))
-        }
-        UserAST::Leaf(filter) => {
-            if let Some(field_name) = &filter.field_name {
-                check_field(&field_name, &all_fields)?;
-                Ok(UserAST::Leaf(filter))
-            } else {
-                let field_queries = all_fields
-                    .iter()
-                    .map(|field_name| {
-                        let filter_with_field = UserFilter {
-                            field_name: Some(field_name.to_string()),
-                            phrase: filter.phrase.to_string(),
-                            levenshtein: filter.levenshtein,
-                        };
-                        UserAST::Leaf(Box::new(filter_with_field))
-                    })
-                    .collect();
-                Ok(UserAST::Clause(Operator::Or, field_queries))
-            }
-        }
-    }
-}
 
-#[test]
-fn test_field_expand() {
-    let fields = vec!["Title".to_string(), "Author[].name".to_string()];
-    let ast = UserAST::Leaf(Box::new(UserFilter {
-        field_name: None,
-        phrase: "Fred".to_string(),
-        levenshtein: None,
-    }));
-    let expanded_ast = expand_fields_in_query_ast(ast, &fields).unwrap();
-    assert_eq!(format!("{:?}", expanded_ast), "(Title:\"Fred\" OR Author[].name:\"Fred\")");
 
-    let ast = UserAST::Leaf(Box::new(UserFilter {
-        field_name: Some("Title".to_string()),
-        phrase: "Fred".to_string(),
-        levenshtein: None,
-    }));
-    let expanded_ast = expand_fields_in_query_ast(ast, &fields).unwrap();
-    assert_eq!(format!("{:?}", expanded_ast), "Title:\"Fred\"");
-}
-
-//TODO should be field specific
-fn filter_stopwords(query_ast: &mut UserAST, opt: &SearchQueryGeneratorParameters) -> bool {
-    match query_ast {
-        UserAST::Clause(_, ref mut queries) => {
-            queries.drain_filter(|mut query| filter_stopwords(&mut query, opt));
-            false
-        }
-        UserAST::Leaf(ref filter) => {
-            if let Some(languages) = opt.stopword_lists.as_ref() {
-                languages.iter().any(|lang| stopwords::is_stopword(lang, &filter.phrase.to_lowercase()))
-            } else {
-                false
-            }
-        }
-    }
-}
-
-#[test]
-fn test_filter_stopwords() {
-    let query_ast = parser::query_parser::parse("die erbin").unwrap().0;
-    let mut query_ast = query_ast.simplify();
-    let mut opt = SearchQueryGeneratorParameters::default();
-    opt.stopword_lists = Some(vec!["de".to_string()]);
-    filter_stopwords(&mut query_ast, &opt);
-    assert_eq!(format!("{:?}", query_ast.simplify()), "\"erbin\"");
-}
-
-fn ast_to_request(query_ast: UserAST, all_fields: &[String], opt: &SearchQueryGeneratorParameters) -> Result<Request, VelociError> {
-    let mut query_ast = query_ast.simplify();
-    filter_stopwords(&mut query_ast, opt);
-    query_ast = expand_fields_in_query_ast(query_ast, all_fields)?;
-    let query_ast = query_ast.simplify();
-    Ok(query_ast_to_request(query_ast, opt))
-}
-
-#[bench]
-fn bench_query_to_request(b: &mut test::Bencher) {
-    let fields = vec![
-        "Title".to_string(),
-        "Author".to_string(),
-        "Author1".to_string(),
-        "Author2".to_string(),
-        "Author3".to_string(),
-        "Author4".to_string(),
-        "Author5".to_string(),
-        "Author6".to_string(),
-        "Author7".to_string(),
-        "Author8".to_string(),
-        "Author9".to_string(),
-        "Author10".to_string(),
-        "Author11".to_string(),
-        "Author12".to_string(),
-        "Author13".to_string(),
-    ];
-    b.iter(|| {
-        let query_ast = parser::query_parser::parse("die drei fragezeigen und das unicorn").unwrap().0;
-        ast_to_request(query_ast, &fields, &SearchQueryGeneratorParameters::default()).unwrap()
-    })
-}
-
-fn query_ast_to_request(ast: UserAST, opt: &SearchQueryGeneratorParameters) -> Request {
-    match ast {
-        UserAST::Clause(op, subqueries) => {
-            let subqueries = subqueries.into_iter().map(|ast| query_ast_to_request(ast, opt)).collect();
-            match op {
-                Operator::And => Request {
-                    and: Some(subqueries),
-                    ..Default::default()
-                },
-                Operator::Or => Request {
-                    or: Some(subqueries),
-                    ..Default::default()
-                },
-            }
-        }
-        UserAST::Leaf(filter) => {
-            let field_name = filter.field_name.as_ref().unwrap();
-            let mut term = filter.phrase;
-
-            let starts_with = term.ends_with("*");
-            if term.ends_with("*") {
-                term.pop();
-            }
-            let levenshtein_distance = if let Some(levenshtein) = filter.levenshtein {
-                Some(u32::from(levenshtein))
-            } else {
-                Some(get_levenshteinn(&term, opt.levenshtein, opt.levenshtein_auto_limit, starts_with))
-            };
-
-            let part = RequestSearchPart {
-                boost: opt.boost_fields.as_ref().and_then(|boost|boost.get(field_name).map(|el| OrderedFloat(*el))),
-                levenshtein_distance,
-                path: field_name.to_string(),
-                terms: vec![term],
-                starts_with: Some(starts_with),
-                ..Default::default()
-            };
-            Request {
-                search: Some(part),
-                why_found: opt.why_found.unwrap_or(false),
-                text_locality: opt.text_locality.unwrap_or(false),
-                ..Default::default()
-            }
-        }
-    }
-}
-
-fn terms_for_phrase_from_ast(ast: &UserAST) -> Vec<&String> {
-    match ast {
-        UserAST::Clause(_, queries) => queries.iter().flat_map(|query| terms_for_phrase_from_ast(query)).collect(),
-        UserAST::Leaf(filter) => vec![&filter.phrase],
-    }
-}
-
-use parser;
 
 fn check_field(field: &String, all_fields: &[String]) -> Result<(), VelociError> {
     if !all_fields.contains(field) {
@@ -314,7 +159,7 @@ pub fn search_query(persistence: &Persistence, mut opt: SearchQueryGeneratorPara
     let query_ast = parser::query_parser::parse(&opt.search_term).unwrap().0;
     let terms: Vec<String> = terms_for_phrase_from_ast(&query_ast).iter().map(|el| el.to_string()).collect();
     info!("Terms for Phrase{:?}", terms);
-    let mut request = ast_to_request(query_ast, &all_search_fields, &opt)?;
+    let mut request = ast_to_request::ast_to_request(query_ast, &all_search_fields, &opt)?;
 
     let facetlimit = opt.facetlimit;
 
@@ -359,7 +204,7 @@ pub fn search_query(persistence: &Persistence, mut opt: SearchQueryGeneratorPara
         let mut params = SearchQueryGeneratorParameters::default();
         params.levenshtein = Some(0);
         let query_ast = parser::query_parser::parse(filters).unwrap().0;
-        let filter_request_ast = ast_to_request(query_ast, &all_fields, &params)?;
+        let filter_request_ast = ast_to_request::ast_to_request(query_ast, &all_fields, &params)?;
         request.filter = Some(Box::new(filter_request_ast));
     }
 
