@@ -94,3 +94,4 @@ pub struct RequestPhraseBoost {
     pub search1: RequestSearchPart,
     pub search2: RequestSearchPart,
 }
+

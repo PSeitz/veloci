@@ -7,7 +7,7 @@ use crate::error::VelociError;
 use parser;
 use parser::query_parser::{Operator, UserAST, UserFilter};
 use crate::{
-    search::{stopwords, *},
+    search::{stopwords},
 };
 
 pub(crate) fn ast_to_request(query_ast: UserAST, all_fields: &[String], opt: &SearchQueryGeneratorParameters) -> Result<Request, VelociError> {

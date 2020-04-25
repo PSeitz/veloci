@@ -25,12 +25,12 @@ pub(crate) fn get_text_for_token<'a>(text: &'a str, start: u32, stop: u32) -> &'
     &text[start as usize ..stop as usize ]
 }
 
-pub fn parse(text: &str) -> Result<UserAST<'_>, ParseError> {
+pub fn parse(text: &str) -> Result<UserAST<'_, '_>, ParseError> {
     Parser::new(text)._parse()
 }
 
-impl<'b,> Parser<'b> {
-    pub fn new(text: &'b str) -> Self {
+impl<'a> Parser<'a> {
+    pub fn new(text: &'a str) -> Self {
         let tokens = Lexer::new(text).get_tokens();
         Parser { tokens, pos: 0, text }
     }
@@ -67,7 +67,7 @@ impl<'b,> Parser<'b> {
         Ok(*token)
     }
 
-    fn parse_user_filter(&mut self, curr_token: Token) -> Result<UserFilter<'b>, ParseError> {
+    fn parse_user_filter(&mut self, curr_token: Token) -> Result<UserFilter<'a>, ParseError> {
         let mut curr_ast = UserFilter {
             levenshtein: None,
             phrase: get_text_for_token(self.text, curr_token.byte_start_pos, curr_token.byte_stop_pos),
@@ -88,7 +88,7 @@ impl<'b,> Parser<'b> {
         Ok(curr_ast)
     }
 
-    fn parse_sub_expression(&mut self, curr_ast: UserAST<'b>) -> Result<UserAST<'b>, ParseError> {
+    fn parse_sub_expression(&mut self, curr_ast: UserAST<'a,'a>) -> Result<UserAST<'a,'a>, ParseError> {
         self.assert_allowed_types(
             "",
             &[
@@ -123,7 +123,7 @@ impl<'b,> Parser<'b> {
         }
     }
 
-    fn _parse(&mut self) -> Result<UserAST<'b>, ParseError> {
+    fn _parse(&mut self) -> Result<UserAST<'a,'a>, ParseError> {
         let curr_token = self.next_token()?;
         match curr_token.token_type {
             TokenType::AttributeLiteral => {
