@@ -187,9 +187,20 @@ fn add_phrase_boost_plan_steps(
     let mut phrase_outputs = vec![];
     for boost in phrase_boosts {
         let mut get_field_search = |req: &RequestSearchPart| -> (PlanDataReceiver, usize) {
-            let field_search1 = field_search_cache
-                .get_mut(req)
-                .unwrap_or_else(|| panic!("PlanCreator: Could not find  request in field_search_cache {:?}", req));
+            // let field_search1 = field_search_cache
+            //     .get_mut(req)
+            //     .unwrap_or_else(|| panic!("PlanCreator: Could not find  request in field_search_cache {:?}", req));
+
+            let val = field_search_cache
+                .get_mut(&req);
+
+            let field_search1 = {
+                if val.is_none(){
+                    panic!("PlanCreator: Could not find phrase request in field_search_cache Req: {:#?}, \n Cache: {:#?}", req, field_search_cache.keys())
+                }
+                val.unwrap()
+            };
+
             field_search1.1.req.get_ids = true;
             field_search1.1.channel.num_receivers += 1;
             let field_rx = field_search1.1.channel.receiver_for_next_step.clone();
@@ -364,9 +375,15 @@ fn plan_creator_search_part(
     let paths = util::get_steps_to_anchor(&request_part.path);
     let store_term_id_hits = request.why_found || request.text_locality;
 
-    let (field_search_step_id, field_search_step) = field_search_cache
-        .get_mut(&request_part)
-        .unwrap_or_else(|| panic!("PlanCreator: Could not find  request in field_search_cache {:?}", request_part));
+    let val = field_search_cache
+        .get_mut(&request_part);
+
+    let (field_search_step_id, field_search_step) = {
+        if val.is_none(){
+            panic!("PlanCreator: Could not find request in field_search_cache.\nReq: {:#?}, \nCache: {:#?}", request_part, field_search_cache.keys())
+        }
+        val.unwrap()
+    };
 
     field_search_step.req.store_term_texts |= request.why_found;
     field_search_step.req.store_term_id_hits |= store_term_id_hits;

@@ -52,7 +52,10 @@ pub struct Request {
     #[serde(default = "default_skip")]
     pub skip: Option<usize>,
 
-    /// Enables highlighting to show where in the text the tokens have hit
+    /// Enables highlighting to show where in the text the tokens have hit.
+    ///
+    /// Applies only for searches.
+    ///
     /// each document in [`SearchResult`] hit will contain informatio with a list of hightlighted text per field
     /// When select is enabled, the selected field will be reconstructed from the indices and why_found will be active during reconstruction.
     /// When select is not enabled, why_found will tokenize the hits and apply hightlighting with the list of term hits on the field.
@@ -62,6 +65,8 @@ pub struct Request {
     pub why_found: bool,
 
     /// text locality is when multiple tokens will hit in the same text
+    ///
+    /// Applies only for searches.
     ///
     /// e.g. if you have 2 documents with an array of texts with:
     /// doc1: ["my nice search engine"]

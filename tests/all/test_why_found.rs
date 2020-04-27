@@ -66,21 +66,21 @@ fn get_number_of_docs() {
 #[test]
 fn should_tokenize_url() {
     let req = json!({"search": { "terms":["veloci"], "path": "url", } });
-    let hits = search_testo_to_doc!(req).data;
+    let hits = search_request_json_to_doc!(req).data;
     assert_eq!(hits.len(), 1);
 
     let req = json!({"search": { "terms":["pseitz"], "path": "url", } });
-    let hits = search_testo_to_doc!(req).data;
+    let hits = search_request_json_to_doc!(req).data;
     assert_eq!(hits.len(), 1);
 }
 
 #[test]
 fn should_highlight_properly_with_custom_tokenized() {
     let req = json!({
-        "search": {
+        "search_req": { "search": {
             "terms":["test"],
             "path": "custom_tokenized",
-        },
+        }},
         "why_found":true
     });
 
@@ -88,10 +88,10 @@ fn should_highlight_properly_with_custom_tokenized() {
     assert_eq!(hits[0].why_found["custom_tokenized"], vec!["<b>test</b>§_ cool _"]);
 
     let req = json!({
-        "search": {
+        "search_req": {"search": {
             "terms":["§"],
             "path": "custom_tokenized",
-        },
+        }},
         "why_found":true
     });
 
@@ -99,10 +99,10 @@ fn should_highlight_properly_with_custom_tokenized() {
     assert_eq!(hits[0].why_found["custom_tokenized"], vec!["test<b>§</b>_ cool _"]);
 
     let req = json!({
-        "search": {
+        "search_req": {"search": {
             "terms":["_ cool _"],
             "path": "custom_tokenized",
-        },
+        }},
         "why_found":true
     });
 
@@ -110,10 +110,10 @@ fn should_highlight_properly_with_custom_tokenized() {
     assert_eq!(hits[0].why_found["custom_tokenized"], vec!["test§<b>_ cool _</b>"]);
 
     let req = json!({
-        "search": {
+        "search_req": {"search": {
             "terms":["<<"],
             "path": "custom_tokenized",
-        },
+        }},
         "why_found":true
     });
 
@@ -141,10 +141,10 @@ fn should_highlight_properly_with_custom_tokenized() {
 #[test]
 fn should_highlight_properly_when_complete_text_is_hit() {
     let req = json!({
-        "search": {
+        "search_req": {"search": {
             "terms":["<<cool>>"],
             "path": "custom_tokenized",
-        },
+        }},
         "why_found":true
     });
 
@@ -156,10 +156,10 @@ fn should_highlight_properly_when_complete_text_is_hit() {
 #[test]
 fn should_highlight_properly_when_complete_text_is_hit_untokenized() {
     let req = json!({
-        "search": {
+        "search_req": {"search": {
             "terms":["ID1000"],
             "path": "not_tokenized",
-        },
+        }},
         "why_found":true
     });
 
@@ -170,10 +170,10 @@ fn should_highlight_properly_when_complete_text_is_hit_untokenized() {
 #[test]
 fn should_highlight_properly_when_complete_text_is_hit_untokenized_with_select() {
     let req = json!({
-        "search": {
+        "search_req": {"search": {
             "terms":["ID1000"],
             "path": "not_tokenized",
-        },
+        }},
         "select": ["not_tokenized"],
         "why_found":true
     });
@@ -185,10 +185,10 @@ fn should_highlight_properly_when_complete_text_is_hit_untokenized_with_select()
 #[test]
 fn should_highlight_properly_when_complete_text_is_hit_untokenized_1_n() {
     let req = json!({
-        "search": {
+        "search_req": {"search": {
             "terms":["ID1000"],
             "path": "not_tokenized_1_n[]",
-        },
+        }},
         "why_found":true
     });
 
@@ -199,10 +199,10 @@ fn should_highlight_properly_when_complete_text_is_hit_untokenized_1_n() {
 #[test]
 fn should_highlight_properly_when_complete_text_is_hit_untokenized_with_select_1_n() {
     let req = json!({
-        "search": {
+        "search_req": {"search": {
             "terms":["ID1000"],
             "path": "not_tokenized_1_n[]",
-        },
+        }},
         "select": ["not_tokenized_1_n[]"],
         "why_found":true
     });
@@ -214,10 +214,10 @@ fn should_highlight_properly_when_complete_text_is_hit_untokenized_with_select_1
 #[test]
 fn should_not_hit_because_in_custom_tokenizer_space_is_not_a_seperator() {
     let req = json!({
-        "search": {
+        "search_req": {"search": {
             "terms":["cool"],
             "path": "custom_tokenized",
-        },
+        }},
         "why_found":true
     });
 
@@ -228,11 +228,11 @@ fn should_not_hit_because_in_custom_tokenizer_space_is_not_a_seperator() {
 #[test]
 fn should_add_why_found_terms_highlight_tokens_and_also_text_ids() {
     let req = json!({
-        "search": {
+        "search_req": { "search": {
             "terms":["schön"],
             "path": "richtig",
             "levenshtein_distance": 1
-        },
+        }},
         "why_found":true
     });
 
@@ -244,11 +244,11 @@ fn should_add_why_found_terms_highlight_tokens_and_also_text_ids() {
 #[test]
 fn should_add_why_found_from_1_n_terms_highlight_tokens_and_also_text_ids() {
     let req = json!({
-        "search": {
+        "search_req": { "search": {
             "terms":["treffers"],
             "path": "viele[]",
             "levenshtein_distance": 1
-        },
+        }},
         "why_found":true
     });
 
@@ -259,11 +259,11 @@ fn should_add_why_found_from_1_n_terms_highlight_tokens_and_also_text_ids() {
 #[test]
 fn should_add_why_found_from_1_n_terms_because_when_select_is_used_a_different_why_found_strategy_is_used() {
     let req = json!({
-        "search": {
+        "search_req": { "search": {
             "terms":["umsortiert"],
             "path": "viele[]",
             "levenshtein_distance": 0
-        },
+        }},
         "why_found":true,
         "select": ["richtig"]
     });
@@ -275,11 +275,11 @@ fn should_add_why_found_from_1_n_terms_because_when_select_is_used_a_different_w
         vec![" ... zu checken, dass da nicht <b>umsortiert</b> wird"] // TODO FIXME 1. Should not behave differently, why_found with select
     );
     let req = json!({
-        "search": {
+        "search_req": { "search": {
             "terms":["umsortiert"],
             "path": "viele[]",
             "levenshtein_distance": 0
-        },
+        }},
         "why_found":true
     });
 
@@ -294,11 +294,11 @@ fn should_add_why_found_from_1_n_terms_because_when_select_is_used_a_different_w
 #[test]
 fn should_add_highlight_taschenbuch() {
     let req = json!({
-        "search": {
+        "search_req": { "search": {
             "terms":["Taschenbuch"],
             "path": "buch",
             "levenshtein_distance": 1
-        },
+        }},
         "why_found":true
     });
 
@@ -309,22 +309,26 @@ fn should_add_highlight_taschenbuch() {
 #[test]
 fn should_add_highlight_multi_terms() {
     let req = json!({
-        "or":[
-        {
-            "search": {
-                "terms":["Taschenbuch"],
-                "path": "buch",
-                "levenshtein_distance": 1
-            },
-            "why_found":true
-        },{
-            "search": {
-                "terms":["kartoniert"],
-                "path": "buch",
-                "levenshtein_distance": 1
-            },
-            "why_found":true
-        }],
+        "search_req": {
+            "or":{
+                "queries": [
+                    {
+                        "search": {
+                            "terms":["Taschenbuch"],
+                            "path": "buch",
+                            "levenshtein_distance": 1
+                        }
+                    },
+                    {
+                        "search": {
+                            "terms":["kartoniert"],
+                            "path": "buch",
+                            "levenshtein_distance": 1
+                        }
+                    }
+                ]
+            }
+        },
         "why_found":true
     });
 

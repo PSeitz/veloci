@@ -1,5 +1,6 @@
 use serde_json::Value;
 use veloci::*;
+use veloci::search::*;
 
 use super::common;
 
@@ -61,9 +62,10 @@ fn test_minimal_with_filter_identity_column_test() {
 }
 
 #[test]
-fn test_minimal_or() {
+fn test_minimal_or_json() {
     let req = json!({
-        "or":[
+        "or":{
+            "queries": [
                 {
                     "search": {
                         "terms":["test"],
@@ -75,11 +77,32 @@ fn test_minimal_or() {
                         "path": "field",
                     }
                 }
-            ]
-            
+            ]}
     });
 
     let hits = search_request_json_to_doc!(req).data;
+    assert_eq!(hits.len(), 1);
+    assert_eq!(hits[0].doc["field"], "test");
+}
+
+#[test]
+fn test_minimal_or_object() {
+    let req = SearchRequest::Or(SearchTree{
+        queries:vec![
+            SearchRequest::Search(RequestSearchPart{
+                terms:vec!["test".to_string()],
+                path: "field".to_string(),
+                ..Default::default()
+            }),
+            SearchRequest::Search(RequestSearchPart{
+                terms:vec!["test2".to_string()],
+                path: "field".to_string(),
+                ..Default::default()
+            }),
+        ], ..Default::default()
+    });
+
+    let hits = search_request_to_doc!(req).data;
     assert_eq!(hits.len(), 1);
     assert_eq!(hits[0].doc["field"], "test");
 }
