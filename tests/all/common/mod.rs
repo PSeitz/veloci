@@ -66,6 +66,24 @@ macro_rules! search_to_hits {
 }
 
 #[allow(unused_macros)]
+macro_rules! search_request_to_doc {
+    ($x:expr) => {{
+        let search_request: search::SearchRequest = serde_json::from_str(&$x.to_string()).expect("Can't parse json");
+        let requesto = search::Request{search_req: Some(search_request), ..Default::default() };
+        let pers = &TEST_PERSISTENCE;
+        search::to_search_result(&pers, search::search(requesto.clone(), &pers).expect("search error"), &requesto.select)
+    }};
+}
+#[allow(unused_macros)]
+macro_rules! search_request_json_to_doc {
+    ($x:expr) => {{
+        let search_request: search::SearchRequest = serde_json::from_str(&$x.to_string()).expect("Can't parse json");
+        let requesto = search::Request{search_req: Some(search_request), ..Default::default() };
+        let pers = &TEST_PERSISTENCE;
+        search::to_search_result(&pers, search::search(requesto.clone(), &pers).expect("search error"), &requesto.select)
+    }};
+}
+#[allow(unused_macros)]
 macro_rules! search_testo_to_doc {
     ($x:expr) => {{
         let requesto: search::Request = serde_json::from_str(&$x.to_string()).expect("Can't parse json");

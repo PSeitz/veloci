@@ -257,7 +257,7 @@ pub fn get_term_ids_in_field(persistence: &Persistence, options: &mut PlanReques
                 }
                 debug!("Hit: {:?}\tid: {:?} score: {:?}", &text_or_token, token_text_id, score);
                 result.hits_scores.push(Hit::new(token_text_id, score));
-                if options.request.explain {
+                if options.request.is_explain() {
                     // result.explain.insert(token_text_id, vec![format!("levenshtein score {:?} for {}", score, text_or_token)]);
                     result.explain.insert(
                         token_text_id,
@@ -350,7 +350,7 @@ pub fn resolve_token_to_anchor(
                     continue;
                 }
                 let final_score = hit.score * (el.score.to_f32() / 100.0);
-                if options.explain {
+                if options.is_explain() {
                     let vecco = res.explain.entry(el.id).or_insert_with(|| vec![]);
                     // vecco.push(format!("term score {:?} * anchor score {:?} to {:?}", hit.score, el.score.to_f32() / 100.0, final_score));
                     vecco.push(Explain::TermToAnchor {
@@ -542,7 +542,7 @@ pub fn resolve_token_hits_to_text_id(
 
             result.hits_scores.push(Hit::new(parent_id, max_score));
 
-            if options.explain {
+            if options.is_explain() {
                 // result.explain.insert(parent_id, vec![format!("max_score from token_hits score {:?}", max_score)]);
                 result.explain.insert(parent_id, vec![Explain::MaxTokenToTextId(max_score)]);
             }

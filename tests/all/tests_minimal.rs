@@ -27,7 +27,7 @@ fn test_minimal() {
         }
     });
 
-    let hits = search_testo_to_doc!(req).data;
+    let hits = search_request_json_to_doc!(req).data;
     assert_eq!(hits.len(), 1);
     assert_eq!(hits[0].doc["field"], "test");
 }
@@ -35,9 +35,11 @@ fn test_minimal() {
 #[test]
 fn test_minimal_with_filter_identity_column_test() {
     let req = json!({
-        "search": {
-            "terms":["test"],
-            "path": "field"
+        "search_req": {
+            "search": {
+                "terms":["test"],
+                "path": "field"
+            }
         },
         "filter":{
             "search": {
@@ -62,20 +64,22 @@ fn test_minimal_with_filter_identity_column_test() {
 fn test_minimal_or() {
     let req = json!({
         "or":[
-        {
-            "search": {
-                "terms":["test"],
-                "path": "field",
-            }
-        },{
-            "search": {
-                "terms":["test2"],
-                "path": "field",
-            }
-        }]
+                {
+                    "search": {
+                        "terms":["test"],
+                        "path": "field",
+                    }
+                },{
+                    "search": {
+                        "terms":["test2"],
+                        "path": "field",
+                    }
+                }
+            ]
+            
     });
 
-    let hits = search_testo_to_doc!(req).data;
+    let hits = search_request_json_to_doc!(req).data;
     assert_eq!(hits.len(), 1);
     assert_eq!(hits[0].doc["field"], "test");
 }

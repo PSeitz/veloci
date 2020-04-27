@@ -376,7 +376,7 @@ pub fn join_to_parent_ids(persistence: &Persistence, input: &SearchFieldResult, 
     let mut hits = Vec::with_capacity(num_hits);
     let kv_store = persistence.get_valueid_to_parent(path)?;
 
-    let should_explain = input.request.explain;
+    let should_explain = input.request.is_explain();
 
     let mut explain_hits: FnvHashMap<u32, Vec<Explain>> = FnvHashMap::default();
 

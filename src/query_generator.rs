@@ -159,7 +159,8 @@ pub fn search_query(persistence: &Persistence, mut opt: SearchQueryGeneratorPara
     let query_ast = parser::query_parser::parse(&opt.search_term).unwrap().0;
     let terms: Vec<String> = terms_for_phrase_from_ast(&query_ast).iter().map(|el| el.to_string()).collect();
     info!("Terms for Phrase{:?}", terms);
-    let mut request = ast_to_request::ast_to_request(query_ast, &all_search_fields, &opt)?;
+    let mut request = Request::default();
+    request.search_req = Some(ast_to_request::ast_to_request(query_ast, &all_search_fields, &opt)?);
 
     let facetlimit = opt.facetlimit;
 

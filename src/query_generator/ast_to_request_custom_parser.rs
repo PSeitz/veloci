@@ -1,11 +1,13 @@
 
+use crate::search::request::search_request::SearchTree;
+use crate::search::request::search_request::SearchRequest;
 use crate::query_generator::*;
-use crate::search::request::Request;
+
 use crate::error::VelociError;
 use custom_parser;
 use custom_parser::ast::{Operator, UserAST};
 #[allow(dead_code)]
-pub(crate) fn ast_to_request(query_ast: UserAST<'_, '_>, all_fields: &[String], opt: &SearchQueryGeneratorParameters) -> Result<Request, VelociError> {
+pub(crate) fn ast_to_search_request(query_ast: UserAST<'_, '_>, all_fields: &[String], opt: &SearchQueryGeneratorParameters) -> Result<SearchRequest, VelociError> {
     // let mut query_ast = query_ast.simplify();
     filter_stopwords(&query_ast, opt);
     let query_ast = expand_fields_in_query_ast(query_ast, all_fields)?;
@@ -14,19 +16,13 @@ pub(crate) fn ast_to_request(query_ast: UserAST<'_, '_>, all_fields: &[String], 
     // unreachable!()
 }
 #[allow(dead_code)]
-fn query_ast_to_request<'a>(ast: &UserAST<'_, '_>, opt: &SearchQueryGeneratorParameters, field_name: Option<&'a str>) -> Request {
+fn query_ast_to_request<'a>(ast: &UserAST<'_, '_>, opt: &SearchQueryGeneratorParameters, field_name: Option<&'a str>) -> SearchRequest {
     match ast {
         UserAST::BinaryClause(ast1, op, ast2) => {
-            let subqueries = [ast1, ast2].iter().map(|ast| query_ast_to_request(ast, opt, field_name)).collect();
+            let queries = [ast1, ast2].iter().map(|ast| query_ast_to_request(ast, opt, field_name)).collect();
             match op {
-                Operator::And => Request {
-                    and: Some(subqueries),
-                    ..Default::default()
-                },
-                Operator::Or => Request {
-                    or: Some(subqueries),
-                    ..Default::default()
-                },
+                Operator::And => SearchRequest::And(SearchTree{queries, options: Default::default()}),
+                Operator::Or => SearchRequest::Or(SearchTree{queries, options: Default::default()}),
             }
         }
         UserAST::Attributed(attr, ast) => {
@@ -55,12 +51,13 @@ fn query_ast_to_request<'a>(ast: &UserAST<'_, '_>, opt: &SearchQueryGeneratorPar
                 starts_with: Some(starts_with),
                 ..Default::default()
             };
-            Request {
-                search: Some(part),
-                why_found: opt.why_found.unwrap_or(false),
-                text_locality: opt.text_locality.unwrap_or(false),
-                ..Default::default()
-            }
+            SearchRequest::Search(part)
+            // Request {
+            //     search: Some(part),
+            //     why_found: opt.why_found.unwrap_or(false),
+            //     text_locality: opt.text_locality.unwrap_or(false),
+            //     ..Default::default()
+            // }
         }
     }
 }
@@ -138,7 +135,7 @@ fn filter_stopwords<'a, 'b>(query_ast: &'a custom_parser::ast::UserAST<'a, 'a>, 
 
 
 #[bench]
-fn bench_custom_parse_to_request(b: &mut test::Bencher) {
+fn bench_query_custom_parse_to_request(b: &mut test::Bencher) {
     let fields = vec![
         "Title".to_string(),
         "Author".to_string(),
@@ -158,7 +155,7 @@ fn bench_custom_parse_to_request(b: &mut test::Bencher) {
     ];
     b.iter(|| {
         let query_ast = custom_parser::parse("die drei fragezeigen und das unicorn").unwrap();
-        ast_to_request(query_ast, &fields, &SearchQueryGeneratorParameters::default()).unwrap()
+        ast_to_search_request(query_ast, &fields, &SearchQueryGeneratorParameters::default()).unwrap()
     })
 }
 

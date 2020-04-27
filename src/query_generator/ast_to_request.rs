@@ -1,7 +1,8 @@
 
+use crate::search::request::search_request::SearchTree;
 use ordered_float::OrderedFloat;
 use crate::search::request::search_request::RequestSearchPart;
-use crate::search::request::Request;
+
 use crate::query_generator::{get_levenshteinn, check_field, SearchQueryGeneratorParameters};
 use crate::error::VelociError;
 use parser;
@@ -9,8 +10,9 @@ use parser::query_parser::{Operator, UserAST, UserFilter};
 use crate::{
     search::{stopwords},
 };
+use crate::search::request::search_request::SearchRequest;
 
-pub(crate) fn ast_to_request(query_ast: UserAST, all_fields: &[String], opt: &SearchQueryGeneratorParameters) -> Result<Request, VelociError> {
+pub(crate) fn ast_to_request(query_ast: UserAST, all_fields: &[String], opt: &SearchQueryGeneratorParameters) -> Result<SearchRequest, VelociError> {
     let mut query_ast = query_ast.simplify();
     filter_stopwords(&mut query_ast, opt);
     query_ast = expand_fields_in_query_ast(query_ast, all_fields)?;
@@ -18,19 +20,13 @@ pub(crate) fn ast_to_request(query_ast: UserAST, all_fields: &[String], opt: &Se
     Ok(query_ast_to_request(query_ast, opt))
 }
 
-fn query_ast_to_request(ast: UserAST, opt: &SearchQueryGeneratorParameters) -> Request {
+fn query_ast_to_request(ast: UserAST, opt: &SearchQueryGeneratorParameters) -> SearchRequest {
     match ast {
-        UserAST::Clause(op, subqueries) => {
-            let subqueries = subqueries.into_iter().map(|ast| query_ast_to_request(ast, opt)).collect();
+        UserAST::Clause(op, queries) => {
+            let queries = queries.into_iter().map(|ast| query_ast_to_request(ast, opt)).collect();
             match op {
-                Operator::And => Request {
-                    and: Some(subqueries),
-                    ..Default::default()
-                },
-                Operator::Or => Request {
-                    or: Some(subqueries),
-                    ..Default::default()
-                },
+                Operator::And => SearchRequest::And(SearchTree{queries, options:Default::default()}),
+                Operator::Or =>  SearchRequest::Or(SearchTree{queries, options:Default::default()}),
             }
         }
         UserAST::Leaf(filter) => {
@@ -55,12 +51,13 @@ fn query_ast_to_request(ast: UserAST, opt: &SearchQueryGeneratorParameters) -> R
                 starts_with: Some(starts_with),
                 ..Default::default()
             };
-            Request {
-                search: Some(part),
-                why_found: opt.why_found.unwrap_or(false),
-                text_locality: opt.text_locality.unwrap_or(false),
-                ..Default::default()
-            }
+            SearchRequest::Search(part)
+            // Request {
+            //     search: Some(part),
+            //     why_found: opt.why_found.unwrap_or(false),
+            //     text_locality: opt.text_locality.unwrap_or(false),
+            //     ..Default::default()
+            // }
         }
     }
 }

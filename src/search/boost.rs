@@ -197,7 +197,7 @@ pub(crate) fn apply_boost_term(persistence: &Persistence, mut res: SearchFieldRe
 pub(crate) fn apply_boost_from_iter(mut results: SearchFieldResult, mut boost_iter: &mut dyn Iterator<Item = Hit>) -> SearchFieldResult {
     let mut explain = FnvHashMap::default();
     mem::swap(&mut explain, &mut results.explain);
-    let should_explain = results.request.explain;
+    let should_explain = results.request.is_explain();
     {
         let mut move_boost = |hit: &mut Hit, hit_curr: &mut Hit, boost_iter: &mut dyn Iterator<Item = Hit>| {
             //Forward the boost iterator and look for matches
@@ -255,7 +255,7 @@ fn test_apply_boost_from_iter() {
 pub(crate) fn apply_boost_values_anchor(results: &mut SearchFieldResult, boost: &RequestBoostPart, mut boost_iter: &mut dyn Iterator<Item = Hit>) -> Result<(), VelociError> {
     let boost_param = boost.param.map(|el| el.into_inner()).unwrap_or(0.0);
     let expre = boost.expression.as_ref().map(|expression| ScoreExpression::new(expression.clone()));
-    let mut explain = if results.request.explain { Some(&mut results.explain) } else { None };
+    let mut explain = if results.request.is_explain() { Some(&mut results.explain) } else { None };
     {
         if let Some(yep) = boost_iter.next() {
             let mut hit_curr = yep;
@@ -469,7 +469,7 @@ pub(crate) fn add_boost(persistence: &Persistence, boost: &RequestBoostPart, hit
         .map(|vecco| vecco.iter().map(|el| el.into_inner()).collect())
         .unwrap_or(default);
 
-    let mut explain = if hits.request.explain { Some(&mut hits.explain) } else { None };
+    let mut explain = if hits.request.is_explain() { Some(&mut hits.explain) } else { None };
     for hit in &mut hits.hits_scores {
         if !skip_when_score.is_empty() && skip_when_score.iter().any(|x| (*x - hit.score).abs() < 0.00001) {
             // float comparisons should usually include a error margin
