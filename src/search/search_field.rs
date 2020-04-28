@@ -66,7 +66,7 @@ where
         lev_automaton_builder.build_dfa(&options.terms[0], options.ignore_case.unwrap_or(true))
     };
 
-    let hits = if options.starts_with.unwrap_or(false) {
+    let hits = if options.starts_with {
         let stream = map.search(lev.starts_with()).into_stream();
         stream.into_str_vec()?
     } else {
@@ -225,7 +225,7 @@ pub fn get_term_ids_in_field(persistence: &Persistence, options: &mut PlanReques
 
         let dfa = lev_automaton_builder.build_dfa(&lower_term, false);
         // let search_term_length = &lower_term.chars.count();
-        let should_check_prefix_match = options.request.starts_with.unwrap_or(false) || options.request.levenshtein_distance.unwrap_or(0) != 0;
+        let should_check_prefix_match = options.request.starts_with || options.request.levenshtein_distance.unwrap_or(0) != 0;
 
         let teh_callback = |text_or_token: String, token_text_id: u32| {
             trace!("Checking {} with {}", text_or_token, text_or_token);

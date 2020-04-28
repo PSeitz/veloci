@@ -268,12 +268,11 @@ pub fn suggest_query(
         .iter()
         .map(|field_name| {
             let levenshtein_distance = levenshtein.unwrap_or_else(|| get_default_levenshtein(request, levenshtein_auto_limit.unwrap_or(1), true));
-            let starts_with = Some(true);
             RequestSearchPart {
                 path: field_name.to_string(),
                 terms: vec![request.to_string()],
                 levenshtein_distance: Some(levenshtein_distance as u32),
-                starts_with,
+                starts_with: true,
                 top,
                 skip,
                 ..Default::default()

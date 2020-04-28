@@ -123,6 +123,9 @@ pub struct SearchRequestOptions {
     pub boost: Option<Vec<RequestBoostPart>>,
 }
 
+fn is_false(val: &bool) -> bool {
+    *val == false
+}
 
 /// Searching on a field, TODO rename
 #[derive(Serialize, Deserialize, Default, Clone, Debug, Hash, PartialEq, Eq, PartialOrd)]
@@ -133,8 +136,9 @@ pub struct RequestSearchPart {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub levenshtein_distance: Option<u32>,
 
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub starts_with: Option<bool>,
+    #[serde(skip_serializing_if = "is_false")]
+    #[serde(default)]
+    pub starts_with: bool,
 
     /// TODO document
     #[serde(skip_serializing_if = "Option::is_none")]

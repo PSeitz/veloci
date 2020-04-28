@@ -48,7 +48,7 @@ fn query_ast_to_request<'a>(ast: &UserAST<'_, '_>, opt: &SearchQueryGeneratorPar
                 levenshtein_distance,
                 path: field_name.to_string(),
                 terms: vec![term.to_string()],
-                starts_with: Some(starts_with),
+                starts_with: starts_with,
                 ..Default::default()
             };
             SearchRequest::Search(part)

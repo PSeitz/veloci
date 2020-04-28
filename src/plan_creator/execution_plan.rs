@@ -43,24 +43,57 @@ pub struct PlanRequestSearchPart {
     pub return_term_lowercase: bool,
 }
 
-fn get_all_field_request_parts_and_propagate_settings<'a>(header_request: &'a Request, request: &'a mut SearchRequest, map: &mut FnvHashSet<&'a mut RequestSearchPart>) {
-    request.get_options_mut().explain |= header_request.explain;
+// fn propagate_settings<'a>(header_request: &'a Request, request: &'a mut Request) {
+//     // TODO enable explain on phrase
+//     if let Some(phrase_boosts) = request.phrase_boosts.as_mut() {
+//         for el in phrase_boosts {
+//             //propagate explain
+//             el.search1.options.explain |= header_request.explain;
+//             el.search2.options.explain |= header_request.explain;
+//         }
+//     }
 
-    // TODO enable explain on phrase
-    // if let Some(phrase_boosts) = header_request.phrase_boosts.as_mut() {
-    //     for el in phrase_boosts {
-    //         //propagate explain
-    //         el.search1.options.explain |= header_request.explain;
-    //         el.search2.options.explain |= header_request.explain;
-    //         map.insert(&mut el.search1);
-    //         map.insert(&mut el.search2);
-    //     }
-    // }
+//     propagate_settings_to_search_req(header_request, request.search_req.as_mut().unwrap());
+// }
+// fn propagate_settings_to_search_req<'a>(header_request: &'a Request, request: &'a mut SearchRequest) {
+//     match request {
+//         SearchRequest::And(SearchTree{queries, options: _}) | SearchRequest::Or(SearchTree{queries, options: _}) => {
+//             for el in queries {
+//                 propagate_settings_to_search_req(header_request, el);
+//             }
+//         },
+//         SearchRequest::Search(search) => {
+//             search.options.explain |= header_request.explain;
+//         },
+//     }
+// }
+
+
+/// To three parts are settings propagates currently, the search request, the phrase boosts, and the filter query
+fn get_all_field_request_parts_and_propagate_settings<'a>(header_request: &'a Request, request: &'a mut Request, map: &mut FnvHashSet<&'a mut RequestSearchPart>) {
+    if let Some(phrase_boosts) = request.phrase_boosts.as_mut() {
+        for el in phrase_boosts.iter_mut() {
+            el.search1.options.explain |= header_request.explain;
+            el.search2.options.explain |= header_request.explain;
+            map.insert(&mut el.search1);
+            map.insert(&mut el.search2);
+        }
+    }
+
+    if let Some(filter) = request.filter.as_mut() {
+        get_all_field_request_parts_and_propagate_settings_to_search_req(header_request, filter, map);
+    };
+
+    get_all_field_request_parts_and_propagate_settings_to_search_req(header_request, request.search_req.as_mut().unwrap(), map);
+}
+
+fn get_all_field_request_parts_and_propagate_settings_to_search_req<'a>(header_request: &'a Request, request: &'a mut SearchRequest, map: &mut FnvHashSet<&'a mut RequestSearchPart>) {
+    request.get_options_mut().explain |= header_request.explain;
 
     match request {
         SearchRequest::And(SearchTree{queries, options: _}) | SearchRequest::Or(SearchTree{queries, options: _}) => {
             for el in queries {
-                get_all_field_request_parts_and_propagate_settings(header_request, el, map);
+                get_all_field_request_parts_and_propagate_settings_to_search_req(header_request, el, map);
             }
         },
         SearchRequest::Search(search) => {
@@ -69,20 +102,13 @@ fn get_all_field_request_parts_and_propagate_settings<'a>(header_request: &'a Re
         },
     }
 
-    // if let Some(and_or) = request.and.as_mut().or(request.or.as_mut()) {
-    //     for el in and_or {
-    //         get_all_field_request_parts_and_propagate_settings(header_request, el, map);
-    //     }
-    // }
-    // if let Some(search) = request.search.as_mut() {
-    //     //propagate explain
-    //     search.explain |= header_request.explain;
-    //     map.insert(search);
-    // }
 }
 
-/// add first we collect all searches on the fields (virtually the leaf nodes in the execution plan) to avoid duplicate searches. This could also be done a tree level.
-fn collect_all_field_request_into_cache(header_request: &Request, request: &mut SearchRequest, field_search_cache: &mut FieldRequestCache, plan: &mut Plan, ids_only: bool) {
+/// add first we collect all searches on the fields (virtually the leaf nodes in the execution plan) to avoid duplicate searches. This could also be done on a tree level.
+/// 
+/// The function also propagates settings before collecting requests, because this changes the equality. This should be probably done seperately.
+///
+fn collect_all_field_request_into_cache(header_request: &Request, request: &mut Request, field_search_cache: &mut FieldRequestCache, plan: &mut Plan, ids_only: bool) {
     let mut field_requests = FnvHashSet::default();
     get_all_field_request_parts_and_propagate_settings(header_request, request, &mut field_requests);
     for request_part in field_requests {
@@ -108,13 +134,41 @@ fn collect_all_field_request_into_cache(header_request: &Request, request: &mut 
     }
 }
 
+// fn create_search_field_cache(field_requests: FnvHashSet<&'a mut RequestSearchPart>, plan: &mut Plan, ids_only: bool) -> FieldRequestCache {
+//     let mut field_search_cache = FnvHashMap::default();
+//     for request_part in field_requests {
+//         // There could be the same query for filter and normal search, then we load scores and ids => TODO ADD TEST PLZ
+//         if let Some((_, field_search)) = field_search_cache.get_mut(&request_part) {
+//             field_search.req.get_ids |= ids_only;
+//             field_search.req.get_scores |= !ids_only;
+//             continue; // else doesn't work because field_search borrow scope expands else
+//         }
+//         let plan_request_part = PlanRequestSearchPart {
+//             request: request_part.clone(),
+//             get_scores: !ids_only,
+//             get_ids: ids_only,
+//             ..Default::default()
+//         };
+//         let field_search = PlanStepFieldSearchToTokenIds {
+//             req: plan_request_part,
+//             channel: PlanStepDataChannels::open_channel(0, vec![]),
+//         };
+//         let step_id = plan.add_step(Box::new(field_search.clone())); // this is actually only a placeholder in the plan, will be replaced with the data from the field_search_cache after plan creation
+
+//         field_search_cache.insert(request_part.clone(), (step_id, field_search));
+//     }
+//     field_search_cache
+// }
+
+
 pub fn plan_creator(mut request: Request, plan: &mut Plan) {
     let request_header = request.clone();
+    // propagate_settings(&request_header, &mut request);
     let mut field_search_cache = FnvHashMap::default();
-    collect_all_field_request_into_cache(&request_header, &mut request.search_req.as_mut().unwrap(), &mut field_search_cache, plan, false);
+    collect_all_field_request_into_cache(&request_header, &mut request, &mut field_search_cache, plan, false);
 
     let filter_final_step_id: Option<PlanStepId> = if let Some(filter) = request.filter.as_mut() {
-        collect_all_field_request_into_cache(&request_header, filter, &mut field_search_cache, plan, true);
+        // collect_all_field_request_into_cache(&request_header, filter, &mut field_search_cache, plan, true);
         let final_output_filter = plan_creator_2(true, true, None, &request_header, &*filter, vec![], plan, None, None, &mut field_search_cache);
         Some(final_output_filter)
     } else {

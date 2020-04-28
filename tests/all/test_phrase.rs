@@ -39,7 +39,7 @@ lazy_static! {
 #[test]
 fn should_boost_phrase() {
     let req = json!({
-        "search": {"terms":["erbin"], "path": "title"},
+        "search_req": { "search": {"terms":["erbin"], "path": "title"}},
         "phrase_boosts": [{
             "path":"title",
             "search1":{"terms":["die"], "path": "title"},
