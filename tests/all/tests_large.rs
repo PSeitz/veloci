@@ -87,6 +87,7 @@ mod tests_large {
         let res = search_testo_to_doco_qp!(params);
         assert_eq!(res.num_hits, 600);
     }
+
     #[test]
     fn search_and_filter() {
         let mut params = query_generator::SearchQueryGeneratorParameters::default();

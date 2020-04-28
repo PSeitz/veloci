@@ -369,7 +369,7 @@ fn simple_search_explained() {
 fn or_query_explained() {
     let req = json!({
         "search_req": {
-            "or":{ 
+            "or":{
                 "queries": [
                     {"search": {
                         "terms":["majestät"],
@@ -401,7 +401,7 @@ fn test_float() {
         }
     });
 
-    let hits = search_testo_to_doc!(req).data;
+    let hits = search_request_json_to_doc!(req).data;
     assert_eq!(hits.len(), 1);
     assert_eq!(hits[0].doc["float_value"], 5.123);
 }
@@ -415,7 +415,7 @@ fn test_bool() {
         }
     });
 
-    let hits = search_testo_to_doc!(req).data;
+    let hits = search_request_json_to_doc!(req).data;
     assert_eq!(hits.len(), 1);
     assert_eq!(hits[0].doc["my_bool"], true);
 }
@@ -428,19 +428,19 @@ fn should_return_an_error_when_trying_to_query_an_invalid_field() {
             "path": "notexisting"
         }
     });
-    let requesto: search::Request = serde_json::from_str(&req.to_string()).expect("Can't parse json");
+    let search_request: search::SearchRequest = serde_json::from_str(&req.to_string()).expect("Can't parse json");
+    let requesto = search::Request{search_req: Some(search_request), ..Default::default() };
     let hits = search_to_hits!(requesto);
-
     assert_eq!(format!("{}", hits.unwrap_err()), "field does not exist notexisting.textindex (fst not found)".to_string())
 }
 
 #[test]
 fn select_fields() {
     let req = json!({
-        "search": {
+        "search_req": { "search": {
             "terms":["urge"],
             "path": "meanings.eng[]"
-        },
+        }},
         "select": ["ent_seq", "tags[]"]
     });
 
@@ -461,7 +461,7 @@ fn two_tokens_h_test_fn_the_same_anchor() {
         }
     });
 
-    let hits = search_testo_to_doc!(req).data;
+    let hits = search_request_json_to_doc!(req).data;
     assert_eq!(hits.len(), 1);
     assert_eq!(hits[0].doc["ent_seq"], "1587680");
 }
@@ -476,7 +476,7 @@ fn deep_structured_objects() {
         }
     });
 
-    let hits = search_testo_to_doc!(req).data;
+    let hits = search_request_json_to_doc!(req).data;
     assert_eq!(hits.len(), 1);
     assert_eq!(hits[0].doc["id"], 123456);
 }
@@ -490,7 +490,7 @@ fn should_search_without_first_char_exact_match() {
             "levenshtein_distance": 1
         }
     });
-    let hits = search_testo_to_doc!(req).data;
+    let hits = search_request_json_to_doc!(req).data;
     assert_eq!(hits.len(), 1);
     assert_eq!(hits[0].doc["ent_seq"], "1587680");
 }
@@ -504,18 +504,18 @@ fn should_prefer_exact_matches_to_tokenmatches() {
             "levenshtein_distance": 1
         }
     });
-    let wa = search_testo_to_doc!(req).data;
+    let wa = search_request_json_to_doc!(req).data;
     assert_eq!(wa[0].doc["meanings"]["eng"][0], "will");
 }
 
 #[test]
 fn should_prefer_exact_tokenmatches_to_fuzzy_text_hits() {
     let req = json!({
-        "search": {
+        "search_req": { "search": {
             "terms":["karl"],
             "path": "meanings.eng[]",
             "levenshtein_distance": 1
-        },
+        }},
         "explain":true
     });
     let wa = search_testo_to_doc!(req).data;
@@ -542,7 +542,7 @@ fn should_search_word_non_tokenized() {
         }
     });
 
-    let hits = search_testo_to_doc!(req).data;
+    let hits = search_request_json_to_doc!(req).data;
     assert_eq!(hits.len(), 1);
     assert_eq!(hits[0].doc["ent_seq"], "1587680");
 }
@@ -556,7 +556,7 @@ fn should_check_disabled_tokenization() {
         }
     });
 
-    let hits = search_testo_to_doc!(req).data;
+    let hits = search_request_json_to_doc!(req).data;
     assert_eq!(hits.len(), 0);
 }
 
@@ -569,20 +569,21 @@ fn should_search_on_non_subobject() {
         }
     });
 
-    let hits = search_testo_to_doc!(req).data;
+    let hits = search_request_json_to_doc!(req).data;
     assert_eq!(hits.len(), 1);
 }
 
 #[test]
 fn and_connect_hits_same_field() {
     let req = json!({
-        "and":[
+        "and":{
+            "queries":[
             {"search": {"terms":["aussehen"],       "path": "meanings.ger[]"}},
             {"search": {"terms":["majestätisches"], "path": "meanings.ger[]"}}
-        ]
+        ]}
     });
 
-    let hits = search_testo_to_doc!(req).data;
+    let hits = search_request_json_to_doc!(req).data;
     assert_eq!(hits.len(), 1);
     assert_eq!(hits[0].doc["ent_seq"], "1587680");
 }
@@ -590,13 +591,14 @@ fn and_connect_hits_same_field() {
 #[test]
 fn and_connect_hits_different_fields() {
     let req = json!({
-        "and":[
+        "and":{
+            "queries":[
             {"search": {"terms":["majestät"], "path": "meanings.ger[]"}},
             {"search": {"terms":["majestic"], "path": "meanings.eng[]"}}
-        ]
+        ]}
     });
 
-    let hits = search_testo_to_doc!(req).data;
+    let hits = search_request_json_to_doc!(req).data;
     assert_eq!(hits.len(), 1);
     assert_eq!(hits[0].doc["ent_seq"], "1587680");
 }
@@ -604,7 +606,8 @@ fn and_connect_hits_different_fields() {
 #[test]
 fn and_connect_hits_different_fields_no_hit() {
     let req = json!({
-        "and":[
+        "and":{
+            "queries":[
             {"search": {
                 "terms":["majestät"],
                 "path": "meanings.ger[]"
@@ -613,17 +616,18 @@ fn and_connect_hits_different_fields_no_hit() {
                 "terms":["urge"],
                 "path": "meanings.eng[]"
             }}
-        ]
+        ]}
     });
 
-    let hits = search_testo_to_doc!(req).data;
+    let hits = search_request_json_to_doc!(req).data;
     assert_eq!(hits.len(), 0);
 }
 
 #[test]
 fn and_connect_hits_different_fields_same_text_alle_meine_words_appears_again() {
     let req = json!({
-        "and":[
+        "and":{
+            "queries":[
             {"search": {
                 "terms":["words"],
                 "path": "meanings.ger[]"
@@ -632,10 +636,10 @@ fn and_connect_hits_different_fields_same_text_alle_meine_words_appears_again() 
                 "terms":["1000"],
                 "path": "ent_seq"
             }}
-        ]
+        ]}
     });
 
-    let hits = search_testo_to_doc!(req).data;
+    let hits = search_request_json_to_doc!(req).data;
     assert_eq!(hits.len(), 1);
     assert_eq!(hits[0].doc["ent_seq"], "1000");
 }
@@ -643,7 +647,7 @@ fn and_connect_hits_different_fields_same_text_alle_meine_words_appears_again() 
 #[test]
 fn or_connect_hits_with_top() {
     let req = json!({
-        "or":[
+        "or":{"queries":[
             {"search": {
                 "terms":["majestät"],
                 "path": "meanings.ger[]"
@@ -652,11 +656,11 @@ fn or_connect_hits_with_top() {
                 "terms":["urge"],
                 "path": "meanings.eng[]"
             }}
-        ],
+        ]},
         "top":1
     });
 
-    let hits = search_testo_to_doc!(req).data;
+    let hits = search_request_json_to_doc!(req).data;
     assert_eq!(hits[0].doc["ent_seq"], "1587690");
     assert_eq!(hits.len(), 1);
 }
@@ -664,7 +668,7 @@ fn or_connect_hits_with_top() {
 #[test]
 fn or_connect_hits() {
     let req = json!({
-        "or":[
+        "or":{"queries":[
             {"search": {
                 "terms":["majestät"],
                 "path": "meanings.ger[]"
@@ -673,10 +677,10 @@ fn or_connect_hits() {
                 "terms":["urge"],
                 "path": "meanings.eng[]"
             }}
-        ]
+        ]}
     });
 
-    let hits = search_testo_to_doc!(req).data;
+    let hits = search_request_json_to_doc!(req).data;
     assert_eq!(hits[0].doc["ent_seq"], "1587690");
     assert_eq!(hits.len(), 2);
 }
@@ -684,10 +688,10 @@ fn or_connect_hits() {
 #[test]
 fn simple_search_and_connect_hits_with_filter() {
     let req = json!({
-        "search": {
+        "search_req": { "search": {
             "terms":["urge"],
             "path": "meanings.eng[]"
-        },
+        }},
         "filter":{
             "search": {
                 "terms":["1587690"],
@@ -703,7 +707,7 @@ fn simple_search_and_connect_hits_with_filter() {
 #[test]
 fn or_connect_hits_with_filter() {
     let req = json!({
-        "or":[
+        "search_req": { "or":[
             {"search": {
                 "terms":["majestät"],
                 "path": "meanings.ger[]"
@@ -712,7 +716,7 @@ fn or_connect_hits_with_filter() {
                 "terms":["urge"],
                 "path": "meanings.eng[]"
             }}
-        ],
+        ]},
         "filter":{
             "search": {
                 "terms":["1587690"],
@@ -728,7 +732,7 @@ fn or_connect_hits_with_filter() {
 #[test]
 fn or_connect_hits_with_filter_reuse_query() {
     let req = json!({
-        "or":[
+        "or":{ "queries": [
             {"search": {
                 "terms":["majestät"],
                 "path": "meanings.ger[]"
@@ -737,7 +741,7 @@ fn or_connect_hits_with_filter_reuse_query() {
                 "terms":["urge"],
                 "path": "meanings.eng[]"
             }}
-        ],
+        ]},
         "filter":{
             "search": {
                 "terms":["urge"],
@@ -753,10 +757,10 @@ fn or_connect_hits_with_filter_reuse_query() {
 #[test]
 fn should_find_2_values_from_token() {
     let req = json!({
-        "search": {
+        "search_req": { "search": {
             "terms":["意慾"],
             "path": "kanji[].text"
-        }
+        }}
     });
 
     let hits = search_testo_to_doc!(req).data;
@@ -766,10 +770,10 @@ fn should_find_2_values_from_token() {
 #[test]
 fn should_search_and_boosto() {
     let req = json!({
-        "search": {
+        "search_req": { "search": {
             "terms":["意慾"],
             "path": "kanji[].text"
-        },
+        }},
         "boost" : [{
             "path":"kanji[].commonness",
             "boost_fun": "Log10",
@@ -784,10 +788,10 @@ fn should_search_and_boosto() {
 #[test]
 fn should_search_and_double_boost() {
     let req = json!({
-        "search": {
+        "search_req": { "search": {
             "terms":["awesome"],
             "path": "field1[].text"
-        },
+        }},
         "boost" : [{
             "path":"commonness",
             "boost_fun": "Log10",
@@ -807,12 +811,12 @@ fn should_search_and_double_boost() {
 #[test]
 fn should_search_and_boost_anchor() {
     let req = json!({
-        "search": {
+        "search_req": { "search": {
             "terms":["意慾"],
             "path": "kanji[].text",
             "levenshtein_distance": 0,
             "firstCharExactMatch":true
-        },
+        }},
         "boost" : [{
             "path":"commonness",
             "boost_fun": "Log10",
@@ -827,7 +831,8 @@ fn should_search_and_boost_anchor() {
 #[test]
 fn should_or_connect_search_and_boost_anchor() {
     let req = json!({
-        "or":[
+        "or":{
+            "queries": [
             {
                 "search": {
                     "terms":["awesome"],
@@ -850,17 +855,18 @@ fn should_or_connect_search_and_boost_anchor() {
                     "param": 1
                 }]
             }
-        ]
+        ]}
     });
 
-    let hits = search_testo_to_doc!(req).data;
+    let hits = search_request_json_to_doc!(req).data;
     assert_eq!(hits[0].doc["commonness"], 20);
 }
 
 #[test]
 fn should_or_connect_same_search() {
     let req = json!({
-        "or":[
+        "or":{
+            "queries": [
             {
                 "search": {
                     "terms":["awesome"],
@@ -873,10 +879,10 @@ fn should_or_connect_same_search() {
                     "path": "field1[].text"
                 }
             }
-        ]
+        ]}
     });
 
-    let hits = search_testo_to_doc!(req).data;
+    let hits = search_request_json_to_doc!(req).data;
     assert_eq!(hits[0].doc["commonness"], 551);
     assert_eq!(hits.len(), 2);
 }
