@@ -1,11 +1,13 @@
-
-use crate::search::request::search_request::SearchTree;
-use crate::search::request::search_request::SearchRequest;
-use crate::query_generator::*;
+use crate::{
+    query_generator::*,
+    search::request::search_request::{SearchRequest, SearchTree},
+};
 
 use crate::error::VelociError;
-use custom_parser;
-use custom_parser::ast::{Operator, UserAST};
+use custom_parser::{
+    self,
+    ast::{Operator, UserAST},
+};
 #[allow(dead_code)]
 pub(crate) fn ast_to_search_request(query_ast: &UserAST<'_, '_>, all_fields: &[String], opt: &SearchQueryGeneratorParameters) -> Result<SearchRequest, VelociError> {
     // let mut query_ast = query_ast.simplify();
@@ -21,13 +23,17 @@ fn query_ast_to_request<'a>(ast: &UserAST<'_, '_>, opt: &SearchQueryGeneratorPar
         UserAST::BinaryClause(ast1, op, ast2) => {
             let queries = [ast1, ast2].iter().map(|ast| query_ast_to_request(ast, opt, field_name)).collect();
             match op {
-                Operator::And => SearchRequest::And(SearchTree{queries, options: Default::default()}),
-                Operator::Or => SearchRequest::Or(SearchTree{queries, options: Default::default()}),
+                Operator::And => SearchRequest::And(SearchTree {
+                    queries,
+                    options: Default::default(),
+                }),
+                Operator::Or => SearchRequest::Or(SearchTree {
+                    queries,
+                    options: Default::default(),
+                }),
             }
         }
-        UserAST::Attributed(attr, ast) => {
-            query_ast_to_request(ast, opt, Some(attr))
-        }
+        UserAST::Attributed(attr, ast) => query_ast_to_request(ast, opt, Some(attr)),
         UserAST::Leaf(filter) => {
             let field_name: &str = field_name.as_ref().unwrap();
             let mut term = filter.phrase;
@@ -35,7 +41,7 @@ fn query_ast_to_request<'a>(ast: &UserAST<'_, '_>, opt: &SearchQueryGeneratorPar
             let starts_with = term.ends_with("*");
             if term.ends_with("*") {
                 // term.pop();
-                term = &term[..term.len()-1];
+                term = &term[..term.len() - 1];
             }
             let levenshtein_distance = if let Some(levenshtein) = filter.levenshtein {
                 Some(u32::from(levenshtein))
@@ -44,7 +50,7 @@ fn query_ast_to_request<'a>(ast: &UserAST<'_, '_>, opt: &SearchQueryGeneratorPar
             };
 
             let part = RequestSearchPart {
-                boost: opt.boost_fields.as_ref().and_then(|boost|boost.get(field_name).map(|el| OrderedFloat(*el))),
+                boost: opt.boost_fields.as_ref().and_then(|boost| boost.get(field_name).map(|el| OrderedFloat(*el))),
                 levenshtein_distance,
                 path: field_name.to_string(),
                 terms: vec![term.to_string()],
@@ -63,29 +69,26 @@ fn query_ast_to_request<'a>(ast: &UserAST<'_, '_>, opt: &SearchQueryGeneratorPar
 }
 
 #[allow(dead_code)]
-fn expand_fields_in_query_ast<'a,'b>(ast: &UserAST<'b, 'a>, all_fields: &'a [String]) -> Result<UserAST<'b, 'a>, VelociError> {
+fn expand_fields_in_query_ast<'a, 'b>(ast: &UserAST<'b, 'a>, all_fields: &'a [String]) -> Result<UserAST<'b, 'a>, VelociError> {
     match ast {
-        UserAST::BinaryClause(ast1, op, ast2) => {
-            Ok(UserAST::BinaryClause(expand_fields_in_query_ast(ast1, all_fields)?.into(), *op, expand_fields_in_query_ast(ast2, all_fields)?.into()))
-        }
+        UserAST::BinaryClause(ast1, op, ast2) => Ok(UserAST::BinaryClause(
+            expand_fields_in_query_ast(ast1, all_fields)?.into(),
+            *op,
+            expand_fields_in_query_ast(ast2, all_fields)?.into(),
+        )),
         UserAST::Leaf(_) => {
             let mut field_iter = all_fields.iter();
-            let mut curr_ast = field_iter.next().map(|field_name|UserAST::Attributed(
-                field_name,
-                Box::new(ast.clone())
-            )).unwrap();
+            let mut curr_ast = field_iter.next().map(|field_name| UserAST::Attributed(field_name, Box::new(ast.clone()))).unwrap();
 
             for field_name in field_iter {
-                let next_ast = UserAST::Attributed(
-                    field_name,
-                    Box::new(ast.clone())
-                );
+                let next_ast = UserAST::Attributed(field_name, Box::new(ast.clone()));
                 curr_ast = UserAST::BinaryClause(next_ast.into(), Operator::Or, curr_ast.into());
             }
 
             Ok(curr_ast)
         }
-        UserAST::Attributed(field_name, _) => { // dont expand in UserAST::Attributed
+        UserAST::Attributed(field_name, _) => {
+            // dont expand in UserAST::Attributed
             check_field(field_name, &all_fields)?;
             Ok(ast.clone())
         }
@@ -98,7 +101,6 @@ fn expand_fields_in_query_ast<'a,'b>(ast: &UserAST<'b, 'a>, all_fields: &'a [Str
 //         UserAST::Leaf(filter) => vec![&filter.phrase],
 //     }
 // }
-
 
 //TODO should be field specific
 // fn filter_stopwords(query_ast: &mut UserAST<'_>, opt: &SearchQueryGeneratorParameters) -> bool {
@@ -118,22 +120,21 @@ fn expand_fields_in_query_ast<'a,'b>(ast: &UserAST<'b, 'a>, all_fields: &'a [Str
 // }
 #[allow(dead_code)]
 fn filter_stopwords<'a, 'b>(query_ast: &'a custom_parser::ast::UserAST<'a, 'a>, opt: &'b SearchQueryGeneratorParameters) -> Option<UserAST<'a, 'a>> {
-    let ast = query_ast.filter_ast(&mut |ast: &UserAST<'_,'_>, _attr: Option<&str>|  {
-            match ast {
-                UserAST::Leaf(filter) => {
-                    if let Some(languages) = opt.stopword_lists.as_ref() {
-                        languages.iter().any(|lang| stopwords::is_stopword(lang, &filter.phrase.to_lowercase()))
-                    } else {
-                        false
-                    }
+    let ast = query_ast.filter_ast(
+        &mut |ast: &UserAST<'_, '_>, _attr: Option<&str>| match ast {
+            UserAST::Leaf(filter) => {
+                if let Some(languages) = opt.stopword_lists.as_ref() {
+                    languages.iter().any(|lang| stopwords::is_stopword(lang, &filter.phrase.to_lowercase()))
+                } else {
+                    false
                 }
-                _ => false,
             }
-        }, None);
+            _ => false,
+        },
+        None,
+    );
     ast
 }
-
-
 
 #[bench]
 fn bench_query_custom_parse_to_request(b: &mut test::Bencher) {
@@ -160,7 +161,6 @@ fn bench_query_custom_parse_to_request(b: &mut test::Bencher) {
     })
 }
 
-
 #[bench]
 fn bench_custom_parse_expand_fields_in_query_ast(b: &mut test::Bencher) {
     let fields = vec![
@@ -186,8 +186,6 @@ fn bench_custom_parse_expand_fields_in_query_ast(b: &mut test::Bencher) {
     })
 }
 
-
-
 #[test]
 fn test_filter_stopwords() {
     let query_ast = custom_parser::parse("die erbin").unwrap();
@@ -198,11 +196,9 @@ fn test_filter_stopwords() {
     assert_eq!(query_ast, Some("erbin".into()));
 }
 
-
-
 #[test]
 fn test_field_expand() {
-    use custom_parser::ast::{UserFilter};
+    use custom_parser::ast::UserFilter;
     let fields = vec!["Title".to_string(), "Author[].name".to_string()];
     let ast = UserAST::Leaf(Box::new(UserFilter {
         phrase: "Fred",
@@ -211,11 +207,14 @@ fn test_field_expand() {
     let expanded_ast = expand_fields_in_query_ast(&ast, &fields).unwrap();
     assert_eq!(format!("{:?}", expanded_ast), "(Author[].name:\"Fred\" OR Title:\"Fred\")");
 
-    let ast =  UserAST::Attributed("Title", UserAST::Leaf(Box::new(UserFilter {
-        phrase: "Fred",
-        levenshtein: None,
-    })).into());
+    let ast = UserAST::Attributed(
+        "Title",
+        UserAST::Leaf(Box::new(UserFilter {
+            phrase: "Fred",
+            levenshtein: None,
+        }))
+        .into(),
+    );
     let expanded_ast = expand_fields_in_query_ast(&ast, &fields).unwrap();
     assert_eq!(format!("{:?}", expanded_ast), "Title:\"Fred\"");
 }
-

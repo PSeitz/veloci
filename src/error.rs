@@ -9,7 +9,7 @@ pub enum VelociError {
     StringError(String),
 
     #[fail(display = "InvalidRequest: {} ", _0)]
-    InvalidRequest { message: String},
+    InvalidRequest { message: String },
 
     #[fail(display = "Field {} not found in {:?}", _0, _1)]
     FieldNotFound { field: String, all_fields: Vec<String> },

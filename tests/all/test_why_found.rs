@@ -152,7 +152,6 @@ fn should_highlight_properly_when_complete_text_is_hit() {
     assert_eq!(hits[0].why_found["custom_tokenized"], vec!["<b><<cool>></b>"]);
 }
 
-
 #[test]
 fn should_highlight_properly_when_complete_text_is_hit_untokenized() {
     let req = json!({

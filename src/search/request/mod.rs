@@ -96,5 +96,3 @@ pub struct RequestPhraseBoost {
 // fn test_size() {
 //     assert_eq!(std::mem::size_of::<SearchRequest>(), 10);
 // }
-
-

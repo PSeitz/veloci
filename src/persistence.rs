@@ -19,8 +19,7 @@ use serde_json;
 use std::{
     self,
     collections::HashMap,
-    env,
-    fmt,
+    env, fmt,
     fmt::Debug,
     fs::{self, File},
     io::{self, prelude::*},
@@ -101,15 +100,14 @@ pub struct Persistence {
     pub term_boost_cache: RwLock<LruCache<Vec<RequestSearchPart>, Vec<SearchFieldResult>>>,
 }
 
-
 impl fmt::Debug for Persistence {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Persistence")
-         .field("db", &self.db)
-         .field("metadata", &self.metadata)
-         .field("persistence_type", &self.persistence_type)
-         .field("indices", &self.indices)
-         .finish()
+            .field("db", &self.db)
+            .field("metadata", &self.metadata)
+            .field("persistence_type", &self.persistence_type)
+            .field("indices", &self.indices)
+            .finish()
     }
 }
 
@@ -335,9 +333,7 @@ impl Persistence {
                             data: vec![],
                             metadata: el.metadata,
                         };
-                        self.indices
-                            .phrase_pair_to_anchor
-                            .insert(el.path.to_string(), Box::new(store));
+                        self.indices.phrase_pair_to_anchor.insert(el.path.to_string(), Box::new(store));
                         continue;
                     }
 
@@ -390,9 +386,7 @@ impl Persistence {
                             metadata: el.metadata,
                             ok: std::marker::PhantomData,
                         };
-                        self.indices
-                            .key_value_stores
-                            .insert(el.path.to_string(), Box::new(store));
+                        self.indices.key_value_stores.insert(el.path.to_string(), Box::new(store));
                         continue;
                     }
 
@@ -435,7 +429,8 @@ impl Persistence {
                                 store
                             }
                             IndexCardinality::IndexIdToOneParent => {
-                                let store: Box<dyn IndexIdToParent<Output = u32>> = Box::new(SingleArrayMMAPPacked::<u32>::from_file(&self.get_file_handle(&el.path)?, el.metadata)?);
+                                let store: Box<dyn IndexIdToParent<Output = u32>> =
+                                    Box::new(SingleArrayMMAPPacked::<u32>::from_file(&self.get_file_handle(&el.path)?, el.metadata)?);
                                 store
                             }
                         },

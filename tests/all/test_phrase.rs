@@ -54,7 +54,7 @@ fn should_boost_phrase() {
 #[test]
 fn should_boost_phrase_search_multifield() {
     let req = json!({
-        "search_req": { 
+        "search_req": {
             "or":{"queries": [
                             {"search": {"terms":["die"], "path": "title" }},
                             {"search": {"terms":["erbin"], "path": "title" }},
@@ -80,7 +80,7 @@ fn should_boost_phrase_search_multifield() {
 #[test]
 fn should_and_boost_phrase_search() {
     let req = json!({
-        "search_req": { 
+        "search_req": {
             "and":{"queries":[
                 {"search": {"terms":["die"], "path": "title" }},
                 {"search": {"terms":["erbin"], "path": "title" }}
@@ -130,7 +130,7 @@ fn should_and_boost_phrase_or_query_generator() {
 fn should_double_boost_from_multiphrases() {
     // This query will hit ["greg tagebuch", "05"] from different texts, boosting only for greg tagebuch
     let req_with_single_phrase = json!({
-        "search_req": { 
+        "search_req": {
             "or":{
                 "queries":[
                     {"search": {"terms":["greg"], "path": "tags[]" }},
@@ -152,7 +152,7 @@ fn should_double_boost_from_multiphrases() {
 
     // This query will hit ["greg tagebuch 05"]
     let req_with_multi_phrase = json!({
-        "search_req": { 
+        "search_req": {
             "or":{
                 "queries":[
                     {"search": {"terms":["greg"], "path": "tags[]" }},
@@ -178,7 +178,7 @@ fn should_double_boost_from_multiphrases() {
 #[test]
 fn should_double_boost_from_multiphrases_a_n_d_searchterms() {
     let req_with_single_phrase = json!({
-        "search_req": { 
+        "search_req": {
             "and":{"queries":[
                             {"search": {"terms":["greg"], "path": "tags[]" }},
                             {"search": {"terms":["tagebuch"], "path": "tags[]" }},
@@ -196,7 +196,7 @@ fn should_double_boost_from_multiphrases_a_n_d_searchterms() {
     assert_eq!(hits[0].doc["tags"][0], "greg tagebuch");
 
     let req_with_multi_phrase = json!({
-        "search_req": { 
+        "search_req": {
             "and":{"queries":[
                             {"search": {"terms":["greg"], "path": "tags[]" }},
                             {"search": {"terms":["tagebuch"], "path": "tags[]" }},
@@ -220,7 +220,7 @@ fn should_double_boost_from_multiphrases_a_n_d_searchterms() {
 #[test]
 fn should_prefer_different_phrases_from_same_phrase_multiple_times() {
     let req_with_single_phrase = json!({
-        "search_req": { 
+        "search_req": {
             "or":{"queries":[
                             {"search": {"terms":["greg"], "path": "tags[]" }},
                             {"search": {"terms":["tagebuch"], "path": "tags[]" }},

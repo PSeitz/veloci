@@ -431,7 +431,10 @@ fn should_return_an_error_when_trying_to_query_an_invalid_field() {
         }
     });
     let search_request: search::SearchRequest = serde_json::from_str(&req.to_string()).expect("Can't parse json");
-    let requesto = search::Request{search_req: Some(search_request), ..Default::default() };
+    let requesto = search::Request {
+        search_req: Some(search_request),
+        ..Default::default()
+    };
     let hits = search_to_hits!(requesto);
     assert_eq!(format!("{}", hits.unwrap_err()), "field does not exist notexisting.textindex (fst not found)".to_string())
 }

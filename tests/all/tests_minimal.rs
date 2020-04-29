@@ -1,12 +1,11 @@
 use serde_json::Value;
-use veloci::*;
-use veloci::search::*;
+use veloci::{search::*, *};
 
 use super::common;
 
 static TEST_FOLDER: &str = "mochaTest_minimal";
 lazy_static! {
-    static ref TEST_PERSISTENCE: persistence::Persistence = common::create_test_persistence(TEST_FOLDER, "{}", &get_test_data().to_string().as_bytes(), None) ;
+    static ref TEST_PERSISTENCE: persistence::Persistence = common::create_test_persistence(TEST_FOLDER, "{}", &get_test_data().to_string().as_bytes(), None);
 }
 
 pub fn get_test_data() -> Value {
@@ -87,19 +86,20 @@ fn test_minimal_or_json() {
 
 #[test]
 fn test_minimal_or_object() {
-    let req = SearchRequest::Or(SearchTree{
-        queries:vec![
-            SearchRequest::Search(RequestSearchPart{
-                terms:vec!["test".to_string()],
+    let req = SearchRequest::Or(SearchTree {
+        queries: vec![
+            SearchRequest::Search(RequestSearchPart {
+                terms: vec!["test".to_string()],
                 path: "field".to_string(),
                 ..Default::default()
             }),
-            SearchRequest::Search(RequestSearchPart{
-                terms:vec!["test2".to_string()],
+            SearchRequest::Search(RequestSearchPart {
+                terms: vec!["test2".to_string()],
                 path: "field".to_string(),
                 ..Default::default()
             }),
-        ], ..Default::default()
+        ],
+        ..Default::default()
     });
 
     let hits = search_request_to_doc!(req).data;

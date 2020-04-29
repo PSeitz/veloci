@@ -57,25 +57,28 @@ fn get_all_field_request_parts_and_propagate_settings<'a>(header_request: &'a Re
     get_all_field_request_parts_and_propagate_settings_to_search_req(header_request, request.search_req.as_mut().unwrap(), map);
 }
 
-fn get_all_field_request_parts_and_propagate_settings_to_search_req<'a>(header_request: &'a Request, request: &'a mut SearchRequest, map: &mut FnvHashSet<&'a mut RequestSearchPart>) {
+fn get_all_field_request_parts_and_propagate_settings_to_search_req<'a>(
+    header_request: &'a Request,
+    request: &'a mut SearchRequest,
+    map: &mut FnvHashSet<&'a mut RequestSearchPart>,
+) {
     request.get_options_mut().explain |= header_request.explain;
 
     match request {
-        SearchRequest::And(SearchTree{queries, options: _}) | SearchRequest::Or(SearchTree{queries, options: _}) => {
+        SearchRequest::And(SearchTree { queries, options: _ }) | SearchRequest::Or(SearchTree { queries, options: _ }) => {
             for el in queries {
                 get_all_field_request_parts_and_propagate_settings_to_search_req(header_request, el, map);
             }
-        },
+        }
         SearchRequest::Search(search) => {
             search.options.explain |= header_request.explain;
             map.insert(search);
-        },
+        }
     }
-
 }
 
 /// add first we collect all searches on the fields (virtually the leaf nodes in the execution plan) to avoid duplicate searches. This could also be done on a tree level.
-/// 
+///
 /// The function also propagates settings before collecting requests, because this changes the equality. This should be probably done seperately.
 ///
 fn collect_all_field_request_into_cache(header_request: &Request, request: &mut Request, plan: &mut Plan) -> FieldRequestCache {
@@ -85,7 +88,7 @@ fn collect_all_field_request_into_cache(header_request: &Request, request: &mut 
     add_request_to_search_field_cache(field_requests, plan, &mut field_search_cache, false);
 
     // collect filter requests seperately and set to fetch ids
-    // This way we can potentially reuse the same request to emit both, score and ids 
+    // This way we can potentially reuse the same request to emit both, score and ids
     if let Some(filter) = request.filter.as_mut() {
         let mut field_requests = FnvHashSet::default();
         get_all_field_request_parts_and_propagate_settings_to_search_req(header_request, filter, &mut field_requests);
@@ -119,10 +122,9 @@ fn add_request_to_search_field_cache<'a>(field_requests: FnvHashSet<&'a mut Requ
     }
 }
 
-
 pub fn plan_creator(mut request: Request, plan: &mut Plan) {
     let request_header = request.clone();
-    
+
     let mut field_search_cache = collect_all_field_request_into_cache(&request_header, &mut request, plan);
 
     let filter_final_step_id: Option<PlanStepId> = if let Some(filter) = request.filter.as_mut() {
@@ -204,12 +206,15 @@ fn add_phrase_boost_plan_steps(
             //     .get_mut(req)
             //     .unwrap_or_else(|| panic!("PlanCreator: Could not find  request in field_search_cache {:?}", req));
 
-            let val = field_search_cache
-                .get_mut(&req);
+            let val = field_search_cache.get_mut(&req);
 
             let field_search1 = {
-                if val.is_none(){
-                    panic!("PlanCreator: Could not find phrase request in field_search_cache Req: {:#?}, \n Cache: {:#?}", req, field_search_cache.keys())
+                if val.is_none() {
+                    panic!(
+                        "PlanCreator: Could not find phrase request in field_search_cache Req: {:#?}, \n Cache: {:#?}",
+                        req,
+                        field_search_cache.keys()
+                    )
                 }
                 val.unwrap()
             };
@@ -272,7 +277,7 @@ fn plan_creator_2(
     // request.explain |= request_header.explain;
 
     match request {
-        SearchRequest::Or(SearchTree{queries, options: _}) => {
+        SearchRequest::Or(SearchTree { queries, options: _ }) => {
             let mut channel = PlanStepDataChannels::default();
             if let Some(step_id) = filter_channel_step {
                 plan.get_step_channel(step_id).filter_channel.as_mut().unwrap().num_receivers += 1;
@@ -314,7 +319,7 @@ fn plan_creator_2(
 
             step_id
         }
-        SearchRequest::And(SearchTree{queries, options: _}) => {
+        SearchRequest::And(SearchTree { queries, options: _ }) => {
             let mut channel = PlanStepDataChannels::default();
             if let Some(step_id) = filter_channel_step {
                 plan.get_step_channel(step_id).filter_channel.as_mut().unwrap().num_receivers += 1;
@@ -388,12 +393,15 @@ fn plan_creator_search_part(
     let paths = util::get_steps_to_anchor(&request_part.path);
     let store_term_id_hits = request.why_found || request.text_locality;
 
-    let val = field_search_cache
-        .get_mut(&request_part);
+    let val = field_search_cache.get_mut(&request_part);
 
     let (field_search_step_id, field_search_step) = {
-        if val.is_none(){
-            panic!("PlanCreator: Could not find request in field_search_cache.\nReq: {:#?}, \nCache: {:#?}", request_part, field_search_cache.keys())
+        if val.is_none() {
+            panic!(
+                "PlanCreator: Could not find request in field_search_cache.\nReq: {:#?}, \nCache: {:#?}",
+                request_part,
+                field_search_cache.keys()
+            )
         }
         val.unwrap()
     };

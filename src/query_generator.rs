@@ -1,8 +1,10 @@
 mod ast_to_request_custom_parser;
-use std::collections::HashSet;
-use ast_to_request_custom_parser::*;
 use crate::persistence::TEXTINDEX;
-use std::{collections::HashMap, f32, str};
+use ast_to_request_custom_parser::*;
+use std::{
+    collections::{HashMap, HashSet},
+    f32, str,
+};
 
 use crate::{
     error::VelociError,
@@ -60,13 +62,13 @@ pub struct SearchQueryGeneratorParameters {
 }
 
 fn get_default_levenshtein(term: &str, levenshtein_auto_limit: usize, wildcard: bool) -> usize {
-    if wildcard{
+    if wildcard {
         match term.chars().count() {
             0..=3 => 0,
             4..=5 => std::cmp::min(1, levenshtein_auto_limit),
             _ => std::cmp::min(2, levenshtein_auto_limit),
         }
-    }else{
+    } else {
         match term.chars().count() {
             0..=2 => 0,
             3..=5 => std::cmp::min(1, levenshtein_auto_limit),
@@ -107,9 +109,6 @@ fn get_levenshteinn(term: &str, levenshtein: Option<usize>, levenshtein_auto_lim
     std::cmp::min(levenshtein_distance, term.chars().count() - 1) as u32
 }
 
-
-
-
 fn check_field(field: &str, all_fields: &[String]) -> Result<(), VelociError> {
     // if !all_fields.contains(field) {   // https://github.com/rust-lang/rust/issues/42671  Vec::contains is too restrictive
     if !all_fields.iter().any(|x| x == field) {
@@ -121,7 +120,6 @@ fn check_field(field: &str, all_fields: &[String]) -> Result<(), VelociError> {
         Ok(())
     }
 }
-
 
 /// format is term:field_name(optional)->boost_value
 /// city:berlin->2.0
@@ -158,7 +156,7 @@ pub fn search_query(persistence: &Persistence, mut opt: SearchQueryGeneratorPara
     let mut request = Request::default();
 
     request.search_req = Some(ast_to_search_request(&query_ast, &all_search_fields, &opt)?);
-    request.search_req.as_mut().map(|el|el.simplify());
+    request.search_req.as_mut().map(|el| el.simplify());
 
     let facetlimit = opt.facetlimit;
 
@@ -174,17 +172,13 @@ pub fn search_query(persistence: &Persistence, mut opt: SearchQueryGeneratorPara
 
     let facets_req = facets_req.map_or(Ok(None), |r| r.map(Some))?;
 
-    let boost_term = opt
-        .boost_terms
-        .and_then(|boosts:HashMap<String, f32>|{
-            let requests = boosts.iter()
-            .flat_map(|(boost_term, boost_value): (&String, &f32)| {
-                handle_boost_term_query(persistence, boost_term, boost_value)
-            })
+    let boost_term = opt.boost_terms.and_then(|boosts: HashMap<String, f32>| {
+        let requests = boosts
+            .iter()
+            .flat_map(|(boost_term, boost_value): (&String, &f32)| handle_boost_term_query(persistence, boost_term, boost_value))
             .collect::<Vec<RequestSearchPart>>();
-            Some(requests)
-        });
-
+        Some(requests)
+    });
 
     let terms: HashSet<[&str; 2]> = query_ast.get_phrase_pairs();
     info!("Terms for Phrase{:?}", terms);
@@ -234,14 +228,14 @@ pub fn generate_phrase_queries_for_searchterm(
             search1: RequestSearchPart {
                 path: field_name.to_string(),
                 terms: vec![term_a.to_string()],
-                boost: boost_fields.as_ref().and_then(|boost_fields|boost_fields.get(field_name).map(|el| OrderedFloat(*el))),
+                boost: boost_fields.as_ref().and_then(|boost_fields| boost_fields.get(field_name).map(|el| OrderedFloat(*el))),
                 levenshtein_distance: Some(get_levenshteinn(term_a, levenshtein, levenshtein_auto_limit, false)),
                 ..Default::default()
             },
             search2: RequestSearchPart {
                 path: field_name.to_string(),
                 terms: vec![term_b.to_string()],
-                boost: boost_fields.as_ref().and_then(|boost_fields|boost_fields.get(field_name).map(|el| OrderedFloat(*el))),
+                boost: boost_fields.as_ref().and_then(|boost_fields| boost_fields.get(field_name).map(|el| OrderedFloat(*el))),
                 levenshtein_distance: Some(get_levenshteinn(term_b, levenshtein, levenshtein_auto_limit, false)),
                 ..Default::default()
             },

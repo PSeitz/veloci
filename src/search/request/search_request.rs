@@ -2,7 +2,6 @@ use crate::search::request::{boost_request::RequestBoostPart, snippet_info::Snip
 use core::cmp::Ordering;
 use ordered_float::OrderedFloat;
 
-
 /// Internal and External structure for defining the search requests tree.
 #[serde(rename_all = "lowercase")]
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -11,7 +10,7 @@ pub enum SearchRequest {
     And(SearchTree),
     /// SearchRequest is a search on a field
     ///
-    /// `RequestSearchPart` is boxed 
+    /// `RequestSearchPart` is boxed
     Search(RequestSearchPart),
 }
 
@@ -23,7 +22,7 @@ pub struct SearchTree {
     pub queries: Vec<SearchRequest>,
     #[serde(default)]
     /// Options which should be applied on the subqueries
-    pub options: SearchRequestOptions
+    pub options: SearchRequestOptions,
 }
 
 // use std::fmt;
@@ -69,7 +68,6 @@ pub struct SearchTree {
 //     }
 // }
 
-
 // impl Default for SearchRequest {
 //     fn default() -> SearchRequest {
 //         SearchRequest::Noop
@@ -77,69 +75,65 @@ pub struct SearchTree {
 // }
 
 impl SearchRequest {
-
     pub fn simplify(&mut self) {
         match self {
-
             // Pull up Or Conditions
             SearchRequest::Or(subtree) => {
                 // move the tree down first, to do a complete simplify
                 for sub_query in &mut subtree.queries {
                     sub_query.simplify();
                 }
-                let subitems = subtree.queries
-                .drain_filter(|q| match q {
-                    SearchRequest::Or(_) => true,
-                    _ => false,
-                })
-                .flat_map(|q| match q {
-                    SearchRequest::Or(search_tree) => search_tree.queries,
-                    _ => unreachable!(),
-                })
-                .collect::<Vec<SearchRequest>>();
+                let subitems = subtree
+                    .queries
+                    .drain_filter(|q| match q {
+                        SearchRequest::Or(_) => true,
+                        _ => false,
+                    })
+                    .flat_map(|q| match q {
+                        SearchRequest::Or(search_tree) => search_tree.queries,
+                        _ => unreachable!(),
+                    })
+                    .collect::<Vec<SearchRequest>>();
 
                 subtree.queries.extend(subitems.into_iter());
-
-                
-            },
+            }
 
             // Pull up And Conditions
-            SearchRequest::And(subtree) =>{
+            SearchRequest::And(subtree) => {
                 // move the tree down first, to do a complete simplify
                 for sub_query in &mut subtree.queries {
                     sub_query.simplify();
                 }
-                let subitems = subtree.queries
-                .drain_filter(|q| match q {
-                    SearchRequest::And(_) => true,
-                    _ => false,
-                })
-                .flat_map(|q| match q {
-                    SearchRequest::And(search_tree) => search_tree.queries,
-                    _ => unreachable!(),
-                })
-                .collect::<Vec<SearchRequest>>();
+                let subitems = subtree
+                    .queries
+                    .drain_filter(|q| match q {
+                        SearchRequest::And(_) => true,
+                        _ => false,
+                    })
+                    .flat_map(|q| match q {
+                        SearchRequest::And(search_tree) => search_tree.queries,
+                        _ => unreachable!(),
+                    })
+                    .collect::<Vec<SearchRequest>>();
 
                 subtree.queries.extend(subitems.into_iter());
-
-            },
-            SearchRequest::Search(_req) => {
-
-            },
+            }
+            SearchRequest::Search(_req) => {}
         }
     }
 
     pub fn get_options(&self) -> &SearchRequestOptions {
         match self {
-            SearchRequest::Or(SearchTree{options, ..}) => options,
-            SearchRequest::And(SearchTree{options, ..}) => options,
+            SearchRequest::Or(SearchTree { options, .. }) => options,
+            SearchRequest::And(SearchTree { options, .. }) => options,
             SearchRequest::Search(el) => &el.options,
         }
     }
+
     pub fn get_options_mut(&mut self) -> &mut SearchRequestOptions {
         match self {
-            SearchRequest::Or(SearchTree{options, ..}) => options,
-            SearchRequest::And(SearchTree{options, ..}) => options,
+            SearchRequest::Or(SearchTree { options, .. }) => options,
+            SearchRequest::And(SearchTree { options, .. }) => options,
             SearchRequest::Search(el) => &mut el.options,
         }
     }
@@ -147,14 +141,13 @@ impl SearchRequest {
     pub fn as_request_search_part(&self) -> &RequestSearchPart {
         match self {
             SearchRequest::Search(el) => el,
-            _ => panic!("as_request_search_part" )
+            _ => panic!("as_request_search_part"),
         }
     }
 
     pub fn get_boost(&self) -> Option<&[RequestBoostPart]> {
         self.get_options().boost.as_deref()
     }
-
 }
 
 #[derive(Serialize, Deserialize, Default, Clone, Debug, Hash, PartialEq, Eq, PartialOrd)]
@@ -201,7 +194,6 @@ pub struct RequestSearchPart {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub boost: Option<OrderedFloat<f32>>, // TODO Move to SearchRequestOptions, to boost whole subtrees
 
-
     /// Matches terms cases insensitive
     ///
     /// default is to ignore case
@@ -235,8 +227,6 @@ impl RequestSearchPart {
         self.options.explain
     }
 }
-
-
 
 impl Ord for RequestSearchPart {
     fn cmp(&self, other: &RequestSearchPart) -> Ordering {
