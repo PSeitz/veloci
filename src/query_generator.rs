@@ -1,11 +1,8 @@
 mod ast_to_request_custom_parser;
-mod ast_to_request;
-use ast_to_request::*;
+use std::collections::HashSet;
+use ast_to_request_custom_parser::*;
 use crate::persistence::TEXTINDEX;
 use std::{collections::HashMap, f32, str};
-
-use itertools::Itertools;
-// use regex::Regex;
 
 use crate::{
     error::VelociError,
@@ -113,8 +110,9 @@ fn get_levenshteinn(term: &str, levenshtein: Option<usize>, levenshtein_auto_lim
 
 
 
-fn check_field(field: &String, all_fields: &[String]) -> Result<(), VelociError> {
-    if !all_fields.contains(field) {
+fn check_field(field: &str, all_fields: &[String]) -> Result<(), VelociError> {
+    // if !all_fields.contains(field) {   // https://github.com/rust-lang/rust/issues/42671  Vec::contains is too restrictive
+    if !all_fields.iter().any(|x| x == field) {
         Err(VelociError::FieldNotFound {
             field: field.to_string(),
             all_fields: all_fields.to_vec(),
@@ -150,17 +148,17 @@ pub fn handle_boost_term_query(persistence: &Persistence, boost_term: &str, boos
 }
 
 pub fn search_query(persistence: &Persistence, mut opt: SearchQueryGeneratorParameters) -> Result<Request, VelociError> {
-    // let req = persistence.metadata.fulltext_indices.key
     opt.facetlimit = opt.facetlimit.or(Some(5));
     info_time!("generating search query");
 
     let all_fields = persistence.metadata.get_all_fields();
     let all_search_fields = get_all_search_field_names(&persistence, &opt.fields)?; // all fields with applied field_filter
-    let query_ast = parser::query_parser::parse(&opt.search_term).unwrap().0;
-    let terms: Vec<String> = terms_for_phrase_from_ast(&query_ast).iter().map(|el| el.to_string()).collect();
-    info!("Terms for Phrase{:?}", terms);
+    let query_ast = custom_parser::parse(&opt.search_term).unwrap();
+
     let mut request = Request::default();
-    request.search_req = Some(ast_to_request::ast_to_request(query_ast, &all_search_fields, &opt)?);
+
+    request.search_req = Some(ast_to_search_request(&query_ast, &all_search_fields, &opt)?);
+    request.search_req.as_mut().map(|el|el.simplify());
 
     let facetlimit = opt.facetlimit;
 
@@ -188,13 +186,13 @@ pub fn search_query(persistence: &Persistence, mut opt: SearchQueryGeneratorPara
         });
 
 
-    // let boost_term = if boost_terms_req.is_empty() { None } else { Some(boost_terms_req) };
-
-    if opt.phrase_pairs.unwrap_or(false) && terms.len() >= 2 {
+    let terms: HashSet<[&str; 2]> = query_ast.get_phrase_pairs();
+    info!("Terms for Phrase{:?}", terms);
+    if opt.phrase_pairs.unwrap_or(false) && !terms.is_empty() {
         request.phrase_boosts = Some(generate_phrase_queries_for_searchterm(
             persistence,
             &opt.fields,
-            &terms,
+            terms,
             opt.levenshtein,
             opt.levenshtein_auto_limit,
             &opt.boost_fields,
@@ -204,8 +202,9 @@ pub fn search_query(persistence: &Persistence, mut opt: SearchQueryGeneratorPara
     if let Some(filters) = opt.filter.as_ref() {
         let mut params = SearchQueryGeneratorParameters::default();
         params.levenshtein = Some(0);
-        let query_ast = parser::query_parser::parse(filters).unwrap().0;
-        let filter_request_ast = ast_to_request::ast_to_request(query_ast, &all_fields, &params)?;
+        let query_ast = custom_parser::parse(&filters).unwrap();
+        let mut filter_request_ast = ast_to_search_request(&query_ast, &all_fields, &params)?;
+        filter_request_ast.simplify();
         request.filter = Some(Box::new(filter_request_ast));
     }
 
@@ -224,13 +223,13 @@ pub fn search_query(persistence: &Persistence, mut opt: SearchQueryGeneratorPara
 pub fn generate_phrase_queries_for_searchterm(
     persistence: &Persistence,
     fields: &Option<Vec<String>>,
-    terms: &[String],
+    terms: HashSet<[&str; 2]>,
     levenshtein: Option<usize>,
     levenshtein_auto_limit: Option<usize>,
     boost_fields: &Option<HashMap<String, f32>>,
 ) -> Result<Vec<RequestPhraseBoost>, VelociError> {
     let mut phase_boost_requests = vec![];
-    for (term_a, term_b) in terms.iter().tuple_windows() {
+    for [term_a, term_b] in terms.iter() {
         phase_boost_requests.extend(get_all_search_field_names(&persistence, &fields)?.iter().map(|field_name| RequestPhraseBoost {
             search1: RequestSearchPart {
                 path: field_name.to_string(),

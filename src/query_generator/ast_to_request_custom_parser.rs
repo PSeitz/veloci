@@ -7,9 +7,9 @@ use crate::error::VelociError;
 use custom_parser;
 use custom_parser::ast::{Operator, UserAST};
 #[allow(dead_code)]
-pub(crate) fn ast_to_search_request(query_ast: UserAST<'_, '_>, all_fields: &[String], opt: &SearchQueryGeneratorParameters) -> Result<SearchRequest, VelociError> {
+pub(crate) fn ast_to_search_request(query_ast: &UserAST<'_, '_>, all_fields: &[String], opt: &SearchQueryGeneratorParameters) -> Result<SearchRequest, VelociError> {
     // let mut query_ast = query_ast.simplify();
-    filter_stopwords(&query_ast, opt);
+    filter_stopwords(query_ast, opt);
     let query_ast = expand_fields_in_query_ast(query_ast, all_fields)?;
     // // let query_ast = query_ast.simplify();
     Ok(query_ast_to_request(&query_ast, opt, None))
@@ -63,10 +63,10 @@ fn query_ast_to_request<'a>(ast: &UserAST<'_, '_>, opt: &SearchQueryGeneratorPar
 }
 
 #[allow(dead_code)]
-fn expand_fields_in_query_ast<'a,'b>(ast: UserAST<'b, 'a>, all_fields: &'a [String]) -> Result<UserAST<'b, 'a>, VelociError> {
+fn expand_fields_in_query_ast<'a,'b>(ast: &UserAST<'b, 'a>, all_fields: &'a [String]) -> Result<UserAST<'b, 'a>, VelociError> {
     match ast {
         UserAST::BinaryClause(ast1, op, ast2) => {
-            Ok(UserAST::BinaryClause(expand_fields_in_query_ast(*ast1, all_fields)?.into(), op, expand_fields_in_query_ast(*ast2, all_fields)?.into()))
+            Ok(UserAST::BinaryClause(expand_fields_in_query_ast(ast1, all_fields)?.into(), *op, expand_fields_in_query_ast(ast2, all_fields)?.into()))
         }
         UserAST::Leaf(_) => {
             let mut field_iter = all_fields.iter();
@@ -85,8 +85,9 @@ fn expand_fields_in_query_ast<'a,'b>(ast: UserAST<'b, 'a>, all_fields: &'a [Stri
 
             Ok(curr_ast)
         }
-        UserAST::Attributed(_, _) => { // dont expand in UserAST::Attributed
-            Ok(ast)
+        UserAST::Attributed(field_name, _) => { // dont expand in UserAST::Attributed
+            check_field(field_name, &all_fields)?;
+            Ok(ast.clone())
         }
     }
 }
@@ -155,7 +156,7 @@ fn bench_query_custom_parse_to_request(b: &mut test::Bencher) {
     ];
     b.iter(|| {
         let query_ast = custom_parser::parse("die drei fragezeigen und das unicorn").unwrap();
-        ast_to_search_request(query_ast, &fields, &SearchQueryGeneratorParameters::default()).unwrap()
+        ast_to_search_request(&query_ast, &fields, &SearchQueryGeneratorParameters::default()).unwrap()
     })
 }
 
@@ -181,7 +182,7 @@ fn bench_custom_parse_expand_fields_in_query_ast(b: &mut test::Bencher) {
     ];
     b.iter(|| {
         let query_ast = custom_parser::parse("die drei fragezeigen und das unicorn").unwrap();
-        expand_fields_in_query_ast(query_ast, &fields).unwrap()
+        expand_fields_in_query_ast(&query_ast, &fields).unwrap()
     })
 }
 
@@ -207,14 +208,14 @@ fn test_field_expand() {
         phrase: "Fred",
         levenshtein: None,
     }));
-    let expanded_ast = expand_fields_in_query_ast(ast, &fields).unwrap();
+    let expanded_ast = expand_fields_in_query_ast(&ast, &fields).unwrap();
     assert_eq!(format!("{:?}", expanded_ast), "(Author[].name:\"Fred\" OR Title:\"Fred\")");
 
     let ast =  UserAST::Attributed("Title", UserAST::Leaf(Box::new(UserFilter {
         phrase: "Fred",
         levenshtein: None,
     })).into());
-    let expanded_ast = expand_fields_in_query_ast(ast, &fields).unwrap();
+    let expanded_ast = expand_fields_in_query_ast(&ast, &fields).unwrap();
     assert_eq!(format!("{:?}", expanded_ast), "Title:\"Fred\"");
 }
 

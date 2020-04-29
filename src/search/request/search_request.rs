@@ -77,6 +77,58 @@ pub struct SearchTree {
 // }
 
 impl SearchRequest {
+
+    pub fn simplify(&mut self) {
+        match self {
+
+            // Pull up Or Conditions
+            SearchRequest::Or(subtree) => {
+                // move the tree down first, to do a complete simplify
+                for sub_query in &mut subtree.queries {
+                    sub_query.simplify();
+                }
+                let subitems = subtree.queries
+                .drain_filter(|q| match q {
+                    SearchRequest::Or(_) => true,
+                    _ => false,
+                })
+                .flat_map(|q| match q {
+                    SearchRequest::Or(search_tree) => search_tree.queries,
+                    _ => unreachable!(),
+                })
+                .collect::<Vec<SearchRequest>>();
+
+                subtree.queries.extend(subitems.into_iter());
+
+                
+            },
+
+            // Pull up And Conditions
+            SearchRequest::And(subtree) =>{
+                // move the tree down first, to do a complete simplify
+                for sub_query in &mut subtree.queries {
+                    sub_query.simplify();
+                }
+                let subitems = subtree.queries
+                .drain_filter(|q| match q {
+                    SearchRequest::And(_) => true,
+                    _ => false,
+                })
+                .flat_map(|q| match q {
+                    SearchRequest::And(search_tree) => search_tree.queries,
+                    _ => unreachable!(),
+                })
+                .collect::<Vec<SearchRequest>>();
+
+                subtree.queries.extend(subitems.into_iter());
+
+            },
+            SearchRequest::Search(_req) => {
+
+            },
+        }
+    }
+
     pub fn get_options(&self) -> &SearchRequestOptions {
         match self {
             SearchRequest::Or(SearchTree{options, ..}) => options,
