@@ -18,6 +18,7 @@ pub struct SearchFieldResult {
     #[serde(skip_serializing_if = "FnvHashMap::is_empty")]
     pub highlight: FnvHashMap<TermId, String>,
     pub request: RequestSearchPart,
+    pub request_options: SearchRequestOptions,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub phrase_boost: Option<RequestPhraseBoost>,
     /// store the term id hits field->Term->Hits, used for whyfound and term_locality_boost
@@ -55,7 +56,7 @@ impl std::fmt::Display for SearchFieldResult {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         writeln!(
             f,
-            "path {}, hits_scores {}, terms {}, lev_distance {:?} ",
+            "path:{}, num hits_scores:{}, terms:{}, lev_distance:{:?} ",
             self.request.path,
             self.hits_scores.len(),
             self.request.terms[0],
@@ -63,13 +64,13 @@ impl std::fmt::Display for SearchFieldResult {
         )?;
 
         if !self.hits_scores.is_empty() {
-            writeln!(f, "(hits_scores {})", self.hits_scores.len())?;
+            writeln!(f, "hits_scores (len {})", self.hits_scores.len())?;
             for el in &self.hits_scores {
                 writeln!(f, "({}, {})", el.id, el.score)?;
             }
         }
         if !self.hits_ids.is_empty() {
-            writeln!(f, "(hits_ids {})", self.hits_ids.len())?;
+            writeln!(f, "hits_ids (len {})", self.hits_ids.len())?;
             for el in &self.hits_ids {
                 writeln!(f, "({})", el)?;
             }

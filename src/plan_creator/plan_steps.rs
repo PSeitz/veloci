@@ -398,7 +398,7 @@ impl PlanStepTrait for IntersectScoresWithIds {
         info_time!("IntersectScoresWithIds");
         let scores_res = self.channel.input_prev_steps[0].recv().map_err(|_| VelociError::PlanExecutionRecvFailed)?;
         let ids_res = self.channel.input_prev_steps[1].recv().map_err(|_| VelociError::PlanExecutionRecvFailed)?;
-
+        trace!("IntersectScoresWithIds scores_res {} ids_res {}", scores_res, ids_res);
         let res = intersect_score_hits_with_ids(scores_res, ids_res);
         send_result_to_channel(res, &self.channel)?;
         drop(self.channel.sender_to_next_steps);
