@@ -162,6 +162,9 @@ pub fn search(mut request: Request, persistence: &Persistence) -> Result<SearchR
     let mut res = {
         info_time!("search terms");
         let mut plan = Plan::default();
+        if request.search_req.is_none(){
+            return Err(VelociError::InvalidRequest{ message: format!("search_req is None, but is required in search, request: {:?}", request )});
+        }
         plan_creator(request.clone(), &mut plan);
 
         if log_enabled!(log::Level::Debug) {

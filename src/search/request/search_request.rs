@@ -109,7 +109,7 @@ impl SearchRequest {
 pub struct SearchRequestOptions {
     #[serde(skip_serializing)]
     #[serde(default)]
-    //TODO explain on part of query tree not yet supported, fix and enable on 
+    //TODO explain on part of query tree not yet supported, fix and enable on
     pub(crate) explain: bool,
 
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -118,7 +118,8 @@ pub struct SearchRequestOptions {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub skip: Option<usize>,
 
-    //TODO check conceptual location of RequestBoostPart, how is it used
+    // TODO check conceptual location of RequestBoostPart, how is it used
+    /// Not working currently when used in RequestSearchPart, use Toplevel request.boost
     #[serde(skip_serializing_if = "Option::is_none")]
     pub boost: Option<Vec<RequestBoostPart>>,
 }
