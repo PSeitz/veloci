@@ -8,16 +8,11 @@ use custom_parser::{
     self,
     ast::{Operator, UserAST},
 };
-#[allow(dead_code)]
 pub(crate) fn ast_to_search_request(query_ast: &UserAST<'_, '_>, all_fields: &[String], opt: &SearchQueryGeneratorParameters) -> Result<SearchRequest, VelociError> {
-    // let mut query_ast = query_ast.simplify();
     filter_stopwords(query_ast, opt);
     let query_ast = expand_fields_in_query_ast(query_ast, all_fields)?;
-    // // let query_ast = query_ast.simplify();
     Ok(query_ast_to_request(&query_ast, opt, None))
-    // unreachable!()
 }
-#[allow(dead_code)]
 fn query_ast_to_request<'a>(ast: &UserAST<'_, '_>, opt: &SearchQueryGeneratorParameters, field_name: Option<&'a str>) -> SearchRequest {
     match ast {
         UserAST::BinaryClause(ast1, op, ast2) => {
@@ -68,7 +63,6 @@ fn query_ast_to_request<'a>(ast: &UserAST<'_, '_>, opt: &SearchQueryGeneratorPar
     }
 }
 
-#[allow(dead_code)]
 fn expand_fields_in_query_ast<'a, 'b>(ast: &UserAST<'b, 'a>, all_fields: &'a [String]) -> Result<UserAST<'b, 'a>, VelociError> {
     match ast {
         UserAST::BinaryClause(ast1, op, ast2) => Ok(UserAST::BinaryClause(
@@ -95,30 +89,7 @@ fn expand_fields_in_query_ast<'a, 'b>(ast: &UserAST<'b, 'a>, all_fields: &'a [St
     }
 }
 
-// pub(crate) fn terms_for_phrase_from_ast<'a>(ast: &UserAST<'_>) -> Vec<&'a String> {
-//     match ast {
-//         UserAST::Clause(_, queries) => queries.iter().flat_map(|query| terms_for_phrase_from_ast(query)).collect(),
-//         UserAST::Leaf(filter) => vec![&filter.phrase],
-//     }
-// }
-
 //TODO should be field specific
-// fn filter_stopwords(query_ast: &mut UserAST<'_>, opt: &SearchQueryGeneratorParameters) -> bool {
-//     match query_ast {
-//         UserAST::BinaryClause(ref ast1, op, ref ast2) => {
-//             // queries.drain_filter(|mut query| filter_stopwords(&mut query, opt));
-//             false
-//         }
-//         UserAST::Leaf(ref filter) => {
-//             if let Some(languages) = opt.stopword_lists.as_ref() {
-//                 languages.iter().any(|lang| stopwords::is_stopword(lang, &filter.phrase.to_lowercase()))
-//             } else {
-//                 false
-//             }
-//         }
-//     }
-// }
-#[allow(dead_code)]
 fn filter_stopwords<'a, 'b>(query_ast: &'a custom_parser::ast::UserAST<'a, 'a>, opt: &'b SearchQueryGeneratorParameters) -> Option<UserAST<'a, 'a>> {
     let ast = query_ast.filter_ast(
         &mut |ast: &UserAST<'_, '_>, _attr: Option<&str>| match ast {
