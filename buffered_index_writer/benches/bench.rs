@@ -21,7 +21,7 @@ fn criterion_benchmark(c: &mut Criterion) {
         "buffered",
         |b, i| {
             b.iter(|| {
-                let mut ind = BufferedIndexWriter::new_unstable_sorted();
+                let mut ind = BufferedIndexWriter::new_unstable_sorted("tmp".to_string());
                 for i in 0..*i {
                     ind.add(i, pseudo_rand(i)).unwrap();
                 }

@@ -43,36 +43,64 @@ pub struct PlanRequestSearchPart {
     pub return_term_lowercase: bool,
 }
 
-fn get_all_field_request_parts_and_propagate_settings<'a>(header_request: &Request, request: &'a mut Request, map: &mut FnvHashSet<&'a mut RequestSearchPart>) {
-    request.explain |= header_request.explain;
+/// To three parts are settings propagates currently, the search request, the phrase boosts, and the filter query
+fn get_all_field_request_parts_and_propagate_settings<'a>(header_request: &'a Request, request: &'a mut Request, map: &mut FnvHashSet<&'a mut RequestSearchPart>) {
     if let Some(phrase_boosts) = request.phrase_boosts.as_mut() {
-        for el in phrase_boosts {
-            //propagate explain
-            el.search1.explain |= header_request.explain;
-            el.search2.explain |= header_request.explain;
+        for el in phrase_boosts.iter_mut() {
+            el.search1.options.explain |= header_request.explain;
+            el.search2.options.explain |= header_request.explain;
             map.insert(&mut el.search1);
             map.insert(&mut el.search2);
         }
     }
 
-    if let Some(and_or) = request.and.as_mut().or(request.or.as_mut()) {
-        for el in and_or {
-            get_all_field_request_parts_and_propagate_settings(header_request, el, map);
+    get_all_field_request_parts_and_propagate_settings_to_search_req(header_request, request.search_req.as_mut().unwrap(), map);
+}
+
+fn get_all_field_request_parts_and_propagate_settings_to_search_req<'a>(
+    header_request: &'a Request,
+    request: &'a mut SearchRequest,
+    map: &mut FnvHashSet<&'a mut RequestSearchPart>,
+) {
+    request.get_options_mut().explain |= header_request.explain;
+
+    match request {
+        SearchRequest::And(SearchTree { queries, options: _ }) | SearchRequest::Or(SearchTree { queries, options: _ }) => {
+            for el in queries {
+                get_all_field_request_parts_and_propagate_settings_to_search_req(header_request, el, map);
+            }
         }
-    }
-    if let Some(search) = request.search.as_mut() {
-        //propagate explain
-        search.explain |= header_request.explain;
-        map.insert(search);
+        SearchRequest::Search(search) => {
+            search.options.explain |= header_request.explain;
+            map.insert(search);
+        }
     }
 }
 
-/// add first we collect all searches on the fields (virtually the leaf nodes in the execution plan) to avoid duplicate searches. This could also be done a tree level.
-fn collect_all_field_request_into_cache(request: &mut Request, field_search_cache: &mut FieldRequestCache, plan: &mut Plan, ids_only: bool) {
+/// add first we collect all searches on the fields (virtually the leaf nodes in the execution plan) to avoid duplicate searches. This could also be done on a tree level.
+///
+/// The function also propagates settings before collecting requests, because this changes the equality. This should be probably done seperately.
+///
+fn collect_all_field_request_into_cache(header_request: &Request, request: &mut Request, plan: &mut Plan) -> FieldRequestCache {
+    let mut field_search_cache = FnvHashMap::default();
     let mut field_requests = FnvHashSet::default();
-    get_all_field_request_parts_and_propagate_settings(&request.clone(), request, &mut field_requests);
+    get_all_field_request_parts_and_propagate_settings(header_request, request, &mut field_requests);
+    add_request_to_search_field_cache(field_requests, plan, &mut field_search_cache, false);
+
+    // collect filter requests seperately and set to fetch ids
+    // This way we can potentially reuse the same request to emit both, score and ids
+    if let Some(filter) = request.filter.as_mut() {
+        let mut field_requests = FnvHashSet::default();
+        get_all_field_request_parts_and_propagate_settings_to_search_req(header_request, filter, &mut field_requests);
+        add_request_to_search_field_cache(field_requests, plan, &mut field_search_cache, true);
+    };
+
+    field_search_cache
+}
+
+fn add_request_to_search_field_cache<'a>(field_requests: FnvHashSet<&'a mut RequestSearchPart>, plan: &mut Plan, field_search_cache: &mut FieldRequestCache, ids_only: bool) {
     for request_part in field_requests {
-        // There could be the same query for filter and normal search, then we load scores and ids => TODO ADD TEST PLZ
+        // There could be the same query for filter and normal search, then we load scores and ids
         if let Some((_, field_search)) = field_search_cache.get_mut(&request_part) {
             field_search.req.get_ids |= ids_only;
             field_search.req.get_scores |= !ids_only;
@@ -88,7 +116,7 @@ fn collect_all_field_request_into_cache(request: &mut Request, field_search_cach
             req: plan_request_part,
             channel: PlanStepDataChannels::open_channel(0, vec![]),
         };
-        let step_id = plan.add_step(Box::new(field_search.clone())); // this is actually only a placeholder in the plan, will replaced with the data from the field_search_cache after plan creation
+        let step_id = plan.add_step(Box::new(field_search.clone())); // this is actually only a placeholder in the plan, will be replaced with the data from the field_search_cache after plan creation
 
         field_search_cache.insert(request_part.clone(), (step_id, field_search));
     }
@@ -96,11 +124,12 @@ fn collect_all_field_request_into_cache(request: &mut Request, field_search_cach
 
 pub fn plan_creator(mut request: Request, plan: &mut Plan) {
     let request_header = request.clone();
-    let mut field_search_cache = FnvHashMap::default();
-    collect_all_field_request_into_cache(&mut request, &mut field_search_cache, plan, false);
+
+    let mut field_search_cache = collect_all_field_request_into_cache(&request_header, &mut request, plan);
 
     let filter_final_step_id: Option<PlanStepId> = if let Some(filter) = request.filter.as_mut() {
-        collect_all_field_request_into_cache(filter, &mut field_search_cache, plan, true);
+        // get_all_field_request_parts_and_propagate_settings_to_search_req(header_request, filter, map);
+        // collect_all_field_request_into_cache(&request_header, filter, &mut field_search_cache, plan, true);
         let final_output_filter = plan_creator_2(true, true, None, &request_header, &*filter, vec![], plan, None, None, &mut field_search_cache);
         Some(final_output_filter)
     } else {
@@ -115,7 +144,7 @@ pub fn plan_creator(mut request: Request, plan: &mut Plan) {
             false,
             filter_final_step_id,
             &request_header,
-            &request,
+            &request.search_req.unwrap(),
             boost.unwrap_or_else(|| vec![]),
             plan,
             None,
@@ -173,9 +202,23 @@ fn add_phrase_boost_plan_steps(
     let mut phrase_outputs = vec![];
     for boost in phrase_boosts {
         let mut get_field_search = |req: &RequestSearchPart| -> (PlanDataReceiver, usize) {
-            let field_search1 = field_search_cache
-                .get_mut(req)
-                .unwrap_or_else(|| panic!("PlanCreator: Could not find  request in field_search_cache {:?}", req));
+            // let field_search1 = field_search_cache
+            //     .get_mut(req)
+            //     .unwrap_or_else(|| panic!("PlanCreator: Could not find  request in field_search_cache {:?}", req));
+
+            let val = field_search_cache.get_mut(&req);
+
+            let field_search1 = {
+                if val.is_none() {
+                    panic!(
+                        "PlanCreator: Could not find phrase request in field_search_cache Req: {:#?}, \n Cache: {:#?}",
+                        req,
+                        field_search_cache.keys()
+                    )
+                }
+                val.unwrap()
+            };
+
             field_search1.1.req.get_ids = true;
             field_search1.1.channel.num_receivers += 1;
             let field_rx = field_search1.1.channel.receiver_for_next_step.clone();
@@ -208,9 +251,9 @@ fn add_phrase_boost_plan_steps(
     let step = BoostAnchorFromPhraseResults { channel };
     let id_step = plan.add_step(Box::new(step));
     plan.add_dependency(id_step, search_output_step);
-    (id_step)
+    id_step
 }
-fn merge_vec(boost: &[RequestBoostPart], opt: &Option<Vec<RequestBoostPart>>) -> Vec<RequestBoostPart> {
+fn merge_vec(boost: &[RequestBoostPart], opt: &Option<&[RequestBoostPart]>) -> Vec<RequestBoostPart> {
     let mut boost = boost.to_owned();
     if let Some(boosto) = opt.as_ref() {
         boost.extend_from_slice(&boosto);
@@ -224,7 +267,7 @@ fn plan_creator_2(
     is_filter_channel: bool,
     filter_channel_step: Option<usize>, //  this channel is used to receive the result from the filter step
     request_header: &Request,
-    request: &Request,
+    request: &SearchRequest,
     mut boost: Vec<RequestBoostPart>,
     plan: &mut Plan,
     parent_step_dependecy: Option<usize>,
@@ -232,107 +275,107 @@ fn plan_creator_2(
     field_search_cache: &mut FieldRequestCache,
 ) -> PlanStepId {
     // request.explain |= request_header.explain;
-    if let Some(or) = request.or.as_ref() {
-        let mut channel = PlanStepDataChannels::default();
-        if let Some(step_id) = filter_channel_step {
-            plan.get_step_channel(step_id).filter_channel.as_mut().unwrap().num_receivers += 1;
-            channel.filter_receiver = Some(plan.get_step_channel(step_id).filter_channel.as_mut().unwrap().filter_receiver.clone());
-        }
-        if is_filter_channel {
-            channel.filter_channel = Some(FilterChannel::default());
-        }
-        let step = Union { ids_only: is_filter, channel };
-        let step_id = plan.add_step(Box::new(step.clone()));
-        let result_channels_from_prev_steps = or
-            .iter()
-            .map(|x| {
-                // x.explain = request_header.explain;
-                let boost = merge_vec(&boost, &x.boost);
-                let step_id = plan_creator_2(
-                    is_filter,
-                    false,
-                    filter_channel_step,
-                    request_header,
-                    x,
-                    boost,
-                    plan,
-                    Some(step_id),
-                    depends_on_step,
-                    field_search_cache,
-                );
-                plan.get_step_channel(step_id).receiver_for_next_step.clone()
-            })
-            .collect();
-        plan.get_step_channel(step_id).input_prev_steps = result_channels_from_prev_steps;
 
-        if let Some(parent_step_dependecy) = parent_step_dependecy {
-            plan.add_dependency(parent_step_dependecy, step_id);
-        }
-        if let Some(depends_on_step) = depends_on_step {
-            plan.add_dependency(step_id, depends_on_step);
-        }
+    match request {
+        SearchRequest::Or(SearchTree { queries, options: _ }) => {
+            let mut channel = PlanStepDataChannels::default();
+            if let Some(step_id) = filter_channel_step {
+                plan.get_step_channel(step_id).filter_channel.as_mut().unwrap().num_receivers += 1;
+                channel.filter_receiver = Some(plan.get_step_channel(step_id).filter_channel.as_mut().unwrap().filter_receiver.clone());
+            }
+            if is_filter_channel {
+                channel.filter_channel = Some(FilterChannel::default());
+            }
+            let step = Union { ids_only: is_filter, channel };
+            let step_id = plan.add_step(Box::new(step.clone()));
+            let result_channels_from_prev_steps = queries
+                .iter()
+                .map(|x| {
+                    // x.explain = request_header.explain;
+                    let boost = merge_vec(&boost, &x.get_boost());
+                    let step_id = plan_creator_2(
+                        is_filter,
+                        false,
+                        filter_channel_step,
+                        request_header,
+                        x,
+                        boost,
+                        plan,
+                        Some(step_id),
+                        depends_on_step,
+                        field_search_cache,
+                    );
+                    plan.get_step_channel(step_id).receiver_for_next_step.clone()
+                })
+                .collect();
+            plan.get_step_channel(step_id).input_prev_steps = result_channels_from_prev_steps;
 
-        (step_id)
-    } else if let Some(ands) = request.and.as_ref() {
-        let mut channel = PlanStepDataChannels::default();
-        if let Some(step_id) = filter_channel_step {
-            plan.get_step_channel(step_id).filter_channel.as_mut().unwrap().num_receivers += 1;
-            channel.filter_receiver = Some(plan.get_step_channel(step_id).filter_channel.as_mut().unwrap().filter_receiver.clone());
-        }
-        if is_filter_channel {
-            channel.filter_channel = Some(FilterChannel::default());
-        }
-        let step = Intersect { ids_only: is_filter, channel };
-        let step_id = plan.add_step(Box::new(step.clone()));
-        let result_channels_from_prev_steps = ands
-            .iter()
-            .map(|x| {
-                // x.explain = request_header.explain;
-                let boost = merge_vec(&boost, &x.boost);
-                let step_id = plan_creator_2(
-                    is_filter,
-                    false,
-                    filter_channel_step,
-                    request_header,
-                    x,
-                    boost,
-                    plan,
-                    Some(step_id),
-                    depends_on_step,
-                    field_search_cache,
-                );
-                plan.get_step_channel(step_id).receiver_for_next_step.clone()
-            })
-            .collect();
-        plan.get_step_channel(step_id).input_prev_steps = result_channels_from_prev_steps;
+            if let Some(parent_step_dependecy) = parent_step_dependecy {
+                plan.add_dependency(parent_step_dependecy, step_id);
+            }
+            if let Some(depends_on_step) = depends_on_step {
+                plan.add_dependency(step_id, depends_on_step);
+            }
 
-        if let Some(parent_step_dependecy) = parent_step_dependecy {
-            plan.add_dependency(parent_step_dependecy, step_id);
+            step_id
         }
-        if let Some(depends_on_step) = depends_on_step {
-            plan.add_dependency(step_id, depends_on_step);
-        }
+        SearchRequest::And(SearchTree { queries, options: _ }) => {
+            let mut channel = PlanStepDataChannels::default();
+            if let Some(step_id) = filter_channel_step {
+                plan.get_step_channel(step_id).filter_channel.as_mut().unwrap().num_receivers += 1;
+                channel.filter_receiver = Some(plan.get_step_channel(step_id).filter_channel.as_mut().unwrap().filter_receiver.clone());
+            }
+            if is_filter_channel {
+                channel.filter_channel = Some(FilterChannel::default());
+            }
+            let step = Intersect { ids_only: is_filter, channel };
+            let step_id = plan.add_step(Box::new(step.clone()));
+            let result_channels_from_prev_steps = queries
+                .iter()
+                .map(|x| {
+                    // x.explain = request_header.explain;
+                    let boost = merge_vec(&boost, &x.get_boost());
+                    let step_id = plan_creator_2(
+                        is_filter,
+                        false,
+                        filter_channel_step,
+                        request_header,
+                        x,
+                        boost,
+                        plan,
+                        Some(step_id),
+                        depends_on_step,
+                        field_search_cache,
+                    );
+                    plan.get_step_channel(step_id).receiver_for_next_step.clone()
+                })
+                .collect();
+            plan.get_step_channel(step_id).input_prev_steps = result_channels_from_prev_steps;
 
-        (step_id)
-    } else if let Some(part) = request.search.as_ref() {
-        // TODO Tokenize query according to field
-        // part.terms = part.terms.iter().map(|el| util::normalize_text(el)).collect::<Vec<_>>();
-        plan_creator_search_part(
-            is_filter_channel,
-            filter_channel_step,
-            part,
-            request,
-            &mut boost,
-            plan,
-            parent_step_dependecy,
-            depends_on_step,
-            field_search_cache,
-        )
-    } else {
-        //TODO HANDLE SUGGEST
-        //TODO ADD ERROR
-        // plan_creator_search_part(request.search.as_ref().unwrap().clone(), request)
-        panic!("missing 'and' 'or' 'search' in request - suggest not yet handled in search api {:?}", request);
+            if let Some(parent_step_dependecy) = parent_step_dependecy {
+                plan.add_dependency(parent_step_dependecy, step_id);
+            }
+            if let Some(depends_on_step) = depends_on_step {
+                plan.add_dependency(step_id, depends_on_step);
+            }
+
+            step_id
+        }
+        SearchRequest::Search(part) => {
+            // TODO Tokenize query according to field
+            // part.terms = part.terms.iter().map(|el| util::normalize_text(el)).collect::<Vec<_>>();
+            plan_creator_search_part(
+                is_filter_channel,
+                filter_channel_step,
+                part,
+                request_header,
+                &mut boost,
+                plan,
+                parent_step_dependecy,
+                depends_on_step,
+                field_search_cache,
+            )
+        }
     }
 }
 
@@ -350,9 +393,18 @@ fn plan_creator_search_part(
     let paths = util::get_steps_to_anchor(&request_part.path);
     let store_term_id_hits = request.why_found || request.text_locality;
 
-    let (field_search_step_id, field_search_step) = field_search_cache
-        .get_mut(&request_part)
-        .unwrap_or_else(|| panic!("PlanCreator: Could not find  request in field_search_cache {:?}", request_part));
+    let val = field_search_cache.get_mut(&request_part);
+
+    let (field_search_step_id, field_search_step) = {
+        if val.is_none() {
+            panic!(
+                "PlanCreator: Could not find request in field_search_cache.\nReq: {:#?}, \nCache: {:#?}",
+                request_part,
+                field_search_cache.keys()
+            )
+        }
+        val.unwrap()
+    };
 
     field_search_step.req.store_term_texts |= request.why_found;
     field_search_step.req.store_term_id_hits |= store_term_id_hits;
@@ -476,7 +528,7 @@ fn plan_creator_search_part(
     if let Some(depends_on_step) = depends_on_step {
         plan.add_dependency(id1, depends_on_step);
     }
-    (id1)
+    id1
 }
 
 use rayon::prelude::*;

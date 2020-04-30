@@ -117,7 +117,7 @@ pub fn union_hits_score(mut or_results: Vec<SearchFieldResult>) -> SearchFieldRe
         }
     }
 
-    let should_explain = or_results[0].request.explain;
+    let should_explain = or_results[0].request.is_explain();
 
     let mut terms = or_results.iter().map(|res| res.request.terms[0].to_string()).collect::<Vec<_>>();
     terms.sort();
@@ -180,14 +180,14 @@ pub fn union_hits_score(mut or_results: Vec<SearchFieldResult>) -> SearchFieldRe
             let num_distinct_terms = max_scores_per_term.iter().filter(|el| *el >= &0.00001).count() as f32;
             // sum_score = sum_score * num_distinct_terms * num_distinct_terms;
 
-            let sum_over_distinct_with_distinct_term_boost = max_scores_per_term.iter().sum::<f32>() as f32 * num_distinct_terms * num_distinct_terms;
+            let sum_over_distinct_with_distinct_term_boost = max_scores_per_term.iter().sum::<f32>() * num_distinct_terms * num_distinct_terms;
             debug_assert!(!sum_over_distinct_with_distinct_term_boost.is_nan());
             debug_assert!(sum_over_distinct_with_distinct_term_boost != std::f32::INFINITY);
             union_hits.push(Hit::new(id, sum_over_distinct_with_distinct_term_boost));
             if should_explain {
                 let explain = explain_hits.entry(id).or_insert_with(|| vec![]);
-                // explain.push(format!("or sum_over_distinct_terms {:?}", max_scores_per_term.iter().sum::<f32>() as f32));
-                explain.push(Explain::OrSumOverDistinctTerms(max_scores_per_term.iter().sum::<f32>() as f32));
+                // explain.push(format!("or sum_over_distinct_terms {:?}", max_scores_per_term.iter().sum::<f32>()));
+                explain.push(Explain::OrSumOverDistinctTerms(max_scores_per_term.iter().sum::<f32>()));
                 if num_distinct_terms > 1. {
                     // explain.push(format!("num_distinct_terms boost {:?} to {:?}", num_distinct_terms * num_distinct_terms, sum_over_distinct_with_distinct_term_boost));
                     // explain.push(Explain::NumDistinctTermsBoost{distinct_boost:num_distinct_terms * num_distinct_terms, new_score:sum_over_distinct_with_distinct_term_boost});
@@ -381,7 +381,7 @@ pub fn intersect_hits_score(mut and_results: Vec<SearchFieldResult>) -> SearchFi
 
     // trace!("Intersect Input:\n{}", serde_json::to_string_pretty(&and_results).unwrap());
 
-    let should_explain = and_results[0].request.explain;
+    let should_explain = and_results[0].request.is_explain();
     let term_id_hits_in_field = { merge_term_id_hits(&mut and_results) };
     let term_text_in_field = { merge_term_id_texts(&mut and_results) };
 
@@ -585,8 +585,8 @@ mod bench_intersect {
     use crate::test;
     #[bench]
     fn bench_boost_intersect_hits_vec_multi(b: &mut test::Bencher) {
-        let hits1: Vec<Hit> = (0..4_000_00).map(|i| Hit::new(i * 5 as u32, 2.2 as f32)).collect();
-        let hits2: Vec<Hit> = (0..40_000).map(|i| Hit::new(i * 3 as u32, 2.2 as f32)).collect();
+        let hits1: Vec<Hit> = (0..4_000_00).map(|i| Hit::new(i * 5, 2.2)).collect();
+        let hits2: Vec<Hit> = (0..40_000).map(|i| Hit::new(i * 3, 2.2)).collect();
 
         b.iter(|| {
             boost_hits_ids_vec_multi(

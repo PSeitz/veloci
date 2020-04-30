@@ -60,7 +60,7 @@ pub fn get_test_data() -> Value {
 #[test]
 fn search_and_get_facet_with_facet_index() {
     let req = json!({
-        "search": {"terms":["will"], "path": "meanings.eng[]"},
+        "search_req": {"search": {"terms":["will"], "path": "meanings.eng[]"}},
         "facets": [{"field":"tags[]"}, {"field":"commonness"}]
     });
 
@@ -89,7 +89,7 @@ fn search_query_params_and_get_facet_with_facet_index() {
 fn search_and_get_facet_without_facet_index() {
     // meanings.eng[] hat no facet index and is a 1-n facet
     let req = json!({
-        "search": {"terms":["test"], "path": "meanings.ger[]"},
+        "search_req": {"search": {"terms":["test"], "path": "meanings.ger[]"}},
         "facets": [{"field":"meanings.eng[]"}]
     });
 

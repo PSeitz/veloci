@@ -50,6 +50,7 @@ pub(crate) fn encode_vals<O: std::io::Write>(vals: &[u32], bytes_required: Bytes
 }
 
 #[inline]
+#[allow(trivial_casts)]
 pub(crate) fn decode_bit_packed_val<T: IndexIdToParentData>(data: &[u8], bytes_required: BytesRequired, index: usize) -> Option<T> {
     let bit_pos_start = index * bytes_required as usize;
     if bit_pos_start >= data.len() {
@@ -85,7 +86,7 @@ pub(crate) fn decode_bit_packed_vals<T: IndexIdToParentData>(data: &[u8], bytes_
 fn test_encodsing_and_decoding_bitpacking() {
     let vals: Vec<u32> = vec![123, 33, 545, 99];
 
-    let bytes_required = get_bytes_required(*vals.iter().max().unwrap() as u32);
+    let bytes_required = get_bytes_required(*vals.iter().max().unwrap());
 
     let mut bytes = vec![];
 
@@ -99,7 +100,7 @@ fn test_encodsing_and_decoding_bitpacking() {
     assert_eq!(decode_bit_packed_val::<u32>(&bytes, bytes_required, 5), None);
 
     let vals: Vec<u32> = vec![50001, 33];
-    let bytes_required = get_bytes_required(*vals.iter().max().unwrap() as u32);
+    let bytes_required = get_bytes_required(*vals.iter().max().unwrap());
     let mut bytes = vec![];
 
     encode_vals(&vals, bytes_required, &mut bytes).unwrap();

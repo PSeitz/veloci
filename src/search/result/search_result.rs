@@ -3,6 +3,7 @@ use fnv::FnvHashMap;
 
 #[derive(Serialize, Deserialize, Default, Clone, Debug)]
 pub struct SearchResult {
+    pub execution_time_ns: u64,
     pub num_hits: u64,
     pub data: Vec<Hit>,
     pub ids: Vec<u32>,

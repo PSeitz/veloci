@@ -1,7 +1,4 @@
-use combine::char::*;
-use combine::error::StreamError;
-use combine::stream::StreamErrorFor;
-use combine::*;
+use combine::{char::*, error::StreamError, stream::StreamErrorFor, *};
 use std::fmt;
 // use user_input_ast::*;
 
@@ -9,7 +6,7 @@ use std::fmt;
 pub struct UserFilter {
     pub field_name: Option<String>,
     pub phrase: String,
-    pub levenshtein: Option<u8>
+    pub levenshtein: Option<u8>,
 }
 
 impl fmt::Debug for UserFilter {
@@ -19,7 +16,7 @@ impl fmt::Debug for UserFilter {
                 Some(ref field_name) => write!(formatter, "{}:\"{}\"~{:?}", field_name, self.phrase, levenshtein),
                 None => write!(formatter, "\"{}\"~{:?}", self.phrase, levenshtein),
             }
-        }else{
+        } else {
             match self.field_name {
                 Some(ref field_name) => write!(formatter, "{}:\"{}\"", field_name, self.phrase),
                 None => write!(formatter, "\"{}\"", self.phrase),
@@ -83,7 +80,7 @@ fn test_simplify() {
     let leaf = UserAST::Leaf(Box::new(UserFilter {
         field_name: None,
         phrase: "test".to_string(),
-        levenshtein: None
+        levenshtein: None,
     }));
     let ast = UserAST::Clause(Operator::Or, vec![UserAST::Clause(Operator::Or, vec![leaf])]);
 
@@ -135,33 +132,10 @@ parser! {
     }
 }
 
-// parser! {
-//     fn words[I]()(I) -> Operator
-//     where [I: Stream<Item = char>] {
-//         (skip_many1(space()),
-//         (
-//             word()
-//         ),
-//         skip_many1(space())).map(|(_, op,_)| op)
-//     }
-// }
-
-// fn to_filter(phrase: &str) -> UserAST {
-//     UserFilter {
-//         field_name: None,
-//         phrase: phrase.to_string(),
-//     }.into_ast()
-// }
-
 parser! {
     fn user_literal[I]()(I) -> UserAST
     where [I: Stream<Item = char>]
     {
-        // let two_words = (word(), space(), word()).map(|(w1, _, w2)|{
-        //     UserAST::Or(vec![to_filter(&w1),to_filter(&w2)])
-        // });
-        // let multi_words = sep_by(word(), space())
-        //     .map(|mut words: Vec<String>| UserAST::Or(words.iter().map(|w|to_filter(w)).collect()));
         let term_val = || {
             let phrase = (char('"'), many1(satisfy(|c| c != '"')), char('"')).map(|(_, s, _)| s);
             phrase.or(word())
@@ -230,7 +204,7 @@ parser! {
 }
 
 macro_rules! combine_if_same_op {
-    ($ast:expr,$opa:expr, $other:expr) => (
+    ($ast:expr,$opa:expr, $other:expr) => {
         if let UserAST::Clause(op, ref queries) = $ast {
             if op == $opa {
                 let mut queries = queries.clone();
@@ -238,14 +212,14 @@ macro_rules! combine_if_same_op {
                 return UserAST::Clause(op, queries);
             }
         }
-    );
+    };
 }
 
 parser! {
     pub fn parse_to_ast[I]()(I) -> UserAST
     where [I: Stream<Item = char>]
     {
-        (
+        
             attempt(
                 chainl1(
                     leaf(),
@@ -258,7 +232,7 @@ parser! {
                     )
                 )
             )
-        )
+        
     }
 }
 
@@ -333,5 +307,4 @@ mod test {
     fn test_parse_field_with_levenshtein() {
         test_parse_query_to_ast_helper("feld:buch~2", "feld:\"buch\"~2");
     }
-
 }

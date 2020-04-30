@@ -19,7 +19,7 @@ use serde_json;
 use std::{
     self,
     collections::HashMap,
-    env,
+    env, fmt,
     fmt::Debug,
     fs::{self, File},
     io::{self, prelude::*},
@@ -98,6 +98,17 @@ pub struct Persistence {
     pub lru_cache: HashMap<String, LruCache<RequestSearchPart, SearchResult>>,
     // pub lru_fst: HashMap<String, LruCache<(String, u8), Box<fst::Automaton<State=Option<usize>>>>>,
     pub term_boost_cache: RwLock<LruCache<Vec<RequestSearchPart>, Vec<SearchFieldResult>>>,
+}
+
+impl fmt::Debug for Persistence {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Persistence")
+            .field("db", &self.db)
+            .field("metadata", &self.metadata)
+            .field("persistence_type", &self.persistence_type)
+            .field("indices", &self.indices)
+            .finish()
+    }
 }
 
 impl FromStr for LoadingType {
@@ -298,7 +309,7 @@ impl Persistence {
             metadata,
             ok: std::marker::PhantomData,
         };
-        Ok(Box::new(store) as Box<dyn IndexIdToParent<Output = u32>>)
+        Ok(Box::new(store))
     }
 
     fn load_indices(&mut self) -> Result<(), VelociError> {
@@ -322,9 +333,7 @@ impl Persistence {
                             data: vec![],
                             metadata: el.metadata,
                         };
-                        self.indices
-                            .phrase_pair_to_anchor
-                            .insert(el.path.to_string(), Box::new(store) as Box<dyn PhrasePairToAnchor<Input = (u32, u32)>>);
+                        self.indices.phrase_pair_to_anchor.insert(el.path.to_string(), Box::new(store));
                         continue;
                     }
 
@@ -377,9 +386,7 @@ impl Persistence {
                             metadata: el.metadata,
                             ok: std::marker::PhantomData,
                         };
-                        self.indices
-                            .key_value_stores
-                            .insert(el.path.to_string(), Box::new(store) as Box<dyn IndexIdToParent<Output = u32>>);
+                        self.indices.key_value_stores.insert(el.path.to_string(), Box::new(store));
                         continue;
                     }
 
@@ -398,7 +405,7 @@ impl Persistence {
                                         num_ids: 0,
                                     },
                                 };
-                                Box::new(store) as Box<dyn IndexIdToParent<Output = u32>>
+                                Box::new(store)
                             }
                             IndexCardinality::IndexIdToOneParent => {
                                 let bytes_required = get_bytes_required(el.metadata.max_value_id) as u8;
@@ -418,13 +425,13 @@ impl Persistence {
                                     avg_join_size: el.metadata.avg_join_size,
                                     ..Default::default()
                                 };
-                                let store = IndirectMMap::from_path(&get_file_path(&self.db, &el.path), meta)?;
-                                Box::new(store) as Box<dyn IndexIdToParent<Output = u32>>
+                                let store: Box<dyn IndexIdToParent<Output = u32>> = Box::new(IndirectMMap::from_path(&get_file_path(&self.db, &el.path), meta)?);
+                                store
                             }
                             IndexCardinality::IndexIdToOneParent => {
-                                let store = SingleArrayMMAPPacked::<u32>::from_file(&self.get_file_handle(&el.path)?, el.metadata)?;
-
-                                Box::new(store) as Box<dyn IndexIdToParent<Output = u32>>
+                                let store: Box<dyn IndexIdToParent<Output = u32>> =
+                                    Box::new(SingleArrayMMAPPacked::<u32>::from_file(&self.get_file_handle(&el.path)?, el.metadata)?);
+                                store
                             }
                         },
                     };

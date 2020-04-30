@@ -106,7 +106,7 @@ impl<'a, 'c> dot::Labeller<'a, Nd, Ed<'a>> for Graph<'c> {
         dot::LabelText::LabelStr(n.1.to_string().into())
     }
 
-    fn edge_label<'b>(&'b self, _: &Ed) -> dot::LabelText<'b> {
+    fn edge_label<'b>(&'b self, _: &Ed<'_>) -> dot::LabelText<'b> {
         dot::LabelText::LabelStr("".into())
     }
 }
@@ -121,11 +121,11 @@ impl<'a, 'c> dot::GraphWalk<'a, Nd, Ed<'a>> for Graph<'c> {
         self.edges.iter().collect()
     }
 
-    fn source(&self, e: &Ed) -> Nd {
+    fn source(&self, e: &Ed<'_>) -> Nd {
         (e.depends_on, format!("{}", self.nodes[e.depends_on]))
     }
 
-    fn target(&self, e: &Ed) -> Nd {
+    fn target(&self, e: &Ed<'_>) -> Nd {
         (e.step_index, format!("{}", self.nodes[e.step_index]))
     }
 }

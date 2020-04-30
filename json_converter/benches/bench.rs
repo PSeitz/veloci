@@ -5,18 +5,12 @@ extern crate criterion;
 #[macro_use]
 extern crate serde_json;
 
-use json_converter::IDProvider;
 use criterion::Criterion;
+use json_converter::IDProvider;
 
-use json_converter::for_each_element;
-use json_converter::for_each_elemento;
-use json_converter::for_each_text;
-use json_converter::for_each_texto;
-use json_converter::IDHolder;
+use json_converter::{for_each_element, for_each_elemento, for_each_text, for_each_texto, IDHolder};
 
-
-fn get_test_json() -> serde_json::Value{
-
+fn get_test_json() -> serde_json::Value {
     json!({
         "commonness": 3103,
         "ent_seq": "1259290",
@@ -91,13 +85,10 @@ fn get_test_json() -> serde_json::Value{
             "vt"
         ]
     })
-
 }
 
-fn get_json_test_data_line_seperated() -> String{
-    let json_values: Vec<serde_json::Value> = (0..500)
-        .map(|_|get_test_json())
-        .collect();
+fn get_json_test_data_line_seperated() -> String {
+    let json_values: Vec<serde_json::Value> = (0..500).map(|_| get_test_json()).collect();
 
     let mut json_string_line_seperated = String::new();
     for val in json_values {
@@ -108,18 +99,16 @@ fn get_json_test_data_line_seperated() -> String{
     json_string_line_seperated
 }
 
-
 fn criterion_benchmark(c: &mut Criterion) {
     // let json_string_line_seperated = get_json_test_data_line_seperated();
 
     c.bench_function("walk json", move |b| {
-
         b.iter(|| {
-            let mut cb_text = |_anchor_id: u32, _value: &str, _path: &str, _parent_val_id: u32| -> Result<(), serde_json::Error>{
+            let mut cb_text = |_anchor_id: u32, _value: &str, _path: &str, _parent_val_id: u32| -> Result<(), serde_json::Error> {
                 // println!("TEXT: path {} value {} parent_val_id {}",path, value, parent_val_id);
                 Ok(())
             };
-            let mut cb_ids = |_anchor_id: u32, _path: &str, _val_id: u32, _parent_val_id: u32| -> Result<(), serde_json::Error>{
+            let mut cb_ids = |_anchor_id: u32, _path: &str, _val_id: u32, _parent_val_id: u32| -> Result<(), serde_json::Error> {
                 // println!("IDS: path {} val_id {} parent_val_id {}",path, val_id, parent_val_id);
                 Ok(())
             };
@@ -137,8 +126,6 @@ fn criterion_benchmark(c: &mut Criterion) {
             // let stream = json_string_line_seperated.lines().map(|line| serde_json::from_str(&line));
             // // let stream = Deserializer::from_str(&data_str).into_iter::<Value>();
             // for_each_element(stream, &mut id_holder, &mut cb_text, &mut callback_ids).unwrap();
-
-
         })
     });
 
@@ -146,7 +133,7 @@ fn criterion_benchmark(c: &mut Criterion) {
 
     c.bench_function("walk json text", move |b| {
         b.iter(|| {
-            let mut cb_text = | _value: &str, _path: &str| -> Result<(), serde_json::Error>{
+            let mut cb_text = |_value: &str, _path: &str| -> Result<(), serde_json::Error> {
                 // println!("TEXT: path {} value {} parent_val_id {}",path, value, parent_val_id);
                 Ok(())
             };

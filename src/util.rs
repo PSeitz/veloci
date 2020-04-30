@@ -106,7 +106,7 @@ impl SetExt for Path {
 //     input & (1 << n) != 0
 // }
 
-const ONLY_HIGH_BIT_SET: u32 = (1 << 31);
+const ONLY_HIGH_BIT_SET: u32 = 1 << 31;
 const ALL_BITS_BUT_HIGHEST_SET: u32 = (1 << 31) - 1;
 
 #[inline]
@@ -128,6 +128,7 @@ use std::ptr::copy_nonoverlapping;
 pub(crate) fn get_u32_from_bytes(data: &[u8], pos: usize) -> u32 {
     let mut out: u32 = 0;
     unsafe {
+        #[allow(trivial_casts)]
         copy_nonoverlapping(data[pos..].as_ptr(), &mut out as *mut u32 as *mut u8, 4);
     }
     out
@@ -137,6 +138,7 @@ pub(crate) fn get_u32_from_bytes(data: &[u8], pos: usize) -> u32 {
 pub(crate) fn get_u64_from_bytes(data: &[u8], pos: usize) -> u64 {
     let mut out: u64 = 0;
     unsafe {
+        #[allow(trivial_casts)]
         copy_nonoverlapping(data[pos..].as_ptr(), &mut out as *mut u64 as *mut u8, 8);
     }
     out
@@ -270,6 +272,7 @@ impl NodeTree {
 }
 
 pub fn to_node_tree(mut paths: Vec<Vec<String>>) -> NodeTree {
+    // paths.sort_by(|x, y| x[0].cmp(&y[0])); // sort for group_by
     paths.sort_by_key(|el| el[0].clone()); // sort for group_by
     let mut next = HashMap::default();
     for (key, group) in &paths.into_iter().group_by(|el| el.get(0).cloned()) {

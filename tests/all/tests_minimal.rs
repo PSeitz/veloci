@@ -1,13 +1,11 @@
-
-
 use serde_json::Value;
-use veloci::*;
+use veloci::{search::*, *};
 
 use super::common;
 
 static TEST_FOLDER: &str = "mochaTest_minimal";
 lazy_static! {
-    static ref TEST_PERSISTENCE: persistence::Persistence = { common::create_test_persistence(TEST_FOLDER, "{}", &get_test_data().to_string().as_bytes(), None) };
+    static ref TEST_PERSISTENCE: persistence::Persistence = common::create_test_persistence(TEST_FOLDER, "{}", &get_test_data().to_string().as_bytes(), None);
 }
 
 pub fn get_test_data() -> Value {
@@ -29,7 +27,7 @@ fn test_minimal() {
         }
     });
 
-    let hits = search_testo_to_doc!(req).data;
+    let hits = search_request_json_to_doc!(req).data;
     assert_eq!(hits.len(), 1);
     assert_eq!(hits[0].doc["field"], "test");
 }
@@ -37,9 +35,11 @@ fn test_minimal() {
 #[test]
 fn test_minimal_with_filter_identity_column_test() {
     let req = json!({
-        "search": {
-            "terms":["test"],
-            "path": "field"
+        "search_req": {
+            "search": {
+                "terms":["test"],
+                "path": "field"
+            }
         },
         "filter":{
             "search": {
@@ -61,23 +61,48 @@ fn test_minimal_with_filter_identity_column_test() {
 }
 
 #[test]
-fn test_minimal_or() {
+fn test_minimal_or_json() {
     let req = json!({
-        "or":[
-        {
-            "search": {
-                "terms":["test"],
-                "path": "field",
-            }
-        },{
-            "search": {
-                "terms":["test2"],
-                "path": "field",
-            }
-        }]
+        "or":{
+            "queries": [
+                {
+                    "search": {
+                        "terms":["test"],
+                        "path": "field",
+                    }
+                },{
+                    "search": {
+                        "terms":["test2"],
+                        "path": "field",
+                    }
+                }
+            ]}
     });
 
-    let hits = search_testo_to_doc!(req).data;
+    let hits = search_request_json_to_doc!(req).data;
+    assert_eq!(hits.len(), 1);
+    assert_eq!(hits[0].doc["field"], "test");
+}
+
+#[test]
+fn test_minimal_or_object() {
+    let req = SearchRequest::Or(SearchTree {
+        queries: vec![
+            SearchRequest::Search(RequestSearchPart {
+                terms: vec!["test".to_string()],
+                path: "field".to_string(),
+                ..Default::default()
+            }),
+            SearchRequest::Search(RequestSearchPart {
+                terms: vec!["test2".to_string()],
+                path: "field".to_string(),
+                ..Default::default()
+            }),
+        ],
+        ..Default::default()
+    });
+
+    let hits = search_request_to_doc!(req).data;
     assert_eq!(hits.len(), 1);
     assert_eq!(hits[0].doc["field"], "test");
 }

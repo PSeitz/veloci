@@ -253,7 +253,7 @@ where
         let mut tokens_to_anchor_id = Vec::with_capacity(10);
 
         let mut cb_text = |anchor_id: u32, value: &str, path: &str, parent_val_id: u32| -> Result<(), io::Error> {
-            let data: &mut PathData = get_or_insert_prefer_get(&mut path_data as *mut FnvHashMap<_, _>, path, || {
+            let data: &mut PathData = get_or_insert_prefer_get(&mut path_data, path, || {
                 let term_data = term_data.terms_in_path.remove(path).unwrap_or_else(|| panic!("Couldn't find path in term_data {:?}", path));
                 prepare_path_data(&persistence.temp_dir(), &persistence, &fields_config, path, term_data)
             });
@@ -349,7 +349,7 @@ where
         };
 
         let mut callback_ids = |_anchor_id: u32, path: &str, value_id: u32, parent_val_id: u32| -> Result<(), io::Error> {
-            let tuples: &mut PathDataIds = get_or_insert_prefer_get(&mut tuples_to_parent_in_path as *mut FnvHashMap<_, _>, path, || {
+            let tuples: &mut PathDataIds = get_or_insert_prefer_get(&mut tuples_to_parent_in_path, path, || {
                 let field_config = fields_config.get(path);
                 //TODO FIXME BUG ALL SUB LEVELS ARE NOT HANDLED (not every supath hat it's own config yet) ONLY THE LEAFES BEFORE .TEXTINDEX
                 let value_to_parent = if field_config.is_index_enabled(IndexCreationType::ValueIDToParent) {
@@ -488,6 +488,7 @@ fn stream_iter_to_anchor_score<T: AnchorScoreDataSize>(
                 false
             }
         });
+        #[allow(trivial_casts)]
         let mut slice: &mut [u32] = unsafe {
             &mut *(from_raw_parts_mut(group.as_mut_ptr(), group.len() * 2) as *mut [(ValueId, ValueId)] as *mut [u32]) //DANGER ZONE: THIS COULD BREAK IF THE MEMORY LAYOUT OF TUPLE CHANGES
         };

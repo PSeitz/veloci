@@ -239,7 +239,7 @@ fn search_from_query_params(database: String, params: QueryParams) -> Result<Sea
     let stopword_lists: Option<Vec<String>> = query_param_to_vec(params.stopword_lists);
     let fields: Option<Vec<String>> = query_param_to_vec(params.fields);
 
-    let boost_fields: Result<HashMap<String, f32>, _> = query_param_to_vec(params.boost_fields)
+    let boost_fields: Option<Result<HashMap<String, f32>, _>> = query_param_to_vec(params.boost_fields)
         .map(|mkay| {
             mkay.into_iter()
                 .map(|el| {
@@ -251,10 +251,10 @@ fn search_from_query_params(database: String, params: QueryParams) -> Result<Sea
                     Ok((field_n_boost[0].to_string(), val))
                 })
                 .collect()
-        })
-        .unwrap_or(Ok(HashMap::default()));
+        });
+        // .unwrap_or(Ok(HashMap::default()));
 
-    let boost_terms: HashMap<String, f32> = query_param_to_vec(params.boost_terms)
+    let boost_terms: Option<HashMap<String, f32>> = query_param_to_vec(params.boost_terms)
         .map(|mkay| {
             mkay.into_iter()
                 .map(|el| {
@@ -262,8 +262,8 @@ fn search_from_query_params(database: String, params: QueryParams) -> Result<Sea
                     (field_n_boost[0].to_string(), field_n_boost.get(1).map(|el| el.parse::<f32>().unwrap()).unwrap_or(2.0))
                 })
                 .collect()
-        })
-        .unwrap_or(HashMap::default());
+        });
+        // .unwrap_or(HashMap::default());
 
     let mut q_params = query_generator::SearchQueryGeneratorParameters {
         search_term: params.query.to_string(),
@@ -279,7 +279,7 @@ fn search_from_query_params(database: String, params: QueryParams) -> Result<Sea
         facets: facets,
         stopword_lists,
         fields: fields,
-        boost_fields: boost_fields?,
+        boost_fields: boost_fields.transpose()?,
         boost_terms: boost_terms,
         explain: params.explain.map(|el| el.to_lowercase() == "true"),
         boost_queries: None,

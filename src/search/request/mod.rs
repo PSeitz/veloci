@@ -13,17 +13,9 @@ pub use snippet_info::*;
 /// For more complex requests, e.g. with phrase boost, currently the convenience api `query_generator` is recommended.
 #[derive(Serialize, Deserialize, Default, Clone, Debug)]
 pub struct Request {
-    /// or/and/search and suggest are mutually exclusive
+    /// or/and/search tree
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub or: Option<Vec<Request>>,
-
-    /// or/and/search and suggest are mutually exclusive
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub and: Option<Vec<Request>>,
-
-    /// or/and/search and suggest are mutually exclusive
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub search: Option<RequestSearchPart>,
+    pub search_req: Option<SearchRequest>,
 
     #[serde(skip_serializing_if = "Option::is_none")]
     /// or/and/search and suggest are mutually exclusive
@@ -50,7 +42,7 @@ pub struct Request {
 
     #[serde(skip_serializing_if = "Option::is_none")]
     /// filter does not affect the score, it just filters the result
-    pub filter: Option<Box<Request>>,
+    pub filter: Option<Box<SearchRequest>>,
 
     #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(default = "default_top")]
@@ -60,7 +52,10 @@ pub struct Request {
     #[serde(default = "default_skip")]
     pub skip: Option<usize>,
 
-    /// Enables highlighting to show where in the text the tokens have hit
+    /// Enables highlighting to show where in the text the tokens have hit.
+    ///
+    /// Applies only for searches.
+    ///
     /// each document in [`SearchResult`] hit will contain informatio with a list of hightlighted text per field
     /// When select is enabled, the selected field will be reconstructed from the indices and why_found will be active during reconstruction.
     /// When select is not enabled, why_found will tokenize the hits and apply hightlighting with the list of term hits on the field.
@@ -70,6 +65,8 @@ pub struct Request {
     pub why_found: bool,
 
     /// text locality is when multiple tokens will hit in the same text
+    ///
+    /// Applies only for searches.
     ///
     /// e.g. if you have 2 documents with an array of texts with:
     /// doc1: ["my nice search engine"]
@@ -94,3 +91,8 @@ pub struct RequestPhraseBoost {
     pub search1: RequestSearchPart,
     pub search2: RequestSearchPart,
 }
+
+// #[test]
+// fn test_size() {
+//     assert_eq!(std::mem::size_of::<SearchRequest>(), 10);
+// }

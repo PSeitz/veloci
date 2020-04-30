@@ -1,4 +1,3 @@
-
 extern crate more_asserts;
 
 use serde_json::Value;
@@ -148,6 +147,7 @@ fn simple_search_querygenerator_explained() {
     assert_eq!(hits[0].doc["commonness"], 20);
     assert_eq!(hits[0].doc["tags"], json!(["nice".to_string()]));
     // assert_eq!(hits[0].explain, Some(to_vec(&["or sum_over_distinct_terms 36.8125", "term score 10.0 * anchor score 3.68 to 36.8", "levenshtein score 10.0 for urge"])));
+    println!("{:?}", hits[0].explain);
     assert_eq!(hits[0].explain.as_ref().unwrap().len(), 5);
 }
 

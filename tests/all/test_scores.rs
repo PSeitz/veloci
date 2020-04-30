@@ -57,11 +57,11 @@ lazy_static! {
 #[test]
 fn check_score_regarding_to_length() {
     let req_with_single_phrase = json!({
-        "or":[
+        "search_req": { "or":  { "queries": [
             {"search": {"terms":["greg"], "path": "title" }},
             {"search": {"terms":["tagebuch"], "path": "title" }},
             {"search": {"terms":["05"], "path": "title" }}
-        ],
+        ]}},
         "phrase_boosts": [{
             "path":"title",
             "search1":{"terms":["greg"], "path": "title" },
@@ -190,13 +190,13 @@ fn check_score_boost_multiply_value_from_field() {
 fn should_rank_exact_matches_pretty_good() {
     // TODO test with exact TOKEN score like: (1)weich
     let req = json!({
-        "search": {
+        "search_req": { "search": {
             "terms":["weich"], // hits welche and weich, welche has more boost
             "path": "meanings.ger[]",
             "levenshtein_distance": 1,
             "explain": true,
             "firstCharExactMatch":true
-        },
+        }},
         "boost" : [{
             "path":"commonness",
             "boost_fun": "Log2",

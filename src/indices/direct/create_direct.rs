@@ -134,7 +134,7 @@ mod tests {
             let data_path = dir.path().join("data");
             let mut ind = IndexIdToOneParentFlushing::new(data_path.clone(), *get_test_data_1_to_1().iter().max().unwrap());
             for (key, val) in get_test_data_1_to_1().iter().enumerate() {
-                ind.add(key as u32, *val as u32).unwrap();
+                ind.add(key as u32, *val).unwrap();
                 ind.flush().unwrap();
             }
             let store = SingleArrayMMAPPacked::<u32>::from_file(&File::open(data_path).unwrap(), ind.metadata).unwrap();
@@ -147,7 +147,7 @@ mod tests {
             let data_path = dir.path().join("data");
             let mut ind = IndexIdToOneParentFlushing::new(data_path, *get_test_data_1_to_1().iter().max().unwrap());
             for (key, val) in get_test_data_1_to_1().iter().enumerate() {
-                ind.add(key as u32, *val as u32).unwrap();
+                ind.add(key as u32, *val).unwrap();
             }
             check_test_data_1_to_1(&ind.into_im_store());
         }
