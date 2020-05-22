@@ -9,23 +9,27 @@ use std::cmp::Ordering::Greater;
 
 use vint::vint::*;
 
-#[cfg(feature = "lz4_linked")]
+#[cfg(feature = "comp_lz4_linked")]
 use lz4::{Decoder, EncoderBuilder};
 
-#[cfg(feature = "lz4_rust")]
+#[cfg(feature = "comp_lz4_rust")]
 use lz4_compress::{compress, decompress};
 
-#[cfg(feature = "lz4_flexx")]
+#[cfg(feature = "comp_lz4_flexx")]
 use lz4_flex::{compress_into, decompress};
 
+#[cfg(feature = "comp_snappy")]
+use snap::raw::{max_compress_len, Encoder, Decoder};
+
+/// The Threshold after the Block is flushed to disk. So this is implicit the Block Size
+/// This also defines the minimal reading size for a document, because the whole block needs to be decompressed to access the document(s) inside.
 const FLUSH_THRESHOLD: usize = 65535;
-// const VALUE_OFFSET: usize = 1;
 
 #[derive(Debug)]
 pub struct DocLoader {}
 impl DocLoader {
 
-    #[cfg(feature = "lz4_linked")]
+    #[cfg(feature = "comp_lz4_linked")]
     fn decompress(buffer: &[u8]) -> Result<Vec<u8>, io::Error> {
         let mut output:Vec<u8> = vec![];
         let mut decoder = Decoder::new(buffer)?;
@@ -33,9 +37,19 @@ impl DocLoader {
         Ok(output)
     }
 
-    #[cfg(any(feature = "lz4_rust", feature = "lz4_flexx"))]
+    #[cfg(any(feature = "comp_lz4_rust", feature = "comp_lz4_flexx"))]
     fn decompress(buffer: &[u8]) -> Result<Vec<u8>, io::Error> {
         Ok(decompress(&buffer).unwrap())
+    }
+    #[cfg(any(feature = "comp_snappy"))]
+    fn decompress(buffer: &[u8]) -> Result<Vec<u8>, io::Error> {
+        let mut output:Vec<u8> = vec![];
+        let mut rdr = snap::read::FrameDecoder::new(buffer);
+        io::copy(&mut rdr, &mut output).expect("I/O operation failed");
+        Ok(output)
+
+        // let mut enc = Decoder::new();
+        // Ok(enc.decompress_vec(&buffer).unwrap())
     }
 
     pub fn get_doc<R: Read + Seek>(mut data_reader: R, offsets:&[u8], pos: usize) -> Result<String, io::Error> {
@@ -46,7 +60,7 @@ impl DocLoader {
         let mut buffer: Vec<u8> = vec![0;(end - start) as usize];
         data_reader.seek(SeekFrom::Start(start as u64))?;
         data_reader.read_exact(&mut buffer)?;
-        let mut output:Vec<u8> = DocLoader::decompress(&buffer as &[u8])?;
+        let output:Vec<u8> = DocLoader::decompress(&buffer as &[u8])?;
 
         let mut arr = VintArrayIterator::new(&output);
         let arr_size = arr.next().unwrap();
@@ -154,7 +168,7 @@ impl DocWriter {
         Ok(())
     }
 
-    #[cfg(feature = "lz4_linked")]
+    #[cfg(feature = "comp_lz4_linked")]
     fn compress<W:Write>(mut slice1: &[u8], mut slice2: &[u8], mut out: W) -> usize {
         let mut cache = vec![];
         let mut encoder = EncoderBuilder::new().level(2).build(&mut cache).unwrap();
@@ -165,7 +179,27 @@ impl DocWriter {
         output.len()
     }
 
-    #[cfg(feature = "lz4_flexx")]
+    #[cfg(feature = "comp_snappy")]
+    fn compress<W:Write>(mut slice1: &[u8],mut slice2: &[u8], mut out: W) -> usize {
+        let mut cache = vec![];
+        {
+            let mut wtr = snap::write::FrameEncoder::new(&mut cache);
+            io::copy(&mut slice1, &mut wtr).expect("I/O operation failed");
+            io::copy(&mut slice2, &mut wtr).expect("I/O operation failed");
+        }
+        out.write_all(&cache).unwrap();
+        cache.len()
+
+        // let mut cache = vec![0; max_compress_len(slice1.len()) + max_compress_len(slice2.len()) ];
+        // let mut dec = Encoder::new();
+
+        // let bytes1 = dec.compress(slice1, &mut cache).unwrap();
+        // let bytes2 = dec.compress(slice2, &mut cache).unwrap();
+        // out.write_all(&cache[..(bytes1 + bytes2)]).unwrap();
+        // bytes1 + bytes2
+    }
+
+    #[cfg(feature = "comp_lz4_flexx")]
     fn compress<W:Write>(mut slice1: &[u8], mut slice2: &[u8], mut out: W) -> usize {
         let both:Vec<u8> = [slice1,slice2].concat();
         compress_into(&both, out).unwrap()
@@ -173,7 +207,7 @@ impl DocWriter {
         // out.write_all(&comp).unwrap();
         // comp.len()
     }
-    #[cfg(feature = "lz4_rust")]
+    #[cfg(feature = "comp_lz4_rust")]
     fn compress<W:Write>(mut slice1: &[u8], mut slice2: &[u8], mut out: W) -> usize {
         let both:Vec<u8> = [slice1,slice2].concat();
         let comp = compress(&both);
@@ -201,6 +235,22 @@ impl DocWriter {
         self.offsets.push((self.curr_id, self.current_offset));
         Ok(())
     }
+}
+
+
+#[test]
+fn test_minimal_compress_decompress() {
+    let slice1 = vec![1,2];
+    let slice2 = vec![2,3];
+    let mut out = vec![];
+    let yop = DocWriter::compress(&slice1, &slice2, &mut out);
+    println!("{:?}", yop);
+    println!("{:?}", out);
+
+
+    let dec = DocLoader::decompress(&out);
+
+    println!("{:?}", dec);
 }
 
 #[test]
@@ -232,13 +282,13 @@ extern crate test;
 
 #[bench]
 fn bench_creation(b: &mut test::Bencher) {
+    let input: String = std::fs::read_to_string("../../jmdict_search/jmdict_split.json").unwrap();
+
     b.iter(|| {
         let mut writer = DocWriter::new(0);
         let mut sink = vec![];
-        for _ in 0..10_000 {
-            writer.add_doc(r#"{"test":"ok"}"#, &mut sink).unwrap();
-            writer.add_doc(r#"{"test2":"ok"}"#, &mut sink).unwrap();
-            writer.add_doc(r#"{"test3":"ok"}"#, &mut sink).unwrap();
+        for line in input.lines().take(10_000) {
+            writer.add_doc(line, &mut sink).unwrap();
         }
         writer.finish(&mut sink).unwrap();
     })
@@ -246,12 +296,11 @@ fn bench_creation(b: &mut test::Bencher) {
 
 #[bench]
 fn bench_reading(b: &mut test::Bencher) {
+    let input: String = std::fs::read_to_string("../../jmdict_search/jmdict_split.json").unwrap();
     let mut writer = DocWriter::new(0);
     let mut sink = vec![];
-    for _ in 0..10_000 {
-        writer.add_doc(r#"{"test":"ok"}"#, &mut sink).unwrap();
-        writer.add_doc(r#"{"test2":"ok"}"#, &mut sink).unwrap();
-        writer.add_doc(r#"{"test3":"ok"}"#, &mut sink).unwrap();
+    for line in input.lines().take(10_000) {
+        writer.add_doc(line, &mut sink).unwrap();
     }
     writer.finish(&mut sink).unwrap();
 

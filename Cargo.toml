@@ -68,7 +68,7 @@ version = "0.7.1"
 path = "buffered_index_writer"
 
 [dependencies.doc_store]
-features = ["lz4_linked"]
+features = ["comp_lz4_linked"]
 path = "doc_store"
 
 [dependencies.half]
@@ -117,10 +117,10 @@ version = "0.3.0"
 
 [features]
 create = []
-default = ["create", "doc_store/lz4_linked"]
-lz4_linked = ["doc_store/lz4_linked"]
-lz4_flex = ["doc_store/lz4_flex"]
-lz4_rust = ["doc_store/lz4_rust"]
+default = ["create", "doc_store/comp_lz4_linked"]
+lz4_linked = ["doc_store/comp_lz4_linked"]
+lz4_flex = ["doc_store/comp_lz4_flexx"]
+lz4_rust = ["doc_store/comp_lz4_rust"]
 
 [lib]
 name = "veloci"
