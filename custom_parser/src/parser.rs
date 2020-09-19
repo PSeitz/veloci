@@ -220,6 +220,17 @@ mod tests {
             parse("((super AND cool)) OR (fancy)").unwrap(),
             ((("super".into(), And, "cool".into()).into()), Or, "fancy".into()).into()
         );
+
+        // println!("{:?}", parse("(cool)"));
+    }
+
+    #[test]
+    fn test_parentheses_disabled() {
+        let opt_no_parentheses = Options{no_parentheses:true, ..Default::default()};
+
+        assert_eq!(parse_with_opt("(cool)", opt_no_parentheses).unwrap(), ("(cool)".into()));
+        assert_eq!(parse_with_opt("((((((cool)))))) AND ((((((cool))))))", opt_no_parentheses).unwrap(), ("((((((cool))))))".into(), And, "((((((cool))))))".into()).into());
+
         // println!("{:?}", parse("(cool)"));
     }
     #[test]
@@ -263,6 +274,21 @@ mod tests {
         assert_eq!(
             parse("super cool OR fancy~1").unwrap(),
             ("super".into(), Or, ("cool".into(), Or, "fancy~1".into()).into()).into()
+        );
+
+
+    }
+
+    #[test]
+    fn test_levenshtein_disabled() {
+        let opt = Options{no_levensthein:true, ..Default::default()};
+        assert_eq!(
+            parse_with_opt("fancy~1", opt).unwrap(),
+            UserAST::Leaf(Box::new(UserFilter {
+                // field_name: None,
+                phrase: "fancy~1",
+                levenshtein: None,
+            }))
         );
     }
 
@@ -347,6 +373,7 @@ mod tests {
             }))
         );
     }
+
     #[test]
     fn test_attribute_after_text() {
         assert_eq!(
