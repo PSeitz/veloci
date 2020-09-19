@@ -2,7 +2,6 @@
 authors = ["Pascal Seitz <pascal.seitz@gmail.com>"]
 autobenches = false
 autobins = false
-cargo-features = ["edition"]
 edition = "2018"
 name = "veloci"
 version = "0.1.0"
@@ -122,6 +121,14 @@ default = ["create"]
 name = "veloci"
 path = "src/lib.rs"
 
+[workspace]
+members = ["buffered_index_writer",
+"parser",
+"doc_store",
+"server",
+"json_converter",
+"custom_parser"]
+
 [profile.release]
 codegen-units = 1
 debug = true
@@ -129,5 +136,8 @@ lto = true
 opt-level = 3
 panic = "unwind"
 
-[profile.dev]
+[profile.bench]
+codegen-units = 1
 debug = false
+lto = true
+opt-level = 3

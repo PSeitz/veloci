@@ -46,7 +46,7 @@ use veloci::{
 };
 
 lazy_static! {
-    static ref PERSISTENCES: CHashMap<String, Persistence> = { CHashMap::default() };
+    static ref PERSISTENCES: CHashMap<String, Persistence> = CHashMap::default();
     // static ref SHARDS: CHashMap<String, Shards> = { CHashMap::default() };
 }
 

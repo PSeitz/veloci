@@ -74,7 +74,9 @@ impl FieldPath {
 
     pub fn remove_stem(&mut self, other: &FieldPath) {
         for el in &other.steps {
-            self.steps.remove_item(el);
+            if let Some(pos) = self.steps.iter().position(|x| x == el) {
+                self.steps.remove(pos);
+            }
         }
     }
 
