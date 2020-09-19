@@ -46,15 +46,17 @@ mod tests_large {
                 "path": "category"
             }
         });
-        assert_eq!(search_testo_to_doc!(req).num_hits, 300);
+        assert_eq!(search_request_json_to_doc!(req).num_hits, 300);
     }
 
     #[test]
     fn select_on_large_text() {
         let req = json!({
-            "search": {
-                "terms":["long"],
-                "path": "text"
+            "search_req": {
+                "search": {
+                    "terms":["long"],
+                    "path": "text"
+                }
             },
             "select": ["text"]
         });
@@ -85,6 +87,7 @@ mod tests_large {
         let res = search_testo_to_doco_qp!(params);
         assert_eq!(res.num_hits, 600);
     }
+
     #[test]
     fn search_and_filter() {
         let mut params = query_generator::SearchQueryGeneratorParameters::default();
@@ -98,7 +101,7 @@ mod tests_large {
     #[test]
     fn search_and_get_facet_with_facet_index() {
         let req = json!({
-            "search": {"terms":["superb"], "path": "category"},
+            "search_req": {"search": {"terms":["superb"], "path": "category"}},
             "facets": [{"field":"tags[]"}]
         });
 

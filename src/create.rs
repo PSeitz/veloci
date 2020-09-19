@@ -471,7 +471,6 @@ fn buffered_index_to_indirect_index_multiple(
     Ok(store)
 }
 
-
 fn stream_iter_to_anchor_score<T: AnchorScoreDataSize>(
     iter: impl Iterator<Item = buffered_index_writer::KeyValue<u32, (ValueId, ValueId)>>,
     target: &mut TokenToAnchorScoreVintFlushing<T>,

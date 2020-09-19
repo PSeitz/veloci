@@ -93,7 +93,8 @@ pub fn highlight_text(text: &str, set: &FnvHashSet<String>, opt: &SnippetInfo, t
     if set.contains(text) {
         return Some(opt.snippet_start_tag.to_string() + text + &opt.snippet_end_tag);
     }
-    if tokenizer.is_none() { // Field is not tokenized
+    if tokenizer.is_none() {
+        // Field is not tokenized
         return None;
     }
 

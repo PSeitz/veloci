@@ -17,6 +17,7 @@ env:
   - MANIFEST_PATH=doc_store/Cargo.toml
   - MANIFEST_PATH=server/Cargo.toml
   - MANIFEST_PATH=json_converter/Cargo.toml
+  - MANIFEST_PATH=custom_parser/Cargo.toml
 script:
 - cargo build --manifest-path=$MANIFEST_PATH
 - cargo test --manifest-path=$MANIFEST_PATH

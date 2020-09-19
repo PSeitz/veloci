@@ -117,7 +117,7 @@ pub fn union_hits_score(mut or_results: Vec<SearchFieldResult>) -> SearchFieldRe
         }
     }
 
-    let should_explain = or_results[0].request.explain;
+    let should_explain = or_results[0].request.is_explain();
 
     let mut terms = or_results.iter().map(|res| res.request.terms[0].to_string()).collect::<Vec<_>>();
     terms.sort();
@@ -381,7 +381,7 @@ pub fn intersect_hits_score(mut and_results: Vec<SearchFieldResult>) -> SearchFi
 
     // trace!("Intersect Input:\n{}", serde_json::to_string_pretty(&and_results).unwrap());
 
-    let should_explain = and_results[0].request.explain;
+    let should_explain = and_results[0].request.is_explain();
     let term_id_hits_in_field = { merge_term_id_hits(&mut and_results) };
     let term_text_in_field = { merge_term_id_texts(&mut and_results) };
 

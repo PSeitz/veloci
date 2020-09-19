@@ -1,4 +1,4 @@
-#![warn(missing_debug_implementations,rust_2018_idioms, trivial_casts, trivial_numeric_casts)]
+#![warn(missing_debug_implementations, rust_2018_idioms, trivial_casts, trivial_numeric_casts)]
 #![feature(vec_remove_item)]
 #![cfg_attr(feature = "cargo-clippy", allow(clippy::implicit_hasher))]
 #![cfg_attr(feature = "cargo-clippy", allow(clippy::too_many_arguments))]

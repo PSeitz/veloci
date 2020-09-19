@@ -1,12 +1,10 @@
+use crate::error::marked_in_orig;
+use crate::error::ParseError;
+use crate::Options;
 use crate::ast::*;
 use crate::lexer::{Lexer, TokenType, Token};
 
-#[derive(Debug, Eq, PartialEq)]
-pub enum ParseError {
-    EmptyParentheses(String),
-    UnexpectedTokenType(String, String),
-    ExpectedNumber(String),
-}
+
 
 #[derive(Debug)]
 pub struct Parser<'a> {
@@ -26,19 +24,26 @@ pub(crate) fn get_text_for_token<'a>(text: &'a str, start: u32, stop: u32) -> &'
 }
 
 pub fn parse(text: &str) -> Result<UserAST<'_, '_>, ParseError> {
-    Parser::new(text)._parse()
+    Parser::new(text)?._parse()
+}
+pub fn parse_with_opt(text: &str, options: Options) -> Result<UserAST<'_, '_>, ParseError> {
+    Parser::new_with_opt(text, options)?._parse()
 }
 
 impl<'a> Parser<'a> {
-    pub fn new(text: &'a str) -> Self {
-        let tokens = Lexer::new(text).get_tokens();
-        Parser { tokens, pos: 0, text }
+    pub fn new(text: &'a str) -> Result<Self, ParseError> {
+        let tokens = Lexer::new(text).get_tokens()?;
+        Ok(Parser { tokens, pos: 0, text })
+    }
+    pub fn new_with_opt(text: &'a str, options: Options) -> Result<Self, ParseError> {
+        let tokens = Lexer::new_with_opt(text, options).get_tokens()?;
+        Ok(Parser { tokens, pos: 0, text })
     }
 
     fn unexpected_token_type(&self, message: &'static str, allowed_types: Option<&[Option<TokenType>]>) -> Result<(), ParseError> {
         // generate snippet
         let [start, stop] = self.tokens.get(self.pos).map(|next_token| [next_token.byte_start_pos as usize, next_token.byte_stop_pos as usize]).unwrap_or_else(|| [self.text.len(), self.text.len()]);
-        let marked_in_orig = format!("{}﹏{}﹏{}",&self.text[..start], &self.text[start..stop], &self.text[stop..] );
+        let marked_in_orig = marked_in_orig(self.text, start, stop);
 
         let err = if message == ""{
             let message = format!(
@@ -215,6 +220,17 @@ mod tests {
             parse("((super AND cool)) OR (fancy)").unwrap(),
             ((("super".into(), And, "cool".into()).into()), Or, "fancy".into()).into()
         );
+
+        // println!("{:?}", parse("(cool)"));
+    }
+
+    #[test]
+    fn test_parentheses_disabled() {
+        let opt_no_parentheses = Options{no_parentheses:true, ..Default::default()};
+
+        assert_eq!(parse_with_opt("(cool)", opt_no_parentheses).unwrap(), ("(cool)".into()));
+        assert_eq!(parse_with_opt("((((((cool)))))) AND ((((((cool))))))", opt_no_parentheses).unwrap(), ("((((((cool))))))".into(), And, "((((((cool))))))".into()).into());
+
         // println!("{:?}", parse("(cool)"));
     }
     #[test]
@@ -258,6 +274,21 @@ mod tests {
         assert_eq!(
             parse("super cool OR fancy~1").unwrap(),
             ("super".into(), Or, ("cool".into(), Or, "fancy~1".into()).into()).into()
+        );
+
+
+    }
+
+    #[test]
+    fn test_levenshtein_disabled() {
+        let opt = Options{no_levensthein:true, ..Default::default()};
+        assert_eq!(
+            parse_with_opt("fancy~1", opt).unwrap(),
+            UserAST::Leaf(Box::new(UserFilter {
+                // field_name: None,
+                phrase: "fancy~1",
+                levenshtein: None,
+            }))
         );
     }
 
@@ -303,6 +334,21 @@ mod tests {
         );
     }
     #[test]
+    fn test_quote_on_quote() {
+        assert_eq!(
+            parse("\"field\"\"cool\"").unwrap(), // there should be a space
+            ("field".into(), Or, "cool".into()).into()
+        );
+    }
+    // #[test]
+    // fn test_disabled_attribute_quoted_field() {
+    //     let opt_no_attr = Options{no_attributes:true, ..Default::default()};
+    //     assert_eq!(
+    //         parse_with_opt("\"field\":fancy unlimited", opt_no_attr).unwrap(),
+    //         ("field:fancy".into(), Or, "unlimited".into()).into()
+    //     );
+    // }
+    #[test]
     fn test_attribute_simple() {
         assert_eq!(parse("field:fancy").unwrap(), "field:fancy".into());
         assert_eq!(
@@ -317,14 +363,24 @@ mod tests {
         );
     }
     #[test]
+    fn test_disabled_attribute_simple() {
+        let opt_no_attr = Options{no_attributes:true, ..Default::default()};
+        assert_eq!(
+            parse_with_opt("field:fancy", opt_no_attr).unwrap(),
+            UserAST::Leaf(Box::new(UserFilter {
+                phrase: "field:fancy",
+                levenshtein: None,
+            }))
+        );
+    }
+
+    #[test]
     fn test_attribute_after_text() {
         assert_eq!(
-            parse("freestyle myattr:(super cool)").unwrap(), 
-            ("freestyle".into(), 
-                Or, 
+            parse("freestyle myattr:(super cool)").unwrap(),
+            ("freestyle".into(),
+                Or,
                 (UserAST::Attributed("myattr", Box::new(("super".into(), Or, "cool".into()).into()) )) ).into());
-
-
     }
     #[test]
     fn test_attribute_errors() {

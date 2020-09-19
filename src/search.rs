@@ -162,6 +162,11 @@ pub fn search(mut request: Request, persistence: &Persistence) -> Result<SearchR
     let mut res = {
         info_time!("search terms");
         let mut plan = Plan::default();
+        if request.search_req.is_none() {
+            return Err(VelociError::InvalidRequest {
+                message: format!("search_req is None, but is required in search, request: {:?}", request),
+            });
+        }
         plan_creator(request.clone(), &mut plan);
 
         if log_enabled!(log::Level::Debug) {
@@ -376,7 +381,7 @@ pub fn join_to_parent_ids(persistence: &Persistence, input: &SearchFieldResult, 
     let mut hits = Vec::with_capacity(num_hits);
     let kv_store = persistence.get_valueid_to_parent(path)?;
 
-    let should_explain = input.request.explain;
+    let should_explain = input.request.is_explain();
 
     let mut explain_hits: FnvHashMap<u32, Vec<Explain>> = FnvHashMap::default();
 

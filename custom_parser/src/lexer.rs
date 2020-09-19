@@ -1,3 +1,6 @@
+use crate::error::ParseError;
+use crate::Options;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum TokenType {
     // Unlimited
@@ -17,17 +20,26 @@ pub(crate) enum TokenType {
 }
 
 impl TokenType {
-    fn from_single_char(cha: char) -> Option<Self> {
+    fn from_single_char(cha: char, options: &Options) -> Option<Self> {
         match cha {
-            '(' => Some(TokenType::ParenthesesOpen),
-            ')' => Some(TokenType::ParenthesesClose),
+            '(' if !options.no_parentheses => Some(TokenType::ParenthesesOpen),
+            ')' if !options.no_parentheses => Some(TokenType::ParenthesesClose),
             // '"'  => Some(TokenType::DoubleQuotes),
             // '\'' => Some(TokenType::SingleQuotes),
-            '~' => Some(TokenType::Tilde),
+            '~' if !options.no_levensthein => Some(TokenType::Tilde),
             // ':' => Some(TokenType::Colon),
             _ => None,
         }
     }
+}
+
+fn is_seperator(cha: char, options: &Options) -> bool {
+    match cha {
+            '(' | ')' if !options.no_parentheses => true,
+            '~'  if !options.no_levensthein => true,
+            ':' if !options.no_attributes  => true,
+            _ => false,
+        }
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -51,6 +63,7 @@ pub(crate) struct Lexer<'a> {
     chars: Vec<char>,
     current_pos: u32,
     current_byte_pos: u32,
+    options: Options,
 }
 
 impl<'a> Lexer<'a> {
@@ -60,32 +73,43 @@ impl<'a> Lexer<'a> {
             current_pos: 0,
             current_byte_pos: 0,
             text,
+            options:Default::default()
+            // in_quotes:false,
+        }
+    }
+    pub(crate) fn new_with_opt(text: &'a str, options: Options) -> Self {
+        Lexer {
+            chars: text.chars().collect(),
+            current_pos: 0,
+            current_byte_pos: 0,
+            text,
+            options
             // in_quotes:false,
         }
     }
 
-    pub(crate) fn get_tokens(&mut self) -> Vec<Token> {
+    pub(crate) fn get_tokens(&mut self) -> Result<Vec<Token>, ParseError> {
         let mut tokens = Vec::with_capacity(self.chars.len() / 4);
-        while let Some(token) = self.next_token() {
+        while let Some(token) = self.next_token()? {
             tokens.push(token);
         }
-        tokens
+        Ok(tokens)
     }
 
     #[cfg(test)]
     pub(crate) fn get_token_types(&mut self) -> Vec<TokenType> {
-        self.get_tokens().iter().map(|t| t.token_type).collect()
+        self.get_tokens().unwrap().iter().map(|t| t.token_type).collect()
     }
 
     #[cfg(test)]
     pub(crate) fn get_tokens_text(&mut self) -> Vec<String> {
-        self.get_tokens()
+        self.get_tokens().unwrap()
             .into_iter()
             .map(|token| self.text[token.byte_start_pos as usize ..token.byte_stop_pos as usize ].to_string())
             .collect()
     }
 
-    pub(crate) fn next_token(&mut self) -> Option<Token> {
+    pub(crate) fn next_token(&mut self) -> Result<Option<Token>, ParseError> {
         self.eat_while(char::is_whitespace);
 
         if let Some(c) = self.cur_char() {
@@ -111,23 +135,31 @@ impl<'a> Lexer<'a> {
                 while self.cur_char().is_some() && !self.is_doublequote(self.current_pos) {
                     self.eat_char();
                 }
+                // TODO next should not be a quote again, because "yeah""cool" - this weird
+                // if let Some(cur_char) = cur_char {
+                //     if cur_char == "\""{
+                    // let marked_in_orig = marked_in_orig(self.text, start, stop);
+                //         return Err()
+                //     }
+                // }
+
                 let byte_stop_pos = self.current_byte_pos;
                 self.eat_char();
-                let token_type = if self.is_colon_at(self.current_pos) {
+                let token_type = if self.is_attr_colon_at(self.current_pos) {
                     self.eat_char();
                     TokenType::AttributeLiteral
                 } else {
                     TokenType::Literal
                 };
 
-                return Some(Token {
+                return Ok(Some(Token {
                     token_type,
                     byte_start_pos,
                     byte_stop_pos,
-                });
+                }));
             }
 
-            if let Some(tt) = TokenType::from_single_char(c) {
+            if let Some(tt) = TokenType::from_single_char(c, &self.options) {
                 token_type = Some(tt);
                 self.eat_char();
             }
@@ -135,31 +167,36 @@ impl<'a> Lexer<'a> {
             if let Some(token_type) = token_type {
                 let byte_stop_pos = self.current_byte_pos;
                 let next_token = Some(Token { token_type, byte_start_pos, byte_stop_pos });
-                return next_token;
+                return Ok(next_token);
             }
 
             // Literal
             self.eat_char();
-            self.eat_while(|c| !c.is_whitespace() && c != ':' && TokenType::from_single_char(c).is_none());
+            let opt = self.options;
+            self.eat_while(|c| !c.is_whitespace() && !is_seperator(c, &opt));
             let byte_stop_pos = self.current_byte_pos;
-            let token_type = if self.is_colon_at(self.current_pos) {
+            let token_type = if self.is_attr_colon_at(self.current_pos) {
                 self.eat_char();
                 TokenType::AttributeLiteral
             } else {
                 TokenType::Literal
             };
-            return Some(Token {
+            return Ok(Some(Token {
                 token_type,
                 byte_start_pos,
                 byte_stop_pos,
-            });
+            }));
         } else {
-            None
+            Ok(None)
         }
     }
 
-    pub fn is_colon_at(&self, pos: u32) -> bool {
-        self.chars.get(pos as usize).map(|c| *c == ':').unwrap_or(false)
+    pub fn is_attr_colon_at(&self, pos: u32) -> bool {
+        !self.options.no_attributes
+        && self.chars
+            .get(pos as usize)
+            .map(|c| *c == ':')
+            .unwrap_or(false)
     }
 
     // is quote and not escaped
