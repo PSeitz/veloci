@@ -102,8 +102,9 @@ fn filter_stopwords<'a, 'b>(query_ast: &'a custom_parser::ast::UserAST<'a, 'a>, 
                         false
                     }
                 }
+                _ => false,
             }
-            _ => false,
+            
         },
         None,
     );
