@@ -32,14 +32,14 @@ jobs:
     - name: Run tests PersistenceType=Transient
       run: PersistenceType=Transient RUST_BACKTRACE=full RUST_LOG=veloci=debug cargo +nightly test
     - name: Run tests buffered_index_writer
-      run: cargo +nightly test --manifest-path=buffered_index_writer
+      run: cargo +nightly test --manifest-path=buffered_index_writer/Cargo.toml
     - name: Run tests parser
-      run: cargo +nightly test --manifest-path=parser
+      run: cargo +nightly test --manifest-path=parser/Cargo.toml
     - name: Run tests doc_store
-      run: cargo +nightly test --manifest-path=doc_store
+      run: cargo +nightly test --manifest-path=doc_store/Cargo.toml
     - name: Run tests server
-      run: cargo +nightly test --manifest-path=server
+      run: cargo +nightly test --manifest-path=server/Cargo.toml
     - name: Run tests json_converter
-      run: cargo +nightly test --manifest-path=json_converter
+      run: cargo +nightly test --manifest-path=json_converter/Cargo.toml
     - name: Run tests custom_parser
-      run: cargo +nightly test --manifest-path=custom_parser
+      run: cargo +nightly test --manifest-path=custom_parser/Cargo.toml
