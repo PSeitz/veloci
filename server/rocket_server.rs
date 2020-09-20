@@ -95,6 +95,7 @@ struct QueryParams {
     fields: Option<String>,
     facets: Option<String>,
     stopword_lists: Option<String>,
+    stopwords: Option<String>,
     facetlimit: Option<usize>,
     /// e.g. myfield->2.0,otherfield->0.5
     boost_fields: Option<String>,
@@ -237,6 +238,7 @@ fn search_from_query_params(database: String, params: QueryParams) -> Result<Sea
 
     let facets: Option<Vec<String>> = query_param_to_vec(params.facets);
     let stopword_lists: Option<Vec<String>> = query_param_to_vec(params.stopword_lists);
+    let stopwords: Option<Vec<String>> = query_param_to_vec(params.stopwords);
     let fields: Option<Vec<String>> = query_param_to_vec(params.fields);
 
     let boost_fields: Option<Result<HashMap<String, f32>, _>> = query_param_to_vec(params.boost_fields)
@@ -278,6 +280,7 @@ fn search_from_query_params(database: String, params: QueryParams) -> Result<Sea
         text_locality: params.text_locality.map(|el| el.to_lowercase() == "true"),
         facets: facets,
         stopword_lists,
+        stopwords: stopwords.map(|list|list.into_iter().collect()),
         fields: fields,
         boost_fields: boost_fields.transpose()?,
         boost_terms: boost_terms,
