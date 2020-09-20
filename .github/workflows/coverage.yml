@@ -1,0 +1,30 @@
+name:                           coverage
+
+on:                             [push]
+jobs:
+  test:
+    name:                       coverage
+    runs-on:                    ubuntu-latest
+    container:
+      options:                  --security-opt seccomp=unconfined
+    steps:
+      - name:                   Checkout repository
+        uses:                   actions/checkout@v2
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: nightly
+      - name: install tarpauling
+        run: cargo install cargo-tarpaulin
+      - name:                   Generate code coverage
+        run: cargo +nightly tarpaulin --verbose --all-features --workspace --timeout 120 --out Xml
+      - name: Generate code coverage PersistenceType=Persistent LoadingType=Disk
+        run: PersistenceType=Persistent LoadingType=Disk RUST_BACKTRACE=full RUST_LOG=veloci=debug FlushThreshold=20 cargo +nightly test
+      - name: Generate code coverage PersistenceType=InMemory LoadingType=Disk
+        run: PersistenceType=Persistent LoadingType=InMemory RUST_BACKTRACE=full RUST_LOG=veloci=debug FlushThreshold=20 cargo +nightly test
+      - name: Generate code coverage PersistenceType=Transient
+        run: PersistenceType=Transient RUST_BACKTRACE=full RUST_LOG=veloci=debug FlushThreshold=20 cargo +nightly test
+      - name:                   Upload to codecov.io
+        uses:                   codecov/codecov-action@v1
+        with:
+          # token:                ${{secrets.CODECOV_TOKEN}} # not required for public repos
+          fail_ci_if_error:     true
