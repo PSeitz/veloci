@@ -19,5 +19,27 @@ jobs:
     - uses: actions-rs/toolchain@v1
       with:
         toolchain: nightly
-    - run: cargo build --verbose --workspace    
-    
+        
+    - name: Build
+      run: cargo +nightly build --verbose --workspace
+    - name: Run tests
+      run: cargo +nightly test --verbose
+
+    - name: Run tests PersistenceType=Persistent LoadingType=Disk
+      run: PersistenceType=Persistent LoadingType=Disk RUST_BACKTRACE=full RUST_LOG=veloci=debug FlushThreshold=20 cargo +nightly test
+    - name: Run tests PersistenceType=Persistent LoadingType=InMemory
+      run: PersistenceType=Persistent LoadingType=InMemory RUST_BACKTRACE=full RUST_LOG=veloci=debug cargo +nightly test
+    - name: Run tests PersistenceType=Transient
+      run: PersistenceType=Transient RUST_BACKTRACE=full RUST_LOG=veloci=debug cargo +nightly test
+    - name: Run tests buffered_index_writer
+      run: cargo +nightly test --manifest-path=buffered_index_writer
+    - name: Run tests parser
+      run: cargo +nightly test --manifest-path=parser
+    - name: Run tests doc_store
+      run: cargo +nightly test --manifest-path=doc_store
+    - name: Run tests server
+      run: cargo +nightly test --manifest-path=server
+    - name: Run tests json_converter
+      run: cargo +nightly test --manifest-path=json_converter
+    - name: Run tests custom_parser
+      run: cargo +nightly test --manifest-path=custom_parser
