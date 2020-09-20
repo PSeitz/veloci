@@ -111,6 +111,8 @@ fn filter_stopwords(query_ast: &mut UserAST, opt: &SearchQueryGeneratorParameter
         UserAST::Leaf(ref filter) => {
             if let Some(languages) = opt.stopword_lists.as_ref() {
                 languages.iter().any(|lang| stopwords::is_stopword(lang, &filter.phrase.to_lowercase()))
+            } else if let Some(stopwords) = opt.stopwords.as_ref() {
+                stopwords.contains(&filter.phrase.to_lowercase())
             } else {
                 false
             }
@@ -145,18 +147,25 @@ fn bench_query_to_request(b: &mut test::Bencher) {
     })
 }
 
-
-
 #[test]
-fn test_filter_stopwords() {
+fn test_filter_stopwords_by_predefined_stopword_list() {
     let query_ast = parser::query_parser::parse("die erbin").unwrap().0;
     let mut query_ast = query_ast.simplify();
     let mut opt = SearchQueryGeneratorParameters::default();
-    opt.stopword_lists = Some(vec!["de".to_string()]);
+    opt.stopword_lists = Some(vec!["de".to_string()]); // reference "de" stopword_list
     filter_stopwords(&mut query_ast, &opt);
     assert_eq!(format!("{:?}", query_ast.simplify()), "\"erbin\"");
 }
 
+#[test]
+fn test_filter_stopwords_by_userdefined_stopword_list() {
+    let query_ast = parser::query_parser::parse("die erbin").unwrap().0;
+    let mut query_ast = query_ast.simplify();
+    let mut opt = SearchQueryGeneratorParameters::default();
+    opt.stopwords = Some(["die".to_string()].iter().cloned().collect());
+    filter_stopwords(&mut query_ast, &opt);
+    assert_eq!(format!("{:?}", query_ast.simplify()), "\"erbin\"");
+}
 
 
 #[test]

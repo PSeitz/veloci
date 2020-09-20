@@ -91,13 +91,16 @@ fn expand_fields_in_query_ast<'a, 'b>(ast: &UserAST<'b, 'a>, all_fields: &'a [St
 
 //TODO should be field specific
 fn filter_stopwords<'a, 'b>(query_ast: &'a custom_parser::ast::UserAST<'a, 'a>, opt: &'b SearchQueryGeneratorParameters) -> Option<UserAST<'a, 'a>> {
-    let ast = query_ast.filter_ast(
-        &mut |ast: &UserAST<'_, '_>, _attr: Option<&str>| match ast {
-            UserAST::Leaf(filter) => {
-                if let Some(languages) = opt.stopword_lists.as_ref() {
-                    languages.iter().any(|lang| stopwords::is_stopword(lang, &filter.phrase.to_lowercase()))
-                } else {
-                    false
+    let ast = query_ast.filter_ast(&mut |ast: &UserAST<'_,'_>, _attr: Option<&str>|  {
+            match ast {
+                UserAST::Leaf(filter) => {
+                    if let Some(languages) = opt.stopword_lists.as_ref() {
+                        languages.iter().any(|lang| stopwords::is_stopword(lang, &filter.phrase.to_lowercase()))
+                    } else if let Some(stopwords) = opt.stopwords.as_ref() {
+                        stopwords.contains(&filter.phrase.to_lowercase())
+                    } else {
+                        false
+                    }
                 }
             }
             _ => false,
@@ -163,6 +166,15 @@ fn test_filter_stopwords() {
     // let mut query_ast = query_ast.simplify();
     let mut opt = SearchQueryGeneratorParameters::default();
     opt.stopword_lists = Some(vec!["de".to_string()]);
+    let query_ast = filter_stopwords(&query_ast, &opt);
+    assert_eq!(query_ast, Some("erbin".into()));
+}
+
+#[test]
+fn test_filter_stopwords_by_userdefined_stopword_list() {
+    let query_ast = custom_parser::parse("die erbin").unwrap();
+    let mut opt = SearchQueryGeneratorParameters::default();
+    opt.stopwords = Some(["die".to_string()].iter().cloned().collect());
     let query_ast = filter_stopwords(&query_ast, &opt);
     assert_eq!(query_ast, Some("erbin".into()));
 }

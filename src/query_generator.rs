@@ -48,6 +48,7 @@ pub struct SearchQueryGeneratorParameters {
     pub boost_queries: Option<Vec<RequestBoostPart>>,
     pub facets: Option<Vec<String>>,
     pub stopword_lists: Option<Vec<String>>,
+    pub stopwords: Option<HashSet<String>>,
     pub fields: Option<Vec<String>>,
     pub boost_fields: Option<HashMap<String, f32>>,
 
