@@ -16,11 +16,11 @@ jobs:
       - name:                   Generate code coverage
         run: cargo +nightly tarpaulin --verbose --all-features --workspace --timeout 120 --out Xml
       - name: Generate code coverage PersistenceType=Persistent LoadingType=Disk
-        run: PersistenceType=Persistent LoadingType=Disk RUST_BACKTRACE=full RUST_LOG=veloci=debug FlushThreshold=20 cargo +nightly tarpaulin test --out Xml
+        run: PersistenceType=Persistent LoadingType=Disk RUST_BACKTRACE=full RUST_LOG=veloci=debug FlushThreshold=20 cargo +nightly tarpaulin --out Xml
       - name: Generate code coverage PersistenceType=InMemory LoadingType=Disk
-        run: PersistenceType=Persistent LoadingType=InMemory RUST_BACKTRACE=full RUST_LOG=veloci=debug FlushThreshold=20 cargo +nightly tarpaulin test --out Xml
+        run: PersistenceType=Persistent LoadingType=InMemory RUST_BACKTRACE=full RUST_LOG=veloci=debug FlushThreshold=20 cargo +nightly tarpaulin --out Xml
       - name: Generate code coverage PersistenceType=Transient
-        run: PersistenceType=Transient RUST_BACKTRACE=full RUST_LOG=veloci=debug FlushThreshold=20 cargo +nightly tarpaulin test --out Xml
+        run: PersistenceType=Transient RUST_BACKTRACE=full RUST_LOG=veloci=debug FlushThreshold=20 cargo +nightly tarpaulin --out Xml
 
       - name:                   Upload to codecov.io
         uses:                   codecov/codecov-action@v1
