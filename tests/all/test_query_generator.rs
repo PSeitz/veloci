@@ -52,8 +52,9 @@ pub fn get_test_data() -> Value {
             "tags": ["nice", "cool"]
         },
         {
+            "ent_seq": "1337",
             "commonness": 20,
-            "tags": ["nice", "cool"],
+            "tags": ["nice", "cool", "ent_seq:99999"], // ent_seq:99999 to test no_attributes
             "kanji": [
                 { "text": "偉容", "commonness": 0},
                 { "text": "威容","commonness": 5}
@@ -68,10 +69,10 @@ pub fn get_test_data() -> Value {
             "meanings": {
                 "eng" : ["will testo"],
                 "ger": ["majestätischer Anblick (m)", "majestätisches Aussehen (n)", "Majestät (f)"]
-            },
-            "ent_seq": "1587680"
+            }
         },
         {
+            "ent_seq": "1587690",
             "commonness": 20,
             "tags": ["nice"],
             "kanji": [
@@ -88,8 +89,7 @@ pub fn get_test_data() -> Value {
             "meanings": {
                 "eng" : ["will", "urge", "having a long torso"],
                 "ger": ["Wollen (n)", "Wille (m)", "Begeisterung (f)", "begeistern"]
-            },
-            "ent_seq": "1587690"
+            }
         },
         {
             "id": 1234566,
@@ -176,6 +176,28 @@ fn simple_search_querygenerator() {
     assert_eq!(hits[0].doc["ent_seq"], "1587690");
     assert_eq!(hits[0].doc["commonness"], 20);
     assert_eq!(hits[0].doc["tags"], json!(["nice".to_string()]));
+}
+
+#[test]
+fn attributed_search() {
+    let mut params = query_generator::SearchQueryGeneratorParameters::default();
+    // attributed search, it will search for "99999" on field ent_seq
+    params.search_term = "ent_seq:99999".to_string();
+
+    let hits = search_testo_to_doco_qp!(params).data;
+    assert_eq!(hits.len(), 1);
+    assert_eq!(hits[0].doc["ent_seq"], "99999");
+}
+#[test]
+fn disabled_attributed_search() {
+    let mut params = query_generator::SearchQueryGeneratorParameters::default();
+    params.search_term = "ent_seq:99999".to_string();
+    // disabling attributed search, that means, it will search for "ent_seq:99999" on all fields
+    params.parser_options = Some(custom_parser::Options{no_attributes: true, ..Default::default()});
+
+    let hits = search_testo_to_doco_qp!(params).data;
+    assert_eq!(hits.len(), 1);
+    assert_eq!(hits[0].doc["ent_seq"], "1337");
 }
 
 #[test]
