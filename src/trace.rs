@@ -49,7 +49,7 @@ use std::io::Write;
 // }
 
 static LOG_ENABLED: RwLock<bool> = RwLock::new(false);
-#[cfg_attr(tarpaulin, skip)]
+#[cfg(not(tarpaulin_include))]
 pub fn enable_log() {
     let mut log_enabledo = LOG_ENABLED.write();
 

@@ -288,6 +288,8 @@ fn search_from_query_params(database: String, params: QueryParams) -> Result<Sea
         boost_queries: None,
         select: None,
         filter: params.filter,
+        parser_options: None,
+        filter_parser_options: None,
     };
 
     if let Some(el) = params.boost_queries {
