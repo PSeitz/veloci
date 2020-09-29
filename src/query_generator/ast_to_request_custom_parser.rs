@@ -54,7 +54,6 @@ fn query_ast_to_request<'a>(ast: &UserAST<'_, '_>, opt: &SearchQueryGeneratorPar
             if is_regex {
                 use itertools::Itertools;
                 term = term.split("*").map(|term|regex::escape(term)).join(".*");
-                dbg!(&term);
             }
             else{
                 levenshtein_distance = if let Some(levenshtein) = filter.levenshtein {

@@ -19,3 +19,4 @@ mod tests;
 mod tests_facet;
 mod tests_large;
 mod tests_minimal;
+mod test_code_search;

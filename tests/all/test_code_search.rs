@@ -13,7 +13,6 @@ lazy_static! {
             features = ["All"]
         ["filepath"]
             tokenize = true
-            seperators = ["\", "/"]
         ["filename"]
             tokenize = true
         ["line"]
@@ -29,15 +28,50 @@ lazy_static! {
 pub fn get_test_data() -> Value {
     json!([
         {
-            "line_number": 123456,
+            "line_number": 1,
             "line": "function myfun(param1: Type1)",
-            "filename": "cool.ts"
+            "filename": "cool.ts",
             "filepath": "all/the/path"
         }
     ])
 }
 
 #[test]
-fn simple_code_search() {
+fn pattern_code_search() {
+    let mut params = query_generator::SearchQueryGeneratorParameters::default();
+    params.search_term = "*myfun*Type1*".to_string();
+
+    let hits = search_testo_to_doco_qp!(params).data;
+    assert_eq!(hits.len(), 1);
+    assert_eq!(hits[0].doc["line"], "function myfun(param1: Type1)");
+}
+
+#[test]
+fn pattern_code_search_allows_ignore_case() {
+    let mut params = query_generator::SearchQueryGeneratorParameters::default();
+    params.search_term = "*myfun*type1*".to_string();
+
+    let hits = search_testo_to_doco_qp!(params).data;
+    assert_eq!(hits.len(), 1);
+    assert_eq!(hits[0].doc["line"], "function myfun(param1: Type1)");
+}
+
+#[test]
+fn pattern_code_search_no_fuzzy() {
+    let mut params = query_generator::SearchQueryGeneratorParameters::default();
+    params.search_term = "*myfun*type2*".to_string();
+
+    let hits = search_testo_to_doco_qp!(params).data;
+    assert_eq!(hits.len(), 0);
+}
+
+#[test]
+fn token_code_search() {
+
+    let mut params = query_generator::SearchQueryGeneratorParameters::default();
+    params.search_term = "myfun".to_string();
+
+    let hits = search_testo_to_doco_qp!(params).data;
+    assert_eq!(hits.len(), 1);
 
 }
