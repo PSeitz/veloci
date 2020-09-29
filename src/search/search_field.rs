@@ -73,7 +73,7 @@ where
     if options.is_regex {
         
         use regex_automata::dense;
-        let dfa = dense::Builder::new().case_insensitive(!options.ignore_case.unwrap_or(false)).build(&options.terms[0]).unwrap();
+        let dfa = dense::Builder::new().case_insensitive(options.ignore_case.unwrap_or(true)).build(&options.terms[0]).unwrap();
         // get_text_lines_with_automat(map, dfa, fun)?;
         if options.starts_with {
             get_text_lines_with_automat(map, dfa.starts_with(), fun)?;

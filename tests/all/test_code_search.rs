@@ -1,5 +1,7 @@
 extern crate more_asserts;
 
+use veloci::search::SearchRequest;
+use veloci::search::RequestSearchPart;
 use serde_json::Value;
 use veloci::*;
 
@@ -37,7 +39,41 @@ pub fn get_test_data() -> Value {
 }
 
 #[test]
-fn pattern_code_search() {
+fn regex_search_request_api() {
+
+    let req = SearchRequest::Search(RequestSearchPart {
+        terms: vec![".*myfun.*type1.*".to_string()],
+        path: "line".to_string(),
+        is_regex: true,
+        ignore_case: Some(true),
+        ..Default::default()
+    });
+
+    let hits = search_request_to_doc!(req).data;
+    assert_eq!(hits.len(), 1);
+    assert_eq!(hits[0].doc["line"], "function myfun(param1: Type1)");
+
+}
+
+#[test]
+fn regex_search_request_api_case_sensitive() {
+
+    // case sensitive no hit
+    let req = SearchRequest::Search(RequestSearchPart {
+        terms: vec![".*myfun.*type1.*".to_string()],
+        path: "line".to_string(),
+        is_regex: true,
+        ignore_case: Some(false),
+        ..Default::default()
+    });
+
+    let hits = search_request_to_doc!(req).data;
+    assert_eq!(hits.len(), 0);
+
+}
+
+#[test]
+fn pattern_code_search_query_generator() {
     let mut params = query_generator::SearchQueryGeneratorParameters::default();
     params.search_term = "*myfun*Type1*".to_string();
 
@@ -47,7 +83,7 @@ fn pattern_code_search() {
 }
 
 #[test]
-fn pattern_code_search_allows_ignore_case() {
+fn pattern_code_search_allows_ignore_case_query_generator() {
     let mut params = query_generator::SearchQueryGeneratorParameters::default();
     params.search_term = "*myfun*type1*".to_string();
 
@@ -57,7 +93,7 @@ fn pattern_code_search_allows_ignore_case() {
 }
 
 #[test]
-fn pattern_code_search_no_fuzzy() {
+fn pattern_code_search_no_fuzzy_query_generator() {
     let mut params = query_generator::SearchQueryGeneratorParameters::default();
     params.search_term = "*myfun*type2*".to_string();
 
@@ -66,7 +102,7 @@ fn pattern_code_search_no_fuzzy() {
 }
 
 #[test]
-fn token_code_search() {
+fn token_code_search_query_generator() {
     let mut params = query_generator::SearchQueryGeneratorParameters::default();
     params.search_term = "myfun".to_string();
 
@@ -77,7 +113,7 @@ fn token_code_search() {
 // pasting code will most certainly conflict with the query parser used in the query_generator
 // it's possible to disable them for this purpose
 #[test]
-fn token_code_search_disable_parser() {
+fn token_code_search_disable_parser_query_generator() {
     let mut params = query_generator::SearchQueryGeneratorParameters::default();
     params.parser_options = Some(custom_parser::Options{
         no_parentheses: true,
@@ -92,7 +128,7 @@ fn token_code_search_disable_parser() {
 
 // pasting code will most certainly conflict with the query parser, in this case we can quote the query
 #[test]
-fn token_code_phrase_pattern() {
+fn token_code_phrase_pattern_query_generator() {
     let mut params = query_generator::SearchQueryGeneratorParameters::default();
     params.search_term = "\"*myfun(param1: Type1)*\"".to_string();
 
