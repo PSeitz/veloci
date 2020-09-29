@@ -67,11 +67,35 @@ fn pattern_code_search_no_fuzzy() {
 
 #[test]
 fn token_code_search() {
-
     let mut params = query_generator::SearchQueryGeneratorParameters::default();
     params.search_term = "myfun".to_string();
 
     let hits = search_testo_to_doco_qp!(params).data;
     assert_eq!(hits.len(), 1);
+}
 
+// pasting code will most certainly conflict with the query parser used in the query_generator
+// it's possible to disable them for this purpose
+#[test]
+fn token_code_search_disable_parser() {
+    let mut params = query_generator::SearchQueryGeneratorParameters::default();
+    params.parser_options = Some(custom_parser::Options{
+        no_parentheses: true,
+        no_attributes: true,
+        no_levensthein: true,
+    });
+    params.search_term = "*myfun(param1: Type1)*".to_string();
+
+    let hits = search_testo_to_doco_qp!(params).data;
+    assert_eq!(hits.len(), 1);
+}
+
+// pasting code will most certainly conflict with the query parser, in this case we can quote the query
+#[test]
+fn token_code_phrase_pattern() {
+    let mut params = query_generator::SearchQueryGeneratorParameters::default();
+    params.search_term = "\"*myfun(param1: Type1)*\"".to_string();
+
+    let hits = search_testo_to_doco_qp!(params).data;
+    assert_eq!(hits.len(), 1);
 }
