@@ -186,6 +186,10 @@ pub struct RequestSearchPart {
     #[serde(default)]
     pub starts_with: bool,
 
+    #[serde(skip_serializing_if = "is_false")]
+    #[serde(default)]
+    pub is_regex: bool,
+
     /// TODO document
     #[serde(skip_serializing_if = "Option::is_none")]
     pub token_value: Option<RequestBoostPart>,
@@ -225,6 +229,9 @@ pub struct RequestSearchPart {
 impl RequestSearchPart {
     pub fn is_explain(&self) -> bool {
         self.options.explain
+    }
+    pub fn short_dbg_info(&self) -> String {
+        format!("{:?} in {:?} (isRegex:{},starts_with:{})", self.terms[0], self.path, self.is_regex, self.starts_with)
     }
 }
 

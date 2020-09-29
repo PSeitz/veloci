@@ -13,6 +13,13 @@ pub(crate) fn ast_to_search_request(query_ast: &UserAST<'_, '_>, all_fields: &[S
     let query_ast = expand_fields_in_query_ast(query_ast, all_fields)?;
     Ok(query_ast_to_request(&query_ast, opt, None))
 }
+
+/// Converts the SearchQueryGeneratorParameters into an SearchRequest ast
+///
+/// * has a special meaning as a searchterm, it counts as a wildcard, e.g.
+/// foo* will match all tokens starting with foo
+/// foo*bar will match all tokens starting with foo and ending with bar
+/// *foo* will match all tokens containing foo
 fn query_ast_to_request<'a>(ast: &UserAST<'_, '_>, opt: &SearchQueryGeneratorParameters, field_name: Option<&'a str>) -> SearchRequest {
     match ast {
         UserAST::BinaryClause(ast1, op, ast2) => {
@@ -31,18 +38,31 @@ fn query_ast_to_request<'a>(ast: &UserAST<'_, '_>, opt: &SearchQueryGeneratorPar
         UserAST::Attributed(attr, ast) => query_ast_to_request(ast, opt, Some(attr)),
         UserAST::Leaf(filter) => {
             let field_name: &str = field_name.as_ref().unwrap();
-            let mut term = filter.phrase;
+            let mut term = filter.phrase.to_string();
 
+            let mut levenshtein_distance = None;
             let starts_with = term.ends_with("*");
             if term.ends_with("*") {
-                // term.pop();
-                term = &term[..term.len() - 1];
+                term.pop();
+                // term = &term[..term.len() - 1];
             }
-            let levenshtein_distance = if let Some(levenshtein) = filter.levenshtein {
-                Some(u32::from(levenshtein))
-            } else {
-                Some(get_levenshteinn(&term, opt.levenshtein, opt.levenshtein_auto_limit, starts_with))
-            };
+
+            // regex is currently enabled, when there is a star, expect if there is only one star at the the end, e.g. fooba*
+            // Then it uses a combination of fuzzy + starts_with
+            // This enables fuzzy search with patterns, currently there is no fuzzy_search for regex  
+            let is_regex = term.contains("*");
+            if is_regex {
+                use itertools::Itertools;
+                term = term.split("*").map(|term|regex::escape(term)).join(".*");
+                dbg!(&term);
+            }
+            else{
+                levenshtein_distance = if let Some(levenshtein) = filter.levenshtein {
+                    Some(u32::from(levenshtein))
+                } else {
+                    Some(get_levenshteinn(&term, opt.levenshtein, opt.levenshtein_auto_limit, starts_with))
+                };
+            }
 
             let part = RequestSearchPart {
                 boost: opt.boost_fields.as_ref().and_then(|boost| boost.get(field_name).map(|el| OrderedFloat(*el))),
@@ -50,6 +70,7 @@ fn query_ast_to_request<'a>(ast: &UserAST<'_, '_>, opt: &SearchQueryGeneratorPar
                 path: field_name.to_string(),
                 terms: vec![term.to_string()],
                 starts_with: starts_with,
+                is_regex,
                 ..Default::default()
             };
             SearchRequest::Search(part)

@@ -317,6 +317,47 @@ fn simple_search_wildcard_starts_with() {
 }
 
 #[test]
+fn simple_search_wildcard_starts_with_with_levenshtein() {
+    let mut params = query_generator::SearchQueryGeneratorParameters::default();
+    params.search_term = "awesam*".to_string();
+
+    let hits = search_testo_to_doco_qp!(params.clone()).data;
+    assert_eq!(hits.len(), 1);
+
+}
+
+#[test]
+fn contains_search_with_regex_starts_with() {
+    let mut params = query_generator::SearchQueryGeneratorParameters::default();
+    params.search_term = "*wesom*".to_string();
+    params.fields = Some(vec!["tags[]".to_string()]);
+
+    let hits = search_testo_to_doco_qp!(params.clone()).data;
+    assert_eq!(hits.len(), 1);
+}
+
+
+#[test]
+fn contains_search_with_regex() {
+    let mut params = query_generator::SearchQueryGeneratorParameters::default();
+    params.search_term = "*we*some".to_string();
+    params.fields = Some(vec!["tags[]".to_string()]);
+
+    let hits = search_testo_to_doco_qp!(params.clone()).data;
+    assert_eq!(hits.len(), 1);
+}
+
+/// There is no levenshtein with regex searches
+#[test]
+fn contains_search_has_no_levenshtein() {
+    let mut params = query_generator::SearchQueryGeneratorParameters::default();
+    params.search_term = "tags[]:*wesam*".to_string();
+
+    let hits = search_testo_to_doco_qp!(params.clone()).data;
+    assert_eq!(hits.len(), 0);
+}
+
+#[test]
 fn no_matching_fields_from_field_list() {
     let mut params = query_generator::SearchQueryGeneratorParameters::default();
     params.search_term = "awes*".to_string();

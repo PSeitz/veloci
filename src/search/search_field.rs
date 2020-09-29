@@ -33,7 +33,7 @@ fn get_default_score_for_distance(distance: u8, prefix_matches: bool) -> f32 {
 }
 
 #[inline]
-pub fn ord_to_term(fst: &Fst, mut ord: u64, bytes: &mut Vec<u8>) -> bool {
+pub fn ord_to_term<T: AsRef<[u8]>>(fst: &Fst<T>, mut ord: u64, bytes: &mut Vec<u8>) -> bool {
     bytes.clear();
     let mut node = fst.root();
     while ord != 0 || !node.is_final() {
@@ -51,7 +51,89 @@ pub fn ord_to_term(fst: &Fst, mut ord: u64, bytes: &mut Vec<u8>) -> bool {
 }
 
 #[inline]
-fn get_text_lines<F>(persistence: &Persistence, options: &RequestSearchPart, mut fun: F) -> Result<(), VelociError>
+fn get_text_lines_with_automat<F, D: AsRef<[u8]>, A: Automaton>(map: &fst::Map<D>, dfa: A, mut fun: F) -> Result<(), VelociError>
+where
+    F: FnMut(String, u32),
+{
+    let stream = map.search(&dfa).into_stream();
+    let hits = stream.into_str_vec()?;
+
+    for (term, id) in hits {
+        fun(term, id as u32);
+    }
+    Ok(())
+}
+
+
+#[inline]
+fn get_text_lines_from_fst<F, D: AsRef<[u8]>>(options: &RequestSearchPart, map: &fst::Map<D>, fun: F) -> Result<(), VelociError>
+where
+    F: FnMut(String, u32),
+{
+    if options.is_regex {
+        
+        use regex_automata::dense;
+        let dfa = dense::Builder::new().case_insensitive(!options.ignore_case.unwrap_or(false)).build(&options.terms[0]).unwrap();
+        // get_text_lines_with_automat(map, dfa, fun)?;
+        if options.starts_with {
+            get_text_lines_with_automat(map, dfa.starts_with(), fun)?;
+        } else {
+            get_text_lines_with_automat(map, dfa, fun)?;
+        };
+
+    }else{
+        let lev = {
+            trace_time!("{} LevenshteinIC create", &options.path);
+            let lev_automaton_builder = LevenshteinAutomatonBuilder::new(options.levenshtein_distance.unwrap_or(0).min(4) as u8, options.ignore_case.unwrap_or(false));
+            lev_automaton_builder.build_dfa(&options.terms[0], options.ignore_case.unwrap_or(true))
+        };
+
+        if options.starts_with {
+            get_text_lines_with_automat(map, lev.starts_with(), fun)?;
+        } else {
+            get_text_lines_with_automat(map, lev, fun)?;
+        };
+    }
+
+    Ok(())
+}
+
+#[test]
+fn test_get_text_lines_from_fst_regex_search() {
+    let map = fst::Map::from_iter(vec![("awesome", 1)]).unwrap();
+    let mut hits = vec![];
+    let teh_callback = |text: String, _: u32| {
+        hits.push(text);
+    };
+
+    get_text_lines_from_fst(&RequestSearchPart{
+        is_regex: true,
+        terms: vec![".*wesom.*".to_string()],
+        .. Default::default()
+    }, &map, teh_callback).unwrap();
+    assert_eq!(hits.get(0), Some(&"awesome".to_string()));
+
+}
+#[test]
+fn test_get_text_lines_from_fst_regex_search_with_starts_with() {
+    let map = fst::Map::from_iter(vec![("awesome", 1)]).unwrap();
+    let mut hits = vec![];
+    let teh_callback = |text: String, _: u32| {
+        hits.push(text);
+    };
+
+    get_text_lines_from_fst(&RequestSearchPart{
+        is_regex: true,
+        terms: vec![".*wesom".to_string()],
+        starts_with: true,
+        .. Default::default()
+    }, &map, teh_callback).unwrap();
+    assert_eq!(hits.get(0), Some(&"awesome".to_string()));
+
+}
+
+#[inline]
+fn get_text_lines<F>(persistence: &Persistence, options: &RequestSearchPart, fun: F) -> Result<(), VelociError>
 where
     F: FnMut(String, u32),
 {
@@ -60,24 +142,8 @@ where
         .fst
         .get(&options.path)
         .ok_or_else(|| VelociError::FstNotFound(options.path.to_string()))?;
-    let lev = {
-        trace_time!("{} LevenshteinIC create", &options.path);
-        let lev_automaton_builder = LevenshteinAutomatonBuilder::new(options.levenshtein_distance.unwrap_or(0).min(4) as u8, options.ignore_case.unwrap_or(false));
-        lev_automaton_builder.build_dfa(&options.terms[0], options.ignore_case.unwrap_or(true))
-    };
 
-    let hits = if options.starts_with {
-        let stream = map.search(lev.starts_with()).into_stream();
-        stream.into_str_vec()?
-    } else {
-        let stream = map.search(lev).into_stream();
-        stream.into_str_vec()?
-    };
-
-    for (term, id) in hits {
-        fun(term, id as u32);
-    }
-
+    get_text_lines_from_fst(options, map, fun)?;
     Ok(())
 }
 
@@ -289,8 +355,8 @@ pub fn get_term_ids_in_field(persistence: &Persistence, options: &mut PlanReques
         }
     }
 
-    if !result.hits_scores.is_empty() {
-        info!("{:?}\thits for {:?} \t in {:?}", result.hits_scores.len(), options.request.terms[0], &options.request.path);
+    if true {
+        info!("{:?}\thits for {}", result.hits_scores.len(), options.request.short_dbg_info());
     }
     if !result.hits_ids.is_empty() {
         info!("{:?}\tids hits for {:?} \t in {:?}", result.hits_ids.len(), options.request.terms[0], &options.request.path);

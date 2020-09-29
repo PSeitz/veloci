@@ -69,7 +69,7 @@ pub struct PersistenceIndices {
     pub phrase_pair_to_anchor: HashMap<String, Box<dyn PhrasePairToAnchor<Input = (u32, u32)>>>,
     pub boost_valueid_to_value: HashMap<String, Box<dyn IndexIdToParent<Output = u32>>>,
     // index_64: HashMap<String, Box<IndexIdToParent<Output = u64>>>,
-    pub fst: HashMap<String, Map>,
+    pub fst: HashMap<String, Map<memmap::Mmap>>,
 }
 
 // impl PersistenceIndices {
@@ -454,9 +454,12 @@ impl Persistence {
         Ok(())
     }
 
-    pub fn load_fst(&self, path: &str) -> Result<Map, VelociError> {
+    pub fn load_fst(&self, path: &str) -> Result<Map<memmap::Mmap>, VelociError> {
+
+        let file = self.get_file_handle(&(path.to_string() + ".fst"))?;
+
         unsafe {
-            Map::from_path(&get_file_path(&self.db, &(path.to_string() + ".fst"))).map_err(|err| VelociError::StringError(format!("Could not load fst {} {:?}", path, err)))
+            Map::new( MmapOptions::new().map(&file)?).map_err(|err| VelociError::StringError(format!("Could not load fst {} {:?}", path, err)))
             // Ok(Map::from_path(&get_file_path(&self.db, &(path.to_string() + ".fst")))?) //(path.to_string() + ".fst"))?)
         }
         // In memory version
