@@ -65,9 +65,18 @@ fn get_number_of_docs() {
 
 #[test]
 fn should_tokenize_url() {
-    let req = json!({"search": { "terms":["veloci"], "path": "url", } });
-    let hits = search_request_json_to_doc!(req).data;
+    let req = json!({
+        "search_req": { "search": {
+            "terms":["veloci"],
+            "path": "url",
+        }},
+        "why_found":true
+    });
+    let hits = search_testo_to_doc!(req).data;
+
+
     assert_eq!(hits.len(), 1);
+    assert_eq!(hits[0].why_found["url"], vec!["https://github.com/PSeitz/<b>veloci</b>"]);
 
     let req = json!({"search": { "terms":["pseitz"], "path": "url", } });
     let hits = search_request_json_to_doc!(req).data;
@@ -333,4 +342,42 @@ fn should_add_highlight_multi_terms() {
 
     let hits = search_testo_to_doc!(req).data;
     assert_eq!(hits[0].why_found["buch"], vec!["<b>Taschenbuch</b> (<b>kartoniert</b>)"]);
+}
+
+
+// the regex hits cross token on the complete text line, so the complete line is highlighted
+#[test]
+fn regex_why_found() {
+
+    let req = json!({
+        "search_req": { "search": {
+            "terms":[".*github.com.*"],
+            "path": "url",
+            "is_regex": true
+        }},
+        "why_found":true
+    });
+
+    let hits = search_testo_to_doc!(req).data;
+    assert_eq!(hits[0].why_found["url"], vec!["<b>https://github.com/PSeitz/veloci</b>"]);
+
+}
+
+// the regex hits a single token, but also the complete text, this is a special case, where we could highlight different things
+// currently if we hit a token and the complete text, the more specific thing is highlighted
+#[test]
+fn regex_why_found_token() {
+
+    let req = json!({
+        "search_req": { "search": {
+            "terms":[".*PSeitz.*"],
+            "path": "url",
+            "is_regex": true
+        }},
+        "why_found":true
+    });
+
+    let hits = search_testo_to_doc!(req).data;
+    assert_eq!(hits[0].why_found["url"], vec!["https://github.com/<b>PSeitz</b>/veloci"]);
+
 }

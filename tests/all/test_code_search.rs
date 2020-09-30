@@ -15,6 +15,7 @@ lazy_static! {
             features = ["All"]
         ["filepath"]
             tokenize = true
+            tokenize_on_chars = ['/', '\']
         ["filename"]
             tokenize = true
         ["line"]

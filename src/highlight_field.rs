@@ -86,11 +86,14 @@ pub fn ellipsis_snippet(snippet: &mut String, hit_pos_of_tokens_in_doc: &[usize]
 /// * `text` - The text to hightlight.
 /// * `set` - The tokens to hightlight in the text. They need to be properly tokenized for that field
 /// * `tokenizer` - The tokenizer for the field. If the field is not tokenized, there is no tokenizer
+///
+/// If the tokens contains only one exact match for the text, the complete text is highlighted.
+/// If there are multiple texts to highlight, it chooses the more specific highlighting, since this will bring more insight than the whole line.
 pub fn highlight_text(text: &str, set: &FnvHashSet<String>, opt: &SnippetInfo, tokenizer: Option<&Arc<dyn Tokenizer>>) -> Option<String> {
     let mut contains_any_token = false;
 
-    // hit complete text
-    if set.contains(text) {
+    // Mark complete text, if there is only one hit which hits the complete text.
+    if set.len() == 1 && set.contains(text) {
         return Some(opt.snippet_start_tag.to_string() + text + &opt.snippet_end_tag);
     }
     if tokenizer.is_none() {
@@ -190,6 +193,9 @@ mod tests {
     }
 }
 
+/// This is used for a fast why_found highlighting, by retokenizing the document and highlighting on the fly. This is reasonable as long as 
+/// the tokenization is faster, than loading the single tokens of the document from the FST. (which is currently the case 30-09-2020)
+/// `SearchResult` stores why_found_terms from the search, which is used to build the tokens which should be highlighted.
 pub(crate) fn highlight_on_original_document(persistence: &Persistence, doc: &str, why_found_terms: &FnvHashMap<String, FnvHashSet<String>>) -> FnvHashMap<String, Vec<String>> {
     let mut highlighted_texts: FnvHashMap<_, Vec<_>> = FnvHashMap::default();
     let stream = serde_json::Deserializer::from_str(&doc).into_iter::<serde_json::Value>();
@@ -198,7 +204,8 @@ pub(crate) fn highlight_on_original_document(persistence: &Persistence, doc: &st
     {
         //cb_text returns the content of an json value
         let mut cb_text = |_anchor_id: u32, value: &str, field_name: &str, _parent_val_id: u32| -> Result<(), serde_json::error::Error> {
-            let path_text = field_name.add(TEXTINDEX);
+
+            let path_text = field_name.add(TEXTINDEX); // This is stupid, currently the results are always coming from a textindex. So the suffix can be removed
             if let Some(terms) = why_found_terms.get(&path_text) {
                 if let Some(highlighted) = highlight_text(
                     value,

@@ -6,6 +6,8 @@ use crate::{
     util::{self, extract_field_name},
 };
 use fnv::FnvHashMap;
+
+/// This methods loads the tokens of a text from the fst and higlights them
 pub fn get_why_found(
     persistence: &Persistence,
     anchor_ids: &[u32],

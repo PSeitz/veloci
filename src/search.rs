@@ -76,6 +76,8 @@ impl Hit {
 // }
 
 pub fn to_documents(persistence: &Persistence, hits: &[Hit], select: &Option<Vec<String>>, result: &SearchResult) -> Vec<DocWithHit> {
+
+    // This is a fastpath why_found highlighting
     let tokens_set = {
         result
             .why_found_terms
