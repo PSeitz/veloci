@@ -144,7 +144,6 @@ pub fn sort_by_score_and_id(a: &Hit, b: &Hit) -> Ordering {
 
 pub fn explain_plan(mut request: Request, _persistence: &Persistence) -> Result<String, VelociError> {
     request.top = request.top.or(Some(10));
-    request.skip = request.skip;
 
     let mut plan = Plan::default();
     plan_creator(request, &mut plan);
