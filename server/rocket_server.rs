@@ -241,31 +241,29 @@ fn search_from_query_params(database: String, params: QueryParams) -> Result<Sea
     let stopwords: Option<Vec<String>> = query_param_to_vec(params.stopwords);
     let fields: Option<Vec<String>> = query_param_to_vec(params.fields);
 
-    let boost_fields: Option<Result<HashMap<String, f32>, _>> = query_param_to_vec(params.boost_fields)
-        .map(|mkay| {
-            mkay.into_iter()
-                .map(|el| {
-                    let field_n_boost = el.split("->").collect::<Vec<&str>>();
+    let boost_fields: Option<Result<HashMap<String, f32>, _>> = query_param_to_vec(params.boost_fields).map(|mkay| {
+        mkay.into_iter()
+            .map(|el| {
+                let field_n_boost = el.split("->").collect::<Vec<&str>>();
 
-                    let val = field_n_boost[1]
-                        .parse::<f32>()
-                        .map_err(|_err| Custom(Status::BadRequest, "Could not parse boost value as float".to_string()))?;
-                    Ok((field_n_boost[0].to_string(), val))
-                })
-                .collect()
-        });
-        // .unwrap_or(Ok(HashMap::default()));
+                let val = field_n_boost[1]
+                    .parse::<f32>()
+                    .map_err(|_err| Custom(Status::BadRequest, "Could not parse boost value as float".to_string()))?;
+                Ok((field_n_boost[0].to_string(), val))
+            })
+            .collect()
+    });
+    // .unwrap_or(Ok(HashMap::default()));
 
-    let boost_terms: Option<HashMap<String, f32>> = query_param_to_vec(params.boost_terms)
-        .map(|mkay| {
-            mkay.into_iter()
-                .map(|el| {
-                    let field_n_boost = el.split("->").collect::<Vec<&str>>();
-                    (field_n_boost[0].to_string(), field_n_boost.get(1).map(|el| el.parse::<f32>().unwrap()).unwrap_or(2.0))
-                })
-                .collect()
-        });
-        // .unwrap_or(HashMap::default());
+    let boost_terms: Option<HashMap<String, f32>> = query_param_to_vec(params.boost_terms).map(|mkay| {
+        mkay.into_iter()
+            .map(|el| {
+                let field_n_boost = el.split("->").collect::<Vec<&str>>();
+                (field_n_boost[0].to_string(), field_n_boost.get(1).map(|el| el.parse::<f32>().unwrap()).unwrap_or(2.0))
+            })
+            .collect()
+    });
+    // .unwrap_or(HashMap::default());
 
     let mut q_params = query_generator::SearchQueryGeneratorParameters {
         search_term: params.query.to_string(),
@@ -280,7 +278,7 @@ fn search_from_query_params(database: String, params: QueryParams) -> Result<Sea
         text_locality: params.text_locality.map(|el| el.to_lowercase() == "true"),
         facets: facets,
         stopword_lists,
-        stopwords: stopwords.map(|list|list.into_iter().collect()),
+        stopwords: stopwords.map(|list| list.into_iter().collect()),
         fields: fields,
         boost_fields: boost_fields.transpose()?,
         boost_terms: boost_terms,

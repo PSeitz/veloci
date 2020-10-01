@@ -457,11 +457,10 @@ impl Persistence {
     }
 
     pub fn load_fst(&self, path: &str) -> Result<Map<memmap::Mmap>, VelociError> {
-
         let file = self.get_file_handle(&(path.to_string() + ".fst"))?;
 
         unsafe {
-            Map::new( MmapOptions::new().map(&file)?).map_err(|err| VelociError::StringError(format!("Could not load fst {} {:?}", path, err)))
+            Map::new(MmapOptions::new().map(&file)?).map_err(|err| VelociError::StringError(format!("Could not load fst {} {:?}", path, err)))
             // Ok(Map::from_path(&get_file_path(&self.db, &(path.to_string() + ".fst")))?) //(path.to_string() + ".fst"))?)
         }
         // In memory version

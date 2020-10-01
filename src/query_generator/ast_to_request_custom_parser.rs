@@ -49,13 +49,12 @@ fn query_ast_to_request<'a>(ast: &UserAST<'_, '_>, opt: &SearchQueryGeneratorPar
 
             // regex is currently enabled, when there is a star, expect if there is only one star at the the end, e.g. fooba*
             // Then it uses a combination of fuzzy + starts_with
-            // This enables fuzzy search with patterns, currently there is no fuzzy_search for regex  
+            // This enables fuzzy search with patterns, currently there is no fuzzy_search for regex
             let is_regex = term.contains("*");
             if is_regex {
                 use itertools::Itertools;
-                term = term.split("*").map(|term|regex::escape(term)).join(".*");
-            }
-            else{
+                term = term.split("*").map(|term| regex::escape(term)).join(".*");
+            } else {
                 levenshtein_distance = if let Some(levenshtein) = filter.levenshtein {
                     Some(u32::from(levenshtein))
                 } else {
@@ -111,20 +110,18 @@ fn expand_fields_in_query_ast<'a, 'b>(ast: &UserAST<'b, 'a>, all_fields: &'a [St
 
 //TODO should be field specific
 fn filter_stopwords<'a, 'b>(query_ast: &'a custom_parser::ast::UserAST<'a, 'a>, opt: &'b SearchQueryGeneratorParameters) -> Option<UserAST<'a, 'a>> {
-    let ast = query_ast.filter_ast(&mut |ast: &UserAST<'_,'_>, _attr: Option<&str>|  {
-            match ast {
-                UserAST::Leaf(filter) => {
-                    if let Some(languages) = opt.stopword_lists.as_ref() {
-                        languages.iter().any(|lang| stopwords::is_stopword(lang, &filter.phrase.to_lowercase()))
-                    } else if let Some(stopwords) = opt.stopwords.as_ref() {
-                        stopwords.contains(&filter.phrase.to_lowercase())
-                    } else {
-                        false
-                    }
+    let ast = query_ast.filter_ast(
+        &mut |ast: &UserAST<'_, '_>, _attr: Option<&str>| match ast {
+            UserAST::Leaf(filter) => {
+                if let Some(languages) = opt.stopword_lists.as_ref() {
+                    languages.iter().any(|lang| stopwords::is_stopword(lang, &filter.phrase.to_lowercase()))
+                } else if let Some(stopwords) = opt.stopwords.as_ref() {
+                    stopwords.contains(&filter.phrase.to_lowercase())
+                } else {
+                    false
                 }
-                _ => false,
             }
-            
+            _ => false,
         },
         None,
     );

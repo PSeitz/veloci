@@ -1,9 +1,9 @@
 use std::{convert::From, fmt};
 
 #[derive(Clone, PartialEq, Eq)]
-pub enum UserAST<'a,'b> {
-    Attributed(&'b str, Box<UserAST<'a,'b>>),
-    BinaryClause(Box<UserAST<'a,'b>>, Operator, Box<UserAST<'a,'b>>),
+pub enum UserAST<'a, 'b> {
+    Attributed(&'b str, Box<UserAST<'a, 'b>>),
+    BinaryClause(Box<UserAST<'a, 'b>>, Operator, Box<UserAST<'a, 'b>>),
     Leaf(Box<UserFilter<'a>>),
 }
 
@@ -18,12 +18,9 @@ impl<'a> fmt::Debug for UserFilter<'a> {
 }
 
 // conversion for tests
-impl<'a> From<&'static str> for UserAST<'a,'a> {
+impl<'a> From<&'static str> for UserAST<'a, 'a> {
     fn from(item: &'a str) -> Self {
-        let mut filter = UserFilter {
-            phrase: item,
-            levenshtein: None,
-        };
+        let mut filter = UserFilter { phrase: item, levenshtein: None };
         if item.chars().next().map(|c| c != '\"').unwrap_or(false) {
             let parts_field = item.splitn(2, ':').collect::<Vec<_>>();
             if parts_field.len() > 1 {
@@ -83,10 +80,7 @@ impl From<&str> for Operator {
     }
 }
 
-
-
-
-impl<'a,'b> fmt::Debug for UserAST<'a,'b> {
+impl<'a, 'b> fmt::Debug for UserAST<'a, 'b> {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
         match self {
             UserAST::Attributed(attr, ast) => write!(formatter, "{}:{:?}", attr, ast),
@@ -96,17 +90,15 @@ impl<'a,'b> fmt::Debug for UserAST<'a,'b> {
     }
 }
 
-impl<'a,'b> From<(UserAST<'a,'b>, Operator, UserAST<'a,'b>)> for UserAST<'a,'b> {
-    fn from(item: (UserAST<'a,'b>, Operator, UserAST<'a,'b>)) -> Self {
+impl<'a, 'b> From<(UserAST<'a, 'b>, Operator, UserAST<'a, 'b>)> for UserAST<'a, 'b> {
+    fn from(item: (UserAST<'a, 'b>, Operator, UserAST<'a, 'b>)) -> Self {
         UserAST::BinaryClause(Box::new(item.0), item.1, Box::new(item.2))
     }
 }
 
 use std::collections::HashSet;
 
-
 impl UserAST<'_, '_> {
-
     /// Filters the AST according to the bool returned in the should_filter callback.
     ///
     /// Can filter any parts of the AST, while keeping a valid ast.
@@ -114,19 +106,15 @@ impl UserAST<'_, '_> {
     ///
     /// The should_filter callback provides two values:
     /// The current AST, and the current attribute filter, applied the subtree
-    pub fn filter_ast<F>(&self, should_filter: &mut F, current_attr: Option<&str> ) -> Option<UserAST<'_, '_>>
+    pub fn filter_ast<F>(&self, should_filter: &mut F, current_attr: Option<&str>) -> Option<UserAST<'_, '_>>
     where
         F: FnMut(&UserAST<'_, '_>, Option<&str>) -> bool,
     {
-        if should_filter(self, current_attr){
+        if should_filter(self, current_attr) {
             return None;
         }
         match self {
-            UserAST::Attributed(attr, ast) => {
-                return UserAST::filter_ast(ast, should_filter, Some(attr)).map(|ast|{
-                    UserAST::Attributed(attr, ast.into())
-                })
-            }
+            UserAST::Attributed(attr, ast) => return UserAST::filter_ast(ast, should_filter, Some(attr)).map(|ast| UserAST::Attributed(attr, ast.into())),
             UserAST::BinaryClause(ast1, op, ast2) => {
                 let filtered_ast1 = UserAST::filter_ast(ast1, should_filter, current_attr);
                 let filtered_ast2 = UserAST::filter_ast(ast2, should_filter, current_attr);
@@ -135,13 +123,12 @@ impl UserAST<'_, '_> {
                     (None, Some(filtered_ast2)) => Some(filtered_ast2),
                     (Some(filtered_ast1), None) => Some(filtered_ast1),
                     (None, None) => None,
-                }
+                };
             }
-            UserAST::Leaf(_filter) => {
-            }
+            UserAST::Leaf(_filter) => {}
         }
 
-        return Some(self.clone())
+        return Some(self.clone());
     }
 
     /// walking the ast and grouping adjacent terms for phrase boosting
@@ -154,12 +141,12 @@ impl UserAST<'_, '_> {
     fn _get_phrase_pairs<'a>(&'a self, collect: &mut HashSet<[&'a str; 2]>, last_term: &mut Option<&'a str>, curr_attr: Option<&'a str>) {
         match self {
             UserAST::Attributed(attr, ast) => {
-                if curr_attr == Some(attr) || curr_attr.is_none(){
+                if curr_attr == Some(attr) || curr_attr.is_none() {
                     ast._get_phrase_pairs(collect, last_term, Some(attr));
-                }else{
+                } else {
                     ast._get_phrase_pairs(collect, &mut None, Some(attr));
                 }
-            },
+            }
             UserAST::BinaryClause(ast1, _op, ast2) => {
                 // let terms1 = ast1.get_terms_from_ast(op);
                 // println!("terms1 {:?}", terms1);
@@ -189,13 +176,13 @@ impl UserAST<'_, '_> {
 
                 ast1._get_phrase_pairs(collect, last_term, curr_attr);
                 ast2._get_phrase_pairs(collect, last_term, curr_attr);
-            },
+            }
             UserAST::Leaf(filter) => {
                 if let Some(last_term) = last_term {
                     collect.insert([last_term, &filter.phrase]);
                 }
                 *last_term = Some(&filter.phrase)
-            },
+            }
         }
     }
 
@@ -204,65 +191,55 @@ impl UserAST<'_, '_> {
     where
         F: FnMut(&str),
     {
-            match self {
-                UserAST::Attributed(_attr, ast) => {
-                    ast.walk_terms(cb);
-                },
-                UserAST::BinaryClause(ast1, _op, ast2) => {
-                    ast1.walk_terms(cb);
-                    ast2.walk_terms(cb);
-                },
-                UserAST::Leaf(filter) => {
-                    cb(&filter.phrase)
-                },
+        match self {
+            UserAST::Attributed(_attr, ast) => {
+                ast.walk_terms(cb);
             }
+            UserAST::BinaryClause(ast1, _op, ast2) => {
+                ast1.walk_terms(cb);
+                ast2.walk_terms(cb);
+            }
+            UserAST::Leaf(filter) => cb(&filter.phrase),
+        }
     }
-
 }
 
 #[cfg(test)]
 mod test_ast {
-    use crate::parser::parse;
-    use crate::ast::UserAST;
-    use crate::ast::Operator::*;
-
+    use crate::{
+        ast::{Operator::*, UserAST},
+        parser::parse,
+    };
 
     #[test]
     fn test_filter_ast() {
-        let ast: UserAST<'_,'_> = ("super".into(), Or, ("cool".into(), Or, "fancy".into()).into()).into();
-        let ast = ast.filter_ast(&mut |ast: &UserAST<'_,'_>, _attr: Option<&str>|  {
-            match ast {
-                UserAST::Leaf(filter) => {
-                    filter.phrase == "cool"
-                }
+        let ast: UserAST<'_, '_> = ("super".into(), Or, ("cool".into(), Or, "fancy".into()).into()).into();
+        let ast = ast.filter_ast(
+            &mut |ast: &UserAST<'_, '_>, _attr: Option<&str>| match ast {
+                UserAST::Leaf(filter) => filter.phrase == "cool",
                 _ => false,
-            }
-        }, None);
-
-        assert_eq!(
-            ast,
-            Some( ("super".into(), Or, "fancy".into()).into())
+            },
+            None,
         );
 
-        let ast: UserAST<'_,'_> = parse("myattr:(super cool)").unwrap();
+        assert_eq!(ast, Some(("super".into(), Or, "fancy".into()).into()));
+
+        let ast: UserAST<'_, '_> = parse("myattr:(super cool)").unwrap();
+
+        assert_eq!(ast.filter_ast(&mut |_ast, _attr| { true }, None), None);
 
         assert_eq!(
-            ast.filter_ast(&mut |_ast, _attr|  { true }, None),
-            None
-        );
-
-        assert_eq!(
-            ast.filter_ast(&mut |ast, _attr|  {
-                match ast {
-                    UserAST::Leaf(filter) => {
-                        filter.phrase == "cool"
+            ast.filter_ast(
+                &mut |ast, _attr| {
+                    match ast {
+                        UserAST::Leaf(filter) => filter.phrase == "cool",
+                        _ => false,
                     }
-                    _ => false,
-                }
-            }, None),
-            Some(UserAST::Attributed("myattr", "super".into() ))
+                },
+                None
+            ),
+            Some(UserAST::Attributed("myattr", "super".into()))
         );
-
     }
 
     // #[test]
@@ -282,36 +259,30 @@ mod test_ast {
     #[test]
     fn test_get_phrase_pairs_or() {
         // let ast: UserAST = parse("super cool fancy").unwrap();
-        let ast: UserAST<'_,'_> = ("super".into(), Or, ("cool".into(), Or, "fancy".into()).into()).into();
+        let ast: UserAST<'_, '_> = ("super".into(), Or, ("cool".into(), Or, "fancy".into()).into()).into();
+        assert_eq!(ast.get_phrase_pairs(), [["super", "cool"], ["cool", "fancy"]].iter().map(|el| *el).collect());
+        let ast: UserAST<'_, '_> = ("super".into(), Or, ("cool".into(), Or, ("fancy".into(), Or, "great".into()).into()).into()).into();
         assert_eq!(
             ast.get_phrase_pairs(),
-            [["super","cool"],["cool","fancy"]].iter().map(|el|*el).collect()
-        );
-        let ast: UserAST<'_,'_> = ("super".into(), Or, ("cool".into(), Or, ("fancy".into(), Or, "great".into()).into()).into()).into();
-        assert_eq!(
-            ast.get_phrase_pairs(),
-            [["super","cool"],["cool","fancy"],["fancy","great"]].iter().map(|el|*el).collect()
+            [["super", "cool"], ["cool", "fancy"], ["fancy", "great"]].iter().map(|el| *el).collect()
         );
 
-        let ast: UserAST<'_,'_> = parse("super cool nice great").unwrap();
+        let ast: UserAST<'_, '_> = parse("super cool nice great").unwrap();
         assert_eq!(
             ast.get_phrase_pairs(),
-            [["super","cool"],["cool","nice"],["nice","great"]].iter().map(|el|*el).collect()
+            [["super", "cool"], ["cool", "nice"], ["nice", "great"]].iter().map(|el| *el).collect()
         );
 
         // let ast: UserAST = ("super".into(), Or, ("cool".into(), Or, "fancy".into()).into()).into();
         // ast.walk_terms(&mut |term| println!("{:?}", term));
 
-        let ast: UserAST<'_,'_> = parse("myattr:(super cool)").unwrap();
-        assert_eq!(
-            ast.get_phrase_pairs(),
-            [["super","cool"]].iter().map(|el|*el).collect()
-        );
+        let ast: UserAST<'_, '_> = parse("myattr:(super cool)").unwrap();
+        assert_eq!(ast.get_phrase_pairs(), [["super", "cool"]].iter().map(|el| *el).collect());
 
-        let ast: UserAST<'_,'_> = parse("myattr:(super cool) different scope").unwrap();
+        let ast: UserAST<'_, '_> = parse("myattr:(super cool) different scope").unwrap();
         assert_eq!(
             ast.get_phrase_pairs(),
-            [["super","cool"],["cool","different"],["different","scope"]].iter().map(|el|*el).collect()
+            [["super", "cool"], ["cool", "different"], ["different", "scope"]].iter().map(|el| *el).collect()
         );
 
         // let ast: UserAST = parse("different scope OR myattr:(super cool)").unwrap();
@@ -319,6 +290,5 @@ mod test_ast {
         //     ast.get_phrase_pairs(),
         //     [["super","cool"],["cool","different"],["different","scope"]].iter().map(|el|*el).collect()
         // );
-
     }
 }

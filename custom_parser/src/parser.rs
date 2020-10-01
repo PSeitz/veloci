@@ -1,10 +1,9 @@
-use crate::error::marked_in_orig;
-use crate::error::ParseError;
-use crate::Options;
-use crate::ast::*;
-use crate::lexer::{Lexer, TokenType, Token};
-
-
+use crate::{
+    ast::*,
+    error::{marked_in_orig, ParseError},
+    lexer::{Lexer, Token, TokenType},
+    Options,
+};
 
 #[derive(Debug)]
 pub struct Parser<'a> {
@@ -20,7 +19,7 @@ macro_rules! return_binary_clause {
 }
 
 pub(crate) fn get_text_for_token<'a>(text: &'a str, start: u32, stop: u32) -> &'a str {
-    &text[start as usize ..stop as usize ]
+    &text[start as usize..stop as usize]
 }
 
 pub fn parse(text: &str) -> Result<UserAST<'_, '_>, ParseError> {
@@ -35,6 +34,7 @@ impl<'a> Parser<'a> {
         let tokens = Lexer::new(text).get_tokens()?;
         Ok(Parser { tokens, pos: 0, text })
     }
+
     pub fn new_with_opt(text: &'a str, options: Options) -> Result<Self, ParseError> {
         let tokens = Lexer::new_with_opt(text, options).get_tokens()?;
         Ok(Parser { tokens, pos: 0, text })
@@ -42,10 +42,14 @@ impl<'a> Parser<'a> {
 
     fn unexpected_token_type(&self, message: &'static str, allowed_types: Option<&[Option<TokenType>]>) -> Result<(), ParseError> {
         // generate snippet
-        let [start, stop] = self.tokens.get(self.pos).map(|next_token| [next_token.byte_start_pos as usize, next_token.byte_stop_pos as usize]).unwrap_or_else(|| [self.text.len(), self.text.len()]);
+        let [start, stop] = self
+            .tokens
+            .get(self.pos)
+            .map(|next_token| [next_token.byte_start_pos as usize, next_token.byte_stop_pos as usize])
+            .unwrap_or_else(|| [self.text.len(), self.text.len()]);
         let marked_in_orig = marked_in_orig(self.text, start, stop);
 
-        let err = if message == ""{
+        let err = if message == "" {
             let message = format!(
                 "{} Unexpected token_type, got {}{:?}",
                 message,
@@ -53,7 +57,7 @@ impl<'a> Parser<'a> {
                 allowed_types.map(|el| format!(" allowed_types: {:?}", el)).unwrap_or_else(|| "".to_string())
             );
             ParseError::UnexpectedTokenType(marked_in_orig, message)
-        }else{
+        } else {
             ParseError::UnexpectedTokenType(marked_in_orig, message.to_string())
         };
         return Err(err);
@@ -93,7 +97,7 @@ impl<'a> Parser<'a> {
         Ok(curr_ast)
     }
 
-    fn parse_sub_expression(&mut self, curr_ast: UserAST<'a,'a>) -> Result<UserAST<'a,'a>, ParseError> {
+    fn parse_sub_expression(&mut self, curr_ast: UserAST<'a, 'a>) -> Result<UserAST<'a, 'a>, ParseError> {
         self.assert_allowed_types(
             "",
             &[
@@ -120,7 +124,7 @@ impl<'a> Parser<'a> {
                     self.next_token()?;
                     return_binary_clause!(self, Operator::And, curr_ast);
                 }
-                 TokenType::ParenthesesOpen | TokenType::Tilde => unimplemented!(),
+                TokenType::ParenthesesOpen | TokenType::Tilde => unimplemented!(),
                 TokenType::ParenthesesClose => return Ok(curr_ast),
             }
         } else {
@@ -128,17 +132,25 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn _parse(&mut self) -> Result<UserAST<'a,'a>, ParseError> {
+    fn _parse(&mut self) -> Result<UserAST<'a, 'a>, ParseError> {
         let curr_token = self.next_token()?;
         match curr_token.token_type {
             TokenType::AttributeLiteral => {
                 //Check if attribute covers whole ast or only next literal
                 match self.get_type() {
-                    Some(TokenType::ParenthesesOpen) => return Ok(UserAST::Attributed(get_text_for_token(self.text, curr_token.byte_start_pos, curr_token.byte_stop_pos), Box::new(self._parse()?))),
+                    Some(TokenType::ParenthesesOpen) => {
+                        return Ok(UserAST::Attributed(
+                            get_text_for_token(self.text, curr_token.byte_start_pos, curr_token.byte_stop_pos),
+                            Box::new(self._parse()?),
+                        ))
+                    }
                     Some(TokenType::Literal) => {
                         let token2 = self.next_token()?;
                         let curr_ast = self.parse_user_filter(token2)?;
-                        let attributed_ast = UserAST::Attributed(get_text_for_token(self.text, curr_token.byte_start_pos, curr_token.byte_stop_pos), Box::new(UserAST::Leaf(Box::new(curr_ast))));
+                        let attributed_ast = UserAST::Attributed(
+                            get_text_for_token(self.text, curr_token.byte_start_pos, curr_token.byte_stop_pos),
+                            Box::new(UserAST::Leaf(Box::new(curr_ast))),
+                        );
                         return self.parse_sub_expression(attributed_ast);
                     }
                     _ => self.unexpected_token_type(
@@ -182,7 +194,7 @@ impl<'a> Parser<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::parser::{Operator::*};
+    use crate::parser::Operator::*;
 
     #[test]
     fn simple() {
@@ -226,10 +238,16 @@ mod tests {
 
     #[test]
     fn test_parentheses_disabled() {
-        let opt_no_parentheses = Options{no_parentheses:true, ..Default::default()};
+        let opt_no_parentheses = Options {
+            no_parentheses: true,
+            ..Default::default()
+        };
 
         assert_eq!(parse_with_opt("(cool)", opt_no_parentheses).unwrap(), ("(cool)".into()));
-        assert_eq!(parse_with_opt("((((((cool)))))) AND ((((((cool))))))", opt_no_parentheses).unwrap(), ("((((((cool))))))".into(), And, "((((((cool))))))".into()).into());
+        assert_eq!(
+            parse_with_opt("((((((cool)))))) AND ((((((cool))))))", opt_no_parentheses).unwrap(),
+            ("((((((cool))))))".into(), And, "((((((cool))))))".into()).into()
+        );
 
         // println!("{:?}", parse("(cool)"));
     }
@@ -268,20 +286,24 @@ mod tests {
         );
         assert_eq!(
             parse("fancy~"),
-            Err(ParseError::UnexpectedTokenType("fancy~﹏﹏".to_string(), "Expecting a levenshtein number after a \'~\' ".to_string()))
+            Err(ParseError::UnexpectedTokenType(
+                "fancy~﹏﹏".to_string(),
+                "Expecting a levenshtein number after a \'~\' ".to_string()
+            ))
         );
         assert_eq!(parse("fancy~1").unwrap(), "fancy~1".into());
         assert_eq!(
             parse("super cool OR fancy~1").unwrap(),
             ("super".into(), Or, ("cool".into(), Or, "fancy~1".into()).into()).into()
         );
-
-
     }
 
     #[test]
     fn test_levenshtein_disabled() {
-        let opt = Options{no_levensthein:true, ..Default::default()};
+        let opt = Options {
+            no_levensthein: true,
+            ..Default::default()
+        };
         assert_eq!(
             parse_with_opt("fancy~1", opt).unwrap(),
             UserAST::Leaf(Box::new(UserFilter {
@@ -364,7 +386,10 @@ mod tests {
     }
     #[test]
     fn test_disabled_attribute_simple() {
-        let opt_no_attr = Options{no_attributes:true, ..Default::default()};
+        let opt_no_attr = Options {
+            no_attributes: true,
+            ..Default::default()
+        };
         assert_eq!(
             parse_with_opt("field:fancy", opt_no_attr).unwrap(),
             UserAST::Leaf(Box::new(UserFilter {
@@ -378,9 +403,13 @@ mod tests {
     fn test_attribute_after_text() {
         assert_eq!(
             parse("freestyle myattr:(super cool)").unwrap(),
-            ("freestyle".into(),
+            (
+                "freestyle".into(),
                 Or,
-                (UserAST::Attributed("myattr", Box::new(("super".into(), Or, "cool".into()).into()) )) ).into());
+                (UserAST::Attributed("myattr", Box::new(("super".into(), Or, "cool".into()).into())))
+            )
+                .into()
+        );
     }
     #[test]
     fn test_attribute_errors() {

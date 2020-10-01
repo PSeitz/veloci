@@ -1,9 +1,10 @@
 extern crate more_asserts;
 
-use veloci::search::SearchRequest;
-use veloci::search::RequestSearchPart;
 use serde_json::Value;
-use veloci::*;
+use veloci::{
+    search::{RequestSearchPart, SearchRequest},
+    *,
+};
 
 use super::common;
 
@@ -41,7 +42,6 @@ pub fn get_test_data() -> Value {
 
 #[test]
 fn regex_search_request_api() {
-
     let req = SearchRequest::Search(RequestSearchPart {
         terms: vec![".*myfun.*type1.*".to_string()],
         path: "line".to_string(),
@@ -53,12 +53,10 @@ fn regex_search_request_api() {
     let hits = search_request_to_doc!(req).data;
     assert_eq!(hits.len(), 1);
     assert_eq!(hits[0].doc["line"], "function myfun(param1: Type1)");
-
 }
 
 #[test]
 fn regex_search_request_api_case_sensitive() {
-
     // case sensitive no hit
     let req = SearchRequest::Search(RequestSearchPart {
         terms: vec![".*myfun.*type1.*".to_string()],
@@ -70,7 +68,6 @@ fn regex_search_request_api_case_sensitive() {
 
     let hits = search_request_to_doc!(req).data;
     assert_eq!(hits.len(), 0);
-
 }
 
 #[test]
@@ -116,7 +113,7 @@ fn token_code_search_query_generator() {
 #[test]
 fn token_code_search_disable_parser_query_generator() {
     let mut params = query_generator::SearchQueryGeneratorParameters::default();
-    params.parser_options = Some(custom_parser::Options{
+    params.parser_options = Some(custom_parser::Options {
         no_parentheses: true,
         no_attributes: true,
         no_levensthein: true,

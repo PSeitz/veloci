@@ -64,24 +64,24 @@ where
     Ok(())
 }
 
-
 #[inline]
 fn get_text_lines_from_fst<F, D: AsRef<[u8]>>(options: &RequestSearchPart, map: &fst::Map<D>, fun: F) -> Result<(), VelociError>
 where
     F: FnMut(String, u32),
 {
     if options.is_regex {
-        
         use regex_automata::dense;
-        let dfa = dense::Builder::new().case_insensitive(options.ignore_case.unwrap_or(true)).build(&options.terms[0]).unwrap();
+        let dfa = dense::Builder::new()
+            .case_insensitive(options.ignore_case.unwrap_or(true))
+            .build(&options.terms[0])
+            .unwrap();
         // get_text_lines_with_automat(map, dfa, fun)?;
         if options.starts_with {
             get_text_lines_with_automat(map, dfa.starts_with(), fun)?;
         } else {
             get_text_lines_with_automat(map, dfa, fun)?;
         };
-
-    }else{
+    } else {
         let lev = {
             trace_time!("{} LevenshteinIC create", &options.path);
             let lev_automaton_builder = LevenshteinAutomatonBuilder::new(options.levenshtein_distance.unwrap_or(0).min(4) as u8, options.ignore_case.unwrap_or(false));
@@ -106,13 +106,17 @@ fn test_get_text_lines_from_fst_regex_search() {
         hits.push(text);
     };
 
-    get_text_lines_from_fst(&RequestSearchPart{
-        is_regex: true,
-        terms: vec![".*wesom.*".to_string()],
-        .. Default::default()
-    }, &map, teh_callback).unwrap();
+    get_text_lines_from_fst(
+        &RequestSearchPart {
+            is_regex: true,
+            terms: vec![".*wesom.*".to_string()],
+            ..Default::default()
+        },
+        &map,
+        teh_callback,
+    )
+    .unwrap();
     assert_eq!(hits.get(0), Some(&"awesome".to_string()));
-
 }
 #[test]
 fn test_get_text_lines_from_fst_regex_search_with_starts_with() {
@@ -122,14 +126,18 @@ fn test_get_text_lines_from_fst_regex_search_with_starts_with() {
         hits.push(text);
     };
 
-    get_text_lines_from_fst(&RequestSearchPart{
-        is_regex: true,
-        terms: vec![".*wesom".to_string()],
-        starts_with: true,
-        .. Default::default()
-    }, &map, teh_callback).unwrap();
+    get_text_lines_from_fst(
+        &RequestSearchPart {
+            is_regex: true,
+            terms: vec![".*wesom".to_string()],
+            starts_with: true,
+            ..Default::default()
+        },
+        &map,
+        teh_callback,
+    )
+    .unwrap();
     assert_eq!(hits.get(0), Some(&"awesome".to_string()));
-
 }
 
 #[inline]

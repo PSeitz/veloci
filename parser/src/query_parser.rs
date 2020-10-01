@@ -219,7 +219,7 @@ parser! {
     pub fn parse_to_ast[I]()(I) -> UserAST
     where [I: Stream<Item = char>]
     {
-        
+
             attempt(
                 chainl1(
                     leaf(),
@@ -232,7 +232,7 @@ parser! {
                     )
                 )
             )
-        
+
     }
 }
 

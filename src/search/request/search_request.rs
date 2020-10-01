@@ -230,6 +230,7 @@ impl RequestSearchPart {
     pub fn is_explain(&self) -> bool {
         self.options.explain
     }
+
     pub fn short_dbg_info(&self) -> String {
         format!("{:?} in {:?} (isRegex:{},starts_with:{})", self.terms[0], self.path, self.is_regex, self.starts_with)
     }

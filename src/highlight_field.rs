@@ -193,7 +193,7 @@ mod tests {
     }
 }
 
-/// This is used for a fast why_found highlighting, by retokenizing the document and highlighting on the fly. This is reasonable as long as 
+/// This is used for a fast why_found highlighting, by retokenizing the document and highlighting on the fly. This is reasonable as long as
 /// the tokenization is faster, than loading the single tokens of the document from the FST. (which is currently the case 30-09-2020)
 /// `SearchResult` stores why_found_terms from the search, which is used to build the tokens which should be highlighted.
 pub(crate) fn highlight_on_original_document(persistence: &Persistence, doc: &str, why_found_terms: &FnvHashMap<String, FnvHashSet<String>>) -> FnvHashMap<String, Vec<String>> {
@@ -204,7 +204,6 @@ pub(crate) fn highlight_on_original_document(persistence: &Persistence, doc: &st
     {
         //cb_text returns the content of an json value
         let mut cb_text = |_anchor_id: u32, value: &str, field_name: &str, _parent_val_id: u32| -> Result<(), serde_json::error::Error> {
-
             let path_text = field_name.add(TEXTINDEX); // This is stupid, currently the results are always coming from a textindex. So the suffix can be removed
             if let Some(terms) = why_found_terms.get(&path_text) {
                 if let Some(highlighted) = highlight_text(

@@ -1,5 +1,4 @@
-use crate::error::ParseError;
-use crate::Options;
+use crate::{error::ParseError, Options};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum TokenType {
@@ -35,11 +34,11 @@ impl TokenType {
 
 fn is_seperator(cha: char, options: &Options) -> bool {
     match cha {
-            '(' | ')' if !options.no_parentheses => true,
-            '~'  if !options.no_levensthein => true,
-            ':' if !options.no_attributes  => true,
-            _ => false,
-        }
+        '(' | ')' if !options.no_parentheses => true,
+        '~' if !options.no_levensthein => true,
+        ':' if !options.no_attributes => true,
+        _ => false,
+    }
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -73,18 +72,17 @@ impl<'a> Lexer<'a> {
             current_pos: 0,
             current_byte_pos: 0,
             text,
-            options:Default::default()
-            // in_quotes:false,
+            options: Default::default(), // in_quotes:false,
         }
     }
+
     pub(crate) fn new_with_opt(text: &'a str, options: Options) -> Self {
         Lexer {
             chars: text.chars().collect(),
             current_pos: 0,
             current_byte_pos: 0,
             text,
-            options
-            // in_quotes:false,
+            options, // in_quotes:false,
         }
     }
 
@@ -103,9 +101,10 @@ impl<'a> Lexer<'a> {
 
     #[cfg(test)]
     pub(crate) fn get_tokens_text(&mut self) -> Vec<String> {
-        self.get_tokens().unwrap()
+        self.get_tokens()
+            .unwrap()
             .into_iter()
-            .map(|token| self.text[token.byte_start_pos as usize ..token.byte_stop_pos as usize ].to_string())
+            .map(|token| self.text[token.byte_start_pos as usize..token.byte_stop_pos as usize].to_string())
             .collect()
     }
 
@@ -115,7 +114,7 @@ impl<'a> Lexer<'a> {
         if let Some(c) = self.cur_char() {
             // whitespace is ignored except in phrases
             let mut byte_start_pos = self.current_byte_pos;
-            let mut token_type = match self.chars[self.current_pos as usize ..] {
+            let mut token_type = match self.chars[self.current_pos as usize..] {
                 ['A', 'N', 'D', ' ', ..] if self.prev_char_is_whitespace() => {
                     // AND requires whitespace
                     self.eat_chars(3);
@@ -138,7 +137,7 @@ impl<'a> Lexer<'a> {
                 // TODO next should not be a quote again, because "yeah""cool" - this weird
                 // if let Some(cur_char) = cur_char {
                 //     if cur_char == "\""{
-                    // let marked_in_orig = marked_in_orig(self.text, start, stop);
+                // let marked_in_orig = marked_in_orig(self.text, start, stop);
                 //         return Err()
                 //     }
                 // }
@@ -166,7 +165,11 @@ impl<'a> Lexer<'a> {
 
             if let Some(token_type) = token_type {
                 let byte_stop_pos = self.current_byte_pos;
-                let next_token = Some(Token { token_type, byte_start_pos, byte_stop_pos });
+                let next_token = Some(Token {
+                    token_type,
+                    byte_start_pos,
+                    byte_stop_pos,
+                });
                 return Ok(next_token);
             }
 
@@ -192,16 +195,13 @@ impl<'a> Lexer<'a> {
     }
 
     pub fn is_attr_colon_at(&self, pos: u32) -> bool {
-        !self.options.no_attributes
-        && self.chars
-            .get(pos as usize)
-            .map(|c| *c == ':')
-            .unwrap_or(false)
+        !self.options.no_attributes && self.chars.get(pos as usize).map(|c| *c == ':').unwrap_or(false)
     }
 
     // is quote and not escaped
     pub fn is_doublequote(&self, pos: u32) -> bool {
-        self.chars.get(pos as usize).cloned().map(|c| c == '"').unwrap_or(false) && (self.current_pos == 0 || self.chars.get(pos as usize  - 1).cloned().map(|c| c != '\\').unwrap_or(false))
+        self.chars.get(pos as usize).cloned().map(|c| c == '"').unwrap_or(false)
+            && (self.current_pos == 0 || self.chars.get(pos as usize - 1).cloned().map(|c| c != '\\').unwrap_or(false))
     }
 
     pub fn eat_while<F>(&mut self, mut cond: F)
@@ -213,8 +213,7 @@ impl<'a> Lexer<'a> {
         }
     }
 
-    pub fn eat_char(&mut self)
-    {
+    pub fn eat_char(&mut self) {
         if let Some(cur_char) = self.cur_char() {
             self.current_pos += 1;
             self.current_byte_pos += cur_char.len_utf8() as u32;
@@ -226,7 +225,7 @@ impl<'a> Lexer<'a> {
     }
 
     pub fn cur_char(&self) -> Option<char> {
-        self.chars.get(self.current_pos as usize ).cloned()
+        self.chars.get(self.current_pos as usize).cloned()
     }
 
     pub fn eat_chars(&mut self, num: usize) {

@@ -193,7 +193,10 @@ fn disabled_attributed_search() {
     let mut params = query_generator::SearchQueryGeneratorParameters::default();
     params.search_term = "ent_seq:99999".to_string();
     // disabling attributed search, that means, it will search for "ent_seq:99999" on all fields
-    params.parser_options = Some(custom_parser::Options{no_attributes: true, ..Default::default()});
+    params.parser_options = Some(custom_parser::Options {
+        no_attributes: true,
+        ..Default::default()
+    });
 
     let hits = search_testo_to_doco_qp!(params).data;
     assert_eq!(hits.len(), 1);
@@ -323,7 +326,6 @@ fn simple_search_wildcard_starts_with_with_levenshtein() {
 
     let hits = search_testo_to_doco_qp!(params.clone()).data;
     assert_eq!(hits.len(), 1);
-
 }
 
 #[test]
@@ -335,7 +337,6 @@ fn contains_search_with_regex_starts_with() {
     let hits = search_testo_to_doco_qp!(params.clone()).data;
     assert_eq!(hits.len(), 1);
 }
-
 
 #[test]
 fn contains_search_with_regex() {

@@ -23,15 +23,14 @@ e.g. searchterm~2 means a edit distance of 2 for searchterm,
 that means searchtuam would be a hit, because the edit distance is 2.
 
 */
-#![warn(missing_debug_implementations,rust_2018_idioms)]
-mod lexer;
-pub mod parser;
+#![warn(missing_debug_implementations, rust_2018_idioms)]
 pub mod ast;
 pub mod error;
+mod lexer;
+pub mod parser;
 
-use serde::{Serialize, Deserialize};
-pub use parser::parse;
-pub use parser::parse_with_opt;
+pub use parser::{parse, parse_with_opt};
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Copy, Default, Serialize, Deserialize)]
 pub struct Options {
