@@ -387,7 +387,8 @@ where
 }
 
 /// Only trace im data
-fn trace_indices(path_data: &mut FnvHashMap<String, PathData>) {
+#[cfg(not(tarpaulin_include))]
+fn print_indices(path_data: &mut FnvHashMap<String, PathData>) {
     for (path, data) in path_data {
         let path = &path;
 
@@ -914,7 +915,7 @@ where
     // std::mem::drop(create_cache);
 
     if log_enabled!(log::Level::Trace) {
-        trace_indices(&mut path_data);
+        print_indices(&mut path_data);
     }
 
     let mut indices = convert_raw_path_data_to_indices(&persistence.db, path_data, tuples_to_parent_in_path, &indices_json)?;

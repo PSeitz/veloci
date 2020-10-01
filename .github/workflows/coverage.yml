@@ -18,7 +18,7 @@ jobs:
       - name: Generate code coverage PersistenceType=Persistent LoadingType=Disk
         run: PersistenceType=Persistent LoadingType=Disk RUST_BACKTRACE=full RUST_LOG=veloci=debug FlushThreshold=20 cargo +nightly tarpaulin --out Xml
       - name: Generate code coverage PersistenceType=InMemory LoadingType=Disk
-        run: PersistenceType=Persistent LoadingType=InMemory RUST_BACKTRACE=full RUST_LOG=veloci=debug FlushThreshold=20 cargo +nightly tarpaulin --out Xml
+        run: PersistenceType=Persistent LoadingType=InMemory RUST_BACKTRACE=full RUST_LOG=veloci=debug cargo +nightly tarpaulin --out Xml
       - name: Generate code coverage PersistenceType=Transient
         run: PersistenceType=Transient RUST_BACKTRACE=full RUST_LOG=veloci=debug FlushThreshold=20 cargo +nightly tarpaulin --out Xml
 

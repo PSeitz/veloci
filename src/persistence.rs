@@ -101,6 +101,7 @@ pub struct Persistence {
 }
 
 impl fmt::Debug for Persistence {
+    #[cfg(not(tarpaulin_include))]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Persistence")
             .field("db", &self.db)
@@ -274,6 +275,7 @@ pub trait IndexIdToParent: Debug + Sync + Send + type_info::TypeInfo {
 //     }
 // }
 
+#[cfg(not(tarpaulin_include))]
 pub fn trace_index_id_to_parent<T: IndexIdToParentData>(val: &dyn IndexIdToParent<Output = T>) {
     if log_enabled!(log::Level::Trace) {
         let meta = val.get_index_meta_data();

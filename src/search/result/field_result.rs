@@ -53,6 +53,7 @@ impl SearchFieldResult {
 }
 
 impl std::fmt::Display for SearchFieldResult {
+    #[cfg(not(tarpaulin_include))]
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         writeln!(
             f,
