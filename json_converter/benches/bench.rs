@@ -8,7 +8,7 @@ extern crate serde_json;
 use criterion::Criterion;
 use json_converter::IDProvider;
 
-use json_converter::{for_each_element, for_each_elemento, for_each_text, for_each_texto, IDHolder};
+use json_converter::{for_each_elemento, for_each_texto, IDHolder};
 
 fn get_test_json() -> serde_json::Value {
     json!({
@@ -87,17 +87,17 @@ fn get_test_json() -> serde_json::Value {
     })
 }
 
-fn get_json_test_data_line_seperated() -> String {
-    let json_values: Vec<serde_json::Value> = (0..500).map(|_| get_test_json()).collect();
+// fn get_json_test_data_line_seperated() -> String {
+//     let json_values: Vec<serde_json::Value> = (0..500).map(|_| get_test_json()).collect();
 
-    let mut json_string_line_seperated = String::new();
-    for val in json_values {
-        json_string_line_seperated.push_str(&serde_json::to_string(&val).unwrap());
-        json_string_line_seperated.push_str("\n");
-    }
+//     let mut json_string_line_seperated = String::new();
+//     for val in json_values {
+//         json_string_line_seperated.push_str(&serde_json::to_string(&val).unwrap());
+//         json_string_line_seperated.push('\n');
+//     }
 
-    json_string_line_seperated
-}
+//     json_string_line_seperated
+// }
 
 fn criterion_benchmark(c: &mut Criterion) {
     // let json_string_line_seperated = get_json_test_data_line_seperated();
