@@ -7,7 +7,7 @@ use crate::{
 use std::{self, fs::File, io, marker::PhantomData, ptr::copy_nonoverlapping, u32};
 
 use memmap::Mmap;
-use num;
+
 use std::mem;
 
 impl_type_info_single_templ!(SingleArrayMMAPPacked);

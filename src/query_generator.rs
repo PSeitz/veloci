@@ -13,7 +13,7 @@ use crate::{
     util::*,
 };
 use ordered_float::OrderedFloat;
-use std;
+
 
 // fn get_default_levenshtein(term: &str, levenshtein_auto_limit: usize) -> usize {
 //     match term.chars().count() {
@@ -156,12 +156,12 @@ pub fn search_query(persistence: &Persistence, mut opt: SearchQueryGeneratorPara
 
     let all_fields = persistence.metadata.get_all_fields();
     let all_search_fields = get_all_search_field_names(&persistence, &opt.fields)?; // all fields with applied field_filter
-    let query_ast = custom_parser::parse_with_opt(&opt.search_term, opt.parser_options.unwrap_or_else(|| Default::default())).unwrap();
+    let query_ast = custom_parser::parse_with_opt(&opt.search_term, opt.parser_options.unwrap_or_else(Default::default)).unwrap();
 
     let mut request = Request::default();
 
     request.search_req = Some(ast_to_search_request(&query_ast, &all_search_fields, &opt)?);
-    request.search_req.as_mut().map(|el| el.simplify());
+    if let Some(el) = request.search_req.as_mut() { el.simplify() }
 
     let facetlimit = opt.facetlimit;
 
@@ -201,7 +201,7 @@ pub fn search_query(persistence: &Persistence, mut opt: SearchQueryGeneratorPara
     if let Some(filters) = opt.filter.as_ref() {
         let mut params = SearchQueryGeneratorParameters::default();
         params.levenshtein = Some(0);
-        let query_ast = custom_parser::parse_with_opt(&filters, opt.filter_parser_options.unwrap_or_else(|| Default::default())).unwrap();
+        let query_ast = custom_parser::parse_with_opt(&filters, opt.filter_parser_options.unwrap_or_else(Default::default)).unwrap();
         let mut filter_request_ast = ast_to_search_request(&query_ast, &all_fields, &params)?;
         filter_request_ast.simplify();
         request.filter = Some(Box::new(filter_request_ast));

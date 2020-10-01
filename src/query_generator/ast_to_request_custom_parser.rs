@@ -41,8 +41,8 @@ fn query_ast_to_request<'a>(ast: &UserAST<'_, '_>, opt: &SearchQueryGeneratorPar
             let mut term = filter.phrase.to_string();
 
             let mut levenshtein_distance = None;
-            let starts_with = term.ends_with("*");
-            if term.ends_with("*") {
+            let starts_with = term.ends_with('*');
+            if term.ends_with('*') {
                 term.pop();
                 // term = &term[..term.len() - 1];
             }
@@ -50,10 +50,10 @@ fn query_ast_to_request<'a>(ast: &UserAST<'_, '_>, opt: &SearchQueryGeneratorPar
             // regex is currently enabled, when there is a star, expect if there is only one star at the the end, e.g. fooba*
             // Then it uses a combination of fuzzy + starts_with
             // This enables fuzzy search with patterns, currently there is no fuzzy_search for regex
-            let is_regex = term.contains("*");
+            let is_regex = term.contains('*');
             if is_regex {
                 use itertools::Itertools;
-                term = term.split("*").map(|term| regex::escape(term)).join(".*");
+                term = term.split('*').map(|term| regex::escape(term)).join(".*");
             } else {
                 levenshtein_distance = if let Some(levenshtein) = filter.levenshtein {
                     Some(u32::from(levenshtein))
@@ -66,8 +66,8 @@ fn query_ast_to_request<'a>(ast: &UserAST<'_, '_>, opt: &SearchQueryGeneratorPar
                 boost: opt.boost_fields.as_ref().and_then(|boost| boost.get(field_name).map(|el| OrderedFloat(*el))),
                 levenshtein_distance,
                 path: field_name.to_string(),
-                terms: vec![term.to_string()],
-                starts_with: starts_with,
+                terms: vec![term],
+                starts_with,
                 is_regex,
                 ..Default::default()
             };

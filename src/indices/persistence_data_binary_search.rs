@@ -219,13 +219,13 @@ mod tests {
 
     fn get_test_data_1_to_n_ind(ind_path: PathBuf, data_path: PathBuf) -> IndirectIMFlushingInOrderVintNoDirectEncode<(u32, u32)> {
         let mut store = IndirectIMFlushingInOrderVintNoDirectEncode::new(ind_path, data_path, u32::MAX);
-        store.add((0, 0), &vec![5, 6]).unwrap();
-        store.add((0, 1), &vec![9]).unwrap();
-        store.add((2, 0), &vec![9]).unwrap();
-        store.add((2, 3), &vec![9, 50000]).unwrap();
-        store.add((5, 0), &vec![80]).unwrap();
-        store.add((5, 9), &vec![0]).unwrap();
-        store.add((5, 10), &vec![0]).unwrap();
+        store.add((0, 0), &[5, 6]).unwrap();
+        store.add((0, 1), &[9]).unwrap();
+        store.add((2, 0), &[9]).unwrap();
+        store.add((2, 3), &[9, 50000]).unwrap();
+        store.add((5, 0), &[80]).unwrap();
+        store.add((5, 9), &[0]).unwrap();
+        store.add((5, 10), &[0]).unwrap();
         store
     }
 

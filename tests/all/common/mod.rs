@@ -31,7 +31,7 @@ pub fn create_test_persistence_with_logging(
     if let Some(val) = std::env::var_os("PersistenceType") {
         if val.clone().into_string().unwrap() == "Transient" {
             persistence_type = persistence::PersistenceType::Transient;
-        } else if val.clone().into_string().unwrap() == "Persistent" {
+        } else if val.into_string().unwrap() == "Persistent" {
             persistence_type = persistence::PersistenceType::Persistent;
         } else {
             panic!("env PersistenceType needs to be Transient or Persistent");
@@ -52,7 +52,7 @@ pub fn create_test_persistence_with_logging(
     }
 
     if persistence_type == persistence::PersistenceType::Persistent {
-        pers = persistence::Persistence::load(path.to_string()).expect("Could not load persistence");
+        pers = persistence::Persistence::load(path).expect("Could not load persistence");
     }
     pers
 }

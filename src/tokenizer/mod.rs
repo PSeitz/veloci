@@ -213,7 +213,7 @@ mod tests {
         let text = get_test_book();
         b.iter(|| {
             let mut vec: Vec<String> = vec![];
-            for token in (&text).split(" ") {
+            for token in (&text).split(' ') {
                 vec.push(token.to_string());
             }
             vec
@@ -225,7 +225,7 @@ mod tests {
         let text = get_test_book();
         b.iter(|| {
             let mut vec: Vec<&str> = vec![];
-            for token in (&text).split(" ") {
+            for token in (&text).split(' ') {
                 vec.push(token);
             }
         })

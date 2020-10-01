@@ -9,13 +9,13 @@ use crate::{
 use colored::*;
 use fnv::FnvHashMap;
 use fst::Map;
-use log;
+
 use lru_time_cache::LruCache;
 use memmap::{Mmap, MmapOptions};
 use num::{self, cast::ToPrimitive, Integer};
 use parking_lot::RwLock;
 use prettytable::{format, Table};
-use serde_json;
+
 use std::{
     self,
     collections::HashMap,
@@ -24,7 +24,7 @@ use std::{
     fs::{self, File},
     io::{self, prelude::*},
     marker::Sync,
-    path::{Path, PathBuf},
+    path::{Path},
     str,
     str::FromStr,
     time::Duration,
@@ -472,7 +472,7 @@ impl Persistence {
     }
 
     pub fn get_file_handle(&self, path: &str) -> Result<File, VelociError> {
-        Ok(File::open(PathBuf::from(get_file_path(&self.db, path))).map_err(|err| VelociError::StringError(format!("Could not open {} {:?}", path, err)))?)
+        Ok(File::open(get_file_path(&self.db, path)).map_err(|err| VelociError::StringError(format!("Could not open {} {:?}", path, err)))?)
     }
 
     // pub(crate) fn get_file_search(&self, path: &str) -> FileSearch {

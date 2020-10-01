@@ -77,6 +77,6 @@ pub fn add_token_values_to_tokens(persistence: &mut Persistence, data_str: &str,
 
     //TODO FIX LOAD FOR IN_MEMORY
     let store = SingleArrayMMAPPacked::<u32>::from_file(&persistence.get_file_handle(&path)?, store.metadata)?;
-    persistence.indices.boost_valueid_to_value.insert(path.to_string(), Box::new(store));
+    persistence.indices.boost_valueid_to_value.insert(path, Box::new(store));
     Ok(())
 }

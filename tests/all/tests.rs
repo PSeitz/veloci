@@ -1187,13 +1187,13 @@ fn should_boost_terms_and_from_cache() {
         }]
     });
 
-    let hits = search_testo_to_doc!(req.clone()).data;
+    let hits = search_testo_to_doc!(req).data;
     assert_eq!(hits[0].doc["meanings"]["ger"][0], "(1) 2 3 super nice weich");
 
     //using boost cache here
-    let hits = search_testo_to_doc!(req.clone()).data;
+    let hits = search_testo_to_doc!(req).data;
     assert_eq!(hits[0].doc["meanings"]["ger"][0], "(1) 2 3 super nice weich");
-    let hits = search_testo_to_doc!(req.clone()).data;
+    let hits = search_testo_to_doc!(req).data;
     assert_eq!(hits[0].doc["meanings"]["ger"][0], "(1) 2 3 super nice weich");
 }
 
@@ -1260,15 +1260,13 @@ fn read_object_only_partly() {
     let yay = search::read_data(
         &pers,
         4,
-        &vec![
-            "commonness".to_string(),
+        &["commonness".to_string(),
             "ent_seq".to_string(),
             "meanings.ger[]".to_string(),
             "kana[].text".to_string(),
             "kana[].commonness".to_string(),
             "kana[].romaji".to_string(),
-            "address[].line[]".to_string(),
-        ],
+            "address[].line[]".to_string()],
     )
     .unwrap();
     assert_eq!(
@@ -1292,7 +1290,7 @@ fn read_object_only_partly() {
 fn should_skip_existing_fields_which_are_not_existent_in_the_object_none_values() {
     let pers = &TEST_PERSISTENCE;
     //Check None values
-    let yay = search::read_data(&pers, 3, &vec!["mylongtext".to_string()]).unwrap();
+    let yay = search::read_data(&pers, 3, &["mylongtext".to_string()]).unwrap();
     assert_eq!(yay, json!({}));
 }
 

@@ -324,7 +324,7 @@ fn simple_search_wildcard_starts_with_with_levenshtein() {
     let mut params = query_generator::SearchQueryGeneratorParameters::default();
     params.search_term = "awesam*".to_string();
 
-    let hits = search_testo_to_doco_qp!(params.clone()).data;
+    let hits = search_testo_to_doco_qp!(params).data;
     assert_eq!(hits.len(), 1);
 }
 
@@ -334,7 +334,7 @@ fn contains_search_with_regex_starts_with() {
     params.search_term = "*wesom*".to_string();
     params.fields = Some(vec!["tags[]".to_string()]);
 
-    let hits = search_testo_to_doco_qp!(params.clone()).data;
+    let hits = search_testo_to_doco_qp!(params).data;
     assert_eq!(hits.len(), 1);
 }
 
@@ -344,7 +344,7 @@ fn contains_search_with_regex() {
     params.search_term = "*we*some".to_string();
     params.fields = Some(vec!["tags[]".to_string()]);
 
-    let hits = search_testo_to_doco_qp!(params.clone()).data;
+    let hits = search_testo_to_doco_qp!(params).data;
     assert_eq!(hits.len(), 1);
 }
 
@@ -354,7 +354,7 @@ fn contains_search_has_no_levenshtein() {
     let mut params = query_generator::SearchQueryGeneratorParameters::default();
     params.search_term = "tags[]:*wesam*".to_string();
 
-    let hits = search_testo_to_doco_qp!(params.clone()).data;
+    let hits = search_testo_to_doco_qp!(params).data;
     assert_eq!(hits.len(), 0);
 }
 

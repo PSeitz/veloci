@@ -203,7 +203,7 @@ pub(crate) fn apply_boost_from_iter(mut results: SearchFieldResult, mut boost_it
             //Forward the boost iterator and look for matches
             for b_hit in boost_iter {
                 if b_hit.id > hit.id {
-                    *hit_curr = b_hit.clone();
+                    *hit_curr = b_hit;
                     break;
                 } else if b_hit.id == hit.id {
                     *hit_curr = b_hit.clone();

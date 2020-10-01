@@ -24,7 +24,7 @@ use crate::{
 use doc_store::DocLoader;
 use fnv::{FnvHashMap, FnvHashSet};
 use rayon::prelude::*;
-use serde_json;
+
 use std::{
     self,
     cmp::{self, Ordering},
@@ -147,7 +147,7 @@ pub fn explain_plan(mut request: Request, _persistence: &Persistence) -> Result<
     request.skip = request.skip;
 
     let mut plan = Plan::default();
-    plan_creator(request.clone(), &mut plan);
+    plan_creator(request, &mut plan);
 
     let mut dot_graph = vec![];
     render_plan_to(&plan, &mut dot_graph);

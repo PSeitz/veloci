@@ -336,7 +336,7 @@ pub fn get_term_ids_in_field(persistence: &Persistence, options: &mut PlanReques
                     result.explain.insert(
                         token_text_id,
                         vec![Explain::LevenshteinScore {
-                            score: score,
+                            score,
                             term_id: token_text_id,
                             text_or_token_id: text_or_token.clone(),
                         }],

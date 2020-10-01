@@ -85,10 +85,7 @@ impl SearchRequest {
                 }
                 let subitems = subtree
                     .queries
-                    .drain_filter(|q| match q {
-                        SearchRequest::Or(_) => true,
-                        _ => false,
-                    })
+                    .drain_filter(|q| matches!(q, SearchRequest::Or(_)))
                     .flat_map(|q| match q {
                         SearchRequest::Or(search_tree) => search_tree.queries,
                         _ => unreachable!(),
@@ -106,10 +103,7 @@ impl SearchRequest {
                 }
                 let subitems = subtree
                     .queries
-                    .drain_filter(|q| match q {
-                        SearchRequest::And(_) => true,
-                        _ => false,
-                    })
+                    .drain_filter(|q| matches!(q, SearchRequest::And(_)))
                     .flat_map(|q| match q {
                         SearchRequest::And(search_tree) => search_tree.queries,
                         _ => unreachable!(),
@@ -170,7 +164,7 @@ pub struct SearchRequestOptions {
 }
 
 fn is_false(val: &bool) -> bool {
-    *val == false
+    !(*val)
 }
 
 /// Searching on a field, TODO rename

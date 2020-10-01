@@ -156,10 +156,10 @@ pub fn plan_creator(mut request: Request, plan: &mut Plan) {
     if let Some(filter_final_step_id) = filter_final_step_id {
         let final_step_channel = plan.get_step_channel(final_step_id).clone();
         let filter_receiver = plan.get_step_channel(filter_final_step_id).receiver_for_next_step.clone();
-        let channel = PlanStepDataChannels::open_channel(1, vec![final_step_channel.receiver_for_next_step.clone(), filter_receiver]);
-        let step = IntersectScoresWithIds { channel: channel.clone() };
+        let channel = PlanStepDataChannels::open_channel(1, vec![final_step_channel.receiver_for_next_step, filter_receiver]);
+        let step = IntersectScoresWithIds { channel };
         // step.get_channel().input_prev_steps = vec![final_output.0, filter_data_output.0];
-        let id_step = plan.add_step(Box::new(step.clone()));
+        let id_step = plan.add_step(Box::new(step));
         plan.add_dependency(id_step, filter_final_step_id);
         plan.add_dependency(id_step, final_step_id);
         final_step_id = id_step;
@@ -287,7 +287,7 @@ fn plan_creator_2(
                 channel.filter_channel = Some(FilterChannel::default());
             }
             let step = Union { ids_only: is_filter, channel };
-            let step_id = plan.add_step(Box::new(step.clone()));
+            let step_id = plan.add_step(Box::new(step));
             let result_channels_from_prev_steps = queries
                 .iter()
                 .map(|x| {
@@ -329,7 +329,7 @@ fn plan_creator_2(
                 channel.filter_channel = Some(FilterChannel::default());
             }
             let step = Intersect { ids_only: is_filter, channel };
-            let step_id = plan.add_step(Box::new(step.clone()));
+            let step_id = plan.add_step(Box::new(step));
             let result_channels_from_prev_steps = queries
                 .iter()
                 .map(|x| {
@@ -473,8 +473,8 @@ fn plan_creator_search_part(
             let boost_step_id = plan.add_step(boost_step);
             plan.add_dependency(boost_step_id, *field_search_step_id); // TODO instead adding the dependency manually here, we should deduce the dependency by dataflow. In open_channel the output is connected (field_rx) and should be added as depedency
                                                                        // STEP2: APPLY BOOST on anchor
-            let token_to_anchor_rx = channel.receiver_for_next_step.clone();
-            let boost_vals_rx = boost_to_anchor_channel.receiver_for_next_step.clone();
+            let token_to_anchor_rx = channel.receiver_for_next_step;
+            let boost_vals_rx = boost_to_anchor_channel.receiver_for_next_step;
             let mut apply_boost_to_anchor_channel = PlanStepDataChannels::open_channel(1, vec![token_to_anchor_rx, boost_vals_rx]);
 
             // the last step gets set a filter channel to which he will send the result
@@ -483,7 +483,7 @@ fn plan_creator_search_part(
             }
             let step = Box::new(ApplyAnchorBoost {
                 trace_info: "ApplyAnchorBoost".to_string(),
-                channel: apply_boost_to_anchor_channel.clone(),
+                channel: apply_boost_to_anchor_channel,
                 request: request_part.clone(),
                 boost: boosto[0].clone(),
             });

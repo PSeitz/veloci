@@ -3,7 +3,7 @@ use crate::{facet::*, indices::*, persistence::*, type_info::TypeInfo};
 use fnv::FnvHashMap;
 use itertools::Itertools;
 use lru_time_cache::LruCache;
-use num;
+
 use std::{self, fmt, u32};
 use vint::vint::*;
 

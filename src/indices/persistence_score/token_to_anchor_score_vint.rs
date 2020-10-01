@@ -10,7 +10,7 @@ use crate::{
     util::*,
 };
 use itertools::Itertools;
-use num;
+
 use std::{self, io, iter::FusedIterator, marker::PhantomData, mem, ops};
 use vint::vint_encode_most_common::*;
 

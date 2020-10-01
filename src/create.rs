@@ -27,14 +27,14 @@ use buffered_index_writer::{self, BufferedIndexWriter};
 use create_fulltext::{get_allterms_per_path, store_full_text_info_and_set_ids};
 use fixedbitset::FixedBitSet;
 use fnv::FnvHashMap;
-use fst;
+
 use itertools::Itertools;
-use json_converter;
-use log;
+
+
 use memmap::MmapOptions;
 use num::ToPrimitive;
 use rayon::prelude::*;
-use serde_json;
+
 use std::{
     self,
     fs::File,
@@ -42,7 +42,7 @@ use std::{
     path::PathBuf,
     str,
 };
-use term_hashmap;
+
 
 type ValueId = u32;
 type TokenId = u32;
@@ -766,8 +766,8 @@ fn convert_raw_path_data_to_indices(
 
                 let store = buffered_index_to_indirect_index_multiple(db_path, &boost_path, *buffered_index_data, false)?;
                 indices.push(IndexData {
-                    path_col: path_col.to_string(),
-                    path: boost_path.to_string(),
+                    path_col,
+                    path: boost_path,
                     index: IndexVariants::MultiValue(store),
                     loading_type: LoadingType::InMemory,
                     index_category: IndexCategory::Boost,

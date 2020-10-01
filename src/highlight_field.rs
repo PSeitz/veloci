@@ -96,10 +96,7 @@ pub fn highlight_text(text: &str, set: &FnvHashSet<String>, opt: &SnippetInfo, t
     if set.len() == 1 && set.contains(text) {
         return Some(opt.snippet_start_tag.to_string() + text + &opt.snippet_end_tag);
     }
-    if tokenizer.is_none() {
-        // Field is not tokenized
-        return None;
-    }
+    tokenizer?;
 
     let mut tokens = vec![];
     let mut hit_pos_of_tokens_in_doc = vec![];
@@ -281,7 +278,7 @@ pub fn highlight_document(persistence: &Persistence, path: &str, value_id: u64, 
     if hit_pos_of_tokens_in_doc.is_empty() {
         return Ok(None); //No hits
     }
-    hit_pos_of_tokens_in_doc.sort();
+    hit_pos_of_tokens_in_doc.sort_unstable();
 
     let token_around_snippets = opt.num_words_around_snippet * 2; // token seperator token seperator
 
@@ -297,7 +294,7 @@ pub fn highlight_document(persistence: &Persistence, path: &str, value_id: u64, 
         vecco
     });
     // let mut all_tokens = grouped.iter().map(get_document_windows).flat_map(|el| el.2).cloned().collect_vec();
-    all_tokens.sort();
+    all_tokens.sort_unstable();
     all_tokens = all_tokens.into_iter().dedup().collect_vec();
     let id_to_text = get_id_text_map_for_ids(persistence, path, all_tokens.as_slice());
 

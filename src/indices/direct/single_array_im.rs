@@ -5,7 +5,7 @@ use crate::{
     type_info::TypeInfo,
 };
 use fnv::FnvHashMap;
-use num;
+
 use std::{self, marker::PhantomData, u32};
 
 #[derive(Debug, Default)]
