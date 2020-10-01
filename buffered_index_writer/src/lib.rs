@@ -1,5 +1,5 @@
-use memmap;
-use tempfile;
+
+
 
 use itertools::Itertools;
 use memmap::MmapOptions;
@@ -507,14 +507,14 @@ fn test_buffered_index_writer() {
     assert_eq!(mergo.next(), Some(KeyValue { key: 4, value: 4 }));
 
     let mut ind = BufferedIndexWriter::new_unstable_sorted(env::temp_dir().to_str().unwrap().to_string());
-    ind.add_all(2_u32, &vec![2, 2000]).unwrap();
+    ind.add_all(2_u32, &[2, 2000]).unwrap();
     ind.flush().unwrap();
     let mut iters = ind.multi_iter().unwrap();
     assert_eq!(iters[0].next(), Some(KeyValue { key: 2, value: 2 }));
     assert_eq!(iters[0].next(), Some(KeyValue { key: 2, value: 2000 }));
 
     let mut ind = BufferedIndexWriter::new_unstable_sorted(env::temp_dir().to_str().unwrap().to_string());
-    ind.add_all(2_u32, &vec![2, 2000]).unwrap();
+    ind.add_all(2_u32, &[2, 2000]).unwrap();
     let mut iter = ind.into_iter_inmemory();
     assert_eq!(iter.next(), Some(KeyValue { key: 2, value: 2 }));
     assert_eq!(iter.next(), Some(KeyValue { key: 2, value: 2000 }));
@@ -552,7 +552,7 @@ fn test_buffered_index_writer_pairs() {
     assert_eq!(mergo.next(), Some(KeyValue { key: (4, 4), value: 4 }));
 
     let mut ind = BufferedIndexWriter::new_unstable_sorted(env::temp_dir().to_str().unwrap().to_string());
-    ind.add_all((2_u32, 1500_u32), &vec![2, 2000]).unwrap();
+    ind.add_all((2_u32, 1500_u32), &[2, 2000]).unwrap();
     ind.flush().unwrap();
     let mut iters = ind.multi_iter().unwrap();
     assert_eq!(iters[0].next(), Some(KeyValue { key: (2_u32, 1500_u32), value: 2 }));
@@ -565,7 +565,7 @@ fn test_buffered_index_writer_pairs() {
     );
 
     let mut ind = BufferedIndexWriter::new_unstable_sorted(env::temp_dir().to_str().unwrap().to_string());
-    ind.add_all((2_u32, 1500_u32), &vec![2, 2000]).unwrap();
+    ind.add_all((2_u32, 1500_u32), &[2, 2000]).unwrap();
     let mut iter = ind.into_iter_inmemory();
     assert_eq!(iter.next(), Some(KeyValue { key: (2_u32, 1500_u32), value: 2 }));
     assert_eq!(
