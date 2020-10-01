@@ -18,7 +18,7 @@ macro_rules! return_binary_clause {
     };
 }
 
-pub(crate) fn get_text_for_token<'a>(text: &'a str, start: u32, stop: u32) -> &'a str {
+pub(crate) fn get_text_for_token(text: &str, start: u32, stop: u32) -> &str {
     &text[start as usize..stop as usize]
 }
 
@@ -60,7 +60,7 @@ impl<'a> Parser<'a> {
         } else {
             ParseError::UnexpectedTokenType(marked_in_orig, message.to_string())
         };
-        return Err(err);
+        Err(err)
     }
 
     fn assert_allowed_types(&self, message: &'static str, allowed_types: &[Option<TokenType>]) -> Result<(), ParseError> {
@@ -125,10 +125,10 @@ impl<'a> Parser<'a> {
                     return_binary_clause!(self, Operator::And, curr_ast);
                 }
                 TokenType::ParenthesesOpen | TokenType::Tilde => unimplemented!(),
-                TokenType::ParenthesesClose => return Ok(curr_ast),
+                TokenType::ParenthesesClose => Ok(curr_ast),
             }
         } else {
-            return Ok(curr_ast); // is last one
+            Ok(curr_ast) // is last one
         }
     }
 
@@ -319,7 +319,7 @@ mod tests {
         assert_eq!(
             parse("field:fancy~1").unwrap(),
             UserAST::Attributed(
-                "field".into(),
+                "field",
                 Box::new(UserAST::Leaf(Box::new(UserFilter {
                     phrase: "fancy",
                     levenshtein: Some(1),
@@ -330,7 +330,7 @@ mod tests {
         assert_eq!(
             parse("field:fancy~1").unwrap(),
             UserAST::Attributed(
-                "field".into(),
+                "field",
                 Box::new(UserAST::Leaf(Box::new(UserFilter {
                     phrase: "fancy",
                     levenshtein: Some(1),
@@ -376,7 +376,7 @@ mod tests {
         assert_eq!(
             parse("field:fancy").unwrap(),
             UserAST::Attributed(
-                "field".into(),
+                "field",
                 Box::new(UserAST::Leaf(Box::new(UserFilter {
                     phrase: "fancy",
                     levenshtein: None,

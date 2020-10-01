@@ -184,11 +184,11 @@ impl<'a> Lexer<'a> {
             } else {
                 TokenType::Literal
             };
-            return Ok(Some(Token {
+            Ok(Some(Token {
                 token_type,
                 byte_start_pos,
                 byte_stop_pos,
-            }));
+            }))
         } else {
             Ok(None)
         }

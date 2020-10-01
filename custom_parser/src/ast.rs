@@ -128,7 +128,7 @@ impl UserAST<'_, '_> {
             UserAST::Leaf(_filter) => {}
         }
 
-        return Some(self.clone());
+        Some(self.clone())
     }
 
     /// walking the ast and grouping adjacent terms for phrase boosting
@@ -260,29 +260,29 @@ mod test_ast {
     fn test_get_phrase_pairs_or() {
         // let ast: UserAST = parse("super cool fancy").unwrap();
         let ast: UserAST<'_, '_> = ("super".into(), Or, ("cool".into(), Or, "fancy".into()).into()).into();
-        assert_eq!(ast.get_phrase_pairs(), [["super", "cool"], ["cool", "fancy"]].iter().map(|el| *el).collect());
+        assert_eq!(ast.get_phrase_pairs(), [["super", "cool"], ["cool", "fancy"]].iter().copied().collect());
         let ast: UserAST<'_, '_> = ("super".into(), Or, ("cool".into(), Or, ("fancy".into(), Or, "great".into()).into()).into()).into();
         assert_eq!(
             ast.get_phrase_pairs(),
-            [["super", "cool"], ["cool", "fancy"], ["fancy", "great"]].iter().map(|el| *el).collect()
+            [["super", "cool"], ["cool", "fancy"], ["fancy", "great"]].iter().copied().collect()
         );
 
         let ast: UserAST<'_, '_> = parse("super cool nice great").unwrap();
         assert_eq!(
             ast.get_phrase_pairs(),
-            [["super", "cool"], ["cool", "nice"], ["nice", "great"]].iter().map(|el| *el).collect()
+            [["super", "cool"], ["cool", "nice"], ["nice", "great"]].iter().copied().collect()
         );
 
         // let ast: UserAST = ("super".into(), Or, ("cool".into(), Or, "fancy".into()).into()).into();
         // ast.walk_terms(&mut |term| println!("{:?}", term));
 
         let ast: UserAST<'_, '_> = parse("myattr:(super cool)").unwrap();
-        assert_eq!(ast.get_phrase_pairs(), [["super", "cool"]].iter().map(|el| *el).collect());
+        assert_eq!(ast.get_phrase_pairs(), [["super", "cool"]].iter().copied().collect());
 
         let ast: UserAST<'_, '_> = parse("myattr:(super cool) different scope").unwrap();
         assert_eq!(
             ast.get_phrase_pairs(),
-            [["super", "cool"], ["cool", "different"], ["different", "scope"]].iter().map(|el| *el).collect()
+            [["super", "cool"], ["cool", "different"], ["different", "scope"]].iter().copied().collect()
         );
 
         // let ast: UserAST = parse("different scope OR myattr:(super cool)").unwrap();
