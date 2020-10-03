@@ -193,7 +193,7 @@ fn disabled_attributed_search() {
     let mut params = query_generator::SearchQueryGeneratorParameters::default();
     params.search_term = "ent_seq:99999".to_string();
     // disabling attributed search, that means, it will search for "ent_seq:99999" on all fields
-    params.parser_options = Some(query_parser::Options {
+    params.parser_options = Some(query_generator::QueryParserOptions {
         no_attributes: true,
         ..Default::default()
     });

@@ -30,9 +30,8 @@ mod lexer;
 pub mod parser;
 
 pub use parser::{parse, parse_with_opt};
-use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Default)]
 pub struct Options {
     /// This setting will disable parsing of the attribute specfier "attr:"
     /// e.g. "myfield:searchterm"

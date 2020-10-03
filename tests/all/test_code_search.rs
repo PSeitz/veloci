@@ -113,7 +113,7 @@ fn token_code_search_query_generator() {
 #[test]
 fn token_code_search_disable_parser_query_generator() {
     let mut params = query_generator::SearchQueryGeneratorParameters::default();
-    params.parser_options = Some(query_parser::Options {
+    params.parser_options = Some(query_generator::QueryParserOptions {
         no_parentheses: true,
         no_attributes: true,
         no_levensthein: true,

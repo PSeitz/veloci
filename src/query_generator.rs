@@ -23,6 +23,30 @@ use ordered_float::OrderedFloat;
 //     }
 // }
 
+#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize)]
+pub struct QueryParserOptions {
+    /// This setting will disable parsing of the attribute specfier "attr:"
+    /// e.g. "myfield:searchterm"
+    pub no_attributes: bool,
+    /// This setting will disable parsing of the parentheses
+    /// e.g. "(nice)" - here the parentheses would be normally be part of the syntax and removed
+    pub no_parentheses: bool,
+    /// This setting will disable defining a levensthtein distance after a searchterm
+    /// e.g. "searchterm~2"
+    pub no_levensthein: bool,
+    // pub no_quotes: bool
+}
+
+impl From<QueryParserOptions> for query_parser::Options {
+    fn from(options: QueryParserOptions) -> Self {
+        query_parser::Options{
+            no_attributes: options.no_attributes,
+            no_parentheses: options.no_parentheses,
+            no_levensthein: options.no_levensthein,
+        }
+    }
+}
+
 /// SearchQueryGeneratorParameters is convience layer to generatre requests.
 ///
 /// `SearchQueryGeneratorParameters` provides defaults for a lot of search cases,
@@ -34,7 +58,7 @@ use ordered_float::OrderedFloat;
 pub struct SearchQueryGeneratorParameters {
     /// The query language search searm will be parsed into an ast. Some settings can be controlled with parser_options
     pub search_term: String,
-    pub parser_options: Option<query_parser::Options>,
+    pub parser_options: Option<QueryParserOptions>,
 
     pub top: Option<usize>,
     pub skip: Option<usize>,
@@ -61,7 +85,7 @@ pub struct SearchQueryGeneratorParameters {
     pub phrase_pairs: Option<bool>,
     pub explain: Option<bool>,
     pub filter: Option<String>,
-    pub filter_parser_options: Option<query_parser::Options>,
+    pub filter_parser_options: Option<QueryParserOptions>,
     pub select: Option<String>,
     // pub filter: Option<Vec<RequestSearchPart>>,
 }
@@ -162,7 +186,9 @@ pub fn search_query(persistence: &Persistence, mut opt: SearchQueryGeneratorPara
 
     let all_fields = persistence.metadata.get_all_fields();
     let all_search_fields = get_all_search_field_names(&persistence, &opt.fields)?; // all fields with applied field_filter
-    let query_ast = query_parser::parse_with_opt(&opt.search_term, opt.parser_options.unwrap_or_else(Default::default)).unwrap();
+
+    let parser_options: QueryParserOptions = opt.parser_options.unwrap_or_else(Default::default);
+    let query_ast = query_parser::parse_with_opt(&opt.search_term, parser_options.into()).unwrap();
 
     let mut request = Request::default();
 
@@ -207,7 +233,7 @@ pub fn search_query(persistence: &Persistence, mut opt: SearchQueryGeneratorPara
     if let Some(filters) = opt.filter.as_ref() {
         let mut params = SearchQueryGeneratorParameters::default();
         params.levenshtein = Some(0);
-        let query_ast = query_parser::parse_with_opt(&filters, opt.filter_parser_options.unwrap_or_else(Default::default)).unwrap();
+        let query_ast = query_parser::parse_with_opt(&filters, opt.filter_parser_options.unwrap_or_else(Default::default).into()).unwrap();
         let mut filter_request_ast = ast_to_search_request(&query_ast, &all_fields, &params)?;
         filter_request_ast.simplify();
         request.filter = Some(Box::new(filter_request_ast));
