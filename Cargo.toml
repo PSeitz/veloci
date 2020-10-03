@@ -94,8 +94,8 @@ version = "0.11.0"
 # [dependencies.parser]
 # path = "parser"
 
-[dependencies.custom_parser]
-path = "custom_parser"
+[dependencies.query_parser]
+path = "query_parser"
 
 [dependencies.term_hashmap]
 git = "https://github.com/PSeitz/rust_string_hashmap"
@@ -130,7 +130,7 @@ members = ["buffered_index_writer",
 "doc_store",
 "server",
 "json_converter",
-"custom_parser"]
+"query_parser"]
 
 [profile.release]
 codegen-units = 1

@@ -43,5 +43,5 @@ jobs:
       run: cargo +nightly test --manifest-path=server/Cargo.toml
     - name: Run tests json_converter
       run: cargo +nightly test --manifest-path=json_converter/Cargo.toml
-    - name: Run tests custom_parser
-      run: cargo +nightly test --manifest-path=custom_parser/Cargo.toml
+    - name: Run tests query_parser
+      run: cargo +nightly test --manifest-path=query_parser/Cargo.toml

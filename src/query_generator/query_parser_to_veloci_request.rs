@@ -4,7 +4,7 @@ use crate::{
 };
 
 use crate::error::VelociError;
-use custom_parser::{
+use query_parser::{
     self,
     ast::{Operator, UserAST},
 };
@@ -109,7 +109,7 @@ fn expand_fields_in_query_ast<'a, 'b>(ast: &UserAST<'b, 'a>, all_fields: &'a [St
 }
 
 //TODO should be field specific
-fn filter_stopwords<'a, 'b>(query_ast: &'a custom_parser::ast::UserAST<'a, 'a>, opt: &'b SearchQueryGeneratorParameters) -> Option<UserAST<'a, 'a>> {
+fn filter_stopwords<'a, 'b>(query_ast: &'a query_parser::ast::UserAST<'a, 'a>, opt: &'b SearchQueryGeneratorParameters) -> Option<UserAST<'a, 'a>> {
     let ast = query_ast.filter_ast(
         &mut |ast: &UserAST<'_, '_>, _attr: Option<&str>| match ast {
             UserAST::Leaf(filter) => {
@@ -148,7 +148,7 @@ fn bench_query_custom_parse_to_request(b: &mut test::Bencher) {
         "Author13".to_string(),
     ];
     b.iter(|| {
-        let query_ast = custom_parser::parse("die drei fragezeigen und das unicorn").unwrap();
+        let query_ast = query_parser::parse("die drei fragezeigen und das unicorn").unwrap();
         ast_to_search_request(&query_ast, &fields, &SearchQueryGeneratorParameters::default()).unwrap()
     })
 }
@@ -173,14 +173,14 @@ fn bench_custom_parse_expand_fields_in_query_ast(b: &mut test::Bencher) {
         "Author13".to_string(),
     ];
     b.iter(|| {
-        let query_ast = custom_parser::parse("die drei fragezeigen und das unicorn").unwrap();
+        let query_ast = query_parser::parse("die drei fragezeigen und das unicorn").unwrap();
         expand_fields_in_query_ast(&query_ast, &fields).unwrap()
     })
 }
 
 #[test]
 fn test_filter_stopwords() {
-    let query_ast = custom_parser::parse("die erbin").unwrap();
+    let query_ast = query_parser::parse("die erbin").unwrap();
     // let mut query_ast = query_ast.simplify();
     let mut opt = SearchQueryGeneratorParameters::default();
     opt.stopword_lists = Some(vec!["de".to_string()]);
@@ -190,7 +190,7 @@ fn test_filter_stopwords() {
 
 #[test]
 fn test_filter_stopwords_by_userdefined_stopword_list() {
-    let query_ast = custom_parser::parse("die erbin").unwrap();
+    let query_ast = query_parser::parse("die erbin").unwrap();
     let mut opt = SearchQueryGeneratorParameters::default();
     opt.stopwords = Some(["die".to_string()].iter().cloned().collect());
     let query_ast = filter_stopwords(&query_ast, &opt);
@@ -199,7 +199,7 @@ fn test_filter_stopwords_by_userdefined_stopword_list() {
 
 #[test]
 fn test_field_expand() {
-    use custom_parser::ast::UserFilter;
+    use query_parser::ast::UserFilter;
     let fields = vec!["Title".to_string(), "Author[].name".to_string()];
     let ast = UserAST::Leaf(Box::new(UserFilter {
         phrase: "Fred",

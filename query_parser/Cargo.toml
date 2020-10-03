@@ -1,6 +1,6 @@
 [package]
-name = "custom_parser"
-version = "0.1.0"
+name = "query_parser"
+version = "1.0.0"
 authors = ["Pascal Seitz <pascal.seitz@gmail.com>"]
 edition = "2018"
 

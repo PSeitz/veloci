@@ -2,7 +2,7 @@
 
 extern crate test;
 
-pub use custom_parser::parser::{parse, Parser};
+pub use query_parser::parser::{parse, Parser};
 
 #[cfg(test)]
 mod tests {
