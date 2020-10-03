@@ -390,7 +390,7 @@ pub fn get_term_ids_in_field(persistence: &Persistence, options: &mut PlanReques
 
     if let Some(ref mut token_boost) = options.request.token_value {
         debug!("Token Boosting: \n");
-        token_boost.path = token_boost.path.add(TOKEN_VALUES);
+        token_boost.path = token_boost.path.add(TEXTINDEX).add(TOKEN_VALUES);
         search::add_boost(persistence, token_boost, &mut result)?;
     }
 

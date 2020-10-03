@@ -1081,7 +1081,7 @@ fn real_suggest_with_boosting_score_of_begeisterung_and_token_value() {
         "levenshtein_distance": 0,
         "starts_with":true,
         "token_value": {
-            "path":"meanings.ger[].textindex",
+            "path":"meanings.ger[]",
             "boost_fun":"Log10",
             "param": 1
         },
