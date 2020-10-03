@@ -13,7 +13,6 @@ env:
   - MANIFEST_PATH=Cargo.toml PersistenceType=Persistent LoadingType=InMemory RUST_BACKTRACE=full RUST_LOG=veloci=debug
   - MANIFEST_PATH=Cargo.toml PersistenceType=Transient RUST_BACKTRACE=full RUST_LOG=veloci=debug
   - MANIFEST_PATH=buffered_index_writer/Cargo.toml
-  - MANIFEST_PATH=parser/Cargo.toml
   - MANIFEST_PATH=doc_store/Cargo.toml
   - MANIFEST_PATH=server/Cargo.toml
   - MANIFEST_PATH=json_converter/Cargo.toml
@@ -42,8 +41,6 @@ after_success: |
         run: PersistenceType=Transient RUST_BACKTRACE=full RUST_LOG=veloci=debug cargo test
       - name: Run tests buffered_index_writer
         run: cargo test --manifest-path=buffered_index_writer
-      - name: Run tests parser
-        run: cargo test --manifest-path=parser
       - name: Run tests doc_store
         run: cargo test --manifest-path=doc_store
       - name: Run tests server

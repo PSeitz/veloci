@@ -35,8 +35,6 @@ jobs:
       run: PersistenceType=Transient RUST_BACKTRACE=full RUST_LOG=veloci=debug cargo +nightly test
     - name: Run tests buffered_index_writer
       run: cargo +nightly test --manifest-path=buffered_index_writer/Cargo.toml
-    - name: Run tests parser
-      run: cargo +nightly test --manifest-path=parser/Cargo.toml
     - name: Run tests doc_store
       run: cargo +nightly test --manifest-path=doc_store/Cargo.toml
     - name: Run tests server
