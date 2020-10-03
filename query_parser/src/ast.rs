@@ -187,9 +187,9 @@ impl UserAST<'_, '_> {
     }
 
     /// walking the ast in order, emitting all terms
-    pub fn walk_terms<F>(&self, cb: &mut F)
+    pub fn walk_terms<'a, F>(&'a self, cb: &mut F)
     where
-        F: FnMut(&str),
+        F: FnMut(&'a str),
     {
         match self {
             UserAST::Attributed(_attr, ast) => {
@@ -207,9 +207,27 @@ impl UserAST<'_, '_> {
 #[cfg(test)]
 mod test_ast {
     use crate::{
-        ast::{Operator::*, UserAST},
+        ast::{Operator::*, UserAST, UserFilter},
         parser::parse,
     };
+
+    #[test]
+    fn test_ast_external_lifetime() {
+        let external_term_1 = "a".to_string();
+        let filter_1 = UserFilter {
+            phrase: &external_term_1,
+            levenshtein: None
+        };
+        let left_ast: UserAST<'_, '_> = UserAST::Leaf(Box::new(filter_1));
+        let external_term_2 = "b".to_string();
+        let filter_2 = UserFilter {
+            phrase: &external_term_2,
+            levenshtein: None
+        };
+        let right_ast: UserAST<'_, '_> = UserAST::Leaf(Box::new(filter_2));
+
+        UserAST::BinaryClause(Box::new(left_ast), Or, Box::new(right_ast));
+    }
 
     #[test]
     fn test_filter_ast() {
@@ -273,8 +291,10 @@ mod test_ast {
             [["super", "cool"], ["cool", "nice"], ["nice", "great"]].iter().copied().collect()
         );
 
-        // let ast: UserAST = ("super".into(), Or, ("cool".into(), Or, "fancy".into()).into()).into();
-        // ast.walk_terms(&mut |term| println!("{:?}", term));
+        let ast: UserAST<'_, '_> = ("super".into(), Or, ("cool".into(), Or, "fancy".into()).into()).into();
+        let mut terms = vec![];
+        ast.walk_terms(&mut |term| terms.push(term));
+        assert_eq!(terms, vec!["super", "cool", "fancy"]);
 
         let ast: UserAST<'_, '_> = parse("myattr:(super cool)").unwrap();
         assert_eq!(ast.get_phrase_pairs(), [["super", "cool"]].iter().copied().collect());
