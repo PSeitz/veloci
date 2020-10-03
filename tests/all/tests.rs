@@ -908,14 +908,14 @@ fn should_use_search_on_field_for_suggest_without_sorting_etc() {
         "starts_with":true,
     });
     let requesto: search::RequestSearchPart = serde_json::from_str(&req.to_string()).expect("Can't parse json");
-    let mut pers = &TEST_PERSISTENCE;
+    let pers = &TEST_PERSISTENCE;
     use veloci::plan_creator::execution_plan::PlanRequestSearchPart;
     let mut requesto = PlanRequestSearchPart {
         request: requesto,
         return_term: true,
         ..Default::default()
     };
-    let results = search_field::get_term_ids_in_field(&mut pers, &mut requesto).unwrap();
+    let results = search_field::get_term_ids_in_field(&pers, &mut requesto).unwrap();
 
     let mut all_terms = results.terms.values().collect::<Vec<&String>>();
     all_terms.sort();
@@ -943,7 +943,7 @@ fn should_use_search_on_field_for_suggest_without_sorting_etc() {
 //         snippet_end_tag: "</b>".to_string(),
 //         snippet_connector: " ... ".to_string(),
 //     };
-//     let results = search_field::highlight_document(&mut pers, "mylongtext.textindex", 13, &[9], &inf).unwrap();
+//     let results = search_field::highlight_document(&pers, "mylongtext.textindex", 13, &[9], &inf).unwrap();
 //     assert_eq!(results, "this is a <b>story</b> of a guy who  ... " );
 
 // }
@@ -960,8 +960,8 @@ fn should_highlight_on_field() {
         "skip":0
     });
     let mut requesto: search::RequestSearchPart = serde_json::from_str(&req.to_string()).expect("Can't parse json");
-    let mut pers = &TEST_PERSISTENCE;
-    let results = search_field::highlight(&mut pers, &mut requesto).unwrap();
+    let pers = &TEST_PERSISTENCE;
+    let results = search_field::highlight(&pers, &mut requesto).unwrap();
     assert_eq!(
         results.iter().map(|el| el.0.clone()).collect::<Vec<String>>(),
         ["Prolog:\nthis is a <b>story</b> of a guy who went ... "]
@@ -980,8 +980,8 @@ fn should_highlight_on_1_n_field() {
         "skip":0
     });
     let mut requesto: search::RequestSearchPart = serde_json::from_str(&req.to_string()).expect("Can't parse json");
-    let mut pers = &TEST_PERSISTENCE;
-    let results = search_field::highlight(&mut pers, &mut requesto).unwrap();
+    let pers = &TEST_PERSISTENCE;
+    let results = search_field::highlight(&pers, &mut requesto).unwrap();
     assert_eq!(
         results.iter().map(|el| el.0.clone()).collect::<Vec<String>>(),
         ["Prolog:\nthis is a <b>story</b> of a guy who went ... "]
@@ -1018,8 +1018,8 @@ fn should_highlight_on_sub_level_field() {
         "skip":0
     });
     let mut requesto: search::RequestSearchPart = serde_json::from_str(&req.to_string()).expect("Can't parse json");
-    let mut pers = &TEST_PERSISTENCE;
-    let results = search_field::highlight(&mut pers, &mut requesto).unwrap();
+    let pers = &TEST_PERSISTENCE;
+    let results = search_field::highlight(&pers, &mut requesto).unwrap();
     assert_eq!(
         results.iter().map(|el| el.0.clone()).collect::<Vec<String>>(),
         ["Prolog:\nthis is <b>story</b> of a guy who went ... "]
@@ -1037,8 +1037,8 @@ fn real_suggest_with_score() {
         "skip":0
     });
     let requesto: search::RequestSearchPart = serde_json::from_str(&req.to_string()).expect("Can't parse json");
-    let mut pers = &TEST_PERSISTENCE;
-    let results = search_field::suggest(&mut pers, &requesto).unwrap();
+    let pers = &TEST_PERSISTENCE;
+    let results = search_field::suggest(&pers, &requesto).unwrap();
     // assert_eq!(results.iter().map(|el| el.0.clone()).collect::<Vec<String>>(), ["majestät", "majestätischer", "majestätisches", "majestätischer anblick", "majestätisches aussehen"]);
     // assert_eq!(results.iter().map(|el| el.0.clone()).collect::<Vec<String>>(), ["Majestät", "Majestät (f)", "majestätischer", "majestätisches", "majestätischer Anblick (m)", "majestätisches Aussehen (n)"]);
     assert_eq!(
@@ -1066,8 +1066,8 @@ fn multi_real_suggest_with_score() {
     });
 
     let requesto: search::Request = serde_json::from_str(&req.to_string()).expect("Can't parse json");
-    let mut pers = &TEST_PERSISTENCE;
-    let results = search_field::suggest_multi(&mut pers, requesto).unwrap();
+    let pers = &TEST_PERSISTENCE;
+    let results = search_field::suggest_multi(&pers, requesto).unwrap();
     // assert_eq!(results.iter().map(|el| el.0.clone()).collect::<Vec<String>>(), ["will", "wille", "will testo"]);
     // assert_eq!(results.iter().map(|el| el.0.clone()).collect::<Vec<String>>(), ["will", "Wille", "Wille (m)", "will testo"]);
     assert_eq!(results.iter().map(|el| el.0.clone()).collect::<Vec<String>>(), ["will", "wille", "wille (m)", "will testo"]);
@@ -1089,8 +1089,8 @@ fn real_suggest_with_boosting_score_of_begeisterung_and_token_value() {
         "skip":0
     });
     let requesto: search::RequestSearchPart = serde_json::from_str(&req.to_string()).expect("Can't parse json");
-    let mut pers = &TEST_PERSISTENCE;
-    let results = search_field::suggest(&mut pers, &requesto).unwrap();
+    let pers = &TEST_PERSISTENCE;
+    let results = search_field::suggest(&pers, &requesto).unwrap();
     // assert_eq!(results.iter().map(|el| el.0.clone()).collect::<Vec<String>>(), ["begeisterung", "begeistern"]);
     // assert_eq!(results.iter().map(|el| el.0.clone()).collect::<Vec<String>>(), ["Begeisterung", "begeistern", "Begeisterung (f)"]);
     assert_eq!(

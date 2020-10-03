@@ -211,7 +211,7 @@ pub(crate) fn apply_boost_from_iter(mut results: SearchFieldResult, mut boost_it
                     debug_assert!(!hit.score.is_nan());
                     debug_assert!(hit.score != std::f32::INFINITY);
                     if should_explain {
-                        let data = explain.entry(hit.id).or_insert_with(|| vec![]);
+                        let data = explain.entry(hit.id).or_insert_with(Vec::new);
                         // data.push(format!("boost {:?}", b_hit.score));
                         data.push(Explain::Boost(b_hit.score));
                     }
@@ -291,11 +291,11 @@ pub(crate) fn apply_boost(
     match boost_fun {
         Some(BoostFunction::Log10) => {
             // if hits.request.explain {
-            //     let entry = hits.explain.entry(value_id).or_insert_with(|| vec![]);
+            //     let entry = hits.explain.entry(value_id).or_insert_with(Vec::new);
             //     entry.push(Explain::Boost((boost_value as f32 + boost_param).log10()));
             // }
             if let Some(explain) = explain {
-                let entry = explain.entry(hit.id).or_insert_with(|| vec![]);
+                let entry = explain.entry(hit.id).or_insert_with(Vec::new);
                 entry.push(Explain::Boost((boost_value + boost_param).log10()));
             }
             trace!(
@@ -358,7 +358,7 @@ pub(crate) fn apply_boost(
     debug_assert!(!hit.score.is_nan());
     debug_assert!(hit.score != std::f32::INFINITY);
     if let Some(explain) = explain {
-        let data = explain.entry(hit.id).or_insert_with(|| vec![]);
+        let data = explain.entry(hit.id).or_insert_with(Vec::new);
         data.push(Explain::Boost(hit.score));
     }
 

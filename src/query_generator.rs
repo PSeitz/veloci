@@ -82,6 +82,7 @@ fn get_default_levenshtein(term: &str, levenshtein_auto_limit: usize, wildcard: 
     }
 }
 
+/// get all fields, while applying the fields whitelist if applicable
 fn get_all_search_field_names(persistence: &Persistence, fields: &Option<Vec<String>>) -> Result<Vec<String>, VelociError> {
     let res: Vec<_> = persistence
         .metadata
@@ -150,6 +151,11 @@ pub fn handle_boost_term_query(persistence: &Persistence, boost_term: &str, boos
         .collect::<Vec<_>>()
 }
 
+/// Takes `SearchQueryGeneratorParameters` and generates a `Request` according to the settings
+///
+/// There is a lot of implicit logic in this method
+/// For better configurability, it should be splitted in a multiple utility functions
+/// 
 pub fn search_query(persistence: &Persistence, mut opt: SearchQueryGeneratorParameters) -> Result<Request, VelociError> {
     opt.facetlimit = opt.facetlimit.or(Some(5));
     info_time!("generating search query");
@@ -219,6 +225,12 @@ pub fn search_query(persistence: &Persistence, mut opt: SearchQueryGeneratorPara
     Ok(request)
 }
 
+/// Generates Phrase Boosts for adjoined terms
+///
+/// Generates Phrase Boosts queries
+/// 
+/// * `foo` - Text about foo.
+/// * `bar` - Text about bar.
 pub fn generate_phrase_queries_for_searchterm(
     persistence: &Persistence,
     fields: &Option<Vec<String>>,

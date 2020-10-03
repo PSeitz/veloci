@@ -157,7 +157,6 @@ pub fn search(mut request: Request, persistence: &Persistence) -> Result<SearchR
     let start_time = std::time::Instant::now();
     info_time!("search");
     request.top = request.top.or(Some(10));
-    request.skip = request.skip;
 
     let mut res = {
         info_time!("search terms");
