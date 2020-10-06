@@ -1,12 +1,13 @@
-#[derive(Clone, Copy, PartialEq, Eq)]
-pub struct UserFilter<'a> {
+
+#[derive(Clone, PartialEq, Eq)]
+pub struct UserFilter {
     /// the search term
-    pub phrase: &'a str,
+    pub phrase: String,
     /// levenshtein edit distance https://en.wikipedia.org/wiki/Levenshtein_distance
     pub levenshtein: Option<u8>,
 }
 
-impl<'a> std::fmt::Debug for UserFilter<'a> {
+impl std::fmt::Debug for UserFilter {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
         if let Some(levenshtein) = self.levenshtein {
             write!(formatter, "\"{}\"~{:?}", self.phrase, levenshtein)

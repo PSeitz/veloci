@@ -5,9 +5,18 @@ A handwritten parser parsing a predefined syntax, with options to disable
 some syntax.
 
 # Syntax
+By default tokens are OR-connected. 
+Escaping is done by wrapping in quotes. 
+
+### Note: 
+If something is wrapped in quotes, the quotes cannot 
+be escaped themselves currently, they will always be removed. There is some work left here 
+regarding an escape strategy.
 
 ## Phrases
-"this won't be tokenized"
+"this:is one token"
+
+quotes"inthemiddle"isstillonetoken
 
 ## Attributes
 name:fred

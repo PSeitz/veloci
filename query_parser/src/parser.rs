@@ -22,10 +22,10 @@ pub(crate) fn get_text_for_token(text: &str, start: u32, stop: u32) -> &str {
     &text[start as usize..stop as usize]
 }
 
-pub fn parse(text: &str) -> Result<UserAST<'_, '_>, ParseError> {
+pub fn parse(text: &str) -> Result<UserAST, ParseError> {
     Parser::new(text)?._parse()
 }
-pub fn parse_with_opt(text: &str, options: Options) -> Result<UserAST<'_, '_>, ParseError> {
+pub fn parse_with_opt(text: &str, options: Options) -> Result<UserAST, ParseError> {
     Parser::new_with_opt(text, options)?._parse()
 }
 
@@ -76,10 +76,10 @@ impl<'a> Parser<'a> {
         Ok(*token)
     }
 
-    fn parse_user_filter(&mut self, curr_token: Token) -> Result<UserFilter<'a>, ParseError> {
+    fn parse_user_filter(&mut self, curr_token: Token) -> Result<UserFilter, ParseError> {
         let mut curr_ast = UserFilter {
             levenshtein: None,
-            phrase: get_text_for_token(self.text, curr_token.byte_start_pos, curr_token.byte_stop_pos),
+            phrase: get_text_for_token(self.text, curr_token.byte_start_pos, curr_token.byte_stop_pos).to_string(),
         };
 
         // Optional: Define Levenshtein distance
@@ -97,7 +97,7 @@ impl<'a> Parser<'a> {
         Ok(curr_ast)
     }
 
-    fn parse_sub_expression(&mut self, curr_ast: UserAST<'a, 'a>) -> Result<UserAST<'a, 'a>, ParseError> {
+    fn parse_sub_expression(&mut self, curr_ast: UserAST) -> Result<UserAST, ParseError> {
         self.assert_allowed_types(
             "",
             &[
@@ -132,7 +132,7 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn _parse(&mut self) -> Result<UserAST<'a, 'a>, ParseError> {
+    fn _parse(&mut self) -> Result<UserAST, ParseError> {
         let curr_token = self.next_token()?;
         match curr_token.token_type {
             TokenType::AttributeLiteral => {
@@ -140,7 +140,7 @@ impl<'a> Parser<'a> {
                 match self.get_type() {
                     Some(TokenType::ParenthesesOpen) => {
                         return Ok(UserAST::Attributed(
-                            get_text_for_token(self.text, curr_token.byte_start_pos, curr_token.byte_stop_pos),
+                            get_text_for_token(self.text, curr_token.byte_start_pos, curr_token.byte_stop_pos).to_string(),
                             Box::new(self._parse()?),
                         ))
                     }
@@ -148,7 +148,7 @@ impl<'a> Parser<'a> {
                         let token2 = self.next_token()?;
                         let curr_ast = self.parse_user_filter(token2)?;
                         let attributed_ast = UserAST::Attributed(
-                            get_text_for_token(self.text, curr_token.byte_start_pos, curr_token.byte_stop_pos),
+                            get_text_for_token(self.text, curr_token.byte_start_pos, curr_token.byte_stop_pos).to_string(),
                             Box::new(UserAST::Leaf(Box::new(curr_ast))),
                         );
                         return self.parse_sub_expression(attributed_ast);
@@ -280,7 +280,7 @@ mod tests {
             parse("fancy~1").unwrap(),
             UserAST::Leaf(Box::new(UserFilter {
                 // field_name: None,
-                phrase: "fancy",
+                phrase: "fancy".to_string(),
                 levenshtein: Some(1),
             }))
         );
@@ -308,7 +308,7 @@ mod tests {
             parse_with_opt("fancy~1", opt).unwrap(),
             UserAST::Leaf(Box::new(UserFilter {
                 // field_name: None,
-                phrase: "fancy~1",
+                phrase: "fancy~1".to_string(),
                 levenshtein: None,
             }))
         );
@@ -319,9 +319,9 @@ mod tests {
         assert_eq!(
             parse("field:fancy~1").unwrap(),
             UserAST::Attributed(
-                "field",
+                "field".to_string(),
                 Box::new(UserAST::Leaf(Box::new(UserFilter {
-                    phrase: "fancy",
+                    phrase: "fancy".to_string(),
                     levenshtein: Some(1),
                 })))
             )
@@ -330,9 +330,9 @@ mod tests {
         assert_eq!(
             parse("field:fancy~1").unwrap(),
             UserAST::Attributed(
-                "field",
+                "field".to_string(),
                 Box::new(UserAST::Leaf(Box::new(UserFilter {
-                    phrase: "fancy",
+                    phrase: "fancy".to_string(),
                     levenshtein: Some(1),
                 })))
             )
@@ -344,7 +344,7 @@ mod tests {
     fn test_attribute_and_implicit_or_on_all() {
         assert_eq!(
             parse("\"field\":fancy unlimited").unwrap(),
-            (UserAST::Attributed("field", "fancy".into()), Or, "unlimited".into()).into()
+            (UserAST::Attributed("field".to_string(), "fancy".into()), Or, "unlimited".into()).into()
         );
     }
 
@@ -352,7 +352,7 @@ mod tests {
     fn test_attribute_quoted_field() {
         assert_eq!(
             parse("\"field\":fancy unlimited").unwrap(),
-            (UserAST::Attributed("field", "fancy".into()), Or, "unlimited".into()).into()
+            (UserAST::Attributed("field".to_string(), "fancy".into()), Or, "unlimited".into()).into()
         );
     }
     #[test]
@@ -376,9 +376,9 @@ mod tests {
         assert_eq!(
             parse("field:fancy").unwrap(),
             UserAST::Attributed(
-                "field",
+                "field".to_string(),
                 Box::new(UserAST::Leaf(Box::new(UserFilter {
-                    phrase: "fancy",
+                    phrase: "fancy".to_string(),
                     levenshtein: None,
                 })))
             )
@@ -393,7 +393,7 @@ mod tests {
         assert_eq!(
             parse_with_opt("field:fancy", opt_no_attr).unwrap(),
             UserAST::Leaf(Box::new(UserFilter {
-                phrase: "field:fancy",
+                phrase: "field:fancy".to_string(),
                 levenshtein: None,
             }))
         );
@@ -406,7 +406,7 @@ mod tests {
             (
                 "freestyle".into(),
                 Or,
-                (UserAST::Attributed("myattr", Box::new(("super".into(), Or, "cool".into()).into())))
+                (UserAST::Attributed("myattr".to_string(), Box::new(("super".into(), Or, "cool".into()).into())))
             )
                 .into()
         );
@@ -426,7 +426,7 @@ mod tests {
     fn test_attributed_block_1() {
         assert_eq!(
             parse("field:(fancy unlimited)").unwrap(),
-            UserAST::Attributed("field", Box::new(("fancy".into(), Or, "unlimited".into()).into()))
+            UserAST::Attributed("field".to_string(), Box::new(("fancy".into(), Or, "unlimited".into()).into()))
         );
     }
 

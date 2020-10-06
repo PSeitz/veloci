@@ -198,10 +198,10 @@ impl<'a> Lexer<'a> {
         !self.options.no_attributes && self.chars.get(pos as usize).map(|c| *c == ':').unwrap_or(false)
     }
 
-    // is quote and not escaped
+    // is quote
     pub fn is_doublequote(&self, pos: u32) -> bool {
         self.chars.get(pos as usize).cloned().map(|c| c == '"').unwrap_or(false)
-            && (self.current_pos == 0 || self.chars.get(pos as usize - 1).cloned().map(|c| c != '\\').unwrap_or(false))
+            // && (self.current_pos == 0 || self.chars.get(pos as usize - 1).cloned().map(|c| c != '\\').unwrap_or(false))
     }
 
     pub fn eat_while<F>(&mut self, mut cond: F)
@@ -288,10 +288,20 @@ mod tests {
         assert_eq!(Lexer::new(r#""my quote""#).get_tokens_text(), ["my quote"]);
 
         // this unclosed quotes here are allowed and will be part of the literal
-        assert_eq!(Lexer::new(r#"asdf""#).get_tokens_text(), ["asdf\""]);
+        assert_eq!(Lexer::new(r#"asdf""#).get_tokens_text(), [r#"asdf""#]);
 
         // assert_eq!(Lexer::new(r#""my quote""#).get_tokens_text(), ["\"", "my", "quote", "\""]);
         // assert_eq!(Lexer::new(r#""my quote""#).get_tokens().into_iter().map(|t|t.in_quotes).collect::<Vec<_>>(), [false, true, true, true, false]);
+    }
+
+    //TODO there is no quote escaping
+    #[test]
+    fn test_escape_quotes() {
+        assert_eq!(Lexer::new(r#""asdf""#).get_tokens_text(), [r#"asdf"#]);
+        // assert_eq!(Lexer::new(r#""asdf\"goon""#).get_tokens_text(), [r#"asdf\"goon"#]);
+        // assert_eq!(Lexer::new(r#""asdf"goon""#).get_tokens_text(), [r#"asdf"goon"#]);
+        assert_eq!(Lexer::new(r#"tes"tco"ol"#).get_tokens_text(), [r#"tes"tco"ol"#]); // no need to escape inside the token
+        // assert_eq!(Lexer::new(r#""\"testcool\"""#).get_tokens_text(), [r#""testcool""#]);
     }
 
     #[test]
