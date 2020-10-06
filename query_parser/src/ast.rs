@@ -1,10 +1,10 @@
 mod leaf;
 mod operator;
 
-use std::{convert::From, fmt};
+pub use operator::Operator;
+pub use leaf::UserFilter;
 
-pub use crate::ast::operator::Operator;
-pub use crate::ast::leaf::UserFilter;
+use std::{convert::From, fmt};
 use std::collections::HashSet;
 
 #[derive(Clone, PartialEq, Eq)]
