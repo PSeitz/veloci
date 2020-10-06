@@ -8,7 +8,7 @@ use query_parser::{
     self,
     ast::{Operator, UserAST},
 };
-pub(crate) fn ast_to_search_request(query_ast: &UserAST<'_, '_>, all_fields: &[String], opt: &SearchQueryGeneratorParameters) -> Result<SearchRequest, VelociError> {
+pub(crate) fn ast_to_search_request(query_ast: &UserAST, all_fields: &[String], opt: &SearchQueryGeneratorParameters) -> Result<SearchRequest, VelociError> {
     filter_stopwords(query_ast, opt);
     let query_ast = expand_fields_in_query_ast(query_ast, all_fields)?;
     Ok(query_ast_to_request(&query_ast, opt, None))
@@ -20,7 +20,7 @@ pub(crate) fn ast_to_search_request(query_ast: &UserAST<'_, '_>, all_fields: &[S
 /// foo* will match all tokens starting with foo
 /// foo*bar will match all tokens starting with foo and ending with bar
 /// *foo* will match all tokens containing foo
-fn query_ast_to_request<'a>(ast: &UserAST<'_, '_>, opt: &SearchQueryGeneratorParameters, field_name: Option<&'a str>) -> SearchRequest {
+fn query_ast_to_request<'a>(ast: &UserAST, opt: &SearchQueryGeneratorParameters, field_name: Option<&'a str>) -> SearchRequest {
     match ast {
         UserAST::BinaryClause(ast1, op, ast2) => {
             let queries = [ast1, ast2].iter().map(|ast| query_ast_to_request(ast, opt, field_name)).collect();
@@ -82,7 +82,7 @@ fn query_ast_to_request<'a>(ast: &UserAST<'_, '_>, opt: &SearchQueryGeneratorPar
     }
 }
 
-fn expand_fields_in_query_ast<'a, 'b>(ast: &UserAST<'b, 'a>, all_fields: &'a [String]) -> Result<UserAST<'b, 'a>, VelociError> {
+fn expand_fields_in_query_ast<'a, 'b>(ast: &UserAST, all_fields: &'a [String]) -> Result<UserAST, VelociError> {
     match ast {
         UserAST::BinaryClause(ast1, op, ast2) => Ok(UserAST::BinaryClause(
             expand_fields_in_query_ast(ast1, all_fields)?.into(),
@@ -91,10 +91,10 @@ fn expand_fields_in_query_ast<'a, 'b>(ast: &UserAST<'b, 'a>, all_fields: &'a [St
         )),
         UserAST::Leaf(_) => {
             let mut field_iter = all_fields.iter();
-            let mut curr_ast = field_iter.next().map(|field_name| UserAST::Attributed(field_name, Box::new(ast.clone()))).unwrap();
+            let mut curr_ast = field_iter.next().map(|field_name| UserAST::Attributed(field_name.to_string(), Box::new(ast.clone()))).unwrap();
 
             for field_name in field_iter {
-                let next_ast = UserAST::Attributed(field_name, Box::new(ast.clone()));
+                let next_ast = UserAST::Attributed(field_name.to_string(), Box::new(ast.clone()));
                 curr_ast = UserAST::BinaryClause(next_ast.into(), Operator::Or, curr_ast.into());
             }
 
@@ -109,9 +109,9 @@ fn expand_fields_in_query_ast<'a, 'b>(ast: &UserAST<'b, 'a>, all_fields: &'a [St
 }
 
 //TODO should be field specific
-fn filter_stopwords<'a, 'b>(query_ast: &'a query_parser::ast::UserAST<'a, 'a>, opt: &'b SearchQueryGeneratorParameters) -> Option<UserAST<'a, 'a>> {
+fn filter_stopwords<'a, 'b>(query_ast: &'a query_parser::ast::UserAST, opt: &'b SearchQueryGeneratorParameters) -> Option<UserAST> {
     let ast = query_ast.filter_ast(
-        &mut |ast: &UserAST<'_, '_>, _attr: Option<&str>| match ast {
+        &mut |ast: &UserAST, _attr: Option<&str>| match ast {
             UserAST::Leaf(filter) => {
                 if let Some(languages) = opt.stopword_lists.as_ref() {
                     languages.iter().any(|lang| stopwords::is_stopword(lang, &filter.phrase.to_lowercase()))
@@ -202,16 +202,16 @@ fn test_field_expand() {
     use query_parser::ast::UserFilter;
     let fields = vec!["Title".to_string(), "Author[].name".to_string()];
     let ast = UserAST::Leaf(Box::new(UserFilter {
-        phrase: "Fred",
+        phrase: "Fred".to_string(),
         levenshtein: None,
     }));
     let expanded_ast = expand_fields_in_query_ast(&ast, &fields).unwrap();
     assert_eq!(format!("{:?}", expanded_ast), "(Author[].name:\"Fred\" OR Title:\"Fred\")");
 
     let ast = UserAST::Attributed(
-        "Title",
+        "Title".to_string(),
         UserAST::Leaf(Box::new(UserFilter {
-            phrase: "Fred",
+            phrase: "Fred".to_string(),
             levenshtein: None,
         }))
         .into(),
