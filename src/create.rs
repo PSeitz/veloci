@@ -47,7 +47,8 @@ use std::{
 type ValueId = u32;
 type TokenId = u32;
 
-type TermMap = term_hashmap::HashMap<TermInfo>;
+// type TermMap = term_hashmap::HashMap<TermInfo>;
+type TermMap = FnvHashMap<String, TermInfo>;
 
 const NUM_TERM_LIMIT_MSG: &str = "number of terms per field is currently limited to u32";
 // const NUM_TERM_OCC_LIMIT_MSG: &str = "number of terms occurences per field is currently limited to u32";
@@ -896,14 +897,14 @@ where
         // persistence.metadata.fulltext_indices = reso?;
         persistence.load_all_fst()?;
 
-        info!(
-            "All text memory {}",
-            persistence::get_readable_size(term_data.terms_in_path.iter().map(|el| el.1.terms.memory_footprint()).sum())
-        );
-        info!(
-            "All raw text data memory {}",
-            persistence::get_readable_size(term_data.terms_in_path.iter().map(|el| el.1.terms.total_size_of_text_data()).sum())
-        );
+        // info!(
+        //     "All text memory {}",
+        //     persistence::get_readable_size(term_data.terms_in_path.iter().map(|el| el.1.terms.memory_footprint()).sum())
+        // );
+        // info!(
+        //     "All raw text data memory {}",
+        //     persistence::get_readable_size(term_data.terms_in_path.iter().map(|el| el.1.terms.total_size_of_text_data()).sum())
+        // );
     }
 
     // check_similarity(&data.terms_in_path);
