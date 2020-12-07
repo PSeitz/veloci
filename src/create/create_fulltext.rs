@@ -84,9 +84,11 @@ fn add_count_text(terms: &mut TermMap, text: &str) {
     if let Some(stat) = terms.get_mut(text) {
         stat.num_occurences = stat.num_occurences.saturating_add(1);
     }else{
-        terms.insert(text.to_string(), TermInfo::default());
+        terms.insert(text.to_string(), TermInfo{
+            id: 0, // id will be generated later
+            num_occurences: 1,
+        });
     };
-    // stat.num_occurences = stat.num_occurences.saturating_add(1);
 }
 
 #[inline]
