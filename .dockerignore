@@ -1,8 +1,6 @@
-*
-!**/*.toml
-!src/*.rs
-!src/persistence_score/*.rs
-!bin/*.rs
-!buffered_index_writer/src/*.rs
-!json_converter/src/*.rs
-!index.html
+target
+Dockerfile
+.dockerignore
+.git
+.gitignore
+**/target
