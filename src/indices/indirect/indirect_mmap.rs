@@ -6,8 +6,6 @@ use num::{self, cast::ToPrimitive};
 use std::{self, fs::File, marker::PhantomData, u32};
 use vint::vint::*;
 
-// use super::get_values_iter;
-
 impl_type_info_single_templ!(IndirectMMap);
 
 #[derive(Debug)]
@@ -36,18 +34,8 @@ impl<T: IndexIdToParentData> IndirectMMap<T> {
     }
 }
 
-// impl<T: IndexIdToParentData> HeapSizeOf for IndirectMMap<T> {
-//     fn heap_size_of_children(&self) -> usize {
-//         0
-//     }
-// }
-
 impl<T: IndexIdToParentData> IndexIdToParent for IndirectMMap<T> {
     type Output = T;
-
-    // fn get_keys(&self) -> Vec<T> {
-    //     (num::cast(0).unwrap()..num::cast(self.get_size()).unwrap()).collect()
-    // }
 
     fn get_index_meta_data(&self) -> &IndexValuesMetadata {
         &self.metadata

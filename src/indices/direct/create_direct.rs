@@ -90,15 +90,6 @@ mod tests {
     use super::*;
     use crate::persistence::*;
 
-    // fn get_test_data_1_to_1<T: IndexIdToParentData>() -> SingleArrayIM<T> {
-    //     let values = vec![5, 6, 9, 9, 9, 50000];
-    //     SingleArrayIM {
-    //         data: values.iter().map(|el| num::cast(*el).unwrap()).collect(),
-    //         max_value_id: 50000,
-    //         avg_join_size: 1.0
-    //     }
-    // }
-
     fn get_test_data_1_to_1() -> Vec<u32> {
         vec![5, 6, 9, 9, 9, 50000]
     }

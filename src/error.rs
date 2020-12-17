@@ -1,5 +1,3 @@
-
-
 use std::io;
 
 #[derive(Debug, Fail)]

@@ -67,14 +67,6 @@ impl Hit {
     }
 }
 
-//
-// fn hits_to_sorted_array(hits: FnvHashMap<u32, f32>) -> Vec<Hit> {
-//     debug_time!("hits_to_sorted_array");
-//     let mut res: Vec<Hit> = hits.iter().map(|(id, score)| Hit { id: *id, score: *score }).collect();
-//     res.sort_unstable_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(Ordering::Equal)); //TODO Add sort by id when equal
-//     res
-// }
-
 pub fn to_documents(persistence: &Persistence, hits: &[Hit], select: &Option<Vec<String>>, result: &SearchResult) -> Vec<DocWithHit> {
     // This is a fastpath why_found highlighting
     let tokens_set = {
@@ -251,44 +243,6 @@ pub fn apply_top_skip<T: Clone>(hits: &mut Vec<T>, skip: Option<usize>, top: Opt
     }
 }
 
-// #[test]
-// fn boost_intersect_hits_vec_test() {
-//     let hits1 = vec![Hit::new(10, 20.0), Hit::new(0, 20.0), Hit::new(5, 20.0)]; // unsorted
-//     let boost = vec![Hit::new(0, 20.0), Hit::new(3, 20.0), Hit::new(10, 30.0), Hit::new(20, 30.0)];
-
-//     let res = boost_intersect_hits_vec(
-//         SearchFieldResult {
-//             hits_scores: hits1,
-//             ..Default::default()
-//         },
-//         SearchFieldResult {
-//             hits_scores: boost,
-//             ..Default::default()
-//         },
-//     );
-
-//     assert_eq!(res.hits_scores, vec![Hit::new(0, 400.0), Hit::new(5, 20.0), Hit::new(10, 600.0)]);
-// }
-
-// #[bench]
-// fn bench_intersect_hits_vec(b: &mut test::Bencher) {
-//     let hits1 = (0..4_000_00).map(|i|(i*5, 2.2)).collect();
-//     let hits2 = (0..40_000).map(|i|(i*3, 2.2)).collect();
-
-//     let yop = vec![
-//         SearchFieldResult {
-//             hits_scores: hits1,
-//             ..Default::default()
-//         },
-//         SearchFieldResult {
-//             hits_scores: hits2,
-//             ..Default::default()
-//         },
-//     ];
-
-//     b.iter(|| intersect_hits_score())
-// }
-
 #[inline]
 fn join_and_get_text_for_ids(persistence: &Persistence, id: u32, prop: &str) -> Result<Option<String>, VelociError> {
     // TODO CHECK field_name exists previously
@@ -329,50 +283,6 @@ pub fn get_read_tree_from_fields(persistence: &Persistence, fields: &[String]) -
     to_node_tree(all_steps)
 }
 
-// pub(crate) fn join_to_parent_with_score(persistence: &Persistence, input: &SearchFieldResult, path: &str, _trace_time_info: &str) -> Result<SearchFieldResult, VelociError> {
-//     let mut total_values = 0;
-//     let num_hits = input.hits_scores.len();
-
-//     let mut hits = Vec::with_capacity(num_hits);
-//     let kv_store = persistence.get_valueid_to_parent(path)?;
-
-//     let should_explain = input.request.explain;
-//     // let explain = input.explain;
-//     let mut explain_hits: FnvHashMap<u32, Vec<Explain>> = FnvHashMap::default();
-
-//     for hit in &input.hits_scores {
-//         let score = hit.score;
-//         if let Some(values) = kv_store.get_values(u64::from(hit.id)).as_ref() {
-//             total_values += values.len();
-//             hits.reserve(values.len());
-//             // trace!("value_id: {:?} values: {:?} ", value_id, values);
-//             for parent_val_id in values {
-//                 hits.push(Hit::new(*parent_val_id, score));
-
-//                 if should_explain {
-//                     let expains = input.explain.get(&hit.id).unwrap_or_else(|| panic!("could not find explain for id {:?}", hit.id));
-//                     explain_hits.entry(*parent_val_id).or_insert_with(|| expains.clone());
-//                 }
-//             }
-//         }
-//     }
-//     hits.sort_unstable_by_key(|a| a.id);
-//     hits.dedup_by(|a, b| {
-//         if a.id == b.id {
-//             b.score = b.score.max(a.score);
-//             true
-//         } else {
-//             false
-//         }
-//     });
-
-//     debug!("{:?} hits hit {:?} distinct ({:?} total ) in column {:?}", num_hits, hits.len(), total_values, path);
-//     let mut res = SearchFieldResult::new_from(&input);
-//     res.hits_scores = hits;
-//     res.explain = explain_hits;
-//     Ok(res)
-// }
-
 pub fn join_to_parent_ids(persistence: &Persistence, input: &SearchFieldResult, path: &str, _trace_time_info: &str) -> Result<SearchFieldResult, VelociError> {
     let mut total_values = 0;
     let num_hits = input.hits_ids.len();
@@ -408,24 +318,6 @@ pub fn join_to_parent_ids(persistence: &Persistence, input: &SearchFieldResult, 
     res.explain = explain_hits;
     Ok(res)
 }
-
-//
-// pub(crate) fn join_for_read(persistence: &Persistence, input: Vec<u32>, path: &str) -> Result<FnvHashMap<u32, Vec<u32>>, VelociError> {
-//     let mut hits: FnvHashMap<u32, Vec<u32>> = FnvHashMap::default();
-//     let kv_store = persistence.get_valueid_to_parent(path)?;
-//     // debug_time!("term hits hit to column");
-//     debug_time!(format!("{:?} ", path));
-//     for value_id in input {
-//         let values = &kv_store.get_values(u64::from(value_id));
-//         if let Some(values) = values.as_ref() {
-//             hits.reserve(values.len());
-//             hits.insert(value_id, values.clone());
-//         }
-//     }
-//     debug!("hits hit {:?} distinct in column {:?}", hits.len(), path);
-
-//     Ok(hits)
-// }
 
 pub fn join_for_1_to_1(persistence: &Persistence, value_id: u32, path: &str) -> Result<std::option::Option<u32>, VelociError> {
     let kv_store = persistence.get_valueid_to_parent(path)?;

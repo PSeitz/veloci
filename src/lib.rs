@@ -2,7 +2,7 @@
 #![cfg_attr(feature = "cargo-clippy", allow(clippy::implicit_hasher))]
 #![cfg_attr(feature = "cargo-clippy", allow(clippy::too_many_arguments))]
 #![feature(drain_filter)]
-#![feature(specialization)]
+#![feature(min_specialization)]
 #![feature(test)]
 #![cfg_attr(feature = "unstable", feature(alloc, heap_api, repr_simd))]
 #![feature(core_intrinsics)]
@@ -12,8 +12,6 @@ extern crate cpuprofiler;
 #[macro_use]
 #[allow(unused_imports)]
 extern crate dump;
-// #[macro_use]
-// extern crate heapsize_derive;
 #[macro_use]
 extern crate lazy_static;
 #[macro_use]

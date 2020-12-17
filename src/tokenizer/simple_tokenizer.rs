@@ -12,27 +12,6 @@ impl Tokenizer for SimpleTokenizer {
         iter.next().is_some()
     }
 
-    // fn get_tokens<'a, F>(&self, orignal: &'a str, cb_text: &mut F)
-    // where
-    //     F: FnMut(&'a str, bool),
-    // {
-    //     let mut last_byte_pos = 0;
-    //     for (char_byte_pos, char) in orignal.char_indices() {
-    //         if is_default_seperator(char) {
-    //             if char_byte_pos != last_byte_pos {
-    //                 cb_text(&orignal[last_byte_pos..char_byte_pos], false);
-    //             }
-    //             let next_pos = char_byte_pos + char.len_utf8();
-    //             cb_text(&orignal[char_byte_pos..next_pos], false);
-    //             last_byte_pos = next_pos;
-    //         }
-    //     }
-
-    //     if last_byte_pos != orignal.len() {
-    //         cb_text(&orignal[last_byte_pos..orignal.len()], false);
-    //     }
-    // }
-
     fn iter<'a>(&'a self, original: &'a str) -> Box<dyn Iterator<Item = (&'a str, bool)> + 'a> {
         Box::new(SimpleTokenIter::from_str(original))
     }

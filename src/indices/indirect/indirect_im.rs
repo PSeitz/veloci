@@ -16,11 +16,6 @@ pub(crate) struct IndirectIM<T: IndexIdToParentData> {
     pub(crate) data: Vec<u8>,
     pub(crate) metadata: IndexValuesMetadata,
 }
-// impl<T: IndexIdToParentData> HeapSizeOf for IndirectIM<T> {
-//     fn heap_size_of_children(&self) -> usize {
-//         self.start_pos.heap_size_of_children() + self.data.heap_size_of_children() + self.metadata.heap_size_of_children()
-//     }
-// }
 
 impl<T: IndexIdToParentData> fmt::Debug for IndirectIM<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -100,10 +95,6 @@ impl<T: IndexIdToParentData> IndexIdToParent for IndirectIM<T> {
             self.count_values_for_ids_for_agg(ids, top, map)
         }
     }
-
-    // fn get_keys(&self) -> Vec<T> {
-    //     (num::cast(0).unwrap()..num::cast(self.get_size()).unwrap()).collect()
-    // }
 
     fn get_values_iter(&self, id: u64) -> VintArrayIteratorOpt<'_> {
         get_values_iter!(self, id, self.data, { self.start_pos[id as usize] })

@@ -22,21 +22,9 @@ pub(crate) struct PlanStepFieldSearchToTokenIds {
 }
 #[derive(Clone, Debug)]
 pub(crate) struct ResolveTokenIdToAnchor {
-    // req: PlanRequestSearchPart,
     pub(crate) request: RequestSearchPart,
     pub(crate) channel: PlanStepDataChannels,
 }
-// #[derive(Clone, Debug)]
-// pub(crate) struct ResolveTokenIdToTextId {
-//     pub(crate) request: RequestSearchPart,
-//     pub(crate) channel: PlanStepDataChannels,
-// }
-// #[derive(Clone, Debug)]
-// pub(crate) struct ValueIdToParent {
-//     pub(crate) path: String,
-//     pub(crate) trace_info: String,
-//     pub(crate) channel: PlanStepDataChannels,
-// }
 #[derive(Clone, Debug)]
 pub(crate) struct BoostToAnchor {
     pub(crate) path: String,
@@ -93,18 +81,6 @@ impl std::fmt::Display for ResolveTokenIdToAnchor {
         Ok(())
     }
 }
-// impl std::fmt::Display for ResolveTokenIdToTextId {
-//     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-//         writeln!(f, "ResolveTokenIdToTextId")?;
-//         Ok(())
-//     }
-// }
-// impl std::fmt::Display for ValueIdToParent {
-//     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-//         writeln!(f, "ValueIdToParent")?;
-//         Ok(())
-//     }
-// }
 impl std::fmt::Display for BoostToAnchor {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         writeln!(f, "BoostToAnchor {}", self.boost.path)?;
@@ -186,39 +162,6 @@ impl PlanStepTrait for ResolveTokenIdToAnchor {
         Ok(())
     }
 }
-// impl PlanStepTrait for ResolveTokenIdToTextId {
-//     fn get_channel(&mut self) -> &mut PlanStepDataChannels {
-//         &mut self.channel
-//     }
-
-//     fn execute_step(self: Box<Self>, persistence: &Persistence) -> Result<(), VelociError> {
-//         let mut field_result = self.channel.input_prev_steps[0].recv().map_err(|_| VelociError::PlanExecutionRecvFailed)?;
-//         resolve_token_hits_to_text_id(persistence, &self.request, &mut field_result)?;
-//         send_result_to_channel(field_result, &self.channel)?;
-//         drop_channel(self.channel);
-//         Ok(())
-//     }
-// }
-
-// impl PlanStepTrait for ValueIdToParent {
-//     fn get_channel(&mut self) -> &mut PlanStepDataChannels {
-//         &mut self.channel
-//     }
-
-//     fn execute_step(self: Box<Self>, persistence: &Persistence) -> Result<(), VelociError> {
-//         send_result_to_channel(
-//             join_to_parent_with_score(
-//                 persistence,
-//                 &self.channel.input_prev_steps[0].recv().map_err(|_| VelociError::PlanExecutionRecvFailed)?,
-//                 &self.path,
-//                 &self.trace_info,
-//             )?,
-//             &self.channel,
-//         )?;
-//         drop_channel(self.channel);
-//         Ok(())
-//     }
-// }
 
 /// Token to text ids (TEXT_IDS)
 /// text ids to parent valueid (VALUE_IDS)
@@ -239,15 +182,6 @@ impl PlanStepTrait for BoostToAnchor {
         //valueid to parent
         let text_index_ids_to_value_ids = self.request.path.add(TEXTINDEX).add(VALUE_ID_TO_PARENT);
         field_result = join_to_parent_ids(persistence, &field_result, &text_index_ids_to_value_ids, "boost: textindex to value id")?;
-
-        // let mut walk = steps_between_field_paths(&self.request.path, &self.boost.path);
-        // if let Some((last, walk)) = walk.split_last_mut() {
-        //     for step in walk {
-        //         let step = step.to_string();
-        //         field_result = join_to_parent_ids(persistence, &field_result, &step, "_trace_time_info: &str")?;
-        //     }
-        //     boost::get_boost_ids_and_resolve_to_anchor(persistence, last, &mut field_result)?;
-        // }
 
         let mut boost_field_path = (&self.boost.path).to_field_path();
         boost::get_boost_ids_and_resolve_to_anchor(persistence, &mut boost_field_path, &mut field_result)?;

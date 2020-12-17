@@ -25,55 +25,6 @@ pub struct SearchTree {
     pub options: SearchRequestOptions,
 }
 
-// use std::fmt;
-// use serde::de::{self, Deserialize, Deserializer, Visitor, SeqAccess, MapAccess};
-// /// Custom deserializer supporting two formats
-// ///
-// /// 1. The default way: deserializing a map into the struct.
-// /// 2. Omitting options: deserializing an array directly into the queries field, omitting the options.
-// impl<'de> Deserialize<'de> for SearchTree {
-//     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-//     where
-//         D: Deserializer<'de>,
-//     {
-
-//         struct SearchTreeVisitor;
-
-//         impl<'de> Visitor<'de> for SearchTreeVisitor {
-//             type Value = SearchTree;
-
-//             fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-//                 formatter.write_str("struct SearchTree")
-//             }
-
-//             fn visit_seq<V>(self, seq: V) -> Result<SearchTree, V::Error>
-//             where
-//                 V: SeqAccess<'de>,
-//             {
-//                 Ok(SearchTree{
-//                     queries: Deserialize::deserialize(de::value::SeqAccessDeserializer::new(seq))?,
-//                     ..Default::default()
-//                 })
-//             }
-
-//             fn visit_map<V>(self, map: V) -> Result<SearchTree, V::Error>
-//             where
-//                 V: MapAccess<'de>,
-//             {
-//                 Deserialize::deserialize(de::value::MapAccessDeserializer::new(map))
-//             }
-//         }
-
-//         deserializer.deserialize_any(SearchTreeVisitor)
-//     }
-// }
-
-// impl Default for SearchRequest {
-//     fn default() -> SearchRequest {
-//         SearchRequest::Noop
-//     }
-// }
-
 impl SearchRequest {
     pub fn simplify(&mut self) {
         match self {

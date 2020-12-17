@@ -72,16 +72,6 @@ pub struct PersistenceIndices {
     pub fst: HashMap<String, Map<memmap::Mmap>>,
 }
 
-// impl PersistenceIndices {
-//     fn merge(&mut self, other: PersistenceIndices) {
-//         self.key_value_stores.extend(other.key_value_stores);
-//         self.token_to_anchor_score.extend(other.token_to_anchor_score);
-//         self.boost_valueid_to_value.extend(other.boost_valueid_to_value);
-//         self.index_64.extend(other.index_64);
-//         self.fst.extend(other.fst);
-//     }
-// }
-
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub enum PersistenceType {
     /// Transient Doesn't write indices, just holds them in memory. Good for small indices with incremental updates.
@@ -92,11 +82,9 @@ pub enum PersistenceType {
 pub struct Persistence {
     pub db: String, // folder
     pub metadata: PeristenceMetaData,
-    // pub all_fields : Vec<String>,
     pub persistence_type: PersistenceType,
     pub indices: PersistenceIndices,
     pub lru_cache: HashMap<String, LruCache<RequestSearchPart, SearchResult>>,
-    // pub lru_fst: HashMap<String, LruCache<(String, u8), Box<fst::Automaton<State=Option<usize>>>>>,
     pub term_boost_cache: RwLock<LruCache<Vec<RequestSearchPart>, Vec<SearchFieldResult>>>,
 }
 
@@ -229,51 +217,7 @@ pub trait IndexIdToParent: Debug + Sync + Send + type_info::TypeInfo {
         self.get_values(id).map(|el| el[0])
     }
 
-    //last needs to be the largest value_id
-    // fn get_keys(&self) -> Vec<Self::Output>;
-
-    // #[inline]
-    // fn get_num_keys(&self) -> usize {
-    //     self.get_keys().len()
-    // }
-
-    // #[inline]
-    // fn is_1_to_n(&self) -> bool {
-    //     let keys = self.get_keys();
-    //     keys.iter()
-    //         .any(|key| self.get_values(num::cast(*key).unwrap()).map(|values| values.len() > 1).unwrap_or(false))
-    // }
 }
-
-// use crate::type_info::TypeInfo;
-// use std::marker::PhantomData;
-// impl_type_info_single_templ!(IdentityIndex);
-// #[derive(Debug)]
-// struct IdentityIndex<T>{
-//     pub ok: PhantomData<T>,
-// }
-
-// impl<T: IndexIdToParentData> IndexIdToParent for IdentityIndex<T> {
-//     type Output = T;
-
-//     #[inline]
-//     fn count_values_for_ids(&self, _ids: &[u32], _top: Option<u32>) -> FnvHashMap<T, usize> {
-//         unimplemented!()
-//     }
-
-//     // fn get_keys(&self) -> Vec<T> {
-//     //     (num::cast(0).unwrap()..num::cast(self.get_size()).unwrap()).collect()
-//     // }
-
-//     fn get_values_iter(&self, id: u64) -> VintArrayIteratorOpt<'_> {
-//         VintArrayIteratorOpt::from_single_val(id as u32)
-//     }
-
-//     #[inline]
-//     fn get_values(&self, id: u64) -> Option<Vec<T>> {
-//         Some(vec![num::cast(id).unwrap()])
-//     }
-// }
 
 #[cfg(not(tarpaulin_include))]
 pub fn trace_index_id_to_parent<T: IndexIdToParentData>(val: &dyn IndexIdToParent<Output = T>) {
@@ -296,10 +240,6 @@ pub fn get_readable_size(value: usize) -> ColoredString {
         _ => format!("{:?} mb", value / 1_000_000).red(),
     }
 }
-
-// pub fn get_readable_size_for_children<T: HeapSizeOf>(value: T) -> ColoredString {
-//     get_readable_size(value.heap_size_of_children())
-// }
 
 impl Persistence {
     fn load_types_index_to_one<T: IndexIdToParentData, P: AsRef<Path> + std::fmt::Debug>(
@@ -461,7 +401,6 @@ impl Persistence {
 
         unsafe {
             Map::new(MmapOptions::new().map(&file)?).map_err(|err| VelociError::StringError(format!("Could not load fst {} {:?}", path, err)))
-            // Ok(Map::from_path(&get_file_path(&self.db, &(path.to_string() + ".fst")))?) //(path.to_string() + ".fst"))?)
         }
         // In memory version
         // let mut f = self.get_file_handle(&(path.to_string() + ".fst"))?;
@@ -474,10 +413,6 @@ impl Persistence {
     pub fn get_file_handle(&self, path: &str) -> Result<File, VelociError> {
         Ok(File::open(get_file_path(&self.db, path)).map_err(|err| VelociError::StringError(format!("Could not open {} {:?}", path, err)))?)
     }
-
-    // pub(crate) fn get_file_search(&self, path: &str) -> FileSearch {
-    //     FileSearch::new(path, self.get_file_handle(path).unwrap())
-    // }
 
     pub fn get_boost(&self, path: &str) -> Result<&dyn IndexIdToParent<Output = u32>, VelociError> {
         self.indices.boost_valueid_to_value.get(path).map(|el| el.as_ref()).ok_or_else(|| path_not_found(path))
@@ -641,73 +576,6 @@ fn path_not_found(path: &str) -> VelociError {
     VelociError::StringError(error)
 }
 
-// #[derive(Debug)]
-// pub(crate) struct FileSearch {
-//     path: String,
-//     // offsets: Vec<u64>,
-//     file: File,
-//     buffer: Vec<u8>,
-// }
-
-// impl FileSearch {
-//     fn load_text(&mut self, pos: u64, offsets: &IndexIdToParent<Output = u64>) {
-//         use std::io::{SeekFrom};
-//         // @Temporary Use Result
-//         let string_size = offsets.get_value(pos + 1).unwrap() - offsets.get_value(pos).unwrap() - 1;
-//         // let mut buffer:Vec<u8> = Vec::with_capacity(string_size as usize);
-//         // unsafe { buffer.set_len(string_size as usize); }
-//         self.buffer.resize(string_size as usize, 0);
-//         self.file.seek(SeekFrom::Start(offsets.get_value(pos).unwrap())).unwrap();
-//         self.file.read_exact(&mut self.buffer).unwrap();
-//         // unsafe {str::from_utf8_unchecked(&buffer)}
-//         // let s = unsafe {str::from_utf8_unchecked(&buffer)};
-//         // str::from_utf8(&buffer).unwrap() // @Temporary  -> use unchecked if stable
-//     }
-
-//     pub fn get_text_for_id(&mut self, pos: usize, offsets: &IndexIdToParent<Output = u64>) -> String {
-//         self.load_text(pos as u64, offsets);
-//         str::from_utf8(&self.buffer).unwrap().to_string()
-//     }
-
-//     fn new(path: &str, file: File) -> Self {
-//         // load_index_64_into_cache(&(path.to_string()+".offsets")).unwrap();
-//         FileSearch {
-//             path: path.to_string(),
-//             file,
-//             buffer: Vec::with_capacity(50 as usize),
-//         }
-//     }
-
-//     // pub fn binary_search(&mut self, term: &str, persistence: &Persistence) -> Result<(String, i64), io::Error> {
-//     //     // let cache_lock = INDEX_64_CACHE.read().unwrap();
-//     //     // let offsets = cache_lock.get(&(self.path.to_string()+".offsets")).unwrap();
-//     //     let offsets = persistence.indices.index_64.get(&(self.path.to_string() + ".offsets")).unwrap();
-//     //     debug_time!("term binary_search");
-//     //     if offsets.len() < 2 {
-//     //         return Ok(("".to_string(), -1));
-//     //     }
-//     //     let mut low = 0;
-//     //     let mut high = offsets.len() - 2;
-//     //     let mut i;
-//     //     while low <= high {
-//     //         i = (low + high) >> 1;
-//     //         self.load_text(i, offsets);
-//     //         // info!("Comparing {:?}", str::from_utf8(&buffer).unwrap());
-//     //         // comparison = comparator(arr[i], find);
-//     //         if str::from_utf8(&self.buffer).unwrap() < term {
-//     //             low = i + 1;
-//     //             continue;
-//     //         }
-//     //         if str::from_utf8(&self.buffer).unwrap() > term {
-//     //             high = i - 1;
-//     //             continue;
-//     //         }
-//     //         return Ok((str::from_utf8(&self.buffer).unwrap().to_string(), i as i64));
-//     //     }
-//     //     Ok(("".to_string(), -1))
-//     // }
-// }
-
 fn load_type_from_env() -> Result<Option<LoadingType>, VelociError> {
     if let Some(val) = env::var_os("LoadingType") {
         let conv_env = val
@@ -731,10 +599,6 @@ fn get_loading_type(loading_type: LoadingType) -> Result<LoadingType, VelociErro
     Ok(loading_type)
 }
 
-// pub(crate) fn vec_to_bytes_u32(data: &[u32]) -> Vec<u8> {
-//     vec_to_bytes(data)
-// }
-
 //TODO Only LittleEndian supported currently
 pub(crate) fn vec_to_bytes<T>(data: &[T]) -> Vec<u8> {
     let mut out_dat: Vec<u8> = vec_with_size_uninitialized(data.len() * std::mem::size_of::<T>());
@@ -745,13 +609,6 @@ pub(crate) fn vec_to_bytes<T>(data: &[T]) -> Vec<u8> {
     // LittleEndian::write_u32_into(data, &mut wtr);
     out_dat
 }
-
-// pub(crate) fn vec_to_bytes_u64(data: &[u64]) -> Vec<u8> {
-//     // let mut wtr: Vec<u8> = vec_with_size_uninitialized(data.len() * std::mem::size_of::<u64>());
-//     // LittleEndian::write_u64_into(data, &mut wtr);
-//     // wtr
-//     vec_to_bytes(data)
-// }
 
 pub(crate) fn bytes_to_vec_u32(data: &[u8]) -> Vec<u32> {
     bytes_to_vec::<u32>(&data)

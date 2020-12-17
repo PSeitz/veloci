@@ -6,10 +6,6 @@ mod simple_tokenizer_group;
 pub use simple_tokenizer_group::*;
 
 pub trait Tokenizer: Debug + Sync + Send {
-    // fn get_tokens<'a, F>(&self, original: &'a str, cb_text: &mut F)
-    // where
-    //     F: FnMut(&'a str, bool);
-
     fn has_tokens(&self, original: &str) -> bool;
 
     /// iterator, with bool to flag seperators
@@ -34,26 +30,6 @@ fn is_default_seperator(char: char) -> bool {
         _ => false,
     }
 }
-
-// pub trait TokenizerIter {
-//     fn iter_tokens(&self) -> SimpleTokenizerGroupTokenIter;
-//     fn has_tokens(&self) -> bool;
-// }
-
-// impl TokenizerIter for &str {
-//     fn iter_tokens(&self) -> SimpleTokenizerGroupTokenIter {
-//         SimpleTokenizerGroupTokenIter {
-//             original: self,
-//             last_returned_byte: 0,
-//             last_was_token: false,
-//             char_iter: self.char_indices(),
-//         }
-//     }
-
-//     fn has_tokens(&self) -> bool {
-//         SEPERATORS.is_match(self)
-//     }
-// }
 
 #[cfg(test)]
 mod tests {

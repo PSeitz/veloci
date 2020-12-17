@@ -45,10 +45,6 @@ pub fn add_token_values_to_tokens(persistence: &mut Persistence, data_str: &str,
 
             let hits = search_field::get_term_ids_in_field(persistence, &mut options)?;
             if !hits.hits_scores.is_empty() {
-                // tuples.push(ValIdToValue {
-                //     valid: hits.hits_scores[0].id,
-                //     value: el.value.unwrap(),
-                // });
                 buffered_index_data.add(hits.hits_scores[0].id, value)?;
             }
         }

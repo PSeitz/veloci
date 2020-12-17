@@ -85,7 +85,6 @@ mod tests {
     }
 
     fn check_test_data_1_to_n(store: &dyn IndexIdToParent<Output = u32>) {
-        // assert_eq!(store.get_keys(), vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
         assert_eq!(store.get_values(0), Some(vec![5, 6]));
         assert_eq!(store.get_values(1), Some(vec![9]));
         assert_eq!(store.get_values(2), Some(vec![9]));
@@ -103,7 +102,6 @@ mod tests {
     }
     fn check_test_data_1_to_n_iter(store: &dyn IndexIdToParent<Output = u32>) {
         let empty_vec: Vec<u32> = vec![];
-        // assert_eq!(store.get_keys(), vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
         assert_eq!(store.get_values_iter(0).collect::<Vec<u32>>(), vec![5, 6]);
         assert_eq!(store.get_values_iter(1).collect::<Vec<u32>>(), vec![9]);
         assert_eq!(store.get_values_iter(2).collect::<Vec<u32>>(), vec![9]);
@@ -134,27 +132,6 @@ mod tests {
             check_test_data_1_to_n(&store);
             check_test_data_1_to_n_iter(&store);
         }
-
-        // #[test]
-        // fn test_flushing_in_order_indirect() {
-        //     let dir = tempdir().unwrap();
-        //     let path = dir.path().join("testfile").to_str().unwrap().to_string();
-        //     let store = get_test_data_1_to_n_ind(&path).into_im_store();
-
-        //     let mut ind = IndirectIMFlushingInOrderVint::new(path.to_string(), u32::MAX);
-
-        //     for key in store.get_keys() {
-        //         if let Some(vals) = store.get_values(key.into()) {
-        //             ind.add(key, vals).unwrap();
-        //             ind.flush().unwrap();
-        //         }
-        //     }
-        //     ind.flush().unwrap();
-
-        //     let store = IndirectMMap::from_path(&path, store.metadata).unwrap();
-        //     check_test_data_1_to_n(&store);
-        //     check_test_data_1_to_n_iter(&store);
-        // }
 
         #[test]
         fn test_pointing_array_index_id_to_multiple_parent_indirect() {

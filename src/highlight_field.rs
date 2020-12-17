@@ -109,7 +109,7 @@ pub fn highlight_text(text: &str, set: &FnvHashSet<String>, opt: &SnippetInfo, t
 
     let token_around_snippets = opt.num_words_around_snippet * 2; // token seperator token seperator
 
-    // //group near tokens
+    //group near tokens
     let grouped = group_hit_positions_for_snippet(&hit_pos_of_tokens_in_doc, opt);
 
     let get_document_windows = &(|vec: &Vec<i64>| grouped_to_positions_for_snippet(vec, tokens.len(), token_around_snippets));

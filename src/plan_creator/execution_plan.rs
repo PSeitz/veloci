@@ -493,11 +493,6 @@ fn plan_creator_search_part(
             if let Some(parent_step_dependecy) = parent_step_dependecy {
                 plan.add_dependency(parent_step_dependecy, step_id);
             }
-            // plan.add_dependency(boost_step, step_id);
-
-            // get boost scores and resolve to anchor
-            // step_id
-            // let mut step_id = add_step();
 
             if let Some(depends_on_step) = depends_on_step {
                 plan.add_dependency(step_id, depends_on_step);
@@ -533,44 +528,6 @@ fn plan_creator_search_part(
 
 use rayon::prelude::*;
 
-//
-// pub fn execute_steps(steps: Vec<PlanStepType>, persistence: &Persistence) -> Result<(), VelociError> {
-//     let r: Result<Vec<_>, VelociError> = steps.into_par_iter().map(|step| step.execute_step(persistence)).collect();
-
-//     if r.is_err() {
-//         Err(r.unwrap_err())
-//     } else {
-//         Ok(())
-//     }
-
-//     // for step in steps {
-//     //     step.execute_step(persistence)?;
-//     // }
-//     // Ok(())
-
-//     // let err = steps.par_iter().map(|step|{
-//     //     let res = execute_step(step.clone(), persistence);
-
-//     //     match res {
-//     //         Ok(()) => Some(1),
-//     //         Err(err)=> None,
-//     //     }
-
-//     // }).while_some().collect::<Vec<_>>();
-
-//     // err
-
-//     // steps.par_iter().map(|step|{
-//     //     execute_step(step.clone(), persistence)?;
-//     // });
-
-//     // for step in steps {
-//     //     execute_step(step, persistence)?;
-//     // }
-//     // Ok(())
-//     // Ok(hits)
-// }
-
 pub fn execute_steps(steps: Vec<Box<dyn PlanStepTrait>>, persistence: &Persistence) -> Result<(), VelociError> {
     let r: Result<Vec<_>, VelociError> = steps.into_par_iter().map(|step: Box<dyn PlanStepTrait>| step.execute_step(persistence)).collect();
 
@@ -579,49 +536,4 @@ pub fn execute_steps(steps: Vec<Box<dyn PlanStepTrait>>, persistence: &Persisten
     } else {
         Ok(())
     }
-
-    // for step in steps {
-    //     step.execute_step(persistence)?;
-    // }
-    // Ok(())
-
-    // let err = steps.par_iter().map(|step|{
-    //     let res = execute_step(step.clone(), persistence);
-
-    //     match res {
-    //         Ok(()) => Some(1),
-    //         Err(err)=> None,
-    //     }
-
-    // }).while_some().collect::<Vec<_>>();
-
-    // err
-
-    // steps.par_iter().map(|step|{
-    //     execute_step(step.clone(), persistence)?;
-    // });
-
-    // for step in steps {
-    //     execute_step(step, persistence)?;
-    // }
-    // Ok(())
-    // Ok(hits)
 }
-
-// use crossbeam;
-//
-// pub fn execute_step_in_parrael(steps: Vec<PlanStepType>, persistence: &Persistence) -> Result<(), VelociError> {
-
-//     crossbeam::scope(|scope| {
-//         for step in steps {
-//             scope.spawn(move || {
-//                 let res = step.execute_step(persistence);
-//                 if res.is_err(){
-//                     panic!("{:?}", res.unwrap_err());
-//                 }
-//             });
-//         }
-//     });
-
-//     Ok(())
-// }

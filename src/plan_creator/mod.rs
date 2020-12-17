@@ -11,6 +11,5 @@ pub mod plan_steps;
 
 pub trait PlanStepTrait: Debug + Display + Sync + Send {
     fn get_channel(&mut self) -> &mut PlanStepDataChannels;
-    // fn get_output(&self) -> PlanDataReceiver;
     fn execute_step(self: Box<Self>, persistence: &Persistence) -> Result<(), VelociError>;
 }

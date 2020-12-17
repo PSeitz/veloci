@@ -78,23 +78,6 @@ pub(crate) struct TokenToAnchorScore {
     pub(crate) score: u32,
 }
 
-// fn print_vec(vec: &[ValIdPair], valid_header: &str, parentid_header: &str) -> String {
-//     format!("{}\t{}", valid_header, parentid_header)
-//         + &vec.iter()
-//             .map(|el| format!("\n{}\t{}", el.valid, el.parent_val_id))
-//             .collect::<Vec<_>>()
-//             .join("")
-// }
-
-// fn print_index_id_to_parent(vec: &IndirectIM<u32>, valid_header: &str, parentid_header: &str) -> String {
-//     let keys = vec.get_keys();
-//     format!("{}\t{}", valid_header, parentid_header)
-//         + &keys.iter()
-//             .map(|key| format!("\n{}\t{:?}", key, vec.get_values(u64::from(*key))))
-//             .collect::<Vec<_>>()
-//             .join("")
-// }
-
 #[inline]
 // *mut FnvHashMap here or the borrow checker will complain, because of 'if let' expands the scope of the mutable ownership to the complete function
 fn get_or_insert_prefer_get<'a, T, F>(map: *mut FnvHashMap<String, T>, key: &str, mut constructor: F) -> &'a mut T
@@ -111,11 +94,6 @@ where
     }
 }
 
-// #[derive(Debug, Default)]
-// pub struct CreateCache {
-//     term_data: AllTermsAndDocumentBuilder,
-// }
-
 #[derive(Debug, Default)]
 pub(crate) struct TermDataInPath {
     pub(crate) terms: TermMap,
@@ -123,50 +101,6 @@ pub(crate) struct TermDataInPath {
     pub(crate) do_not_store_text_longer_than: usize,
     pub(crate) id_counter_for_large_texts: u32,
 }
-
-// fn check_similarity(data: &FnvHashMap<String, TermMap>) {
-//     let mut map: FnvHashMap<String, FnvHashMap<String, (f32, f32)>> = FnvHashMap::default();
-
-//     info_time!("check_similarity");
-//     for (path, terms) in data {
-//         let num_terms = terms.len();
-//         for (path_comp, terms_comp) in data.iter().filter(|&(path_comp, _)| path_comp != path) {
-//             let num_similar = terms.keys().filter(|term| terms_comp.contains_key(term.as_str())).count();
-//             let similiarity = num_similar as f32 / num_terms as f32;
-//             //info!("Similiarity {:?} {:?} {:?}", path, path_comp, num_similar as f32 / num_terms as f32);
-//             if map.contains_key(path_comp) {
-//                 let aha = map.get_mut(path_comp).expect("did not found key").get_mut(path).expect("did not found key");
-//                 aha.1 = similiarity;
-//             // map.get_mut(path_comp).1 = num_similar as f32 / num_terms as f32
-//             } else {
-//                 let entry = map.entry(path.to_string()).or_insert(FnvHashMap::default());
-//                 entry.insert(path_comp.to_string(), (similiarity, 0.));
-//             }
-//         }
-//     }
-//     for (path, sub) in map {
-//         for (path2, data) in sub {
-//             if data.0 > 0.1 {
-//                 info!("{} {} {} {}", path, path2, data.0, data.1);
-//             }
-//         }
-//     }
-// }
-
-// fn replace_term_ids<T: KeyValuePair>(yep: &mut Vec<T>, index: &[u32]) {
-//     for el in yep.iter_mut() {
-//         let val_id = el.get_key() as usize;
-//         el.set_key(index[val_id]);
-//     }
-// }
-
-// #[test]
-// fn replace_term_ids_test() {
-//     let mut yep = vec![];
-//     yep.push(ValIdPair::new(1 as u32, 2 as u32));
-//     replace_term_ids(&mut yep, &vec![10, 10]);
-//     assert_eq!(yep, vec![ValIdPair::new(10 as u32, 2 as u32)]);
-// }
 
 fn is_1_to_n(path: &str) -> bool {
     path.contains("[]")
@@ -352,7 +286,7 @@ where
         let mut callback_ids = |_anchor_id: u32, path: &str, value_id: u32, parent_val_id: u32| -> Result<(), io::Error> {
             let tuples: &mut PathDataIds = get_or_insert_prefer_get(&mut tuples_to_parent_in_path, path, || {
                 let field_config = fields_config.get(path);
-                //TODO FIXME BUG ALL SUB LEVELS ARE NOT HANDLED (not every supath hat it's own config yet) ONLY THE LEAFES BEFORE .TEXTINDEX
+                //TODO FIXME BUG ALL SUB LEVELS ARE NOT HANDLED (not every supath has it's own config yet) ONLY THE LEAFES BEFORE .TEXTINDEX
                 let value_to_parent = if field_config.is_index_enabled(IndexCreationType::ValueIDToParent) {
                     Some(BufferedIndexWriter::new_for_sorted_id_insertion(persistence.temp_dir()))
                 } else {
@@ -396,24 +330,10 @@ fn print_indices(path_data: &mut FnvHashMap<String, PathData>) {
         if let Some(el) = data.tokens_to_text_id.as_ref() {
             trace!("{}\n{}", &path.add(TOKENS_TO_TEXT_ID), &el);
         }
-        // if let Some(el) = data.text_id_to_token_ids.as_ref() {
-        //     trace!(
-        //         "{}\n{}",
-        //         &path.add(TEXT_ID_TO_TOKEN_IDS),
-        //         print_index_id_to_parent(&el, "value_id", "token_id")
-        //     );
-        // }
-        // trace!(
-        //     "{}\n{}",
-        //     &path.add(TEXT_ID_TO_TOKEN_IDS),
-        //     print_index_id_to_parent(&data.text_id_to_token_ids, "value_id", "token_id")
-        // );
 
         if let Some(el) = data.text_id_to_parent.as_ref() {
             trace!("{}\n{}", &path.add(VALUE_ID_TO_PARENT), &el);
         }
-        // trace!("{}\n{}", &path.add(VALUE_ID_TO_PARENT), &data.text_id_to_parent);
-        // trace!("{}\n{}", &path.add(PARENT_TO_VALUE_ID), &data.parent_to_text_id);
         if let Some(el) = data.parent_to_text_id.as_ref() {
             trace!("{}\n{}", &path.add(PARENT_TO_VALUE_ID), &el);
         }
@@ -423,13 +343,6 @@ fn print_indices(path_data: &mut FnvHashMap<String, PathData>) {
         if let Some(el) = data.anchor_to_text_id.as_ref() {
             trace!("{}\n{}", &path.add(ANCHOR_TO_TEXT_ID), &el);
         }
-        // trace!("{}\n{}", &path.add(TEXT_ID_TO_ANCHOR), &data.text_id_to_anchor);
-
-        // trace!(
-        //     "{}\n{}",
-        //     &path.add(TEXT_ID_TO_ANCHOR),
-        //     print_vec(&data.text_id_to_anchor, "anchor_id", "anchor_id")
-        // );
     }
 }
 

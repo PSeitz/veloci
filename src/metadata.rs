@@ -63,9 +63,6 @@ pub enum TokenizerStrategy {
     Jp,
 }
 
-// fn default_tokenizer() -> TokenizerStrategy {
-//     TokenizerStrategy::Simple
-// }
 fn default_text_length_store() -> usize {
     64
 }
@@ -115,17 +112,3 @@ pub struct TextIndexValuesMetadata {
     pub options: FulltextIndexOptions,
 }
 
-// #[derive(Debug)]
-// enum IndexType {
-//     TokensToTextID,
-//     TextIDToTokenIds,
-//     ToAnchorIDScore,
-//     PhrasePairToAnchor,
-//     ValueIDToParent,
-//     ParentToValueID,
-//     TextIDToAnchor,
-//     ParentToTextID,
-//     AnchorToTextID,
-//     BoostValidToValue,
-//     TokenValues,
-// }

@@ -67,7 +67,6 @@ fn store_fst(persistence: &Persistence, sorted_terms: &[(&String, &mut TermInfo)
 
 fn set_ids(all_terms: &mut TermMap, offset: u32) -> Vec<(&String, &mut TermInfo)> {
     let mut term_and_mut_val: Vec<(&String, &mut TermInfo)> = all_terms.iter_mut().collect();
-    // let mut term_and_mut_val: Vec<(&String, &mut TermInfo)> = all_terms.iter_mut().collect();
     term_and_mut_val.sort_unstable_by_key(|el| el.0);
 
     for (i, term_and_info) in term_and_mut_val.iter_mut().enumerate() {
@@ -92,7 +91,6 @@ fn add_count_text(terms: &mut TermMap, text: &str) {
 }
 
 #[inline]
-// fn add_text<T: Tokenizer>(text: &str, term_data: &mut TermDataInPath, options: &FulltextIndexOptions, tokenizer: &T) {
 fn add_text(text: &str, term_data: &mut TermDataInPath, options: &FulltextIndexOptions, tokenizer: &Arc<dyn Tokenizer>) {
     trace!("text: {:?}", text);
 

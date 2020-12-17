@@ -74,38 +74,6 @@ impl SetExt for Path {
     }
 }
 
-// pub(crate) fn get_bit_at(input: u32, n: u8) -> bool {
-//     if n < 32 {
-//         input & (1 << n) != 0
-//     } else {
-//         false
-//     }
-// }
-
-// pub(crate) fn load_flush_threshold_from_env() -> Result<Option<u32>, VelociError> {
-//     if let Some(val) = env::var_os("FlushThreshold") {
-//         let conv_env = val.clone()
-//             .into_string()
-//             .map_err(|_err| VelociError::StringError(format!("Could not convert LoadingType environment variable to utf-8: {:?}", val)))?;
-
-//         let flush_threshold = conv_env
-//             .parse::<u32>()
-//             .map_err(|_err| format!("Expecting number for FlushThreshold, but got {:?}", conv_env))?;
-//         Ok(Some(flush_threshold))
-//     } else {
-//         Ok(None)
-//     }
-// }
-
-// #[inline]
-// pub(crate) fn set_bit_at(input: &mut u32, n: u8) {
-//     *input |= 1 << n
-// }
-// #[inline]
-// pub(crate) fn is_bit_set_at(input: u32, n: u8) -> bool {
-//     input & (1 << n) != 0
-// }
-
 const ONLY_HIGH_BIT_SET: u32 = 1 << 31;
 const ALL_BITS_BUT_HIGHEST_SET: u32 = (1 << 31) - 1;
 
@@ -177,28 +145,6 @@ pub(crate) fn vec_with_size_uninitialized<T>(size: usize) -> Vec<T> {
     }
     buffer
 }
-// #[inline]
-// pub(crate) fn get_my_data_danger_zooone(start: u32, end: u32, data_file: &Mutex<fs::File>) -> Vec<u32> {
-//     let mut data: Vec<u32> = vec_with_size_uninitialized(end as usize - start as usize);
-//     {
-//         let p = data.as_mut_ptr();
-//         let len = data.len();
-//         let cap = data.capacity();
-
-//         unsafe {
-//             // complete control of the allocation to which `p` points.
-//             let ptr = p as *mut u8;
-//             let mut data_bytes = Vec::from_raw_parts(ptr, len * 4, cap);
-
-//             load_bytes_into(&mut data_bytes, &*data_file.lock(), u64::from(start) * 4); //READ directly into u32 data
-
-//             // forget about temp data_bytes: no destructor run, so we can use data again
-//             mem::forget(data_bytes);
-//         }
-//     }
-//     data.retain(|el| *el != std::u32::MAX);
-//     data
-// }
 
 #[inline]
 pub(crate) fn extract_field_name(field: &str) -> String {

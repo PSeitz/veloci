@@ -33,10 +33,6 @@ impl<T: IndexIdToParentData, K: IndexIdToParentData> IndexIdToParent for SingleA
         count_values_for_ids(ids, top, &self.metadata, |id: u64| self.get_value(id))
     }
 
-    // fn get_keys(&self) -> Vec<T> {
-    //     (num::cast(0).unwrap()..num::cast(self.data.len()).unwrap()).collect()
-    // }
-
     #[inline]
     fn get_values_iter(&self, id: u64) -> VintArrayIteratorOpt<'_> {
         if let Some(val) = self.get_value(id) {
@@ -64,11 +60,6 @@ impl<T: IndexIdToParentData, K: IndexIdToParentData> IndexIdToParent for SingleA
     fn get_values(&self, id: u64) -> Option<Vec<T>> {
         self.get_value(id).map(|el| vec![el])
     }
-
-    // #[inline]
-    // fn get_num_keys(&self) -> usize {
-    //     self.data.len()
-    // }
 }
 
 #[inline]

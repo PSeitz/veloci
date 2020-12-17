@@ -14,9 +14,6 @@ use itertools::Itertools;
 use std::{self, io, iter::FusedIterator, marker::PhantomData, mem, ops};
 use vint::vint_encode_most_common::*;
 
-// impl_type_info_single_templ!(TokenToAnchorScoreVintMmap);
-// impl_type_info!(TokenToAnchorScoreVintIM);
-
 pub trait AnchorScoreDataSize: IndexIdToParentData + ops::AddAssign + ops::Add + num::Zero {}
 impl<T> AnchorScoreDataSize for T where T: IndexIdToParentData + ops::AddAssign + ops::Add + num::Zero {}
 
@@ -62,11 +59,6 @@ pub struct TokenToAnchorScoreVintFlushing<T: AnchorScoreDataSize> {
 }
 
 fn compress_data_block(data: &mut [u32]) -> Vec<u8> {
-    // if data.len() > 128 {
-    //     let out:Vec<u8> = vec![];
-    //     push_compact(data.len() as u32, &mut out);
-
-    // }else{
     let mut last = 0;
     for (el, _score) in data.iter_mut().tuples() {
         let actual_val = *el;
@@ -77,7 +69,6 @@ fn compress_data_block(data: &mut [u32]) -> Vec<u8> {
     let mut vint = VIntArrayEncodeMostCommon::default();
     vint.encode_vals(&data);
     vint.serialize()
-    // }
 }
 
 impl<T: AnchorScoreDataSize> Default for TokenToAnchorScoreVintFlushing<T> {

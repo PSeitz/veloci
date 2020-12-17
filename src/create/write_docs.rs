@@ -16,7 +16,6 @@ where
     info_time!("write_docs");
     let mut file_out = persistence.get_buffered_writer("data")?;
 
-    // let mut doc_store = DocWriter::new(create_cache.term_data.current_offset);
     let mut doc_store = DocWriter::new(0);
     for doc in stream3 {
         doc_store.add_doc(doc.as_ref(), &mut file_out)?;

@@ -21,18 +21,6 @@ enum OperationStep {
     Value,
 }
 
-// #[derive(Debug)]
-// struct Operator {
-//     left: f32,
-//     right: f32
-// }
-
-// impl Operator {
-//     fn operate(self, left: Operator, right:) -> Operator {
-//         Operator {x: self.x + other.x}
-//     }
-// }
-
 impl ScoreExpression {
     pub fn get_score(&self, rank: f32) -> f32 {
         let left = match self.ops[0] {
