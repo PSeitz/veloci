@@ -49,7 +49,7 @@ pub(crate) fn store_full_text_info_and_set_ids(
     Ok(())
 }
 
-fn store_fst(persistence: &Persistence, sorted_terms: &[(&String, &mut TermInfo)], path: &str, ignore_text_longer_than: usize) -> Result<(), fst::Error> {
+fn store_fst(persistence: &Persistence, sorted_terms: &[(&str, &mut TermInfo)], path: &str, ignore_text_longer_than: usize) -> Result<(), fst::Error> {
     debug_time!("store_fst {:?}", path);
     let wtr = persistence.get_buffered_writer(&path.add(".fst"))?;
     // Create a builder that can be used to insert new key-value pairs.
@@ -65,8 +65,8 @@ fn store_fst(persistence: &Persistence, sorted_terms: &[(&String, &mut TermInfo)
     Ok(())
 }
 
-fn set_ids(all_terms: &mut TermMap, offset: u32) -> Vec<(&String, &mut TermInfo)> {
-    let mut term_and_mut_val: Vec<(&String, &mut TermInfo)> = all_terms.iter_mut().collect();
+fn set_ids(all_terms: &mut TermMap, offset: u32) -> Vec<(&str, &mut TermInfo)> {
+    let mut term_and_mut_val: Vec<(&str, &mut TermInfo)> = all_terms.iter_mut().collect();
     term_and_mut_val.sort_unstable_by_key(|el| el.0);
 
     for (i, term_and_info) in term_and_mut_val.iter_mut().enumerate() {
@@ -79,15 +79,17 @@ fn set_ids(all_terms: &mut TermMap, offset: u32) -> Vec<(&String, &mut TermInfo)
 //TODO: Detect id columns and store text directly in fst
 #[inline]
 fn add_count_text(terms: &mut TermMap, text: &str) {
-    // let stat = terms.get_or_insert(text, TermInfo::default);
-    if let Some(stat) = terms.get_mut(text) {
-        stat.num_occurences = stat.num_occurences.saturating_add(1);
-    }else{
-        terms.insert(text.to_string(), TermInfo{
-            id: 0, // id will be generated later
-            num_occurences: 1,
-        });
-    };
+    let stat = terms.get_or_create(text, TermInfo::default());
+    stat.num_occurences = stat.num_occurences.saturating_add(1);
+
+    // if let Some(stat) = terms.get_mut(text) {
+    //     stat.num_occurences = stat.num_occurences.saturating_add(1);
+    // }else{
+    //     terms.insert(text.to_string(), TermInfo{
+    //         id: 0, // id will be generated later
+    //         num_occurences: 1,
+    //     });
+    // };
 }
 
 #[inline]

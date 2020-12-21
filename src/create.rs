@@ -48,7 +48,7 @@ type ValueId = u32;
 type TokenId = u32;
 
 // type TermMap = term_hashmap::HashMap<TermInfo>;
-type TermMap = FnvHashMap<String, TermInfo>;
+type TermMap = inohashmap::StringHashMap<TermInfo>;
 
 const NUM_TERM_LIMIT_MSG: &str = "number of terms per field is currently limited to u32";
 
