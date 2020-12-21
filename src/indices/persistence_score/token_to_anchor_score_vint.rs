@@ -1,3 +1,5 @@
+use vint32::common_encode::VintArrayMostCommonIterator;
+use vint32::common_encode::VIntArrayEncodeMostCommon;
 use super::{
     super::{EMPTY_BUCKET, EMPTY_BUCKET_USIZE},
     *,
@@ -12,7 +14,6 @@ use crate::{
 use itertools::Itertools;
 
 use std::{self, io, iter::FusedIterator, marker::PhantomData, mem, ops};
-use vint::vint_encode_most_common::*;
 
 pub trait AnchorScoreDataSize: IndexIdToParentData + ops::AddAssign + ops::Add + num::Zero {}
 impl<T> AnchorScoreDataSize for T where T: IndexIdToParentData + ops::AddAssign + ops::Add + num::Zero {}

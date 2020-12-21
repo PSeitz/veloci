@@ -1,10 +1,10 @@
+use vint32::iterator::VintArrayIterator;
 use super::*;
 use crate::{error::VelociError, indices::*, persistence::*, type_info::TypeInfo, util::*};
 use byteorder::{LittleEndian, ReadBytesExt};
 use memmap::Mmap;
 use num::{self, cast::ToPrimitive};
 use std::{self, fs::File, marker::PhantomData, u32};
-use vint::vint::*;
 
 impl_type_info_single_templ!(IndirectMMap);
 

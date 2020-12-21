@@ -107,7 +107,6 @@ pub struct SearchFieldResultIterator<'a> {
     data: &'a [search::Hit],
     pos: usize,
     term_id: u8,
-    // field_id: u8,
 }
 
 impl<'a> Iterator for SearchFieldResultIterator<'a> {
@@ -134,9 +133,7 @@ impl<'a> Iterator for SearchFieldResultIterator<'a> {
             Some(MiniHit {
                 id: hit.id,
                 term_id: self.term_id,
-                // score: f16::from_f32(hit.score),
                 score: hit.score,
-                // field_id: self.field_id,
             })
         }
     }

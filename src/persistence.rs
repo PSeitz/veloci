@@ -1,3 +1,4 @@
+use vint32::iterator::VintArrayIterator;
 pub use crate::metadata::*;
 use crate::{
     error::VelociError,
@@ -30,7 +31,6 @@ use std::{
     time::Duration,
     u32,
 };
-use vint::vint::VintArrayIterator;
 
 pub const TOKENS_TO_TEXT_ID: &str = ".tokens_to_text_id";
 pub const TEXT_ID_TO_TOKEN_IDS: &str = ".text_id_to_token_ids";

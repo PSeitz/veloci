@@ -51,7 +51,6 @@ type TokenId = u32;
 type TermMap = FnvHashMap<String, TermInfo>;
 
 const NUM_TERM_LIMIT_MSG: &str = "number of terms per field is currently limited to u32";
-// const NUM_TERM_OCC_LIMIT_MSG: &str = "number of terms occurences per field is currently limited to u32";
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct FacetIndex {

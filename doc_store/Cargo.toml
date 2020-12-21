@@ -5,6 +5,4 @@ name = "doc_store"
 version = "0.1.0"
 [dependencies]
 lz4 = "1.23.1"
-
-[dependencies.vint]
-git = "https://github.com/PSeitz/rust_vint"
+vint32 = { version = "0.2.0", features= ["common-encoding"]}

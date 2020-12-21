@@ -1,6 +1,4 @@
 
-
-
 use itertools::Itertools;
 use memmap::MmapOptions;
 use std::fmt::Display;
@@ -15,7 +13,7 @@ use std::{
     marker::PhantomData,
     mem,
 };
-use vint::vint::*;
+use vint32::*;
 
 pub trait SerializeInto {
     fn serialize_into(&self, sink: &mut Vec<u8>);

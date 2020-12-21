@@ -1,5 +1,7 @@
 #![feature(test)]
 
+use vint32::vint_array::VIntArray;
+use vint32::iterator::VintArrayIterator;
 use std::{
     cmp::Ordering::Greater,
     io,
@@ -8,7 +10,6 @@ use std::{
 };
 
 use lz4::{Decoder, EncoderBuilder};
-use vint::vint::*;
 
 const FLUSH_THRESHOLD: usize = 65535;
 const VALUE_OFFSET: usize = 1;
@@ -115,7 +116,7 @@ impl DocWriter {
 
     fn flush<W: Write>(&mut self, mut out: W) -> Result<(), io::Error> {
         let mut arr = VIntArray::default();
-        arr.encode_val(self.current_block.first_id_in_block);
+        arr.encode(self.current_block.first_id_in_block);
         arr.encode_vals(&self.current_block.doc_offsets_in_cache);
 
         let mut cache = vec![];
