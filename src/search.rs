@@ -91,8 +91,8 @@ pub fn to_documents(persistence: &Persistence, hits: &[Hit], select: &Option<Vec
                 }
             } else {
                 let offsets = persistence.indices.doc_offsets.as_ref().unwrap();
-                let f = persistence.get_file_handle("data").expect("could not open document store"); // TODO document store abstraction
-                let doc_str = DocLoader::get_doc(f, offsets, hit.id as usize).unwrap(); // TODO No unwrapo
+                let f = persistence.get_mmap_handle("data").expect("could not open document store"); // TODO document store abstraction
+                let doc_str = DocLoader::get_doc(&f, offsets, hit.id as usize).unwrap(); // TODO No unwrapo
                 let ayse = highlight_on_original_document(&persistence, &doc_str, &tokens_set);
 
                 DocWithHit {

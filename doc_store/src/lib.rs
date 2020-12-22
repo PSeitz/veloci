@@ -1,35 +1,33 @@
-#![feature(test)]
-
 use vint32::vint_array::VIntArray;
 use vint32::iterator::VintArrayIterator;
 use std::{
     cmp::Ordering::Greater,
     io,
-    io::{prelude::*, Seek, SeekFrom},
+    io::{prelude::*},
     mem,
 };
 
-use lz4::{Decoder, EncoderBuilder};
 
 const FLUSH_THRESHOLD: usize = 65535;
-const VALUE_OFFSET: usize = 1;
+const VALUE_OFFSET: u64 = 1;
 
 #[derive(Debug)]
 pub struct DocLoader {}
 impl DocLoader {
-    pub fn get_doc<R: Read + Seek>(mut data_reader: R, offsets: &[u8], pos: usize) -> Result<String, io::Error> {
+
+    /// offsets are the offsets produced by the `DocWriter`
+    pub fn get_doc(data_reader: &[u8], offsets: &[u8], pos: usize) -> Result<String, io::Error> {
         let size = offsets.len() / mem::size_of::<(u32, u64)>();
+
+        // binary search on the slice to find the correct block where the document resides
+        // returns the start and end boundaries of the block
         let hit = binary_search_slice::<u32, u64>(size, pos as u32, &offsets);
-        let start = hit.lower.1 - 1;
-        let end = hit.upper.1 - 2;
-        let mut buffer: Vec<u8> = vec![0; (end - start) as usize];
 
-        data_reader.seek(SeekFrom::Start(start as u64))?;
-        data_reader.read_exact(&mut buffer)?;
+        let start = hit.lower.1 - VALUE_OFFSET;
+        let end = hit.upper.1 - VALUE_OFFSET;
 
-        let mut decoder = Decoder::new(&buffer as &[u8])?;
-        let mut output = vec![];
-        io::copy(&mut decoder, &mut output)?;
+        // load compressed block data into buffer
+        let mut output = lz4_flex::decompress_size_prepended(&data_reader[start as usize..end as usize]).unwrap();
 
         let mut arr = VintArrayIterator::new(&output);
         let arr_size = arr.next().unwrap();
@@ -45,7 +43,11 @@ impl DocLoader {
         data_start += arr.pos;
         let pos_in_block = pos - first_id_in_block as usize;
 
-        let doc = output[(data_start + doc_offsets_in_block[pos_in_block] as usize)..(data_start + doc_offsets_in_block[pos_in_block + 1] as usize)].to_vec();
+        // get the document from the decompressed data
+        let document_start_pos = data_start + doc_offsets_in_block[pos_in_block + 1] as usize;
+        let document_end_pos = data_start + doc_offsets_in_block[pos_in_block] as usize;
+        output.resize(document_start_pos, 0);
+        let doc = output.split_off(document_end_pos);
         let s = unsafe { String::from_utf8_unchecked(doc) };
         Ok(s)
     }
@@ -67,13 +69,15 @@ fn test_large_doc_store() {
     use std::slice;
     let offset_bytes = unsafe { slice::from_raw_parts(writer.offsets.as_ptr() as *const u8, writer.offsets.len() * mem::size_of::<(u32, u64)>()) };
 
-    assert_eq!(doc1.to_string(), DocLoader::get_doc(io::Cursor::new(&sink), &offset_bytes, 0).unwrap());
+    assert_eq!(doc1.to_string(), DocLoader::get_doc(&sink, &offset_bytes, 0).unwrap());
 }
 
 #[derive(Debug)]
 pub struct DocWriter {
     pub curr_id: u32,
     pub bytes_indexed: u64,
+    /// the offsets holds metadata for the block
+    /// the tuple consists of (the first id in the block, the position of the block in the data)
     pub offsets: Vec<(u32, u64)>,
     pub current_offset: u64,
     current_block: DocWriterBlock,
@@ -97,6 +101,7 @@ impl DocWriter {
         }
     }
 
+    /// add a document to the current block
     pub fn add_doc<W: Write>(&mut self, doc: &str, out: W) -> Result<(), io::Error> {
         self.bytes_indexed += doc.as_bytes().len() as u64;
         let new_block = self.current_block.data.is_empty();
@@ -114,19 +119,17 @@ impl DocWriter {
         Ok(())
     }
 
+    /// flushes the current block to out
     fn flush<W: Write>(&mut self, mut out: W) -> Result<(), io::Error> {
+
+        // write first_id_in_block
         let mut arr = VIntArray::default();
         arr.encode(self.current_block.first_id_in_block);
         arr.encode_vals(&self.current_block.doc_offsets_in_cache);
 
-        let mut cache = vec![];
-
-        let (output, _result) = {
-            let mut encoder = EncoderBuilder::new().level(2).build(&mut cache).unwrap();
-            io::copy(&mut arr.serialize().as_slice(), &mut encoder).unwrap();
-            io::copy(&mut self.current_block.data.as_slice(), &mut encoder).unwrap();
-            encoder.finish()
-        };
+        let mut data = arr.serialize();
+        data.extend(self.current_block.data.as_slice());
+        let output = lz4_flex::compress_prepend_size(&data);
 
         // println!("CHECKO cache[data_start] {:?}", char::from(cache[129]));
         out.write_all(&output).unwrap();
@@ -162,27 +165,11 @@ fn test_doc_store() {
     use std::slice;
     let offset_bytes = unsafe { slice::from_raw_parts(writer.offsets.as_ptr() as *const u8, writer.offsets.len() * mem::size_of::<(u32, u64)>()) };
 
-    assert_eq!(doc1.to_string(), DocLoader::get_doc(io::Cursor::new(&sink), &offset_bytes, 0).unwrap());
-    assert_eq!(doc2.to_string(), DocLoader::get_doc(io::Cursor::new(&sink), &offset_bytes, 1).unwrap());
-    assert_eq!(doc3.to_string(), DocLoader::get_doc(io::Cursor::new(&sink), &offset_bytes, 2).unwrap());
+    assert_eq!(doc1.to_string(), DocLoader::get_doc(&sink, &offset_bytes, 0).unwrap());
+    assert_eq!(doc2.to_string(), DocLoader::get_doc(&sink, &offset_bytes, 1).unwrap());
+    assert_eq!(doc3.to_string(), DocLoader::get_doc(&sink, &offset_bytes, 2).unwrap());
 }
 
-#[cfg(test)]
-extern crate test;
-
-#[bench]
-fn bench_creation(b: &mut test::Bencher) {
-    b.iter(|| {
-        let mut writer = DocWriter::new(0);
-        let mut sink = vec![];
-        for _ in 0..10_000 {
-            writer.add_doc(r#"{"test":"ok"}"#, &mut sink).unwrap();
-            writer.add_doc(r#"{"test2":"ok"}"#, &mut sink).unwrap();
-            writer.add_doc(r#"{"test3":"ok"}"#, &mut sink).unwrap();
-        }
-        writer.finish(&mut sink).unwrap();
-    })
-}
 
 #[inline]
 fn decode_pos<T: Copy + Default, K: Copy + Default>(pos: usize, slice: &[u8]) -> (T, K) {

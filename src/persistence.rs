@@ -397,11 +397,9 @@ impl Persistence {
     }
 
     pub fn load_fst(&self, path: &str) -> Result<Map<memmap::Mmap>, VelociError> {
-        let file = self.get_file_handle(&(path.to_string() + ".fst"))?;
 
-        unsafe {
-            Map::new(MmapOptions::new().map(&file)?).map_err(|err| VelociError::StringError(format!("Could not load fst {} {:?}", path, err)))
-        }
+        Map::new(self.get_mmap_handle(&(path.to_string() + ".fst"))?).map_err(|err| VelociError::StringError(format!("Could not load fst {} {:?}", path, err)))
+
         // In memory version
         // let mut f = self.get_file_handle(&(path.to_string() + ".fst"))?;
         // let mut buffer: Vec<u8> = Vec::new();
@@ -410,6 +408,13 @@ impl Persistence {
         // Ok(Map::from_bytes(buffer)?)
     }
 
+    pub fn get_mmap_handle(&self, path: &str) -> Result<memmap::Mmap, VelociError> {
+        let file = self.get_file_handle(&path)?;
+        unsafe {
+            MmapOptions::new().map(&file).map_err(|err| VelociError::StringError(format!("Could not load fst {} {:?}", path, err)))
+        }
+        // Ok(File::open(get_file_path(&self.db, path)).map_err(|err| VelociError::StringError(format!("Could not open {} {:?}", path, err)))?)
+    }
     pub fn get_file_handle(&self, path: &str) -> Result<File, VelociError> {
         Ok(File::open(get_file_path(&self.db, path)).map_err(|err| VelociError::StringError(format!("Could not open {} {:?}", path, err)))?)
     }
