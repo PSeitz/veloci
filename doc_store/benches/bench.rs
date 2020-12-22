@@ -2,7 +2,6 @@
 extern crate test;
 
 use doc_store::DocLoader;
-use std::io::Cursor;
 use std::mem;
 use doc_store::DocWriter;
 

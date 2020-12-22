@@ -413,7 +413,6 @@ impl Persistence {
         unsafe {
             MmapOptions::new().map(&file).map_err(|err| VelociError::StringError(format!("Could not load fst {} {:?}", path, err)))
         }
-        // Ok(File::open(get_file_path(&self.db, path)).map_err(|err| VelociError::StringError(format!("Could not open {} {:?}", path, err)))?)
     }
     pub fn get_file_handle(&self, path: &str) -> Result<File, VelociError> {
         Ok(File::open(get_file_path(&self.db, path)).map_err(|err| VelociError::StringError(format!("Could not open {} {:?}", path, err)))?)

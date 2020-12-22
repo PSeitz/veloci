@@ -8,7 +8,7 @@ use std::{
 };
 
 
-const FLUSH_THRESHOLD: usize = 65535;
+const FLUSH_THRESHOLD: usize = 16_384;
 const VALUE_OFFSET: u64 = 1;
 
 #[derive(Debug)]
