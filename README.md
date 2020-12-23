@@ -34,14 +34,14 @@ LoadingType=Disk CARGO_INCREMENTAL=1 RUST_BACKTRACE=full RUST_TEST_THREADS=1 RUS
 
 ## Creating Indices
 
-Use the tool in `bin/create_index.rs` to create indices on your data.
+Use the tool in `veloci_bins/src/bin/create_index.rs` to create indices on your data.
 Currently the data needs to be stored in the `json` format one json per line:
 ```json
 {"text": "my first object", "sub_objects": [{"description": "this works"}]}
 {"text": "my second object"}
 ```
 
-If your json is not in this format, there is a tool to convert it in `bin/convert_json_to_line_delimited.rs`
+If your json is not in this format, there is a tool to convert it in `veloci_bins/src/bin/convert_json_to_line_delimited.rs`
 
 
 ## Addressing fields
