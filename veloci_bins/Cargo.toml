@@ -1,0 +1,17 @@
+[package]
+name = "veloci_bins"
+version = "0.1.0"
+authors = ["Pascal Seitz <pascal.seitz@gmail.com>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+argh = "0.1.4"
+buffered_index_writer = { path = "../buffered_index_writer" }
+fst = "0.4.5"
+measure_time = "0.6.0"
+rayon = "1.5.0"
+serde = "1.0.118"
+serde_json = "1.0.60"
+veloci = { path = "../" }

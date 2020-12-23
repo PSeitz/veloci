@@ -127,18 +127,17 @@ path = "src/lib.rs"
 members = ["buffered_index_writer",
 "doc_store",
 "server",
+"veloci_bins",
 "json_converter",
 "query_parser"]
 
 [profile.release]
-codegen-units = 1
 debug = true
 lto = true
 opt-level = 3
 panic = "unwind"
 
 [profile.bench]
-codegen-units = 1
 debug = false
 lto = true
 opt-level = 3
