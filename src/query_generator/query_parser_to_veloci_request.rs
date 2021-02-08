@@ -69,6 +69,7 @@ fn query_ast_to_request<'a>(ast: &UserAST, opt: &SearchQueryGeneratorParameters,
                 terms: vec![term],
                 starts_with,
                 is_regex,
+                ignore_case: opt.ignore_case,
                 ..Default::default()
             };
             SearchRequest::Search(part)

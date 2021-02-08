@@ -81,13 +81,24 @@ fn pattern_code_search_query_generator() {
 }
 
 #[test]
-fn pattern_code_search_allows_ignore_case_query_generator() {
+fn pattern_code_search_ignore_case_query_generator() {
     let mut params = query_generator::SearchQueryGeneratorParameters::default();
     params.search_term = "*myfun*type1*".to_string();
 
     let hits = search_testo_to_doco_qp!(params).data;
     assert_eq!(hits.len(), 1);
     assert_eq!(hits[0].doc["line"], "function myfun(param1: Type1)");
+}
+
+#[test]
+fn pattern_code_search_case_sensitive_query_generator() {
+    let mut params = query_generator::SearchQueryGeneratorParameters::default();
+    params.search_term = "*myfun*type1*".to_string();
+    params.ignore_case = Some(false);
+
+    let hits = search_testo_to_doco_qp!(params).data;
+    assert_eq!(hits.len(), 0);
+    // assert_eq!(hits[0].doc["line"], "function myfun(param1: Type1)");
 }
 
 #[test]

@@ -269,6 +269,7 @@ fn search_from_query_params(database: String, params: QueryParams) -> Result<Sea
         search_term: params.query.to_string(),
         top: params.top,
         skip: params.skip,
+        ignore_case: None,
         operator: params.operator,
         levenshtein: params.levenshtein,
         levenshtein_auto_limit: params.levenshtein_auto_limit,

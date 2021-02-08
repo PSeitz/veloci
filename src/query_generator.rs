@@ -53,6 +53,7 @@ pub struct SearchQueryGeneratorParameters {
 
     pub top: Option<usize>,
     pub skip: Option<usize>,
+    pub ignore_case: Option<bool>,
     pub operator: Option<String>,
     pub levenshtein: Option<usize>, // TODO, it's called levenshtein here, but levenshtein_distance in the request.
 
