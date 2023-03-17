@@ -9,12 +9,12 @@ harness = false
 name = "bench"
 
 [dependencies]
-itertools = "0.8.0"
+itertools = "0.10.5"
 memmap = "0.7.0"
-rayon = "1.0.3"
-tempfile = "3.0.5"
-vint32 = { version = "0.2.0", features= ["common-encoding"]}
+rayon = "1.7.0"
+tempfile = "3.4.0"
+vint32 = { version = "0.3.0", features = ["common-encoding"] }
 
 [dev-dependencies]
-measure_time = "0.6.0"
+measure_time = "0.8.2"
 criterion = "0.2.5"
