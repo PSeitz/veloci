@@ -90,18 +90,20 @@ impl std::fmt::Display for SearchFieldResult {
     }
 }
 
-#[cfg(test)]
-use crate::test;
-#[bench]
-fn bench_search_field_iterator(b: &mut test::Bencher) {
-    let mut res = SearchFieldResult::default();
-    res.hits_scores = (0..6_000_000).map(|el| search::Hit::new(el, 1.0)).collect();
-    b.iter(|| {
-        let iter = res.iter(0, 1);
-        iter.last().unwrap()
-    })
+#[cfg(all(test, feature = "unstable"))]
+mod bench {
+    #[cfg(test)]
+    use crate::test;
+    #[bench]
+    fn bench_search_field_iterator(b: &mut test::Bencher) {
+        let mut res = SearchFieldResult::default();
+        res.hits_scores = (0..6_000_000).map(|el| search::Hit::new(el, 1.0)).collect();
+        b.iter(|| {
+            let iter = res.iter(0, 1);
+            iter.last().unwrap()
+        })
+    }
 }
-
 #[derive(Debug, Clone)]
 pub struct SearchFieldResultIterator<'a> {
     data: &'a [search::Hit],

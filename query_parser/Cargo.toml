@@ -9,3 +9,7 @@ edition = "2018"
 [[bench]]
 name = "bench"
 path = "bench/bench.rs"
+
+[features]
+unstable = []
+

@@ -1,12 +1,13 @@
-#![feature(test)]
+#![cfg_attr(all(feature = "unstable", test), feature(test))]
 
+#[cfg(all(test, feature = "unstable"))]
 extern crate test;
 
-pub use query_parser::parser::{parse, Parser};
-
 #[cfg(test)]
+#[cfg(all(test, feature = "unstable"))]
 mod tests {
     use super::*;
+    pub use query_parser::parser::{parse, Parser};
     use test::Bencher;
     #[bench]
     fn bench_lexer_short(b: &mut Bencher) {

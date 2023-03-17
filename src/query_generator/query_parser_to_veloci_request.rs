@@ -130,55 +130,58 @@ fn filter_stopwords(query_ast: &query_parser::ast::UserAST, opt: &SearchQueryGen
         None,
     )
 }
+#[cfg(all(test, feature = "unstable"))]
+mod bench {
 
-#[bench]
-fn bench_query_custom_parse_to_request(b: &mut test::Bencher) {
-    let fields = vec![
-        "Title".to_string(),
-        "Author".to_string(),
-        "Author1".to_string(),
-        "Author2".to_string(),
-        "Author3".to_string(),
-        "Author4".to_string(),
-        "Author5".to_string(),
-        "Author6".to_string(),
-        "Author7".to_string(),
-        "Author8".to_string(),
-        "Author9".to_string(),
-        "Author10".to_string(),
-        "Author11".to_string(),
-        "Author12".to_string(),
-        "Author13".to_string(),
-    ];
-    b.iter(|| {
-        let query_ast = query_parser::parse("die drei fragezeigen und das unicorn").unwrap();
-        ast_to_search_request(&query_ast, &fields, &SearchQueryGeneratorParameters::default()).unwrap()
-    })
-}
+    #[bench]
+    fn bench_query_custom_parse_to_request(b: &mut test::Bencher) {
+        let fields = vec![
+            "Title".to_string(),
+            "Author".to_string(),
+            "Author1".to_string(),
+            "Author2".to_string(),
+            "Author3".to_string(),
+            "Author4".to_string(),
+            "Author5".to_string(),
+            "Author6".to_string(),
+            "Author7".to_string(),
+            "Author8".to_string(),
+            "Author9".to_string(),
+            "Author10".to_string(),
+            "Author11".to_string(),
+            "Author12".to_string(),
+            "Author13".to_string(),
+        ];
+        b.iter(|| {
+            let query_ast = query_parser::parse("die drei fragezeigen und das unicorn").unwrap();
+            ast_to_search_request(&query_ast, &fields, &SearchQueryGeneratorParameters::default()).unwrap()
+        })
+    }
 
-#[bench]
-fn bench_custom_parse_expand_fields_in_query_ast(b: &mut test::Bencher) {
-    let fields = vec![
-        "Title".to_string(),
-        "Author".to_string(),
-        "Author1".to_string(),
-        "Author2".to_string(),
-        "Author3".to_string(),
-        "Author4".to_string(),
-        "Author5".to_string(),
-        "Author6".to_string(),
-        "Author7".to_string(),
-        "Author8".to_string(),
-        "Author9".to_string(),
-        "Author10".to_string(),
-        "Author11".to_string(),
-        "Author12".to_string(),
-        "Author13".to_string(),
-    ];
-    b.iter(|| {
-        let query_ast = query_parser::parse("die drei fragezeigen und das unicorn").unwrap();
-        expand_fields_in_query_ast(&query_ast, &fields).unwrap()
-    })
+    #[bench]
+    fn bench_custom_parse_expand_fields_in_query_ast(b: &mut test::Bencher) {
+        let fields = vec![
+            "Title".to_string(),
+            "Author".to_string(),
+            "Author1".to_string(),
+            "Author2".to_string(),
+            "Author3".to_string(),
+            "Author4".to_string(),
+            "Author5".to_string(),
+            "Author6".to_string(),
+            "Author7".to_string(),
+            "Author8".to_string(),
+            "Author9".to_string(),
+            "Author10".to_string(),
+            "Author11".to_string(),
+            "Author12".to_string(),
+            "Author13".to_string(),
+        ];
+        b.iter(|| {
+            let query_ast = query_parser::parse("die drei fragezeigen und das unicorn").unwrap();
+            expand_fields_in_query_ast(&query_ast, &fields).unwrap()
+        })
+    }
 }
 
 #[test]

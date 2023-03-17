@@ -3,7 +3,10 @@
 #![cfg_attr(feature = "cargo-clippy", allow(clippy::field_reassign_with_default))]
 #![cfg_attr(feature = "cargo-clippy", allow(clippy::comparison_chain))]
 #![cfg_attr(feature = "cargo-clippy", allow(clippy::large_enum_variant))]
-#![feature(test)]
+#![cfg_attr(all(feature = "unstable", test), feature(test))]
+
+#[cfg(all(test, feature = "unstable"))]
+extern crate test;
 
 #[cfg(feature = "enable_cpuprofiler")]
 extern crate cpuprofiler;
@@ -50,6 +53,3 @@ pub mod tokenizer;
 pub mod trace;
 
 pub use self::search::{result, search_field};
-
-#[cfg(test)]
-extern crate test;

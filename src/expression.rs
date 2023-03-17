@@ -108,7 +108,6 @@ fn mult(val: f32) -> f32 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test::Bencher;
 
     #[test]
     fn test_parser() {
@@ -121,6 +120,11 @@ mod tests {
         let expre = ScoreExpression::new("$SCORE * $SCORE".to_string());
         assert_eq!(expre.get_score(10.0), 100.0);
     }
+}
+
+#[cfg(all(test, feature = "unstable"))]
+mod bench {
+    use crate::test::Bencher;
 
     #[bench]
     fn bench_expr_mult(b: &mut Bencher) {

@@ -34,8 +34,6 @@ mod tests {
     #[allow(unused_imports)]
     use super::*;
     #[allow(unused_imports)]
-    use crate::test;
-
     use std::{fs::File, io::prelude::*};
 
     #[allow(dead_code)]
@@ -85,6 +83,25 @@ mod tests {
         // });
         assert_eq!(vec, vec!["T", " ", "oll"])
     }
+
+    // #[allow(unused_imports)]
+    // use util;
+    // #[bench]
+    // fn bench_normalize_text_and_split(b: &mut test::Bencher) {
+    //     let text = get_test_book();
+    //     b.iter(|| {
+    //         let mut vec: Vec<String> = vec![];
+    //         for token in util::normalize_text(&text).split(" ") {
+    //             vec.push(token.to_string());
+    //         }
+    //         vec
+    //     })
+    // }
+}
+
+#[cfg(all(test, feature = "unstable"))]
+mod bench {
+    use crate::test;
 
     // #[bench]
     // fn bench_regex_iter(b: &mut test::Bencher) {
@@ -204,18 +221,4 @@ mod tests {
             }
         })
     }
-
-    // #[allow(unused_imports)]
-    // use util;
-    // #[bench]
-    // fn bench_normalize_text_and_split(b: &mut test::Bencher) {
-    //     let text = get_test_book();
-    //     b.iter(|| {
-    //         let mut vec: Vec<String> = vec![];
-    //         for token in util::normalize_text(&text).split(" ") {
-    //             vec.push(token.to_string());
-    //         }
-    //         vec
-    //     })
-    // }
 }

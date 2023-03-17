@@ -579,7 +579,7 @@ fn intersect_hits_scores_test_reg() {
     assert_eq!(res.hits_scores[0].id, 20000);
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "unstable"))]
 mod bench_intersect {
     use super::*;
     use crate::test;
