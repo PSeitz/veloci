@@ -173,7 +173,7 @@ fn test_foreach() {
         Ok(())
     };
 
-    let stream = r#"{"structure" : {"sub1" : "test"}}"#.lines().map(|line| serde_json::from_str(line));
+    let stream = r#"{"structure" : {"sub1" : "test"}}"#.lines().map(serde_json::from_str);
     for_each_element(
         stream,
         &mut id_holder,
@@ -188,7 +188,7 @@ fn test_foreach() {
     )
     .unwrap();
 
-    let stream = r#"{"a" : "1"}"#.lines().map(|line| serde_json::from_str(line));
+    let stream = r#"{"a" : "1"}"#.lines().map(serde_json::from_str);
     for_each_element(
         stream,
         &mut id_holder,
@@ -201,7 +201,7 @@ fn test_foreach() {
     )
     .unwrap();
 
-    let stream = r#"{"meanings": {"ger" : ["karlo"]}}"#.lines().map(|line| serde_json::from_str(line));
+    let stream = r#"{"meanings": {"ger" : ["karlo"]}}"#.lines().map(serde_json::from_str);
     for_each_element(
         stream,
         &mut id_holder,
@@ -214,7 +214,7 @@ fn test_foreach() {
     )
     .unwrap();
 
-    let stream = r#"{"meanings": {"ger" : ["karlo"]}}"#.lines().map(|line| serde_json::from_str(line));
+    let stream = r#"{"meanings": {"ger" : ["karlo"]}}"#.lines().map(serde_json::from_str);
     for_each_text(stream, &mut |value: &str, path: &str| -> Result<(), serde_json::error::Error> {
         assert_eq!(path, "meanings.ger[]");
         assert_eq!(value, "karlo");
