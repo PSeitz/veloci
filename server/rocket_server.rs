@@ -27,13 +27,12 @@ use flate2::read::GzEncoder;
 // };
 use rocket::{
     fairing,
-    http::{ContentType, Method, Status},
+    http::{ContentType, Status},
     request::LenientForm,
     response::{self, status::Custom, Responder, Response},
     Request,
 };
 use rocket_contrib::json::Json;
-use rocket_cors::{AllowedHeaders, AllowedOrigins};
 use std::{
     collections::HashMap,
     io::{prelude::*, Cursor},
@@ -613,13 +612,15 @@ fn highlight_post(database: String, mut request: Json<search::RequestSearchPart>
 }
 
 fn rocket() -> rocket::Rocket {
-    let cors_options = rocket_cors::Cors {
-        allowed_origins: AllowedOrigins::all(),
-        allowed_methods: vec![Method::Get, Method::Post].into_iter().map(From::from).collect(),
-        allowed_headers: AllowedHeaders::all(),
-        allow_credentials: true,
-        ..Default::default()
-    };
+    let default = rocket_cors::CorsOptions::default();
+    let cors_options = rocket_cors::Cors::from_options(&default).unwrap();
+    //let cors_options = rocket_cors::Cors {
+    //allowed_origins: AllowedOrigins::all(),
+    //allowed_methods: vec![Method::Get, Method::Post].into_iter().map(From::from).collect(),
+    //allowed_headers: AllowedHeaders::all(),
+    //allow_credentials: true,
+    //..Default::default()
+    //};
     rocket::ignite()
         .mount(
             "/",

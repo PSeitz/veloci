@@ -1,6 +1,6 @@
 use crate::{error::VelociError, persistence::Persistence};
 use doc_store::DocWriter;
-use std::{mem, str};
+use std::str;
 
 #[derive(Debug)]
 pub(crate) struct DocWriteRes {
@@ -24,9 +24,8 @@ where
     }
     doc_store.finish(&mut file_out)?;
     // create_cache.term_data.current_offset = doc_store.current_offset;
-    use std::slice;
-    let slice = unsafe { slice::from_raw_parts(doc_store.offsets.as_ptr() as *const u8, doc_store.offsets.len() * mem::size_of::<(u32, u64)>()) };
-    persistence.write_data_offset(slice, &doc_store.offsets)?;
+    trace!("{:?}", &doc_store.offsets);
+    persistence.write_data_offset(&doc_store.offsets)?;
     persistence.metadata.num_docs = doc_store.curr_id.into();
     persistence.metadata.bytes_indexed = doc_store.bytes_indexed;
     Ok(DocWriteRes {

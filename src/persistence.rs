@@ -482,11 +482,15 @@ impl Persistence {
         Ok(())
     }
 
-    pub fn write_data_offset<T: Clone + Copy + Debug>(&self, bytes: &[u8], data: &[T]) -> Result<(), VelociError> {
-        debug_time!("Wrote data offsets with size {:?}", data.len());
-        File::create(util::get_file_path(&self.db, "data.offsets"))?.write_all(bytes)?;
-        info!("Wrote data offsets with size {:?}", data.len());
-        trace!("{:?}", data);
+    pub fn write_data_offset(&self, offsets: &[(u32, u64)]) -> Result<(), VelociError> {
+        let mut offset_bytes = Vec::new();
+        for (docid, offset) in offsets {
+            offset_bytes.extend_from_slice((*docid as u64).to_le_bytes().as_ref());
+            offset_bytes.extend_from_slice(offset.to_le_bytes().as_ref());
+        }
+
+        File::create(util::get_file_path(&self.db, "data.offsets"))?.write_all(&offset_bytes)?;
+        info!("Wrote data offsets with size {:?}", offsets.len());
         Ok(())
     }
 
