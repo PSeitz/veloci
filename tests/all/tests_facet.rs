@@ -103,7 +103,7 @@ fn search_and_get_facet_without_facet_index() {
 fn facets() {
     let pers = &TEST_PERSISTENCE;
     let mut yep = facet::get_facet(
-        &pers,
+        pers,
         &search::FacetRequest {
             field: "tags[]".to_string(),
             top: Some(10),

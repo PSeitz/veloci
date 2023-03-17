@@ -16,7 +16,7 @@ lazy_static! {
         facet = true
         "#;
 
-        let mut data:String = std::iter::repeat(r#"
+        let mut data:String = r#"
             {
                 "category": "superb",
                 "tags": ["nice", "cool"]
@@ -25,7 +25,7 @@ lazy_static! {
                 "category": "awesomo",
                 "tags": ["is", "cool"]
             }
-        "#).take(300).collect();
+        "#.repeat(300);
 
         data += r#"{
             "text": "a long text with more than 64 characters so that the option do_not_store_text_longer_than is active. then the whole text won't be store in the fst, only its tokens"

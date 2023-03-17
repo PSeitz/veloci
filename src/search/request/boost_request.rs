@@ -10,15 +10,13 @@ pub struct RequestBoostPart {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, Hash, PartialEq, Eq, PartialOrd)]
+#[derive(Default)]
 pub enum BoostFunction {
     Log2,
+    #[default]
     Log10,
     Multiply,
     Add,
 }
 
-impl Default for BoostFunction {
-    fn default() -> BoostFunction {
-        BoostFunction::Log10
-    }
-}
+

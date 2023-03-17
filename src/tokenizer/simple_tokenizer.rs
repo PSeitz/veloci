@@ -41,7 +41,7 @@ impl<'a> Iterator for SimpleTokenIter<'a> {
 
     #[inline]
     fn next(&mut self) -> Option<(&'a str, bool)> {
-        while let Some((char_byte_pos, char)) = self.char_iter.next() {
+        for (char_byte_pos, char) in self.char_iter.by_ref() {
             if is_default_seperator(char) {
                 if char_byte_pos == 0 {
                     self.last_was_token = true;

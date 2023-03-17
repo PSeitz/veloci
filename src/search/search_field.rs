@@ -409,7 +409,7 @@ pub fn resolve_token_to_anchor(
         options.path = options.path.add(TEXTINDEX);
     }
 
-    let mut res = SearchFieldResult::new_from(&result);
+    let mut res = SearchFieldResult::new_from(result);
     debug_time!("{} token to anchor", &options.path);
     let mut anchor_ids_hits = vec![];
 
@@ -420,7 +420,7 @@ pub fn resolve_token_to_anchor(
             let iter = token_to_anchor_score.get_score_iter(hit.id);
             anchor_ids_hits.reserve(iter.size_hint().1.unwrap());
             for el in iter {
-                if should_filter(&filter, el.id) {
+                if should_filter(filter, el.id) {
                     continue;
                 }
                 let final_score = hit.score * (el.score.to_f32() / 100.0);
@@ -594,7 +594,7 @@ pub fn resolve_token_hits_to_text_id(
         result.hits_ids = result.hits_ids.iter().flat_map(|id| token_kvdata.get_values(u64::from(*id))).flatten().collect();
     }
 
-    debug!("found {:?} token in {:?} texts", result.hits_scores.iter().count(), token_hits.iter().count());
+    debug!("found {:?} token in {:?} texts", result.hits_scores.len(), token_hits.len());
     {
         debug_time!("token_hits.sort_by {:?}", path);
         token_hits.sort_unstable_by(|a, b| a.0.cmp(&b.0)); // sort by parent id

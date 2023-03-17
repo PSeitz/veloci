@@ -5,7 +5,7 @@ use super::common;
 
 static TEST_FOLDER: &str = "mochaTest_minimal";
 lazy_static! {
-    static ref TEST_PERSISTENCE: persistence::Persistence = common::create_test_persistence(TEST_FOLDER, "{}", &get_test_data().to_string().as_bytes(), None);
+    static ref TEST_PERSISTENCE: persistence::Persistence = common::create_test_persistence(TEST_FOLDER, "{}", get_test_data().to_string().as_bytes(), None);
 }
 
 pub fn get_test_data() -> Value {
@@ -53,9 +53,8 @@ fn test_minimal_with_filter_identity_column_test() {
     assert_eq!(hits.len(), 1);
 
     // panic!("{}", serde_json::to_string_pretty(&TEST_PERSISTENCE.metadata.columns).unwrap());
-    assert_eq!(
-        TEST_PERSISTENCE.metadata.columns.get("field").expect("field.textindex not found").is_anchor_identity_column,
-        true
+    assert!(
+        TEST_PERSISTENCE.metadata.columns.get("field").expect("field.textindex not found").is_anchor_identity_column
     );
     assert_eq!(hits[0].doc["field"], "test");
 }

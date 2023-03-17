@@ -43,7 +43,7 @@ pub(crate) fn store_full_text_info_and_set_ids(
     }
     col_info.textindex_metadata.num_text_ids = terms_data.terms.len();
     let term_and_mut_val = set_ids(&mut terms_data.terms, 0);
-    store_fst(persistence, &term_and_mut_val, &path, options.do_not_store_text_longer_than).expect("Could not store fst");
+    store_fst(persistence, &term_and_mut_val, path, options.do_not_store_text_longer_than).expect("Could not store fst");
 
     Ok(())
 }
@@ -102,7 +102,7 @@ fn add_text(text: &str, term_data: &mut TermDataInPath, options: &FulltextIndexO
         add_count_text(&mut term_data.terms, text); //TODO handle no tokens case or else the text can't be reconstructed
     }
 
-    if options.tokenize && tokenizer.has_tokens(&text) {
+    if options.tokenize && tokenizer.has_tokens(text) {
         for (token, _is_seperator) in tokenizer.iter(text) {
             add_count_text(&mut term_data.terms, token);
         }
@@ -125,12 +125,12 @@ pub(crate) fn get_allterms_per_path<I: Iterator<Item = Result<serde_json::Value,
         let mut cb_text = |_anchor_id: u32, value: &str, path: &str, _parent_val_id: u32| -> Result<(), io::Error> {
             let options: &FulltextIndexOptions = fulltext_info_for_path.get(path).fulltext.as_ref().unwrap_or(&default_fulltext_options);
 
-            let mut terms_data = get_or_insert_prefer_get(&mut data.terms_in_path, path, || TermDataInPath {
+            let terms_data = get_or_insert_prefer_get(&mut data.terms_in_path, path, || TermDataInPath {
                 do_not_store_text_longer_than: options.do_not_store_text_longer_than,
                 ..Default::default()
             });
 
-            add_text(value, &mut terms_data, &options, options.tokenizer.as_ref().unwrap_or_else(|| &default_tokenizer));
+            add_text(value, terms_data, options, options.tokenizer.as_ref().unwrap_or(&default_tokenizer));
             Ok(())
         };
         let mut callback_ids = |_anchor_id: u32, _path: &str, _value_id: u32, _parent_val_id: u32| -> Result<(), io::Error> { Ok(()) };

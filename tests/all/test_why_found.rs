@@ -53,7 +53,7 @@ lazy_static! {
             tokenize = true
             tokenize_on_chars = ['/', ':', '.']
         "#;
-        common::create_test_persistence(TEST_FOLDER, indices, &get_test_data().to_string().as_bytes(), None)
+        common::create_test_persistence(TEST_FOLDER, indices, get_test_data().to_string().as_bytes(), None)
     };
 }
 

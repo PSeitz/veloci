@@ -92,14 +92,14 @@ impl FieldPath {
 
 impl std::fmt::Display for FieldPath {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
-        write!(f, "{}", self.to_string())?;
+        write!(f, "{}", self)?;
         Ok(())
     }
 }
 
 impl std::fmt::Debug for FieldPath {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
-        write!(f, "{}", self.to_string())?;
+        write!(f, "{}", self)?;
         Ok(())
     }
 }

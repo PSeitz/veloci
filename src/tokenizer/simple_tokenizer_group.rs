@@ -53,7 +53,7 @@ impl<'a, 'b> Iterator for SimpleTokenizerGroupTokenIter<'a, 'b> {
 
     #[inline]
     fn next(&mut self) -> Option<(&'a str, bool)> {
-        while let Some((char_byte_pos, char)) = self.char_iter.next() {
+        for (char_byte_pos, char) in self.char_iter.by_ref() {
             if self.seperators.contains(&char) {
                 if char_byte_pos == 0 {
                     self.last_was_token = true;

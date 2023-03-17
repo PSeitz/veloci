@@ -63,7 +63,7 @@ mod tests {
     #[test]
     fn test_tokenizer_control_sequences_alt() {
         let tokenizer = SimpleTokenizer {};
-        assert_eq!(tokenizer.has_tokens("das \n ist ein txt, test"), true);
+        assert!(tokenizer.has_tokens("das \n ist ein txt, test"));
         let vec: Vec<_> = tokenizer.iter("das \n ist ein txt, test").map(|(token, _is_seperator)| token).collect();
         assert_eq!(vec, vec!["das", " ", "\n", " ", "ist", " ", "ein", " ", "txt", ",", " ", "test"])
     }
@@ -189,7 +189,7 @@ mod tests {
         let text = get_test_book();
         b.iter(|| {
             let mut vec: Vec<String> = vec![];
-            for token in (&text).split(' ') {
+            for token in text.split(' ') {
                 vec.push(token.to_string());
             }
             vec
@@ -201,7 +201,7 @@ mod tests {
         let text = get_test_book();
         b.iter(|| {
             let mut vec: Vec<&str> = vec![];
-            for token in (&text).split(' ') {
+            for token in text.split(' ') {
                 vec.push(token);
             }
         })

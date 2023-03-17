@@ -3,6 +3,7 @@ use std::io::Write;
 
 #[derive(Debug)]
 /// Plan creates a plan based on a search::Request
+#[derive(Default)]
 pub struct Plan {
     pub steps: Vec<Box<dyn PlanStepTrait>>,
     pub dependencies: Vec<Dependency>,
@@ -15,15 +16,7 @@ pub struct Dependency {
     depends_on: usize,
 }
 
-impl Default for Plan {
-    fn default() -> Plan {
-        Plan {
-            steps: vec![],
-            dependencies: vec![],
-            plan_result: None,
-        }
-    }
-}
+
 
 impl Plan {
     pub(crate) fn add_dependency(&mut self, step_index: usize, depends_on: usize) {

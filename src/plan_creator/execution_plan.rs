@@ -98,10 +98,10 @@ fn collect_all_field_request_into_cache(header_request: &Request, request: &mut 
     field_search_cache
 }
 
-fn add_request_to_search_field_cache<'a>(field_requests: FnvHashSet<&'a mut RequestSearchPart>, plan: &mut Plan, field_search_cache: &mut FieldRequestCache, ids_only: bool) {
+fn add_request_to_search_field_cache(field_requests: FnvHashSet<&mut RequestSearchPart>, plan: &mut Plan, field_search_cache: &mut FieldRequestCache, ids_only: bool) {
     for request_part in field_requests {
         // There could be the same query for filter and normal search, then we load scores and ids
-        if let Some((_, field_search)) = field_search_cache.get_mut(&request_part) {
+        if let Some((_, field_search)) = field_search_cache.get_mut(request_part) {
             field_search.req.get_ids |= ids_only;
             field_search.req.get_scores |= !ids_only;
             continue; // else doesn't work because field_search borrow scope expands else
@@ -145,7 +145,7 @@ pub fn plan_creator(mut request: Request, plan: &mut Plan) {
             filter_final_step_id,
             &request_header,
             &request.search_req.unwrap(),
-            boost.unwrap_or_else(|| vec![]),
+            boost.unwrap_or_default(),
             plan,
             None,
             filter_final_step_id,
@@ -206,7 +206,7 @@ fn add_phrase_boost_plan_steps(
             //     .get_mut(req)
             //     .unwrap_or_else(|| panic!("PlanCreator: Could not find  request in field_search_cache {:?}", req));
 
-            let val = field_search_cache.get_mut(&req);
+            let val = field_search_cache.get_mut(req);
 
             let field_search1 = {
                 if val.is_none() {
@@ -256,7 +256,7 @@ fn add_phrase_boost_plan_steps(
 fn merge_vec(boost: &[RequestBoostPart], opt: &Option<&[RequestBoostPart]>) -> Vec<RequestBoostPart> {
     let mut boost = boost.to_owned();
     if let Some(boosto) = opt.as_ref() {
-        boost.extend_from_slice(&boosto);
+        boost.extend_from_slice(boosto);
     }
     // boost.extend_from_slice(&opt.as_ref().unwrap_or_else(||vec![]));
     boost
@@ -393,7 +393,7 @@ fn plan_creator_search_part(
     let paths = util::get_steps_to_anchor(&request_part.path);
     let store_term_id_hits = request.why_found || request.text_locality;
 
-    let val = field_search_cache.get_mut(&request_part);
+    let val = field_search_cache.get_mut(request_part);
 
     let (field_search_step_id, field_search_step) = {
         if val.is_none() {

@@ -187,10 +187,10 @@ where
         let mut cb_text = |anchor_id: u32, value: &str, path: &str, parent_val_id: u32| -> Result<(), io::Error> {
             let data: &mut PathData = get_or_insert_prefer_get(&mut path_data, path, || {
                 let term_data = term_data.terms_in_path.remove(path).unwrap_or_else(|| panic!("Couldn't find path in term_data {:?}", path));
-                prepare_path_data(&persistence.temp_dir(), &persistence, &fields_config, path, term_data)
+                prepare_path_data(&persistence.temp_dir(), persistence, fields_config, path, term_data)
             });
 
-            let text_info = get_text_info(&mut data.term_data, &value);
+            let text_info = get_text_info(&mut data.term_data, value);
             trace!("Found id {:?} for {:?}", text_info, value);
 
             add!(data.text_id_to_parent, text_info.id, parent_val_id);
@@ -387,7 +387,7 @@ fn stream_iter_to_anchor_score<T: AnchorScoreDataSize>(
     iter: impl Iterator<Item = buffered_index_writer::KeyValue<u32, (ValueId, ValueId)>>,
     target: &mut TokenToAnchorScoreVintFlushing<T>,
 ) -> Result<(), io::Error> {
-    use std::slice::from_raw_parts_mut;
+    
     for (id, group) in &iter.group_by(|el| el.key) {
         let mut group: Vec<(ValueId, ValueId)> = group.map(|el| el.value).collect();
         group.sort_unstable_by_key(|el| el.0);
@@ -401,10 +401,10 @@ fn stream_iter_to_anchor_score<T: AnchorScoreDataSize>(
             }
         });
         #[allow(trivial_casts)]
-        let mut slice: &mut [u32] = unsafe {
-            &mut *(from_raw_parts_mut(group.as_mut_ptr(), group.len() * 2) as *mut [(ValueId, ValueId)] as *mut [u32]) //DANGER ZONE: THIS COULD BREAK IF THE MEMORY LAYOUT OF TUPLE CHANGES
+        let slice: &mut [u32] = unsafe {
+            &mut *(core::ptr::slice_from_raw_parts_mut(group.as_mut_ptr(), group.len() * 2) as *mut [u32]) //DANGER ZONE: THIS COULD BREAK IF THE MEMORY LAYOUT OF TUPLE CHANGES
         };
-        target.set_scores(id, &mut slice)?;
+        target.set_scores(id, slice)?;
     }
 
     Ok(())
@@ -594,11 +594,11 @@ fn convert_raw_path_data_to_indices(
             }
 
             if let Some(token_to_anchor_id_score) = data.token_to_anchor_id_score {
-                add_anchor_score_flush(&db_path, &path_col, path.add(TO_ANCHOR_ID_SCORE), *token_to_anchor_id_score, &mut indices)?;
+                add_anchor_score_flush(db_path, &path_col, path.add(TO_ANCHOR_ID_SCORE), *token_to_anchor_id_score, &mut indices)?;
             }
 
             if let Some(phrase_pair_to_anchor) = data.phrase_pair_to_anchor {
-                add_phrase_pair_flush(&db_path, &path_col, path.add(PHRASE_PAIR_TO_ANCHOR), *phrase_pair_to_anchor, &mut indices)?;
+                add_phrase_pair_flush(db_path, &path_col, path.add(PHRASE_PAIR_TO_ANCHOR), *phrase_pair_to_anchor, &mut indices)?;
             }
 
             let no_sort_and_dedup = false;
@@ -775,8 +775,8 @@ where
 {
     let mut term_data = AllTermsAndDocumentBuilder::default();
 
-    let doc_write_res = write_docs(&mut persistence, stream3)?;
-    get_allterms_per_path(stream1, &indices_json, &mut term_data)?;
+    let doc_write_res = write_docs(persistence, stream3)?;
+    get_allterms_per_path(stream1, indices_json, &mut term_data)?;
 
     let default_fulltext_options = FulltextIndexOptions::new_with_tokenize();
     {
@@ -784,9 +784,9 @@ where
         let reso: Result<FnvHashMap<String, FieldInfo>, io::Error> = term_data
             .terms_in_path
             .par_iter_mut()
-            .map(|(path, mut terms_data)| {
+            .map(|(path, terms_data)| {
                 let mut textindex_metadata = TextIndexValuesMetadata::default();
-                let options: &FulltextIndexOptions = indices_json.get(&path).fulltext.as_ref().unwrap_or_else(|| &default_fulltext_options);
+                let options: &FulltextIndexOptions = indices_json.get(path).fulltext.as_ref().unwrap_or(&default_fulltext_options);
                 let path_text_index = path.to_string() + TEXTINDEX;
                 textindex_metadata.options = options.clone();
                 let mut col_info = FieldInfo {
@@ -796,7 +796,7 @@ where
                     ..Default::default()
                 };
 
-                store_full_text_info_and_set_ids(&persistence, &mut terms_data, &path_text_index, &options, &mut col_info, &doc_write_res)?;
+                store_full_text_info_and_set_ids(persistence, terms_data, &path_text_index, options, &mut col_info, &doc_write_res)?;
                 Ok((path.to_string(), col_info))
             })
             .collect();
@@ -821,7 +821,7 @@ where
     info_time!("create and (write) fulltext_index");
     trace!("all_terms {:?}", term_data.terms_in_path);
 
-    let (mut path_data, tuples_to_parent_in_path) = parse_json_and_prepare_indices(stream2, &persistence, &indices_json, &mut term_data)?;
+    let (mut path_data, tuples_to_parent_in_path) = parse_json_and_prepare_indices(stream2, persistence, indices_json, &mut term_data)?;
 
     // std::mem::drop(create_cache);
 
@@ -829,7 +829,7 @@ where
         print_indices(&mut path_data);
     }
 
-    let mut indices = convert_raw_path_data_to_indices(&persistence.db, path_data, tuples_to_parent_in_path, &indices_json)?;
+    let mut indices = convert_raw_path_data_to_indices(&persistence.db, path_data, tuples_to_parent_in_path, indices_json)?;
     if persistence.persistence_type == persistence::PersistenceType::Persistent {
         info_time!("write indices");
         for index_data in &mut indices {
@@ -935,8 +935,8 @@ where
 }
 
 pub fn create_indices_from_str(persistence: &mut Persistence, data_str: &str, indices: &str, load_persistence: bool) -> Result<(), VelociError> {
-    let stream1 = data_str.lines().map(|line| serde_json::from_str(&line));
-    let stream2 = data_str.lines().map(|line| serde_json::from_str(&line));
+    let stream1 = data_str.lines().map(serde_json::from_str);
+    let stream2 = data_str.lines().map(serde_json::from_str);
 
     create_indices_from_streams(persistence, stream1, stream2, data_str.lines(), indices, load_persistence)
 }
@@ -949,7 +949,7 @@ pub fn create_indices_from_file(persistence: &mut Persistence, data_path: &str, 
 }
 
 pub fn create_indices_from_streams<I, J, K, S: AsRef<str>>(
-    mut persistence: &mut Persistence,
+    persistence: &mut Persistence,
     stream1: I,
     stream2: J,
     stream3: K,
@@ -965,7 +965,7 @@ where
 
     let mut indices_json: FieldsConfig = config_from_string(indices)?;
     indices_json.features_to_indices()?;
-    create_fulltext_index(stream1, stream2, stream3, &mut persistence, &indices_json, load_persistence)?;
+    create_fulltext_index(stream1, stream2, stream3, persistence, &indices_json, load_persistence)?;
 
     info_time!("write json and metadata {:?}", persistence.db);
 

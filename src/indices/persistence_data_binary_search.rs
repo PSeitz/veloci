@@ -119,7 +119,7 @@ impl<T: 'static + Ord + Copy + Default + std::fmt::Debug + Sync + Send> PhrasePa
 
     #[inline]
     fn get_values(&self, id: Self::Input) -> Option<Vec<u32>> {
-        let hit = self.start_pos.binary_search_by_key(&id, |ref el| el.0);
+        let hit = self.start_pos.binary_search_by_key(&id, |el| el.0);
         match hit {
             Ok(pos) => {
                 let data_pos = self.start_pos[pos].1;
@@ -184,13 +184,13 @@ pub(crate) fn binary_search_slice<T: Ord + Copy + Default + std::fmt::Debug, K: 
         // mid is always in [0, size), that means mid is >= 0 and < size.
         // mid >= 0: by definition
         // mid < size: mid = size / 2 + size / 4 + size / 8 ...
-        let cmp = decode_pos::<T, K>(mid, &slice).0.cmp(&id); //(unsafe { s.decode_pos(mid) });
+        let cmp = decode_pos::<T, K>(mid, slice).0.cmp(&id); //(unsafe { s.decode_pos(mid) });
         base = if cmp == Greater { base } else { mid };
         size -= half;
     }
     // base is always in [0, size) because base <= mid.
     // let cmp = f(unsafe { s.decode_pos(base) });
-    let hit = decode_pos(base, &slice);
+    let hit = decode_pos(base, slice);
     if id == hit.0 {
         Some(hit)
     } else {

@@ -67,7 +67,7 @@ fn compress_data_block(data: &mut [u32]) -> Vec<u8> {
     }
 
     let mut vint = VIntArrayEncodeMostCommon::default();
-    vint.encode_vals(&data);
+    vint.encode_vals(data);
     vint.serialize()
 }
 
@@ -92,7 +92,7 @@ impl<T: AnchorScoreDataSize> TokenToAnchorScoreVintFlushing<T> {
         }
     }
 
-    pub fn set_scores(&mut self, id: u32, mut add_data: &mut [u32]) -> Result<(), io::Error> {
+    pub fn set_scores(&mut self, id: u32, add_data: &mut [u32]) -> Result<(), io::Error> {
         let id_pos = id as usize - self.current_id_offset as usize;
 
         if self.id_to_data_pos.len() <= id_pos {
@@ -105,7 +105,7 @@ impl<T: AnchorScoreDataSize> TokenToAnchorScoreVintFlushing<T> {
         // self.id_to_data_pos[id_pos] = self.current_data_offset + self.data_cache.len() as u32;
 
         self.id_to_data_pos[id_pos] = self.current_data_offset + num::cast(self.data_cache.len()).unwrap();
-        self.data_cache.extend(compress_data_block(&mut add_data));
+        self.data_cache.extend(compress_data_block(add_data));
 
         if self.id_to_data_pos.len() + self.data_cache.len() >= 1_000_000 {
             self.flush()?;
@@ -136,7 +136,7 @@ impl<T: AnchorScoreDataSize> TokenToAnchorScoreVintFlushing<T> {
 
     pub fn into_mmap(self) -> Result<TokenToAnchorScoreVintMmap<T>, VelociError> {
         //TODO MAX VALUE ID IS NOT SET
-        Ok(TokenToAnchorScoreVintMmap::from_path(&self.indirect_path, &self.data_path)?)
+        TokenToAnchorScoreVintMmap::from_path(&self.indirect_path, &self.data_path)
     }
 
     #[inline]
@@ -198,7 +198,7 @@ impl<'a> AnchorScoreIter<'a> {
     pub fn new(data: &'a [u8]) -> AnchorScoreIter<'a> {
         AnchorScoreIter {
             current: 0,
-            vint_iter: VintArrayMostCommonIterator::from_slice(&data),
+            vint_iter: VintArrayMostCommonIterator::from_slice(data),
         }
     }
 }

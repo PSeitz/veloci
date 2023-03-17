@@ -129,11 +129,11 @@ pub fn highlight_text(text: &str, set: &FnvHashSet<String>, opt: &SnippetInfo, t
                 false
             }
         },
-        &mut |pos: usize| &tokens[pos],
-        &opt,
+        &mut |pos: usize| tokens[pos],
+        opt,
     );
 
-    ellipsis_snippet(&mut snippet, &hit_pos_of_tokens_in_doc, tokens.len(), &opt);
+    ellipsis_snippet(&mut snippet, &hit_pos_of_tokens_in_doc, tokens.len(), opt);
 
     if contains_any_token {
         Some(snippet)
@@ -199,7 +199,7 @@ mod tests {
 /// `SearchResult` stores why_found_terms from the search, which is used to build the tokens which should be highlighted.
 pub(crate) fn highlight_on_original_document(persistence: &Persistence, doc: &str, why_found_terms: &FnvHashMap<String, FnvHashSet<String>>) -> FnvHashMap<String, Vec<String>> {
     let mut highlighted_texts: FnvHashMap<_, Vec<_>> = FnvHashMap::default();
-    let stream = serde_json::Deserializer::from_str(&doc).into_iter::<serde_json::Value>();
+    let stream = serde_json::Deserializer::from_str(doc).into_iter::<serde_json::Value>();
 
     let mut id_holder = json_converter::IDHolder::new();
     {
@@ -209,7 +209,7 @@ pub(crate) fn highlight_on_original_document(persistence: &Persistence, doc: &st
             if let Some(terms) = why_found_terms.get(&path_text) {
                 if let Some(highlighted) = highlight_text(
                     value,
-                    &terms,
+                    terms,
                     &DEFAULT_SNIPPETINFO,
                     persistence
                         .metadata
@@ -312,10 +312,10 @@ pub fn highlight_document(persistence: &Persistence, path: &str, value_id: u64, 
         window_iter,
         &mut |pos: usize| token_ids.contains(&documents_token_ids[pos]),
         &mut |pos: usize| &id_to_text[&documents_token_ids[pos]],
-        &opt,
+        opt,
     );
 
-    ellipsis_snippet(&mut snippet, &hit_pos_of_tokens_in_doc, documents_token_ids.len(), &opt);
+    ellipsis_snippet(&mut snippet, &hit_pos_of_tokens_in_doc, documents_token_ids.len(), opt);
 
     Ok(Some(snippet))
 }

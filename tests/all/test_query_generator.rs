@@ -365,7 +365,7 @@ fn no_matching_fields_from_field_list() {
     params.fields = Some(vec!["notexistingfield".to_string()]);
 
     let requesto = query_generator::search_query(&TEST_PERSISTENCE, params);
-    assert_eq!(requesto.is_err(), true);
+    assert!(requesto.is_err());
     assert_contains!(requesto.unwrap_err().to_string(), "All fields filtered");
 }
 
@@ -375,7 +375,7 @@ fn no_matching_fields_from_query() {
     params.search_term = "notexistingfield:awes*".to_string();
 
     let requesto = query_generator::search_query(&TEST_PERSISTENCE, params);
-    assert_eq!(requesto.is_err(), true);
+    assert!(requesto.is_err());
     assert_contains!(requesto.unwrap_err().to_string(), "Field notexistingfield not found in");
 }
 

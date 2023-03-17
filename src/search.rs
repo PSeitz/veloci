@@ -32,17 +32,15 @@ use std::{
 };
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
+#[derive(Default)]
 enum TextLocalitySetting {
     Enabled,
+    #[default]
     Disabled,
     Fields(Vec<String>),
 }
 
-impl Default for TextLocalitySetting {
-    fn default() -> TextLocalitySetting {
-        TextLocalitySetting::Disabled
-    }
-}
+
 
 pub fn skip_false(val: &bool) -> bool {
     !*val
@@ -84,7 +82,7 @@ pub fn to_documents(persistence: &Persistence, hits: &[Hit], select: &Option<Vec
         .map(|hit| {
             if let Some(ref select) = select {
                 DocWithHit {
-                    doc: read_data(persistence, hit.id, &select).unwrap(), // TODO validate fields
+                    doc: read_data(persistence, hit.id, select).unwrap(), // TODO validate fields
                     hit: hit.clone(),
                     explain: result.explain.get(&hit.id).cloned(),
                     why_found: result.why_found_info.get(&hit.id).cloned().unwrap_or_default(),
@@ -93,7 +91,7 @@ pub fn to_documents(persistence: &Persistence, hits: &[Hit], select: &Option<Vec
                 let offsets = persistence.indices.doc_offsets.as_ref().unwrap();
                 let f = persistence.get_mmap_handle("data").expect("could not open document store"); // TODO document store abstraction
                 let doc_str = DocLoader::get_doc(&f, offsets, hit.id as usize).unwrap(); // TODO No unwrapo
-                let ayse = highlight_on_original_document(&persistence, &doc_str, &tokens_set);
+                let ayse = highlight_on_original_document(persistence, &doc_str, &tokens_set);
 
                 DocWithHit {
                     doc: serde_json::from_str(&doc_str).unwrap(),
@@ -108,7 +106,7 @@ pub fn to_documents(persistence: &Persistence, hits: &[Hit], select: &Option<Vec
 
 pub fn to_search_result(persistence: &Persistence, hits: SearchResult, select: &Option<Vec<String>>) -> SearchResultWithDoc {
     SearchResultWithDoc {
-        data: to_documents(&persistence, &hits.data, &select, &hits),
+        data: to_documents(persistence, &hits.data, select, &hits),
         num_hits: hits.num_hits,
         facets: hits.facets,
         execution_time_ns: hits.execution_time_ns,
@@ -168,7 +166,7 @@ pub fn search(mut request: Request, persistence: &Persistence) -> Result<SearchR
 
         let plan_result = plan.plan_result.as_ref().unwrap().clone();
         for stepso in plan.get_ordered_steps() {
-            execute_steps(stepso, &persistence)?;
+            execute_steps(stepso, persistence)?;
         }
         let res = plan_result.recv().unwrap();
         drop(plan_result);
@@ -184,7 +182,7 @@ pub fn search(mut request: Request, persistence: &Persistence) -> Result<SearchR
 
     if request.text_locality {
         info_time!("boost_text_locality_all");
-        let boost_anchor = boost_text_locality_all(&persistence, &mut res.term_id_hits_in_field)?;
+        let boost_anchor = boost_text_locality_all(persistence, &mut res.term_id_hits_in_field)?;
         res = apply_boost_from_iter(res, &mut boost_anchor.iter().cloned());
     }
     let term_id_hits_in_field = res.term_id_hits_in_field;
@@ -224,7 +222,7 @@ pub fn search(mut request: Request, persistence: &Persistence) -> Result<SearchR
 
     if request.why_found && request.select.is_some() {
         let anchor_ids: Vec<u32> = search_result.data.iter().map(|el| el.id).collect();
-        let why_found_info = get_why_found(&persistence, &anchor_ids, &term_id_hits_in_field)?;
+        let why_found_info = get_why_found(persistence, &anchor_ids, &term_id_hits_in_field)?;
         search_result.why_found_info = why_found_info;
     }
     // let time_in_ms = (start.elapsed().as_micros() as f64 * 1_000.0) + (start.elapsed().subsec_nanos() as f64 / 1000_000.0);
@@ -278,7 +276,7 @@ pub fn get_read_tree_from_fields(persistence: &Persistence, fields: &[String]) -
     let all_steps: Vec<Vec<String>> = fields
         .iter()
         .filter(|path| persistence.has_index(&path.add(TEXTINDEX).add(PARENT_TO_VALUE_ID)))
-        .map(|field| util::get_all_steps_to_anchor(&field))
+        .map(|field| util::get_all_steps_to_anchor(field))
         .collect();
     to_node_tree(all_steps)
 }
@@ -303,7 +301,7 @@ pub fn join_to_parent_ids(persistence: &Persistence, input: &SearchFieldResult, 
                 hits.push(*parent_val_id);
 
                 if should_explain {
-                    let expains = input.explain.get(&*id).unwrap_or_else(|| panic!("could not find explain for id {:?}", *id));
+                    let expains = input.explain.get(id).unwrap_or_else(|| panic!("could not find explain for id {:?}", *id));
                     explain_hits.entry(*parent_val_id).or_insert_with(|| expains.clone());
                 }
             }
@@ -313,7 +311,7 @@ pub fn join_to_parent_ids(persistence: &Persistence, input: &SearchFieldResult, 
     hits.dedup();
 
     debug!("{:?} hits hit {:?} distinct ({:?} total ) in column {:?}", num_hits, hits.len(), total_values, path);
-    let mut res = SearchFieldResult::new_from(&input);
+    let mut res = SearchFieldResult::new_from(input);
     res.hits_ids = hits;
     res.explain = explain_hits;
     Ok(res)

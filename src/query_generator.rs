@@ -155,7 +155,7 @@ pub fn handle_boost_term_query(persistence: &Persistence, boost_term: &str, boos
         None
     };
 
-    get_all_search_field_names(&persistence, &field_filter)
+    get_all_search_field_names(persistence, &field_filter)
         .unwrap()
         .iter()
         .map(|field_name| RequestSearchPart {
@@ -177,9 +177,9 @@ pub fn search_query(persistence: &Persistence, mut opt: SearchQueryGeneratorPara
     info_time!("generating search query");
 
     let all_fields = persistence.metadata.get_all_fields();
-    let all_search_fields = get_all_search_field_names(&persistence, &opt.fields)?; // all fields with applied field_filter
+    let all_search_fields = get_all_search_field_names(persistence, &opt.fields)?; // all fields with applied field_filter
 
-    let parser_options: QueryParserOptions = opt.parser_options.unwrap_or_else(Default::default);
+    let parser_options: QueryParserOptions = opt.parser_options.unwrap_or_default();
     let query_ast = query_parser::parse_with_opt(&opt.search_term, parser_options.into()).unwrap();
 
     let mut request = Request::default();
@@ -203,12 +203,12 @@ pub fn search_query(persistence: &Persistence, mut opt: SearchQueryGeneratorPara
 
     let facets_req = facets_req.map_or(Ok(None), |r| r.map(Some))?;
 
-    let boost_term = opt.boost_terms.and_then(|boosts: HashMap<String, f32>| {
+    let boost_term = opt.boost_terms.map(|boosts: HashMap<String, f32>| {
         let requests = boosts
             .iter()
             .flat_map(|(boost_term, boost_value): (&String, &f32)| handle_boost_term_query(persistence, boost_term, boost_value))
             .collect::<Vec<RequestSearchPart>>();
-        Some(requests)
+        requests
     });
 
     let terms: HashSet<[&str; 2]> = query_ast.get_phrase_pairs();
@@ -227,7 +227,7 @@ pub fn search_query(persistence: &Persistence, mut opt: SearchQueryGeneratorPara
     if let Some(filters) = opt.filter.as_ref() {
         let mut params = SearchQueryGeneratorParameters::default();
         params.levenshtein = Some(0);
-        let query_ast = query_parser::parse_with_opt(&filters, opt.filter_parser_options.unwrap_or_else(Default::default).into()).unwrap();
+        let query_ast = query_parser::parse_with_opt(filters, opt.filter_parser_options.unwrap_or_default().into()).unwrap();
         let mut filter_request_ast = ast_to_search_request(&query_ast, &all_fields, &params)?;
         filter_request_ast.simplify();
         request.filter = Some(Box::new(filter_request_ast));
@@ -261,7 +261,7 @@ pub fn generate_phrase_queries_for_searchterm(
 ) -> Result<Vec<RequestPhraseBoost>, VelociError> {
     let mut phase_boost_requests = vec![];
     for [term_a, term_b] in terms.iter() {
-        phase_boost_requests.extend(get_all_search_field_names(&persistence, &fields)?.iter().map(|field_name| RequestPhraseBoost {
+        phase_boost_requests.extend(get_all_search_field_names(persistence, fields)?.iter().map(|field_name| RequestPhraseBoost {
             search1: RequestSearchPart {
                 path: field_name.to_string(),
                 terms: vec![term_a.to_string()],
@@ -294,7 +294,7 @@ pub fn suggest_query(
     if top.is_none() {
         top = Some(10);
     }
-    let requests = get_all_search_field_names(&persistence, &fields)?
+    let requests = get_all_search_field_names(persistence, fields)?
         .iter()
         .map(|field_name| {
             let levenshtein_distance = levenshtein.unwrap_or_else(|| get_default_levenshtein(request, levenshtein_auto_limit.unwrap_or(1), true));

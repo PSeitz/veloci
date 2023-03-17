@@ -21,7 +21,7 @@ pub fn get_why_found(
         let field_name = &extract_field_name(path); // extract_field_name removes .textindex
         let paths = util::get_steps_to_anchor(field_name);
 
-        let all_term_ids_hits_in_path = term_with_ids.iter().fold(vec![], |mut acc, (ref _term, ref hits)| {
+        let all_term_ids_hits_in_path = term_with_ids.iter().fold(vec![], |mut acc, (_term, hits)| {
             acc.extend(hits.iter());
             acc
         });

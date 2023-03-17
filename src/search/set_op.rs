@@ -315,9 +315,9 @@ pub fn intersect_score_hits_with_ids(mut score_results: SearchFieldResult, mut i
     let mut id_iter = id_hits.hits_ids.iter();
     if let Some(first) = id_iter.next() {
         let mut current: u32 = *first;
-        score_results.hits_scores.retain(|ref hit| {
+        score_results.hits_scores.retain(|hit| {
             while current < hit.id {
-                current = *id_iter.next().unwrap_or_else(|| &u32::MAX);
+                current = *id_iter.next().unwrap_or(&u32::MAX);
             }
             hit.id == current
         });

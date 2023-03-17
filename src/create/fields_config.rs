@@ -45,10 +45,10 @@ impl FieldsConfig {
             if let Some(features) = val
                 .features
                 .clone()
-                .or_else(|| val.disabled_features.as_ref().map(|disabled_features| Features::invert(disabled_features)))
+                .or_else(|| val.disabled_features.as_ref().map(Features::invert))
             {
                 let disabled = Features::features_to_disabled_indices(&features);
-                let mut existing = val.disabled_indices.as_ref().cloned().unwrap_or_else(FnvHashSet::default);
+                let mut existing = val.disabled_indices.as_ref().cloned().unwrap_or_default();
                 existing.extend(disabled);
                 val.disabled_indices = Some(existing);
             }
@@ -131,11 +131,11 @@ fn test_field_config_from_json() {
     }"#;
     let mut data: FieldsConfig = config_from_string(json).unwrap();
     data.features_to_indices().unwrap();
-    assert_eq!(data.get("MATNR").facet, true);
-    assert_eq!(data.get("MATNR").is_index_enabled(IndexCreationType::TokensToTextID), false);
-    assert_eq!(data.get("ISMTITLE").is_index_enabled(IndexCreationType::TokenToAnchorIDScore), true);
-    assert_eq!(data.get("ISMTITLE").is_index_enabled(IndexCreationType::TokensToTextID), false);
-    assert_eq!(data.get("ISMORIDCODE").fulltext.as_ref().unwrap().tokenize, false);
+    assert!(data.get("MATNR").facet);
+    assert!(!data.get("MATNR").is_index_enabled(IndexCreationType::TokensToTextID));
+    assert!(data.get("ISMTITLE").is_index_enabled(IndexCreationType::TokenToAnchorIDScore));
+    assert!(!data.get("ISMTITLE").is_index_enabled(IndexCreationType::TokensToTextID));
+    assert!(!data.get("ISMORIDCODE").fulltext.as_ref().unwrap().tokenize);
 }
 
 #[test]

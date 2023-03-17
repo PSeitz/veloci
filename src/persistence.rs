@@ -148,7 +148,7 @@ impl<'a> VintArrayIteratorOpt<'a> {
     pub fn from_slice(data: &'a [u8]) -> Self {
         VintArrayIteratorOpt {
             single_value: -1,
-            iter: Box::new(VintArrayIterator::from_serialized_vint_array(&data)),
+            iter: Box::new(VintArrayIterator::from_serialized_vint_array(data)),
         }
     }
 }
@@ -407,7 +407,7 @@ impl Persistence {
     }
 
     pub fn get_mmap_handle(&self, path: &str) -> Result<memmap::Mmap, VelociError> {
-        let file = self.get_file_handle(&path)?;
+        let file = self.get_file_handle(path)?;
         unsafe {
             MmapOptions::new()
                 .map(&file)
@@ -416,7 +416,7 @@ impl Persistence {
     }
 
     pub fn get_file_handle(&self, path: &str) -> Result<File, VelociError> {
-        Ok(File::open(get_file_path(&self.db, path)).map_err(|err| VelociError::StringError(format!("Could not open {} {:?}", path, err)))?)
+        File::open(get_file_path(&self.db, path)).map_err(|err| VelociError::StringError(format!("Could not open {} {:?}", path, err)))
     }
 
     pub fn get_boost(&self, path: &str) -> Result<&dyn IndexIdToParent<Output = u32>, VelociError> {
@@ -467,12 +467,12 @@ impl Persistence {
 
     pub fn get_buffered_writer(&self, path: &str) -> Result<io::BufWriter<fs::File>, io::Error> {
         use std::fs::OpenOptions;
-        let file = OpenOptions::new().read(true).append(true).create(true).open(&get_file_path(&self.db, path))?;
+        let file = OpenOptions::new().read(true).append(true).create(true).open(get_file_path(&self.db, path))?;
         Ok(io::BufWriter::new(file))
     }
 
     pub fn write_data(&self, path: &str, data: &[u8]) -> Result<(), io::Error> {
-        File::create(&get_file_path(&self.db, path))?.write_all(data)?;
+        File::create(get_file_path(&self.db, path))?.write_all(data)?;
         Ok(())
     }
 
@@ -571,7 +571,7 @@ impl Persistence {
     }
 
     fn get_fst_sizes(&self) -> usize {
-        self.indices.fst.iter().map(|(_, v)| v.as_fst().size()).sum()
+        self.indices.fst.values().map(|v| v.as_fst().size()).sum()
     }
 }
 
@@ -616,10 +616,10 @@ pub(crate) fn vec_to_bytes<T>(data: &[T]) -> Vec<u8> {
 }
 
 pub(crate) fn bytes_to_vec_u32(data: &[u8]) -> Vec<u32> {
-    bytes_to_vec::<u32>(&data)
+    bytes_to_vec::<u32>(data)
 }
 pub(crate) fn bytes_to_vec_u64(data: &[u8]) -> Vec<u64> {
-    bytes_to_vec::<u64>(&data)
+    bytes_to_vec::<u64>(data)
 }
 pub(crate) fn bytes_to_vec<T>(data: &[u8]) -> Vec<T> {
     let mut out_dat = vec_with_size_uninitialized(data.len() / std::mem::size_of::<T>());
@@ -656,5 +656,5 @@ pub(crate) fn load_index_u64<P: AsRef<Path> + std::fmt::Debug>(s1: P) -> Result<
 }
 
 pub(crate) fn get_file_handle_complete_path<P: AsRef<Path> + std::fmt::Debug>(path: P) -> Result<File, VelociError> {
-    Ok(File::open(&path).map_err(|err| VelociError::StringError(format!("Could not open {:?} {:?}", path, err)))?)
+    File::open(&path).map_err(|err| VelociError::StringError(format!("Could not open {:?} {:?}", path, err)))
 }

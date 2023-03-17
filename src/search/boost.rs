@@ -22,7 +22,7 @@ pub(crate) fn boost_text_locality_all(persistence: &Persistence, term_id_hits_in
     let boosts = r?;
     let mergo = boosts.into_iter().kmerge_by(|a, b| a.id < b.id);
     for (id, group) in &mergo.group_by(|el| el.id) {
-        let best_score = group.map(|el| el.score).max_by(|a, b| b.partial_cmp(&a).unwrap_or(Ordering::Equal)).unwrap();
+        let best_score = group.map(|el| el.score).max_by(|a, b| b.partial_cmp(a).unwrap_or(Ordering::Equal)).unwrap();
         debug_assert!(!best_score.is_nan());
         debug_assert!(best_score != std::f32::INFINITY);
         boost_anchor.push(Hit::new(id, best_score));
@@ -43,7 +43,7 @@ pub(crate) fn boost_text_locality(persistence: &Persistence, path: &str, search_
     {
         trace_time!("text_locality_boost get and group text_ids");
         for text_ids in search_term_to_text_ids.values() {
-            let mut text_ids = get_all_value_ids(&text_ids, token_to_text_id);
+            let mut text_ids = get_all_value_ids(text_ids, token_to_text_id);
             text_ids.sort_unstable();
             terms_text_ids.push(text_ids);
         }
@@ -223,10 +223,10 @@ pub(crate) fn apply_boost_from_iter(mut results: SearchFieldResult, mut boost_it
             let mut hit_curr = yep;
             for mut hit in &mut results.hits_scores {
                 if hit_curr.id < hit.id {
-                    move_boost(&mut hit, &mut hit_curr, &mut boost_iter);
+                    move_boost(hit, &mut hit_curr, &mut boost_iter);
                 } else if hit_curr.id == hit.id {
                     hit.score *= hit_curr.score;
-                    move_boost(&mut hit, &mut hit_curr, &mut boost_iter); // Possible multi boosts [id:0->2, id:0->4 ...]
+                    move_boost(hit, &mut hit_curr, &mut boost_iter); // Possible multi boosts [id:0->2, id:0->4 ...]
                 }
             }
         }

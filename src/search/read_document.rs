@@ -36,16 +36,16 @@ fn read_tree(persistence: &Persistence, id: u32, tree: &NodeTree) -> Result<serd
                     NodeTree::Map(ref _next) => {
                         if !persistence.has_index(&current_path) {
                             // Special case a node without information an object in object e.g. there is no information 1:n to store
-                            json[extract_prop_name(prop)] = read_tree(persistence, id, &sub_tree)?;
+                            json[extract_prop_name(prop)] = read_tree(persistence, id, sub_tree)?;
                         } else if let Some(sub_ids) = join_for_1_to_n(persistence, id, &current_path)? {
                             if is_array {
                                 let mut sub_data = vec![];
                                 for sub_id in sub_ids {
-                                    sub_data.push(read_tree(persistence, sub_id, &sub_tree)?);
+                                    sub_data.push(read_tree(persistence, sub_id, sub_tree)?);
                                 }
                                 json[extract_prop_name(prop)] = json!(sub_data);
-                            } else if let Some(sub_id) = sub_ids.get(0) {
-                                json[extract_prop_name(prop)] = read_tree(persistence, *sub_id, &sub_tree)?;
+                            } else if let Some(sub_id) = sub_ids.first() {
+                                json[extract_prop_name(prop)] = read_tree(persistence, *sub_id, sub_tree)?;
                             }
                         }
                     }

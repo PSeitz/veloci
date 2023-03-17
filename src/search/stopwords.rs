@@ -24,11 +24,11 @@ pub fn is_stopword(language: &str, text: &str) -> bool {
 
 #[test]
 fn test_stopword() {
-    assert_eq!(is_stopword("de", "und"), true);
-    assert_eq!(is_stopword("de", "der"), true);
-    assert_eq!(is_stopword("de", "die"), true);
-    assert_eq!(is_stopword("de", "das"), true);
-    assert_eq!(is_stopword("de", "nixda"), false);
+    assert!(is_stopword("de", "und"));
+    assert!(is_stopword("de", "der"));
+    assert!(is_stopword("de", "die"));
+    assert!(is_stopword("de", "das"));
+    assert!(!is_stopword("de", "nixda"));
 
-    assert_eq!(is_stopword("en", "in"), true);
+    assert!(is_stopword("en", "in"));
 }

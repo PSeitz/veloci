@@ -20,7 +20,7 @@ pub(crate) fn ast_to_search_request(query_ast: &UserAST, all_fields: &[String], 
 /// foo* will match all tokens starting with foo
 /// foo*bar will match all tokens starting with foo and ending with bar
 /// *foo* will match all tokens containing foo
-fn query_ast_to_request<'a>(ast: &UserAST, opt: &SearchQueryGeneratorParameters, field_name: Option<&'a str>) -> SearchRequest {
+fn query_ast_to_request(ast: &UserAST, opt: &SearchQueryGeneratorParameters, field_name: Option<&str>) -> SearchRequest {
     match ast {
         UserAST::BinaryClause(ast1, op, ast2) => {
             let queries = [ast1, ast2].iter().map(|ast| query_ast_to_request(ast, opt, field_name)).collect();
@@ -53,7 +53,7 @@ fn query_ast_to_request<'a>(ast: &UserAST, opt: &SearchQueryGeneratorParameters,
             let is_regex = term.contains('*');
             if is_regex {
                 use itertools::Itertools;
-                term = term.split('*').map(|term| regex::escape(term)).join(".*");
+                term = term.split('*').map(regex::escape).join(".*");
             } else {
                 levenshtein_distance = if let Some(levenshtein) = filter.levenshtein {
                     Some(u32::from(levenshtein))
@@ -83,7 +83,7 @@ fn query_ast_to_request<'a>(ast: &UserAST, opt: &SearchQueryGeneratorParameters,
     }
 }
 
-fn expand_fields_in_query_ast<'a, 'b>(ast: &UserAST, all_fields: &'a [String]) -> Result<UserAST, VelociError> {
+fn expand_fields_in_query_ast<'b>(ast: &UserAST, all_fields: &[String]) -> Result<UserAST, VelociError> {
     match ast {
         UserAST::BinaryClause(ast1, op, ast2) => Ok(UserAST::BinaryClause(
             expand_fields_in_query_ast(ast1, all_fields)?.into(),
@@ -106,15 +106,16 @@ fn expand_fields_in_query_ast<'a, 'b>(ast: &UserAST, all_fields: &'a [String]) -
         }
         UserAST::Attributed(field_name, _) => {
             // dont expand in UserAST::Attributed
-            check_field(field_name, &all_fields)?;
+            check_field(field_name, all_fields)?;
             Ok(ast.clone())
         }
     }
 }
 
 //TODO should be field specific
-fn filter_stopwords<'a, 'b>(query_ast: &'a query_parser::ast::UserAST, opt: &'b SearchQueryGeneratorParameters) -> Option<UserAST> {
-    let ast = query_ast.filter_ast(
+fn filter_stopwords(query_ast: &query_parser::ast::UserAST, opt: &SearchQueryGeneratorParameters) -> Option<UserAST> {
+    
+    query_ast.filter_ast(
         &mut |ast: &UserAST, _attr: Option<&str>| match ast {
             UserAST::Leaf(filter) => {
                 if let Some(languages) = opt.stopword_lists.as_ref() {
@@ -128,8 +129,7 @@ fn filter_stopwords<'a, 'b>(query_ast: &'a query_parser::ast::UserAST, opt: &'b 
             _ => false,
         },
         None,
-    );
-    ast
+    )
 }
 
 #[bench]
