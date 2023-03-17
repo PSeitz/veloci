@@ -1,3 +1,5 @@
+use itertools::Itertools;
+
 use crate::persistence::*;
 
 #[cfg(test)]
@@ -92,7 +94,7 @@ impl FieldPath {
 
 impl std::fmt::Display for FieldPath {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
-        write!(f, "{}", self)?;
+        write!(f, "{}{:?}", self.steps.iter().map(|el| el.as_string()).join("."), self.suffix)?;
         Ok(())
     }
 }

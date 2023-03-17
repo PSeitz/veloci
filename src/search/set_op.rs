@@ -45,7 +45,7 @@ fn merge_term_id_hits(results: &mut Vec<SearchFieldResult>) -> FnvHashMap<String
     );
     term_id_hits_in_field
 }
-fn merge_term_id_texts(results: &mut Vec<SearchFieldResult>) -> FnvHashMap<String, Vec<String>> {
+fn merge_term_id_texts(results: &mut [SearchFieldResult]) -> FnvHashMap<String, Vec<String>> {
     //attr -> term_texts
     let mut term_text_in_field: FnvHashMap<String, Vec<String>> = FnvHashMap::default();
     for el in results.iter_mut() {

@@ -283,14 +283,14 @@ mod tests {
             let mut store = <$type1>::default();
 
             // test im
-            store.set_scores(1, &mut vec![1, 1]).unwrap();
+            store.set_scores(1, &mut [1, 1]).unwrap();
             let store = store.into_im_store();
             assert_eq!(store.get_score_iter(0).collect::<Vec<_>>(), vec![]);
             assert_eq!(store.get_score_iter(1).collect::<Vec<_>>(), vec![AnchorScore::new(1, f16::from_f32(1.0))]);
             assert_eq!(store.get_score_iter(2).collect::<Vec<_>>(), vec![]);
 
             let mut store = <$type1>::default();
-            store.set_scores(5, &mut vec![1, 1, 2, 3]).unwrap();
+            store.set_scores(5, &mut [1, 1, 2, 3]).unwrap();
             let store = store.into_im_store();
             assert_eq!(store.get_score_iter(4).collect::<Vec<_>>(), vec![]);
             assert_eq!(
@@ -307,9 +307,9 @@ mod tests {
             let indirect = dir.path().join("TokenToAnchorScoreVintTestIndirect");
 
             let mut store = <$type1>::new(indirect.clone(), data.clone());
-            store.set_scores(1, &mut vec![1, 1]).unwrap();
+            store.set_scores(1, &mut [1, 1]).unwrap();
             store.flush().unwrap();
-            store.set_scores(5, &mut vec![1, 1, 2, 3]).unwrap();
+            store.set_scores(5, &mut [1, 1, 2, 3]).unwrap();
             store.flush().unwrap();
             store.flush().unwrap(); // double flush test
 

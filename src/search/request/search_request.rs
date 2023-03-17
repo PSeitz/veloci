@@ -119,7 +119,7 @@ fn is_false(val: &bool) -> bool {
 }
 
 /// Searching on a field, TODO rename
-#[derive(Serialize, Deserialize, Default, Clone, Debug, Hash, PartialEq, Eq, PartialOrd)]
+#[derive(Serialize, Deserialize, Default, Clone, Debug, Hash, PartialEq, Eq)]
 pub struct RequestSearchPart {
     pub path: String,
     pub terms: Vec<String>, //TODO only first term used currently
@@ -184,5 +184,11 @@ impl RequestSearchPart {
 impl Ord for RequestSearchPart {
     fn cmp(&self, other: &RequestSearchPart) -> Ordering {
         format!("{:?}", self).cmp(&format!("{:?}", other))
+    }
+}
+
+impl PartialOrd for RequestSearchPart {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        format!("{:?}", self).partial_cmp(&format!("{:?}", other))
     }
 }

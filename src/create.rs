@@ -387,7 +387,6 @@ fn stream_iter_to_anchor_score<T: AnchorScoreDataSize>(
     iter: impl Iterator<Item = buffered_index_writer::KeyValue<u32, (ValueId, ValueId)>>,
     target: &mut TokenToAnchorScoreVintFlushing<T>,
 ) -> Result<(), io::Error> {
-    
     for (id, group) in &iter.group_by(|el| el.key) {
         let mut group: Vec<(ValueId, ValueId)> = group.map(|el| el.value).collect();
         group.sort_unstable_by_key(|el| el.0);
@@ -402,7 +401,8 @@ fn stream_iter_to_anchor_score<T: AnchorScoreDataSize>(
         });
         #[allow(trivial_casts)]
         let slice: &mut [u32] = unsafe {
-            &mut *(core::ptr::slice_from_raw_parts_mut(group.as_mut_ptr(), group.len() * 2) as *mut [u32]) //DANGER ZONE: THIS COULD BREAK IF THE MEMORY LAYOUT OF TUPLE CHANGES
+            &mut *(core::ptr::slice_from_raw_parts_mut(group.as_mut_ptr() as *mut u32, group.len() * 2))
+            //DANGER ZONE: THIS COULD BREAK IF THE MEMORY LAYOUT OF TUPLE CHANGES
         };
         target.set_scores(id, slice)?;
     }
@@ -892,7 +892,8 @@ where
             match index_data.index {
                 IndexVariants::Phrase(index) => {
                     if index.is_in_memory() {
-                        persistence.indices.phrase_pair_to_anchor.insert(path, Box::new(index.into_im_store())); //Move data
+                        persistence.indices.phrase_pair_to_anchor.insert(path, Box::new(index.into_im_store()));
+                    //Move data
                     } else {
                         let store = IndirectIMBinarySearchMMAP::from_path(&(persistence.db.to_string() + "/" + &path), index.metadata)?; //load data with MMap
                         persistence.indices.phrase_pair_to_anchor.insert(path, Box::new(store));
@@ -900,7 +901,8 @@ where
                 }
                 IndexVariants::SingleValue(index) => {
                     if index.is_in_memory() {
-                        persistence.indices.key_value_stores.insert(path, Box::new(index.into_im_store())); //Move data
+                        persistence.indices.key_value_stores.insert(path, Box::new(index.into_im_store()));
+                    //Move data
                     } else {
                         let store = SingleArrayMMAPPacked::from_file(&persistence.get_file_handle(&path)?, index.metadata)?; //load data with MMap
                         persistence.indices.key_value_stores.insert(path, Box::new(store));
