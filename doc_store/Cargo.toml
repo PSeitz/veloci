@@ -4,5 +4,5 @@ edition = "2018"
 name = "doc_store"
 version = "0.1.0"
 [dependencies]
-lz4_flex = { version = "0.6.1", default-features = false }
-vint32 = { version = "0.2.0", features= ["common-encoding"]}
+lz4_flex = { version = "0.10.0", default-features = false }
+vint32 = { version = "0.3.0", features = ["common-encoding"] }
