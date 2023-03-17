@@ -5,6 +5,8 @@ use crate::{
     tokenizer::*,
     util::StringAdd,
 };
+use itertools::intersperse;
+
 use fnv::FnvHashMap;
 use std::{self, cmp, str, sync::Arc};
 
@@ -45,23 +47,25 @@ where
     F1: FnMut(usize) -> bool,
     F2: Fn(usize) -> &'b str,
 {
-    windows
-        .map(|group| {
-            let mut snippet = String::with_capacity((group.1 - group.0) * 10);
-            for i in group.0..group.1 {
-                if is_hit(i) {
-                    snippet += &opt.snippet_start_tag;
-                    snippet += get_text(i);
-                    snippet += &opt.snippet_end_tag; // TODO store token and add
-                } else {
-                    snippet += get_text(i);
+    intersperse(
+        windows
+            .map(|group| {
+                let mut snippet = String::with_capacity((group.1 - group.0) * 10);
+                for i in group.0..group.1 {
+                    if is_hit(i) {
+                        snippet += &opt.snippet_start_tag;
+                        snippet += get_text(i);
+                        snippet += &opt.snippet_end_tag; // TODO store token and add
+                    } else {
+                        snippet += get_text(i);
+                    }
                 }
-            }
-            snippet
-        })
-        .take(opt.max_snippets as usize)
-        .intersperse(opt.snippet_connector.to_string())
-        .fold(String::with_capacity(10), |snippet, snippet_part| snippet + &snippet_part)
+                snippet
+            })
+            .take(opt.max_snippets as usize),
+        opt.snippet_connector.to_string(),
+    )
+    .fold(String::with_capacity(10), |snippet, snippet_part| snippet + &snippet_part)
 }
 
 /// Adds ... at the beginning and end.
@@ -226,7 +230,8 @@ pub(crate) fn highlight_on_original_document(persistence: &Persistence, doc: &st
 
         let mut callback_ids = |_anchor_id: u32, _path: &str, _value_id: u32, _parent_val_id: u32| -> Result<(), serde_json::error::Error> { Ok(()) };
 
-        json_converter::for_each_element(stream, &mut id_holder, &mut cb_text, &mut callback_ids).unwrap(); // unwrap is ok here
+        json_converter::for_each_element(stream, &mut id_holder, &mut cb_text, &mut callback_ids).unwrap();
+        // unwrap is ok here
     }
     highlighted_texts
 }

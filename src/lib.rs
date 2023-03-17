@@ -4,7 +4,6 @@
 #![feature(drain_filter)]
 #![feature(min_specialization)]
 #![feature(test)]
-#![cfg_attr(feature = "unstable", feature(alloc, heap_api, repr_simd))]
 #![feature(core_intrinsics)]
 
 #[cfg(feature = "enable_cpuprofiler")]
