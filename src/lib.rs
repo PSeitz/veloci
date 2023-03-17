@@ -11,9 +11,6 @@ extern crate test;
 #[cfg(feature = "enable_cpuprofiler")]
 extern crate cpuprofiler;
 #[macro_use]
-#[allow(unused_imports)]
-extern crate dump;
-#[macro_use]
 extern crate lazy_static;
 #[macro_use]
 extern crate prettytable;
