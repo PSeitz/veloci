@@ -12,6 +12,7 @@ fnv = "1.0.6"
 serde = "1.0.82"
 serde_json = "1.0.33"
 
+
 [dev-dependencies.criterion]
 features = []
 version = "0.2.5"

@@ -30,7 +30,6 @@ use fnv::FnvHashMap;
 
 use itertools::Itertools;
 
-
 use memmap::MmapOptions;
 use num::ToPrimitive;
 use rayon::prelude::*;
@@ -42,7 +41,6 @@ use std::{
     path::PathBuf,
     str,
 };
-
 
 type ValueId = u32;
 type TokenId = u32;

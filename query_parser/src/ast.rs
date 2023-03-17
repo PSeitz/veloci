@@ -1,11 +1,10 @@
 mod leaf;
 mod operator;
 
-pub use operator::Operator;
 pub use leaf::UserFilter;
+pub use operator::Operator;
 
-use std::{convert::From, fmt};
-use std::collections::HashSet;
+use std::{collections::HashSet, convert::From, fmt};
 
 #[derive(Clone, PartialEq, Eq)]
 pub enum UserAST {
@@ -17,7 +16,10 @@ pub enum UserAST {
 // conversion used in tests
 impl From<&'static str> for UserAST {
     fn from(item: &str) -> Self {
-        let mut filter = UserFilter { phrase: item.to_string(), levenshtein: None };
+        let mut filter = UserFilter {
+            phrase: item.to_string(),
+            levenshtein: None,
+        };
         if item.chars().next().map(|c| c != '\"').unwrap_or(false) {
             let parts_field = item.splitn(2, ':').collect::<Vec<_>>();
             if parts_field.len() > 1 {
@@ -176,13 +178,13 @@ mod test_ast {
         let external_term_1 = "a".to_string();
         let filter_1 = UserFilter {
             phrase: external_term_1,
-            levenshtein: None
+            levenshtein: None,
         };
         let left_ast: UserAST = UserAST::Leaf(Box::new(filter_1));
         let external_term_2 = "b".to_string();
         let filter_2 = UserFilter {
             phrase: external_term_2,
-            levenshtein: None
+            levenshtein: None,
         };
         let right_ast: UserAST = UserAST::Leaf(Box::new(filter_2));
 
@@ -223,11 +225,12 @@ mod test_ast {
     fn test_map_ast() {
         let ast: UserAST = ("super".into(), Or, ("cool".into(), Or, "fancy".into()).into()).into();
         let ast = ast.map_ast(
-            &mut |ast: UserAST, _attr: Option<&str>| {
-                match ast {
-                    UserAST::Leaf(ref map) if map.phrase == "cool" => UserAST::Leaf(Box::new(UserFilter { phrase: "coolcool".to_string(), levenshtein: None })),
-                    _ => ast,
-                }
+            &mut |ast: UserAST, _attr: Option<&str>| match ast {
+                UserAST::Leaf(ref map) if map.phrase == "cool" => UserAST::Leaf(Box::new(UserFilter {
+                    phrase: "coolcool".to_string(),
+                    levenshtein: None,
+                })),
+                _ => ast,
             },
             None,
         );
@@ -235,26 +238,28 @@ mod test_ast {
         let expected_mapped_ast: UserAST = ("super".into(), Or, ("coolcool".into(), Or, "fancy".into()).into()).into();
         assert_eq!(ast, expected_mapped_ast);
 
-
         let ast: UserAST = "kawaii".into();
         let ast = ast.map_ast(
-            &mut |ast: UserAST, _attr: Option<&str>| {
-                match ast {
-                    UserAST::Leaf(ref map) if map.phrase == "kawaii" => {
-                        let leftast = UserAST::Leaf(Box::new(UserFilter { phrase: "kawaii".to_string(), levenshtein: None }));
-                        let rightast = UserAST::Leaf(Box::new(UserFilter { phrase: "かわいい".to_string(), levenshtein: None }));
+            &mut |ast: UserAST, _attr: Option<&str>| match ast {
+                UserAST::Leaf(ref map) if map.phrase == "kawaii" => {
+                    let leftast = UserAST::Leaf(Box::new(UserFilter {
+                        phrase: "kawaii".to_string(),
+                        levenshtein: None,
+                    }));
+                    let rightast = UserAST::Leaf(Box::new(UserFilter {
+                        phrase: "かわいい".to_string(),
+                        levenshtein: None,
+                    }));
 
-                        UserAST::BinaryClause(Box::new(leftast), Or, Box::new(rightast))
-                    },
-                    _ => ast,
+                    UserAST::BinaryClause(Box::new(leftast), Or, Box::new(rightast))
                 }
+                _ => ast,
             },
             None,
         );
 
         let expected_mapped_ast: UserAST = ("kawaii".into(), Or, "かわいい".into()).into();
         assert_eq!(ast, expected_mapped_ast);
-
     }
 
     // #[test]
@@ -277,16 +282,10 @@ mod test_ast {
         let ast: UserAST = ("super".into(), Or, ("cool".into(), Or, "fancy".into()).into()).into();
         assert_eq!(ast.get_phrase_pairs(), [["super", "cool"], ["cool", "fancy"]].iter().copied().collect());
         let ast: UserAST = ("super".into(), Or, ("cool".into(), Or, ("fancy".into(), Or, "great".into()).into()).into()).into();
-        assert_eq!(
-            ast.get_phrase_pairs(),
-            [["super", "cool"], ["cool", "fancy"], ["fancy", "great"]].iter().copied().collect()
-        );
+        assert_eq!(ast.get_phrase_pairs(), [["super", "cool"], ["cool", "fancy"], ["fancy", "great"]].iter().copied().collect());
 
         let ast: UserAST = parse("super cool nice great").unwrap();
-        assert_eq!(
-            ast.get_phrase_pairs(),
-            [["super", "cool"], ["cool", "nice"], ["nice", "great"]].iter().copied().collect()
-        );
+        assert_eq!(ast.get_phrase_pairs(), [["super", "cool"], ["cool", "nice"], ["nice", "great"]].iter().copied().collect());
 
         let ast: UserAST = parse("myattr:(super cool) AND fancy").unwrap();
         // let ast: UserAST = ("super".into(), Or, ("cool".into(), Or, "fancy".into()).into()).into();

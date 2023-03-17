@@ -5,12 +5,12 @@ A handwritten parser parsing a predefined syntax, with options to disable
 some syntax.
 
 # Syntax
-By default tokens are OR-connected. 
-Escaping is done by wrapping in quotes. 
+By default tokens are OR-connected.
+Escaping is done by wrapping in quotes.
 
-### Note: 
-If something is wrapped in quotes, the quotes cannot 
-be escaped themselves currently, they will always be removed. There is some work left here 
+### Note:
+If something is wrapped in quotes, the quotes cannot
+be escaped themselves currently, they will always be removed. There is some work left here
 regarding an escape strategy.
 
 ## Phrases

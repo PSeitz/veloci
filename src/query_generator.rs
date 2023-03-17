@@ -30,7 +30,7 @@ pub struct QueryParserOptions {
 
 impl From<QueryParserOptions> for query_parser::Options {
     fn from(options: QueryParserOptions) -> Self {
-        query_parser::Options{
+        query_parser::Options {
             no_attributes: options.no_attributes,
             no_parentheses: options.no_parentheses,
             no_levensthein: options.no_levensthein,
@@ -171,7 +171,7 @@ pub fn handle_boost_term_query(persistence: &Persistence, boost_term: &str, boos
 ///
 /// There is a lot of implicit logic in this method
 /// For better configurability, it should be splitted in a multiple utility functions
-/// 
+///
 pub fn search_query(persistence: &Persistence, mut opt: SearchQueryGeneratorParameters) -> Result<Request, VelociError> {
     opt.facetlimit = opt.facetlimit.or(Some(5));
     info_time!("generating search query");
@@ -185,7 +185,9 @@ pub fn search_query(persistence: &Persistence, mut opt: SearchQueryGeneratorPara
     let mut request = Request::default();
 
     request.search_req = Some(ast_to_search_request(&query_ast, &all_search_fields, &opt)?);
-    if let Some(el) = request.search_req.as_mut() { el.simplify() }
+    if let Some(el) = request.search_req.as_mut() {
+        el.simplify()
+    }
 
     let facetlimit = opt.facetlimit;
 
@@ -246,7 +248,7 @@ pub fn search_query(persistence: &Persistence, mut opt: SearchQueryGeneratorPara
 /// Generates Phrase Boosts for adjoined terms
 ///
 /// Generates Phrase Boosts queries
-/// 
+///
 /// * `foo` - Text about foo.
 /// * `bar` - Text about bar.
 pub fn generate_phrase_queries_for_searchterm(

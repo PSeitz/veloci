@@ -1,12 +1,5 @@
-use vint32::vint_array::VIntArray;
-use vint32::iterator::VintArrayIterator;
-use std::{
-    cmp::Ordering::Greater,
-    io,
-    io::{prelude::*},
-    mem,
-};
-
+use std::{cmp::Ordering::Greater, io, io::prelude::*, mem};
+use vint32::{iterator::VintArrayIterator, vint_array::VIntArray};
 
 const FLUSH_THRESHOLD: usize = 16_384;
 const VALUE_OFFSET: u64 = 1;
@@ -14,7 +7,6 @@ const VALUE_OFFSET: u64 = 1;
 #[derive(Debug)]
 pub struct DocLoader {}
 impl DocLoader {
-
     /// offsets are the offsets produced by the `DocWriter`
     pub fn get_doc(data_reader: &[u8], offsets: &[u8], pos: usize) -> Result<String, io::Error> {
         let size = offsets.len() / mem::size_of::<(u32, u64)>();
@@ -121,7 +113,6 @@ impl DocWriter {
 
     /// flushes the current block to out
     fn flush<W: Write>(&mut self, mut out: W) -> Result<(), io::Error> {
-
         // write first_id_in_block
         let mut arr = VIntArray::default();
         arr.encode(self.current_block.first_id_in_block);
@@ -169,7 +160,6 @@ fn test_doc_store() {
     assert_eq!(doc2.to_string(), DocLoader::get_doc(&sink, &offset_bytes, 1).unwrap());
     assert_eq!(doc3.to_string(), DocLoader::get_doc(&sink, &offset_bytes, 2).unwrap());
 }
-
 
 #[inline]
 fn decode_pos<T: Copy + Default, K: Copy + Default>(pos: usize, slice: &[u8]) -> (T, K) {

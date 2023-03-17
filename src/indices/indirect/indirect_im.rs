@@ -1,9 +1,9 @@
-use vint32::iterator::VintArrayIterator;
 use super::*;
 use crate::{facet::*, indices::*, persistence::*, type_info::TypeInfo};
 use fnv::FnvHashMap;
 use itertools::Itertools;
 use lru_time_cache::LruCache;
+use vint32::iterator::VintArrayIterator;
 
 use std::{self, fmt, u32};
 

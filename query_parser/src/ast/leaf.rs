@@ -1,4 +1,3 @@
-
 #[derive(Clone, PartialEq, Eq)]
 pub struct UserFilter {
     /// the search term

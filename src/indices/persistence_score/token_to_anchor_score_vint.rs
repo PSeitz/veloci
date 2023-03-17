@@ -1,10 +1,9 @@
-use vint32::common_encode::VintArrayMostCommonIterator;
-use vint32::common_encode::VIntArrayEncodeMostCommon;
 use super::{
     super::{EMPTY_BUCKET, EMPTY_BUCKET_USIZE},
     *,
 };
 use std::path::PathBuf;
+use vint32::common_encode::{VIntArrayEncodeMostCommon, VintArrayMostCommonIterator};
 
 use crate::{
     error::VelociError,

@@ -1,14 +1,6 @@
-
-
-// #[cfg(test)]
-// extern crate test;
-
 use fnv::FnvHashMap;
 use serde_json::Value;
 use std::{borrow::Cow, str};
-// use rayon::prelude::*;
-
-// pub mod bench;
 
 #[inline]
 pub fn convert_to_string(value: &Value) -> Cow<'_, str> {

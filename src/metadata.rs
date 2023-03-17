@@ -111,4 +111,3 @@ pub struct TextIndexValuesMetadata {
     pub num_long_text_ids: usize,
     pub options: FulltextIndexOptions,
 }
-

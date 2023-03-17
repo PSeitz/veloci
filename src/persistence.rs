@@ -1,4 +1,3 @@
-use vint32::iterator::VintArrayIterator;
 pub use crate::metadata::*;
 use crate::{
     error::VelociError,
@@ -10,6 +9,7 @@ use crate::{
 use colored::*;
 use fnv::FnvHashMap;
 use fst::Map;
+use vint32::iterator::VintArrayIterator;
 
 use lru_time_cache::LruCache;
 use memmap::{Mmap, MmapOptions};
@@ -25,7 +25,7 @@ use std::{
     fs::{self, File},
     io::{self, prelude::*},
     marker::Sync,
-    path::{Path},
+    path::Path,
     str,
     str::FromStr,
     time::Duration,
@@ -216,7 +216,6 @@ pub trait IndexIdToParent: Debug + Sync + Send + type_info::TypeInfo {
     fn get_value(&self, id: u64) -> Option<Self::Output> {
         self.get_values(id).map(|el| el[0])
     }
-
 }
 
 #[cfg(not(tarpaulin_include))]
@@ -397,7 +396,6 @@ impl Persistence {
     }
 
     pub fn load_fst(&self, path: &str) -> Result<Map<memmap::Mmap>, VelociError> {
-
         Map::new(self.get_mmap_handle(&(path.to_string() + ".fst"))?).map_err(|err| VelociError::StringError(format!("Could not load fst {} {:?}", path, err)))
 
         // In memory version
@@ -411,9 +409,12 @@ impl Persistence {
     pub fn get_mmap_handle(&self, path: &str) -> Result<memmap::Mmap, VelociError> {
         let file = self.get_file_handle(&path)?;
         unsafe {
-            MmapOptions::new().map(&file).map_err(|err| VelociError::StringError(format!("Could not load fst {} {:?}", path, err)))
+            MmapOptions::new()
+                .map(&file)
+                .map_err(|err| VelociError::StringError(format!("Could not load fst {} {:?}", path, err)))
         }
     }
+
     pub fn get_file_handle(&self, path: &str) -> Result<File, VelociError> {
         Ok(File::open(get_file_path(&self.db, path)).map_err(|err| VelociError::StringError(format!("Could not open {} {:?}", path, err)))?)
     }

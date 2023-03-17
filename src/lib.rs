@@ -26,8 +26,8 @@ extern crate measure_time;
 #[macro_use]
 extern crate failure;
 
-pub use query_parser;
 pub use doc_store;
+pub use query_parser;
 #[macro_use]
 pub mod util;
 #[macro_use]

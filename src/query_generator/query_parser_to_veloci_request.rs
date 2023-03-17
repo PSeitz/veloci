@@ -92,7 +92,10 @@ fn expand_fields_in_query_ast<'a, 'b>(ast: &UserAST, all_fields: &'a [String]) -
         )),
         UserAST::Leaf(_) => {
             let mut field_iter = all_fields.iter();
-            let mut curr_ast = field_iter.next().map(|field_name| UserAST::Attributed(field_name.to_string(), Box::new(ast.clone()))).unwrap();
+            let mut curr_ast = field_iter
+                .next()
+                .map(|field_name| UserAST::Attributed(field_name.to_string(), Box::new(ast.clone())))
+                .unwrap();
 
             for field_name in field_iter {
                 let next_ast = UserAST::Attributed(field_name.to_string(), Box::new(ast.clone()));

@@ -9,7 +9,6 @@ use crate::{
 use fnv::FnvHashMap;
 use fst::{self, MapBuilder};
 
-
 use num::ToPrimitive;
 
 use std::{self, io, str, sync::Arc};

@@ -1,5 +1,3 @@
-use vint32::iterator::VintArrayIterator;
-use vint32::vint_array::VIntArray;
 use super::{calc_avg_join_size, flush_to_file_indirect};
 use crate::{
     error::VelociError,
@@ -17,6 +15,7 @@ use std::{
     path::{Path, PathBuf},
     u32,
 };
+use vint32::{iterator::VintArrayIterator, vint_array::VIntArray};
 
 impl_type_info_single_templ!(IndirectIMFlushingInOrderVintNoDirectEncode);
 impl_type_info_single_templ!(IndirectIMBinarySearchMMAP);

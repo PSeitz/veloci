@@ -1260,13 +1260,15 @@ fn read_object_only_partly() {
     let yay = search::read_data(
         &pers,
         4,
-        &["commonness".to_string(),
+        &[
+            "commonness".to_string(),
             "ent_seq".to_string(),
             "meanings.ger[]".to_string(),
             "kana[].text".to_string(),
             "kana[].commonness".to_string(),
             "kana[].romaji".to_string(),
-            "address[].line[]".to_string()],
+            "address[].line[]".to_string(),
+        ],
     )
     .unwrap();
     assert_eq!(

@@ -201,7 +201,7 @@ impl<'a> Lexer<'a> {
     // is quote
     pub fn is_doublequote(&self, pos: u32) -> bool {
         self.chars.get(pos as usize).cloned().map(|c| c == '"').unwrap_or(false)
-            // && (self.current_pos == 0 || self.chars.get(pos as usize - 1).cloned().map(|c| c != '\\').unwrap_or(false))
+        // && (self.current_pos == 0 || self.chars.get(pos as usize - 1).cloned().map(|c| c != '\\').unwrap_or(false))
     }
 
     pub fn eat_while<F>(&mut self, mut cond: F)
@@ -301,7 +301,7 @@ mod tests {
         // assert_eq!(Lexer::new(r#""asdf\"goon""#).get_tokens_text(), [r#"asdf\"goon"#]);
         // assert_eq!(Lexer::new(r#""asdf"goon""#).get_tokens_text(), [r#"asdf"goon"#]);
         assert_eq!(Lexer::new(r#"tes"tco"ol"#).get_tokens_text(), [r#"tes"tco"ol"#]); // no need to escape inside the token
-        // assert_eq!(Lexer::new(r#""\"testcool\"""#).get_tokens_text(), [r#""testcool""#]);
+                                                                                      // assert_eq!(Lexer::new(r#""\"testcool\"""#).get_tokens_text(), [r#""testcool""#]);
     }
 
     #[test]

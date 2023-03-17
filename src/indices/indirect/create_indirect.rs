@@ -1,8 +1,8 @@
-use vint32::vint_array::VIntArray;
 use super::super::{calc_avg_join_size, flush_to_file_indirect};
 use crate::{error::VelociError, indices::*, persistence::*, util::*};
 use num::{self, cast::ToPrimitive};
 use std::{self, io, path::PathBuf, u32};
+use vint32::vint_array::VIntArray;
 
 fn to_serialized_vint_array(add_data: Vec<u32>) -> Vec<u8> {
     let mut vint = VIntArray::default();

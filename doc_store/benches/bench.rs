@@ -1,9 +1,8 @@
 #![feature(test)]
 extern crate test;
 
-use doc_store::DocLoader;
+use doc_store::{DocLoader, DocWriter};
 use std::mem;
-use doc_store::DocWriter;
 
 #[bench]
 fn bench_creation_im(b: &mut test::Bencher) {
