@@ -28,7 +28,7 @@ where
 }
 
 #[inline]
-pub fn for_each_texto<T, E, F>(data: &Value, mut current_path: &mut String, current_el_name: &str, cb_text: &mut F) -> Result<(), E>
+pub fn for_each_texto<T, E, F>(data: &Value, current_path: &mut String, current_el_name: &str, cb_text: &mut F) -> Result<(), E>
 where
     F: FnMut(&str, &str) -> Result<T, E>,
 {
@@ -52,15 +52,15 @@ where
         }
         current_path.push_str(current_el_name);
         let prev_len = current_path.len();
-        for (key, ref value) in obj.iter() {
-            for_each_texto(value, &mut current_path, key, cb_text)?;
+        for (key, value) in obj.iter() {
+            for_each_texto(value, current_path, key, cb_text)?;
             unsafe {
                 current_path.as_mut_vec().truncate(prev_len);
             }
         }
     } else if !data.is_null() {
         current_path.push_str(current_el_name);
-        cb_text(convert_to_string(&data).as_ref(), &current_path)?;
+        cb_text(convert_to_string(data).as_ref(), current_path)?;
     }
     Ok(())
 }
@@ -93,7 +93,7 @@ pub fn for_each_elemento<T, E, ID: IDProvider, F, F2>(
     anchor_id: u32,
     id_provider: &mut ID,
     parent_id: u32,
-    mut current_path: &mut String,
+    current_path: &mut String,
     current_el_name: &str,
     cb_text: &mut F,
     cb_ids: &mut F2,
@@ -109,8 +109,8 @@ where
         current_path.push(']');
         let prev_len = current_path.len();
         for el in arr {
-            let id = id_provider.get_id(&current_path);
-            cb_ids(anchor_id, &current_path, id, parent_id)?;
+            let id = id_provider.get_id(current_path);
+            cb_ids(anchor_id, current_path, id, parent_id)?;
             for_each_elemento(el, anchor_id, id_provider, id, current_path, "", cb_text, cb_ids)?;
             unsafe {
                 current_path.as_mut_vec().truncate(prev_len);
@@ -123,8 +123,8 @@ where
             current_path.push('.');
         }
         let prev_len = current_path.len();
-        for (key, ref value) in obj.iter() {
-            for_each_elemento(value, anchor_id, id_provider, parent_id, &mut current_path, key, cb_text, cb_ids)?;
+        for (key, value) in obj.iter() {
+            for_each_elemento(value, anchor_id, id_provider, parent_id, current_path, key, cb_text, cb_ids)?;
             unsafe {
                 current_path.as_mut_vec().truncate(prev_len);
             }
@@ -132,7 +132,7 @@ where
         current_path.pop();
     } else if !data.is_null() {
         current_path.push_str(current_el_name);
-        cb_text(anchor_id, convert_to_string(&data).as_ref(), &current_path, parent_id)?;
+        cb_text(anchor_id, convert_to_string(data).as_ref(), current_path, parent_id)?;
     }
     Ok(())
 }
@@ -173,7 +173,7 @@ fn test_foreach() {
         Ok(())
     };
 
-    let stream = r#"{"structure" : {"sub1" : "test"}}"#.lines().map(|line| serde_json::from_str(&line));
+    let stream = r#"{"structure" : {"sub1" : "test"}}"#.lines().map(|line| serde_json::from_str(line));
     for_each_element(
         stream,
         &mut id_holder,
@@ -188,7 +188,7 @@ fn test_foreach() {
     )
     .unwrap();
 
-    let stream = r#"{"a" : "1"}"#.lines().map(|line| serde_json::from_str(&line));
+    let stream = r#"{"a" : "1"}"#.lines().map(|line| serde_json::from_str(line));
     for_each_element(
         stream,
         &mut id_holder,
@@ -201,7 +201,7 @@ fn test_foreach() {
     )
     .unwrap();
 
-    let stream = r#"{"meanings": {"ger" : ["karlo"]}}"#.lines().map(|line| serde_json::from_str(&line));
+    let stream = r#"{"meanings": {"ger" : ["karlo"]}}"#.lines().map(|line| serde_json::from_str(line));
     for_each_element(
         stream,
         &mut id_holder,
@@ -214,7 +214,7 @@ fn test_foreach() {
     )
     .unwrap();
 
-    let stream = r#"{"meanings": {"ger" : ["karlo"]}}"#.lines().map(|line| serde_json::from_str(&line));
+    let stream = r#"{"meanings": {"ger" : ["karlo"]}}"#.lines().map(|line| serde_json::from_str(line));
     for_each_text(stream, &mut |value: &str, path: &str| -> Result<(), serde_json::error::Error> {
         assert_eq!(path, "meanings.ger[]");
         assert_eq!(value, "karlo");

@@ -13,7 +13,7 @@ impl DocLoader {
 
         // binary search on the slice to find the correct block where the document resides
         // returns the start and end boundaries of the block
-        let hit = binary_search_slice::<u32, u64>(size, pos as u32, &offsets);
+        let hit = binary_search_slice::<u32, u64>(size, pos as u32, offsets);
 
         let start = hit.lower.1 - VALUE_OFFSET;
         let end = hit.upper.1 - VALUE_OFFSET;
@@ -29,7 +29,7 @@ impl DocLoader {
         let first_id_in_block = arr.next().unwrap();
 
         let mut doc_offsets_in_block: Vec<u32> = vec![];
-        while let Some(off) = arr.next() {
+        for off in arr.by_ref() {
             doc_offsets_in_block.push(off);
         }
         data_start += arr.pos;
@@ -125,7 +125,7 @@ impl DocWriter {
         // println!("CHECKO cache[data_start] {:?}", char::from(cache[129]));
         out.write_all(&output).unwrap();
 
-        self.offsets.push((self.current_block.first_id_in_block as u32, self.current_offset + VALUE_OFFSET as u64));
+        self.offsets.push((self.current_block.first_id_in_block, self.current_offset + VALUE_OFFSET));
         self.current_offset += output.len() as u64;
         self.current_block.data.clear();
         self.current_block.doc_offsets_in_cache.clear();
@@ -135,7 +135,7 @@ impl DocWriter {
 
     pub fn finish<W: Write>(&mut self, out: W) -> Result<(), io::Error> {
         self.flush(out)?;
-        self.offsets.push((self.curr_id as u32 + 1, self.current_offset + VALUE_OFFSET as u64));
+        self.offsets.push((self.curr_id + 1, self.current_offset + VALUE_OFFSET));
         Ok(())
     }
 }
@@ -166,7 +166,7 @@ fn decode_pos<T: Copy + Default, K: Copy + Default>(pos: usize, slice: &[u8]) ->
     let mut out: (T, K) = Default::default();
     let byte_pos = mem::size_of::<(T, K)>() * pos;
     unsafe {
-        slice[byte_pos as usize..]
+        slice[byte_pos..]
             .as_ptr()
             .copy_to_nonoverlapping(&mut out as *mut (T, K) as *mut u8, mem::size_of::<(T, K)>());
     }
@@ -193,13 +193,13 @@ fn binary_search_slice<T: Ord + Copy + Default + std::fmt::Debug, K: Copy + Defa
         // mid is always in [0, size), that means mid is >= 0 and < size.
         // mid >= 0: by definition
         // mid < size: mid = size / 2 + size / 4 + size / 8 ...
-        let cmp = decode_pos::<T, K>(mid, &slice).0.cmp(&id);
+        let cmp = decode_pos::<T, K>(mid, slice).0.cmp(&id);
         base = if cmp == Greater { base } else { mid };
         size -= half;
     }
 
-    let hit = decode_pos(base, &slice); // TODO HANDLE OUT OF BOUNDS
-    let hit_next = decode_pos(base + 1, &slice);
+    let hit = decode_pos(base, slice); // TODO HANDLE OUT OF BOUNDS
+    let hit_next = decode_pos(base + 1, slice);
     SearchHit {
         lower: hit,
         upper: hit_next,

@@ -103,11 +103,7 @@ impl DeserializeFrom for (u32, u32) {
     where
         Self: std::marker::Sized,
     {
-        if let Some(first) = decode_varint_slice(source, pos) {
-            Some((first, decode_varint_slice(source, pos).expect(DESER_ERROR)))
-        } else {
-            None
-        }
+        decode_varint_slice(source, pos).map(|first| (first, decode_varint_slice(source, pos).expect(DESER_ERROR)))
     }
 }
 
@@ -348,7 +344,7 @@ impl<
     #[inline]
     fn kmerge(&self) -> impl Iterator<Item = KeyValue<K, T>> {
         let iters = self.multi_iter().unwrap();
-        iters.into_iter().kmerge_by(|a, b| (*a).key < (*b).key)
+        iters.into_iter().kmerge_by(|a, b| a.key < b.key)
     }
 
     // /// returns iterator over sorted elements
