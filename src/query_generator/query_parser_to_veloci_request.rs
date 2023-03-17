@@ -83,7 +83,7 @@ fn query_ast_to_request(ast: &UserAST, opt: &SearchQueryGeneratorParameters, fie
     }
 }
 
-fn expand_fields_in_query_ast<'b>(ast: &UserAST, all_fields: &[String]) -> Result<UserAST, VelociError> {
+fn expand_fields_in_query_ast(ast: &UserAST, all_fields: &[String]) -> Result<UserAST, VelociError> {
     match ast {
         UserAST::BinaryClause(ast1, op, ast2) => Ok(UserAST::BinaryClause(
             expand_fields_in_query_ast(ast1, all_fields)?.into(),
@@ -114,7 +114,6 @@ fn expand_fields_in_query_ast<'b>(ast: &UserAST, all_fields: &[String]) -> Resul
 
 //TODO should be field specific
 fn filter_stopwords(query_ast: &query_parser::ast::UserAST, opt: &SearchQueryGeneratorParameters) -> Option<UserAST> {
-    
     query_ast.filter_ast(
         &mut |ast: &UserAST, _attr: Option<&str>| match ast {
             UserAST::Leaf(filter) => {

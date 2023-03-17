@@ -44,24 +44,20 @@ pub struct PlanRequestSearchPart {
 }
 
 /// To three parts are settings propagates currently, the search request, the phrase boosts, and the filter query
-fn get_all_field_request_parts_and_propagate_settings<'a>(header_request: &'a Request, request: &'a mut Request, map: &mut FnvHashSet<&'a mut RequestSearchPart>) {
+fn get_all_field_request_parts_and_propagate_settings<'a>(header_request: &'a Request, request: &'a mut Request, map: &mut Vec<&'a mut RequestSearchPart>) {
     if let Some(phrase_boosts) = request.phrase_boosts.as_mut() {
         for el in phrase_boosts.iter_mut() {
             el.search1.options.explain |= header_request.explain;
             el.search2.options.explain |= header_request.explain;
-            map.insert(&mut el.search1);
-            map.insert(&mut el.search2);
+            map.push(&mut el.search1);
+            map.push(&mut el.search2);
         }
     }
 
     get_all_field_request_parts_and_propagate_settings_to_search_req(header_request, request.search_req.as_mut().unwrap(), map);
 }
 
-fn get_all_field_request_parts_and_propagate_settings_to_search_req<'a>(
-    header_request: &'a Request,
-    request: &'a mut SearchRequest,
-    map: &mut FnvHashSet<&'a mut RequestSearchPart>,
-) {
+fn get_all_field_request_parts_and_propagate_settings_to_search_req<'a>(header_request: &'a Request, request: &'a mut SearchRequest, map: &mut Vec<&'a mut RequestSearchPart>) {
     request.get_options_mut().explain |= header_request.explain;
 
     match request {
@@ -72,7 +68,7 @@ fn get_all_field_request_parts_and_propagate_settings_to_search_req<'a>(
         }
         SearchRequest::Search(search) => {
             search.options.explain |= header_request.explain;
-            map.insert(search);
+            map.push(search);
         }
     }
 }
@@ -83,14 +79,14 @@ fn get_all_field_request_parts_and_propagate_settings_to_search_req<'a>(
 ///
 fn collect_all_field_request_into_cache(header_request: &Request, request: &mut Request, plan: &mut Plan) -> FieldRequestCache {
     let mut field_search_cache = FnvHashMap::default();
-    let mut field_requests = FnvHashSet::default();
+    let mut field_requests = Vec::new();
     get_all_field_request_parts_and_propagate_settings(header_request, request, &mut field_requests);
     add_request_to_search_field_cache(field_requests, plan, &mut field_search_cache, false);
 
     // collect filter requests seperately and set to fetch ids
     // This way we can potentially reuse the same request to emit both, score and ids
     if let Some(filter) = request.filter.as_mut() {
-        let mut field_requests = FnvHashSet::default();
+        let mut field_requests = Vec::new();
         get_all_field_request_parts_and_propagate_settings_to_search_req(header_request, filter, &mut field_requests);
         add_request_to_search_field_cache(field_requests, plan, &mut field_search_cache, true);
     };
@@ -98,7 +94,7 @@ fn collect_all_field_request_into_cache(header_request: &Request, request: &mut 
     field_search_cache
 }
 
-fn add_request_to_search_field_cache(field_requests: FnvHashSet<&mut RequestSearchPart>, plan: &mut Plan, field_search_cache: &mut FieldRequestCache, ids_only: bool) {
+fn add_request_to_search_field_cache(field_requests: Vec<&mut RequestSearchPart>, plan: &mut Plan, field_search_cache: &mut FieldRequestCache, ids_only: bool) {
     for request_part in field_requests {
         // There could be the same query for filter and normal search, then we load scores and ids
         if let Some((_, field_search)) = field_search_cache.get_mut(request_part) {
@@ -384,7 +380,7 @@ fn plan_creator_search_part(
     filter_channel_step: Option<usize>,
     request_part: &RequestSearchPart,
     request: &Request,
-    boosts: &mut Vec<RequestBoostPart>,
+    boosts: &mut [RequestBoostPart],
     plan: &mut Plan,
     parent_step_dependecy: Option<usize>,
     depends_on_step: Option<usize>,

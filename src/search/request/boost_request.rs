@@ -9,8 +9,7 @@ pub struct RequestBoostPart {
     pub expression: Option<String>,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, Hash, PartialEq, Eq, PartialOrd)]
-#[derive(Default)]
+#[derive(Serialize, Deserialize, Clone, Debug, Hash, PartialEq, Eq, PartialOrd, Default)]
 pub enum BoostFunction {
     Log2,
     #[default]
@@ -18,5 +17,3 @@ pub enum BoostFunction {
     Multiply,
     Add,
 }
-
-

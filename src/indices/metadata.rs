@@ -1,12 +1,9 @@
-#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq)]
-#[derive(Default)]
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Default)]
 pub enum LoadingType {
     #[default]
     InMemory,
     Disk,
 }
-
-
 
 #[derive(Serialize, Deserialize, Debug, Default, Clone, Copy, PartialEq)]
 pub struct IndexValuesMetadata {
@@ -26,8 +23,7 @@ impl IndexValuesMetadata {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq)]
-#[derive(Default)]
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Default)]
 pub enum IndexCategory {
     Boost,
     #[default]
@@ -35,7 +31,6 @@ pub enum IndexCategory {
     AnchorScore,
     Phrase,
 }
-
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Default)]
 pub struct IndexMetadata {
@@ -49,22 +44,16 @@ pub struct IndexMetadata {
     pub data_type: DataType,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
-#[derive(Default)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Default)]
 pub enum DataType {
     #[default]
     U32,
     U64,
 }
 
-
-
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
-#[derive(Default)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Default)]
 pub enum IndexCardinality {
     #[default]
     IndirectIM,
     IndexIdToOneParent,
 }
-
-

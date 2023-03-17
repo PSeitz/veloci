@@ -42,11 +42,7 @@ impl FieldsConfig {
                 )));
             }
 
-            if let Some(features) = val
-                .features
-                .clone()
-                .or_else(|| val.disabled_features.as_ref().map(Features::invert))
-            {
+            if let Some(features) = val.features.clone().or_else(|| val.disabled_features.as_ref().map(Features::invert)) {
                 let disabled = Features::features_to_disabled_indices(&features);
                 let mut existing = val.disabled_indices.as_ref().cloned().unwrap_or_default();
                 existing.extend(disabled);

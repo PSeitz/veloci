@@ -2,6 +2,8 @@
 #![cfg_attr(feature = "cargo-clippy", allow(clippy::implicit_hasher))]
 #![cfg_attr(feature = "cargo-clippy", allow(clippy::too_many_arguments))]
 #![cfg_attr(feature = "cargo-clippy", allow(clippy::field_reassign_with_default))]
+#![cfg_attr(feature = "cargo-clippy", allow(clippy::comparison_chain))]
+#![cfg_attr(feature = "cargo-clippy", allow(clippy::large_enum_variant))]
 #![feature(drain_filter)]
 #![feature(min_specialization)]
 #![feature(test)]

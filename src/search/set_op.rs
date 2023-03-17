@@ -26,7 +26,7 @@ pub fn get_longest_result<T: std::iter::ExactSizeIterator>(results: &[T]) -> usi
     longest.0
 }
 
-fn merge_term_id_hits(results: &mut Vec<SearchFieldResult>) -> FnvHashMap<String, FnvHashMap<String, Vec<TermId>>> {
+fn merge_term_id_hits(results: &mut [SearchFieldResult]) -> FnvHashMap<String, FnvHashMap<String, Vec<TermId>>> {
     //attr -> term -> hits
     let mut term_id_hits_in_field: FnvHashMap<String, FnvHashMap<String, Vec<TermId>>> = FnvHashMap::default();
     for el in results.iter_mut() {

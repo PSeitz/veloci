@@ -31,8 +31,7 @@ pub(crate) fn normalize_text(text: &str) -> String {
 }
 
 pub fn open_file<P: AsRef<Path>>(path: P) -> Result<File, VelociError> {
-    File::open(path.as_ref())
-        .map_err(|err| VelociError::StringError(format!("Could not open {} {:?}", path.as_ref().to_str().expect("could not convert path to string"), err)))
+    File::open(path.as_ref()).map_err(|err| VelociError::StringError(format!("Could not open {} {:?}", path.as_ref().to_str().expect("could not convert path to string"), err)))
 }
 
 #[derive(Debug)]

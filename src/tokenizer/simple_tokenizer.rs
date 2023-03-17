@@ -13,7 +13,7 @@ impl Tokenizer for SimpleTokenizer {
     }
 
     fn iter<'a>(&'a self, original: &'a str) -> Box<dyn Iterator<Item = (&'a str, bool)> + 'a> {
-        Box::new(SimpleTokenIter::from_str(original))
+        Box::new(SimpleTokenIter::from_text(original))
     }
 }
 
@@ -26,7 +26,7 @@ pub struct SimpleTokenIter<'a> {
 }
 
 impl<'a> SimpleTokenIter<'a> {
-    pub fn from_str(text: &'a str) -> SimpleTokenIter<'a> {
+    pub fn from_text(text: &'a str) -> SimpleTokenIter<'a> {
         SimpleTokenIter {
             original: text,
             last_returned_byte: 0,

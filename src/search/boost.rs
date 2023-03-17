@@ -366,7 +366,7 @@ pub(crate) fn apply_boost(
 }
 
 /// applies the boost values from the boostparts to the result
-pub(crate) fn boost_hits_ids_vec_multi(mut results: SearchFieldResult, boost: &mut Vec<SearchFieldResult>) -> SearchFieldResult {
+pub(crate) fn boost_hits_ids_vec_multi(mut results: SearchFieldResult, boost: &mut [SearchFieldResult]) -> SearchFieldResult {
     {
         debug_time!("boost hits sort input");
         results.hits_scores.sort_unstable_by_key(|el| el.id); //TODO SORT NEEDED??

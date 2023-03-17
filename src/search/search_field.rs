@@ -710,9 +710,6 @@ fn distance(s1: &str, s2: &str) -> u8 {
     let len_s1 = s1.chars().count();
 
     let mut column: [u8; 255] = [0; 255];
-    for i in 0..255 {
-        column[i] = i as u8 + 1;
-    }
     for (i, item) in column.iter_mut().enumerate().take(len_s1 + 1) {
         *item = i as u8;
     }

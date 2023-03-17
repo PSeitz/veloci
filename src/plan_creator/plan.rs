@@ -16,8 +16,6 @@ pub struct Dependency {
     depends_on: usize,
 }
 
-
-
 impl Plan {
     pub(crate) fn add_dependency(&mut self, step_index: usize, depends_on: usize) {
         self.dependencies.push(Dependency { step_index, depends_on });

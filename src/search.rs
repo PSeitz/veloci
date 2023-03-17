@@ -31,16 +31,13 @@ use std::{
     f32, mem, str, u32,
 };
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
-#[derive(Default)]
+#[derive(Serialize, Deserialize, Clone, Debug, Default)]
 enum TextLocalitySetting {
     Enabled,
     #[default]
     Disabled,
     Fields(Vec<String>),
 }
-
-
 
 pub fn skip_false(val: &bool) -> bool {
     !*val
