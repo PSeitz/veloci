@@ -71,10 +71,8 @@ version = "1.3.0"
 [dependencies.json_converter]
 path = "json_converter"
 
-[dependencies.levenshtein_automata]
+[dependencies.veloci_levenshtein_automata]
 features = ["fst_automaton"]
-git = "https://github.com/PSeitz/levenshtein-automata"
-branch = "ignore_case"
 
 [dependencies.ordered-float]
 features = ["serde"]

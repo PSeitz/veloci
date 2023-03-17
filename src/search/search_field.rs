@@ -10,7 +10,6 @@ use crate::{
 use fnv::FnvHashMap;
 use fst::{automaton::*, raw::Fst, IntoStreamer};
 use itertools::Itertools;
-use levenshtein_automata::{Distance, LevenshteinAutomatonBuilder, DFA};
 use ordered_float::OrderedFloat;
 use rayon::prelude::*;
 use std::{
@@ -19,6 +18,7 @@ use std::{
     str,
     sync::Arc,
 };
+use veloci_levenshtein_automata::{Distance, LevenshteinAutomatonBuilder, DFA};
 
 pub type TermId = u32;
 pub type Score = f32;
