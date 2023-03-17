@@ -30,6 +30,7 @@ pub(crate) struct IndirectIMFlushingInOrderVintNoDirectEncode<T> {
     pub(crate) current_id_offset: u32,
     pub(crate) indirect_path: PathBuf,
     pub(crate) data_path: PathBuf,
+    #[allow(dead_code)]
     pub(crate) metadata: IndexValuesMetadata,
 }
 
@@ -137,6 +138,7 @@ pub(crate) struct IndirectIMBinarySearchMMAP<T> {
     pub(crate) start_pos: Mmap,
     pub(crate) data: Mmap,
     pub(crate) ok: PhantomData<T>,
+    #[allow(dead_code)]
     pub(crate) metadata: IndexValuesMetadata,
     pub(crate) size: usize,
 }

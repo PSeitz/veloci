@@ -107,7 +107,7 @@ impl UserAST {
         F: FnMut(UserAST, Option<&str>) -> UserAST,
     {
         match self {
-            UserAST::Attributed(ref attr, ref mut ast) => *ast = Box::new(UserAST::map_ast(*ast.clone(), map_fn, Some(&attr))),
+            UserAST::Attributed(ref attr, ref mut ast) => *ast = Box::new(UserAST::map_ast(*ast.clone(), map_fn, Some(attr))),
             UserAST::BinaryClause(ref mut ast1, _op, ref mut ast2) => {
                 *ast1 = Box::new(UserAST::map_ast(*ast1.clone(), map_fn, current_attr));
                 *ast2 = Box::new(UserAST::map_ast(*ast2.clone(), map_fn, current_attr));
@@ -115,8 +115,7 @@ impl UserAST {
             UserAST::Leaf(ref _filter) => {}
         }
 
-        let new = map_fn(self, current_attr);
-        new
+        map_fn(self, current_attr)
     }
 
     /// walking the ast and grouping adjacent terms for phrase boosting

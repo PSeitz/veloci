@@ -17,11 +17,8 @@ const ALL_FIELD_CONFIG: &str = "*GLOBAL*";
 pub struct FieldsConfig(FnvHashMap<String, FieldConfig>);
 impl FieldsConfig {
     pub fn get(&self, path: &str) -> &FieldConfig {
-        let el = if path.ends_with(".textindex") {
-            self.0.get(&path[..path.len() - 10])
-        } else {
-            self.0.get(path)
-        };
+        let path = path.strip_suffix(".textindex").unwrap_or(path);
+        let el = self.0.get(path);
         if let Some(el) = el {
             el
         } else {

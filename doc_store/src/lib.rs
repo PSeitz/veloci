@@ -175,6 +175,7 @@ fn decode_pos<T: Copy + Default, K: Copy + Default>(pos: usize, slice: &[u8]) ->
 
 #[derive(Debug)]
 struct SearchHit<T, K> {
+    #[allow(dead_code)]
     found: bool,
     lower: (T, K),
     upper: (T, K),

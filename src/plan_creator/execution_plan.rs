@@ -7,7 +7,7 @@ use crate::{
     util::{self, StringAdd},
 };
 
-use fnv::{FnvHashMap, FnvHashSet};
+use fnv::FnvHashMap;
 use std::boxed::Box;
 
 pub(crate) type FieldRequestCache = FnvHashMap<RequestSearchPart, (usize, PlanStepFieldSearchToTokenIds)>;

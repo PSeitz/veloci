@@ -1,5 +1,6 @@
 #[derive(Debug)]
 pub struct ScoreExpression {
+    #[allow(dead_code)]
     expression: String,
     ops: Vec<OperatorType>,
 }

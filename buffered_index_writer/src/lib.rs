@@ -429,6 +429,7 @@ impl<K: Display + PartialOrd + Ord + Default + Copy + SerializeInto + Deserializ
 pub struct MMapIter<K: PartialOrd + Ord + Default + Copy, T: GetValue> {
     mmap: memmap::Mmap,
     pos: usize,
+    #[allow(dead_code)]
     finished: bool,
     phantom: PhantomData<T>,
     menace: PhantomData<K>,

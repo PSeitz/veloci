@@ -27,7 +27,9 @@ pub(crate) struct ResolveTokenIdToAnchor {
 }
 #[derive(Clone, Debug)]
 pub(crate) struct BoostToAnchor {
+    #[allow(dead_code)]
     pub(crate) path: String,
+    #[allow(dead_code)]
     pub(crate) trace_info: String,
     pub(crate) channel: PlanStepDataChannels,
     pub(crate) request: RequestSearchPart,
@@ -35,8 +37,10 @@ pub(crate) struct BoostToAnchor {
 }
 #[derive(Clone, Debug)]
 pub(crate) struct ApplyAnchorBoost {
+    #[allow(dead_code)]
     pub(crate) trace_info: String,
     pub(crate) channel: PlanStepDataChannels,
+    #[allow(dead_code)]
     pub(crate) request: RequestSearchPart,
     pub(crate) boost: RequestBoostPart,
 }

@@ -22,6 +22,7 @@ pub(crate) struct PathData {
     pub(crate) boost: Option<Box<BufferedIndexWriter>>,
     pub(crate) fulltext_options: FulltextIndexOptions,
     pub(crate) is_anchor_identity_column: bool,
+    #[allow(dead_code)]
     pub(crate) skip_tokenizing: bool,
     pub(crate) term_data: TermDataInPath,
 }

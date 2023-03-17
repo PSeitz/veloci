@@ -4,7 +4,7 @@ use itertools::Itertools;
 use std::io;
 
 pub(crate) fn calculate_and_add_token_score_in_doc(
-    tokens_to_anchor_id: &mut Vec<ValIdPairToken>,
+    tokens_to_anchor_id: &mut [ValIdPairToken],
     anchor_id: u32,
     num_tokens_in_text: u32,
     index: &mut BufferedIndexWriter<u32, (u32, u32)>,

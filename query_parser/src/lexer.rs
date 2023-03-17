@@ -50,12 +50,14 @@ pub(crate) struct Token {
 }
 
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub(crate) struct TokenWithText {
     pub(crate) token: Token,
     pub(crate) matched_text: String,
 }
 
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub(crate) struct Lexer<'a> {
     // in_quotes: bool,
     text: &'a str,
@@ -208,7 +210,7 @@ impl<'a> Lexer<'a> {
     where
         F: FnMut(char) -> bool,
     {
-        while self.cur_char().map(|c| cond(c)).unwrap_or(false) {
+        while self.cur_char().map(&mut cond).unwrap_or(false) {
             self.eat_char();
         }
     }
@@ -241,7 +243,8 @@ mod tests {
 
     #[test]
     fn test_white_space_tokens() {
-        assert_eq!(Lexer::new("    ").get_tokens_text(), vec![] as Vec<String>); // white space is ignored
+        assert_eq!(Lexer::new("    ").get_tokens_text(), vec![] as Vec<String>);
+        // white space is ignored
     }
 
     #[test]
@@ -300,8 +303,9 @@ mod tests {
         assert_eq!(Lexer::new(r#""asdf""#).get_tokens_text(), [r#"asdf"#]);
         // assert_eq!(Lexer::new(r#""asdf\"goon""#).get_tokens_text(), [r#"asdf\"goon"#]);
         // assert_eq!(Lexer::new(r#""asdf"goon""#).get_tokens_text(), [r#"asdf"goon"#]);
-        assert_eq!(Lexer::new(r#"tes"tco"ol"#).get_tokens_text(), [r#"tes"tco"ol"#]); // no need to escape inside the token
-                                                                                      // assert_eq!(Lexer::new(r#""\"testcool\"""#).get_tokens_text(), [r#""testcool""#]);
+        assert_eq!(Lexer::new(r#"tes"tco"ol"#).get_tokens_text(), [r#"tes"tco"ol"#]);
+        // no need to escape inside the token
+        // assert_eq!(Lexer::new(r#""\"testcool\"""#).get_tokens_text(), [r#""testcool""#]);
     }
 
     #[test]

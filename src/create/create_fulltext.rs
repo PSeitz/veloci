@@ -17,7 +17,9 @@ use super::*;
 
 #[derive(Debug, Default)]
 pub struct AllTermsAndDocumentBuilder {
+    #[allow(dead_code)]
     offsets: Vec<u64>,
+    #[allow(dead_code)]
     current_offset: u64,
     pub(crate) id_holder: json_converter::IDHolder,
     pub(crate) terms_in_path: FnvHashMap<String, TermDataInPath>,

@@ -114,6 +114,7 @@ fn test_encodsing_and_decoding_bitpacking() {
 // Loads integer with flexibel widths 1, 2 or 4 byte
 pub(crate) struct SingleArrayMMAPPacked<T: IndexIdToParentData> {
     pub(crate) data_file: Mmap,
+    #[allow(dead_code)]
     pub(crate) size: usize,
     pub(crate) metadata: IndexValuesMetadata,
     pub(crate) ok: PhantomData<T>,

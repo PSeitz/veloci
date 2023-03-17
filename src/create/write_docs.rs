@@ -5,7 +5,9 @@ use std::{mem, str};
 #[derive(Debug)]
 pub(crate) struct DocWriteRes {
     pub(crate) num_doc_ids: u32,
+    #[allow(dead_code)]
     pub(crate) bytes_indexed: u64,
+    #[allow(dead_code)]
     pub(crate) offset: u64,
 }
 

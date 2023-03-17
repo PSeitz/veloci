@@ -69,6 +69,7 @@ pub(crate) struct ValIdPairToken {
 }
 
 #[derive(Debug, Default, Clone, Copy)]
+#[allow(dead_code)]
 pub(crate) struct TokenToAnchorScore {
     pub(crate) valid: u32,
     pub(crate) anchor_id: u32,
@@ -132,6 +133,7 @@ fn buffered_index_to_direct_index(db_path: &str, path: &str, mut buffered_index_
 struct PathDataIds {
     value_to_parent: Option<BufferedIndexWriter>,
     parent_to_value: Option<BufferedIndexWriter>,
+    #[allow(dead_code)]
     value_to_anchor: Option<BufferedIndexWriter>,
 }
 
@@ -164,12 +166,9 @@ macro_rules! add {
     };
 }
 
-fn parse_json_and_prepare_indices<I>(
-    stream1: I,
-    persistence: &Persistence,
-    fields_config: &FieldsConfig,
-    term_data: &mut AllTermsAndDocumentBuilder,
-) -> Result<(FnvHashMap<String, PathData>, FnvHashMap<String, PathDataIds>), io::Error>
+type DataAndIds = Result<(FnvHashMap<String, PathData>, FnvHashMap<String, PathDataIds>), io::Error>;
+
+fn parse_json_and_prepare_indices<I>(stream1: I, persistence: &Persistence, fields_config: &FieldsConfig, term_data: &mut AllTermsAndDocumentBuilder) -> DataAndIds
 where
     I: Iterator<Item = Result<serde_json::Value, serde_json::Error>>,
 {

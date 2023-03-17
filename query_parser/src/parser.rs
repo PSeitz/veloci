@@ -49,7 +49,7 @@ impl<'a> Parser<'a> {
             .unwrap_or_else(|| [self.text.len(), self.text.len()]);
         let marked_in_orig = marked_in_orig(self.text, start, stop);
 
-        let err = if message == "" {
+        let err = if message.is_empty() {
             let message = format!(
                 "{} Unexpected token_type, got {}{:?}",
                 message,
@@ -453,12 +453,14 @@ mod tests {
 
     #[test]
     fn test_multi_and_to_flat() {
-        test_parse_query_to_ast_helper("a AND b AND c", "(\"a\" AND (\"b\" AND \"c\"))"); // not flat
+        test_parse_query_to_ast_helper("a AND b AND c", "(\"a\" AND (\"b\" AND \"c\"))");
+        // not flat
     }
 
     #[test]
     fn test_multi_or_to_flat() {
-        test_parse_query_to_ast_helper("a OR b OR c", "(\"a\" OR (\"b\" OR \"c\"))"); // not flat
+        test_parse_query_to_ast_helper("a OR b OR c", "(\"a\" OR (\"b\" OR \"c\"))");
+        // not flat
     }
 
     #[test]

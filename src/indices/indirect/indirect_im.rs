@@ -12,6 +12,7 @@ impl_type_info_single_templ!(IndirectIM);
 #[derive(Clone)]
 pub(crate) struct IndirectIM<T: IndexIdToParentData> {
     pub(crate) start_pos: Vec<T>,
+    #[allow(dead_code)]
     pub(crate) cache: LruCache<Vec<T>, u32>,
     pub(crate) data: Vec<u8>,
     pub(crate) metadata: IndexValuesMetadata,
