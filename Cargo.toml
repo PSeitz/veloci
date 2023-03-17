@@ -20,39 +20,39 @@ name = "bench_persistence"
 path = "benches/bench_persistence.rs"
 
 [dependencies]
-byteorder = "1.3.2"
-chrono = "0.4.9"
-colored = "1.8.0"
-cpuprofiler = "0.0.3"
-crossbeam-channel = "0.3.9"
+byteorder = "1.4.3"
+chrono = "0.4.24"
+colored = "2.0.0"
+cpuprofiler = "0.0.4"
+crossbeam-channel = "0.5.7"
 dot = "0.1.4"
-failure = "0.1.5"
-fixedbitset = "0.1.9"
-fnv = "1.0.6"
-fst = "0.4.4"
-itertools = "0.10.0"
+failure = "0.1.8"
+fixedbitset = "0.4.2"
+fnv = "1.0.7"
+fst = "0.4.7"
+itertools = "0.10.5"
 lazy_static = "1.4.0"
-log = "0.4.8"
+log = "0.4.17"
 lru-cache = "0.1.2"
-lru_time_cache = "0.9.0"
-measure_time = "0.6.0"
+lru_time_cache = "0.11.11"
+measure_time = "0.8.2"
 memmap = "0.7.0"
-num = "0.2.0"
-prettytable-rs = "0.8.0"
-rayon = "1.2.0"
-regex = "1.3.1"
-ron = "0.5.1"
-serde = "1.0.101"
-serde_derive = "1.0.101"
-serde_json = "1.0.40"
-tempfile = "3.1.0"
-toml = "0.5.3"
-inohashmap = "0.2.1"
-vint32 = { version = "0.2.0", features= ["common-encoding"]}
+num = "0.4.0"
+prettytable-rs = "0.10.0"
+rayon = "1.7.0"
+regex = "1.7.1"
+ron = "0.5.0"
+serde = "1.0.156"
+serde_derive = "1.0.156"
+serde_json = "1.0.94"
+tempfile = "3.4.0"
+toml = "0.7.3"
+inohashmap = "0.3.0"
+vint32 = { version = "0.3.0", features = ["common-encoding"] }
 
 [dependencies.env_logger]
 features = []
-version = "0.7.1"
+version = "0.10.0"
 
 [dependencies.regex-automata]
 features = ["transducer"]
@@ -65,8 +65,8 @@ path = "buffered_index_writer"
 path = "doc_store"
 
 [dependencies.half]
-features = ["serialize", "std"]
-version = "1.3.0"
+features = ["std"]
+version = "2.2.1"
 
 [dependencies.json_converter]
 path = "json_converter"
@@ -76,7 +76,7 @@ features = ["fst_automaton"]
 
 [dependencies.ordered-float]
 features = ["serde"]
-version = "1.0.2"
+version = "3.4.0"
 
 [dependencies.parking_lot]
 features = ["nightly"]
@@ -92,17 +92,17 @@ path = "query_parser"
 # git = "https://github.com/PSeitz/rust_string_hashmap"
 
 [dev-dependencies]
-more-asserts = "0.2.1"
-pretty_assertions = "0.6.1"
-rand = "0.7.2"
+more-asserts = "0.3.1"
+pretty_assertions = "1.3.0"
+rand = "0.8.5"
 
 [dev-dependencies.color-backtrace]
-version = "0.3.0"
+version = "0.5.1"
 default-features = false
 
 [dev-dependencies.criterion]
 features = []
-version = "0.3.0"
+version = "0.4.0"
 
 [features]
 create = []
