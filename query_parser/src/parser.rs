@@ -202,10 +202,7 @@ mod tests {
     }
     #[test]
     fn test_invalid() {
-        assert_eq!(
-            parse("field:what:ok").is_err(),
-            true // Err(UnexpectedTokenType("Expecting a levenshtein number after a \'~\' at position 2, but got None".to_string()))
-        );
+        assert!(parse("field:what:ok").is_err() // Err(UnexpectedTokenType("Expecting a levenshtein number after a \'~\' at position 2, but got None".to_string())));
     }
 
     #[test]

@@ -187,7 +187,10 @@ mod test_ast {
         };
         let right_ast: UserAST = UserAST::Leaf(Box::new(filter_2));
 
-        UserAST::BinaryClause(Box::new(left_ast), Or, Box::new(right_ast));
+        let ast = UserAST::BinaryClause(Box::new(left_ast), Or, Box::new(right_ast));
+        let mut data = Vec::new();
+        ast.walk_terms(&mut |el| data.push(el));
+        assert_eq!(data, vec!["a", "b"]);
     }
 
     #[test]
