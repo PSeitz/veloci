@@ -4,7 +4,7 @@ use crate::{
     indices::*,
     search::*,
     type_info,
-    util::{self, get_file_path, *},
+    util::{get_file_path, *},
 };
 use colored::*;
 use fnv::FnvHashMap;
@@ -12,7 +12,7 @@ use fst::Map;
 use vint32::iterator::VintArrayIterator;
 
 use lru_time_cache::LruCache;
-use memmap::{Mmap, MmapOptions};
+use memmap::MmapOptions;
 use num::{self, cast::ToPrimitive, Integer};
 use parking_lot::RwLock;
 use prettytable::{format, Table};
@@ -63,7 +63,6 @@ pub static INDEX_FILE_ENDINGS: &[&str] = &[
 
 #[derive(Debug, Default)]
 pub struct PersistenceIndices {
-    pub doc_offsets: Option<Mmap>,
     pub key_value_stores: HashMap<String, Box<dyn IndexIdToParent<Output = u32>>>,
     pub token_to_anchor_score: HashMap<String, Box<dyn TokenToAnchorScore>>,
     pub phrase_pair_to_anchor: HashMap<String, Box<dyn PhrasePairToAnchor<Input = (u32, u32)>>>,
@@ -255,10 +254,6 @@ impl Persistence {
 
     fn load_indices(&mut self) -> Result<(), VelociError> {
         info_time!("loaded persistence {:?}", &self.db);
-
-        let doc_offsets_file = self.get_file_handle("data.offsets")?;
-        let doc_offsets_mmap = unsafe { MmapOptions::new().map(&doc_offsets_file)? };
-        self.indices.doc_offsets = Some(doc_offsets_mmap);
 
         //ANCHOR TO SCORE
         for el in self.metadata.columns.iter().flat_map(|col| col.1.indices.iter()) {
@@ -479,18 +474,6 @@ impl Persistence {
     pub fn write_metadata(&self) -> Result<(), VelociError> {
         self.write_data("metaData.ron", ron::ser::to_string_pretty(&self.metadata, Default::default())?.as_bytes())?;
         self.write_data("metaData.json", serde_json::to_string_pretty(&self.metadata)?.as_bytes())?;
-        Ok(())
-    }
-
-    pub fn write_data_offset(&self, offsets: &[(u32, u64)]) -> Result<(), VelociError> {
-        let mut offset_bytes = Vec::new();
-        for (docid, offset) in offsets {
-            offset_bytes.extend_from_slice((*docid as u64).to_le_bytes().as_ref());
-            offset_bytes.extend_from_slice(offset.to_le_bytes().as_ref());
-        }
-
-        File::create(util::get_file_path(&self.db, "data.offsets"))?.write_all(&offset_bytes)?;
-        info!("Wrote data offsets with size {:?}", offsets.len());
         Ok(())
     }
 

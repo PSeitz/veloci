@@ -1,13 +1,13 @@
 #![feature(test)]
 extern crate test;
 
-use doc_store::{DocLoader, DocWriter};
-use std::mem;
+use doc_store::DocLoader;
+use doc_store::DocStoreWriter;
 
 #[bench]
 fn bench_creation_im(b: &mut test::Bencher) {
     b.iter(|| {
-        let mut writer = DocWriter::new(0);
+        let mut writer = DocStoreWriter::new(0);
         let mut sink = vec![];
         for _ in 0..10_000 {
             writer.add_doc(r#"{"test":"ok"}"#, &mut sink).unwrap();
@@ -20,7 +20,7 @@ fn bench_creation_im(b: &mut test::Bencher) {
 
 #[bench]
 fn bench_reading_im(b: &mut test::Bencher) {
-    let mut writer = DocWriter::new(0);
+    let mut writer = DocStoreWriter::new(0);
     let mut sink = vec![];
     for _ in 0..10_000 {
         writer.add_doc(r#"{"test":"ok"}"#, &mut sink).unwrap();
@@ -29,13 +29,11 @@ fn bench_reading_im(b: &mut test::Bencher) {
     }
     writer.finish(&mut sink).unwrap();
 
-    use std::slice;
-    let offset_bytes = unsafe { slice::from_raw_parts(writer.offsets.as_ptr() as *const u8, writer.offsets.len() * mem::size_of::<(u32, u64)>()) };
-
+    let doc_loader = DocLoader::open(&sink);
     b.iter(|| {
         let mut total_len = 0;
-        for _ in 0..10 {
-            let doc = DocLoader::get_doc(&sink, &offset_bytes, 0).unwrap();
+        for i in 0..1_000 {
+            let doc = doc_loader.get_doc(i as u32);
             total_len += doc.len();
         }
         total_len

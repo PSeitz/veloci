@@ -1,25 +1,41 @@
-use std::{cmp::Ordering::Greater, io, io::prelude::*, mem};
-use vint32::{iterator::VintArrayIterator, vint_array::VIntArray};
+use std::convert::TryInto;
+
+use std::{cmp::Ordering::Greater, cmp::Ordering::Less, io, io::prelude::*, mem};
+use vint32::iterator::VintArrayIterator;
+use vint32::vint_array::VIntArray;
 
 const FLUSH_THRESHOLD: usize = 16_384;
-const VALUE_OFFSET: u64 = 1;
+const VALUE_OFFSET: u32 = 1;
 
 #[derive(Debug)]
-pub struct DocLoader {}
-impl DocLoader {
+pub struct DocLoader<'a> {
+    blocks: &'a [u8],
+    block_index: &'a [u8],
+}
+impl<'a> DocLoader<'a> {
+    pub fn open(data: &'a [u8]) -> Self {
+        let index_size = u32::from_le_bytes(data[data.len() - 4..].try_into().unwrap());
+        let block_index = &data[..data.len() - 4];
+        Self {
+            blocks: data,
+            block_index: &block_index[block_index.len() - index_size as usize..],
+        }
+    }
+
     /// offsets are the offsets produced by the `DocWriter`
-    pub fn get_doc(data_reader: &[u8], offsets: &[u8], pos: usize) -> Result<String, io::Error> {
-        let size = offsets.len() / mem::size_of::<(u32, u64)>();
+    pub fn get_doc(&self, doc_id: u32) -> Result<String, io::Error> {
+        let offsets = self.block_index;
+        let size = offsets.len() / mem::size_of::<(u32, u32)>();
 
         // binary search on the slice to find the correct block where the document resides
         // returns the start and end boundaries of the block
-        let hit = binary_search_slice::<u32, u64>(size, pos as u32, offsets);
+        let hit = binary_search_slice(size, doc_id, &offsets);
 
         let start = hit.lower.1 - VALUE_OFFSET;
         let end = hit.upper.1 - VALUE_OFFSET;
 
         // load compressed block data into buffer
-        let mut output = lz4_flex::decompress_size_prepended(&data_reader[start as usize..end as usize]).unwrap();
+        let mut output = lz4_flex::decompress_size_prepended(&self.blocks[start as usize..end as usize]).unwrap();
 
         let mut arr = VintArrayIterator::new(&output);
         let arr_size = arr.next().unwrap();
@@ -29,11 +45,11 @@ impl DocLoader {
         let first_id_in_block = arr.next().unwrap();
 
         let mut doc_offsets_in_block: Vec<u32> = vec![];
-        for off in arr.by_ref() {
+        while let Some(off) = arr.next() {
             doc_offsets_in_block.push(off);
         }
         data_start += arr.pos;
-        let pos_in_block = pos - first_id_in_block as usize;
+        let pos_in_block = doc_id as usize - first_id_in_block as usize;
 
         // get the document from the decompressed data
         let document_start_pos = data_start + doc_offsets_in_block[pos_in_block + 1] as usize;
@@ -47,31 +63,31 @@ impl DocLoader {
 
 #[test]
 fn test_large_doc_store() {
-    let mut writer = DocWriter::new(0);
+    let mut writer = DocStoreWriter::new(0);
 
     let mut sink = vec![];
 
     let doc1 = r#"{"category": "superb", "tags": ["nice", "cool"] }"#;
-    for _ in 0..64 {
+    for _ in 0..2640 {
         writer.add_doc(doc1, &mut sink).unwrap();
     }
 
     writer.finish(&mut sink).unwrap();
 
-    use std::slice;
-    let offset_bytes = unsafe { slice::from_raw_parts(writer.offsets.as_ptr() as *const u8, writer.offsets.len() * mem::size_of::<(u32, u64)>()) };
-
-    assert_eq!(doc1.to_string(), DocLoader::get_doc(&sink, &offset_bytes, 0).unwrap());
+    let doc_loader = DocLoader::open(&sink);
+    for i in 0..2640 {
+        assert_eq!(doc1.to_string(), doc_loader.get_doc(i as u32).unwrap());
+    }
 }
 
 #[derive(Debug)]
-pub struct DocWriter {
+pub struct DocStoreWriter {
     pub curr_id: u32,
     pub bytes_indexed: u64,
     /// the offsets holds metadata for the block
-    /// the tuple consists of (the first id in the block, the position of the block in the data)
-    pub offsets: Vec<(u32, u64)>,
-    pub current_offset: u64,
+    /// the tuple consists of (the first doc id in the block, the start byte of the block in the data)
+    pub offsets: Vec<(u32, u32)>,
+    pub current_offset: u32,
     current_block: DocWriterBlock,
 }
 
@@ -82,9 +98,9 @@ struct DocWriterBlock {
     first_id_in_block: u32,
 }
 
-impl DocWriter {
-    pub fn new(current_offset: u64) -> Self {
-        DocWriter {
+impl DocStoreWriter {
+    pub fn new(current_offset: u32) -> Self {
+        DocStoreWriter {
             curr_id: 0,
             bytes_indexed: 0,
             offsets: vec![],
@@ -105,14 +121,14 @@ impl DocWriter {
         self.current_block.doc_offsets_in_cache.push(self.current_block.data.len() as u32);
 
         if self.current_block.data.len() > FLUSH_THRESHOLD {
-            self.flush(out)?;
+            self.flush_block(out)?;
         }
         self.curr_id += 1;
         Ok(())
     }
 
     /// flushes the current block to out
-    fn flush<W: Write>(&mut self, mut out: W) -> Result<(), io::Error> {
+    fn flush_block<W: Write>(&mut self, mut out: W) -> Result<(), io::Error> {
         // write first_id_in_block
         let mut arr = VIntArray::default();
         arr.encode(self.current_block.first_id_in_block);
@@ -122,27 +138,35 @@ impl DocWriter {
         data.extend(self.current_block.data.as_slice());
         let output = lz4_flex::compress_prepend_size(&data);
 
-        // println!("CHECKO cache[data_start] {:?}", char::from(cache[129]));
         out.write_all(&output).unwrap();
 
         self.offsets.push((self.current_block.first_id_in_block, self.current_offset + VALUE_OFFSET));
-        self.current_offset += output.len() as u64;
+        self.current_offset += output.len() as u32;
         self.current_block.data.clear();
         self.current_block.doc_offsets_in_cache.clear();
         out.flush()?;
         Ok(())
     }
 
-    pub fn finish<W: Write>(&mut self, out: W) -> Result<(), io::Error> {
-        self.flush(out)?;
-        self.offsets.push((self.curr_id + 1, self.current_offset + VALUE_OFFSET));
+    pub fn finish<W: Write>(&mut self, mut out: W) -> Result<(), io::Error> {
+        self.flush_block(&mut out)?;
+        self.offsets.push((self.curr_id as u32 + 1, self.current_offset as u32 + VALUE_OFFSET));
+
+        for (id, current_offset) in &self.offsets {
+            out.write_all(&id.to_le_bytes())?;
+            out.write_all(&current_offset.to_le_bytes())?;
+        }
+        let index_size = self.offsets.len() * std::mem::size_of_val(&self.offsets[0]);
+
+        out.write_all(&(index_size as u32).to_le_bytes())?;
+
         Ok(())
     }
 }
 
 #[test]
 fn test_doc_store() {
-    let mut writer = DocWriter::new(0);
+    let mut writer = DocStoreWriter::new(0);
 
     let mut sink = vec![];
     let doc1 = r#"{"test":"ok"}"#;
@@ -153,53 +177,60 @@ fn test_doc_store() {
     writer.add_doc(doc3, &mut sink).unwrap();
     writer.finish(&mut sink).unwrap();
 
-    use std::slice;
-    let offset_bytes = unsafe { slice::from_raw_parts(writer.offsets.as_ptr() as *const u8, writer.offsets.len() * mem::size_of::<(u32, u64)>()) };
-
-    assert_eq!(doc1.to_string(), DocLoader::get_doc(&sink, &offset_bytes, 0).unwrap());
-    assert_eq!(doc2.to_string(), DocLoader::get_doc(&sink, &offset_bytes, 1).unwrap());
-    assert_eq!(doc3.to_string(), DocLoader::get_doc(&sink, &offset_bytes, 2).unwrap());
+    let doc_loader = DocLoader::open(&sink);
+    assert_eq!(doc1.to_string(), doc_loader.get_doc(0 as u32).unwrap());
+    assert_eq!(doc2.to_string(), doc_loader.get_doc(1 as u32).unwrap());
+    assert_eq!(doc3.to_string(), doc_loader.get_doc(2 as u32).unwrap());
 }
 
 #[inline]
-fn decode_pos<T: Copy + Default, K: Copy + Default>(pos: usize, slice: &[u8]) -> (T, K) {
-    let mut out: (T, K) = Default::default();
-    let byte_pos = mem::size_of::<(T, K)>() * pos;
-    unsafe {
-        slice[byte_pos..]
-            .as_ptr()
-            .copy_to_nonoverlapping(&mut out as *mut (T, K) as *mut u8, mem::size_of::<(T, K)>());
-    }
-    out
+fn decode_pos(pos: usize, slice: &[u8]) -> (u32, u32) {
+    let start_offset = pos * 8;
+    let slice = &slice[start_offset..];
+    let id = u32::from_le_bytes(slice[..4].try_into().unwrap());
+    let offset = u32::from_le_bytes(slice[4..4 + 4].try_into().unwrap());
+    (id, offset)
 }
 
 #[derive(Debug)]
-struct SearchHit<T, K> {
+struct SearchHit {
     #[allow(dead_code)]
     found: bool,
-    lower: (T, K),
-    upper: (T, K),
+    lower: (u32, u32),
+    upper: (u32, u32),
 }
 
 #[inline]
-fn binary_search_slice<T: Ord + Copy + Default + std::fmt::Debug, K: Copy + Default + std::fmt::Debug>(mut size: usize, id: T, slice: &[u8]) -> SearchHit<T, K> {
-    // if size == 0 {
-    //     return None;
-    // }
-    let mut base = 0usize;
-    while size > 1 {
-        let half = size / 2;
-        let mid = base + half;
-        // mid is always in [0, size), that means mid is >= 0 and < size.
-        // mid >= 0: by definition
-        // mid < size: mid = size / 2 + size / 4 + size / 8 ...
-        let cmp = decode_pos::<T, K>(mid, slice).0.cmp(&id);
-        base = if cmp == Greater { base } else { mid };
-        size -= half;
+fn binary_search_slice(mut size: usize, id: u32, slice: &[u8]) -> SearchHit {
+    let mut left = 0;
+    let mut right = size;
+    while left < right {
+        let mid = left + size / 2;
+
+        let cmp = decode_pos(mid, &slice).0.cmp(&id);
+
+        if cmp == Less {
+            left = mid + 1;
+        } else if cmp == Greater {
+            right = mid;
+        } else {
+            left = mid;
+            let hit = decode_pos(left, &slice);
+            let hit_next = decode_pos(left + 1, &slice);
+            return SearchHit {
+                lower: hit,
+                upper: hit_next,
+                found: id == hit.0,
+            };
+
+            // SAFETY: same as the `get_unchecked` above
+        }
+
+        size = right - left;
     }
 
-    let hit = decode_pos(base, slice); // TODO HANDLE OUT OF BOUNDS
-    let hit_next = decode_pos(base + 1, slice);
+    let hit = decode_pos(left - 1, &slice);
+    let hit_next = decode_pos(left, &slice);
     SearchHit {
         lower: hit,
         upper: hit_next,

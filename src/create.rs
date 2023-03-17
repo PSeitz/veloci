@@ -30,7 +30,6 @@ use fnv::FnvHashMap;
 
 use itertools::Itertools;
 
-use memmap::MmapOptions;
 use num::ToPrimitive;
 use rayon::prelude::*;
 
@@ -759,7 +758,7 @@ pub fn create_fulltext_index<I, J, K, S: AsRef<str>>(
     stream1: I,
     stream2: J,
     stream3: K,
-    mut persistence: &mut Persistence,
+    persistence: &mut Persistence,
     indices_json: &FieldsConfig,
     load_persistence: bool,
 ) -> Result<(), VelociError>
@@ -878,10 +877,6 @@ where
 
     // load the converted indices, without writing them
     if load_persistence {
-        let doc_offsets_file = persistence.get_file_handle("data.offsets")?;
-        let doc_offsets_mmap = unsafe { MmapOptions::new().map(&doc_offsets_file).unwrap() };
-        persistence.indices.doc_offsets = Some(doc_offsets_mmap);
-
         for index_data in indices {
             let path = index_data.path;
             match index_data.index {

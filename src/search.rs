@@ -75,6 +75,8 @@ pub fn to_documents(persistence: &Persistence, hits: &[Hit], select: &Option<Vec
             .collect()
     };
 
+    let doc_store_data = persistence.get_mmap_handle("data").expect("could not open document store");
+    let doc_store = DocLoader::open(doc_store_data.as_ref());
     hits.iter()
         .map(|hit| {
             if let Some(ref select) = select {
@@ -85,9 +87,7 @@ pub fn to_documents(persistence: &Persistence, hits: &[Hit], select: &Option<Vec
                     why_found: result.why_found_info.get(&hit.id).cloned().unwrap_or_default(),
                 }
             } else {
-                let offsets = persistence.indices.doc_offsets.as_ref().unwrap();
-                let f = persistence.get_mmap_handle("data").expect("could not open document store"); // TODO document store abstraction
-                let doc_str = DocLoader::get_doc(&f, offsets, hit.id as usize).unwrap(); // TODO No unwrapo
+                let doc_str = doc_store.get_doc(hit.id).unwrap(); // TODO No unwrapo
                 let ayse = highlight_on_original_document(persistence, &doc_str, &tokens_set);
 
                 DocWithHit {
