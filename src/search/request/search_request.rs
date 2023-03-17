@@ -3,8 +3,8 @@ use core::cmp::Ordering;
 use ordered_float::OrderedFloat;
 
 /// Internal and External structure for defining the search requests tree.
-#[serde(rename_all = "lowercase")]
 #[derive(Serialize, Deserialize, Clone, Debug)]
+#[serde(rename_all = "lowercase")]
 pub enum SearchRequest {
     Or(SearchTree),
     And(SearchTree),
