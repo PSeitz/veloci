@@ -691,12 +691,11 @@ fn convert_raw_path_data_to_indices(
         .into_par_iter()
         .map(|(path, data)| {
             let mut indices = IndicesFromRawData::default();
-            let path_col = path.to_string();
             let path = &path;
 
             if let Some(value_to_parent) = data.value_to_parent {
                 add_index_flush(
-                    &path_col,
+                    path,
                     path.add(VALUE_ID_TO_PARENT),
                     value_to_parent,
                     true, // valueIdToParent relation is always 1 to 1, expect for text_ids, which can have multiple parents. Here we handle all except .textindex data therefore is this always true
@@ -706,7 +705,7 @@ fn convert_raw_path_data_to_indices(
                 )?;
             }
             if let Some(parent_to_value) = data.parent_to_value {
-                add_index_flush(&path_col, path.add(PARENT_TO_VALUE_ID), parent_to_value, false, false, &mut indices, LoadingType::Disk)?;
+                add_index_flush(path, path.add(PARENT_TO_VALUE_ID), parent_to_value, false, false, &mut indices, LoadingType::Disk)?;
             }
 
             Ok(indices)

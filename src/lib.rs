@@ -1,5 +1,4 @@
 #![warn(missing_debug_implementations, rust_2018_idioms, trivial_casts, trivial_numeric_casts)]
-#![cfg_attr(feature = "cargo-clippy", allow(clippy::implicit_hasher))]
 #![cfg_attr(feature = "cargo-clippy", allow(clippy::too_many_arguments))]
 #![cfg_attr(feature = "cargo-clippy", allow(clippy::field_reassign_with_default))]
 #![cfg_attr(feature = "cargo-clippy", allow(clippy::comparison_chain))]

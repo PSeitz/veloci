@@ -29,7 +29,7 @@ impl<'a> DocLoader<'a> {
 
         // binary search on the slice to find the correct block where the document resides
         // returns the start and end boundaries of the block
-        let hit = binary_search_slice(size, doc_id, &offsets);
+        let hit = binary_search_slice(size, doc_id, offsets);
 
         let start = hit.lower.1 - VALUE_OFFSET;
         let end = hit.upper.1 - VALUE_OFFSET;
@@ -45,7 +45,7 @@ impl<'a> DocLoader<'a> {
         let first_id_in_block = arr.next().unwrap();
 
         let mut doc_offsets_in_block: Vec<u32> = vec![];
-        while let Some(off) = arr.next() {
+        for off in arr.by_ref() {
             doc_offsets_in_block.push(off);
         }
         data_start += arr.pos;
@@ -150,7 +150,7 @@ impl DocStoreWriter {
 
     pub fn finish<W: Write>(&mut self, mut out: W) -> Result<(), io::Error> {
         self.flush_block(&mut out)?;
-        self.offsets.push((self.curr_id as u32 + 1, self.current_offset as u32 + VALUE_OFFSET));
+        self.offsets.push((self.curr_id + 1, self.current_offset + VALUE_OFFSET));
 
         for (id, current_offset) in &self.offsets {
             out.write_all(&id.to_le_bytes())?;
@@ -207,7 +207,7 @@ fn binary_search_slice(mut size: usize, id: u32, slice: &[u8]) -> SearchHit {
     while left < right {
         let mid = left + size / 2;
 
-        let cmp = decode_pos(mid, &slice).0.cmp(&id);
+        let cmp = decode_pos(mid, slice).0.cmp(&id);
 
         if cmp == Less {
             left = mid + 1;
@@ -215,8 +215,8 @@ fn binary_search_slice(mut size: usize, id: u32, slice: &[u8]) -> SearchHit {
             right = mid;
         } else {
             left = mid;
-            let hit = decode_pos(left, &slice);
-            let hit_next = decode_pos(left + 1, &slice);
+            let hit = decode_pos(left, slice);
+            let hit_next = decode_pos(left + 1, slice);
             return SearchHit {
                 lower: hit,
                 upper: hit_next,
@@ -229,8 +229,8 @@ fn binary_search_slice(mut size: usize, id: u32, slice: &[u8]) -> SearchHit {
         size = right - left;
     }
 
-    let hit = decode_pos(left - 1, &slice);
-    let hit_next = decode_pos(left, &slice);
+    let hit = decode_pos(left - 1, slice);
+    let hit_next = decode_pos(left, slice);
     SearchHit {
         lower: hit,
         upper: hit_next,
