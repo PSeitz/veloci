@@ -3,7 +3,6 @@
 #![cfg_attr(feature = "cargo-clippy", allow(clippy::field_reassign_with_default))]
 #![cfg_attr(feature = "cargo-clippy", allow(clippy::comparison_chain))]
 #![cfg_attr(feature = "cargo-clippy", allow(clippy::large_enum_variant))]
-#![feature(drain_filter)]
 #![feature(test)]
 
 #[cfg(feature = "enable_cpuprofiler")]

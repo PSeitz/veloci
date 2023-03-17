@@ -34,16 +34,16 @@ impl SearchRequest {
                 for sub_query in &mut subtree.queries {
                     sub_query.simplify();
                 }
-                let subitems = subtree
-                    .queries
-                    .drain_filter(|q| matches!(q, SearchRequest::Or(_)))
-                    .flat_map(|q| match q {
-                        SearchRequest::Or(search_tree) => search_tree.queries,
-                        _ => unreachable!(),
-                    })
-                    .collect::<Vec<SearchRequest>>();
-
-                subtree.queries.extend(subitems.into_iter());
+                let mut sub_ors = Vec::new();
+                for i in (0..subtree.queries.len()).rev() {
+                    if matches!(subtree.queries[i], SearchRequest::Or(_)) {
+                        match subtree.queries.remove(i) {
+                            SearchRequest::Or(search_tree) => sub_ors.extend(search_tree.queries),
+                            _ => unreachable!(),
+                        }
+                    }
+                }
+                subtree.queries.extend(sub_ors.into_iter());
             }
 
             // Pull up And Conditions
@@ -52,16 +52,17 @@ impl SearchRequest {
                 for sub_query in &mut subtree.queries {
                     sub_query.simplify();
                 }
-                let subitems = subtree
-                    .queries
-                    .drain_filter(|q| matches!(q, SearchRequest::And(_)))
-                    .flat_map(|q| match q {
-                        SearchRequest::And(search_tree) => search_tree.queries,
-                        _ => unreachable!(),
-                    })
-                    .collect::<Vec<SearchRequest>>();
 
-                subtree.queries.extend(subitems.into_iter());
+                let mut sub_ands = Vec::new();
+                for i in (0..subtree.queries.len()).rev() {
+                    if matches!(subtree.queries[i], SearchRequest::And(_)) {
+                        match subtree.queries.remove(i) {
+                            SearchRequest::And(search_tree) => sub_ands.extend(search_tree.queries),
+                            _ => unreachable!(),
+                        }
+                    }
+                }
+                subtree.queries.extend(sub_ands.into_iter());
             }
             SearchRequest::Search(_req) => {}
         }

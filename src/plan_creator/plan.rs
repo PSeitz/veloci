@@ -42,20 +42,23 @@ impl Plan {
         let dep = self.dependencies;
         while !remaining_steps.is_empty() {
             let current_remaining_step_ids: Vec<_> = remaining_steps.iter().map(|el| el.0).collect();
-            let steps_with_fullfilled_dependencies: Vec<_> = remaining_steps
-                .drain_filter(|step_with_index| {
-                    // let steps_dependencies = self.get_dependencies(step_with_index.0);
-                    let steps_dependencies: Vec<Dependency> = dep.iter().filter(|dep| dep.step_index == step_with_index.0).cloned().collect();
-                    let unfulfilled_dependencies: Vec<_> = steps_dependencies
-                        .iter()
-                        .filter(|dep| {
-                            current_remaining_step_ids.iter().any(|step_id| *step_id == dep.depends_on) // check if depends_on is in current_remaining_step_ids
-                        })
-                        .collect();
 
-                    unfulfilled_dependencies.is_empty()
-                })
-                .collect();
+            let mut steps_with_fullfilled_dependencies = Vec::new();
+            for i in (0..remaining_steps.len()).rev() {
+                let step_with_index = &remaining_steps[i];
+                let steps_dependencies: Vec<Dependency> = dep.iter().filter(|dep| dep.step_index == step_with_index.0).cloned().collect();
+                let unfulfilled_dependencies: Vec<_> = steps_dependencies
+                    .iter()
+                    .filter(|dep| {
+                        current_remaining_step_ids.iter().any(|step_id| *step_id == dep.depends_on)
+                        // check if depends_on is in current_remaining_step_ids
+                    })
+                    .collect();
+
+                if unfulfilled_dependencies.is_empty() {
+                    steps_with_fullfilled_dependencies.push(remaining_steps.remove(i));
+                }
+            }
 
             if steps_with_fullfilled_dependencies.is_empty() {
                 panic!("invalid plan created");
