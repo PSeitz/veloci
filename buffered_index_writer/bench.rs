@@ -29,7 +29,7 @@ fn main() {
 }
 
 fn u32_to_bytes(val: u32) -> [u8; 4] {
-    let buffer: [u8; 4] = unsafe { std::mem::transmute(val) };
+    let buffer: [u8; 4] = val.to_le_bytes();
     buffer
 }
 
@@ -47,7 +47,6 @@ fn test_vec() {
     let mut data_file = BufWriter::new(tempfile().unwrap());
 
     for (id, group) in &vecco.iter().group_by(|el| el.0) {
-
         ids_file.write_all(&u32_to_bytes(id)).unwrap();
         let mut num = 0;
         for el in group {

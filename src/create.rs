@@ -398,12 +398,8 @@ fn stream_iter_to_anchor_score<T: AnchorScoreDataSize>(
                 false
             }
         });
-        #[allow(trivial_casts)]
-        let slice: &mut [u32] = unsafe {
-            &mut *(core::ptr::slice_from_raw_parts_mut(group.as_mut_ptr() as *mut u32, group.len() * 2))
-            //DANGER ZONE: THIS COULD BREAK IF THE MEMORY LAYOUT OF TUPLE CHANGES
-        };
-        target.set_scores(id, slice)?;
+        let mut scores = group.iter().flat_map(|el| [el.0, el.1]).collect::<Vec<_>>();
+        target.set_scores(id, &mut scores)?;
     }
 
     Ok(())

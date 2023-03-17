@@ -58,7 +58,7 @@ pub struct TokenToAnchorScoreVintFlushing<T: AnchorScoreDataSize> {
     pub metadata: IndexValuesMetadata,
 }
 
-fn compress_data_block(data: &mut [u32]) -> Vec<u8> {
+fn delta_compress_data_block(data: &mut [u32]) -> Vec<u8> {
     let mut last = 0;
     for (el, _score) in data.iter_mut().tuples() {
         let actual_val = *el;
@@ -105,7 +105,7 @@ impl<T: AnchorScoreDataSize> TokenToAnchorScoreVintFlushing<T> {
         // self.id_to_data_pos[id_pos] = self.current_data_offset + self.data_cache.len() as u32;
 
         self.id_to_data_pos[id_pos] = self.current_data_offset + num::cast(self.data_cache.len()).unwrap();
-        self.data_cache.extend(compress_data_block(add_data));
+        self.data_cache.extend(delta_compress_data_block(add_data));
 
         if self.id_to_data_pos.len() + self.data_cache.len() >= 1_000_000 {
             self.flush()?;
