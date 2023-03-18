@@ -20,6 +20,7 @@ struct TokenValueData {
     value: Option<f32>,
 }
 
+// Add boost values for a list of tokens
 pub fn add_token_values_to_tokens(persistence: &mut Persistence, data_str: &str, config: &str) -> Result<(), VelociError> {
     let data: Vec<TokenValueData> = serde_json::from_str(data_str)?;
     let config: TokenValuesConfig = serde_json::from_str(config)?;

@@ -62,6 +62,41 @@ sub_objects[].description
 sub_objects[].deeper[]
 structured.name
 
+## Boosting 
+Boost score based on values in the data. Given two products with the same name, but one is more common and should be ranked higher.
+
+```json
+{ "commonness": 10, "name": "product" }
+{ "commonness": 99, "name": "product" }
+```
+
+Create a column index for the data. Note the "boost" prefix.
+```toml
+    [commonness.boost]
+    boost_type = 'f32'
+```
+
+
+For search we create a boost query that adjusts the score with the following formula.
+`hit.score *= (boost_value + boost_param).log10();`
+
+```rust
+    let req: search::Request = json!({
+        "search_req": { "search": {
+            "terms":["product"],
+            "path": "name",
+            "levenshtein_distance": 0
+        }},
+        "boost" : [{
+            "path":"commonness",
+            "boost_fun": "Log10",
+            "param": 1
+        }]
+    });
+```
+
+
+
 
 ## Webserver
 

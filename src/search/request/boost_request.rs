@@ -4,8 +4,15 @@ use ordered_float::OrderedFloat;
 pub struct RequestBoostPart {
     pub path: String,
     pub boost_fun: Option<BoostFunction>,
+    /// a fixed number that is added to BoostFunction
     pub param: Option<OrderedFloat<f32>>,
     pub skip_when_score: Option<Vec<OrderedFloat<f32>>>,
+    /// A formula to boost the value. Can be really powerful, but is very limited in its syntax
+    /// currently.
+    /// examples are
+    /// "$SCORE + 2.0"
+    /// "10.0 / $SCORE"
+    /// "$SCORE * $SCORE"
     pub expression: Option<String>,
 }
 

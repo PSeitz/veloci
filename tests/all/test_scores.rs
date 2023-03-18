@@ -55,6 +55,44 @@ lazy_static! {
 }
 
 #[test]
+fn test_boost_simple() {
+    let dir = "test_boost_simple";
+    let test_data = r#"
+{ "commonness": 10, "name": "product" }
+{ "commonness": 99, "name": "product" }
+{ "commonness": 33, "name": "product" }
+    "#;
+    let indices = r#"
+        [name]
+        tokenize = true
+        [commonness.boost]
+        boost_type = 'f32'
+        "#;
+    let pers: persistence::Persistence = common::create_test_persistence(dir, indices, test_data.as_bytes(), None);
+
+    let req = json!({
+        "search_req": { "search": {
+            "terms":["product"],
+            "path": "name",
+            "levenshtein_distance": 0,
+            "firstCharExactMatch":true
+        }},
+        "boost" : [{
+            "path":"commonness",
+            "boost_fun": "Log10",
+            "param": 1
+        }]
+    });
+
+    let requesto: search::Request = serde_json::from_str(&req.to_string()).expect("Can't parse json");
+    let hits = search::to_search_result(&pers, search::search(requesto.clone(), &pers).expect("search error"), &requesto.select).data;
+
+    assert_eq!(hits[0].doc["commonness"], 99);
+    assert_eq!(hits[1].doc["commonness"], 33);
+    assert_eq!(hits[2].doc["commonness"], 10);
+}
+
+#[test]
 fn check_score_regarding_to_length() {
     let req_with_single_phrase = json!({
         "search_req": { "or":  { "queries": [
