@@ -174,12 +174,12 @@ fn search_in_persistence(persistence: &Persistence, request: veloci::search::Req
     let select = request.select.clone();
     let hits = {
         info_time!("Searching ... ");
-        search::search(request, &persistence)?
+        search::search(request, persistence)?
     };
     info!("Loading Documents... ");
     let doc = {
         info_time!("Loading Documents...  ");
-        SearchResult(search::to_search_result(&persistence, hits, &select))
+        SearchResult(search::to_search_result(persistence, hits, &select))
     };
     debug!("Returning ... ");
     Ok(doc)
@@ -276,12 +276,12 @@ fn search_from_query_params(database: String, params: QueryParams) -> Result<Sea
         why_found: params.why_found,
         phrase_pairs: params.phrase_pairs.map(|el| el.to_lowercase() == "true"),
         text_locality: params.text_locality.map(|el| el.to_lowercase() == "true"),
-        facets: facets,
+        facets,
         stopword_lists,
         stopwords: stopwords.map(|list| list.into_iter().collect()),
-        fields: fields,
+        fields,
         boost_fields: boost_fields.transpose()?,
-        boost_terms: boost_terms,
+        boost_terms,
         explain: params.explain.map(|el| el.to_lowercase() == "true"),
         boost_queries: None,
         select: None,

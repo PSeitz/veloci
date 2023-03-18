@@ -3,7 +3,6 @@
 #[macro_use]
 extern crate measure_time;
 
-use veloci;
 #[macro_use]
 extern crate serde_json;
 

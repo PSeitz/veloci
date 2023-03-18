@@ -85,7 +85,7 @@ where
         A: SeqAccess<'de>,
     {
         while let Some(el) = seq.next_element::<serde_json::Value>()? {
-            writeln!(self.out, "{}", el.to_string()).unwrap()
+            writeln!(self.out, "{}", el).unwrap()
         }
         Ok(())
     }

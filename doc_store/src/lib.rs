@@ -178,9 +178,9 @@ fn test_doc_store() {
     writer.finish(&mut sink).unwrap();
 
     let doc_loader = DocLoader::open(&sink);
-    assert_eq!(doc1.to_string(), doc_loader.get_doc(0 as u32).unwrap());
-    assert_eq!(doc2.to_string(), doc_loader.get_doc(1 as u32).unwrap());
-    assert_eq!(doc3.to_string(), doc_loader.get_doc(2 as u32).unwrap());
+    assert_eq!(doc1.to_string(), doc_loader.get_doc(0_u32).unwrap());
+    assert_eq!(doc2.to_string(), doc_loader.get_doc(1_u32).unwrap());
+    assert_eq!(doc3.to_string(), doc_loader.get_doc(2_u32).unwrap());
 }
 
 #[inline]

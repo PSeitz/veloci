@@ -5,8 +5,6 @@
 #[macro_use]
 extern crate measure_time;
 
-use veloci;
-
 #[allow(unused_imports)]
 #[macro_use]
 extern crate serde_json;
@@ -26,7 +24,7 @@ static TEST_FOLDER: &str = "bench_taschenbuch";
 fn load_persistence_disk() -> persistence::Persistence {
     use std::path::Path;
     if Path::new(TEST_FOLDER).exists() {
-        return persistence::Persistence::load(TEST_FOLDER.to_string()).expect("Could not load persistence");
+        return persistence::Persistence::load(TEST_FOLDER).expect("Could not load persistence");
     }
     let object = r#"{"type":"taschenbuch","title":"mein buch"}"#.to_owned() + "\n";
     let mut data = String::new();
