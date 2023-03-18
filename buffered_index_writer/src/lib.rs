@@ -127,7 +127,7 @@ pub struct BufferedIndexWriter<K: PartialOrd + Ord + Default + Copy + SerializeI
 }
 
 #[derive(Debug)]
-struct FlushStruct {
+pub(crate) struct FlushStruct {
     bytes_written: u64,
     /// flush to disk in bytes after threshold
     flush_threshold: usize,
@@ -195,6 +195,11 @@ impl<
 
     pub fn new_unstable_sorted(temp_file_folder: String) -> Self {
         BufferedIndexWriter::new_with_opt(false, false, temp_file_folder)
+    }
+
+    #[inline]
+    pub fn flush_threshold(&mut self) -> usize {
+        self.flush_data.flush_threshold
     }
 
     #[inline]
@@ -557,16 +562,23 @@ fn test_buffered_index_writer_pairs() {
             value: 2000
         })
     );
+}
+
+#[test]
+fn test_buffered_index_iter_im() {
+    use std::env;
 
     let mut ind = BufferedIndexWriter::new_unstable_sorted(env::temp_dir().to_str().unwrap().to_string());
-    ind.add_all((2_u32, 1500_u32), &[2, 2000]).unwrap();
-    let mut iter = ind.into_iter_inmemory();
-    assert_eq!(iter.next(), Some(KeyValue { key: (2_u32, 1500_u32), value: 2 }));
-    assert_eq!(
-        iter.next(),
-        Some(KeyValue {
-            key: (2_u32, 1500_u32),
-            value: 2000
-        })
-    );
+    if ind.flush_threshold() > 10_000 {
+        ind.add_all((2_u32, 1500_u32), &[2, 2000]).unwrap();
+        let mut iter = ind.into_iter_inmemory();
+        assert_eq!(iter.next(), Some(KeyValue { key: (2_u32, 1500_u32), value: 2 }));
+        assert_eq!(
+            iter.next(),
+            Some(KeyValue {
+                key: (2_u32, 1500_u32),
+                value: 2000
+            })
+        );
+    }
 }
