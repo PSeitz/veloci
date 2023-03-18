@@ -17,7 +17,7 @@ pub struct TokenValuesConfig {
 #[derive(Serialize, Deserialize, Debug)]
 struct TokenValueData {
     text: String,
-    value: Option<u32>,
+    value: Option<f32>,
 }
 
 pub fn add_token_values_to_tokens(persistence: &mut Persistence, data_str: &str, config: &str) -> Result<(), VelociError> {
@@ -45,7 +45,7 @@ pub fn add_token_values_to_tokens(persistence: &mut Persistence, data_str: &str,
 
             let hits = search_field::get_term_ids_in_field(persistence, &mut options)?;
             if !hits.hits_scores.is_empty() {
-                buffered_index_data.add(hits.hits_scores[0].id, value)?;
+                buffered_index_data.add(hits.hits_scores[0].id, value.to_bits())?;
             }
         }
     }

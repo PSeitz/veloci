@@ -427,10 +427,11 @@ pub(crate) fn get_boost_ids_and_resolve_to_anchor(persistence: &Persistence, pat
 
     // trace_index_id_to_parent(boostkv_store);
     for value_id in &mut hits.hits_ids {
-        let val_opt = boostkv_store.get_value(u64::from(*value_id));
+        let val_opt = boostkv_store.get_value(*value_id as u64);
 
         if let Some(boost_value) = val_opt.as_ref() {
-            hits.boost_ids.push(Hit::new(*value_id, *boost_value as f32));
+            let boost_value = f32::from_bits(*boost_value);
+            hits.boost_ids.push(Hit::new(*value_id, boost_value));
         }
     }
 
@@ -475,11 +476,12 @@ pub(crate) fn add_boost(persistence: &Persistence, boost: &RequestBoostPart, hit
             // float comparisons should usually include a error margin
             continue;
         }
-        let val_opt = &boostkv_store.get_value(u64::from(hit.id));
+        let val_opt = &boostkv_store.get_value(hit.id as u64);
 
         if let Some(boost_value) = val_opt.as_ref() {
             trace!("Found in boosting for value_id {:?}: {:?}", hit.id, val_opt);
-            let boost_value = *boost_value as f32;
+            let boost_value = f32::from_bits(*boost_value);
+            trace!("Found in boosting for value_id {:?}: {:?}", hit.id, boost_value);
 
             apply_boost(hit, boost_value, boost_param, &boost.boost_fun, &mut explain, &expre)?;
         }

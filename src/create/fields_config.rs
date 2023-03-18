@@ -83,7 +83,13 @@ impl FieldConfig {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct BoostIndexOptions {
-    boost_type: String,
+    boost_type: BoostType,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+enum BoostType {
+    #[serde(rename = "f32")]
+    F32,
 }
 
 pub fn config_from_string(indices: &str) -> Result<FieldsConfig, VelociError> {
@@ -139,7 +145,7 @@ fn test_field_config_from_toml() {
         ["commonness"]
             facet = true
         ["commonness".boost]
-            boost_type = "int"
+            boost_type = "f32"
         ["ent_seq".fulltext]
             tokenize = true
         ["nofulltext".fulltext]
@@ -147,7 +153,7 @@ fn test_field_config_from_toml() {
         ["tags[]"]
             facet = true
         ["field1[].rank".boost]
-            boost_type = "int"
+            boost_type = "f32"
         ["field1[].text"]
             tokenize = true
         ["kanji[].text"]
@@ -159,9 +165,9 @@ fn test_field_config_from_toml() {
         ["meanings.eng[]".fulltext]
             tokenize = true
         ["kanji[].commonness".boost]
-            boost_type = "int"
+            boost_type = "f32"
         ["kana[].commonness".boost]
-            boost_type = "int"
+            boost_type = "f32"
     "#;
 
     config_from_string(indices).unwrap();

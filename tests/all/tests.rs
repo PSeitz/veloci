@@ -12,7 +12,7 @@ lazy_static! {
         ["commonness"]
             facet = true
         ["commonness".boost]
-            boost_type = "int"
+            boost_type = "f32"
         ["ent_seq".fulltext]
             tokenize = true
         ["nofulltext".fulltext]
@@ -20,7 +20,7 @@ lazy_static! {
         ["tags[]"]
             facet = true
         ["field1[].rank".boost]
-            boost_type = "int"
+            boost_type = "f32"
         ["field1[].text"]
             tokenize = true
         ["kanji[].text"]
@@ -31,9 +31,9 @@ lazy_static! {
         ["meanings.eng[]".fulltext]
             tokenize = true
         ["kanji[].commonness".boost]
-            boost_type = "int"
+            boost_type = "f32"
         ["kana[].commonness".boost]
-            boost_type = "int"
+            boost_type = "f32"
         "#;
 
         let token_values = Some((r#"[{"text": "Begeisterung", "value": 20 } ]"#.to_string(), json!({"path": "meanings.ger[]"})));

@@ -44,11 +44,11 @@ lazy_static! {
         [title.fulltext]
         tokenize = true
         ["meanings.ger[].boost".boost]
-        boost_type = 'int'
+        boost_type = 'f32'
         ["meanings.ger[].text".fulltext]
         tokenize = true
         [commonness.boost]
-        boost_type = 'int'
+        boost_type = 'f32'
         "#;
         common::create_test_persistence(TEST_FOLDER, indices, get_test_data().to_string().as_bytes(), None)
     };
@@ -72,7 +72,8 @@ fn check_score_regarding_to_length() {
     let res = search_testo_to_doc!(req_with_single_phrase);
     assert_eq!(res.data[0].doc["title"], "greg tagebuch 05"); //hits 3 tokens and phrases
     assert_eq!(res.data[1].doc["title"], "greg tagebuch"); //hits 2 tokens and phrases
-    assert_eq!(res.data[2].doc["title"], "and some some text 05 this is not relevant let tagebuch greg"); //hits 3 tokens but no phrases
+    assert_eq!(res.data[2].doc["title"], "and some some text 05 this is not relevant let tagebuch greg");
+    //hits 3 tokens but no phrases
 }
 
 // #[test]

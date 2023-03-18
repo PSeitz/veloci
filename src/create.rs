@@ -204,8 +204,10 @@ where
             add!(data.anchor_to_text_id, anchor_id, text_info.id);
             if let Some(el) = data.boost.as_mut() {
                 if value.trim() != "" {
-                    let my_int = value.parse::<u32>().unwrap_or_else(|_| panic!("Expected an int value but got {:?}", value));
-                    el.add(parent_val_id, my_int)?;
+                    let my_number = value.parse::<f32>().unwrap_or_else(|_| panic!("Expected an f32 value but got {:?}", value));
+                    if !my_number.is_nan() {
+                        el.add(parent_val_id, my_number.to_bits())?;
+                    }
                 }
             }
             add!(data.value_id_to_anchor, parent_val_id, anchor_id);

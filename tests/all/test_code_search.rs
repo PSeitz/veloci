@@ -22,7 +22,7 @@ lazy_static! {
         ["line"]
             tokenize = true
         ["line_number"]
-            boost_type = "int"
+            boost_type = "f32"
         "#;
 
         common::create_test_persistence(TEST_FOLDER, indices, get_test_data().to_string().as_bytes(), None)
