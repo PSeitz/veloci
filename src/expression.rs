@@ -41,7 +41,7 @@ impl ScoreExpression {
             OperatorType::Mul => left * right,
             OperatorType::Add => left + right,
             OperatorType::Sub => left - right,
-            _ => panic!("Need to asdf"),
+            _ => panic!("Need to be an operator [*, +, -, /]"),
         }
     }
 

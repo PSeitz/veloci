@@ -541,6 +541,41 @@ fn test_prefer_exact_match_over_multi_hit() {
 }
 
 #[test]
+fn test_exact_match_with_boost() {
+    let dir = "test_boost_simple";
+    // Exact match is more important than many non exact hits
+    let test_data = r#"
+{ "definition": ["home", "family"], "traditional": "家", "commonness": 5.5318 }
+{ "definition": ["place to return to", "home", "final destination", "ending"], "traditional": "歸宿", "commonness": 3.1294}
+    "#;
+    let indices = r#"
+    [commonness.boost]
+    boost_type = 'f32'
+    "#;
+    let pers: persistence::Persistence = common::create_test_persistence(dir, indices, test_data.as_bytes(), None);
+
+    let req = json!({
+        "search_req": { "search": {
+            "terms":["home"],
+            "path": "definition[]",
+            "levenshtein_distance": 0,
+            "firstCharExactMatch":true
+        }},
+        "boost" : [{
+            "path":"commonness",
+            "boost_fun": "Log10",
+            "param": 1
+        }]
+    });
+
+    let requesto: search::Request = serde_json::from_str(&req.to_string()).expect("Can't parse json");
+    let hits = search::to_search_result(&pers, search::search(requesto.clone(), &pers).expect("search error"), &requesto.select).data;
+
+    assert_eq!(hits[0].doc["traditional"], "家");
+    assert_eq!(hits[1].doc["traditional"], "歸宿");
+}
+
+#[test]
 fn should_prefer_exact_tokenmatches_to_fuzzy_text_hits() {
     let req = json!({
         "search_req": { "search": {

@@ -1,0 +1,6 @@
+
+rank first element in array higher
+
+term home:
+[home, asdf] <-- better result
+[asdf, home]

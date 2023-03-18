@@ -9,7 +9,11 @@ pub struct RequestBoostPart {
     pub skip_when_score: Option<Vec<OrderedFloat<f32>>>,
     /// A formula to boost the value. Can be really powerful, but is very limited in its syntax
     /// currently.
-    /// examples are
+    /// Format is: "x op y"
+    ///
+    /// x, y can be $SCORE or a number
+    /// op needs to be one of [*, +, -, /]
+    /// Examples:
     /// "$SCORE + 2.0"
     /// "10.0 / $SCORE"
     /// "$SCORE * $SCORE"
