@@ -514,6 +514,33 @@ fn should_prefer_exact_matches_to_tokenmatches() {
 }
 
 #[test]
+fn test_prefer_exact_match_over_multi_hit() {
+    let dir = "test_boost_simple";
+    // Exact match is more important than many non exact hits
+    let test_data = r#"
+{ "definition": ["home"], "traditional": "家" }
+{ "definition": ["to live at home", "to stay at home", "home (schooling etc)", "le home", "ok home", "so much home"], "traditional": "居家"}
+    "#;
+    let indices = r#""#;
+    let pers: persistence::Persistence = common::create_test_persistence(dir, indices, test_data.as_bytes(), None);
+
+    let req = json!({
+        "search_req": { "search": {
+            "terms":["home"],
+            "path": "definition[]",
+            "levenshtein_distance": 0,
+            "firstCharExactMatch":true
+        }}
+    });
+
+    let requesto: search::Request = serde_json::from_str(&req.to_string()).expect("Can't parse json");
+    let hits = search::to_search_result(&pers, search::search(requesto.clone(), &pers).expect("search error"), &requesto.select).data;
+
+    assert_eq!(hits[0].doc["traditional"], "家");
+    assert_eq!(hits[1].doc["traditional"], "居家");
+}
+
+#[test]
 fn should_prefer_exact_tokenmatches_to_fuzzy_text_hits() {
     let req = json!({
         "search_req": { "search": {

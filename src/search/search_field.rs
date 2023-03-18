@@ -424,6 +424,8 @@ pub fn resolve_token_to_anchor(
                     continue;
                 }
                 let final_score = hit.score * (el.score.to_f32() / 100.0);
+                trace!("final_score {:?} el.score  {:?}", final_score, (el.score.to_f32() / 100.0));
+
                 if options.is_explain() {
                     let vecco = res.explain.entry(el.id).or_insert_with(Vec::new);
                     // vecco.push(format!("term score {:?} * anchor score {:?} to {:?}", hit.score, el.score.to_f32() / 100.0, final_score));

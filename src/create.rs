@@ -268,8 +268,8 @@ where
                         }
                     }
 
-                    if let Some(el) = data.token_to_anchor_id_score.as_mut() {
-                        calculate_and_add_token_score_in_doc(&mut tokens_to_anchor_id, anchor_id, current_token_pos, el)?;
+                    if let Some(token_to_anchor_id_score) = data.token_to_anchor_id_score.as_mut() {
+                        calculate_and_add_token_score_in_doc(&mut tokens_to_anchor_id, anchor_id, current_token_pos, token_to_anchor_id_score)?;
                     }
                     // calculate_and_add_token_score_in_doc(&mut phrase_to_anchor_id, anchor_id, current_token_pos, &mut data.token_to_anchor_id_score, true)?;
                     tokens_to_anchor_id.clear();
@@ -390,20 +390,58 @@ fn stream_iter_to_anchor_score<T: AnchorScoreDataSize>(
     for (id, group) in &iter.group_by(|el| el.key) {
         let mut group: Vec<(ValueId, ValueId)> = group.map(|el| el.value).collect();
         group.sort_unstable_by_key(|el| el.0);
-        group.dedup_by(|a, b| {
-            //store only best hit
-            if a.0 == b.0 {
-                b.1 += a.1; // a is the latter and gets removed, so add to b
-                true
-            } else {
-                false
-            }
-        });
+        dedup_keep_best_score_by(
+            &mut group,
+            |el1, el2| el1.0 == el2.0,
+            |group| {
+                let mut max_score = group.iter().map(|el| el.1).max().unwrap();
+                // small boost for multi hits, but limiting to 5
+                max_score += (group.len() as u32).min(5);
+                (group[0].0, max_score)
+            },
+        );
         let mut scores = group.iter().flat_map(|el| [el.0, el.1]).collect::<Vec<_>>();
         target.set_scores(id, &mut scores)?;
     }
 
     Ok(())
+}
+
+// dedup, keep best hits for same term id, and truncate result
+//
+// Two Callbacks
+// - One for comparison
+// - One for merging hit group
+fn dedup_keep_best_score_by<T, F1, F2>(hits: &mut Vec<T>, mut is_equal: F1, mut merge: F2)
+where
+    F1: FnMut(T, T) -> bool,
+    F2: FnMut(&[T]) -> T,
+    T: Copy + std::fmt::Debug,
+{
+    let mut write_idx = 0;
+    let mut read_idx = 0;
+
+    while read_idx != hits.len() {
+        let group_start = read_idx;
+        let mut group_end = read_idx;
+        hits[write_idx] = hits[read_idx];
+        while is_equal(hits[group_end], hits[group_start]) {
+            group_end += 1;
+            if group_end == hits.len() {
+                break;
+            }
+        }
+        let group_range = group_start..group_end;
+        if group_range.len() > 1 {
+            hits[write_idx] = merge(&hits[group_range]);
+        }
+        write_idx += 1;
+        if group_end == hits.len() {
+            break;
+        }
+        read_idx = group_end;
+    }
+    hits.truncate(write_idx);
 }
 
 pub fn add_anchor_score_flush(
@@ -814,7 +852,7 @@ where
 
     // check_similarity(&data.terms_in_path);
     info_time!("create and (write) fulltext_index");
-    trace!("all_terms {:?}", term_data.terms_in_path);
+    //trace!("all_terms {:?}", term_data.terms_in_path);
 
     let (mut path_data, tuples_to_parent_in_path) = parse_json_and_prepare_indices(stream2, persistence, indices_json, &mut term_data)?;
 

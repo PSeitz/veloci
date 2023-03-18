@@ -10,7 +10,6 @@ pub enum SearchRequest {
     And(SearchTree),
     /// SearchRequest is a search on a field
     ///
-    /// `RequestSearchPart` is boxed
     Search(RequestSearchPart),
 }
 
