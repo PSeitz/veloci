@@ -12,11 +12,7 @@ jobs:
     steps:
       - uses: actions/checkout@v2
       - name: Install Rust
-      - uses: actions-rs/toolchain@v1
-      with:
-        toolchain: nightly
-
-        run: rustup toolchain install stable
+        run: rustup toolchain install nightly --profile minimal --component llvm-tools-preview
       - name: Install llvm
         run: rustup component add llvm-tools-preview --toolchain stable-x86_64-unknown-linux-gnu
       - uses: taiki-e/install-action@cargo-llvm-cov
