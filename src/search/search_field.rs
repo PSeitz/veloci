@@ -311,7 +311,7 @@ pub fn get_term_ids_in_field(persistence: &Persistence, options: &mut PlanReques
             if options.get_scores {
                 let line_lower = text_or_token.to_lowercase();
 
-                // In the case of levenshtein != 0 or starts_with, we want prefix_matches to have a score boost - so that "awe" scores better for awesome than aber
+                // In the case of levenshtein != 0 or starts_with, prefix_matches should get a score boost - so that "awe" scores better for awesome than aber
                 let prefix_matches = should_check_prefix_match && line_lower.starts_with(&lower_term);
 
                 let score = get_default_score_for_distance(distance_dfa(&line_lower, &dfa, &lower_term), prefix_matches);
