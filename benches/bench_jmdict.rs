@@ -12,7 +12,7 @@ extern crate criterion;
 use criterion::Criterion;
 // use rand::distributions::Range;
 use veloci::{search::*, *};
-static TEST_FOLDER: &str = "jmdict";
+static TEST_FOLDER: &str = "veloci_bins/jmdict";
 
 use std::env;
 
@@ -117,7 +117,8 @@ mod bench_jmdict {
 
 fn get_request(term: &str, levenshtein_distance: u32) -> search::Request {
     let query = json!({
-        "or": [
+        "or": {
+            "queries": [
             {
                 "search": {
                     "terms": vec![term.to_string()],
@@ -211,12 +212,18 @@ fn get_request(term: &str, levenshtein_distance: u32) -> search::Request {
                 ]
             }
         ],
-        "top": 10,
-        "skip": 0
+        "options":{
+            "top": 10,
+            "skip": 0
+        }
+        }
     });
 
-    let requesto: search::Request = serde_json::from_str(&query.to_string()).expect("Can't parse json");
-    requesto
+    let requesto: SearchRequest = serde_json::from_str(&query.to_string()).expect("Can't parse json");
+    search::Request {
+        search_req: Some(requesto),
+        ..Default::default()
+    }
 }
 
 fn search(term: &str, pers: &persistence::Persistence, levenshtein_distance: u32) -> Vec<search::DocWithHit> {
@@ -308,39 +315,42 @@ fn highlight(term: &str, path: &str, pers: &persistence::Persistence) -> search_
 //     }));
 // }
 
-fn searches(_c: &mut Criterion) {
-    let _pers = load_persistence_disk();
-    let _pers_im = load_persistence_im();
+fn searches(c: &mut Criterion) {
+    let pers = load_persistence_disk();
+    let pers_im = load_persistence_im();
 
-    // c.bench_function("jmdict_search_anschauen", |b| b.iter(|| search("anschauen", &pers, 1)));
+    c.bench_function("jmdict_search_anschauen", |b| b.iter(|| search("anschauen", &pers, 1)));
 
-    // c.bench_function("jmdict_search_haus", |b| b.iter(|| search("haus", &pers, 1)));
+    c.bench_function("jmdict_search_haus", |b| b.iter(|| search("haus", &pers, 1)));
 
-    // c.bench_function("jmdict_search_freestyle_haus", |b| b.iter(|| search_freestyle("haus", &pers)));
+    c.bench_function("jmdict_search_freestyle_haus", |b| b.iter(|| search_freestyle("haus", &pers)));
 
-    // c.bench_function("jmdict_search_in_a_hurry", |b| b.iter(|| search_freestyle("in a hurry", &pers)));
+    c.bench_function("jmdict_search_in_a_hurry", |b| b.iter(|| search_freestyle("in a hurry", &pers)));
 
-    // c.bench_function("jmdict_search_japanese", |b| b.iter(|| search("家", &pers, 0)));
+    c.bench_function("jmdict_search_japanese", |b| b.iter(|| search("家", &pers, 0)));
 
-    // // let facets: Vec<FacetRequest> = vec![FacetRequest{field:"commonness".to_string(), .. Default::default()}];
+    let facets: Vec<FacetRequest> = vec![FacetRequest {
+        field: "commonness".to_string(),
+        ..Default::default()
+    }];
 
-    // let req = json!({
-    //     "search": {
-    //         "terms": ["the"],
-    //         "path": "meanings.eng[]",
-    //         "levenshtein_distance":0
-    //     },
-    //     "top": 10,
-    //     "skip": 0,
-    //     "facets": [ {"field":"commonness"}]
-    // });
+    let req = json!({
+        "search": {
+            "terms": ["the"],
+            "path": "meanings.eng[]",
+            "levenshtein_distance":0
+        },
+        "top": 10,
+        "skip": 0,
+        "facets": [ {"field":"commonness"}]
+    });
 
-    // let requesto: search::Request = serde_json::from_str(&req.to_string()).expect("Can't parse json");
-    // c.bench_function("jmdict_search_facets", |b| b.iter(|| search::search(requesto.clone(), &pers)));
+    let requesto: search::Request = serde_json::from_str(&req.to_string()).expect("Can't parse json");
+    c.bench_function("jmdict_search_facets", |b| b.iter(|| search::search(requesto.clone(), &pers)));
 
-    // c.bench_function("jmdict_search_facets_im", |b| b.iter(|| search::search(requesto.clone(), &pers_im)));
+    c.bench_function("jmdict_search_facets_im", |b| b.iter(|| search::search(requesto.clone(), &pers_im)));
 
-    // c.bench_function("jmdict_suggest_an", |b| b.iter(|| suggest("an", "meanings.ger[].text", &pers)));
+    c.bench_function("jmdict_suggest_an", |b| b.iter(|| suggest("an", "meanings.ger[].text", &pers)));
 
     // let mut rng = rand::thread_rng();
     // let between = Range::new(0, 166600);

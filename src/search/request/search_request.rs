@@ -11,10 +11,9 @@ pub enum SearchRequest {
     /// SearchRequest is a search on a field
     ///
     Search(RequestSearchPart),
+    //SearchBoost({search: RequestSearchPart, boost:Vec<RequestBoostPart> }),
 }
 
-// #[derive(Serialize, Deserialize, Default, Clone, Debug)]
-// #[serde(default)]
 #[derive(Serialize, Deserialize, Default, Clone, Debug)]
 pub struct SearchTree {
     /// list of subqueries

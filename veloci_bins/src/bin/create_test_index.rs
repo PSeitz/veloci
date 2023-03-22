@@ -22,45 +22,15 @@ fn main() {
     veloci::trace::enable_log();
     std::env::args().nth(1).expect("require command line parameter");
 
-    for jeppo in std::env::args().skip(1) {
-        match jeppo.as_ref() {
-            "jmdict" => info!("{:?}", create_jmdict_index()),
+    for command in std::env::args().skip(1) {
+        match command.as_ref() {
+            "jmdict" => create_jmdict_index().unwrap(),
             // "jmdict_shards" => info!("{:?}", create_jmdict_index_shards()),
-            "gutenberg" => info!("{:?}", create_book_index()),
-            _ => {}
+            "gutenberg" => create_book_index().unwrap(),
+            _ => panic!("unrecognized command: {}", command),
         };
     }
 }
-
-// #[allow(dead_code)]
-// fn create_jmdict_index_shards() -> Result<(), io::Error> {
-//     let threshold_bytes: usize = std::env::args().nth(2).expect("require command line parameter").parse().unwrap();
-//     let mut jmdict_shards = veloci::shards::Shards::new("jmdict_shards".to_string());
-
-//     let start = std::time::Instant::now();
-//     let mut lines = String::new();
-//     let mut total_bytes = 0;
-//     for line in std::io::BufReader::new(File::open("jmdict_split.json")?).lines().take(threshold_bytes) {
-//         let line = line?;
-//         lines += &line;
-//         lines += "\n";
-
-//         total_bytes += line.len();
-//         if lines.len() > threshold_bytes {
-//             jmdict_shards.insert(&lines, JMDICT_INDICES).unwrap();
-//             lines.clear();
-//         }
-//     }
-
-//     let time_in_ms = (start.elapsed().as_secs() as f64 * 1_000.0) + (f64::from(start.elapsed().subsec_nanos()) / 1_000_000.0);
-
-//     let mbs = total_bytes as f64 / 1_000_000.;
-//     info!("total_bytes {:?}", total_bytes);
-//     info!("time_in_s {:?}", time_in_ms / 1_000.);
-//     info!("MB/s {:?}", mbs / (time_in_ms as f64 / 1000.));
-
-//     Ok(())
-// }
 
 const JMDICT_INDICES: &str = r#"
 [commonness.boost]
@@ -101,17 +71,18 @@ tokenize = false
 
 "#;
 
-#[allow(dead_code)]
 fn create_jmdict_index() -> Result<(), io::Error> {
     // PROFILER.lock().unwrap().start("./my-prof.profile").unwrap();
 
+    println!("Create");
     veloci::create::create_indices_from_file(
         &mut veloci::persistence::Persistence::create("jmdict".to_string()).unwrap(),
-        "jmdict_split.json",
+        "../jmdict.json",
         JMDICT_INDICES,
         false,
     )
     .unwrap();
+    println!("Success");
 
     // PROFILER.lock().unwrap().stop().unwrap();
     Ok(())
