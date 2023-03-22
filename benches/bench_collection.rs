@@ -1,6 +1,4 @@
 #![feature(test)]
-#[macro_use]
-extern crate criterion;
 
 extern crate test;
 use fnv::FnvHashMap;

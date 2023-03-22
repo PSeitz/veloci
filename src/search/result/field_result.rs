@@ -92,6 +92,7 @@ impl std::fmt::Display for SearchFieldResult {
 
 #[cfg(all(test, feature = "unstable"))]
 mod bench {
+    use super::*;
     #[cfg(test)]
     use crate::test;
     #[bench]

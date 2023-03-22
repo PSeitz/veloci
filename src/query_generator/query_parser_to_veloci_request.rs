@@ -47,7 +47,7 @@ fn query_ast_to_request(ast: &UserAST, opt: &SearchQueryGeneratorParameters, fie
                 // term = &term[..term.len() - 1];
             }
 
-            // regex is currently enabled, when there is a star, expect if there is only one star at the the end, e.g. fooba*
+            // regex is currently enabled, when there is a star, except if there is only one star at the the end, e.g. fooba*
             // Then it uses a combination of fuzzy + starts_with
             // This enables fuzzy search with patterns, currently there is no fuzzy_search for regex
             let is_regex = term.contains('*');
@@ -132,6 +132,7 @@ fn filter_stopwords(query_ast: &query_parser::ast::UserAST, opt: &SearchQueryGen
 }
 #[cfg(all(test, feature = "unstable"))]
 mod bench {
+    use super::*;
 
     #[bench]
     fn bench_query_custom_parse_to_request(b: &mut test::Bencher) {

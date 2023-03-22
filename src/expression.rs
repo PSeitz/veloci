@@ -124,6 +124,7 @@ mod tests {
 
 #[cfg(all(test, feature = "unstable"))]
 mod bench {
+    use super::*;
     use crate::test::Bencher;
 
     #[bench]

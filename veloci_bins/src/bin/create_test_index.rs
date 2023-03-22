@@ -63,21 +63,42 @@ fn main() {
 // }
 
 const JMDICT_INDICES: &str = r#"
-{
+[commonness.boost]
+boost_type = "f32"
 
-    "commonness":               { "boost":{ "boost_type": "f32" }},
-    "meanings.ger[].rank":      { "boost":{ "boost_type": "f32" }},
-    "kanji[].commonness":       { "boost":{ "boost_type": "f32" }},
-    "kana[].commonness":        { "boost":{ "boost_type": "f32" }},
-    "kanji[].text":             { "fulltext":{"tokenize":false} },
-    "kanji[].conjugated[].form":{ "fulltext":{"tokenize":false} },
-    "kana[].text" :             { "fulltext":{"tokenize":false} },
-    "kana[].conjugated[].form" :{ "fulltext":{"tokenize":false} },
-    "kana[].romaji" :           { "fulltext":{"tokenize":true} },
-    "meanings.ger[].text":      { "fulltext":{"tokenize":true} },
-    "meanings.eng[]":           { "fulltext":{"tokenize":true} },
-    "pos":                      { "fulltext":{"tokenize":false} }
-}
+["meanings.ger[].rank".boost]
+boost_type = "f32"
+
+["kanji[].commonness".boost]
+boost_type = "f32"
+
+["kana[].commonness".boost]
+boost_type = "f32"
+
+["kanji[].text".fulltext]
+tokenize = false
+
+["kanji[].conjugated[].form".fulltext]
+tokenize = false
+
+["kana[].text".fulltext]
+tokenize = false
+
+["kana[].conjugated[].form".fulltext]
+tokenize = false
+
+["kana[].romaji".fulltext]
+tokenize = true
+
+["meanings.ger[].text".fulltext]
+tokenize = true
+
+["meanings.eng[]".fulltext]
+tokenize = true
+
+[pos.fulltext]
+tokenize = false
+
 "#;
 
 #[allow(dead_code)]

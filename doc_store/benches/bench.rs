@@ -33,7 +33,7 @@ fn bench_reading_im(b: &mut test::Bencher) {
     b.iter(|| {
         let mut total_len = 0;
         for i in 0..1_000 {
-            let doc = doc_loader.get_doc(i as u32);
+            let doc = doc_loader.get_doc(i as u32).unwrap();
             total_len += doc.len();
         }
         total_len

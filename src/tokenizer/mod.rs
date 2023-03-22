@@ -36,14 +36,6 @@ mod tests {
     #[allow(unused_imports)]
     use std::{fs::File, io::prelude::*};
 
-    #[allow(dead_code)]
-    fn get_test_book() -> String {
-        let mut f = File::open("test_files/1342-0.txt").unwrap();
-        let mut s = String::new();
-        f.read_to_string(&mut s).unwrap();
-        s
-    }
-
     #[test]
     fn test_tokenizer_control_sequences_grouped() {
         let tokenizer = SimpleTokenizerCharsIterateGroupTokens::default();
@@ -101,7 +93,17 @@ mod tests {
 
 #[cfg(all(test, feature = "unstable"))]
 mod bench {
+    use super::*;
     use crate::test;
+    use std::fs::File;
+    use std::io::Read;
+
+    fn get_test_book() -> String {
+        let mut f = File::open("test_files/1342-0.txt").unwrap();
+        let mut s = String::new();
+        f.read_to_string(&mut s).unwrap();
+        s
+    }
 
     // #[bench]
     // fn bench_regex_iter(b: &mut test::Bencher) {
