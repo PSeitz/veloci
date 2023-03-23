@@ -240,16 +240,6 @@ pub fn get_test_data() -> Value {
     ])
 }
 
-#[test]
-#[ignore]
-fn test_binary_search() {
-    let x = vec![1, 2, 3, 6, 7, 8];
-    let _value = match x.binary_search(&4) {
-        Ok(value) => value,
-        Err(value) => value,
-    };
-}
-
 // TODO enable
 // #[test]
 // fn test_json_request() {

@@ -43,12 +43,25 @@ pub struct PlanRequestSearchPart {
     pub return_term_lowercase: bool,
 }
 
+fn merge_explain(option: &mut Option<search_request::SearchRequestOptions>, explain: bool) {
+    if let Some(option) = option.as_mut() {
+        option.explain |= explain;
+    } else {
+        if explain {
+            *option = Some(SearchRequestOptions {
+                explain: true,
+                ..Default::default()
+            });
+        }
+    }
+}
+
 /// To three parts are settings propagates currently, the search request, the phrase boosts, and the filter query
 fn get_all_field_request_parts_and_propagate_settings<'a>(header_request: &'a Request, request: &'a mut Request, map: &mut Vec<&'a mut RequestSearchPart>) {
     if let Some(phrase_boosts) = request.phrase_boosts.as_mut() {
         for el in phrase_boosts.iter_mut() {
-            el.search1.options.explain |= header_request.explain;
-            el.search2.options.explain |= header_request.explain;
+            merge_explain(&mut el.search1.options, header_request.explain);
+            merge_explain(&mut el.search2.options, header_request.explain);
             map.push(&mut el.search1);
             map.push(&mut el.search2);
         }
@@ -58,7 +71,7 @@ fn get_all_field_request_parts_and_propagate_settings<'a>(header_request: &'a Re
 }
 
 fn get_all_field_request_parts_and_propagate_settings_to_search_req<'a>(header_request: &'a Request, request: &'a mut SearchRequest, map: &mut Vec<&'a mut RequestSearchPart>) {
-    request.get_options_mut().explain |= header_request.explain;
+    merge_explain(request.get_options_mut(), header_request.explain);
 
     match request {
         SearchRequest::And(SearchTree { queries, options: _ }) | SearchRequest::Or(SearchTree { queries, options: _ }) => {
@@ -67,7 +80,7 @@ fn get_all_field_request_parts_and_propagate_settings_to_search_req<'a>(header_r
             }
         }
         SearchRequest::Search(search) => {
-            search.options.explain |= header_request.explain;
+            merge_explain(&mut search.options, header_request.explain);
             map.push(search);
         }
     }

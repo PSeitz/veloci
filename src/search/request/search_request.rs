@@ -8,10 +8,8 @@ use ordered_float::OrderedFloat;
 pub enum SearchRequest {
     Or(SearchTree),
     And(SearchTree),
-    /// SearchRequest is a search on a field
-    ///
+    /// Search on a field
     Search(RequestSearchPart),
-    //SearchBoost({search: RequestSearchPart, boost:Vec<RequestBoostPart> }),
 }
 
 #[derive(Serialize, Deserialize, Default, Clone, Debug)]
@@ -20,7 +18,7 @@ pub struct SearchTree {
     pub queries: Vec<SearchRequest>,
     #[serde(default)]
     /// Options which should be applied on the subqueries
-    pub options: SearchRequestOptions,
+    pub options: Option<SearchRequestOptions>,
 }
 
 impl SearchRequest {
@@ -34,11 +32,13 @@ impl SearchRequest {
                 }
                 let mut sub_ors = Vec::new();
                 for i in (0..subtree.queries.len()).rev() {
-                    if matches!(subtree.queries[i], SearchRequest::Or(_)) {
-                        match subtree.queries.remove(i) {
+                    match &subtree.queries[i] {
+                        // We can only simplify if options are none
+                        SearchRequest::Or(req) if req.options.is_none() => match subtree.queries.remove(i) {
                             SearchRequest::Or(search_tree) => sub_ors.extend(search_tree.queries),
                             _ => unreachable!(),
-                        }
+                        },
+                        _ => {}
                     }
                 }
                 subtree.queries.extend(sub_ors.into_iter());
@@ -52,21 +52,25 @@ impl SearchRequest {
                 }
 
                 let mut sub_ands = Vec::new();
+
                 for i in (0..subtree.queries.len()).rev() {
-                    if matches!(subtree.queries[i], SearchRequest::And(_)) {
-                        match subtree.queries.remove(i) {
+                    match &subtree.queries[i] {
+                        // We can only simplify if options are none
+                        SearchRequest::And(req) if req.options.is_none() => match subtree.queries.remove(i) {
                             SearchRequest::And(search_tree) => sub_ands.extend(search_tree.queries),
                             _ => unreachable!(),
-                        }
+                        },
+                        _ => {}
                     }
                 }
+
                 subtree.queries.extend(sub_ands.into_iter());
             }
             SearchRequest::Search(_req) => {}
         }
     }
 
-    pub fn get_options(&self) -> &SearchRequestOptions {
+    pub fn get_options(&self) -> &Option<SearchRequestOptions> {
         match self {
             SearchRequest::Or(SearchTree { options, .. }) => options,
             SearchRequest::And(SearchTree { options, .. }) => options,
@@ -74,7 +78,7 @@ impl SearchRequest {
         }
     }
 
-    pub fn get_options_mut(&mut self) -> &mut SearchRequestOptions {
+    pub fn get_options_mut(&mut self) -> &mut Option<SearchRequestOptions> {
         match self {
             SearchRequest::Or(SearchTree { options, .. }) => options,
             SearchRequest::And(SearchTree { options, .. }) => options,
@@ -90,7 +94,7 @@ impl SearchRequest {
     }
 
     pub fn get_boost(&self) -> Option<&[RequestBoostPart]> {
-        self.get_options().boost.as_deref()
+        self.get_options().as_ref().map(|opt| opt.boost.as_deref()).flatten()
     }
 }
 
@@ -139,6 +143,8 @@ pub struct RequestSearchPart {
     pub token_value: Option<RequestBoostPart>,
 
     /// boosts the search part with this value
+    ///
+    /// Note: You can also boost with a boost query via options
     #[serde(skip_serializing_if = "Option::is_none")]
     pub boost: Option<OrderedFloat<f32>>, // TODO Move to SearchRequestOptions, to boost whole subtrees
 
@@ -167,12 +173,12 @@ pub struct RequestSearchPart {
     pub skip: Option<usize>,
 
     #[serde(default)]
-    pub options: SearchRequestOptions,
+    pub options: Option<SearchRequestOptions>,
 }
 
 impl RequestSearchPart {
     pub fn is_explain(&self) -> bool {
-        self.options.explain
+        self.options.as_ref().map(|o| o.explain).unwrap_or_default()
     }
 
     pub fn short_dbg_info(&self) -> String {

@@ -10,7 +10,7 @@ pub fn read_data(persistence: &Persistence, id: u32, fields: &[String]) -> Resul
     read_tree(persistence, id, &tree)
 }
 
-fn read_tree(persistence: &Persistence, id: u32, tree: &NodeTree) -> Result<serde_json::Value, VelociError> {
+pub fn read_tree(persistence: &Persistence, id: u32, tree: &NodeTree) -> Result<serde_json::Value, VelociError> {
     let mut json = json!({});
     match *tree {
         NodeTree::Map(ref map) => {

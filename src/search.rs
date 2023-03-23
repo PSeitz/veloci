@@ -11,7 +11,7 @@ pub mod why_found;
 pub(crate) use self::boost::*;
 pub use self::{result::*, search_field::*, set_op::*};
 use self::{sort::top_n_sort, why_found::get_why_found};
-pub use crate::search::{read_document::read_data, request::*};
+pub use crate::search::{read_document::read_data, read_document::read_tree, request::*};
 use crate::{
     error::VelociError,
     expression::ScoreExpression,

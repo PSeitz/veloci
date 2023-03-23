@@ -10,7 +10,8 @@ extern crate serde_json;
 extern crate criterion;
 
 use criterion::Criterion;
-// use rand::distributions::Range;
+use doc_store::DocLoader;
+use rand::Rng;
 use veloci::{search::*, *};
 static TEST_FOLDER: &str = "veloci_bins/jmdict";
 
@@ -124,92 +125,103 @@ fn get_request(term: &str, levenshtein_distance: u32) -> search::Request {
                     "terms": vec![term.to_string()],
                     "path": "kanji[].text",
                     "levenshtein_distance": levenshtein_distance,
-                    "starts_with": true
-                },
-                "boost": [
-                    {
-                        "path": "commonness",
-                        "boost_fun": "Log10",
-                        "param": 1
-                    },
-                    {
-                        "path": "kanji[].commonness",
-                        "boost_fun": "Log10",
-                        "param": 1
+                    "starts_with": true,
+                    "options": {
+                        "boost": [
+                            {
+                                "path": "commonness",
+                                "boost_fun": "Log10",
+                                "param": 1
+                            },
+                            {
+                                "path": "kanji[].commonness",
+                                "boost_fun": "Log10",
+                                "param": 1
+                            }
+                        ]
                     }
-                ]
+                },
             },
             {
                 "search": {
                     "terms": vec![term.to_string()],
                     "path": "kana[].text",
                     "levenshtein_distance": levenshtein_distance,
-                    "starts_with": true
-                },
-                "boost": [
-                    {
-                        "path": "commonness",
-                        "boost_fun": "Log10",
-                        "param": 1
-                    },
-                    {
-                        "path": "kana[].commonness",
-                        "boost_fun": "Log10",
-                        "param": 1
+                    "starts_with": true,
+                    "options": {
+                        "boost": [
+                            {
+                                "path": "commonness",
+                                "boost_fun": "Log10",
+                                "param": 1
+                            },
+                            {
+                                "path": "kana[].commonness",
+                                "boost_fun": "Log10",
+                                "param": 1
+                            }
+                        ]
                     }
-                ]
+                },
             },
             {
                 "search": {
                     "terms": vec![term.to_string()],
                     "path": "kana[].text",
                     "levenshtein_distance": levenshtein_distance,
-                    "starts_with": true
-                },
-                "boost": [
-                    {
-                        "path": "commonness",
-                        "boost_fun": "Log10",
-                        "param": 1
-                    },
-                    {
-                        "path": "kana[].commonness",
-                        "boost_fun": "Log10",
-                        "param": 1
+                    "starts_with": true,
+                    "options": {
+                        "boost": [
+                            {
+                                "path": "commonness",
+                                "boost_fun": "Log10",
+                                "param": 1
+                            },
+                            {
+                                "path": "kana[].commonness",
+                                "boost_fun": "Log10",
+                                "param": 1
+                            }
+                        ]
                     }
-                ]
+
+                }
             },
             {
                 "search": {
                     "terms": vec![term.to_string()],
                     "path": "meanings.ger[].text",
-                    "levenshtein_distance": levenshtein_distance
-                },
-                "boost": [
-                    {
-                        "path": "commonness",
-                        "boost_fun": "Log10",
-                        "param": 0
-                    },
-                    {
-                        "path": "meanings.ger[].rank",
-                        "expression": "10 / $SCORE"
+                    "levenshtein_distance": levenshtein_distance,
+                    "options": {
+                        "boost": [
+                            {
+                                "path": "commonness",
+                                "boost_fun": "Log10",
+                                "param": 0
+                            },
+                            {
+                                "path": "meanings.ger[].rank",
+                                "expression": "10 / $SCORE"
+                            }
+                        ]
                     }
-                ]
+                },
             },
             {
                 "search": {
                     "terms": vec![term.to_string()],
                     "path": "meanings.eng[]",
-                    "levenshtein_distance": levenshtein_distance
-                },
-                "boost": [
-                    {
-                        "path": "commonness",
-                        "boost_fun": "Log10",
-                        "param": 1
+                    "levenshtein_distance": levenshtein_distance,
+                    "options": {
+                        "boost": [
+                            {
+                                "path": "commonness",
+                                "boost_fun": "Log10",
+                                "param": 1
+                            }
+                        ]
                     }
-                ]
+                },
             }
         ],
         "options":{
@@ -319,7 +331,9 @@ fn searches(c: &mut Criterion) {
     let pers = load_persistence_disk();
     let pers_im = load_persistence_im();
 
-    c.bench_function("jmdict_search_anschauen", |b| b.iter(|| search("anschauen", &pers, 1)));
+    c.bench_function("jmdict_search_anschauen_fuzzy", |b| b.iter(|| search("anschauen", &pers, 1)));
+
+    c.bench_function("jmdict_search_anschauen_exact", |b| b.iter(|| search("anschauen", &pers, 0)));
 
     c.bench_function("jmdict_search_haus", |b| b.iter(|| search("haus", &pers, 1)));
 
@@ -352,46 +366,41 @@ fn searches(c: &mut Criterion) {
 
     c.bench_function("jmdict_suggest_an", |b| b.iter(|| suggest("an", "meanings.ger[].text", &pers)));
 
-    // let mut rng = rand::thread_rng();
-    // let between = Range::new(0, 166600);
-    // let fields = pers.get_all_fields();
-    // let tree = get_read_tree_from_fields(&pers, &fields);
-    // let single_tree = get_read_tree_from_fields(&pers, &vec!["ent_seq".to_string()]);
+    let mut rng = rand::thread_rng();
+    let fields = pers.metadata.get_all_fields();
+    let range = 0..166600;
+    let tree = get_read_tree_from_fields(&pers, &fields);
+    let single_tree = get_read_tree_from_fields(&pers, &vec!["ent_seq".to_string()]);
 
-    // c.bench_function("load_documents_direct_large", |b| b.iter(|| DocLoader::get_doc(&pers, 166600 as usize)));
+    let doc_store_data = pers.get_mmap_handle("data").expect("could not open document store");
+    let doc_loader = DocLoader::open(&doc_store_data);
 
-    // c.bench_function("load_documents_tree_large", |b| b.iter(|| search::read_tree(&pers, 166600, &tree)));
+    c.bench_function("load_documents_direct_large", |b| b.iter(|| doc_loader.get_doc(166600)));
 
-    // c.bench_function("load_documents_direct_random", |b| {
-    //     b.iter(|| DocLoader::get_doc(&pers, between.ind_sample(&mut rng) as u32 as usize))
-    // });
+    c.bench_function("load_documents_tree_large", |b| b.iter(|| search::read_tree(&pers, 166600, &tree)));
 
-    // c.bench_function("load_documents_cache:tree_random", |b| {
-    //     b.iter(|| search::read_tree(&pers, between.ind_sample(&mut rng) as u32, &tree))
-    // });
+    c.bench_function("load_documents_direct_random", |b| b.iter(|| doc_loader.get_doc(rng.gen_range(range))));
 
-    // c.bench_function("load_documents_new_tree_random", |b| {
-    //     b.iter(|| {
-    //         let fields = pers.get_all_fields();
-    //         let tree = get_read_tree_from_fields(&pers, &fields);
-    //         search::read_tree(&pers, between.ind_sample(&mut rng) as u32, &tree)
-    //     })
-    // });
+    c.bench_function("load_documents_cache:tree_random", |b| b.iter(|| search::read_tree(&pers, rng.gen_range(range), &tree)));
 
-    // c.bench_function("load_documents_tree_random_single_field", |b| {
-    //     b.iter(|| search::read_tree(&pers, between.ind_sample(&mut rng) as u32, &single_tree))
-    // });
+    c.bench_function("load_documents_new_tree_random", |b| {
+        b.iter(|| {
+            let fields = pers.metadata.get_all_fields();
+            let tree = get_read_tree_from_fields(&pers, &fields);
+            search::read_tree(&pers, rng.gen_range(range), &tree)
+        })
+    });
 
-    // c.bench_function("jmdict_suggest_a", |b| b.iter(|| suggest("a", "meanings.ger[].text", &pers)));
+    c.bench_function("load_documents_tree_random_single_field", |b| {
+        b.iter(|| search::read_tree(&pers, rng.gen_range(range), &single_tree))
+    });
 
-    // c.bench_function("jmdict_suggest_kana_a", |b| b.iter(|| suggest("あ", "kana[].text", &pers)));
+    c.bench_function("jmdict_suggest_a", |b| b.iter(|| suggest("a", "meanings.ger[].text", &pers)));
 
-    // c.bench_function("jmdict_suggest_kana_a", |b| b.iter(|| suggest("あ", "kana[].text", &pers)));
+    c.bench_function("jmdict_suggest_kana_a", |b| b.iter(|| suggest("あ", "kana[].text", &pers)));
+
+    c.bench_function("jmdict_suggest_kana_a", |b| b.iter(|| suggest("あ", "kana[].text", &pers)));
 }
 
 criterion_group!(benches, searches);
 criterion_main!(benches);
-
-// fn main() {
-//     unimplemented!();
-// }
