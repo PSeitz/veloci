@@ -1,4 +1,4 @@
-# Veloci ![Veloci Tests](https://github.com/PSeitz/veloci/workflows/Veloci%20Tests/badge.svg) [![Coverage Status](https://coveralls.io/repos/github/PSeitz/veloci/badge.svg?branch=master)](https://coveralls.io/github/PSeitz/veloci?branch=master) [![codecov](https://codecov.io/gh/PSeitz/veloci/branch/master/graph/badge.svg)](https://codecov.io/gh/PSeitz/veloci) [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+# Veloci ![Veloci Tests](https://github.com/PSeitz/veloci/workflows/Veloci%20Tests/badge.svg) [![codecov](https://codecov.io/gh/PSeitz/veloci/branch/master/graph/badge.svg)](https://codecov.io/gh/PSeitz/veloci) [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 LoadingType=Disk CARGO_INCREMENTAL=1 RUST_BACKTRACE=full RUST_TEST_THREADS=1 RUST_LOG=veloci=trace,measure_time=info cargo watch -w src -x 'test -- --nocapture'
 
@@ -10,6 +10,7 @@ LoadingType=Disk CARGO_INCREMENTAL=1 RUST_BACKTRACE=full RUST_TEST_THREADS=1 RUS
 - Term Boosting
 - Phrase Boosting
 - Boost by Indexed Data
+- Boost Parts of Query
 - Boost by Text-Locality (multi-hit in same text)
 - Facets
 - Filters
