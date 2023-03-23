@@ -368,7 +368,6 @@ fn searches(c: &mut Criterion) {
 
     let mut rng = rand::thread_rng();
     let fields = pers.metadata.get_all_fields();
-    let range = 0..166600;
     let tree = get_read_tree_from_fields(&pers, &fields);
     let single_tree = get_read_tree_from_fields(&pers, &vec!["ent_seq".to_string()]);
 
@@ -379,20 +378,20 @@ fn searches(c: &mut Criterion) {
 
     c.bench_function("load_documents_tree_large", |b| b.iter(|| search::read_tree(&pers, 166600, &tree)));
 
-    c.bench_function("load_documents_direct_random", |b| b.iter(|| doc_loader.get_doc(rng.gen_range(range))));
+    c.bench_function("load_documents_direct_random", |b| b.iter(|| doc_loader.get_doc(rng.gen_range(0..166600))));
 
-    c.bench_function("load_documents_cache:tree_random", |b| b.iter(|| search::read_tree(&pers, rng.gen_range(range), &tree)));
+    c.bench_function("load_documents_cache:tree_random", |b| b.iter(|| search::read_tree(&pers, rng.gen_range(0..166600), &tree)));
 
     c.bench_function("load_documents_new_tree_random", |b| {
         b.iter(|| {
             let fields = pers.metadata.get_all_fields();
             let tree = get_read_tree_from_fields(&pers, &fields);
-            search::read_tree(&pers, rng.gen_range(range), &tree)
+            search::read_tree(&pers, rng.gen_range(0..166600), &tree)
         })
     });
 
     c.bench_function("load_documents_tree_random_single_field", |b| {
-        b.iter(|| search::read_tree(&pers, rng.gen_range(range), &single_tree))
+        b.iter(|| search::read_tree(&pers, rng.gen_range(0..166600), &single_tree))
     });
 
     c.bench_function("jmdict_suggest_a", |b| b.iter(|| suggest("a", "meanings.ger[].text", &pers)));
