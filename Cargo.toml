@@ -2,7 +2,7 @@
 authors = ["Pascal Seitz <pascal.seitz@gmail.com>"]
 autobenches = false
 autobins = false
-edition = "2018"
+edition = "2021"
 name = "veloci"
 version = "0.1.1"
 

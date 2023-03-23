@@ -3,7 +3,7 @@ authors = ["Pascal Powerman <you@gmail.com>"]
 autobenches = false
 name = "veloci_server"
 version = "0.1.0"
-edition = "2018"
+edition = "2021"
 
 [[bin]]
 name = "rocket_server"

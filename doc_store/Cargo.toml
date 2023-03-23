@@ -1,6 +1,6 @@
 [package]
 authors = ["Pascal Seitz <pascal.seitz@gmail.com>"]
-edition = "2018"
+edition = "2021"
 name = "doc_store"
 version = "0.1.0"
 [dependencies]
