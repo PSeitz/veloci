@@ -41,10 +41,11 @@ fn query_ast_to_request(ast: &UserAST, opt: &SearchQueryGeneratorParameters, fie
             let mut term = filter.phrase.to_string();
 
             let mut levenshtein_distance = None;
-            let starts_with = term.ends_with('*');
-            if term.ends_with('*') {
+            // One star at the end means it's a starts_with query, which can be combined with
+            // levensthein
+            let starts_with = term.ends_with("*") && term.chars().filter(|&c| c == '*').count() == 1;
+            if starts_with {
                 term.pop();
-                // term = &term[..term.len() - 1];
             }
 
             // regex is currently enabled, when there is a star, except if there is only one star at the the end, e.g. fooba*
@@ -75,7 +76,7 @@ fn query_ast_to_request(ast: &UserAST, opt: &SearchQueryGeneratorParameters, fie
             SearchRequest::Search(part)
             // Request {
             //     search: Some(part),
-            //     why_found: opt.why_found.unwrap_or(false),
+            //     why_found: op.why_found.unwrap_or(false),
             //     text_locality: opt.text_locality.unwrap_or(false),
             //     ..Default::default()
             // }

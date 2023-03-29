@@ -17,6 +17,7 @@ pub struct SearchTree {
     /// list of subqueries
     pub queries: Vec<SearchRequest>,
     #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
     /// Options which should be applied on the subqueries
     pub options: Option<SearchRequestOptions>,
 }
@@ -173,6 +174,7 @@ pub struct RequestSearchPart {
     pub skip: Option<usize>,
 
     #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub options: Option<SearchRequestOptions>,
 }
 

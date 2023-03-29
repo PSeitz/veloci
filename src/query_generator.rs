@@ -245,12 +245,15 @@ pub fn search_query(persistence: &Persistence, mut opt: SearchQueryGeneratorPara
     Ok(request)
 }
 
-/// Generates Phrase Boosts for adjoined terms
+/// Generates Phrase Boosts queries for adjoined terms on selected fields
 ///
-/// Generates Phrase Boosts queries
+pub fn generate_phrase_queries_simple(persistence: &Persistence, terms: &[&str], fields: Vec<String>) -> Result<Vec<RequestPhraseBoost>, VelociError> {
+    let terms: HashSet<[&str; 2]> = terms.windows(2).map(|window| [window[0], window[1]]).collect();
+    generate_phrase_queries_for_searchterm(persistence, &Some(fields), terms, Some(0), Some(0), &None)
+}
+
+/// Generates Phrase Boosts queries from provided terms.
 ///
-/// * `foo` - Text about foo.
-/// * `bar` - Text about bar.
 pub fn generate_phrase_queries_for_searchterm(
     persistence: &Persistence,
     fields: &Option<Vec<String>>,

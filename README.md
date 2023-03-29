@@ -5,6 +5,7 @@ LoadingType=Disk CARGO_INCREMENTAL=1 RUST_BACKTRACE=full RUST_TEST_THREADS=1 RUS
 
 ## Features
 
+- Optional Schema
 - Fuzzy Search
 - Query Boosting
 - Term Boosting
