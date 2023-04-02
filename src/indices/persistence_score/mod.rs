@@ -1,6 +1,5 @@
 use crate::{persistence::*, type_info::TypeInfo};
 use half::f16;
-use std::path::Path;
 
 pub mod token_to_anchor_score_vint;
 pub(crate) use self::token_to_anchor_score_vint::*;

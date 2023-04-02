@@ -9,6 +9,7 @@ mod write_docs;
 pub use token_values_to_tokens::*;
 
 use self::{fast_lines::FastLinesTrait, features::IndexCreationType, fields_config::FieldsConfig};
+use crate::directory::Directory;
 use crate::{
     create::{
         calculate_score::{calculate_and_add_token_score_in_doc, calculate_token_score_for_entry},
@@ -445,17 +446,15 @@ where
 }
 
 pub fn add_anchor_score_flush(
-    db_path: &str,
+    directory: &std::boxed::Box<dyn Directory>,
     path_col: &str,
     field_path: String,
     mut buffered_index_data: BufferedIndexWriter<ValueId, (ValueId, ValueId)>,
     indices: &mut IndicesFromRawData,
 ) -> Result<(), io::Error> {
-    let indirect_file_path = util::get_file_path(db_path, &field_path).set_ext(Ext::Indirect);
-    let data_file_path = util::get_file_path(db_path, &field_path).set_ext(Ext::Data);
     //If the buffered index_data is larger than 4GB, we switch to u64 for addressing the data block
     if buffered_index_data.bytes_written() < 2_u64.pow(32) {
-        let mut store = TokenToAnchorScoreVintFlushing::<u32>::new2(field_path.to_owned(), indirect_file_path, data_file_path);
+        let mut store = TokenToAnchorScoreVintFlushing::<u32>::new(field_path.to_owned(), directory);
         // stream_buffered_index_writer_to_anchor_score(buffered_index_data, &mut store)?;
         if buffered_index_data.is_in_memory() {
             stream_iter_to_anchor_score(buffered_index_data.into_iter_inmemory(), &mut store)?;
@@ -476,7 +475,7 @@ pub fn add_anchor_score_flush(
             index_category: IndexCategory::AnchorScore,
         });
     } else {
-        let mut store = TokenToAnchorScoreVintFlushing::<u64>::new2(field_path.to_string(), indirect_file_path, data_file_path);
+        let mut store = TokenToAnchorScoreVintFlushing::<u64>::new(field_path.to_string(), directory);
         // stream_buffered_index_writer_to_anchor_score(buffered_index_data, &mut store)?;
         if buffered_index_data.is_in_memory() {
             stream_iter_to_anchor_score(buffered_index_data.into_iter_inmemory(), &mut store)?;
@@ -576,6 +575,7 @@ enum IndexVariants {
 }
 
 fn convert_raw_path_data_to_indices(
+    directory: &std::boxed::Box<dyn Directory>,
     db_path: &str,
     path_data: FnvHashMap<String, PathData>,
     tuples_to_parent_in_path: FnvHashMap<String, PathDataIds>,
@@ -628,7 +628,7 @@ fn convert_raw_path_data_to_indices(
             }
 
             if let Some(token_to_anchor_id_score) = data.token_to_anchor_id_score {
-                add_anchor_score_flush(db_path, &path_col, path.add(TO_ANCHOR_ID_SCORE), *token_to_anchor_id_score, &mut indices)?;
+                add_anchor_score_flush(directory, &path_col, path.add(TO_ANCHOR_ID_SCORE), *token_to_anchor_id_score, &mut indices)?;
             }
 
             if let Some(phrase_pair_to_anchor) = data.phrase_pair_to_anchor {
@@ -862,7 +862,7 @@ where
         print_indices(&mut path_data);
     }
 
-    let mut indices = convert_raw_path_data_to_indices(&persistence.db, path_data, tuples_to_parent_in_path, indices_json)?;
+    let mut indices = convert_raw_path_data_to_indices(&persistence.directory, &persistence.db, path_data, tuples_to_parent_in_path, indices_json)?;
     if persistence.persistence_type == persistence::PersistenceType::Persistent {
         info_time!("write indices");
         for index_data in &mut indices {
@@ -945,10 +945,10 @@ where
                     }
                 }
                 IndexVariants::TokenToAnchorScoreU32(index) => {
-                    persistence.indices.token_to_anchor_score.insert(path, index.into_store(&persistence.directory)?);
+                    persistence.indices.token_to_anchor_score.insert(path, index.into_store()?);
                 }
                 IndexVariants::TokenToAnchorScoreU64(index) => {
-                    persistence.indices.token_to_anchor_score.insert(path, index.into_store(&persistence.directory)?);
+                    persistence.indices.token_to_anchor_score.insert(path, index.into_store()?);
                 }
             }
         }

@@ -9,7 +9,7 @@ use vint32::common_encode::{VIntArrayEncodeMostCommon, VintArrayMostCommonIterat
 use crate::{
     directory::Directory,
     error::VelociError,
-    indices::{calc_avg_join_size, flush_to_file_indirect, *},
+    indices::{calc_avg_join_size, *},
     util::*,
 };
 use itertools::Itertools;
@@ -42,16 +42,15 @@ impl<T: AnchorScoreDataSize> TypeInfo for TokenToAnchorScoreVint<T> {
 ///
 /// Datastructure to cache and flush changes to file
 ///
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Debug, Clone)]
 pub struct TokenToAnchorScoreVintFlushing<T: AnchorScoreDataSize> {
+    pub directory: Box<dyn Directory>,
     pub field_path: PathBuf,
     pub id_to_data_pos: Vec<T>,
     pub data_cache: Vec<u8>,
     pub current_data_offset: T,
     /// Already written id_to_data_pos
     pub current_id_offset: u32,
-    pub indirect_path: PathBuf,
-    pub data_path: PathBuf,
     pub metadata: IndexValuesMetadata,
 }
 
@@ -69,17 +68,16 @@ fn delta_compress_data_block(data: &mut [u32]) -> Vec<u8> {
 }
 
 impl<T: AnchorScoreDataSize> TokenToAnchorScoreVintFlushing<T> {
-    pub fn new2(field_path: String, indirect_path: PathBuf, data_path: PathBuf) -> Self {
+    pub fn new(field_path: String, directory: &Box<dyn Directory>) -> Self {
         let mut data_cache = vec![];
         data_cache.resize(1, 0); // resize data by one, because 0 is reserved for the empty buckets
         TokenToAnchorScoreVintFlushing {
+            directory: directory.clone(),
             field_path: PathBuf::from(field_path),
             id_to_data_pos: vec![],
             data_cache,
             current_data_offset: T::zero(),
             current_id_offset: 0,
-            indirect_path,
-            data_path,
             metadata: IndexValuesMetadata::default(),
         }
     }
@@ -110,16 +108,16 @@ impl<T: AnchorScoreDataSize> TokenToAnchorScoreVintFlushing<T> {
         self.current_id_offset == 0
     }
 
-    pub fn into_store(mut self, directory: &Box<dyn Directory>) -> Result<Box<dyn TokenToAnchorScore>, VelociError> {
+    pub fn into_store(mut self) -> Result<Box<dyn TokenToAnchorScore>, VelociError> {
         self.flush()?;
-        Ok(Box::new(self.load_from_disk(directory)?))
+        Ok(Box::new(self.load_from_disk()?))
     }
 
-    pub fn load_from_disk(self, directory: &Box<dyn Directory>) -> Result<TokenToAnchorScoreVint<T>, VelociError> {
+    pub fn load_from_disk(self) -> Result<TokenToAnchorScoreVint<T>, VelociError> {
         //TODO MAX VALUE ID IS NOT SET
         let data_path = self.field_path.set_ext(Ext::Data);
         let indirect_path = self.field_path.set_ext(Ext::Indirect);
-        TokenToAnchorScoreVint::from_data(directory.get_file_bytes(&indirect_path)?, directory.get_file_bytes(&data_path)?)
+        TokenToAnchorScoreVint::from_data(self.directory.get_file_bytes(&indirect_path)?, self.directory.get_file_bytes(&data_path)?)
     }
 
     #[inline]
@@ -134,8 +132,8 @@ impl<T: AnchorScoreDataSize> TokenToAnchorScoreVintFlushing<T> {
         use std::slice;
         let id_to_data_pos_bytes = unsafe { slice::from_raw_parts(self.id_to_data_pos.as_ptr() as *const u8, self.id_to_data_pos.len() * mem::size_of::<T>()) };
 
-        // persistence_data_indirect::flush_to_file_indirect(&self.indirect_path, &self.data_path, &vec_to_bytes_u32(&self.id_to_data_pos), &self.data_cache)?;
-        flush_to_file_indirect(&self.indirect_path, &self.data_path, id_to_data_pos_bytes, &self.data_cache)?;
+        self.directory.open_write(&self.field_path.set_ext(Ext::Data))?.write_all(&self.data_cache)?;
+        self.directory.open_write(&self.field_path.set_ext(Ext::Indirect))?.write_all(&id_to_data_pos_bytes)?;
 
         self.data_cache.clear();
         self.id_to_data_pos.clear();
@@ -194,12 +192,6 @@ impl<T: AnchorScoreDataSize> TokenToAnchorScoreVint<T> {
     }
 }
 
-// impl<T: AnchorScoreDataSize> HeapSizeOf for TokenToAnchorScoreVintMmap<T> {
-//     fn heap_size_of_children(&self) -> usize {
-//         8
-//     }
-// }
-
 impl<T: AnchorScoreDataSize> TokenToAnchorScore for TokenToAnchorScoreVint<T> {
     fn get_score_iter(&self, id: u32) -> AnchorScoreIter<'_> {
         if id as usize >= self.start_pos.len() / mem::size_of::<T>() {
@@ -210,7 +202,6 @@ impl<T: AnchorScoreDataSize> TokenToAnchorScore for TokenToAnchorScoreVint<T> {
         } else {
             get_u64_from_bytes(&self.start_pos, id as usize * mem::size_of::<T>()) as usize
         };
-        // let pos = get_u32_from_bytes(&self.start_pos, id as usize * 4);
         if pos == EMPTY_BUCKET_USIZE {
             return AnchorScoreIter::new(&[]);
         }
@@ -220,82 +211,44 @@ impl<T: AnchorScoreDataSize> TokenToAnchorScore for TokenToAnchorScoreVint<T> {
 
 #[cfg(test)]
 mod tests {
+    use crate::directory::MmapDirectory;
+
     use super::*;
 
-    //fn test_token_to_anchor_score_vint<T: AnchorScoreDataSize>(store: TokenToAnchorScoreVintFlushing<T>) {
+    fn test_token_to_anchor_score_vint<T: AnchorScoreDataSize, F: Fn() -> TokenToAnchorScoreVintFlushing<T>>(get_store: F) {
+        let mut store = get_store();
+        // test im
+        store.set_scores(1, &mut [1, 1]).unwrap();
+        let store = store.into_store().unwrap();
+        assert_eq!(store.get_score_iter(0).collect::<Vec<_>>(), vec![]);
+        assert_eq!(store.get_score_iter(1).collect::<Vec<_>>(), vec![AnchorScore::new(1, f16::from_f32(1.0))]);
+        assert_eq!(store.get_score_iter(2).collect::<Vec<_>>(), vec![]);
 
-    //let dir: Box<dyn Directory> = Box::new(crate::directory::MmapDirectory::open(dir.path()).unwrap());
+        let mut store = get_store();
+        store.set_scores(5, &mut [1, 1, 2, 3]).unwrap();
+        let store = store.into_store().unwrap();
+        assert_eq!(store.get_score_iter(4).collect::<Vec<_>>(), vec![]);
+        assert_eq!(
+            store.get_score_iter(5).collect::<Vec<_>>(),
+            vec![AnchorScore::new(1, f16::from_f32(1.0)), AnchorScore::new(2, f16::from_f32(3.0))]
+        );
+        for i in 6..18 {
+            assert_eq!(store.get_score_iter(i).collect::<Vec<_>>(), vec![]);
+        }
+    }
 
-    //// test im
-    //store.set_scores(1, &mut [1, 1]).unwrap();
-    //let store = store.into_store(&dir);
-    //assert_eq!(store.get_score_iter(0).collect::<Vec<_>>(), vec![]);
-    //assert_eq!(store.get_score_iter(1).collect::<Vec<_>>(), vec![AnchorScore::new(1, f16::from_f32(1.0))]);
-    //assert_eq!(store.get_score_iter(2).collect::<Vec<_>>(), vec![]);
-
-    //let mut store = <$type1>::default();
-    //store.set_scores(5, &mut [1, 1, 2, 3]).unwrap();
-    //let store = store.into_store();
-    //assert_eq!(store.get_score_iter(4).collect::<Vec<_>>(), vec![]);
-    //assert_eq!(
-    //store.get_score_iter(5).collect::<Vec<_>>(),
-    //vec![AnchorScore::new(1, f16::from_f32(1.0)), AnchorScore::new(2, f16::from_f32(3.0))]
-    //);
-    //for i in 6..18 {
-    //assert_eq!(store.get_score_iter(i).collect::<Vec<_>>(), vec![]);
-    //}
-
-    //// test flush to file
-    //let data = dir.path().join("TokenToAnchorScoreVintTestData");
-    //let indirect = dir.path().join("TokenToAnchorScoreVintTestIndirect");
-
-    //let mut store = <$type1>::new(indirect.clone(), data.clone());
-    //store.set_scores(1, &mut [1, 1]).unwrap();
-    //store.flush().unwrap();
-    //store.set_scores(5, &mut [1, 1, 2, 3]).unwrap();
-    //store.flush().unwrap();
-    //store.flush().unwrap(); // double flush test
-
-    //TODO Reenable
-    //let dir: Box<dyn Directory> = Box::new(crate::directory::MmapDirectory::open(dir.path()).unwrap());
-
-    //let store = store.into_mmap(&dir).unwrap();
-    //assert_eq!(store.get_score_iter(0).collect::<Vec<_>>(), vec![]);
-    //assert_eq!(store.get_score_iter(1).collect::<Vec<_>>(), vec![AnchorScore::new(1, f16::from_f32(1.0))]);
-    //assert_eq!(store.get_score_iter(2).collect::<Vec<_>>(), vec![]);
-    //assert_eq!(
-    //store.get_score_iter(5).collect::<Vec<_>>(),
-    //vec![AnchorScore::new(1, f16::from_f32(1.0)), AnchorScore::new(2, f16::from_f32(3.0))]
-    //);
-    //for i in 6..18 {
-    //assert_eq!(store.get_score_iter(i).collect::<Vec<_>>(), vec![]);
-    //}
-
-    //let store = <$type2>::from_path(&indirect, &data).unwrap();
-    //assert_eq!(store.get_score_iter(0).collect::<Vec<_>>(), vec![]);
-    //assert_eq!(store.get_score_iter(1).collect::<Vec<_>>(), vec![AnchorScore::new(1, f16::from_f32(1.0))]);
-    //assert_eq!(store.get_score_iter(2).collect::<Vec<_>>(), vec![]);
-    //assert_eq!(
-    //store.get_score_iter(5).collect::<Vec<_>>(),
-    //vec![AnchorScore::new(1, f16::from_f32(1.0)), AnchorScore::new(2, f16::from_f32(3.0))]
-    //);
-    //for i in 6..18 {
-    //assert_eq!(store.get_score_iter(i).collect::<Vec<_>>(), vec![]);
-    //}
-    //}
-
-    //#[test]
-    //fn test_token_to_anchor_score_vint_u32() {
-    //use tempfile::tempdir;
-    //let dir = tempdir().unwrap();
-
-    //test_token_to_anchor_score_vint(TokenToAnchorScoreVintFlushing::<u32>);
-    //}
-    //#[test]
-    //fn test_token_to_anchor_score_vint_u64() {
-    //use tempfile::tempdir;
-    //let dir = tempdir().unwrap();
-
-    //test_token_to_anchor_score_vint(TokenToAnchorScoreVintFlushing::<u64>);
-    //}
+    #[test]
+    fn test_token_to_anchor_score_vint_u32() {
+        test_token_to_anchor_score_vint(|| {
+            let directory = MmapDirectory::create(&Path::new("test_files/anchorTest32")).unwrap();
+            TokenToAnchorScoreVintFlushing::<u32>::new("field1".to_string(), &directory.into())
+        });
+    }
+    #[test]
+    fn test_token_to_anchor_score_vint_u64() {
+        test_token_to_anchor_score_vint(|| {
+            let directory = MmapDirectory::create(&Path::new("test_files/anchorTest64")).unwrap();
+            TokenToAnchorScoreVintFlushing::<u64>::new("field1".into(), &directory.into())
+        });
+    }
 }
