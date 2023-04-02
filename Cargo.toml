@@ -26,7 +26,6 @@ colored = "2.0.0"
 cpuprofiler = "0.0.4"
 crossbeam-channel = "0.5.7"
 dot = "0.1.4"
-failure = "0.1.8"
 fixedbitset = "0.4.2"
 fnv = "1.0.7"
 fst = "0.4.7"
@@ -51,6 +50,7 @@ vint32 = { version = "0.3.0", features = ["common-encoding"] }
 ownedbytes = "0.4.0"
 memmap2 = "0.5.10"
 stable_deref_trait = "1.2.0"
+thiserror = "1.0.40"
 
 [dependencies.env_logger]
 features = []

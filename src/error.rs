@@ -1,46 +1,47 @@
 use std::io;
+use thiserror::Error;
 
-#[derive(Debug, Fail)]
+#[derive(Debug, Error)]
 pub enum VelociError {
     /// Placeholder error
-    #[fail(display = "{}", _0)]
+    #[error("{0}")]
     StringError(String),
 
-    #[fail(display = "InvalidRequest: {} ", _0)]
+    #[error("InvalidRequest: {message:?} ")]
     InvalidRequest { message: String },
 
-    #[fail(display = "Field {} not found in {:?}", _0, _1)]
+    #[error("Field {field} not found in {all_fields:?}")]
     FieldNotFound { field: String, all_fields: Vec<String> },
 
-    #[fail(display = "All fields filtered all_fields: {:?} filter: {:?}", _0, _1)]
+    #[error("All fields filtered all_fields: {all_fields:?} filter: {filter:?}")]
     AllFieldsFiltered { all_fields: Vec<String>, filter: Option<Vec<String>> },
     /// Ron Sir Error
-    #[fail(display = "{:?}", _0)]
+    #[error("{0:?}")]
     RonSerError(ron::ser::Error),
     /// The Data is corrupted
-    #[fail(display = "{:?}", _0)]
+    #[error("{:?}", _0)]
     JsonError(serde_json::Error),
-    #[fail(display = "{:?}", _0)]
+    #[error("{:?}", _0)]
     TomlError(toml::de::Error),
-    #[fail(display = "Utf8Error: '{}'", _0)]
+    #[error("Utf8Error: '{}'", _0)]
     Utf8Error(std::str::Utf8Error),
-    #[fail(display = "FromUtf8Error: '{}'", _0)]
+    #[error("FromUtf8Error: '{}'", _0)]
     FromUtf8Error(std::string::FromUtf8Error),
-    #[fail(display = "FstError: '{:?}'", _0)]
+    #[error("FstError: '{:?}'", _0)]
     FstError(fst::Error),
-    #[fail(display = "IoError: '{:?}'", _0)]
+    #[error("IoError: '{:?}'", _0)]
     Io(io::Error),
-    #[fail(display = "Invalid Config: '{:?}'", _0)]
+    #[error("Invalid Config: '{:?}'", _0)]
     InvalidConfig(String),
-    #[fail(display = "Missing text_id {:?} in index {}, therefore could not load text", text_value_id, field_name)]
+    #[error("Missing text_id {:?} in index {}, therefore could not load text", text_value_id, field_name)]
     MissingTextId { text_value_id: u32, field_name: String },
-    #[fail(display = "field does not exist {} (fst not found)", _0)]
+    #[error("field does not exist {} (fst not found)", _0)]
     FstNotFound(String),
-    #[fail(display = "Plan Execution Failed, receive channel was closed or empty ")]
+    #[error("Plan Execution Failed, receive channel was closed or empty ")]
     PlanExecutionRecvFailed,
-    #[fail(display = "Plan Execution Failed, could not send to channel ")]
+    #[error("Plan Execution Failed, could not send to channel ")]
     PlanExecutionSendFailed,
-    #[fail(display = "Plan Execution Failed, filter channel was closed or empty ")]
+    #[error("Plan Execution Failed, filter channel was closed or empty ")]
     PlanExecutionRecvFailedFilter,
 }
 
