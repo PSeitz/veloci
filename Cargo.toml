@@ -50,6 +50,7 @@ inohashmap = "0.3.0"
 vint32 = { version = "0.3.0", features = ["common-encoding"] }
 ownedbytes = "0.4.0"
 memmap2 = "0.5.10"
+stable_deref_trait = "1.2.0"
 
 [dependencies.env_logger]
 features = []
