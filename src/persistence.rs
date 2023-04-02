@@ -1,5 +1,6 @@
 pub use crate::metadata::*;
 use crate::{
+    directory::{Directory, MmapDirectory},
     error::VelociError,
     indices::*,
     search::*,
@@ -80,8 +81,8 @@ pub enum PersistenceType {
 }
 
 pub struct Persistence {
-    //pub directory: Directory, // folder
-    pub db: String, // folder
+    pub directory: Box<dyn Directory>, // folder
+    pub db: String,                    // folder
     pub metadata: PeristenceMetaData,
     pub persistence_type: PersistenceType,
     pub indices: PersistenceIndices,
@@ -469,7 +470,7 @@ impl Persistence {
     }
 
     pub fn write_data(&self, path: &str, data: &[u8]) -> Result<(), io::Error> {
-        File::create(get_file_path(&self.db, path))?.write_all(data)?;
+        self.directory.open_write(&Path::new(path))?.write_all(data)?;
         Ok(())
     }
 
@@ -487,11 +488,11 @@ impl Persistence {
         if Path::new(&db).exists() {
             fs::remove_dir_all(&db)?;
         }
-        fs::create_dir_all(&db)?;
-        fs::create_dir(db.to_string() + "/temp")?; // for temporary index creation
+        let directory = Box::new(MmapDirectory::create(db.as_ref())?);
         let metadata = PeristenceMetaData { ..Default::default() };
         Ok(Persistence {
             persistence_type,
+            directory,
             metadata,
             db,
             lru_cache: HashMap::default(),
@@ -503,6 +504,7 @@ impl Persistence {
     pub fn load<P: AsRef<Path>>(db: P) -> Result<Self, VelociError> {
         let metadata = PeristenceMetaData::new(db.as_ref().to_str().unwrap())?;
         let mut pers = Persistence {
+            directory: Box::new(MmapDirectory::open(db.as_ref())?),
             persistence_type: PersistenceType::Persistent,
             metadata,
             db: db.as_ref().to_str().unwrap().to_string(),
