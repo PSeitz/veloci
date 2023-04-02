@@ -447,15 +447,15 @@ where
 pub fn add_anchor_score_flush(
     db_path: &str,
     path_col: &str,
-    path: String,
+    field_path: String,
     mut buffered_index_data: BufferedIndexWriter<ValueId, (ValueId, ValueId)>,
     indices: &mut IndicesFromRawData,
 ) -> Result<(), io::Error> {
-    let indirect_file_path = util::get_file_path(db_path, &path).set_ext(Ext::Indirect);
-    let data_file_path = util::get_file_path(db_path, &path).set_ext(Ext::Data);
+    let indirect_file_path = util::get_file_path(db_path, &field_path).set_ext(Ext::Indirect);
+    let data_file_path = util::get_file_path(db_path, &field_path).set_ext(Ext::Data);
     //If the buffered index_data is larger than 4GB, we switch to u64 for addressing the data block
     if buffered_index_data.bytes_written() < 2_u64.pow(32) {
-        let mut store = TokenToAnchorScoreVintFlushing::<u32>::new(indirect_file_path, data_file_path);
+        let mut store = TokenToAnchorScoreVintFlushing::<u32>::new2(field_path.to_owned(), indirect_file_path, data_file_path);
         // stream_buffered_index_writer_to_anchor_score(buffered_index_data, &mut store)?;
         if buffered_index_data.is_in_memory() {
             stream_iter_to_anchor_score(buffered_index_data.into_iter_inmemory(), &mut store)?;
@@ -470,13 +470,13 @@ pub fn add_anchor_score_flush(
 
         indices.push(IndexData {
             path_col: path_col.to_string(),
-            path,
+            path: field_path,
             index: IndexVariants::TokenToAnchorScoreU32(store),
             loading_type: LoadingType::Disk,
             index_category: IndexCategory::AnchorScore,
         });
     } else {
-        let mut store = TokenToAnchorScoreVintFlushing::<u64>::new(indirect_file_path, data_file_path);
+        let mut store = TokenToAnchorScoreVintFlushing::<u64>::new2(field_path.to_string(), indirect_file_path, data_file_path);
         // stream_buffered_index_writer_to_anchor_score(buffered_index_data, &mut store)?;
         if buffered_index_data.is_in_memory() {
             stream_iter_to_anchor_score(buffered_index_data.into_iter_inmemory(), &mut store)?;
@@ -491,7 +491,7 @@ pub fn add_anchor_score_flush(
 
         indices.push(IndexData {
             path_col: path_col.to_string(),
-            path,
+            path: field_path,
             index: IndexVariants::TokenToAnchorScoreU64(store),
             loading_type: LoadingType::Disk,
             index_category: IndexCategory::AnchorScore,
@@ -914,7 +914,7 @@ where
         persistence.write_metadata()?;
     }
 
-    // load the converted indices, without writing them
+    // load the converted indices
     if load_persistence {
         for index_data in indices {
             let path = index_data.path;
@@ -945,10 +945,10 @@ where
                     }
                 }
                 IndexVariants::TokenToAnchorScoreU32(index) => {
-                    persistence.indices.token_to_anchor_score.insert(path, index.into_store()?);
+                    persistence.indices.token_to_anchor_score.insert(path, index.into_store(&persistence.directory)?);
                 }
                 IndexVariants::TokenToAnchorScoreU64(index) => {
-                    persistence.indices.token_to_anchor_score.insert(path, index.into_store()?);
+                    persistence.indices.token_to_anchor_score.insert(path, index.into_store(&persistence.directory)?);
                 }
             }
         }

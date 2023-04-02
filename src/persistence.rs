@@ -283,21 +283,13 @@ impl Persistence {
                     self.indices.phrase_pair_to_anchor.insert(el.path.to_string(), store);
                 }
                 IndexCategory::AnchorScore => {
-                    let store: Box<dyn TokenToAnchorScore> = match loading_type {
-                        LoadingType::Disk => match el.data_type {
-                            DataType::U32 => Box::new(TokenToAnchorScoreVintMmap::<u32>::from_path(&indirect_path, &indirect_data_path)?),
-                            DataType::U64 => Box::new(TokenToAnchorScoreVintMmap::<u64>::from_path(&indirect_path, &indirect_data_path)?),
-                        },
-                        LoadingType::InMemory => match el.data_type {
-                            DataType::U32 => {
-                                let store = TokenToAnchorScoreVintIM::<u32>::from_path(&indirect_path, &indirect_data_path)?;
-                                Box::new(store)
-                            }
-                            DataType::U64 => {
-                                let store = TokenToAnchorScoreVintIM::<u64>::from_path(&indirect_path, &indirect_data_path)?;
-                                Box::new(store)
-                            }
-                        },
+                    let data = self.directory.get_file_bytes(&PathBuf::from(el.path.to_string()).set_ext(Ext::Data))?;
+                    let indirect_data = self.directory.get_file_bytes(&PathBuf::from(el.path.to_string()).set_ext(Ext::Indirect))?;
+                    let store: Box<dyn TokenToAnchorScore> = {
+                        match el.data_type {
+                            DataType::U32 => Box::new(TokenToAnchorScoreVint::<u32>::from_data(indirect_data, data)?),
+                            DataType::U64 => Box::new(TokenToAnchorScoreVint::<u64>::from_data(indirect_data, data)?),
+                        }
                     };
                     self.indices.token_to_anchor_score.insert(el.path.to_string(), store);
                 }
@@ -609,9 +601,6 @@ pub(crate) fn vec_to_bytes<T>(data: &[T]) -> Vec<u8> {
 pub(crate) fn bytes_to_vec_u32(data: &[u8]) -> Vec<u32> {
     bytes_to_vec::<u32>(data)
 }
-pub(crate) fn bytes_to_vec_u64(data: &[u8]) -> Vec<u64> {
-    bytes_to_vec::<u64>(data)
-}
 pub(crate) fn bytes_to_vec<T>(data: &[u8]) -> Vec<T> {
     let mut out_dat = vec_with_size_uninitialized(data.len() / std::mem::size_of::<T>());
     // LittleEndian::read_u64_into(&data, &mut out_dat);
@@ -634,16 +623,6 @@ pub(crate) fn file_handle_to_bytes(f: &File) -> Result<Vec<u8>, VelociError> {
     reader.read_to_end(&mut buffer)?;
     // buffer.shrink_to_fit();
     Ok(buffer)
-}
-
-pub(crate) fn load_index_u32<P: AsRef<Path> + std::fmt::Debug>(s1: P) -> Result<Vec<u32>, VelociError> {
-    info!("Loading Index32 {:?} ", s1);
-    Ok(bytes_to_vec_u32(&file_path_to_bytes(s1)?))
-}
-
-pub(crate) fn load_index_u64<P: AsRef<Path> + std::fmt::Debug>(s1: P) -> Result<Vec<u64>, VelociError> {
-    info!("Loading Index64 {:?} ", s1);
-    Ok(bytes_to_vec_u64(&file_path_to_bytes(s1)?))
 }
 
 pub(crate) fn get_file_handle_complete_path<P: AsRef<Path> + std::fmt::Debug>(path: P) -> Result<File, VelociError> {
