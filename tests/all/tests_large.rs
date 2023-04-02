@@ -1,7 +1,7 @@
 use veloci::*;
 
 use super::common;
-static TEST_FOLDER: &str = "mochaTest_large";
+static TEST_FOLDER: &str = "test_large";
 
 lazy_static! {
     static ref TEST_PERSISTENCE:persistence::Persistence = {

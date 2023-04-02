@@ -9,10 +9,11 @@ use crate::{
 use colored::*;
 use fnv::FnvHashMap;
 use fst::Map;
+use memmap2::Mmap;
 use vint32::iterator::VintArrayIterator;
 
 use lru_time_cache::LruCache;
-use memmap::MmapOptions;
+use memmap2::MmapOptions;
 use num::{self, cast::ToPrimitive, Integer};
 use parking_lot::RwLock;
 use prettytable::{format, Table};
@@ -68,7 +69,7 @@ pub struct PersistenceIndices {
     pub phrase_pair_to_anchor: HashMap<String, Box<dyn PhrasePairToAnchor<Input = (u32, u32)>>>,
     pub boost_valueid_to_value: HashMap<String, Box<dyn IndexIdToParent<Output = u32>>>,
     // index_64: HashMap<String, Box<IndexIdToParent<Output = u64>>>,
-    pub fst: HashMap<String, Map<memmap::Mmap>>,
+    pub fst: HashMap<String, Map<Mmap>>,
 }
 
 #[derive(Debug, Eq, PartialEq, Clone)]
@@ -79,6 +80,7 @@ pub enum PersistenceType {
 }
 
 pub struct Persistence {
+    //pub directory: Directory, // folder
     pub db: String, // folder
     pub metadata: PeristenceMetaData,
     pub persistence_type: PersistenceType,
@@ -390,7 +392,7 @@ impl Persistence {
         Ok(())
     }
 
-    pub fn load_fst(&self, path: &str) -> Result<Map<memmap::Mmap>, VelociError> {
+    pub fn load_fst(&self, path: &str) -> Result<Map<Mmap>, VelociError> {
         Map::new(self.get_mmap_handle(&(path.to_string() + ".fst"))?).map_err(|err| VelociError::StringError(format!("Could not load fst {} {:?}", path, err)))
 
         // In memory version
@@ -401,7 +403,7 @@ impl Persistence {
         // Ok(Map::from_bytes(buffer)?)
     }
 
-    pub fn get_mmap_handle(&self, path: &str) -> Result<memmap::Mmap, VelociError> {
+    pub fn get_mmap_handle(&self, path: &str) -> Result<Mmap, VelociError> {
         let file = self.get_file_handle(path)?;
         unsafe {
             MmapOptions::new()

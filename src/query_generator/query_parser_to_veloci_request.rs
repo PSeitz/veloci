@@ -74,12 +74,6 @@ fn query_ast_to_request(ast: &UserAST, opt: &SearchQueryGeneratorParameters, fie
                 ..Default::default()
             };
             SearchRequest::Search(part)
-            // Request {
-            //     search: Some(part),
-            //     why_found: op.why_found.unwrap_or(false),
-            //     text_locality: opt.text_locality.unwrap_or(false),
-            //     ..Default::default()
-            // }
         }
     }
 }

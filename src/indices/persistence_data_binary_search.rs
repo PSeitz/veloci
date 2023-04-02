@@ -6,7 +6,7 @@ use crate::{
     type_info::TypeInfo,
     util::{open_file, *},
 };
-use memmap::Mmap;
+use memmap2::Mmap;
 use std::{
     self,
     cmp::Ordering::Greater,

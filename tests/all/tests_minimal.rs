@@ -3,7 +3,7 @@ use veloci::{search::*, *};
 
 use super::common;
 
-static TEST_FOLDER: &str = "mochaTest_minimal";
+static TEST_FOLDER: &str = "test_minimal";
 lazy_static! {
     static ref TEST_PERSISTENCE: persistence::Persistence = common::create_test_persistence(TEST_FOLDER, "{}", get_test_data().to_string().as_bytes(), None);
 }

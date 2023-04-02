@@ -30,7 +30,7 @@ pub fn get_test_data() -> Value {
     ])
 }
 
-static TEST_FOLDER: &str = "mochaTest_wf";
+static TEST_FOLDER: &str = "test_whyfound";
 
 lazy_static! {
     static ref TEST_PERSISTENCE: persistence::Persistence = {

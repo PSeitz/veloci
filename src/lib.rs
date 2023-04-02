@@ -34,6 +34,8 @@ pub mod type_info;
 #[cfg(feature = "create")]
 pub mod create;
 
+#[allow(dead_code)]
+pub mod directory;
 pub mod error;
 pub mod expression;
 pub mod facet;

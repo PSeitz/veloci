@@ -10,7 +10,7 @@ name = "bench"
 
 [dependencies]
 itertools = "0.10.5"
-memmap = "0.7.0"
+memmap2 = "0.5.10"
 rayon = "1.7.0"
 tempfile = "3.4.0"
 vint32 = { version = "0.3.0", features = ["common-encoding"] }

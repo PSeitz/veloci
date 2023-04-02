@@ -302,7 +302,7 @@ pub(crate) fn apply_boost(
                 "Log10 boosting hit.id {:?} score {:?} to {:?} -- token_value {:?} boost_value {:?}",
                 hit.id,
                 hit.score,
-                hit.score * boost_value + boost_param,
+                hit.score * (boost_value + boost_param).log10(),
                 boost_value,
                 (boost_value + boost_param).log10(),
             );
@@ -313,7 +313,7 @@ pub(crate) fn apply_boost(
                 "Log2 boosting hit.id {:?} hit.score {:?} to {:?} -- token_value {:?} boost_value {:?}",
                 hit.id,
                 hit.score,
-                hit.score * boost_value + boost_param,
+                hit.score * (boost_value + boost_param).log2(),
                 boost_value,
                 (boost_value + boost_param).log2(),
             );
@@ -324,7 +324,7 @@ pub(crate) fn apply_boost(
                 "Multiply boosting hit.id {:?} hit.score {:?} to {:?} -- token_value {:?} boost_value {:?}",
                 hit.id,
                 hit.score,
-                hit.score + (boost_value + boost_param),
+                hit.score * (boost_value + boost_param),
                 boost_value,
                 (boost_value + boost_param)
             );
@@ -340,6 +340,17 @@ pub(crate) fn apply_boost(
                 (boost_value + boost_param)
             );
             hit.score += boost_value + boost_param;
+        }
+        Some(BoostFunction::Replace) => {
+            trace!(
+                "replace hit.id {:?} hit.score {:?} to {:?} -- token_value {:?} boost_value {:?}",
+                hit.id,
+                hit.score,
+                (boost_value + boost_param),
+                boost_value,
+                (boost_value + boost_param)
+            );
+            hit.score = boost_value + boost_param;
         }
         None => {}
     }

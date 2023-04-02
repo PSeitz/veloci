@@ -3,6 +3,7 @@ use ordered_float::OrderedFloat;
 #[derive(Serialize, Deserialize, Default, Clone, Debug, Hash, PartialEq, Eq, PartialOrd)]
 pub struct RequestBoostPart {
     pub path: String,
+    /// The boost function that is applied on the existing score
     pub boost_fun: Option<BoostFunction>,
     /// a fixed number that is added to BoostFunction
     pub param: Option<OrderedFloat<f32>>,
@@ -27,4 +28,6 @@ pub enum BoostFunction {
     Log10,
     Multiply,
     Add,
+    /// Replaces the score with the value. Can be used to order by a field.
+    Replace,
 }

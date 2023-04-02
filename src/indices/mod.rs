@@ -1,4 +1,4 @@
-use memmap::{Mmap, MmapOptions};
+use memmap2::{Mmap, MmapOptions};
 use std::fs::File;
 
 use crate::{error::VelociError, util::open_file};

@@ -1,7 +1,7 @@
 use super::*;
 use crate::{error::VelociError, indices::*, persistence::*, type_info::TypeInfo, util::*};
 use byteorder::{LittleEndian, ReadBytesExt};
-use memmap::Mmap;
+use memmap2::Mmap;
 use num::{self, cast::ToPrimitive};
 use std::{self, fs::File, marker::PhantomData, u32};
 use vint32::iterator::VintArrayIterator;

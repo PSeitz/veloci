@@ -3,7 +3,7 @@ use veloci::*;
 
 use super::common;
 
-static TEST_FOLDER: &str = "mochaTest";
+static TEST_FOLDER: &str = "test_all";
 lazy_static! {
     static ref TEST_PERSISTENCE: persistence::Persistence = {
         let indices = r#"

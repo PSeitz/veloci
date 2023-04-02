@@ -1,5 +1,5 @@
 use itertools::Itertools;
-use memmap::MmapOptions;
+use memmap2::{Mmap, MmapOptions};
 use std::fmt::Display;
 
 use std::{
@@ -142,16 +142,6 @@ pub(crate) struct FlushStruct {
     // temp_file: Option<File>,
     temp_file: Option<tempfile::NamedTempFile>,
 }
-
-// impl<
-//         K: PartialOrd + Ord + Default + Copy + Send + Sync + SerializeInto + DeserializeFrom,
-//         T: GetValue + Default + Clone + Copy + Send + Sync + SerializeInto + DeserializeFrom,
-//     > Default for BufferedIndexWriter<K, T>
-// {
-//     fn default() -> BufferedIndexWriter<K, T> {
-//         BufferedIndexWriter::new_unstable_sorted()
-//     }
-// }
 
 impl<
         K: PartialOrd + Ord + Default + Copy + Send + Sync + SerializeInto + DeserializeFrom,
@@ -302,33 +292,10 @@ impl<
         }
     }
 
-    // pub fn multi_iter_ref(&mut self) -> Result<(Vec<MMapIterRef<T>>), io::Error> {
-    //     let mut vecco = vec![];
-    //     if let Some(file) = &self.temp_file {
-    //         let mmap: &Mmap = self.temp_file_mmap.get_or_insert_with(|| unsafe {MmapOptions::new().map(&file).unwrap()});
-    //         for part in &self.parts {
-    //             let len = part.len * mem::size_of::<KeyValue<T>>() as u32;
-    //             let offset = part.offset * mem::size_of::<KeyValue<T>>() as u32;
-    //             vecco.push(MMapIterRef::<T>::new(mmap, offset, len));
-    //         }
-    //         Ok(vecco)
-
-    //     }else{
-    //         Ok(vec![])
-    //     }
-    // }
-
     #[inline]
     pub fn is_in_memory(&self) -> bool {
         self.flush_data.parts.is_empty()
     }
-
-    // /// inmemory version for very small indices, where it's inefficient to write and then read from disk - data on disk will be ignored!
-    // #[inline]
-    // pub fn iter_inmemory<'a>(&'a mut self) -> impl Iterator<Item = &'a KeyValue<T>> {
-    //     self.sort_cache();
-    //     self.cache.iter()
-    // }
 
     /// inmemory version for very small indices, where it's inefficient to write and then read from disk - data on disk will be ignored!
     #[inline]
@@ -351,13 +318,6 @@ impl<
         let iters = self.multi_iter().unwrap();
         iters.into_iter().kmerge_by(|a, b| a.key < b.key)
     }
-
-    // /// returns iterator over sorted elements
-    // #[inline]
-    // fn kmerge_2<'a>(&'a mut self) -> impl Iterator<Item = KeyValue<T>> + 'a{
-    //     let iters = self.multi_iter_ref().unwrap();
-    //     iters.into_iter().kmerge_by(|a, b| (*a).key < (*b).key)
-    // }
 }
 
 impl<K: Display + PartialOrd + Ord + Default + Copy + SerializeInto + DeserializeFrom, T: GetValue + Default + SerializeInto + DeserializeFrom> fmt::Display
@@ -371,64 +331,9 @@ impl<K: Display + PartialOrd + Ord + Default + Copy + SerializeInto + Deserializ
     }
 }
 
-// #[inline]
-// // Maximum speed, Maximum unsafe
-// fn read_pair_very_raw_p<K:PartialOrd + Ord + Default + Copy + SerializeInto, T:GetValue + Default + SerializeInto>(p: *const u8) -> KeyValue<K,T> {
-//     // let mut out: (u32, u32) = (0, 0);
-//     let mut out: KeyValue<K, T> = KeyValue::default();
-//     unsafe {
-//         copy_nonoverlapping(p, &mut out as *mut KeyValue<K, T> as *mut u8, mem::size_of::<KeyValue<K, T>>());
-//     }
-//     out
-// }
-
-// #[derive(Debug)]
-// pub struct MMapIterRef<'a, T:GetValue> {
-//     mmap: &'a memmap::Mmap,
-//     pos: u32,
-//     offset: u32,
-//     len: u32,
-//     phantom: PhantomData<T>,
-// }
-
-// impl<'a, T:GetValue> MMapIterRef<'a, T> {
-//     fn new(mmap: &'a memmap::Mmap, offset: u32, len: u32) -> Self {
-//         MMapIterRef { mmap, pos: 0, offset, len, phantom:PhantomData }
-//     }
-// }
-
-// impl<'a, T:GetValue + Default> Iterator for MMapIterRef<'a, T> {
-//     type Item = KeyValue<T>;
-
-//     #[inline]
-//     fn next(&mut self) -> Option<KeyValue<T>> {
-//         if self.len <= self.pos {
-//             return None;
-//         }
-//         let pair = read_pair_very_raw_p((&self.mmap[(self.offset + self.pos) as usize..]).as_ptr());
-//         self.pos += mem::size_of::<KeyValue<T>>() as u32;
-//         Some(pair)
-//     }
-//     #[inline]
-//     fn size_hint(&self) -> (usize, Option<usize>) {
-//         let remaining_els = (self.len - (self.pos)) / mem::size_of::<KeyValue<T>>() as u32;
-//         (remaining_els as usize, Some(remaining_els as usize))
-//     }
-// }
-
-// impl<'a, T:GetValue + Default>  ExactSizeIterator for MMapIterRef<'a, T> {
-//     #[inline]
-//     fn len(&self) -> usize {
-//         let remaining_els = (self.len - self.pos) / mem::size_of::<KeyValue<T>>() as u32;
-//         remaining_els as usize
-//     }
-// }
-
-// impl<'a, T:GetValue + Default>  FusedIterator for MMapIterRef<'a, T> {}
-
 #[derive(Debug)]
 pub struct MMapIter<K: PartialOrd + Ord + Default + Copy, T: GetValue> {
-    mmap: memmap::Mmap,
+    mmap: Mmap,
     pos: usize,
     #[allow(dead_code)]
     finished: bool,
@@ -437,7 +342,7 @@ pub struct MMapIter<K: PartialOrd + Ord + Default + Copy, T: GetValue> {
 }
 
 impl<K: PartialOrd + Ord + Default + Copy, T: GetValue> MMapIter<K, T> {
-    fn new(mmap: memmap::Mmap) -> Self {
+    fn new(mmap: Mmap) -> Self {
         MMapIter {
             mmap,
             finished: false,
@@ -463,14 +368,6 @@ impl<K: PartialOrd + Ord + Default + Copy + SerializeInto + DeserializeFrom, T: 
         (lower_bound, Some(upper_bound))
     }
 }
-
-// impl<K: PartialOrd + Ord + Default + Copy,T:GetValue + Default>  ExactSizeIterator for MMapIter<K,T> {
-//     #[inline]
-//     fn len(&self) -> usize {
-//         let remaining_els = (self.mmap.len() as u32 - self.pos) / mem::size_of::<KeyValue<K,T>>() as u32;
-//         remaining_els as usize
-//     }
-// }
 
 impl<K: PartialOrd + Ord + Default + Copy + SerializeInto + DeserializeFrom, T: GetValue + Default + SerializeInto + DeserializeFrom> FusedIterator for MMapIter<K, T> {}
 

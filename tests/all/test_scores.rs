@@ -6,37 +6,46 @@ use super::common;
 pub fn get_test_data() -> Value {
     json!([
         {
-            "title": "greg tagebuch 05",
+            "id": 1,
+            "order": 500,
+            "title": "greg tagebuch 05"
         },
         {
-            "title": "and some some text 05 this is not relevant let tagebuch greg",
+            "id": 2,
+            "order": 20,
+            "title": "and some some text 05 this is not relevant let tagebuch greg"
         },
         {
+            "id": 3,
+            "order": 1000,
             "title": "greg tagebuch"
         },
         {
-          "commonness": 41,
-          "meanings": {
-            "ger": [
-              {
-                "text": "Fernsehen-Schauen (n)",
-                "boost" : 20
-              }
-            ]
-          }
+            "id": 4,
+            "commonness": 41,
+            "meanings": {
+              "ger": [
+                {
+                  "text": "Fernsehen-Schauen (n)",
+                  "boost" : 20
+                }
+              ]
+            }
         },
         {
+            "id": 5,
             "commonness": 551,
             "meanings": {"ger": ["welch"] }
         },
         {
+            "id": 6,
             "commonness": 2,
             "meanings": {"ger": ["weich"] }
         }
     ])
 }
 
-static TEST_FOLDER: &str = "mochaTest_score";
+static TEST_FOLDER: &str = "test_score";
 
 lazy_static! {
     static ref TEST_PERSISTENCE: persistence::Persistence = {
@@ -48,6 +57,8 @@ lazy_static! {
         ["meanings.ger[].text".fulltext]
         tokenize = true
         [commonness.boost]
+        boost_type = 'f32'
+        [order.boost]
         boost_type = 'f32'
         "#;
         common::create_test_persistence(TEST_FOLDER, indices, get_test_data().to_string().as_bytes(), None)
@@ -245,6 +256,26 @@ fn should_rank_exact_matches_pretty_good() {
 
     let hits = search_testo_to_doc!(req).data;
     assert_eq!(hits[0].doc["meanings"]["ger"][0], "weich");
+}
+
+#[test]
+fn test_order_by_field_via_replace_boost() {
+    let req = json!({
+        "search_req": { "search": {
+            "terms":[".*"], // hit all
+            "path": "title",
+            "is_regex": true
+        }},
+        "boost" : [{
+            "path":"order",
+            "boost_fun": "Replace"
+        }]
+    });
+
+    let hits = search_testo_to_doc!(req).data;
+    assert_eq!(hits[0].doc["id"], 3);
+    assert_eq!(hits[1].doc["id"], 1);
+    assert_eq!(hits[2].doc["id"], 2);
 }
 
 // #[test]

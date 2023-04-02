@@ -6,7 +6,7 @@ use crate::{
 };
 use std::{self, fs::File, io, marker::PhantomData, ptr::copy_nonoverlapping, u32};
 
-use memmap::Mmap;
+use memmap2::Mmap;
 
 use std::mem;
 
