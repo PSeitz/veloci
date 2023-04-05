@@ -1,4 +1,5 @@
 mod mmap_directory;
+mod ram_directory;
 
 use std::io;
 use std::io::Write;
