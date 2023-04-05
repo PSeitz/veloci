@@ -18,6 +18,9 @@ pub type WritePtr = std::io::BufWriter<Box<dyn TerminatingWrite>>;
 
 use ownedbytes::OwnedBytes;
 
+use crate::util::Ext;
+use crate::util::SetExt;
+
 pub type ArcBytes = Arc<dyn Deref<Target = [u8]> + Send + Sync + 'static>;
 pub type WeakArcBytes = Weak<dyn Deref<Target = [u8]> + Send + Sync + 'static>;
 
@@ -61,6 +64,12 @@ pub trait Directory: DirectoryClone + std::fmt::Debug + Send + Sync + 'static {
     /// This call is required to ensure that newly created files are
     /// effectively stored durably.
     fn sync_directory(&self) -> io::Result<()>;
+}
+
+pub fn load_data_pair(directory: &Box<dyn Directory>, path: &Path) -> Result<(OwnedBytes, OwnedBytes), io::Error> {
+    let data_path = path.set_ext(Ext::Data);
+    let indirect_path = path.set_ext(Ext::Indirect);
+    Ok((directory.get_file_bytes(&indirect_path)?, directory.get_file_bytes(&data_path)?))
 }
 
 /// DirectoryClone

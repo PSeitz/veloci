@@ -1,16 +1,11 @@
-use crate::{
-    error::VelociError,
-    indices::{metadata::IndexValuesMetadata, mmap_from_file},
-    persistence::*,
-    type_info::TypeInfo,
-};
-use std::{self, fs::File, io, marker::PhantomData, ptr::copy_nonoverlapping, u32};
+use crate::{indices::metadata::IndexValuesMetadata, persistence::*, type_info::TypeInfo};
+use std::{self, io, marker::PhantomData, ptr::copy_nonoverlapping, u32};
 
-use memmap2::Mmap;
+use ownedbytes::OwnedBytes;
 
 use std::mem;
 
-impl_type_info_single_templ!(SingleArrayMMAPPacked);
+impl_type_info_single_templ!(SingleArrayPacked);
 
 #[derive(Debug, Clone, Copy)]
 pub(crate) enum BytesRequired {
@@ -69,19 +64,6 @@ pub(crate) fn decode_bit_packed_val<T: IndexIdToParentData>(data: &[u8], bytes_r
     }
 }
 
-pub(crate) fn decode_bit_packed_vals<T: IndexIdToParentData>(data: &[u8], bytes_required: BytesRequired) -> Vec<T> {
-    let mut out: Vec<u8> = vec![];
-    out.resize(data.len() * std::mem::size_of::<T>() / bytes_required as usize, 0);
-    let mut pos = 0;
-    let mut out_pos = 0;
-    while pos < data.len() {
-        out[out_pos..out_pos + bytes_required as usize].clone_from_slice(&data[pos..pos + bytes_required as usize]);
-        pos += bytes_required as usize;
-        out_pos += std::mem::size_of::<T>();
-    }
-    bytes_to_vec(&out)
-}
-
 #[test]
 fn test_encodsing_and_decoding_bitpacking() {
     let vals: Vec<u32> = vec![123, 33, 545, 99];
@@ -112,8 +94,8 @@ fn test_encodsing_and_decoding_bitpacking() {
 
 #[derive(Debug)]
 // Loads integer with flexibel widths 1, 2 or 4 byte
-pub(crate) struct SingleArrayMMAPPacked<T: IndexIdToParentData> {
-    pub(crate) data_file: Mmap,
+pub(crate) struct SingleArrayPacked<T: IndexIdToParentData> {
+    pub(crate) data_file: OwnedBytes,
     #[allow(dead_code)]
     pub(crate) size: usize,
     pub(crate) metadata: IndexValuesMetadata,
@@ -121,19 +103,25 @@ pub(crate) struct SingleArrayMMAPPacked<T: IndexIdToParentData> {
     pub(crate) bytes_required: BytesRequired,
 }
 
-impl<T: IndexIdToParentData> SingleArrayMMAPPacked<T> {
-    pub(crate) fn from_file(file: &File, metadata: IndexValuesMetadata) -> Result<Self, VelociError> {
-        Ok(SingleArrayMMAPPacked {
-            data_file: mmap_from_file(file)?,
-            size: file.metadata()?.len() as usize / get_bytes_required(metadata.max_value_id) as usize,
+impl<T: IndexIdToParentData> SingleArrayPacked<T> {
+    pub fn from_vec(data_file: Vec<u8>, metadata: IndexValuesMetadata) -> Self {
+        Self::from_data(OwnedBytes::new(data_file), metadata)
+    }
+
+    pub fn from_data(data_file: OwnedBytes, metadata: IndexValuesMetadata) -> Self {
+        let size = data_file.len() / get_bytes_required(metadata.max_value_id) as usize;
+
+        SingleArrayPacked {
+            data_file,
+            size,
             metadata,
             ok: PhantomData,
             bytes_required: get_bytes_required(metadata.max_value_id),
-        })
+        }
     }
 }
 
-impl<T: IndexIdToParentData> IndexIdToParent for SingleArrayMMAPPacked<T> {
+impl<T: IndexIdToParentData> IndexIdToParent for SingleArrayPacked<T> {
     type Output = T;
 
     fn get_index_meta_data(&self) -> &IndexValuesMetadata {

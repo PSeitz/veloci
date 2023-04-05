@@ -11,6 +11,7 @@ use colored::*;
 use fnv::FnvHashMap;
 use fst::Map;
 use memmap2::Mmap;
+use ownedbytes::OwnedBytes;
 use vint32::iterator::VintArrayIterator;
 
 use lru_time_cache::LruCache;
@@ -70,7 +71,7 @@ pub struct PersistenceIndices {
     pub phrase_pair_to_anchor: HashMap<String, Box<dyn PhrasePairToAnchor<Input = (u32, u32)>>>,
     pub boost_valueid_to_value: HashMap<String, Box<dyn IndexIdToParent<Output = u32>>>,
     // index_64: HashMap<String, Box<IndexIdToParent<Output = u64>>>,
-    pub fst: HashMap<String, Map<Mmap>>,
+    pub fst: HashMap<String, Map<OwnedBytes>>,
 }
 
 #[derive(Debug, Eq, PartialEq, Clone)]
@@ -244,14 +245,12 @@ pub fn get_readable_size(value: usize) -> ColoredString {
 
 impl Persistence {
     fn load_types_index_to_one<T: IndexIdToParentData, P: AsRef<Path> + std::fmt::Debug>(
+        &self,
         data_direct_path: P,
         metadata: IndexValuesMetadata,
     ) -> Result<Box<dyn IndexIdToParent<Output = u32>>, VelociError> {
-        let store = SingleArrayIM::<u32, T> {
-            data: decode_bit_packed_vals(&file_path_to_bytes(data_direct_path)?, get_bytes_required(metadata.max_value_id)),
-            metadata,
-            ok: std::marker::PhantomData,
-        };
+        let data = self.directory.get_file_bytes(data_direct_path.as_ref())?;
+        let store = SingleArrayPacked::from_data(data, metadata);
         Ok(Box::new(store))
     }
 
@@ -301,7 +300,8 @@ impl Persistence {
                             self.indices.boost_valueid_to_value.insert(el.path.to_string(), Box::new(store));
                         }
                         IndexCardinality::IndexIdToOneParent => {
-                            let store = SingleArrayMMAPPacked::<u32>::from_file(&self.get_file_handle(&el.path)?, el.metadata)?;
+                            let data = self.directory.get_file_bytes(&Path::new(&el.path))?;
+                            let store = SingleArrayPacked::<u32>::from_data(data, el.metadata);
                             self.indices.boost_valueid_to_value.insert(el.path.to_string(), Box::new(store));
                         }
                     }
@@ -312,11 +312,7 @@ impl Persistence {
 
                     //Insert dummy index, to seperate between emtpy indexes and nonexisting indexes
                     if el.is_empty {
-                        let store = SingleArrayIM::<u32, u32> {
-                            data: vec![],
-                            metadata: el.metadata,
-                            ok: std::marker::PhantomData,
-                        };
+                        let store = SingleArrayPacked::from_vec(Vec::new(), el.metadata);
                         self.indices.key_value_stores.insert(el.path.to_string(), Box::new(store));
                         continue;
                     }
@@ -341,11 +337,11 @@ impl Persistence {
                             IndexCardinality::IndexIdToOneParent => {
                                 let bytes_required = get_bytes_required(el.metadata.max_value_id) as u8;
                                 if bytes_required == 1 {
-                                    Self::load_types_index_to_one::<u8, _>(&data_direct_path, el.metadata)?
+                                    self.load_types_index_to_one::<u8, _>(&data_direct_path, el.metadata)?
                                 } else if bytes_required == 2 {
-                                    Self::load_types_index_to_one::<u16, _>(&data_direct_path, el.metadata)?
+                                    self.load_types_index_to_one::<u16, _>(&data_direct_path, el.metadata)?
                                 } else {
-                                    Self::load_types_index_to_one::<u32, _>(&data_direct_path, el.metadata)?
+                                    self.load_types_index_to_one::<u32, _>(&data_direct_path, el.metadata)?
                                 }
                             }
                         },
@@ -360,8 +356,8 @@ impl Persistence {
                                 store
                             }
                             IndexCardinality::IndexIdToOneParent => {
-                                let store: Box<dyn IndexIdToParent<Output = u32>> =
-                                    Box::new(SingleArrayMMAPPacked::<u32>::from_file(&self.get_file_handle(&el.path)?, el.metadata)?);
+                                let data = self.directory.get_file_bytes(&Path::new(&el.path))?;
+                                let store: Box<dyn IndexIdToParent<Output = u32>> = Box::new(SingleArrayPacked::<u32>::from_data(data, el.metadata));
                                 store
                             }
                         },
@@ -385,8 +381,9 @@ impl Persistence {
         Ok(())
     }
 
-    pub fn load_fst(&self, path: &str) -> Result<Map<Mmap>, VelociError> {
-        Map::new(self.get_mmap_handle(&(path.to_string() + ".fst"))?).map_err(|err| VelociError::StringError(format!("Could not load fst {} {:?}", path, err)))
+    pub fn load_fst(&self, path: &str) -> Result<Map<OwnedBytes>, VelociError> {
+        let bytes = self.directory.get_file_bytes(&PathBuf::from(path.to_string()).set_ext(Ext::Fst))?;
+        Map::new(bytes).map_err(|err| VelociError::StringError(format!("Could not load fst {} {:?}", path, err)))
 
         // In memory version
         // let mut f = self.get_file_handle(&(path.to_string() + ".fst"))?;
@@ -494,10 +491,11 @@ impl Persistence {
     }
 
     pub fn load<P: AsRef<Path>>(db: P) -> Result<Self, VelociError> {
-        let metadata = PeristenceMetaData::new(db.as_ref().to_str().unwrap())?;
+        let directory: Box<dyn Directory> = Box::new(MmapDirectory::open(db.as_ref())?);
+        let metadata = PeristenceMetaData::new(&directory)?;
         let mut pers = Persistence {
-            directory: Box::new(MmapDirectory::open(db.as_ref())?),
             persistence_type: PersistenceType::Persistent,
+            directory,
             metadata,
             db: db.as_ref().to_str().unwrap().to_string(),
             lru_cache: HashMap::default(),

@@ -1,11 +1,11 @@
 use crate::{
+    directory::Directory,
     error::VelociError,
     indices::metadata::*,
     tokenizer::{Tokenizer, *},
-    util,
 };
 use fnv::{FnvHashMap, FnvHashSet};
-use std::sync::Arc;
+use std::{path::Path, sync::Arc};
 
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
 pub struct PeristenceMetaData {
@@ -15,9 +15,9 @@ pub struct PeristenceMetaData {
 }
 
 impl PeristenceMetaData {
-    pub fn new(folder: &str) -> Result<PeristenceMetaData, VelociError> {
-        let json = util::file_as_string(&(folder.to_string() + "/metaData.json"))?;
-        let mut obj: PeristenceMetaData = serde_json::from_str(&json)?;
+    pub fn new(directory: &Box<dyn Directory>) -> Result<PeristenceMetaData, VelociError> {
+        let json_bytes = directory.get_file_bytes(&Path::new("metaData.json"))?;
+        let mut obj: PeristenceMetaData = serde_json::from_slice(json_bytes.as_slice())?;
 
         for val in obj.columns.values_mut() {
             val.textindex_metadata.options.create_tokenizer(); //  TODO reuse default tokenizer

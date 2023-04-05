@@ -1,3 +1,5 @@
+use std::path::Path;
+
 use crate::{
     create::buffered_index_to_direct_index,
     error::VelociError,
@@ -73,7 +75,9 @@ pub fn add_token_values_to_tokens(persistence: &mut Persistence, data_str: &str,
     persistence.write_metadata()?;
 
     //TODO FIX LOAD FOR IN_MEMORY
-    let store = SingleArrayMMAPPacked::<u32>::from_file(&persistence.get_file_handle(&path)?, store.metadata)?;
+    let data = persistence.directory.get_file_bytes(&Path::new(&path))?;
+
+    let store = SingleArrayPacked::<u32>::from_data(data, store.metadata);
     persistence.indices.boost_valueid_to_value.insert(path, Box::new(store));
     Ok(())
 }

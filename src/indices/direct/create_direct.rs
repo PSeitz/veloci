@@ -1,3 +1,5 @@
+use crate::persistence::vec_to_bytes;
+
 use super::{super::*, *};
 
 use std::{
@@ -27,11 +29,11 @@ impl IndexIdToOneParentFlushing {
         }
     }
 
-    pub(crate) fn into_im_store(self) -> SingleArrayIM<u32, u32> {
-        let mut store = SingleArrayIM::default();
-        store.metadata.avg_join_size = calc_avg_join_size(self.metadata.num_values, self.cache.len() as u32);
-        store.data = self.cache;
-        store.metadata = self.metadata;
+    pub(crate) fn into_im_store(self) -> SingleArrayPacked<u32> {
+        let mut metadata = IndexValuesMetadata::default();
+        metadata.max_value_id = u32::MAX / 2; // only so that packed reads u32 bits TODO FIXME
+        metadata.avg_join_size = calc_avg_join_size(self.metadata.num_values, self.cache.len() as u32);
+        let store = SingleArrayPacked::from_vec(vec_to_bytes(&self.cache), metadata); //load data with MMap
         store
     }
 
@@ -116,7 +118,7 @@ mod tests {
 
     mod test_direct_1_to_1 {
         use super::*;
-        use std::fs::File;
+        use ownedbytes::OwnedBytes;
         use tempfile::tempdir;
 
         #[test]
@@ -128,7 +130,8 @@ mod tests {
                 ind.add(key as u32, *val).unwrap();
                 ind.flush().unwrap();
             }
-            let store = SingleArrayMMAPPacked::<u32>::from_file(&File::open(data_path).unwrap(), ind.metadata).unwrap();
+            let data = std::fs::read(data_path).unwrap();
+            let store = SingleArrayPacked::<u32>::from_data(OwnedBytes::new(data), ind.metadata);
             check_test_data_1_to_1(&store);
         }
 

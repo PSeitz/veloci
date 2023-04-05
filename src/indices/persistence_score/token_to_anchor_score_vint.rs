@@ -7,7 +7,7 @@ use std::path::PathBuf;
 use vint32::common_encode::{VIntArrayEncodeMostCommon, VintArrayMostCommonIterator};
 
 use crate::{
-    directory::Directory,
+    directory::{load_data_pair, Directory},
     error::VelociError,
     indices::{calc_avg_join_size, *},
     util::*,
@@ -115,9 +115,8 @@ impl<T: AnchorScoreDataSize> TokenToAnchorScoreVintFlushing<T> {
 
     pub fn load_from_disk(self) -> Result<TokenToAnchorScoreVint<T>, VelociError> {
         //TODO MAX VALUE ID IS NOT SET
-        let data_path = self.field_path.set_ext(Ext::Data);
-        let indirect_path = self.field_path.set_ext(Ext::Indirect);
-        TokenToAnchorScoreVint::from_data(self.directory.get_file_bytes(&indirect_path)?, self.directory.get_file_bytes(&data_path)?)
+        let (ind, data) = load_data_pair(&self.directory, &self.field_path)?;
+        TokenToAnchorScoreVint::from_data(ind, data)
     }
 
     #[inline]

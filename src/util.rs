@@ -6,7 +6,6 @@ use std::{
     collections::HashMap,
     ffi::OsString,
     fs::File,
-    io::prelude::*,
     path::{Path, PathBuf},
 };
 
@@ -36,6 +35,7 @@ pub fn open_file<P: AsRef<Path>>(path: P) -> Result<File, VelociError> {
 
 #[derive(Debug)]
 pub(crate) enum Ext {
+    Fst,
     Indirect,
     Data,
 }
@@ -55,6 +55,7 @@ impl SetExt for Path {
     #[inline]
     fn set_ext(&self, other: Ext) -> PathBuf {
         let ext = match other {
+            Ext::Fst => "fst",
             Ext::Indirect => "indirect",
             Ext::Data => "data",
         };
@@ -124,15 +125,6 @@ impl<S: AsRef<str>> StringAdd for S {
 pub(crate) fn get_file_path(folder: &str, path: &str) -> PathBuf {
     PathBuf::from(folder).join(path)
     // folder.to_string() + "/" + path
-}
-
-pub(crate) fn file_as_string<P: AsRef<Path> + std::fmt::Debug>(path: P) -> Result<String, VelociError> {
-    info!("Loading File {:?}", path);
-    let mut file = File::open(path.as_ref()).map_err(|err| VelociError::StringError(format!("Could not open {:?} {:?}", path, err)))?;
-    let mut contents = String::new();
-    file.read_to_string(&mut contents)
-        .map_err(|err| VelociError::StringError(format!("Could not read to string {:?} {:?}", path, err)))?;
-    Ok(contents)
 }
 
 #[inline]

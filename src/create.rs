@@ -34,6 +34,7 @@ use itertools::Itertools;
 use num::ToPrimitive;
 use rayon::prelude::*;
 
+use std::path::Path;
 use std::{
     self,
     fs::File,
@@ -933,7 +934,8 @@ where
                         persistence.indices.key_value_stores.insert(path, Box::new(index.into_im_store()));
                     //Move data
                     } else {
-                        let store = SingleArrayMMAPPacked::from_file(&persistence.get_file_handle(&path)?, index.metadata)?; //load data with MMap
+                        let data = persistence.directory.get_file_bytes(&Path::new(&path))?;
+                        let store = SingleArrayPacked::from_data(data, index.metadata); //load data with MMap
                         persistence.indices.key_value_stores.insert(path, Box::new(store));
                     }
                 }
