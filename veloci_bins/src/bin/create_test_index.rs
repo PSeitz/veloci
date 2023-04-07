@@ -10,8 +10,9 @@ extern crate serde_json;
 extern crate cpuprofiler;
 
 use std::{
-    fs::File,
+    fs::{self, File},
     io::{self, prelude::*},
+    path::Path,
     str,
 };
 
