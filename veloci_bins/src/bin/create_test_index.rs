@@ -300,8 +300,13 @@ fn create_book_index() -> Result<(), io::Error> {
         books += &double;
     }
 
+    let db_folder = "gutenberg".to_string();
+    if Path::new(&db_folder).exists() {
+        fs::remove_dir_all(&db_folder)?;
+    }
+
     veloci::create::create_indices_from_str(
-        &mut veloci::persistence::Persistence::create("gutenberg".to_string()).unwrap(),
+        &mut veloci::persistence::Persistence::create_mmap(db_folder).unwrap(),
         &serde_json::to_string_pretty(&books).unwrap(),
         indices,
         false,
