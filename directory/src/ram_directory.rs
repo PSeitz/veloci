@@ -1,3 +1,5 @@
+use log::debug;
+use log::warn;
 use std::collections::HashMap;
 use std::fmt;
 use std::io::{self, BufWriter, Cursor, Seek, SeekFrom, Write};
@@ -16,7 +18,7 @@ use super::{AntiCallToken, Directory, TerminatingWrite, WritePtr};
 struct VecWriter {
     path: PathBuf,
     shared_directory: RamDirectory,
-    data: Cursor<Vec<u8>>,
+    data: Vec<u8>,
     is_flushed: bool,
 }
 
@@ -24,7 +26,7 @@ impl VecWriter {
     fn new(path_buf: PathBuf, shared_directory: RamDirectory) -> VecWriter {
         VecWriter {
             path: path_buf,
-            data: Cursor::new(Vec::new()),
+            data: Vec::new(),
             shared_directory,
             is_flushed: true,
         }
@@ -44,12 +46,6 @@ impl Drop for VecWriter {
     }
 }
 
-impl Seek for VecWriter {
-    fn seek(&mut self, pos: SeekFrom) -> io::Result<u64> {
-        self.data.seek(pos)
-    }
-}
-
 impl Write for VecWriter {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
         self.is_flushed = false;
@@ -60,7 +56,8 @@ impl Write for VecWriter {
     fn flush(&mut self) -> io::Result<()> {
         self.is_flushed = true;
         let mut fs = self.shared_directory.fs.write().unwrap();
-        fs.write(self.path.clone(), self.data.get_ref());
+        fs.append(self.path.clone(), &self.data);
+        self.data.clear();
         Ok(())
     }
 }
@@ -89,6 +86,17 @@ impl Deref for ArcVec {
 unsafe impl StableDeref for ArcVec {}
 
 impl InnerDirectory {
+    fn append(&mut self, path: PathBuf, data: &[u8]) -> bool {
+        let path_buf = path.to_path_buf();
+        if let Some(existing_data) = self.fs.get_mut(&path_buf) {
+            Arc::make_mut(existing_data).extend_from_slice(data);
+            true
+        } else {
+            self.fs.insert(path_buf, Arc::new(data.to_vec()));
+            false
+        }
+    }
+
     fn write(&mut self, path: PathBuf, data: &[u8]) -> bool {
         let data = Arc::from(data.to_vec());
         self.fs.insert(path, data).is_some()
@@ -97,14 +105,18 @@ impl InnerDirectory {
     fn get_file_bytes(&self, path: &Path) -> Result<OwnedBytes, io::Error> {
         self.fs
             .get(path)
-            .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "File does not exist"))
+            .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, format!("File {:?} does not exist", path)))
             .map(|el| OwnedBytes::new(ArcVec(el.clone())))
     }
 
-    fn delete(&mut self, path: &Path) {
-        self.fs.remove(path);
+    fn delete(&mut self, path: &Path) -> Result<(), io::Error> {
+        match self.fs.remove(path) {
+            Some(_) => Ok(()),
+            None => Err(io::Error::new(io::ErrorKind::NotFound, path.to_str().unwrap().to_string())),
+        }
     }
 
+    #[allow(unused)]
     fn exists(&self, path: &Path) -> bool {
         self.fs.contains_key(path)
     }
@@ -116,7 +128,10 @@ impl InnerDirectory {
 
 impl fmt::Debug for RamDirectory {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "RamDirectory")
+        let fs = self.fs.read().unwrap();
+        write!(f, "RamDirectory")?;
+        write!(f, "{:?}", fs.fs.keys())?;
+        Ok(())
     }
 }
 
@@ -150,7 +165,7 @@ impl RamDirectory {
     pub fn persist(&self, dest: &dyn Directory) -> Result<(), io::Error> {
         let wlock = self.fs.write().unwrap();
         for (path, file) in wlock.fs.iter() {
-            let mut dest_wrt = dest.open_write(path)?;
+            let mut dest_wrt = dest.open_append(path)?;
             dest_wrt.write_all(file.as_slice())?;
             dest_wrt.terminate()?;
         }
@@ -164,20 +179,68 @@ impl Directory for RamDirectory {
         fs.get_file_bytes(path)
     }
 
-    fn open_write(&self, path: &Path) -> Result<WritePtr, io::Error> {
-        let mut fs = self.fs.write().unwrap();
+    fn open_append(&self, path: &Path) -> Result<WritePtr, io::Error> {
+        debug!("Append Write {:?}", path);
         let path_buf = PathBuf::from(path);
         let vec_writer = VecWriter::new(path_buf.clone(), self.clone());
-        let exists = fs.write(path_buf.clone(), &[]);
-        // force the creation of the file to mimic the MMap directory.
-        if exists {
-            Err(io::Error::new(io::ErrorKind::AlreadyExists, ""))
-        } else {
-            Ok(BufWriter::new(Box::new(vec_writer)))
-        }
+        Ok(BufWriter::new(Box::new(vec_writer)))
+    }
+
+    fn write(&self, path: &Path, data: &[u8]) -> Result<(), io::Error> {
+        debug!("Write {:?}", path);
+        let path_buf = PathBuf::from(path);
+        let mut fs = self.fs.write().unwrap();
+        fs.write(path_buf, data);
+        Ok(())
+    }
+
+    fn delete(&self, path: &Path) -> Result<(), io::Error> {
+        self.fs.write().unwrap().delete(path)
+    }
+
+    fn exists(&self, path: &Path) -> Result<bool, io::Error> {
+        Ok(self.fs.read().map_err(|e| io::Error::new(io::ErrorKind::Other, e.to_string()))?.exists(path))
     }
 
     fn sync_directory(&self) -> io::Result<()> {
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_append() {
+        let path = Path::new("testfile");
+        let directory: Box<dyn Directory> = Box::new(RamDirectory::default());
+        {
+            let mut wrt = directory.open_append(path).unwrap();
+            wrt.write_all(&[1, 2, 3]).unwrap();
+            wrt.flush().unwrap();
+            wrt.write_all(&[5, 6, 7]).unwrap();
+            wrt.flush().unwrap();
+        }
+        assert_eq!(directory.get_file_bytes(path).unwrap().as_ref(), &[1, 2, 3, 5, 6, 7]);
+
+        {
+            let mut wrt = directory.open_append(path).unwrap();
+            wrt.write_all(&[5, 6, 7]).unwrap();
+            wrt.flush().unwrap();
+        }
+        assert_eq!(directory.get_file_bytes(path).unwrap().as_ref(), &[1, 2, 3, 5, 6, 7, 5, 6, 7]);
+    }
+
+    #[test]
+    fn test_ram_dir() {
+        let path = Path::new("testfile");
+        let directory: Box<dyn Directory> = Box::new(RamDirectory::default());
+        {
+            let mut wrt = directory.open_append(path).unwrap();
+            wrt.write_all(&[1, 2, 3]).unwrap();
+            wrt.flush().unwrap();
+        }
+        assert_eq!(directory.get_file_bytes(path).unwrap().as_ref(), &[1, 2, 3]);
     }
 }

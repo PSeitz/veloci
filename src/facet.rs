@@ -98,15 +98,6 @@ pub(crate) trait AggregationCollector<T: IndexIdToParentData> {
     fn to_map(self: Box<Self>, top: Option<u32>) -> FnvHashMap<T, usize>;
 }
 
-pub(crate) fn should_prefer_vec(num_ids: u32, avg_join_size: f32, max_value_id: u32) -> bool {
-    let num_inserts = (num_ids as f32 * avg_join_size) as u32;
-    let vec_len = max_value_id.saturating_add(1);
-
-    let prefer_vec = num_inserts * 20 > vec_len;
-    debug!("prefer_vec {} {}>{}", prefer_vec, num_inserts * 20, vec_len);
-    prefer_vec
-}
-
 fn get_top_n_sort_from_iter<T: num::Zero + std::cmp::PartialOrd + Copy + std::fmt::Debug, K: Copy + std::fmt::Debug, I: Iterator<Item = (K, T)>>(
     iter: I,
     top_n: usize,

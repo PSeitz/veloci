@@ -63,6 +63,9 @@ version = "0.1.9"
 [dependencies.buffered_index_writer]
 path = "buffered_index_writer"
 
+[dependencies.directory]
+path = "directory"
+
 [dependencies.doc_store]
 path = "doc_store"
 
@@ -118,6 +121,7 @@ path = "src/lib.rs"
 
 [workspace]
 members = ["buffered_index_writer",
+"directory",
 "doc_store",
 "server",
 "veloci_bins",

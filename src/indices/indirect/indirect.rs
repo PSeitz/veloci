@@ -1,40 +1,40 @@
 use super::*;
-use crate::{error::VelociError, indices::*, persistence::*, type_info::TypeInfo, util::*};
+use crate::{error::VelociError, indices::*, persistence::*, type_info::TypeInfo};
 use byteorder::{LittleEndian, ReadBytesExt};
-use memmap2::Mmap;
 use num::{self, cast::ToPrimitive};
-use std::{self, fs::File, marker::PhantomData, u32};
+use ownedbytes::OwnedBytes;
+use std::{self, marker::PhantomData, u32};
 use vint32::iterator::VintArrayIterator;
 
-impl_type_info_single_templ!(IndirectMMap);
+impl_type_info_single_templ!(Indirect);
 
 #[derive(Debug)]
-pub(crate) struct IndirectMMap<T: IndexIdToParentData> {
-    pub(crate) start_pos: Mmap,
-    pub(crate) data: Mmap,
+pub(crate) struct Indirect<T: IndexIdToParentData> {
+    pub(crate) start_pos: OwnedBytes,
+    pub(crate) data: OwnedBytes,
     pub(crate) size: usize,
     pub(crate) ok: PhantomData<T>,
     pub(crate) metadata: IndexValuesMetadata,
 }
 
-impl<T: IndexIdToParentData> IndirectMMap<T> {
+impl<T: IndexIdToParentData> Indirect<T> {
     #[inline]
     fn get_size(&self) -> usize {
         self.size
     }
-
-    pub(crate) fn from_path<P: AsRef<Path>>(path: P, metadata: IndexValuesMetadata) -> Result<Self, VelociError> {
-        Ok(IndirectMMap {
-            start_pos: mmap_from_path(path.as_ref().set_ext(Ext::Indirect))?,
-            data: mmap_from_path(path.as_ref().set_ext(Ext::Data))?,
-            size: File::open(path.as_ref().set_ext(Ext::Indirect))?.metadata()?.len() as usize / std::mem::size_of::<T>(),
+    pub fn from_data(start_pos: OwnedBytes, data: OwnedBytes, metadata: IndexValuesMetadata) -> Result<Self, VelociError> {
+        let size = start_pos.len() / std::mem::size_of::<T>();
+        Ok(Indirect {
+            start_pos,
+            data,
+            size,
             ok: PhantomData,
             metadata,
         })
     }
 }
 
-impl<T: IndexIdToParentData> IndexIdToParent for IndirectMMap<T> {
+impl<T: IndexIdToParentData> IndexIdToParent for Indirect<T> {
     type Output = T;
 
     fn get_index_meta_data(&self) -> &IndexValuesMetadata {

@@ -9,7 +9,7 @@ mod write_docs;
 pub use token_values_to_tokens::*;
 
 use self::{fast_lines::FastLinesTrait, features::IndexCreationType, fields_config::FieldsConfig};
-use crate::directory::Directory;
+use crate::directory::{load_data_pair, Directory};
 use crate::{
     create::{
         calculate_score::{calculate_and_add_token_score_in_doc, calculate_token_score_for_entry},
@@ -21,8 +21,8 @@ use crate::{
     error::*,
     indices::{persistence_score::token_to_anchor_score_vint::*, *},
     metadata::FulltextIndexOptions,
-    persistence::{self, Persistence, *},
-    util::{self, StringAdd, *},
+    persistence::{Persistence, *},
+    util::{StringAdd, *},
 };
 use buffered_index_writer::{self, BufferedIndexWriter};
 use create_fulltext::{get_allterms_per_path, store_full_text_info_and_set_ids};
@@ -113,14 +113,14 @@ fn stream_iter_to_direct_index(iter: impl Iterator<Item = buffered_index_writer:
     Ok(())
 }
 
-fn buffered_index_to_direct_index(db_path: &str, path: &str, mut buffered_index_data: BufferedIndexWriter) -> Result<IndexIdToOneParentFlushing, io::Error> {
-    let data_file_path = PathBuf::from(db_path).join(path);
-    let mut store = IndexIdToOneParentFlushing::new(data_file_path, buffered_index_data.max_value_id);
+fn buffered_index_to_direct_index(directory: &Box<dyn Directory>, path: &str, mut buffered_index_data: BufferedIndexWriter) -> Result<IndexIdToOneParentFlushing, io::Error> {
+    let mut store = IndexIdToOneParentFlushing::new(directory.box_clone(), Path::new(path).to_owned(), buffered_index_data.max_value_id);
     if buffered_index_data.is_in_memory() {
-        stream_iter_to_direct_index(buffered_index_data.into_iter_inmemory(), &mut store)?;
+        stream_iter_to_direct_index(buffered_index_data.iter_inmemory(), &mut store)?;
     } else {
         stream_iter_to_direct_index(buffered_index_data.flush_and_kmerge()?, &mut store)?;
     }
+    buffered_index_data.cleanup()?;
 
     //when there has been written something to disk flush the rest of the data too, so we have either all data im oder on disk
     if !store.is_in_memory() {
@@ -187,7 +187,7 @@ where
         let mut cb_text = |anchor_id: u32, value: &str, path: &str, parent_val_id: u32| -> Result<(), io::Error> {
             let data: &mut PathData = get_or_insert_prefer_get(&mut path_data, path, || {
                 let term_data = term_data.terms_in_path.remove(path).unwrap_or_else(|| panic!("Couldn't find path in term_data {:?}", path));
-                prepare_path_data(&persistence.temp_dir(), persistence, fields_config, path, term_data)
+                prepare_path_data(persistence, fields_config, path, term_data)
             });
 
             let text_info = get_text_info(&mut data.term_data, value);
@@ -287,12 +287,12 @@ where
                 let field_config = fields_config.get(path);
                 //TODO FIXME BUG ALL SUB LEVELS ARE NOT HANDLED (not every supath has it's own config yet) ONLY THE LEAFES BEFORE .TEXTINDEX
                 let value_to_parent = if field_config.is_index_enabled(IndexCreationType::ValueIDToParent) {
-                    Some(BufferedIndexWriter::new_for_sorted_id_insertion(persistence.temp_dir()))
+                    Some(BufferedIndexWriter::new_for_sorted_id_insertion(persistence.directory.box_clone()))
                 } else {
                     None
                 };
                 let parent_to_value = if field_config.is_index_enabled(IndexCreationType::ParentToValueID) {
-                    Some(BufferedIndexWriter::new_for_sorted_id_insertion(persistence.temp_dir()))
+                    Some(BufferedIndexWriter::new_for_sorted_id_insertion(persistence.directory.box_clone()))
                 } else {
                     None
                 };
@@ -364,18 +364,19 @@ fn stream_iter_to_indirect_index(
 }
 
 fn buffered_index_to_indirect_index_multiple(
-    db_path: &str,
+    directory: &Box<dyn Directory>,
     path: &str,
     mut buffered_index_data: BufferedIndexWriter,
     sort_and_dedup: bool,
 ) -> Result<IndirectIMFlushingInOrderVint, VelociError> {
-    let mut store = IndirectIMFlushingInOrderVint::new(get_file_path(db_path, path), buffered_index_data.max_value_id);
+    let mut store = IndirectIMFlushingInOrderVint::new(directory, PathBuf::from(path.to_string()), buffered_index_data.max_value_id);
 
     if buffered_index_data.is_in_memory() {
-        stream_iter_to_indirect_index(buffered_index_data.into_iter_inmemory(), &mut store, sort_and_dedup)?;
+        stream_iter_to_indirect_index(buffered_index_data.iter_inmemory(), &mut store, sort_and_dedup)?;
     } else {
         stream_iter_to_indirect_index(buffered_index_data.flush_and_kmerge()?, &mut store, sort_and_dedup)?;
     }
+    buffered_index_data.cleanup()?;
 
     //when there has been written something to disk flush the rest of the data too, so we have either all data im oder on disk
     if !store.is_in_memory() {
@@ -447,7 +448,7 @@ where
 }
 
 pub fn add_anchor_score_flush(
-    directory: &std::boxed::Box<dyn Directory>,
+    directory: &Box<dyn Directory>,
     path_col: &str,
     field_path: String,
     mut buffered_index_data: BufferedIndexWriter<ValueId, (ValueId, ValueId)>,
@@ -458,10 +459,11 @@ pub fn add_anchor_score_flush(
         let mut store = TokenToAnchorScoreVintFlushing::<u32>::new(field_path.to_owned(), directory);
         // stream_buffered_index_writer_to_anchor_score(buffered_index_data, &mut store)?;
         if buffered_index_data.is_in_memory() {
-            stream_iter_to_anchor_score(buffered_index_data.into_iter_inmemory(), &mut store)?;
+            stream_iter_to_anchor_score(buffered_index_data.iter_inmemory(), &mut store)?;
         } else {
             stream_iter_to_anchor_score(buffered_index_data.flush_and_kmerge()?, &mut store)?;
         }
+        buffered_index_data.cleanup()?;
 
         //when there has been written something to disk flush the rest of the data too, so we have either all data im oder on disk
         if !store.is_in_memory() {
@@ -472,17 +474,17 @@ pub fn add_anchor_score_flush(
             path_col: path_col.to_string(),
             path: field_path,
             index: IndexVariants::TokenToAnchorScoreU32(store),
-            loading_type: LoadingType::Disk,
             index_category: IndexCategory::AnchorScore,
         });
     } else {
         let mut store = TokenToAnchorScoreVintFlushing::<u64>::new(field_path.to_string(), directory);
         // stream_buffered_index_writer_to_anchor_score(buffered_index_data, &mut store)?;
         if buffered_index_data.is_in_memory() {
-            stream_iter_to_anchor_score(buffered_index_data.into_iter_inmemory(), &mut store)?;
+            stream_iter_to_anchor_score(buffered_index_data.iter_inmemory(), &mut store)?;
         } else {
             stream_iter_to_anchor_score(buffered_index_data.flush_and_kmerge()?, &mut store)?;
         }
+        buffered_index_data.cleanup()?;
 
         //when there has been written something to disk flush the rest of the data too, so we have either all data im oder on disk
         if !store.is_in_memory() {
@@ -493,7 +495,6 @@ pub fn add_anchor_score_flush(
             path_col: path_col.to_string(),
             path: field_path,
             index: IndexVariants::TokenToAnchorScoreU64(store),
-            loading_type: LoadingType::Disk,
             index_category: IndexCategory::AnchorScore,
         });
     }
@@ -521,10 +522,11 @@ fn stream_buffered_index_writer_to_phrase_index(
 ) -> Result<(), io::Error> {
     // flush_and_kmerge will flush elements to disk, this is unnecessary for small indices, so we check for im
     if index_writer.is_in_memory() {
-        stream_iter_to_phrase_index(index_writer.into_iter_inmemory(), target)?;
+        stream_iter_to_phrase_index(index_writer.iter_inmemory(), target)?;
     } else {
         stream_iter_to_phrase_index(index_writer.flush_and_kmerge()?, target)?;
     }
+    index_writer.cleanup()?;
 
     // when there has been written something to disk flush the rest of the data too, so we have either all data im oder on disk
     if !target.is_in_memory() {
@@ -533,23 +535,19 @@ fn stream_buffered_index_writer_to_phrase_index(
     Ok(())
 }
 fn add_phrase_pair_flush(
-    db_path: &str,
+    directory: &Box<dyn Directory>,
     path_col: &str,
     path: String,
     buffered_index_data: BufferedIndexWriter<(ValueId, ValueId), u32>,
     indices: &mut IndicesFromRawData,
 ) -> Result<(), io::Error> {
-    let indirect_file_path = util::get_file_path(db_path, &path).set_ext(Ext::Indirect);
-    let data_file_path = util::get_file_path(db_path, &path).set_ext(Ext::Data);
-
-    let mut store = IndirectIMFlushingInOrderVintNoDirectEncode::<(ValueId, ValueId)>::new(indirect_file_path, data_file_path, buffered_index_data.max_value_id);
+    let mut store = IndirectIMFlushingInOrderVintNoDirectEncode::<(ValueId, ValueId)>::new(directory.box_clone(), Path::new(&path).to_owned(), buffered_index_data.max_value_id);
     stream_buffered_index_writer_to_phrase_index(buffered_index_data, &mut store)?;
 
     indices.push(IndexData {
         path_col: path_col.to_string(),
         path,
         index: IndexVariants::Phrase(store),
-        loading_type: LoadingType::Disk,
         index_category: IndexCategory::Phrase,
     });
     Ok(())
@@ -562,7 +560,6 @@ pub struct IndexData {
     path_col: String,
     path: String,
     index: IndexVariants,
-    loading_type: LoadingType,
     index_category: IndexCategory,
 }
 
@@ -576,8 +573,7 @@ enum IndexVariants {
 }
 
 fn convert_raw_path_data_to_indices(
-    directory: &std::boxed::Box<dyn Directory>,
-    db_path: &str,
+    directory: &Box<dyn Directory>,
     path_data: FnvHashMap<String, PathData>,
     tuples_to_parent_in_path: FnvHashMap<String, PathDataIds>,
     indices_json: &FieldsConfig,
@@ -591,25 +587,22 @@ fn convert_raw_path_data_to_indices(
                            buffered_index_data: BufferedIndexWriter,
                            is_always_1_to_1: bool,
                            sort_and_dedup: bool,
-                           indices: &mut IndicesFromRawData,
-                           loading_type: LoadingType|
+                           indices: &mut IndicesFromRawData|
      -> Result<(), VelociError> {
         if is_always_1_to_1 {
-            let store = buffered_index_to_direct_index(db_path, &path, buffered_index_data)?;
+            let store = buffered_index_to_direct_index(directory, &path, buffered_index_data)?;
             indices.push(IndexData {
                 path_col: path_col.to_string(),
                 path,
                 index: IndexVariants::SingleValue(store),
-                loading_type,
                 index_category: IndexCategory::KeyValue,
             });
         } else {
-            let store = buffered_index_to_indirect_index_multiple(db_path, &path, buffered_index_data, sort_and_dedup)?;
+            let store = buffered_index_to_indirect_index_multiple(directory, &path, buffered_index_data, sort_and_dedup)?;
             indices.push(IndexData {
                 path_col: path_col.to_string(),
                 path,
                 index: IndexVariants::MultiValue(store),
-                loading_type,
                 index_category: IndexCategory::KeyValue,
             });
         }
@@ -625,7 +618,7 @@ fn convert_raw_path_data_to_indices(
             let path = &path;
 
             if let Some(tokens_to_text_id) = data.tokens_to_text_id {
-                add_index_flush(&path_col, path.add(TOKENS_TO_TEXT_ID), *tokens_to_text_id, false, true, &mut indices, LoadingType::Disk)?;
+                add_index_flush(&path_col, path.add(TOKENS_TO_TEXT_ID), *tokens_to_text_id, false, true, &mut indices)?;
             }
 
             if let Some(token_to_anchor_id_score) = data.token_to_anchor_id_score {
@@ -633,20 +626,12 @@ fn convert_raw_path_data_to_indices(
             }
 
             if let Some(phrase_pair_to_anchor) = data.phrase_pair_to_anchor {
-                add_phrase_pair_flush(db_path, &path_col, path.add(PHRASE_PAIR_TO_ANCHOR), *phrase_pair_to_anchor, &mut indices)?;
+                add_phrase_pair_flush(directory, &path_col, path.add(PHRASE_PAIR_TO_ANCHOR), *phrase_pair_to_anchor, &mut indices)?;
             }
 
             let no_sort_and_dedup = false;
             if let Some(text_id_to_token_ids) = data.text_id_to_token_ids {
-                add_index_flush(
-                    &path_col,
-                    path.add(TEXT_ID_TO_TOKEN_IDS),
-                    text_id_to_token_ids.data,
-                    false,
-                    no_sort_and_dedup,
-                    &mut indices,
-                    LoadingType::Disk,
-                )?;
+                add_index_flush(&path_col, path.add(TEXT_ID_TO_TOKEN_IDS), text_id_to_token_ids.data, false, no_sort_and_dedup, &mut indices)?;
             }
 
             if let Some(text_id_to_parent) = data.text_id_to_parent {
@@ -657,27 +642,12 @@ fn convert_raw_path_data_to_indices(
                     false, // valueIdToParent relation is always 1 to 1, expect for text_ids, which can have multiple parents. Here we handle only text_ids therefore is this always false
                     no_sort_and_dedup,
                     &mut indices,
-                    LoadingType::Disk,
                 )?;
             }
 
             if let Some(value_id_to_anchor) = data.value_id_to_anchor {
-                add_index_flush(
-                    &path_col,
-                    path_col.add(VALUE_ID_TO_ANCHOR),
-                    *value_id_to_anchor,
-                    false,
-                    no_sort_and_dedup,
-                    &mut indices,
-                    LoadingType::Disk,
-                )?;
+                add_index_flush(&path_col, path_col.add(VALUE_ID_TO_ANCHOR), *value_id_to_anchor, false, no_sort_and_dedup, &mut indices)?;
             }
-
-            let loading_type = if indices_json.get(path).facet && !is_1_to_n(path) {
-                LoadingType::InMemory
-            } else {
-                LoadingType::Disk
-            };
 
             if let Some(parent_to_text_id) = data.parent_to_text_id {
                 add_index_flush(
@@ -687,35 +657,25 @@ fn convert_raw_path_data_to_indices(
                     true, // This is parent_to_text_id here - Every Value id hat one associated text_id
                     no_sort_and_dedup,
                     &mut indices,
-                    loading_type,
                 )?;
             }
 
             if let Some(text_id_to_anchor) = data.text_id_to_anchor {
-                add_index_flush(&path_col, path.add(TEXT_ID_TO_ANCHOR), *text_id_to_anchor, false, true, &mut indices, LoadingType::Disk)?;
+                add_index_flush(&path_col, path.add(TEXT_ID_TO_ANCHOR), *text_id_to_anchor, false, true, &mut indices)?;
             }
 
             if let Some(anchor_to_text_id) = data.anchor_to_text_id {
-                add_index_flush(
-                    &path_col,
-                    path.add(ANCHOR_TO_TEXT_ID),
-                    *anchor_to_text_id,
-                    false,
-                    no_sort_and_dedup,
-                    &mut indices,
-                    LoadingType::InMemory,
-                )?;
+                add_index_flush(&path_col, path.add(ANCHOR_TO_TEXT_ID), *anchor_to_text_id, false, no_sort_and_dedup, &mut indices)?;
             }
 
             if let Some(buffered_index_data) = data.boost {
                 let boost_path = extract_field_name(path).add(BOOST_VALID_TO_VALUE);
 
-                let store = buffered_index_to_indirect_index_multiple(db_path, &boost_path, *buffered_index_data, false)?;
+                let store = buffered_index_to_indirect_index_multiple(directory, &boost_path, *buffered_index_data, false)?;
                 indices.push(IndexData {
                     path_col,
                     path: boost_path,
                     index: IndexVariants::MultiValue(store),
-                    loading_type: LoadingType::InMemory,
                     index_category: IndexCategory::Boost,
                 });
             }
@@ -742,11 +702,10 @@ fn convert_raw_path_data_to_indices(
                     true, // valueIdToParent relation is always 1 to 1, expect for text_ids, which can have multiple parents. Here we handle all except .textindex data therefore is this always true
                     false,
                     &mut indices,
-                    LoadingType::Disk,
                 )?;
             }
             if let Some(parent_to_value) = data.parent_to_value {
-                add_index_flush(path, path.add(PARENT_TO_VALUE_ID), parent_to_value, false, false, &mut indices, LoadingType::Disk)?;
+                add_index_flush(path, path.add(PARENT_TO_VALUE_ID), parent_to_value, false, false, &mut indices)?;
             }
 
             Ok(indices)
@@ -756,6 +715,7 @@ fn convert_raw_path_data_to_indices(
     for indice in indices_res_2? {
         indices.extend(indice);
     }
+    directory.sync_directory()?;
 
     Ok(indices)
 }
@@ -863,57 +823,54 @@ where
         print_indices(&mut path_data);
     }
 
-    let mut indices = convert_raw_path_data_to_indices(&persistence.directory, &persistence.db, path_data, tuples_to_parent_in_path, indices_json)?;
-    if persistence.persistence_type == persistence::PersistenceType::Persistent {
-        info_time!("write indices");
-        for index_data in &mut indices {
-            let mut index_metadata = IndexMetadata {
-                loading_type: index_data.loading_type,
-                index_category: index_data.index_category,
-                path: index_data.path.to_string(),
-                data_type: DataType::U32,
-                ..Default::default()
-            };
+    let mut indices = convert_raw_path_data_to_indices(&persistence.directory, path_data, tuples_to_parent_in_path, indices_json)?;
+    info_time!("write indices");
+    for index_data in &mut indices {
+        let mut index_metadata = IndexMetadata {
+            index_category: index_data.index_category,
+            path: index_data.path.to_string(),
+            data_type: DataType::U32,
+            ..Default::default()
+        };
 
-            match &mut index_data.index {
-                IndexVariants::Phrase(store) => {
-                    store.flush()?;
-                    index_metadata.is_empty = store.is_empty();
-                    index_metadata.metadata = store.metadata;
-                }
-                IndexVariants::SingleValue(store) => {
-                    store.flush()?;
-                    index_metadata.is_empty = store.is_empty();
-                    index_metadata.metadata = store.metadata;
-                    index_metadata.index_cardinality = IndexCardinality::IndexIdToOneParent;
-                }
-                IndexVariants::MultiValue(store) => {
-                    store.flush()?;
-                    index_metadata.is_empty = store.is_empty();
-                    index_metadata.metadata = store.metadata;
-                    index_metadata.index_cardinality = IndexCardinality::IndirectIM;
-                }
-                IndexVariants::TokenToAnchorScoreU32(store) => {
-                    store.flush()?;
-                    index_metadata.is_empty = false;
-                    index_metadata.metadata = store.metadata;
-                }
-                IndexVariants::TokenToAnchorScoreU64(store) => {
-                    store.flush()?;
-                    index_metadata.is_empty = false;
-                    index_metadata.metadata = store.metadata;
-                    index_metadata.data_type = DataType::U64;
-                }
+        match &mut index_data.index {
+            IndexVariants::Phrase(store) => {
+                store.flush()?;
+                index_metadata.is_empty = store.is_empty();
+                index_metadata.metadata = store.metadata;
             }
-            let entry = persistence.metadata.columns.entry(index_data.path_col.to_string()).or_insert_with(|| FieldInfo {
-                has_fst: false,
-                ..Default::default()
-            });
-            entry.indices.push(index_metadata);
+            IndexVariants::SingleValue(store) => {
+                store.flush()?;
+                index_metadata.is_empty = store.is_empty();
+                index_metadata.metadata = store.metadata;
+                index_metadata.index_cardinality = IndexCardinality::IndexIdToOneParent;
+            }
+            IndexVariants::MultiValue(store) => {
+                store.flush()?;
+                index_metadata.is_empty = store.is_empty();
+                index_metadata.metadata = store.metadata;
+                index_metadata.index_cardinality = IndexCardinality::IndirectIM;
+            }
+            IndexVariants::TokenToAnchorScoreU32(store) => {
+                store.flush()?;
+                index_metadata.is_empty = false;
+                index_metadata.metadata = store.metadata;
+            }
+            IndexVariants::TokenToAnchorScoreU64(store) => {
+                store.flush()?;
+                index_metadata.is_empty = false;
+                index_metadata.metadata = store.metadata;
+                index_metadata.data_type = DataType::U64;
+            }
         }
-
-        persistence.write_metadata()?;
+        let entry = persistence.metadata.columns.entry(index_data.path_col.to_string()).or_insert_with(|| FieldInfo {
+            has_fst: false,
+            ..Default::default()
+        });
+        entry.indices.push(index_metadata);
     }
+
+    persistence.write_metadata()?;
 
     // load the converted indices
     if load_persistence {
@@ -925,7 +882,9 @@ where
                         persistence.indices.phrase_pair_to_anchor.insert(path, Box::new(index.into_im_store()));
                     //Move data
                     } else {
-                        let store = IndirectIMBinarySearchMMAP::from_path(&(persistence.db.to_string() + "/" + &path), index.metadata)?; //load data with MMap
+                        let (ind, data) = load_data_pair(&persistence.directory, Path::new(&path)).unwrap();
+                        let store = IndirectIMBinarySearch::from_data(ind, data, index.metadata).unwrap();
+
                         persistence.indices.phrase_pair_to_anchor.insert(path, Box::new(store));
                     }
                 }

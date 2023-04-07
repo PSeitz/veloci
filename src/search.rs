@@ -75,7 +75,7 @@ pub fn to_documents(persistence: &Persistence, hits: &[Hit], select: &Option<Vec
             .collect()
     };
 
-    let doc_store_data = persistence.get_mmap_handle("data").expect("could not open document store");
+    let doc_store_data = persistence.get_file_bytes("data").expect("could not open document store");
     let doc_store = DocLoader::open(doc_store_data.as_ref());
     hits.iter()
         .map(|hit| {

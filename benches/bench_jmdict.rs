@@ -371,7 +371,7 @@ fn searches(c: &mut Criterion) {
     let tree = get_read_tree_from_fields(&pers, &fields);
     let single_tree = get_read_tree_from_fields(&pers, &vec!["ent_seq".to_string()]);
 
-    let doc_store_data = pers.get_mmap_handle("data").expect("could not open document store");
+    let doc_store_data = pers.get_file_bytes("data").expect("could not open document store");
     let doc_loader = DocLoader::open(&doc_store_data);
 
     c.bench_function("load_documents_direct_large", |b| b.iter(|| doc_loader.get_doc(166600)));

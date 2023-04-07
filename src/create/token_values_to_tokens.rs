@@ -33,7 +33,7 @@ pub fn add_token_values_to_tokens(persistence: &mut Persistence, data_str: &str,
         ..Default::default()
     };
 
-    let mut buffered_index_data = BufferedIndexWriter::new_unstable_sorted(persistence.temp_dir());
+    let mut buffered_index_data = BufferedIndexWriter::new_unstable_sorted(persistence.directory.box_clone());
 
     for el in data {
         if let Some(value) = el.value {
@@ -54,7 +54,7 @@ pub fn add_token_values_to_tokens(persistence: &mut Persistence, data_str: &str,
     }
 
     let path = config.path.add(TEXTINDEX).add(TOKEN_VALUES).add(BOOST_VALID_TO_VALUE);
-    let mut store = buffered_index_to_direct_index(&persistence.db, &path, buffered_index_data)?;
+    let mut store = buffered_index_to_direct_index(&persistence.directory, &path, buffered_index_data)?;
 
     store.flush()?;
     let index_metadata = IndexMetadata {

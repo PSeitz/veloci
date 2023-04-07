@@ -218,7 +218,7 @@ fn get_doc_for_id_direct(database: String, id: u32) -> Json<serde_json::Value> {
     ensure_database(&database).unwrap();
     let persistence = PERSISTENCES.get(&database).unwrap();
 
-    let f = persistence.get_mmap_handle("data").unwrap(); // TODO No unwrapo
+    let f = persistence.get_file_bytes("data").unwrap(); // TODO No unwrapo
     let doc_store = DocLoader::open(f.as_ref());
     Json(serde_json::from_str(&doc_store.get_doc(id).unwrap()).unwrap())
 }

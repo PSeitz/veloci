@@ -1,0 +1,15 @@
+[package]
+name = "directory"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+log = "0.4.17"
+memmap2 = { version = "0.5.10", features = ["stable_deref_trait"] }
+ownedbytes = "0.4.0"
+stable_deref_trait = "1.2.0"
+
+[dev-dependencies]
+tempfile = "3.5.0"

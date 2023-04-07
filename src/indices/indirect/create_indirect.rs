@@ -1,7 +1,13 @@
-use super::super::{calc_avg_join_size, flush_to_file_indirect};
-use crate::{error::VelociError, indices::*, persistence::*, util::*};
+use super::super::calc_avg_join_size;
+use crate::{
+    directory::{load_data_pair, Directory},
+    error::VelociError,
+    indices::*,
+    persistence::*,
+    util::*,
+};
 use num::{self, cast::ToPrimitive};
-use std::{self, io, path::PathBuf, u32};
+use std::{self, io, mem, path::PathBuf, u32};
 use vint32::vint_array::VIntArray;
 
 fn to_serialized_vint_array(add_data: Vec<u32>) -> Vec<u8> {
@@ -21,16 +27,18 @@ pub(crate) struct IndirectIMFlushingInOrderVint {
     /// Already written ids_cache
     pub(crate) current_id_offset: u32,
     pub(crate) path: PathBuf,
+    pub(crate) directory: Box<dyn Directory>,
     pub(crate) metadata: IndexValuesMetadata,
 }
 
 // use vint for indirect, use not highest bit in indirect, but the highest unused bit. Max(value_id, single data_id, which would be encoded in the valueid index)
 //
 impl IndirectIMFlushingInOrderVint {
-    pub(crate) fn new(path: PathBuf, max_value_id: u32) -> Self {
+    pub(crate) fn new(directory: &Box<dyn Directory>, path: PathBuf, max_value_id: u32) -> Self {
         let mut data_cache = vec![];
         data_cache.resize(1, 0); // resize data by one, because 0 is reserved for the empty buckets
         IndirectIMFlushingInOrderVint {
+            directory: directory.clone(),
             ids_cache: vec![],
             data_cache,
             current_data_offset: 0,
@@ -40,23 +48,11 @@ impl IndirectIMFlushingInOrderVint {
         }
     }
 
-    pub(crate) fn into_im_store(mut self) -> IndirectIM<u32> {
-        let mut store = IndirectIM::default();
-        self.metadata.avg_join_size = calc_avg_join_size(self.metadata.num_values, self.metadata.num_ids);
-        store.start_pos = self.ids_cache;
-        store.metadata = self.metadata;
-        store.data = self.data_cache;
-        store
-    }
-
     pub(crate) fn into_store(mut self) -> Result<Box<dyn IndexIdToParent<Output = u32>>, VelociError> {
-        if self.is_in_memory() {
-            Ok(Box::new(self.into_im_store()))
-        } else {
-            self.flush()?;
-            let store = IndirectMMap::from_path(&self.path, self.metadata)?;
-            Ok(Box::new(store))
-        }
+        self.flush()?;
+        let (ind, data) = load_data_pair(&self.directory, Path::new(&self.path))?;
+        let store = Indirect::from_data(ind, data, self.metadata)?;
+        Ok(Box::new(store))
     }
 
     #[inline]
@@ -99,19 +95,16 @@ impl IndirectIMFlushingInOrderVint {
     }
 
     pub(crate) fn flush(&mut self) -> Result<(), io::Error> {
-        if self.ids_cache.is_empty() {
-            return Ok(());
-        }
+        // no check if there is anything to write, so a file will be always created
 
         self.current_id_offset += self.ids_cache.len() as u32;
         self.current_data_offset += self.data_cache.len() as u32;
 
-        flush_to_file_indirect(
-            &(self.path.set_ext(Ext::Indirect)),
-            &(self.path.set_ext(Ext::Data)),
-            &vec_to_bytes(&self.ids_cache),
-            &self.data_cache,
-        )?;
+        use std::slice;
+        let id_to_data_pos_bytes = unsafe { slice::from_raw_parts(self.ids_cache.as_ptr() as *const u8, self.ids_cache.len() * mem::size_of::<u32>()) };
+
+        self.directory.append(&self.path.set_ext(Ext::Indirect), &id_to_data_pos_bytes)?;
+        self.directory.append(&self.path.set_ext(Ext::Data), &self.data_cache)?;
 
         self.data_cache.clear();
         self.ids_cache.clear();

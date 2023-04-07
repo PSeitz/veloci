@@ -3,6 +3,7 @@ extern crate criterion;
 use buffered_index_writer::*;
 
 use criterion::{Criterion, *};
+use directory::RamDirectory;
 
 fn pseudo_rand(i: u32) -> u32 {
     if i % 2 == 0 {
@@ -20,7 +21,8 @@ fn criterion_benchmark(c: &mut Criterion) {
         "buffered",
         |b, i| {
             b.iter(|| {
-                let mut ind = BufferedIndexWriter::new_unstable_sorted("tmp".to_string());
+                let directory = Box::new(RamDirectory::create());
+                let mut ind = BufferedIndexWriter::new_unstable_sorted(directory);
                 for i in 0..*i {
                     ind.add(i, pseudo_rand(i)).unwrap();
                 }

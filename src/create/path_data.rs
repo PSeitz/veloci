@@ -54,30 +54,30 @@ impl BufferedTextIdToTokenIdsData {
     }
 }
 
-pub(crate) fn prepare_path_data(temp_dir: &str, persistence: &Persistence, fields_config: &FieldsConfig, path: &str, term_data: TermDataInPath) -> PathData {
+pub(crate) fn prepare_path_data(persistence: &Persistence, fields_config: &FieldsConfig, path: &str, term_data: TermDataInPath) -> PathData {
     let field_config = fields_config.get(path);
     let boost_info_data = if field_config.boost.is_some() {
-        Some(Box::new(BufferedIndexWriter::new_for_sorted_id_insertion(temp_dir.to_string())))
+        Some(Box::new(BufferedIndexWriter::new_for_sorted_id_insertion(persistence.directory.box_clone())))
     } else {
         None
     };
     // prepare direct access to resolve boost values directly to anchor
     let value_id_to_anchor = if field_config.boost.is_some() {
-        Some(Box::new(BufferedIndexWriter::<u32, u32>::new_for_sorted_id_insertion(temp_dir.to_string())))
+        Some(Box::new(BufferedIndexWriter::<u32, u32>::new_for_sorted_id_insertion(persistence.directory.box_clone())))
     } else {
         None
     };
     let anchor_to_text_id = if field_config.facet && is_1_to_n(path) {
         //Create facet index only for 1:N
         // anchor_id is monotonically increasing, hint buffered index writer, it's already sorted
-        Some(Box::new(BufferedIndexWriter::new_for_sorted_id_insertion(temp_dir.to_string())))
+        Some(Box::new(BufferedIndexWriter::new_for_sorted_id_insertion(persistence.directory.box_clone())))
     } else {
         None
     };
 
     let get_buffered_if_enabled = |val: IndexCreationType| -> Option<Box<BufferedIndexWriter>> {
         if field_config.is_index_enabled(val) {
-            Some(Box::new(BufferedIndexWriter::new_unstable_sorted(temp_dir.to_string())))
+            Some(Box::new(BufferedIndexWriter::new_unstable_sorted(persistence.directory.box_clone())))
         } else {
             None
         }
@@ -87,26 +87,26 @@ pub(crate) fn prepare_path_data(temp_dir: &str, persistence: &Persistence, field
     let text_id_to_parent = get_buffered_if_enabled(IndexCreationType::TextIDToParent);
     let text_id_to_anchor = get_buffered_if_enabled(IndexCreationType::TextIDToAnchor);
     let phrase_pair_to_anchor = if field_config.is_index_enabled(IndexCreationType::PhrasePairToAnchor) {
-        Some(Box::new(BufferedIndexWriter::new_unstable_sorted(temp_dir.to_string())))
+        Some(Box::new(BufferedIndexWriter::new_unstable_sorted(persistence.directory.box_clone())))
     } else {
         None
     };
     let text_id_to_token_ids = if field_config.is_index_enabled(IndexCreationType::TextIDToTokenIds) {
         Some(Box::new(BufferedTextIdToTokenIdsData {
             text_id_flag: FixedBitSet::default(),
-            data: BufferedIndexWriter::new_stable_sorted(temp_dir.to_string()), // Stable sort, else the token_ids will be reorderer in the wrong order
+            data: BufferedIndexWriter::new_stable_sorted(persistence.directory.box_clone()), // Stable sort, else the token_ids will be reorderer in the wrong order
         }))
     } else {
         None
     };
     let parent_to_text_id = if field_config.is_index_enabled(IndexCreationType::ParentToTextID) {
-        Some(Box::new(BufferedIndexWriter::new_for_sorted_id_insertion(temp_dir.to_string())))
+        Some(Box::new(BufferedIndexWriter::new_for_sorted_id_insertion(persistence.directory.box_clone())))
     } else {
         None
     };
 
     let token_to_anchor_id_score = if field_config.is_index_enabled(IndexCreationType::TokenToAnchorIDScore) {
-        Some(Box::new(BufferedIndexWriter::<u32, (u32, u32)>::new_unstable_sorted(temp_dir.to_string())))
+        Some(Box::new(BufferedIndexWriter::<u32, (u32, u32)>::new_unstable_sorted(persistence.directory.box_clone())))
     } else {
         None
     };

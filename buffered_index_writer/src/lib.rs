@@ -1,18 +1,21 @@
+use directory::Directory;
 use itertools::Itertools;
-use memmap2::{Mmap, MmapOptions};
 use std::fmt::Display;
 
+use std::path::PathBuf;
 use std::{
     boxed::Box,
     cmp::{Ord, PartialOrd},
     default::Default,
     env, fmt,
-    io::{self, prelude::*, BufWriter},
+    io::{self, prelude::*},
     iter::{FusedIterator, Iterator},
     marker::PhantomData,
     mem,
 };
 use vint32::*;
+
+use ownedbytes::OwnedBytes;
 
 pub trait SerializeInto {
     fn serialize_into(&self, sink: &mut Vec<u8>);
@@ -138,9 +141,14 @@ pub(crate) struct FlushStruct {
     // flush_threshold: usize,
     /// written parts offsets in the file
     parts: Vec<Part>,
-    temp_file_folder: String,
-    // temp_file: Option<File>,
-    temp_file: Option<tempfile::NamedTempFile>,
+    directory: Box<dyn Directory>,
+    temp_file: PathBuf,
+}
+
+impl FlushStruct {
+    fn is_data_flushed(&self) -> bool {
+        self.bytes_written != 0
+    }
 }
 
 impl<
@@ -152,19 +160,20 @@ impl<
         self.flush_data.bytes_written
     }
 
-    pub fn new_with_opt(stable_sort: bool, ids_are_sorted: bool, temp_file_folder: String) -> Self {
+    pub fn new_with_opt(stable_sort: bool, ids_are_sorted: bool, directory: Box<dyn Directory>) -> Self {
         let flush_threshold = env::var_os("FlushThreshold")
             .map(|el| el.into_string().unwrap().parse::<usize>().unwrap())
             .unwrap_or(4_000_000);
+        let temp_file = PathBuf::from("temp_".to_string() + &uuid::Uuid::new_v4().to_string());
 
         let flush_data = Box::new(FlushStruct {
             bytes_written: 0,
             flush_threshold,
-            temp_file: None,
+            temp_file,
             parts: vec![],
             stable_sort,
             ids_are_sorted,
-            temp_file_folder,
+            directory,
         });
         BufferedIndexWriter {
             cache: vec![],
@@ -175,16 +184,16 @@ impl<
         }
     }
 
-    pub fn new_for_sorted_id_insertion(temp_file_folder: String) -> Self {
-        BufferedIndexWriter::new_with_opt(false, true, temp_file_folder)
+    pub fn new_for_sorted_id_insertion(directory: Box<dyn Directory>) -> Self {
+        BufferedIndexWriter::new_with_opt(false, true, directory)
     }
 
-    pub fn new_stable_sorted(temp_file_folder: String) -> Self {
-        BufferedIndexWriter::new_with_opt(true, false, temp_file_folder)
+    pub fn new_stable_sorted(directory: Box<dyn Directory>) -> Self {
+        BufferedIndexWriter::new_with_opt(true, false, directory)
     }
 
-    pub fn new_unstable_sorted(temp_file_folder: String) -> Self {
-        BufferedIndexWriter::new_with_opt(false, false, temp_file_folder)
+    pub fn new_unstable_sorted(directory: Box<dyn Directory>) -> Self {
+        BufferedIndexWriter::new_with_opt(false, false, directory)
     }
 
     #[inline]
@@ -243,18 +252,12 @@ impl<
         self.sort_cache();
         let prev_part = self.flush_data.parts.last().cloned().unwrap_or(Part { offset: 0, len: 0 });
         let serialized_len = {
-            let temp_folder = &self.flush_data.temp_file_folder;
-            let mut data_file = BufWriter::new(
-                self.flush_data
-                    .temp_file
-                    .get_or_insert_with(|| tempfile::NamedTempFile::new_in(temp_folder).unwrap_or_else(|e| panic!("could not create temp file {:?}, {:?}", temp_folder, e))),
-            );
             let mut sink = Vec::with_capacity(self.cache.len() * mem::size_of::<KeyValue<K, T>>());
             for value in self.cache.iter() {
                 value.serialize_into(&mut sink);
             }
 
-            data_file.write_all(&sink)?;
+            self.flush_data.directory.append(&self.flush_data.temp_file, &sink)?;
             sink.len()
         };
 
@@ -281,14 +284,15 @@ impl<
     pub fn multi_iter(&self) -> Result<Vec<MMapIter<K, T>>, io::Error> {
         let mut vecco = vec![];
 
-        if let Some(file) = &self.flush_data.temp_file {
+        if !self.flush_data.parts.is_empty() {
             for part in &self.flush_data.parts {
-                let mmap = unsafe { MmapOptions::new().offset(part.offset).len(part.len as usize).map(file.as_file())? };
-                vecco.push(MMapIter::<K, T>::new(mmap));
+                let file = self.flush_data.directory.get_file_bytes(&self.flush_data.temp_file)?;
+                let file = file.slice(part.offset as usize..part.offset as usize + part.len as usize);
+                vecco.push(MMapIter::<K, T>::new(file));
             }
             Ok(vecco)
         } else {
-            Ok(vec![])
+            Ok(Vec::new())
         }
     }
 
@@ -299,9 +303,9 @@ impl<
 
     /// inmemory version for very small indices, where it's inefficient to write and then read from disk - data on disk will be ignored!
     #[inline]
-    pub fn into_iter_inmemory(mut self) -> impl Iterator<Item = KeyValue<K, T>> {
+    pub fn iter_inmemory<'a>(&'a mut self) -> impl Iterator<Item = KeyValue<K, T>> + 'a {
         self.sort_cache();
-        self.cache.into_iter()
+        self.cache.iter().cloned()
     }
 
     /// flushed changes on disk and returns iterator over sorted elements
@@ -310,6 +314,14 @@ impl<
         self.flush()?;
 
         Ok(self.kmerge())
+    }
+
+    /// Remove temp files
+    pub fn cleanup(&mut self) -> io::Result<()> {
+        if self.flush_data.is_data_flushed() {
+            self.flush_data.directory.delete(&self.flush_data.temp_file)?;
+        }
+        Ok(())
     }
 
     /// returns iterator over sorted elements
@@ -333,7 +345,7 @@ impl<K: Display + PartialOrd + Ord + Default + Copy + SerializeInto + Deserializ
 
 #[derive(Debug)]
 pub struct MMapIter<K: PartialOrd + Ord + Default + Copy, T: GetValue> {
-    mmap: Mmap,
+    bytes: OwnedBytes,
     pos: usize,
     #[allow(dead_code)]
     finished: bool,
@@ -342,9 +354,9 @@ pub struct MMapIter<K: PartialOrd + Ord + Default + Copy, T: GetValue> {
 }
 
 impl<K: PartialOrd + Ord + Default + Copy, T: GetValue> MMapIter<K, T> {
-    fn new(mmap: Mmap) -> Self {
+    fn new(bytes: OwnedBytes) -> Self {
         MMapIter {
-            mmap,
+            bytes,
             finished: false,
             pos: 0,
             phantom: PhantomData,
@@ -358,124 +370,133 @@ impl<K: PartialOrd + Ord + Default + Copy + SerializeInto + DeserializeFrom, T: 
 
     #[inline]
     fn next(&mut self) -> Option<KeyValue<K, T>> {
-        KeyValue::deserialize_from_slice(&self.mmap, &mut self.pos)
+        KeyValue::deserialize_from_slice(&self.bytes, &mut self.pos)
     }
 
     #[inline]
     fn size_hint(&self) -> (usize, Option<usize>) {
-        let lower_bound = (self.mmap.len() - self.pos) / mem::size_of::<KeyValue<K, T>>();
-        let upper_bound = self.mmap.len() - self.pos;
+        let lower_bound = (self.bytes.len() - self.pos) / mem::size_of::<KeyValue<K, T>>();
+        let upper_bound = self.bytes.len() - self.pos;
         (lower_bound, Some(upper_bound))
     }
 }
 
 impl<K: PartialOrd + Ord + Default + Copy + SerializeInto + DeserializeFrom, T: GetValue + Default + SerializeInto + DeserializeFrom> FusedIterator for MMapIter<K, T> {}
 
-#[test]
-fn test_buffered_index_writer() {
-    use std::env;
-    let mut ind = BufferedIndexWriter::new_unstable_sorted(env::temp_dir().to_str().unwrap().to_string());
+#[cfg(test)]
+mod tests {
+    use directory::RamDirectory;
 
-    ind.add(2_u32, 2).unwrap();
-    ind.flush().unwrap();
+    use super::*;
 
-    let mut iters = ind.multi_iter().unwrap();
-    assert_eq!(iters[0].next(), Some(KeyValue { key: 2, value: 2 }));
-    assert_eq!(iters[0].next(), None);
+    #[test]
+    fn test_buffered_index_writer() {
+        let directory: Box<dyn Directory> = Box::new(RamDirectory::create());
+        let mut ind = BufferedIndexWriter::new_unstable_sorted(directory);
 
-    let mut iters = ind.multi_iter().unwrap();
-    assert_eq!(iters[0].next(), Some(KeyValue { key: 2, value: 2 }));
-    assert_eq!(iters[0].next(), None);
+        ind.add(2_u32, 2).unwrap();
+        ind.flush().unwrap();
 
-    ind.add(1, 3).unwrap();
-    ind.flush().unwrap();
-    ind.add(4, 4).unwrap();
-    ind.flush().unwrap();
-    ind.flush().unwrap(); // double flush test
+        let mut iters = ind.multi_iter().unwrap();
+        assert_eq!(iters[0].next(), Some(KeyValue { key: 2, value: 2 }));
+        assert_eq!(iters[0].next(), None);
 
-    let mut iters = ind.multi_iter().unwrap();
-    assert_eq!(iters[1].next(), Some(KeyValue { key: 1, value: 3 }));
-    assert_eq!(iters[1].next(), None);
+        let mut iters = ind.multi_iter().unwrap();
+        assert_eq!(iters[0].next(), Some(KeyValue { key: 2, value: 2 }));
+        assert_eq!(iters[0].next(), None);
 
-    let mut mergo = ind.flush_and_kmerge().unwrap();
-    assert_eq!(mergo.next(), Some(KeyValue { key: 1, value: 3 }));
-    assert_eq!(mergo.next(), Some(KeyValue { key: 2, value: 2 }));
-    assert_eq!(mergo.next(), Some(KeyValue { key: 4, value: 4 }));
+        ind.add(1, 3).unwrap();
+        ind.flush().unwrap();
+        ind.add(4, 4).unwrap();
+        ind.flush().unwrap();
+        ind.flush().unwrap(); // double flush test
 
-    let mut ind = BufferedIndexWriter::new_unstable_sorted(env::temp_dir().to_str().unwrap().to_string());
-    ind.add_all(2_u32, &[2, 2000]).unwrap();
-    ind.flush().unwrap();
-    let mut iters = ind.multi_iter().unwrap();
-    assert_eq!(iters[0].next(), Some(KeyValue { key: 2, value: 2 }));
-    assert_eq!(iters[0].next(), Some(KeyValue { key: 2, value: 2000 }));
+        let mut iters = ind.multi_iter().unwrap();
+        assert_eq!(iters[1].next(), Some(KeyValue { key: 1, value: 3 }));
+        assert_eq!(iters[1].next(), None);
 
-    let mut ind = BufferedIndexWriter::new_unstable_sorted(env::temp_dir().to_str().unwrap().to_string());
-    ind.add_all(2_u32, &[2, 2000]).unwrap();
-    let mut iter = ind.into_iter_inmemory();
-    assert_eq!(iter.next(), Some(KeyValue { key: 2, value: 2 }));
-    assert_eq!(iter.next(), Some(KeyValue { key: 2, value: 2000 }));
-}
+        let mut mergo = ind.flush_and_kmerge().unwrap();
+        assert_eq!(mergo.next(), Some(KeyValue { key: 1, value: 3 }));
+        assert_eq!(mergo.next(), Some(KeyValue { key: 2, value: 2 }));
+        assert_eq!(mergo.next(), Some(KeyValue { key: 4, value: 4 }));
 
-#[test]
-fn test_buffered_index_writer_pairs() {
-    use std::env;
-    let mut ind = BufferedIndexWriter::new_unstable_sorted(env::temp_dir().to_str().unwrap().to_string());
+        let directory: Box<dyn Directory> = Box::new(RamDirectory::create());
+        let mut ind = BufferedIndexWriter::new_unstable_sorted(directory);
+        ind.add_all(2_u32, &[2, 2000]).unwrap();
+        ind.flush().unwrap();
+        let mut iters = ind.multi_iter().unwrap();
+        assert_eq!(iters[0].next(), Some(KeyValue { key: 2, value: 2 }));
+        assert_eq!(iters[0].next(), Some(KeyValue { key: 2, value: 2000 }));
 
-    ind.add((2_u32, 3_u32), 2).unwrap();
-    ind.flush().unwrap();
+        let directory: Box<dyn Directory> = Box::new(RamDirectory::create());
+        let mut ind = BufferedIndexWriter::new_unstable_sorted(directory);
+        ind.add_all(2_u32, &[2, 2000]).unwrap();
+        let mut iter = ind.iter_inmemory();
+        assert_eq!(iter.next(), Some(KeyValue { key: 2, value: 2 }));
+        assert_eq!(iter.next(), Some(KeyValue { key: 2, value: 2000 }));
+    }
 
-    let mut iters = ind.multi_iter().unwrap();
-    assert_eq!(iters[0].next(), Some(KeyValue { key: (2_u32, 3_u32), value: 2 }));
-    assert_eq!(iters[0].next(), None);
+    #[test]
+    fn test_buffered_index_writer_pairs() {
+        let directory: Box<dyn Directory> = Box::new(RamDirectory::create());
+        let mut ind = BufferedIndexWriter::new_unstable_sorted(directory);
 
-    let mut iters = ind.multi_iter().unwrap();
-    assert_eq!(iters[0].next(), Some(KeyValue { key: (2_u32, 3_u32), value: 2 }));
-    assert_eq!(iters[0].next(), None);
+        ind.add((2_u32, 3_u32), 2).unwrap();
+        ind.flush().unwrap();
 
-    ind.add((1, 2), 3).unwrap();
-    ind.flush().unwrap();
-    ind.add((4, 4), 4).unwrap();
-    ind.flush().unwrap();
-    ind.flush().unwrap(); // double flush test
+        let mut iters = ind.multi_iter().unwrap();
+        assert_eq!(iters[0].next(), Some(KeyValue { key: (2_u32, 3_u32), value: 2 }));
+        assert_eq!(iters[0].next(), None);
 
-    let mut iters = ind.multi_iter().unwrap();
-    assert_eq!(iters[1].next(), Some(KeyValue { key: (1, 2), value: 3 }));
-    assert_eq!(iters[1].next(), None);
+        let mut iters = ind.multi_iter().unwrap();
+        assert_eq!(iters[0].next(), Some(KeyValue { key: (2_u32, 3_u32), value: 2 }));
+        assert_eq!(iters[0].next(), None);
 
-    let mut mergo = ind.flush_and_kmerge().unwrap();
-    assert_eq!(mergo.next(), Some(KeyValue { key: (1, 2), value: 3 }));
-    assert_eq!(mergo.next(), Some(KeyValue { key: (2_u32, 3_u32), value: 2 }));
-    assert_eq!(mergo.next(), Some(KeyValue { key: (4, 4), value: 4 }));
+        ind.add((1, 2), 3).unwrap();
+        ind.flush().unwrap();
+        ind.add((4, 4), 4).unwrap();
+        ind.flush().unwrap();
+        ind.flush().unwrap(); // double flush test
 
-    let mut ind = BufferedIndexWriter::new_unstable_sorted(env::temp_dir().to_str().unwrap().to_string());
-    ind.add_all((2_u32, 1500_u32), &[2, 2000]).unwrap();
-    ind.flush().unwrap();
-    let mut iters = ind.multi_iter().unwrap();
-    assert_eq!(iters[0].next(), Some(KeyValue { key: (2_u32, 1500_u32), value: 2 }));
-    assert_eq!(
-        iters[0].next(),
-        Some(KeyValue {
-            key: (2_u32, 1500_u32),
-            value: 2000
-        })
-    );
-}
+        let mut iters = ind.multi_iter().unwrap();
+        assert_eq!(iters[1].next(), Some(KeyValue { key: (1, 2), value: 3 }));
+        assert_eq!(iters[1].next(), None);
 
-#[test]
-fn test_buffered_index_iter_im() {
-    use std::env;
+        let mut mergo = ind.flush_and_kmerge().unwrap();
+        assert_eq!(mergo.next(), Some(KeyValue { key: (1, 2), value: 3 }));
+        assert_eq!(mergo.next(), Some(KeyValue { key: (2_u32, 3_u32), value: 2 }));
+        assert_eq!(mergo.next(), Some(KeyValue { key: (4, 4), value: 4 }));
 
-    let mut ind = BufferedIndexWriter::new_unstable_sorted(env::temp_dir().to_str().unwrap().to_string());
-    if ind.flush_threshold() > 10_000 {
+        let directory: Box<dyn Directory> = Box::new(RamDirectory::create());
+        let mut ind = BufferedIndexWriter::new_unstable_sorted(directory);
         ind.add_all((2_u32, 1500_u32), &[2, 2000]).unwrap();
-        let mut iter = ind.into_iter_inmemory();
-        assert_eq!(iter.next(), Some(KeyValue { key: (2_u32, 1500_u32), value: 2 }));
+        ind.flush().unwrap();
+        let mut iters = ind.multi_iter().unwrap();
+        assert_eq!(iters[0].next(), Some(KeyValue { key: (2_u32, 1500_u32), value: 2 }));
         assert_eq!(
-            iter.next(),
+            iters[0].next(),
             Some(KeyValue {
                 key: (2_u32, 1500_u32),
                 value: 2000
             })
         );
+    }
+
+    #[test]
+    fn test_buffered_index_iter_im() {
+        let directory: Box<dyn Directory> = Box::new(RamDirectory::create());
+        let mut ind = BufferedIndexWriter::new_unstable_sorted(directory);
+        if ind.flush_threshold() > 10_000 {
+            ind.add_all((2_u32, 1500_u32), &[2, 2000]).unwrap();
+            let mut iter = ind.iter_inmemory();
+            assert_eq!(iter.next(), Some(KeyValue { key: (2_u32, 1500_u32), value: 2 }));
+            assert_eq!(
+                iter.next(),
+                Some(KeyValue {
+                    key: (2_u32, 1500_u32),
+                    value: 2000
+                })
+            );
+        }
     }
 }

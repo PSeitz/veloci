@@ -45,15 +45,13 @@ macro_rules! get_values {
 
 #[cfg(feature = "create")]
 mod create_indirect;
-mod indirect_im;
-mod indirect_mmap;
+mod indirect;
 
 use crate::util::{is_hight_bit_set, unset_high_bit};
 
 #[cfg(feature = "create")]
 pub(crate) use create_indirect::*;
-pub(crate) use indirect_im::*;
-pub(crate) use indirect_mmap::*;
+pub(crate) use indirect::*;
 
 // TODO handle u64
 fn get_encoded(mut val: u32) -> Option<u32> {
@@ -69,11 +67,11 @@ fn get_encoded(mut val: u32) -> Option<u32> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::persistence::IndexIdToParent;
+    use crate::{directory::Directory, persistence::IndexIdToParent};
     use std::path::PathBuf;
 
-    fn get_test_data_1_to_n_ind(path: PathBuf) -> IndirectIMFlushingInOrderVint {
-        let mut store = IndirectIMFlushingInOrderVint::new(path, std::u32::MAX);
+    fn get_test_data_1_to_n_ind(directory: &Box<dyn Directory>, path: PathBuf) -> IndirectIMFlushingInOrderVint {
+        let mut store = IndirectIMFlushingInOrderVint::new(&directory, path, std::u32::MAX);
         store.add(0, vec![5, 6]).unwrap();
         store.add(1, vec![9]).unwrap();
         store.add(2, vec![9]).unwrap();
@@ -84,7 +82,7 @@ mod tests {
         store
     }
 
-    fn check_test_data_1_to_n(store: &dyn IndexIdToParent<Output = u32>) {
+    fn check_test_data_1_to_n(store: &Box<dyn IndexIdToParent<Output = u32>>) {
         assert_eq!(store.get_values(0), Some(vec![5, 6]));
         assert_eq!(store.get_values(1), Some(vec![9]));
         assert_eq!(store.get_values(2), Some(vec![9]));
@@ -100,7 +98,7 @@ mod tests {
         assert_eq!(map.get(&5).unwrap(), &1);
         assert_eq!(map.get(&9).unwrap(), &3);
     }
-    fn check_test_data_1_to_n_iter(store: &dyn IndexIdToParent<Output = u32>) {
+    fn check_test_data_1_to_n_iter(store: &Box<dyn IndexIdToParent<Output = u32>>) {
         let empty_vec: Vec<u32> = vec![];
         assert_eq!(store.get_values_iter(0).collect::<Vec<u32>>(), vec![5, 6]);
         assert_eq!(store.get_values_iter(1).collect::<Vec<u32>>(), vec![9]);
@@ -119,24 +117,29 @@ mod tests {
     }
 
     mod test_indirect {
+        use std::path::Path;
+
+        use crate::directory::{load_data_pair, Directory, RamDirectory};
+
         use super::*;
-        use tempfile::tempdir;
         #[test]
         fn test_pointing_file_andmmap_array() {
-            let dir = tempdir().unwrap();
-            let path = dir.path().join("testfile");
-            let mut store = get_test_data_1_to_n_ind(path.clone());
+            let path = Path::new("testfile");
+            let directory: Box<dyn Directory> = Box::new(RamDirectory::default());
+            let mut store = get_test_data_1_to_n_ind(&directory, path.to_owned());
             store.flush().unwrap();
 
-            let store = IndirectMMap::from_path(&path, store.metadata).unwrap();
+            let (ind, data) = load_data_pair(&directory, Path::new(&path)).unwrap();
+            let store: Box<dyn IndexIdToParent<Output = u32>> = Box::new(Indirect::from_data(ind, data, store.metadata).unwrap());
             check_test_data_1_to_n(&store);
             check_test_data_1_to_n_iter(&store);
         }
 
         #[test]
         fn test_pointing_array_index_id_to_multiple_parent_indirect() {
-            let store = get_test_data_1_to_n_ind(PathBuf::from("test_ind"));
-            let store = store.into_im_store();
+            let directory: Box<dyn Directory> = Box::new(RamDirectory::default());
+            let store = get_test_data_1_to_n_ind(&directory, PathBuf::from("test_ind"));
+            let store = store.into_store().unwrap();
             check_test_data_1_to_n(&store);
             check_test_data_1_to_n_iter(&store);
         }

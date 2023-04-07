@@ -1,3 +1,4 @@
+use log::debug;
 use std::fmt::Debug;
 use std::fs::{self, File, OpenOptions};
 use std::io::{self, BufWriter, Seek, Write};
@@ -20,7 +21,7 @@ use super::{AntiCallToken, Directory, TerminatingWrite, WritePtr};
 pub type ArcBytes = Arc<dyn Deref<Target = [u8]> + Send + Sync + 'static>;
 pub type WeakArcBytes = Weak<dyn Deref<Target = [u8]> + Send + Sync + 'static>;
 
-#[derive(Default, Clone, Debug, Serialize, Deserialize)]
+#[derive(Default, Clone, Debug)]
 pub struct CacheCounters {
     /// Number of time the cache prevents to call `mmap`
     pub hit: usize,
@@ -29,7 +30,7 @@ pub struct CacheCounters {
     pub miss: usize,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug)]
 pub struct CacheInfo {
     pub counters: CacheCounters,
     pub mmapped: Vec<PathBuf>,
@@ -42,14 +43,6 @@ struct MmapCache {
 }
 
 impl MmapCache {
-    fn get_info(&self) -> CacheInfo {
-        let paths: Vec<PathBuf> = self.cache.keys().cloned().collect();
-        CacheInfo {
-            counters: self.counters.clone(),
-            mmapped: paths,
-        }
-    }
-
     // Returns None if the file exists but as a len of 0 (and hence is not mmappable).
     fn get_mmap(&mut self, full_path: &Path) -> Result<Option<ArcBytes>, io::Error> {
         if let Some(mmap_weak) = self.cache.get(full_path) {
@@ -122,11 +115,11 @@ impl Debug for MmapDirectory {
 }
 
 impl Directory for MmapDirectory {
-    fn open_write(&self, path: &Path) -> Result<WritePtr, io::Error> {
+    fn open_append(&self, path: &Path) -> Result<WritePtr, io::Error> {
         debug!("Open Write {:?}", path);
         let full_path = self.resolve_path(path);
 
-        let mut file = OpenOptions::new().write(true).create_new(true).open(full_path)?;
+        let mut file = OpenOptions::new().read(true).write(true).append(true).create(true).open(full_path)?;
 
         // making sure the file is created.
         file.flush()?;
@@ -141,6 +134,19 @@ impl Directory for MmapDirectory {
 
         let writer = SafeFileWriter::new(file);
         Ok(BufWriter::new(Box::new(writer)))
+    }
+
+    fn write(&self, path: &Path, data: &[u8]) -> Result<(), io::Error> {
+        debug!("Write {:?}", path);
+
+        let full_path = self.resolve_path(path);
+        let mut file = OpenOptions::new().read(true).truncate(true).write(true).create(true).open(full_path)?;
+        file.write_all(data)?;
+
+        // making sure the file is created.
+        file.flush()?;
+
+        Ok(())
     }
 
     fn get_file_bytes(&self, path: &Path) -> Result<OwnedBytes, io::Error> {
@@ -161,6 +167,19 @@ impl Directory for MmapDirectory {
             .unwrap_or_else(OwnedBytes::empty);
 
         Ok(owned_bytes)
+    }
+
+    /// Any entry associated with the path in the mmap will be
+    /// removed before the file is deleted.
+    fn delete(&self, path: &Path) -> Result<(), io::Error> {
+        let full_path = self.resolve_path(path);
+        fs::remove_file(full_path)?;
+        Ok(())
+    }
+
+    fn exists(&self, path: &Path) -> Result<bool, io::Error> {
+        let full_path = self.resolve_path(path);
+        full_path.try_exists()
     }
 
     #[cfg(windows)]
@@ -213,11 +232,6 @@ impl MmapDirectory {
     fn resolve_path(&self, relative_path: &Path) -> PathBuf {
         self.inner.root_path.join(relative_path)
     }
-
-    /// Creates a new file
-    fn create_file(&self, relative_path: &Path) -> Result<File, io::Error> {
-        File::create(self.inner.root_path.join(relative_path))
-    }
 }
 
 /// Create a default io error given a string.
@@ -256,5 +270,33 @@ impl TerminatingWrite for SafeFileWriter {
         self.0.flush()?;
         self.0.sync_data()?;
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_append() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = Path::new("testfile");
+        let directory: Box<dyn Directory> = Box::new(MmapDirectory::create(dir.path()).unwrap());
+        let one_mb: Vec<u8> = (0..1_000_000).map(|el| el as u8).collect::<Vec<_>>();
+        let second_mb: Vec<u8> = (0..1_000_000).map(|el| el as u8).collect::<Vec<_>>();
+        {
+            let mut wrt = directory.open_append(path).unwrap();
+            wrt.write_all(&one_mb).unwrap();
+            wrt.flush().unwrap();
+        }
+        assert_eq!(directory.get_file_bytes(path).unwrap().as_ref(), &one_mb);
+
+        {
+            directory.append(path, &second_mb).unwrap();
+        }
+        let mut all = Vec::new();
+        all.extend_from_slice(&one_mb);
+        all.extend_from_slice(&second_mb);
+        assert_eq!(directory.get_file_bytes(path).unwrap().as_ref(), &all);
     }
 }

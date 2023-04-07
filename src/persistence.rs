@@ -1,6 +1,6 @@
 pub use crate::metadata::*;
 use crate::{
-    directory::{Directory, MmapDirectory},
+    directory::{load_data_pair, Directory, MmapDirectory, RamDirectory},
     error::VelociError,
     indices::*,
     search::*,
@@ -10,12 +10,10 @@ use crate::{
 use colored::*;
 use fnv::FnvHashMap;
 use fst::Map;
-use memmap2::Mmap;
 use ownedbytes::OwnedBytes;
 use vint32::iterator::VintArrayIterator;
 
 use lru_time_cache::LruCache;
-use memmap2::MmapOptions;
 use num::{self, cast::ToPrimitive, Integer};
 use parking_lot::RwLock;
 use prettytable::{format, Table};
@@ -25,7 +23,7 @@ use std::{
     collections::HashMap,
     env, fmt,
     fmt::Debug,
-    fs::{self, File},
+    fs,
     io::{self, prelude::*},
     marker::Sync,
     path::Path,
@@ -85,7 +83,6 @@ pub struct Persistence {
     pub directory: Box<dyn Directory>, // folder
     pub db: String,                    // folder
     pub metadata: PeristenceMetaData,
-    pub persistence_type: PersistenceType,
     pub indices: PersistenceIndices,
     pub lru_cache: HashMap<String, LruCache<RequestSearchPart, SearchResult>>,
     pub term_boost_cache: RwLock<LruCache<Vec<RequestSearchPart>, Vec<SearchFieldResult>>>,
@@ -97,7 +94,6 @@ impl fmt::Debug for Persistence {
         f.debug_struct("Persistence")
             .field("db", &self.db)
             .field("metadata", &self.metadata)
-            .field("persistence_type", &self.persistence_type)
             .field("indices", &self.indices)
             .finish()
     }
@@ -244,29 +240,16 @@ pub fn get_readable_size(value: usize) -> ColoredString {
 }
 
 impl Persistence {
-    fn load_types_index_to_one<T: IndexIdToParentData, P: AsRef<Path> + std::fmt::Debug>(
-        &self,
-        data_direct_path: P,
-        metadata: IndexValuesMetadata,
-    ) -> Result<Box<dyn IndexIdToParent<Output = u32>>, VelociError> {
-        let data = self.directory.get_file_bytes(data_direct_path.as_ref())?;
-        let store = SingleArrayPacked::from_data(data, metadata);
-        Ok(Box::new(store))
-    }
-
     fn load_indices(&mut self) -> Result<(), VelociError> {
         info_time!("loaded persistence {:?}", &self.db);
 
         //ANCHOR TO SCORE
         for el in self.metadata.columns.iter().flat_map(|col| col.1.indices.iter()) {
-            let indirect_path = get_file_path(&self.db, &el.path).set_ext(Ext::Indirect);
-            let indirect_data_path = get_file_path(&self.db, &el.path).set_ext(Ext::Data);
-            let loading_type = get_loading_type(el.loading_type)?;
             match el.index_category {
                 IndexCategory::Phrase => {
                     //Insert dummy index, to seperate between emtpy indexes and nonexisting indexes
                     if el.is_empty {
-                        let store = IndirectIMBinarySearch::<(u32, u32)> {
+                        let store = IndirectIMBinarySearchIM::<(u32, u32)> {
                             start_pos: vec![],
                             data: vec![],
                             metadata: el.metadata,
@@ -275,15 +258,13 @@ impl Persistence {
                         continue;
                     }
 
-                    let store: Box<dyn PhrasePairToAnchor<Input = (u32, u32)>> = match loading_type {
-                        LoadingType::Disk => Box::new(IndirectIMBinarySearchMMAP::from_path(&get_file_path(&self.db, &el.path), el.metadata)?),
-                        LoadingType::InMemory => Box::new(IndirectIMBinarySearchMMAP::from_path(&get_file_path(&self.db, &el.path), el.metadata)?),
-                    };
+                    let (ind, data) = load_data_pair(&self.directory, Path::new(&el.path))?;
+                    let store = Box::new(IndirectIMBinarySearch::from_data(ind, data, el.metadata)?);
+
                     self.indices.phrase_pair_to_anchor.insert(el.path.to_string(), store);
                 }
                 IndexCategory::AnchorScore => {
-                    let data = self.directory.get_file_bytes(&PathBuf::from(el.path.to_string()).set_ext(Ext::Data))?;
-                    let indirect_data = self.directory.get_file_bytes(&PathBuf::from(el.path.to_string()).set_ext(Ext::Indirect))?;
+                    let (indirect_data, data) = load_data_pair(&self.directory, Path::new(&el.path))?;
                     let store: Box<dyn TokenToAnchorScore> = {
                         match el.data_type {
                             DataType::U32 => Box::new(TokenToAnchorScoreVint::<u32>::from_data(indirect_data, data)?),
@@ -296,7 +277,8 @@ impl Persistence {
                     match el.index_cardinality {
                         IndexCardinality::IndirectIM => {
                             // let meta = IndexValuesMetadata{max_value_id: el.metadata.max_value_id, avg_join_size:el.avg_join_size, ..Default::default()};
-                            let store = IndirectMMap::from_path(&get_file_path(&self.db, &el.path), el.metadata)?;
+                            let (ind, data) = load_data_pair(&self.directory, Path::new(&el.path))?;
+                            let store = Indirect::from_data(ind, data, el.metadata)?;
                             self.indices.boost_valueid_to_value.insert(el.path.to_string(), Box::new(store));
                         }
                         IndexCardinality::IndexIdToOneParent => {
@@ -308,7 +290,6 @@ impl Persistence {
                 }
                 IndexCategory::KeyValue => {
                     info_time!("loaded key_value_store {:?}", &el.path);
-                    let data_direct_path = get_file_path(&self.db, &el.path);
 
                     //Insert dummy index, to seperate between emtpy indexes and nonexisting indexes
                     if el.is_empty {
@@ -317,42 +298,16 @@ impl Persistence {
                         continue;
                     }
 
-                    let store = match loading_type {
-                        LoadingType::InMemory => match el.index_cardinality {
-                            IndexCardinality::IndirectIM => {
-                                let indirect_u32 = bytes_to_vec_u32(&file_path_to_bytes(&indirect_path)?);
-                                let store = IndirectIM {
-                                    start_pos: indirect_u32,
-                                    data: file_path_to_bytes(&indirect_data_path)?,
-                                    cache: LruCache::with_capacity(0),
-                                    metadata: IndexValuesMetadata {
-                                        max_value_id: el.metadata.max_value_id,
-                                        avg_join_size: el.metadata.avg_join_size,
-                                        num_values: 0,
-                                        num_ids: 0,
-                                    },
-                                };
-                                Box::new(store)
-                            }
-                            IndexCardinality::IndexIdToOneParent => {
-                                let bytes_required = get_bytes_required(el.metadata.max_value_id) as u8;
-                                if bytes_required == 1 {
-                                    self.load_types_index_to_one::<u8, _>(&data_direct_path, el.metadata)?
-                                } else if bytes_required == 2 {
-                                    self.load_types_index_to_one::<u16, _>(&data_direct_path, el.metadata)?
-                                } else {
-                                    self.load_types_index_to_one::<u32, _>(&data_direct_path, el.metadata)?
-                                }
-                            }
-                        },
-                        LoadingType::Disk => match el.index_cardinality {
+                    let store = {
+                        match el.index_cardinality {
                             IndexCardinality::IndirectIM => {
                                 let meta = IndexValuesMetadata {
                                     max_value_id: el.metadata.max_value_id,
                                     avg_join_size: el.metadata.avg_join_size,
                                     ..Default::default()
                                 };
-                                let store: Box<dyn IndexIdToParent<Output = u32>> = Box::new(IndirectMMap::from_path(&get_file_path(&self.db, &el.path), meta)?);
+                                let (ind, data) = load_data_pair(&self.directory, Path::new(&el.path))?;
+                                let store: Box<dyn IndexIdToParent<Output = u32>> = Box::new(Indirect::from_data(ind, data, meta)?);
                                 store
                             }
                             IndexCardinality::IndexIdToOneParent => {
@@ -360,7 +315,7 @@ impl Persistence {
                                 let store: Box<dyn IndexIdToParent<Output = u32>> = Box::new(SingleArrayPacked::<u32>::from_data(data, el.metadata));
                                 store
                             }
-                        },
+                        }
                     };
 
                     self.indices.key_value_stores.insert(el.path.to_string(), store);
@@ -384,26 +339,11 @@ impl Persistence {
     pub fn load_fst(&self, path: &str) -> Result<Map<OwnedBytes>, VelociError> {
         let bytes = self.directory.get_file_bytes(&PathBuf::from(path.to_string()).set_ext(Ext::Fst))?;
         Map::new(bytes).map_err(|err| VelociError::StringError(format!("Could not load fst {} {:?}", path, err)))
-
-        // In memory version
-        // let mut f = self.get_file_handle(&(path.to_string() + ".fst"))?;
-        // let mut buffer: Vec<u8> = Vec::new();
-        // f.read_to_end(&mut buffer)?;
-        // buffer.shrink_to_fit();
-        // Ok(Map::from_bytes(buffer)?)
     }
 
-    pub fn get_mmap_handle(&self, path: &str) -> Result<Mmap, VelociError> {
-        let file = self.get_file_handle(path)?;
-        unsafe {
-            MmapOptions::new()
-                .map(&file)
-                .map_err(|err| VelociError::StringError(format!("Could not load fst {} {:?}", path, err)))
-        }
-    }
-
-    pub fn get_file_handle(&self, path: &str) -> Result<File, VelociError> {
-        File::open(get_file_path(&self.db, path)).map_err(|err| VelociError::StringError(format!("Could not open {} {:?}", path, err)))
+    pub fn get_file_bytes(&self, path: &str) -> Result<OwnedBytes, VelociError> {
+        let bytes = self.directory.get_file_bytes(Path::new(path))?;
+        Ok(bytes)
     }
 
     pub fn get_boost(&self, path: &str) -> Result<&dyn IndexIdToParent<Output = u32>, VelociError> {
@@ -452,20 +392,15 @@ impl Persistence {
         self.metadata.bytes_indexed
     }
 
-    pub fn get_buffered_writer(&self, path: &str) -> Result<io::BufWriter<fs::File>, io::Error> {
-        use std::fs::OpenOptions;
-        let file = OpenOptions::new().read(true).append(true).create(true).open(get_file_path(&self.db, path))?;
-        Ok(io::BufWriter::new(file))
-    }
-
     pub fn write_data(&self, path: &str, data: &[u8]) -> Result<(), io::Error> {
-        self.directory.open_write(&Path::new(path))?.write_all(data)?;
+        self.directory.write(&Path::new(path), data)?;
         Ok(())
     }
 
     pub fn write_metadata(&self) -> Result<(), VelociError> {
         self.write_data("metaData.ron", ron::ser::to_string_pretty(&self.metadata, Default::default())?.as_bytes())?;
         self.write_data("metaData.json", serde_json::to_string_pretty(&self.metadata)?.as_bytes())?;
+        dbg!(serde_json::to_string_pretty(&self.metadata)?.len());
         Ok(())
     }
 
@@ -477,10 +412,13 @@ impl Persistence {
         if Path::new(&db).exists() {
             fs::remove_dir_all(&db)?;
         }
-        let directory = Box::new(MmapDirectory::create(db.as_ref())?);
+        let directory: Box<dyn Directory> = match persistence_type {
+            PersistenceType::Transient => Box::new(RamDirectory::create()),
+            PersistenceType::Persistent => Box::new(MmapDirectory::create(db.as_ref())?),
+        };
+
         let metadata = PeristenceMetaData { ..Default::default() };
         Ok(Persistence {
-            persistence_type,
             directory,
             metadata,
             db,
@@ -494,7 +432,6 @@ impl Persistence {
         let directory: Box<dyn Directory> = Box::new(MmapDirectory::open(db.as_ref())?);
         let metadata = PeristenceMetaData::new(&directory)?;
         let mut pers = Persistence {
-            persistence_type: PersistenceType::Persistent,
             directory,
             metadata,
             db: db.as_ref().to_str().unwrap().to_string(),
@@ -527,9 +464,6 @@ impl Persistence {
         // for (k, v) in &self.indices.key_value_stores {
         //     print_and_size.push((v.heap_size_of_children(), v.type_name(), k));
         // }
-        // for (k, v) in &self.indices.token_to_anchor_score {
-        //     print_and_size.push((v.heap_size_of_children(), v.type_name(), k));
-        // }
         for (k, v) in &self.indices.fst {
             print_and_size.push((v.as_fst().size(), "FST".to_string(), k));
         }
@@ -547,10 +481,6 @@ impl Persistence {
         info!("{}", table);
     }
 
-    pub fn temp_dir(&self) -> String {
-        self.db.to_string() + "/temp"
-    }
-
     fn get_fst_sizes(&self) -> usize {
         self.indices.fst.values().map(|v| v.as_fst().size()).sum()
     }
@@ -562,29 +492,6 @@ fn path_not_found(path: &str) -> VelociError {
     VelociError::StringError(error)
 }
 
-fn load_type_from_env() -> Result<Option<LoadingType>, VelociError> {
-    if let Some(val) = env::var_os("LoadingType") {
-        let conv_env = val
-            .clone()
-            .into_string()
-            .map_err(|_err| VelociError::StringError(format!("Could not convert LoadingType environment variable to utf-8: {:?}", val)))?;
-        let loading_type =
-            LoadingType::from_str(&conv_env).map_err(|_err| VelociError::StringError("only InMemory or Disk allowed for LoadingType environment variable".to_string()))?;
-        Ok(Some(loading_type))
-    } else {
-        Ok(None)
-    }
-}
-
-fn get_loading_type(loading_type: LoadingType) -> Result<LoadingType, VelociError> {
-    let mut loading_type = loading_type;
-    if let Some(val) = load_type_from_env()? {
-        // Overrule Loadingtype from env
-        loading_type = val;
-    }
-    Ok(loading_type)
-}
-
 //TODO Only LittleEndian supported currently
 pub(crate) fn vec_to_bytes<T>(data: &[T]) -> Vec<u8> {
     let mut out_dat: Vec<u8> = vec_with_size_uninitialized(data.len() * std::mem::size_of::<T>());
@@ -594,35 +501,4 @@ pub(crate) fn vec_to_bytes<T>(data: &[T]) -> Vec<u8> {
     }
     // LittleEndian::write_u32_into(data, &mut wtr);
     out_dat
-}
-
-pub(crate) fn bytes_to_vec_u32(data: &[u8]) -> Vec<u32> {
-    bytes_to_vec::<u32>(data)
-}
-pub(crate) fn bytes_to_vec<T>(data: &[u8]) -> Vec<T> {
-    let mut out_dat = vec_with_size_uninitialized(data.len() / std::mem::size_of::<T>());
-    // LittleEndian::read_u64_into(&data, &mut out_dat);
-    unsafe {
-        let ptr = data.as_ptr() as *const T;
-        ptr.copy_to_nonoverlapping(out_dat.as_mut_ptr(), data.len() / std::mem::size_of::<T>());
-    }
-    out_dat
-}
-
-pub(crate) fn file_path_to_bytes<P: AsRef<Path> + std::fmt::Debug>(s1: P) -> Result<Vec<u8>, VelociError> {
-    let f = get_file_handle_complete_path(s1)?;
-    file_handle_to_bytes(&f)
-}
-
-pub(crate) fn file_handle_to_bytes(f: &File) -> Result<Vec<u8>, VelociError> {
-    let file_size = { f.metadata()?.len() as usize };
-    let mut reader = std::io::BufReader::new(f);
-    let mut buffer: Vec<u8> = Vec::with_capacity(file_size + 1);
-    reader.read_to_end(&mut buffer)?;
-    // buffer.shrink_to_fit();
-    Ok(buffer)
-}
-
-pub(crate) fn get_file_handle_complete_path<P: AsRef<Path> + std::fmt::Debug>(path: P) -> Result<File, VelociError> {
-    File::open(&path).map_err(|err| VelociError::StringError(format!("Could not open {:?} {:?}", path, err)))
 }

@@ -131,8 +131,8 @@ impl<T: AnchorScoreDataSize> TokenToAnchorScoreVintFlushing<T> {
         use std::slice;
         let id_to_data_pos_bytes = unsafe { slice::from_raw_parts(self.id_to_data_pos.as_ptr() as *const u8, self.id_to_data_pos.len() * mem::size_of::<T>()) };
 
-        self.directory.open_write(&self.field_path.set_ext(Ext::Data))?.write_all(&self.data_cache)?;
-        self.directory.open_write(&self.field_path.set_ext(Ext::Indirect))?.write_all(&id_to_data_pos_bytes)?;
+        self.directory.append(&self.field_path.set_ext(Ext::Indirect), id_to_data_pos_bytes)?;
+        self.directory.append(&self.field_path.set_ext(Ext::Data), &self.data_cache)?;
 
         self.data_cache.clear();
         self.id_to_data_pos.clear();

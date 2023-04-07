@@ -1,4 +1,4 @@
-use crate::persistence::vec_to_bytes;
+use crate::{directory::Directory, persistence::vec_to_bytes};
 
 use super::{super::*, *};
 
@@ -9,23 +9,26 @@ use std::{
 };
 
 /// This data structure assumes that a set is only called once for a id, and ids are set in order.
-#[derive(Serialize, Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub(crate) struct IndexIdToOneParentFlushing {
     pub(crate) cache: Vec<u32>,
     pub(crate) current_id_offset: u32,
+    directory: Box<dyn Directory>,
     pub(crate) path: PathBuf,
     pub(crate) metadata: IndexValuesMetadata,
 }
 
 impl IndexIdToOneParentFlushing {
-    pub(crate) fn new(path: PathBuf, max_value_id: u32) -> IndexIdToOneParentFlushing {
+    pub(crate) fn new(directory: Box<dyn Directory>, path: PathBuf, max_value_id: u32) -> IndexIdToOneParentFlushing {
         IndexIdToOneParentFlushing {
+            directory,
             path,
             metadata: IndexValuesMetadata {
                 max_value_id,
                 ..Default::default()
             },
-            ..Default::default()
+            cache: Default::default(),
+            current_id_offset: 0,
         }
     }
 
@@ -72,13 +75,11 @@ impl IndexIdToOneParentFlushing {
 
         self.current_id_offset += self.cache.len() as u32;
 
-        let mut data = std::fs::OpenOptions::new().read(true).write(true).append(true).create(true).open(&self.path)?;
-
         let bytes_required = get_bytes_required(self.metadata.max_value_id);
-
-        let mut bytes = vec![];
+        let mut bytes = Vec::new();
         encode_vals(&self.cache, bytes_required, &mut bytes)?;
-        data.write_all(&bytes)?;
+
+        self.directory.append(&self.path, &bytes)?;
 
         self.metadata.avg_join_size = calc_avg_join_size(self.metadata.num_values, self.current_id_offset + self.cache.len() as u32);
         self.cache.clear();
@@ -117,29 +118,29 @@ mod tests {
     }
 
     mod test_direct_1_to_1 {
+        use crate::directory::RamDirectory;
+
         use super::*;
-        use ownedbytes::OwnedBytes;
-        use tempfile::tempdir;
 
         #[test]
         fn test_index_id_to_parent_flushing() {
-            let dir = tempdir().unwrap();
-            let data_path = dir.path().join("data");
-            let mut ind = IndexIdToOneParentFlushing::new(data_path.clone(), *get_test_data_1_to_1().iter().max().unwrap());
+            let directory: Box<dyn Directory> = Box::new(RamDirectory::default());
+            let path = Path::new("data");
+            let mut ind = IndexIdToOneParentFlushing::new(directory.box_clone(), path.to_owned(), *get_test_data_1_to_1().iter().max().unwrap());
             for (key, val) in get_test_data_1_to_1().iter().enumerate() {
                 ind.add(key as u32, *val).unwrap();
                 ind.flush().unwrap();
             }
-            let data = std::fs::read(data_path).unwrap();
-            let store = SingleArrayPacked::<u32>::from_data(OwnedBytes::new(data), ind.metadata);
+            let data = directory.get_file_bytes(path).unwrap();
+            let store = SingleArrayPacked::<u32>::from_data(data, ind.metadata);
             check_test_data_1_to_1(&store);
         }
 
         #[test]
         fn test_index_id_to_parent_im() {
-            let dir = tempdir().unwrap();
-            let data_path = dir.path().join("data");
-            let mut ind = IndexIdToOneParentFlushing::new(data_path, *get_test_data_1_to_1().iter().max().unwrap());
+            let directory: Box<dyn Directory> = Box::new(RamDirectory::default());
+
+            let mut ind = IndexIdToOneParentFlushing::new(directory, Path::new("data").to_owned(), *get_test_data_1_to_1().iter().max().unwrap());
             for (key, val) in get_test_data_1_to_1().iter().enumerate() {
                 ind.add(key as u32, *val).unwrap();
             }

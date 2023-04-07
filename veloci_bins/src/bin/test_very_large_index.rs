@@ -7,7 +7,7 @@
 #[macro_use]
 extern crate serde_json;
 
-use std::io;
+use std::{io, path::Path};
 #[allow(unused_imports)]
 use veloci::*;
 
@@ -15,9 +15,11 @@ use veloci::*;
 use rayon::prelude::*;
 
 use buffered_index_writer::BufferedIndexWriter;
+use veloci::directory::Directory;
 
 fn main() -> Result<(), io::Error> {
     veloci::trace::enable_log();
+    let directory: Box<dyn Directory> = Box::new(veloci::directory::MmapDirectory::create(Path::new("test_u64")).unwrap());
     let mut buffered_index_writer = BufferedIndexWriter::<u32, (u32, u32)>::new_unstable_sorted("./".to_string());
 
     for i in 0..40_000_000 {
@@ -27,7 +29,7 @@ fn main() -> Result<(), io::Error> {
 
     println!("{:?}", buffered_index_writer.bytes_written());
 
-    veloci::create::add_anchor_score_flush("test_u64", "check", "check".to_string(), buffered_index_writer, &mut vec![]).unwrap();
+    veloci::create::add_anchor_score_flush(&directory, "check", "check".to_string(), buffered_index_writer, &mut vec![]).unwrap();
 
     Ok(())
 }

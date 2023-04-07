@@ -52,7 +52,9 @@ pub(crate) fn store_full_text_info_and_set_ids(
 
 fn store_fst(persistence: &Persistence, sorted_terms: &[(&str, &mut TermInfo)], path: &str, ignore_text_longer_than: usize) -> Result<(), fst::Error> {
     debug_time!("store_fst {:?}", path);
-    let wtr = persistence.get_buffered_writer(&path.add(".fst"))?;
+
+    let wtr = persistence.directory.open_append(Path::new(&path.add(".fst")))?;
+
     // Create a builder that can be used to insert new key-value pairs.
     let mut build = MapBuilder::new(wtr)?;
     for (term, info) in sorted_terms.iter() {

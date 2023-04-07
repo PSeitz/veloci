@@ -27,7 +27,7 @@ pub fn create_test_persistence_with_logging(
         trace::enable_log();
     }
 
-    let mut persistence_type = persistence::PersistenceType::Transient;
+    let mut persistence_type = persistence::PersistenceType::Persistent;
     if let Some(val) = std::env::var_os("PersistenceType") {
         if val.clone().into_string().unwrap() == "Transient" {
             persistence_type = persistence::PersistenceType::Transient;
@@ -43,13 +43,17 @@ pub fn create_test_persistence_with_logging(
 
     let mut out: Vec<u8> = vec![];
     veloci::create::convert_any_json_data_to_line_delimited(test_data, &mut out).unwrap();
-    println!("{:?}", create::create_indices_from_str(&mut pers, std::str::from_utf8(&out).unwrap(), indices, true));
+    println!(
+        "{:?}",
+        create::create_indices_from_str(&mut pers, std::str::from_utf8(&out).unwrap(), indices, true).unwrap()
+    );
 
     {
         if let Some(token_values) = token_values {
             create::add_token_values_to_tokens(&mut pers, &token_values.0, &token_values.1.to_string()).expect("Could not add token values");
         }
     }
+    pers.directory.sync_directory().unwrap();
 
     if persistence_type == persistence::PersistenceType::Persistent {
         pers = persistence::Persistence::load(path).expect("Could not load persistence");
