@@ -58,7 +58,6 @@ pub fn add_token_values_to_tokens(persistence: &mut Persistence, data_str: &str,
 
     store.flush()?;
     let index_metadata = IndexMetadata {
-        loading_type: LoadingType::InMemory,
         index_category: IndexCategory::Boost,
         path: path.to_string(),
         is_empty: store.is_empty(),

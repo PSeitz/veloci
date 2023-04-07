@@ -29,10 +29,6 @@ pub(crate) fn normalize_text(text: &str) -> String {
     new_str.to_lowercase().trim().to_owned()
 }
 
-pub fn open_file<P: AsRef<Path>>(path: P) -> Result<File, VelociError> {
-    File::open(path.as_ref()).map_err(|err| VelociError::StringError(format!("Could not open {} {:?}", path.as_ref().to_str().expect("could not convert path to string"), err)))
-}
-
 #[derive(Debug)]
 pub(crate) enum Ext {
     Fst,
@@ -120,11 +116,6 @@ impl<S: AsRef<str>> StringAdd for S {
     fn add<O: AsRef<str>>(&self, other: O) -> String {
         self.as_ref().to_string() + other.as_ref()
     }
-}
-
-pub(crate) fn get_file_path(folder: &str, path: &str) -> PathBuf {
-    PathBuf::from(folder).join(path)
-    // folder.to_string() + "/" + path
 }
 
 #[inline]

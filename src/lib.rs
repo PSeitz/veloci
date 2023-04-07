@@ -44,7 +44,6 @@ pub mod persistence;
 pub mod plan_creator;
 pub mod query_generator;
 pub mod search;
-pub mod shards;
 pub mod steps;
 pub mod tokenizer;
 pub mod trace;

@@ -1,10 +1,3 @@
-#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Default)]
-pub enum LoadingType {
-    #[default]
-    InMemory,
-    Disk,
-}
-
 #[derive(Serialize, Deserialize, Debug, Default, Clone, Copy, PartialEq)]
 pub struct IndexValuesMetadata {
     /// max value on the "right" side key -> value, key -> value ..
@@ -39,7 +32,6 @@ pub struct IndexMetadata {
     pub index_cardinality: IndexCardinality,
     #[serde(default)]
     pub is_empty: bool,
-    pub loading_type: LoadingType,
     pub metadata: IndexValuesMetadata,
     pub data_type: DataType,
 }

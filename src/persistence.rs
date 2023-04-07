@@ -5,7 +5,7 @@ use crate::{
     indices::*,
     search::*,
     type_info,
-    util::{get_file_path, *},
+    util::*,
 };
 use colored::*;
 use fnv::FnvHashMap;
@@ -18,20 +18,7 @@ use num::{self, cast::ToPrimitive, Integer};
 use parking_lot::RwLock;
 use prettytable::{format, Table};
 
-use std::{
-    self,
-    collections::HashMap,
-    env, fmt,
-    fmt::Debug,
-    fs,
-    io::{self, prelude::*},
-    marker::Sync,
-    path::Path,
-    str,
-    str::FromStr,
-    time::Duration,
-    u32,
-};
+use std::{self, collections::HashMap, fmt, fmt::Debug, io, marker::Sync, path::Path, str, time::Duration, u32};
 
 pub const TOKENS_TO_TEXT_ID: &str = ".tokens_to_text_id";
 pub const TEXT_ID_TO_TOKEN_IDS: &str = ".text_id_to_token_ids";
@@ -81,7 +68,6 @@ pub enum PersistenceType {
 
 pub struct Persistence {
     pub directory: Box<dyn Directory>, // folder
-    pub db: String,                    // folder
     pub metadata: PeristenceMetaData,
     pub indices: PersistenceIndices,
     pub lru_cache: HashMap<String, LruCache<RequestSearchPart, SearchResult>>,
@@ -91,23 +77,7 @@ pub struct Persistence {
 impl fmt::Debug for Persistence {
     #[cfg(not(tarpaulin_include))]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("Persistence")
-            .field("db", &self.db)
-            .field("metadata", &self.metadata)
-            .field("indices", &self.indices)
-            .finish()
-    }
-}
-
-impl FromStr for LoadingType {
-    type Err = ();
-
-    fn from_str(s: &str) -> Result<LoadingType, ()> {
-        match s {
-            "InMemory" => Ok(LoadingType::InMemory),
-            "Disk" => Ok(LoadingType::Disk),
-            _ => Err(()),
-        }
+        f.debug_struct("Persistence").field("metadata", &self.metadata).field("indices", &self.indices).finish()
     }
 }
 
@@ -241,7 +211,7 @@ pub fn get_readable_size(value: usize) -> ColoredString {
 
 impl Persistence {
     fn load_indices(&mut self) -> Result<(), VelociError> {
-        info_time!("loaded persistence {:?}", &self.db);
+        info_time!("loaded persistence");
 
         //ANCHOR TO SCORE
         for el in self.metadata.columns.iter().flat_map(|col| col.1.indices.iter()) {
@@ -404,28 +374,25 @@ impl Persistence {
         Ok(())
     }
 
-    pub fn create(db: String) -> Result<Self, io::Error> {
-        Self::create_type(db, PersistenceType::Persistent)
-    }
-
-    pub fn create_type(db: String, persistence_type: PersistenceType) -> Result<Self, io::Error> {
-        if Path::new(&db).exists() {
-            fs::remove_dir_all(&db)?;
-        }
-        let directory: Box<dyn Directory> = match persistence_type {
-            PersistenceType::Transient => Box::new(RamDirectory::create()),
-            PersistenceType::Persistent => Box::new(MmapDirectory::create(db.as_ref())?),
-        };
-
+    /// Creates a new persistence instance with provided directory.
+    /// The persistence is empty and can be used to index data
+    pub fn create(directory: Box<dyn Directory>) -> Result<Self, io::Error> {
         let metadata = PeristenceMetaData { ..Default::default() };
         Ok(Persistence {
             directory,
             metadata,
-            db,
             lru_cache: HashMap::default(),
             term_boost_cache: RwLock::new(LruCache::with_expiry_duration_and_capacity(Duration::new(3600, 0), 10)),
             indices: PersistenceIndices::default(),
         })
+    }
+
+    pub fn create_im() -> Result<Self, io::Error> {
+        Self::create(Box::new(RamDirectory::create()))
+    }
+
+    pub fn create_mmap(db: String) -> Result<Self, io::Error> {
+        Self::create(Box::new(MmapDirectory::create(db.as_ref())?))
     }
 
     pub fn load<P: AsRef<Path>>(db: P) -> Result<Self, VelociError> {
@@ -434,7 +401,6 @@ impl Persistence {
         let mut pers = Persistence {
             directory,
             metadata,
-            db: db.as_ref().to_str().unwrap().to_string(),
             lru_cache: HashMap::default(),
             term_boost_cache: RwLock::new(LruCache::with_expiry_duration_and_capacity(Duration::new(3600, 0), 10)),
             indices: PersistenceIndices::default(),

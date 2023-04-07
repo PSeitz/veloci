@@ -1,4 +1,6 @@
-use veloci::*;
+use std::{fs, path::Path};
+
+use veloci::{persistence::PersistenceType, *};
 
 #[macro_export]
 macro_rules! assert_contains {
@@ -39,7 +41,14 @@ pub fn create_test_persistence_with_logging(
     }
 
     let path = "test_files/".to_string() + folder;
-    let mut pers = persistence::Persistence::create_type(path.to_string(), persistence_type.clone()).unwrap();
+    if Path::new(&path).exists() {
+        fs::remove_dir_all(&path).unwrap();
+    }
+
+    let mut pers = match persistence_type {
+        PersistenceType::Transient => persistence::Persistence::create_im().unwrap(),
+        PersistenceType::Persistent => persistence::Persistence::create_mmap(path.to_string()).unwrap(),
+    };
 
     let mut out: Vec<u8> = vec![];
     veloci::create::convert_any_json_data_to_line_delimited(test_data, &mut out).unwrap();

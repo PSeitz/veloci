@@ -2,7 +2,7 @@ use log::debug;
 use log::warn;
 use std::collections::HashMap;
 use std::fmt;
-use std::io::{self, BufWriter, Cursor, Seek, SeekFrom, Write};
+use std::io::{self, BufWriter, Write};
 use std::ops::Deref;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, RwLock};

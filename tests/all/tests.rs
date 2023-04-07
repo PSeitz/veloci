@@ -1,3 +1,5 @@
+use std::path::Path;
+
 use serde_json::Value;
 use veloci::*;
 
@@ -249,7 +251,11 @@ pub fn get_test_data() -> Value {
 
 #[test]
 fn test_create_index_from_file() {
-    let mut pers = persistence::Persistence::create_type("test_files/test_from_file".to_string(), persistence::PersistenceType::Persistent).unwrap();
+    let db = "test_files/test_from_file".to_string();
+    if Path::new(&db).exists() {
+        std::fs::remove_dir_all(&db).unwrap();
+    }
+    let mut pers = persistence::Persistence::create_mmap(db).unwrap();
     create::create_indices_from_file(&mut pers, "test_files/test_data.json", "", false).unwrap();
 }
 

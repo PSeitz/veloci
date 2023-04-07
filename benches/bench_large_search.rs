@@ -13,9 +13,9 @@ extern crate flexi_logger;
 extern crate serde_json;
 
 extern crate rand;
-extern crate veloci;
 extern crate serde;
 extern crate test;
+extern crate veloci;
 
 #[macro_use]
 extern crate criterion;
@@ -24,11 +24,9 @@ use criterion::Criterion;
 use veloci::*;
 static TEST_FOLDER: &str = "bench_taschenbuch";
 
-
 fn load_persistence_disk() -> persistence::Persistence {
-
     use std::path::Path;
-    if Path::new(TEST_FOLDER).exists(){
+    if Path::new(TEST_FOLDER).exists() {
         return persistence::Persistence::load(TEST_FOLDER.to_string()).expect("Could not load persistence");
     }
     let object = r#"{"type":"taschenbuch","title":"mein buch"}"#.to_owned() + "\n";
@@ -38,9 +36,6 @@ fn load_persistence_disk() -> persistence::Persistence {
     }
     let mut pers = persistence::Persistence::create_type(TEST_FOLDER.to_string(), persistence::PersistenceType::Persistent).unwrap();
     println!("{:?}", create::create_indices_from_str(&mut pers, &data, "[]", None, true));
-
-    // env::set_var("LoadingType", "Disk");
-    // persistence::Persistence::load(TEST_FOLDER.to_string()).expect("Could not load persistence")
 
     pers
 }
@@ -63,9 +58,7 @@ fn searches(c: &mut Criterion) {
 
     // c.bench_function("jmdict_search_haus", |b| b.iter(|| search("haus", &pers, 1)));
     c.bench_function("jmdict_search_taschenbuch", move |b| b.iter(|| search_freestyle("taschenbuch", &pers)));
-
 }
 
 criterion_group!(benches, searches);
 criterion_main!(benches);
-

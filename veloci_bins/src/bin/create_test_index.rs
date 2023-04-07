@@ -272,7 +272,12 @@ fn create_single_data_index_() -> Result<(), io::Error> {
             })
             .collect::<Vec<_>>();
 
-        let mut persistence = veloci::persistence::Persistence::create_type("single_data".to_string(), veloci::persistence::PersistenceType::Transient).unwrap();
+        let db = "single_data".to_string();
+        if Path::new(&db).exists() {
+            fs::remove_dir_all(&db)?;
+        }
+
+        let mut persistence = veloci::persistence::Persistence::create_mmap(db).unwrap();
         veloci::create::create_indices_from_str(&mut persistence, &serde_json::to_string_pretty(&books).unwrap(), indices, false).unwrap();
     }
 

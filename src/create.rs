@@ -953,13 +953,13 @@ where
     J: Iterator<Item = Result<serde_json::Value, serde_json::Error>>,
     K: Iterator<Item = S>,
 {
-    info_time!("total time create_indices for {:?}", persistence.db);
+    info_time!("total time create_indices for");
 
     let mut indices_json: FieldsConfig = config_from_string(indices)?;
     indices_json.features_to_indices()?;
     create_fulltext_index(stream1, stream2, stream3, persistence, &indices_json, load_persistence)?;
 
-    info_time!("write json and metadata {:?}", persistence.db);
+    info_time!("write json and metadata");
 
     Ok(())
 }

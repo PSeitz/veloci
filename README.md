@@ -1,6 +1,6 @@
 # Veloci ![Veloci Tests](https://github.com/PSeitz/veloci/workflows/Veloci%20Tests/badge.svg) [![codecov](https://codecov.io/gh/PSeitz/veloci/branch/master/graph/badge.svg)](https://codecov.io/gh/PSeitz/veloci) [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-LoadingType=Disk CARGO_INCREMENTAL=1 RUST_BACKTRACE=full RUST_TEST_THREADS=1 RUST_LOG=veloci=trace,measure_time=info cargo watch -w src -x 'test -- --nocapture'
+CARGO_INCREMENTAL=1 RUST_BACKTRACE=full RUST_TEST_THREADS=1 RUST_LOG=veloci=trace,measure_time=info cargo watch -w src -x 'test -- --nocapture'
 
 
 ## Features
@@ -106,5 +106,5 @@ To install the search enginge bundled with the webserver execute in the `server`
 `cd server;cargo install`
 
 To start the server and load search indices inside the jmdict folder:
-`LoadingType=InMemory ROCKET_ENV=stage RUST_BACKTRACE=1 RUST_LOG=veloci=info ROCKET_PORT=3000 rocket_server jmdict`
+`ROCKET_ENV=stage RUST_BACKTRACE=1 RUST_LOG=veloci=info ROCKET_PORT=3000 rocket_server jmdict`
 

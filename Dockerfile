@@ -15,7 +15,6 @@ RUN cargo install --path . --force
 # Make port 3000 available to the world outside this container
 EXPOSE 3000
 
-#ENV LoadingType=Disk
 ENV RUST_BACKTRACE=full
 #ENV RUST_LOG=server=info,veloci=info,measure_time=debug
 #ENV measure_time=debug

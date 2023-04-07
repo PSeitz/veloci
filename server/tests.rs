@@ -28,7 +28,7 @@ mod test {
             features = ["All"]
         "#;
         START.call_once(|| {
-            let mut pers = persistence::Persistence::create_type("test_rocket".to_string(), persistence::PersistenceType::Persistent).unwrap();
+            let mut pers = persistence::Persistence::create_mmap("test_rocket".to_string()).unwrap();
             println!("{:?}", create::create_indices_from_str(&mut pers, TEST_DATA, CONFIG, true));
         });
     }

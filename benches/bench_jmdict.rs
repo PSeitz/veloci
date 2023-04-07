@@ -15,15 +15,11 @@ use rand::Rng;
 use veloci::{search::*, *};
 static TEST_FOLDER: &str = "veloci_bins/jmdict";
 
-use std::env;
-
-fn load_persistence_im() -> persistence::Persistence {
-    env::set_var("LoadingType", "InMemory");
-    persistence::Persistence::load(TEST_FOLDER.to_string()).expect("Could not load persistence")
-}
+//fn load_persistence_im() -> persistence::Persistence {
+//persistence::Persistence::load(TEST_FOLDER.to_string()).expect("Could not load persistence")
+//}
 
 fn load_persistence_disk() -> persistence::Persistence {
-    env::set_var("LoadingType", "Disk");
     persistence::Persistence::load(TEST_FOLDER.to_string()).expect("Could not load persistence")
 }
 
@@ -329,7 +325,7 @@ fn highlight(term: &str, path: &str, pers: &persistence::Persistence) -> search_
 
 fn searches(c: &mut Criterion) {
     let pers = load_persistence_disk();
-    let pers_im = load_persistence_im();
+    //let pers_im = load_persistence_im();
 
     c.bench_function("jmdict_search_anschauen_fuzzy", |b| b.iter(|| search("anschauen", &pers, 1)));
 
@@ -362,7 +358,7 @@ fn searches(c: &mut Criterion) {
     let requesto: search::Request = serde_json::from_str(&req.to_string()).expect("Can't parse json");
     c.bench_function("jmdict_search_facets", |b| b.iter(|| search::search(requesto.clone(), &pers)));
 
-    c.bench_function("jmdict_search_facets_im", |b| b.iter(|| search::search(requesto.clone(), &pers_im)));
+    //c.bench_function("jmdict_search_facets_im", |b| b.iter(|| search::search(requesto.clone(), &pers_im)));
 
     c.bench_function("jmdict_suggest_an", |b| b.iter(|| suggest("an", "meanings.ger[].text", &pers)));
 
