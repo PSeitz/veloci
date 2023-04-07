@@ -20,7 +20,7 @@ use veloci::directory::Directory;
 fn main() -> Result<(), io::Error> {
     veloci::trace::enable_log();
     let directory: Box<dyn Directory> = Box::new(veloci::directory::MmapDirectory::create(Path::new("test_u64")).unwrap());
-    let mut buffered_index_writer = BufferedIndexWriter::<u32, (u32, u32)>::new_unstable_sorted("./".to_string());
+    let mut buffered_index_writer = BufferedIndexWriter::<u32, (u32, u32)>::new_unstable_sorted(directory.box_clone());
 
     for i in 0..40_000_000 {
         // Write a lot of data

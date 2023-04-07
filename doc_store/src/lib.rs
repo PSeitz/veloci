@@ -152,11 +152,9 @@ impl DocStoreWriter {
         self.flush_block(&mut out)?;
         self.offsets.push((self.curr_id + 1, self.current_offset + VALUE_OFFSET));
 
-        let mut bytes_written = 0;
         for (id, current_offset) in &self.offsets {
             out.write_all(&id.to_le_bytes())?;
             out.write_all(&current_offset.to_le_bytes())?;
-            bytes_written += 8;
         }
         let index_size = self.offsets.len() * std::mem::size_of_val(&self.offsets[0]);
 
