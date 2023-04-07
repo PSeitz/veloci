@@ -53,7 +53,7 @@ pub trait Directory: DirectoryClone + std::fmt::Debug + Send + Sync + 'static {
 
     fn append(&self, path: &Path, data: &[u8]) -> Result<(), io::Error> {
         let mut wrt = self.open_append(path)?;
-        wrt.write_all(&data)?;
+        wrt.write_all(data)?;
         wrt.flush()?;
         Ok(())
     }

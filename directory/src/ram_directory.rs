@@ -87,7 +87,7 @@ unsafe impl StableDeref for ArcVec {}
 
 impl InnerDirectory {
     fn append(&mut self, path: PathBuf, data: &[u8]) -> bool {
-        let path_buf = path.to_path_buf();
+        let path_buf = path;
         if let Some(existing_data) = self.fs.get_mut(&path_buf) {
             Arc::make_mut(existing_data).extend_from_slice(data);
             true
@@ -182,7 +182,7 @@ impl Directory for RamDirectory {
     fn open_append(&self, path: &Path) -> Result<WritePtr, io::Error> {
         debug!("Append Write {:?}", path);
         let path_buf = PathBuf::from(path);
-        let vec_writer = VecWriter::new(path_buf.clone(), self.clone());
+        let vec_writer = VecWriter::new(path_buf, self.clone());
         Ok(BufWriter::new(Box::new(vec_writer)))
     }
 
@@ -214,7 +214,7 @@ mod tests {
     #[test]
     fn test_append() {
         let path = Path::new("testfile");
-        let directory: Box<dyn Directory> = Box::new(RamDirectory::default());
+        let directory: Box<dyn Directory> = Box::<RamDirectory>::default();
         {
             let mut wrt = directory.open_append(path).unwrap();
             wrt.write_all(&[1, 2, 3]).unwrap();
@@ -235,7 +235,7 @@ mod tests {
     #[test]
     fn test_ram_dir() {
         let path = Path::new("testfile");
-        let directory: Box<dyn Directory> = Box::new(RamDirectory::default());
+        let directory: Box<dyn Directory> = Box::<RamDirectory>::default();
         {
             let mut wrt = directory.open_append(path).unwrap();
             wrt.write_all(&[1, 2, 3]).unwrap();

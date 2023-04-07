@@ -576,7 +576,7 @@ fn convert_raw_path_data_to_indices(
     directory: &Box<dyn Directory>,
     path_data: FnvHashMap<String, PathData>,
     tuples_to_parent_in_path: FnvHashMap<String, PathDataIds>,
-    indices_json: &FieldsConfig,
+    _indices_json: &FieldsConfig,
     // facet_index: &FnvHashSet<String>,
 ) -> Result<IndicesFromRawData, VelociError> {
     info_time!("convert_raw_path_data_to_indices");
@@ -893,7 +893,7 @@ where
                         persistence.indices.key_value_stores.insert(path, Box::new(index.into_im_store()));
                     //Move data
                     } else {
-                        let data = persistence.directory.get_file_bytes(&Path::new(&path))?;
+                        let data = persistence.directory.get_file_bytes(Path::new(&path))?;
                         let store = SingleArrayPacked::from_data(data, index.metadata); //load data with MMap
                         persistence.indices.key_value_stores.insert(path, Box::new(store));
                     }

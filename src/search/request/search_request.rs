@@ -95,7 +95,7 @@ impl SearchRequest {
     }
 
     pub fn get_boost(&self) -> Option<&[RequestBoostPart]> {
-        self.get_options().as_ref().map(|opt| opt.boost.as_deref()).flatten()
+        self.get_options().as_ref().and_then(|opt| opt.boost.as_deref())
     }
 }
 

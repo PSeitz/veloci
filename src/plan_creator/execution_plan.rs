@@ -46,13 +46,11 @@ pub struct PlanRequestSearchPart {
 fn merge_explain(option: &mut Option<search_request::SearchRequestOptions>, explain: bool) {
     if let Some(option) = option.as_mut() {
         option.explain |= explain;
-    } else {
-        if explain {
-            *option = Some(SearchRequestOptions {
-                explain: true,
-                ..Default::default()
-            });
-        }
+    } else if explain {
+        *option = Some(SearchRequestOptions {
+            explain: true,
+            ..Default::default()
+        });
     }
 }
 

@@ -71,7 +71,7 @@ mod tests {
     use std::path::PathBuf;
 
     fn get_test_data_1_to_n_ind(directory: &Box<dyn Directory>, path: PathBuf) -> IndirectIMFlushingInOrderVint {
-        let mut store = IndirectIMFlushingInOrderVint::new(&directory, path, std::u32::MAX);
+        let mut store = IndirectIMFlushingInOrderVint::new(directory, path, std::u32::MAX);
         store.add(0, vec![5, 6]).unwrap();
         store.add(1, vec![9]).unwrap();
         store.add(2, vec![9]).unwrap();
@@ -125,7 +125,7 @@ mod tests {
         #[test]
         fn test_pointing_file_andmmap_array() {
             let path = Path::new("testfile");
-            let directory: Box<dyn Directory> = Box::new(RamDirectory::default());
+            let directory: Box<dyn Directory> = Box::<RamDirectory>::default();
             let mut store = get_test_data_1_to_n_ind(&directory, path.to_owned());
             store.flush().unwrap();
 
@@ -137,7 +137,7 @@ mod tests {
 
         #[test]
         fn test_pointing_array_index_id_to_multiple_parent_indirect() {
-            let directory: Box<dyn Directory> = Box::new(RamDirectory::default());
+            let directory: Box<dyn Directory> = Box::<RamDirectory>::default();
             let store = get_test_data_1_to_n_ind(&directory, PathBuf::from("test_ind"));
             let store = store.into_store().unwrap();
             check_test_data_1_to_n(&store);

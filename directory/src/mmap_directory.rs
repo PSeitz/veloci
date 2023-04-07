@@ -209,10 +209,10 @@ impl MmapDirectory {
     // Creates a new directory under the path
     pub fn create(path: &Path) -> Result<Self, io::Error> {
         if Path::new(path).exists() {
-            fs::remove_dir_all(&path)?;
+            fs::remove_dir_all(path)?;
         }
 
-        fs::create_dir_all(&path).unwrap();
+        fs::create_dir_all(path).unwrap();
 
         fs::create_dir(path.join("temp")).unwrap(); // for temporary index creation
         Ok(MmapDirectory {

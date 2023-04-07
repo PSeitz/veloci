@@ -103,7 +103,7 @@ impl IndirectIMFlushingInOrderVint {
         use std::slice;
         let id_to_data_pos_bytes = unsafe { slice::from_raw_parts(self.ids_cache.as_ptr() as *const u8, self.ids_cache.len() * mem::size_of::<u32>()) };
 
-        self.directory.append(&self.path.set_ext(Ext::Indirect), &id_to_data_pos_bytes)?;
+        self.directory.append(&self.path.set_ext(Ext::Indirect), id_to_data_pos_bytes)?;
         self.directory.append(&self.path.set_ext(Ext::Data), &self.data_cache)?;
 
         self.data_cache.clear();

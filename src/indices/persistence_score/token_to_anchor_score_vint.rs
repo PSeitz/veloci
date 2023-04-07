@@ -239,14 +239,14 @@ mod tests {
     #[test]
     fn test_token_to_anchor_score_vint_u32() {
         test_token_to_anchor_score_vint(|| {
-            let directory = MmapDirectory::create(&Path::new("test_files/anchorTest32")).unwrap();
+            let directory = MmapDirectory::create(Path::new("test_files/anchorTest32")).unwrap();
             TokenToAnchorScoreVintFlushing::<u32>::new("field1".to_string(), &directory.into())
         });
     }
     #[test]
     fn test_token_to_anchor_score_vint_u64() {
         test_token_to_anchor_score_vint(|| {
-            let directory = MmapDirectory::create(&Path::new("test_files/anchorTest64")).unwrap();
+            let directory = MmapDirectory::create(Path::new("test_files/anchorTest64")).unwrap();
             TokenToAnchorScoreVintFlushing::<u64>::new("field1".into(), &directory.into())
         });
     }

@@ -36,8 +36,8 @@ impl IndexIdToOneParentFlushing {
         let mut metadata = IndexValuesMetadata::default();
         metadata.max_value_id = u32::MAX / 2; // only so that packed reads u32 bits TODO FIXME
         metadata.avg_join_size = calc_avg_join_size(self.metadata.num_values, self.cache.len() as u32);
-        let store = SingleArrayPacked::from_vec(vec_to_bytes(&self.cache), metadata); //load data with MMap
-        store
+         //load data with MMap
+        SingleArrayPacked::from_vec(vec_to_bytes(&self.cache), metadata)
     }
 
     #[inline]
@@ -124,7 +124,7 @@ mod tests {
 
         #[test]
         fn test_index_id_to_parent_flushing() {
-            let directory: Box<dyn Directory> = Box::new(RamDirectory::default());
+            let directory: Box<dyn Directory> = Box::<RamDirectory>::default();
             let path = Path::new("data");
             let mut ind = IndexIdToOneParentFlushing::new(directory.box_clone(), path.to_owned(), *get_test_data_1_to_1().iter().max().unwrap());
             for (key, val) in get_test_data_1_to_1().iter().enumerate() {
@@ -138,7 +138,7 @@ mod tests {
 
         #[test]
         fn test_index_id_to_parent_im() {
-            let directory: Box<dyn Directory> = Box::new(RamDirectory::default());
+            let directory: Box<dyn Directory> = Box::<RamDirectory>::default();
 
             let mut ind = IndexIdToOneParentFlushing::new(directory, Path::new("data").to_owned(), *get_test_data_1_to_1().iter().max().unwrap());
             for (key, val) in get_test_data_1_to_1().iter().enumerate() {

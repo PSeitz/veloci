@@ -43,7 +43,7 @@ fn query_ast_to_request(ast: &UserAST, opt: &SearchQueryGeneratorParameters, fie
             let mut levenshtein_distance = None;
             // One star at the end means it's a starts_with query, which can be combined with
             // levensthein
-            let starts_with = term.ends_with("*") && term.chars().filter(|&c| c == '*').count() == 1;
+            let starts_with = term.ends_with('*') && term.chars().filter(|&c| c == '*').count() == 1;
             if starts_with {
                 term.pop();
             }

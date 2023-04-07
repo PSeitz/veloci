@@ -74,7 +74,7 @@ pub fn add_token_values_to_tokens(persistence: &mut Persistence, data_str: &str,
     persistence.write_metadata()?;
 
     //TODO FIX LOAD FOR IN_MEMORY
-    let data = persistence.directory.get_file_bytes(&Path::new(&path))?;
+    let data = persistence.directory.get_file_bytes(Path::new(&path))?;
 
     let store = SingleArrayPacked::<u32>::from_data(data, store.metadata);
     persistence.indices.boost_valueid_to_value.insert(path, Box::new(store));

@@ -252,7 +252,7 @@ impl Persistence {
                             self.indices.boost_valueid_to_value.insert(el.path.to_string(), Box::new(store));
                         }
                         IndexCardinality::IndexIdToOneParent => {
-                            let data = self.directory.get_file_bytes(&Path::new(&el.path))?;
+                            let data = self.directory.get_file_bytes(Path::new(&el.path))?;
                             let store = SingleArrayPacked::<u32>::from_data(data, el.metadata);
                             self.indices.boost_valueid_to_value.insert(el.path.to_string(), Box::new(store));
                         }
@@ -281,7 +281,7 @@ impl Persistence {
                                 store
                             }
                             IndexCardinality::IndexIdToOneParent => {
-                                let data = self.directory.get_file_bytes(&Path::new(&el.path))?;
+                                let data = self.directory.get_file_bytes(Path::new(&el.path))?;
                                 let store: Box<dyn IndexIdToParent<Output = u32>> = Box::new(SingleArrayPacked::<u32>::from_data(data, el.metadata));
                                 store
                             }
@@ -363,7 +363,7 @@ impl Persistence {
     }
 
     pub fn write_data(&self, path: &str, data: &[u8]) -> Result<(), io::Error> {
-        self.directory.write(&Path::new(path), data)?;
+        self.directory.write(Path::new(path), data)?;
         Ok(())
     }
 

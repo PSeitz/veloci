@@ -1,11 +1,10 @@
-use crate::{error::VelociError, persistence::TEXTINDEX};
+use crate::{persistence::TEXTINDEX};
 use itertools::Itertools;
 use regex::Regex;
 use std::{
     self,
     collections::HashMap,
     ffi::OsString,
-    fs::File,
     path::{Path, PathBuf},
 };
 

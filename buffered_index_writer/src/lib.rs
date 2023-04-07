@@ -303,7 +303,7 @@ impl<
 
     /// inmemory version for very small indices, where it's inefficient to write and then read from disk - data on disk will be ignored!
     #[inline]
-    pub fn iter_inmemory<'a>(&'a mut self) -> impl Iterator<Item = KeyValue<K, T>> + 'a {
+    pub fn iter_inmemory(&mut self) -> impl Iterator<Item = KeyValue<K, T>> + '_ {
         self.sort_cache();
         self.cache.iter().cloned()
     }

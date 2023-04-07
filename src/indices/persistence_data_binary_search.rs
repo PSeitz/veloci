@@ -209,10 +209,10 @@ mod tests {
 
     use super::*;
     use directory::RamDirectory;
-    use tempfile::tempdir;
+    
 
     fn get_test_data_1_to_n_ind(directory: Box<dyn Directory>, path: PathBuf) -> IndirectIMFlushingInOrderVintNoDirectEncode<(u32, u32)> {
-        let mut store = IndirectIMFlushingInOrderVintNoDirectEncode::new(directory, path.to_owned(), u32::MAX);
+        let mut store = IndirectIMFlushingInOrderVintNoDirectEncode::new(directory, path, u32::MAX);
         store.add((0, 0), &[5, 6]).unwrap();
         store.add((0, 1), &[9]).unwrap();
         store.add((2, 0), &[9]).unwrap();

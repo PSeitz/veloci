@@ -16,7 +16,7 @@ pub struct PeristenceMetaData {
 
 impl PeristenceMetaData {
     pub fn new(directory: &Box<dyn Directory>) -> Result<PeristenceMetaData, VelociError> {
-        let json_bytes = directory.get_file_bytes(&Path::new("metaData.json"))?;
+        let json_bytes = directory.get_file_bytes(Path::new("metaData.json"))?;
         dbg!(json_bytes.len());
         let mut obj: PeristenceMetaData = serde_json::from_slice(json_bytes.as_slice())?;
 
