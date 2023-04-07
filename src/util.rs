@@ -1,4 +1,4 @@
-use crate::{persistence::TEXTINDEX};
+use crate::persistence::TEXTINDEX;
 use itertools::Itertools;
 use regex::Regex;
 use std::{

@@ -387,12 +387,16 @@ impl Persistence {
         })
     }
 
+    /// Creates a new persistence instance in-memory
+    /// The persistence is empty and can be used to index data
     pub fn create_im() -> Result<Self, io::Error> {
         Self::create(Box::new(RamDirectory::create()))
     }
 
-    pub fn create_mmap(db: String) -> Result<Self, io::Error> {
-        Self::create(Box::new(MmapDirectory::create(db.as_ref())?))
+    /// Creates a new persistence instance mmaped to the folder.
+    /// The persistence is empty and can be used to index data
+    pub fn create_mmap(db_folder: String) -> Result<Self, io::Error> {
+        Self::create(Box::new(MmapDirectory::create(db_folder.as_ref())?))
     }
 
     pub fn load<P: AsRef<Path>>(db: P) -> Result<Self, VelociError> {

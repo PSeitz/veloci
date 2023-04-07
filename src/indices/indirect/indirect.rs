@@ -22,6 +22,7 @@ impl<T: IndexIdToParentData> Indirect<T> {
     fn get_size(&self) -> usize {
         self.size
     }
+
     pub fn from_data(start_pos: OwnedBytes, data: OwnedBytes, metadata: IndexValuesMetadata) -> Result<Self, VelociError> {
         let size = start_pos.len() / std::mem::size_of::<T>();
         Ok(Indirect {

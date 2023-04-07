@@ -37,7 +37,7 @@ fn main() {
         .unwrap_or_else(|| "{}".to_string());
 
     start_profiler("./create-prof.profile");
-    veloci::create::create_indices_from_file(&mut veloci::persistence::Persistence::create(matches.target).unwrap(), &matches.data, &config, false).unwrap();
+    veloci::create::create_indices_from_file(&mut veloci::persistence::Persistence::create_mmap(matches.target).unwrap(), &matches.data, &config, false).unwrap();
     stop_profiler();
 }
 

@@ -209,7 +209,6 @@ mod tests {
 
     use super::*;
     use directory::RamDirectory;
-    
 
     fn get_test_data_1_to_n_ind(directory: Box<dyn Directory>, path: PathBuf) -> IndirectIMFlushingInOrderVintNoDirectEncode<(u32, u32)> {
         let mut store = IndirectIMFlushingInOrderVintNoDirectEncode::new(directory, path, u32::MAX);

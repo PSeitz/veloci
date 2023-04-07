@@ -36,7 +36,7 @@ impl IndexIdToOneParentFlushing {
         let mut metadata = IndexValuesMetadata::default();
         metadata.max_value_id = u32::MAX / 2; // only so that packed reads u32 bits TODO FIXME
         metadata.avg_join_size = calc_avg_join_size(self.metadata.num_values, self.cache.len() as u32);
-         //load data with MMap
+        //load data with MMap
         SingleArrayPacked::from_vec(vec_to_bytes(&self.cache), metadata)
     }
 
