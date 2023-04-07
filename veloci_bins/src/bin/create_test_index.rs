@@ -76,8 +76,14 @@ fn create_jmdict_index() -> Result<(), io::Error> {
     // PROFILER.lock().unwrap().start("./my-prof.profile").unwrap();
 
     println!("Create");
+
+    let db_folder = "jmdict".to_string();
+    if Path::new(&db_folder).exists() {
+        fs::remove_dir_all(&db_folder)?;
+    }
+
     veloci::create::create_indices_from_file(
-        &mut veloci::persistence::Persistence::create("jmdict".to_string()).unwrap(),
+        &mut veloci::persistence::Persistence::create_mmap(db_folder).unwrap(),
         "../jmdict.json",
         JMDICT_INDICES,
         false,
