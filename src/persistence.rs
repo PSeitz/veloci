@@ -59,13 +59,6 @@ pub struct PersistenceIndices {
     pub fst: HashMap<String, Map<OwnedBytes>>,
 }
 
-#[derive(Debug, Eq, PartialEq, Clone)]
-pub enum PersistenceType {
-    /// Transient Doesn't write indices, just holds them in memory. Good for small indices with incremental updates.
-    Transient,
-    Persistent,
-}
-
 pub struct Persistence {
     pub directory: Box<dyn Directory>, // folder
     pub metadata: PeristenceMetaData,

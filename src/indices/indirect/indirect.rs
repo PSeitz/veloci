@@ -1,7 +1,7 @@
 use super::*;
 use crate::{error::VelociError, indices::*, persistence::*, type_info::TypeInfo};
 use byteorder::{LittleEndian, ReadBytesExt};
-use num::{self, cast::ToPrimitive};
+use num::{self};
 use ownedbytes::OwnedBytes;
 use std::{self, marker::PhantomData, u32};
 use vint32::iterator::VintArrayIterator;
@@ -43,18 +43,45 @@ impl<T: IndexIdToParentData> IndexIdToParent for Indirect<T> {
     }
 
     fn get_values_iter(&self, id: u64) -> VintArrayIteratorOpt<'_> {
-        get_values_iter!(self, id, self.data, {
-            (&self.start_pos[id as usize * std::mem::size_of::<T>()..id as usize * std::mem::size_of::<T>() + std::mem::size_of::<T>()])
+        if id >= self.get_size() as u64 {
+            VintArrayIteratorOpt::empty()
+        } else {
+            let data_start_pos = (&self.start_pos[id as usize * std::mem::size_of::<T>()..id as usize * std::mem::size_of::<T>() + std::mem::size_of::<T>()])
                 .read_u32::<LittleEndian>()
-                .unwrap()
-        })
+                .unwrap();
+            let data_start_pos_or_data = data_start_pos.to_u32().unwrap();
+            if let Some(val) = get_encoded(data_start_pos_or_data) {
+                // TODO handle u64 indices
+                return VintArrayIteratorOpt {
+                    single_value: i64::from(val),
+                    iter: Box::new(VintArrayIterator::from_serialized_vint_array(&[])),
+                };
+            }
+            if data_start_pos_or_data == EMPTY_BUCKET {
+                return VintArrayIteratorOpt::empty();
+            }
+            VintArrayIteratorOpt::from_slice(&self.data[data_start_pos.to_usize().unwrap()..])
+        }
     }
 
     fn get_values(&self, id: u64) -> Option<Vec<T>> {
-        get_values!(self, id, self.data, {
-            (&self.start_pos[id as usize * std::mem::size_of::<T>()..id as usize * std::mem::size_of::<T>() + std::mem::size_of::<T>()])
+        if id >= self.get_size() as u64 {
+            None
+        } else {
+            let data_start_pos = (&self.start_pos[id as usize * std::mem::size_of::<T>()..id as usize * std::mem::size_of::<T>() + std::mem::size_of::<T>()])
                 .read_u32::<LittleEndian>()
-                .unwrap()
-        })
+                .unwrap();
+            let data_start_pos_or_data = data_start_pos.to_u32().unwrap(); // TODO handle u64 indices
+            if let Some(val) = get_encoded(data_start_pos_or_data) {
+                return Some(vec![num::cast(val).unwrap()]);
+            }
+            if data_start_pos_or_data == EMPTY_BUCKET {
+                return None;
+            }
+
+            let iter = VintArrayIterator::from_serialized_vint_array(&self.data[data_start_pos.to_usize().unwrap()..]);
+            let decoded_data: Vec<u32> = iter.collect();
+            Some(decoded_data.iter().map(|el| num::cast(*el).unwrap()).collect())
+        }
     }
 }

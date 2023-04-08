@@ -1,6 +1,13 @@
 use std::{fs, path::Path};
 
-use veloci::{persistence::PersistenceType, *};
+use veloci::*;
+
+#[derive(Debug, Eq, PartialEq, Clone)]
+pub enum PersistenceType {
+    /// Transient Doesn't write indices, just holds them in memory. Good for small indices with incremental updates.
+    Transient,
+    Persistent,
+}
 
 #[macro_export]
 macro_rules! assert_contains {
@@ -29,12 +36,12 @@ pub fn create_test_persistence_with_logging(
         trace::enable_log();
     }
 
-    let mut persistence_type = persistence::PersistenceType::Persistent;
+    let mut persistence_type = PersistenceType::Persistent;
     if let Some(val) = std::env::var_os("PersistenceType") {
         if val.clone().into_string().unwrap() == "Transient" {
-            persistence_type = persistence::PersistenceType::Transient;
+            persistence_type = PersistenceType::Transient;
         } else if val.into_string().unwrap() == "Persistent" {
-            persistence_type = persistence::PersistenceType::Persistent;
+            persistence_type = PersistenceType::Persistent;
         } else {
             panic!("env PersistenceType needs to be Transient or Persistent");
         }
@@ -64,7 +71,7 @@ pub fn create_test_persistence_with_logging(
     }
     pers.directory.sync_directory().unwrap();
 
-    if persistence_type == persistence::PersistenceType::Persistent {
+    if persistence_type == PersistenceType::Persistent {
         pers = persistence::Persistence::load(path).expect("Could not load persistence");
     }
     pers
