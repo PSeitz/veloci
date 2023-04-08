@@ -393,6 +393,10 @@ impl Persistence {
 
     pub fn load<P: AsRef<Path>>(db: P) -> Result<Self, VelociError> {
         let directory: Box<dyn Directory> = Box::new(MmapDirectory::open(db.as_ref())?);
+        Self::open(directory)
+    }
+
+    pub fn open(directory: Box<dyn Directory>) -> Result<Self, VelociError> {
         let metadata = PeristenceMetaData::new(&directory)?;
         let mut pers = Persistence {
             directory,

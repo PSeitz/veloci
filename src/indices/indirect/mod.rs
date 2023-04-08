@@ -25,8 +25,8 @@ mod tests {
     use crate::{directory::Directory, persistence::IndexIdToParent};
     use std::path::PathBuf;
 
-    fn get_test_data_1_to_n_ind(directory: &Box<dyn Directory>, path: PathBuf) -> IndirectIMFlushingInOrderVint {
-        let mut store = IndirectIMFlushingInOrderVint::new(directory, path, std::u32::MAX);
+    fn get_test_data_1_to_n_ind(directory: &Box<dyn Directory>, path: PathBuf) -> IndirectFlushingInOrderVint {
+        let mut store = IndirectFlushingInOrderVint::new(directory, path, std::u32::MAX);
         store.add(0, vec![5, 6]).unwrap();
         store.add(1, vec![9]).unwrap();
         store.add(2, vec![9]).unwrap();

@@ -348,7 +348,7 @@ fn print_indices(path_data: &mut FnvHashMap<String, PathData>) {
 // use buffered_index_writer::KeyValue;
 fn stream_iter_to_indirect_index(
     iter: impl Iterator<Item = buffered_index_writer::KeyValue<u32, u32>>,
-    target: &mut IndirectIMFlushingInOrderVint,
+    target: &mut IndirectFlushingInOrderVint,
     sort_and_dedup: bool,
 ) -> Result<(), io::Error> {
     for (id, group) in &iter.group_by(|el| el.key) {
@@ -368,8 +368,8 @@ fn buffered_index_to_indirect_index_multiple(
     path: &str,
     mut buffered_index_data: BufferedIndexWriter,
     sort_and_dedup: bool,
-) -> Result<IndirectIMFlushingInOrderVint, VelociError> {
-    let mut store = IndirectIMFlushingInOrderVint::new(directory, PathBuf::from(path.to_string()), buffered_index_data.max_value_id);
+) -> Result<IndirectFlushingInOrderVint, VelociError> {
+    let mut store = IndirectFlushingInOrderVint::new(directory, PathBuf::from(path.to_string()), buffered_index_data.max_value_id);
 
     if buffered_index_data.is_in_memory() {
         stream_iter_to_indirect_index(buffered_index_data.iter_inmemory(), &mut store, sort_and_dedup)?;
@@ -567,7 +567,7 @@ pub struct IndexData {
 enum IndexVariants {
     Phrase(IndirectIMFlushingInOrderVintNoDirectEncode<(ValueId, ValueId)>),
     SingleValue(IndexIdToOneParentFlushing),
-    MultiValue(IndirectIMFlushingInOrderVint),
+    MultiValue(IndirectFlushingInOrderVint),
     TokenToAnchorScoreU32(TokenToAnchorScoreVintFlushing<u32>),
     TokenToAnchorScoreU64(TokenToAnchorScoreVintFlushing<u64>),
 }

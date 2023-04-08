@@ -166,10 +166,10 @@ mod bench_collection {
     //     b.iter(|| bench_naivehashmap_insert_with_lookup(K100K, K100K));
     // }
 
-    #[bench]
-    fn bench_fnvhashmap_insert_300k(b: &mut Bencher) {
-        b.iter(|| bench_fnvhashmap_insert(K300K));
-    }
+    //#[bench]
+    //fn bench_fnvhashmap_insert_300k(b: &mut Bencher) {
+    //b.iter(|| bench_fnvhashmap_insert(K300K));
+    //}
 
     // #[bench]
     // fn bench_naivehashmap_insert_100k(b: &mut Bencher) {
@@ -196,24 +196,24 @@ mod bench_collection {
     //     b.iter(|| bench_naivehashmap_insert(K10K));
     // }
 
-    #[bench]
-    fn bench_fnvhashmap_insert_with_lookup_300k(b: &mut Bencher) {
-        b.iter(|| bench_fnvhashmap_insert_with_lookup(K300K, K300K));
-    }
+    //#[bench]
+    //fn bench_fnvhashmap_insert_with_lookup_300k(b: &mut Bencher) {
+    //b.iter(|| bench_fnvhashmap_insert_with_lookup(K300K, K300K));
+    //}
 
-    #[bench]
-    fn bench_naivehashmap_insert_with_lookup_300k(b: &mut Bencher) {
-        b.iter(|| bench_naivehashmap_insert_with_lookup(K300K, K2MIO));
-    }
+    //#[bench]
+    //fn bench_naivehashmap_insert_with_lookup_300k(b: &mut Bencher) {
+    //b.iter(|| bench_naivehashmap_insert_with_lookup(K300K, K2MIO));
+    //}
     // #[bench]
     // fn bench_naivehashmap_insert_with_lookup_300k_mod(b: &mut Bencher) {
     //     b.iter(|| bench_naivehashmap_insert_with_lookup_modify(K300K, K2MIO));
     // }
 
-    #[bench]
-    fn bench_naivehashmap_insert_300k(b: &mut Bencher) {
-        b.iter(|| bench_naivehashmap_insert(K300K));
-    }
+    //#[bench]
+    //fn bench_naivehashmap_insert_300k(b: &mut Bencher) {
+    //b.iter(|| bench_naivehashmap_insert(K300K));
+    //}
 
     // #[bench]
     // fn bench_triemap_insert_with_lookup_300k(b: &mut Bencher) {

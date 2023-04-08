@@ -20,7 +20,7 @@ fn to_serialized_vint_array(add_data: Vec<u32>) -> Vec<u8> {
 
 /// This data structure assumes that a set is only called once for a id, and ids are set in order.
 #[derive(Debug, Clone)]
-pub(crate) struct IndirectIMFlushingInOrderVint {
+pub(crate) struct IndirectFlushingInOrderVint {
     pub(crate) ids_cache: Vec<u32>,
     pub(crate) data_cache: Vec<u8>,
     pub(crate) current_data_offset: u32,
@@ -33,13 +33,13 @@ pub(crate) struct IndirectIMFlushingInOrderVint {
 
 // use vint for indirect, use not highest bit in indirect, but the highest unused bit. Max(value_id, single data_id, which would be encoded in the valueid index)
 //
-impl IndirectIMFlushingInOrderVint {
+impl IndirectFlushingInOrderVint {
     pub(crate) fn new(directory: &Box<dyn Directory>, path: PathBuf, max_value_id: u32) -> Self {
-        let mut data_cache = vec![];
+        let mut data_cache = Vec::new();
         data_cache.resize(1, 0); // resize data by one, because 0 is reserved for the empty buckets
-        IndirectIMFlushingInOrderVint {
+        IndirectFlushingInOrderVint {
             directory: directory.clone(),
-            ids_cache: vec![],
+            ids_cache: Vec::new(),
             data_cache,
             current_data_offset: 0,
             current_id_offset: 0,
