@@ -36,7 +36,7 @@ pub fn create_test_persistence_with_logging(
         trace::enable_log();
     }
 
-    let mut persistence_type = PersistenceType::Persistent;
+    let mut persistence_type = PersistenceType::Transient;
     if let Some(val) = std::env::var_os("PersistenceType") {
         if val.clone().into_string().unwrap() == "Transient" {
             persistence_type = PersistenceType::Transient;

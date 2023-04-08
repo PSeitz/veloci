@@ -511,7 +511,7 @@ fn should_prefer_exact_matches_to_tokenmatches() {
 
 #[test]
 fn test_prefer_exact_match_over_multi_hit() {
-    let dir = "test_boost_simple";
+    let dir = "test_prefer_exact_match_over_multi_hit";
     // Exact match is more important than many non exact hits
     let test_data = r#"
 { "definition": ["home"], "traditional": "家" }
@@ -538,7 +538,7 @@ fn test_prefer_exact_match_over_multi_hit() {
 
 #[test]
 fn test_exact_match_with_boost() {
-    let dir = "test_boost_simple";
+    let dir = "test_exact_match_with_boost";
     // Exact match is more important than many non exact hits
     let test_data = r#"
 { "definition": ["home", "family"], "traditional": "家", "commonness": 5.5318 }
