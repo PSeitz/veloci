@@ -363,7 +363,6 @@ impl Persistence {
     pub fn write_metadata(&self) -> Result<(), VelociError> {
         self.write_data("metaData.ron", ron::ser::to_string_pretty(&self.metadata, Default::default())?.as_bytes())?;
         self.write_data("metaData.json", serde_json::to_string_pretty(&self.metadata)?.as_bytes())?;
-        dbg!(serde_json::to_string_pretty(&self.metadata)?.len());
         Ok(())
     }
 

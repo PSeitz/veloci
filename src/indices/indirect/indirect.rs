@@ -1,9 +1,7 @@
 use super::*;
 use crate::{error::VelociError, indices::*, persistence::*, type_info::TypeInfo};
-use byteorder::{LittleEndian, ReadBytesExt};
-use num::{self};
 use ownedbytes::OwnedBytes;
-use std::{self, marker::PhantomData, u32, usize};
+use std::{marker::PhantomData, u32, usize};
 use vint32::iterator::VintArrayIterator;
 
 impl_type_info_single_templ!(Indirect);
@@ -33,6 +31,16 @@ impl<T: IndexIdToParentData> Indirect<T> {
             metadata,
         })
     }
+
+    fn load_from_indirect(&self, id: u64) -> u32 {
+        debug_assert_eq!(std::mem::size_of::<T>(), std::mem::size_of::<u32>());
+        let data_start_pos_or_data = u32::from_le_bytes(
+            self.start_pos[id as usize * std::mem::size_of::<T>()..id as usize * std::mem::size_of::<T>() + std::mem::size_of::<T>()]
+                .try_into()
+                .unwrap(),
+        );
+        data_start_pos_or_data
+    }
 }
 
 impl<T: IndexIdToParentData> IndexIdToParent for Indirect<T> {
@@ -46,10 +54,7 @@ impl<T: IndexIdToParentData> IndexIdToParent for Indirect<T> {
         if id >= self.get_size() as u64 {
             VintArrayIteratorOpt::empty()
         } else {
-            let data_start_pos = (&self.start_pos[id as usize * std::mem::size_of::<T>()..id as usize * std::mem::size_of::<T>() + std::mem::size_of::<T>()])
-                .read_u32::<LittleEndian>()
-                .unwrap();
-            let data_start_pos_or_data = data_start_pos.to_u32().unwrap();
+            let data_start_pos_or_data = self.load_from_indirect(id);
             if let Some(val) = get_encoded(data_start_pos_or_data) {
                 // TODO handle u64 indices
                 return VintArrayIteratorOpt {
@@ -60,7 +65,7 @@ impl<T: IndexIdToParentData> IndexIdToParent for Indirect<T> {
             if data_start_pos_or_data == EMPTY_BUCKET {
                 return VintArrayIteratorOpt::empty();
             }
-            VintArrayIteratorOpt::from_slice(&self.data[data_start_pos.to_usize().unwrap()..])
+            VintArrayIteratorOpt::from_slice(&self.data[data_start_pos_or_data.to_usize().unwrap()..])
         }
     }
 
@@ -68,12 +73,7 @@ impl<T: IndexIdToParentData> IndexIdToParent for Indirect<T> {
         if id >= self.get_size() as u64 {
             None
         } else {
-            debug_assert_eq!(std::mem::size_of::<T>(), std::mem::size_of::<u32>());
-            let data_start_pos_or_data = u32::from_le_bytes(
-                self.start_pos[id as usize * std::mem::size_of::<T>()..id as usize * std::mem::size_of::<T>() + std::mem::size_of::<T>()]
-                    .try_into()
-                    .unwrap(),
-            );
+            let data_start_pos_or_data = self.load_from_indirect(id);
             if let Some(val) = get_encoded(data_start_pos_or_data) {
                 return Some(vec![num::cast(val).unwrap()]);
             }
