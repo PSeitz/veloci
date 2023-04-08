@@ -3,7 +3,7 @@ use crate::{error::VelociError, indices::*, persistence::*, type_info::TypeInfo}
 use byteorder::{LittleEndian, ReadBytesExt};
 use num::{self};
 use ownedbytes::OwnedBytes;
-use std::{self, marker::PhantomData, u32};
+use std::{self, marker::PhantomData, u32, usize};
 use vint32::iterator::VintArrayIterator;
 
 impl_type_info_single_templ!(Indirect);
@@ -68,10 +68,12 @@ impl<T: IndexIdToParentData> IndexIdToParent for Indirect<T> {
         if id >= self.get_size() as u64 {
             None
         } else {
-            let data_start_pos = (&self.start_pos[id as usize * std::mem::size_of::<T>()..id as usize * std::mem::size_of::<T>() + std::mem::size_of::<T>()])
-                .read_u32::<LittleEndian>()
-                .unwrap();
-            let data_start_pos_or_data = data_start_pos.to_u32().unwrap(); // TODO handle u64 indices
+            debug_assert_eq!(std::mem::size_of::<T>(), std::mem::size_of::<u32>());
+            let data_start_pos_or_data = u32::from_le_bytes(
+                self.start_pos[id as usize * std::mem::size_of::<T>()..id as usize * std::mem::size_of::<T>() + std::mem::size_of::<T>()]
+                    .try_into()
+                    .unwrap(),
+            );
             if let Some(val) = get_encoded(data_start_pos_or_data) {
                 return Some(vec![num::cast(val).unwrap()]);
             }
@@ -79,7 +81,7 @@ impl<T: IndexIdToParentData> IndexIdToParent for Indirect<T> {
                 return None;
             }
 
-            let iter = VintArrayIterator::from_serialized_vint_array(&self.data[data_start_pos.to_usize().unwrap()..]);
+            let iter = VintArrayIterator::from_serialized_vint_array(&self.data[data_start_pos_or_data as usize..]);
             let decoded_data: Vec<u32> = iter.collect();
             Some(decoded_data.iter().map(|el| num::cast(*el).unwrap()).collect())
         }
