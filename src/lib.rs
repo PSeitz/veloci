@@ -8,8 +8,6 @@
 #[cfg(all(test, feature = "unstable"))]
 extern crate test;
 
-#[cfg(feature = "enable_cpuprofiler")]
-extern crate cpuprofiler;
 #[macro_use]
 extern crate lazy_static;
 #[macro_use]

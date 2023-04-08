@@ -6,9 +6,6 @@ extern crate measure_time;
 #[macro_use]
 extern crate serde_json;
 
-#[cfg(feature = "enable_cpuprofiler")]
-extern crate cpuprofiler;
-
 use std::{
     fs::{self, File},
     io::{self, prelude::*},

@@ -1,8 +1,5 @@
 #![recursion_limit = "128"]
 
-#[cfg(feature = "enable_cpuprofiler")]
-extern crate cpuprofile;
-
 use argh::FromArgs;
 use std::{fs::File, io::prelude::*};
 
@@ -36,24 +33,5 @@ fn main() {
         })
         .unwrap_or_else(|| "{}".to_string());
 
-    start_profiler("./create-prof.profile");
     veloci::create::create_indices_from_file(&mut veloci::persistence::Persistence::create_mmap(matches.target).unwrap(), &matches.data, &config, false).unwrap();
-    stop_profiler();
-}
-
-#[cfg(not(enable_cpuprofiler))]
-fn start_profiler(_: &str) {}
-#[cfg(not(enable_cpuprofiler))]
-fn stop_profiler() {}
-
-#[cfg(feature = "enable_cpuprofiler")]
-fn start_profiler(name: &str) {
-    use cpuprofiler::PROFILER;
-    PROFILER.lock().unwrap().start(name).unwrap();
-}
-
-#[cfg(feature = "enable_cpuprofiler")]
-fn stop_profiler() {
-    use cpuprofiler::PROFILER;
-    PROFILER.lock().unwrap().stop().unwrap();
 }
