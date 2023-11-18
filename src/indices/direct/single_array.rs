@@ -3,8 +3,6 @@ use std::{self, io, marker::PhantomData, ptr::copy_nonoverlapping, u32};
 
 use ownedbytes::OwnedBytes;
 
-use std::mem;
-
 impl_type_info_single_templ!(SingleArrayPacked);
 
 #[derive(Debug, Clone, Copy)]
@@ -34,7 +32,7 @@ pub(crate) fn encode_vals<O: std::io::Write>(vals: &[u32], bytes_required: Bytes
     //Maximum speed, Maximum unsafe
     use std::slice;
     unsafe {
-        let slice = slice::from_raw_parts(vals.as_ptr() as *const u8, vals.len() * mem::size_of::<u32>());
+        let slice = slice::from_raw_parts(vals.as_ptr() as *const u8, std::mem::size_of_val(vals));
         let mut pos = 0;
         while pos != slice.len() {
             out.write_all(&slice[pos..pos + bytes_required as usize])?;

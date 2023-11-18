@@ -3,6 +3,8 @@
 #![cfg_attr(feature = "cargo-clippy", allow(clippy::field_reassign_with_default))]
 #![cfg_attr(feature = "cargo-clippy", allow(clippy::comparison_chain))]
 #![cfg_attr(feature = "cargo-clippy", allow(clippy::large_enum_variant))]
+#![cfg_attr(feature = "cargo-clippy", allow(clippy::borrowed_box))]
+#![cfg_attr(feature = "cargo-clippy", allow(clippy::let_and_return))]
 #![cfg_attr(all(feature = "unstable", test), feature(test))]
 
 #[cfg(all(test, feature = "unstable"))]

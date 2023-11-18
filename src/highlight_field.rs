@@ -155,7 +155,7 @@ mod tests {
         assert_eq!(
             highlight_text(
                 "mein treffer",
-                &vec!["treffer"].iter().map(|el| el.to_string()).collect(),
+                &["treffer"].iter().map(|el| el.to_string()).collect(),
                 &DEFAULT_SNIPPETINFO,
                 Some(&get_test_tokenizer())
             )
@@ -165,7 +165,7 @@ mod tests {
         assert_eq!(
             highlight_text(
                 "mein treffer treffers",
-                &vec!["treffers", "treffer"].iter().map(|el| el.to_string()).collect(),
+                &["treffers", "treffer"].iter().map(|el| el.to_string()).collect(),
                 &DEFAULT_SNIPPETINFO,
                 Some(&get_test_tokenizer())
             )
@@ -175,7 +175,7 @@ mod tests {
         assert_eq!(
             highlight_text(
                 "Schön-Hans",
-                &vec!["Hans"].iter().map(|el| el.to_string()).collect(),
+                &["Hans"].iter().map(|el| el.to_string()).collect(),
                 &DEFAULT_SNIPPETINFO,
                 Some(&get_test_tokenizer())
             )
@@ -185,7 +185,7 @@ mod tests {
         assert_eq!(
             highlight_text(
                 "Schön-Hans",
-                &vec!["Haus"].iter().map(|el| el.to_string()).collect(),
+                &["Haus"].iter().map(|el| el.to_string()).collect(),
                 &DEFAULT_SNIPPETINFO,
                 Some(&get_test_tokenizer())
             ),

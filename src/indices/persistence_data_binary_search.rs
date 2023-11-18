@@ -24,8 +24,8 @@ pub(crate) struct IndirectIMFlushingInOrderVintNoDirectEncode<T> {
 
 impl<T: Default + std::fmt::Debug> IndirectIMFlushingInOrderVintNoDirectEncode<T> {
     pub(crate) fn new(directory: Box<dyn Directory>, path: PathBuf, max_value_id: u32) -> Self {
-        let mut data_cache = vec![];
-        data_cache.resize(1, 0); // resize data by one, because 0 is reserved for the empty buckets
+        // resize data by one, because 0 is reserved for the empty buckets
+        let data_cache = vec![0; 1];
         IndirectIMFlushingInOrderVintNoDirectEncode {
             ids_cache: vec![],
             data_cache,

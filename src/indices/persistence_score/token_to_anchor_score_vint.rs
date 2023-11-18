@@ -49,8 +49,9 @@ fn delta_compress_data_block(data: &mut [u32]) -> Vec<u8> {
 
 impl<T: AnchorScoreDataSize> TokenToAnchorScoreVintFlushing<T> {
     pub fn new(field_path: String, directory: &Box<dyn Directory>) -> Self {
-        let mut data_cache = Vec::new();
-        data_cache.resize(1, 0); // resize data by one, because 0 is reserved for the empty buckets
+        // resize data by one, because 0 is reserved for the empty buckets
+        let data_cache = vec![0; 1];
+
         TokenToAnchorScoreVintFlushing {
             directory: directory.clone(),
             field_path: PathBuf::from(field_path),
