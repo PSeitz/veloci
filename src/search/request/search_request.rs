@@ -42,7 +42,7 @@ impl SearchRequest {
                         _ => {}
                     }
                 }
-                subtree.queries.extend(sub_ors.into_iter());
+                subtree.queries.extend(sub_ors);
             }
 
             // Pull up And Conditions
@@ -65,7 +65,7 @@ impl SearchRequest {
                     }
                 }
 
-                subtree.queries.extend(sub_ands.into_iter());
+                subtree.queries.extend(sub_ands);
             }
             SearchRequest::Search(_req) => {}
         }
@@ -196,6 +196,6 @@ impl Ord for RequestSearchPart {
 
 impl PartialOrd for RequestSearchPart {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        format!("{:?}", self).partial_cmp(&format!("{:?}", other))
+        Some(self.cmp(other))
     }
 }

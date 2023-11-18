@@ -185,7 +185,7 @@ pub fn union_hits_score(mut or_results: Vec<SearchFieldResult>) -> SearchFieldRe
             debug_assert!(sum_over_distinct_with_distinct_term_boost != std::f32::INFINITY);
             union_hits.push(Hit::new(id, sum_over_distinct_with_distinct_term_boost));
             if should_explain {
-                let explain = explain_hits.entry(id).or_insert_with(Vec::new);
+                let explain = explain_hits.entry(id).or_default();
                 // explain.push(format!("or sum_over_distinct_terms {:?}", max_scores_per_term.iter().sum::<f32>()));
                 explain.push(Explain::OrSumOverDistinctTerms(max_scores_per_term.iter().sum::<f32>()));
                 if num_distinct_terms > 1. {
@@ -200,7 +200,7 @@ pub fn union_hits_score(mut or_results: Vec<SearchFieldResult>) -> SearchFieldRe
         for hit in union_hits.iter() {
             for res in or_results.iter() {
                 if let Some(exp) = res.explain.get(&hit.id) {
-                    let explain = explain_hits.entry(hit.id).or_insert_with(Vec::new);
+                    let explain = explain_hits.entry(hit.id).or_default();
                     explain.extend_from_slice(exp);
                 }
             }

@@ -54,7 +54,7 @@ impl<'a> Parser<'a> {
                 "{} Unexpected token_type, got {}{:?}",
                 message,
                 self.get_type().map(|el| format!("{:?}", el)).unwrap_or_else(|| "EOF".to_string()),
-                allowed_types.map(|el| format!(" allowed_types: {:?}", el)).unwrap_or_else(|| "".to_string())
+                allowed_types.map(|el| format!(" allowed_types: {:?}", el)).unwrap_or_default()
             );
             ParseError::UnexpectedTokenType(marked_in_orig, message)
         } else {

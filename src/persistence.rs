@@ -460,10 +460,10 @@ fn path_not_found(path: &str) -> VelociError {
 
 //TODO Only LittleEndian supported currently
 pub(crate) fn vec_to_bytes<T>(data: &[T]) -> Vec<u8> {
-    let mut out_dat: Vec<u8> = vec_with_size_uninitialized(data.len() * std::mem::size_of::<T>());
+    let mut out_dat: Vec<u8> = vec_with_size_uninitialized(std::mem::size_of_val(data));
     unsafe {
         let ptr = data.as_ptr() as *const u8;
-        ptr.copy_to_nonoverlapping(out_dat.as_mut_ptr(), data.len() * std::mem::size_of::<T>());
+        ptr.copy_to_nonoverlapping(out_dat.as_mut_ptr(), std::mem::size_of_val(data));
     }
     // LittleEndian::write_u32_into(data, &mut wtr);
     out_dat
