@@ -238,13 +238,13 @@ impl Persistence {
                 }
                 IndexCategory::Boost => {
                     match el.index_cardinality {
-                        IndexCardinality::IndirectIM => {
+                        IndexCardinality::MultiValue => {
                             // let meta = IndexValuesMetadata{max_value_id: el.metadata.max_value_id, avg_join_size:el.avg_join_size, ..Default::default()};
                             let (ind, data) = load_data_pair(&self.directory, Path::new(&el.path))?;
                             let store = Indirect::from_data(ind, data, el.metadata)?;
                             self.indices.boost_valueid_to_value.insert(el.path.to_string(), Box::new(store));
                         }
-                        IndexCardinality::IndexIdToOneParent => {
+                        IndexCardinality::SingleValue => {
                             let data = self.directory.get_file_bytes(Path::new(&el.path))?;
                             let store = SingleArrayPacked::<u32>::from_data(data, el.metadata);
                             self.indices.boost_valueid_to_value.insert(el.path.to_string(), Box::new(store));
@@ -263,7 +263,7 @@ impl Persistence {
 
                     let store = {
                         match el.index_cardinality {
-                            IndexCardinality::IndirectIM => {
+                            IndexCardinality::MultiValue => {
                                 let meta = IndexValuesMetadata {
                                     max_value_id: el.metadata.max_value_id,
                                     avg_join_size: el.metadata.avg_join_size,
@@ -273,7 +273,7 @@ impl Persistence {
                                 let store: Box<dyn IndexIdToParent<Output = u32>> = Box::new(Indirect::from_data(ind, data, meta)?);
                                 store
                             }
-                            IndexCardinality::IndexIdToOneParent => {
+                            IndexCardinality::SingleValue => {
                                 let data = self.directory.get_file_bytes(Path::new(&el.path))?;
                                 let store: Box<dyn IndexIdToParent<Output = u32>> = Box::new(SingleArrayPacked::<u32>::from_data(data, el.metadata));
                                 store

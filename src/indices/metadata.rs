@@ -46,6 +46,6 @@ pub enum DataType {
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Default)]
 pub enum IndexCardinality {
     #[default]
-    IndirectIM,
-    IndexIdToOneParent,
+    MultiValue,
+    SingleValue,
 }

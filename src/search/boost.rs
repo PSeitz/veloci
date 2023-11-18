@@ -221,7 +221,7 @@ pub(crate) fn apply_boost_from_iter(mut results: SearchFieldResult, mut boost_it
 
         if let Some(yep) = boost_iter.next() {
             let mut hit_curr = yep;
-            for mut hit in &mut results.hits_scores {
+            for hit in &mut results.hits_scores {
                 if hit_curr.id < hit.id {
                     move_boost(hit, &mut hit_curr, &mut boost_iter);
                 } else if hit_curr.id == hit.id {

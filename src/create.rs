@@ -843,13 +843,13 @@ where
                 store.flush()?;
                 index_metadata.is_empty = store.is_empty();
                 index_metadata.metadata = store.metadata;
-                index_metadata.index_cardinality = IndexCardinality::IndexIdToOneParent;
+                index_metadata.index_cardinality = IndexCardinality::SingleValue;
             }
             IndexVariants::MultiValue(store) => {
                 store.flush()?;
                 index_metadata.is_empty = store.is_empty();
                 index_metadata.metadata = store.metadata;
-                index_metadata.index_cardinality = IndexCardinality::IndirectIM;
+                index_metadata.index_cardinality = IndexCardinality::MultiValue;
             }
             IndexVariants::TokenToAnchorScoreU32(store) => {
                 store.flush()?;

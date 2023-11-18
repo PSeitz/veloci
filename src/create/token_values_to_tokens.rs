@@ -62,7 +62,7 @@ pub fn add_token_values_to_tokens(persistence: &mut Persistence, data_str: &str,
         path: path.to_string(),
         is_empty: store.is_empty(),
         metadata: store.metadata,
-        index_cardinality: IndexCardinality::IndexIdToOneParent,
+        index_cardinality: IndexCardinality::SingleValue,
         data_type: DataType::U32,
     };
 

@@ -19,26 +19,6 @@ use std::{self, io, iter::FusedIterator, marker::PhantomData, mem, ops};
 pub trait AnchorScoreDataSize: IndexIdToParentData + ops::AddAssign + ops::Add + num::Zero {}
 impl<T> AnchorScoreDataSize for T where T: IndexIdToParentData + ops::AddAssign + ops::Add + num::Zero {}
 
-#[derive(Serialize, Deserialize, Debug, Clone, Default)]
-pub struct TokenToAnchorScoreVintIM<T> {
-    pub start_pos: Vec<T>,
-    pub data: Vec<u8>,
-}
-
-#[derive(Debug)]
-pub struct TokenToAnchorScoreVint<T> {
-    pub start_pos: OwnedBytes,
-    pub data: OwnedBytes,
-    pub max_value_id: u32,
-    pub ok: PhantomData<T>,
-}
-
-impl<T: AnchorScoreDataSize> TypeInfo for TokenToAnchorScoreVint<T> {
-    fn type_name(&self) -> String {
-        std::any::type_name::<Self>().to_string()
-    }
-}
-
 ///
 /// Datastructure to cache and flush changes to file
 ///
@@ -69,12 +49,12 @@ fn delta_compress_data_block(data: &mut [u32]) -> Vec<u8> {
 
 impl<T: AnchorScoreDataSize> TokenToAnchorScoreVintFlushing<T> {
     pub fn new(field_path: String, directory: &Box<dyn Directory>) -> Self {
-        let mut data_cache = vec![];
+        let mut data_cache = Vec::new();
         data_cache.resize(1, 0); // resize data by one, because 0 is reserved for the empty buckets
         TokenToAnchorScoreVintFlushing {
             directory: directory.clone(),
             field_path: PathBuf::from(field_path),
-            id_to_data_pos: vec![],
+            id_to_data_pos: Vec::new(),
             data_cache,
             current_data_offset: T::zero(),
             current_id_offset: 0,
@@ -179,6 +159,20 @@ impl<'a> Iterator for AnchorScoreIter<'a> {
 }
 
 impl<'a> FusedIterator for AnchorScoreIter<'a> {}
+
+#[derive(Debug)]
+pub struct TokenToAnchorScoreVint<T> {
+    pub start_pos: OwnedBytes,
+    pub data: OwnedBytes,
+    pub max_value_id: u32,
+    pub ok: PhantomData<T>,
+}
+
+impl<T: AnchorScoreDataSize> TypeInfo for TokenToAnchorScoreVint<T> {
+    fn type_name(&self) -> String {
+        std::any::type_name::<Self>().to_string()
+    }
+}
 
 impl<T: AnchorScoreDataSize> TokenToAnchorScoreVint<T> {
     pub fn from_data(start_pos: OwnedBytes, data: OwnedBytes) -> Result<Self, VelociError> {
