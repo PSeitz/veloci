@@ -16,9 +16,8 @@ fnv = "1.0.7"
 lazy_static = "1.4.0"
 log = "0.4.17"
 measure_time = "0.8.2"
-rocket = "0.4.11"
-rocket_contrib = "0.4.11"
-rocket_cors = "0.5.2"
+rocket = { version = "0.5.0", features = ["json"] }
+rocket_cors = "0.6"
 serde = "1.0.156"
 serde_derive = "1.0.156"
 serde_json = "1.0.94"
@@ -26,9 +25,9 @@ serde_json = "1.0.94"
 # fix rocket build
 proc-macro2 = "<= 1.0.51"
 
-[dependencies.multipart]
-features = ["rocket"]
-version = "0.18.0"
+#[dependencies.multipart]
+#features = ["rocket"]
+#version = "0.18.0"
 
 [dependencies.veloci]
 path = "../"

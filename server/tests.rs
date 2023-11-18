@@ -1,7 +1,7 @@
 #[cfg(test)]
 mod test {
     use super::super::rocket;
-    use rocket::local::Client;
+    use rocket::local::blocking::Client;
 
     use rocket::http::{ContentType, Status};
     use veloci::*;
@@ -35,7 +35,7 @@ mod test {
 
     #[test]
     fn get_version() {
-        let client = Client::new(rocket()).expect("valid rocket instance");
+        let client = Client::tracked(rocket()).expect("valid rocket instance");
         let response = client.get("/version").dispatch();
         assert_eq!(response.status(), Status::Ok);
     }
@@ -44,29 +44,29 @@ mod test {
     fn get_request() {
         create_db();
 
-        let client = Client::new(rocket()).expect("valid rocket instance");
-        let mut response = client
+        let client = Client::tracked(rocket()).expect("valid rocket instance");
+        let response = client
             .get("/test_rocket/search?query=fred&top=10&boost_fields=name-%3E2.5&boost_terms=boost:me-%3E2.0")
             .dispatch(); // -> == -%3E, url escaping is needed here for some reason
         assert_eq!(response.status(), Status::Ok);
-        assert_contains!(response.body_string().unwrap(), "name");
+        assert_contains!(response.into_string().unwrap(), "name");
     }
 
     #[test]
     fn get_suggest() {
         create_db();
-        let client = Client::new(rocket()).expect("valid rocket instance");
+        let client = Client::tracked(rocket()).expect("valid rocket instance");
 
-        let mut response = client.get("/test_rocket/suggest?query=fr&top=10").dispatch();
+        let response = client.get("/test_rocket/suggest?query=fr&top=10").dispatch();
         assert_eq!(response.status(), Status::Ok);
-        assert_contains!(response.body_string().unwrap(), "fred");
+        assert_contains!(response.into_string().unwrap(), "fred");
     }
 
     #[test]
     fn post_request() {
         create_db();
-        let client = Client::new(rocket()).expect("valid rocket instance");
-        let mut response = client
+        let client = Client::tracked(rocket()).expect("valid rocket instance");
+        let response = client
             .post("/test_rocket/search_query_params")
             .body(
                 r#"{
@@ -82,14 +82,14 @@ mod test {
             .header(ContentType::JSON)
             .dispatch();
         assert_eq!(response.status(), Status::Ok);
-        assert_contains!(response.body_string().unwrap(), "name");
+        assert_contains!(response.into_string().unwrap(), "name");
     }
 
     #[test]
     fn post_request_invalid() {
         create_db();
-        let client = Client::new(rocket()).expect("valid rocket instance");
-        let mut response = client
+        let client = Client::tracked(rocket()).expect("valid rocket instance");
+        let response = client
             .post("/test_rocket/search_query_params")
             .body(
                 r#"{
@@ -105,14 +105,14 @@ mod test {
             .header(ContentType::JSON)
             .dispatch();
         assert_eq!(response.status(), Status::BadRequest);
-        assert_contains!(response.body_string().unwrap(), "AllFieldsFiltered");
+        assert_contains!(response.into_string().unwrap(), "AllFieldsFiltered");
     }
 
     #[test]
     fn post_request_explain_plan() {
         create_db();
-        let client = Client::new(rocket()).expect("valid rocket instance");
-        let mut response = client
+        let client = Client::tracked(rocket()).expect("valid rocket instance");
+        let response = client
             .post("/test_rocket/search_query_params/explain_plan")
             .body(
                 r#"{
@@ -125,7 +125,7 @@ mod test {
             .header(ContentType::JSON)
             .dispatch();
         assert_eq!(response.status(), Status::Ok);
-        let resp = response.body_string().unwrap();
+        let resp = response.into_string().unwrap();
         assert_contains!(resp, "name");
         assert_contains!(resp, "fred");
         assert_contains!(resp, "search");
@@ -134,8 +134,8 @@ mod test {
     #[test]
     fn post_suggest() {
         create_db();
-        let client = Client::new(rocket()).expect("valid rocket instance");
-        let mut response = client
+        let client = Client::tracked(rocket()).expect("valid rocket instance");
+        let response = client
             .post("/test_rocket/suggest")
             .body(
                 r#"{
@@ -151,36 +151,36 @@ mod test {
             .header(ContentType::JSON)
             .dispatch();
         assert_eq!(response.status(), Status::Ok);
-        assert_contains!(response.body_string().unwrap(), "fred");
+        assert_contains!(response.into_string().unwrap(), "fred");
     }
 
     #[test]
     fn get_doc_id() {
         create_db();
-        let client = Client::new(rocket()).expect("valid rocket instance");
-        let mut response = client.get("/test_rocket/_id/0").dispatch();
+        let client = Client::tracked(rocket()).expect("valid rocket instance");
+        let response = client.get("/test_rocket/_id/0").dispatch();
         assert_eq!(response.status(), Status::Ok);
-        let ret = response.body_string().unwrap();
+        let ret = response.into_string().unwrap();
         assert_contains!(ret, r#""name":"fred""#);
         assert_contains!(ret, r#""text":"hi there""#);
     }
     #[test]
     fn get_doc_id_tree() {
         create_db();
-        let client = Client::new(rocket()).expect("valid rocket instance");
-        let mut response = client.get("/test_rocket/_idtree/0").dispatch();
+        let client = Client::tracked(rocket()).expect("valid rocket instance");
+        let response = client.get("/test_rocket/_idtree/0").dispatch();
         assert_eq!(response.status(), Status::Ok);
-        let ret = response.body_string().unwrap();
+        let ret = response.into_string().unwrap();
         assert_contains!(ret, r#""name":"fred""#);
         assert_contains!(ret, r#""text":"hi there""#);
     }
     #[test]
     fn test_inspect_data() {
         create_db();
-        let client = Client::new(rocket()).expect("valid rocket instance");
-        let mut response = client.get("/test_rocket/inspect/boost.textindex.parent_to_value_id/0").dispatch();
+        let client = Client::tracked(rocket()).expect("valid rocket instance");
+        let response = client.get("/test_rocket/inspect/boost.textindex.parent_to_value_id/0").dispatch();
         assert_eq!(response.status(), Status::Ok);
-        let ret = response.body_string().unwrap();
+        let ret = response.into_string().unwrap();
         assert_contains!(ret, r#"[0]"#);
     }
 }

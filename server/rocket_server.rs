@@ -1,7 +1,3 @@
-#![feature(proc_macro_hygiene, decl_macro)]
-#![feature(plugin)]
-#![feature(type_ascription)]
-
 ///
 /// A werserver connecting the search engine
 /// The api is a horrible mess, don't use it.
@@ -20,23 +16,21 @@ extern crate measure_time;
 mod tests;
 
 use chashmap::CHashMap;
-use flate2::read::GzEncoder;
+//use flate2::read::GzEncoder;
 // use multipart::server::{
 //     save::{Entries, SaveResult::*},
 //     Multipart,
 // };
+
+use rocket::serde::{json::Json, Serialize};
+//use rocket::json::Json;
+//use rocket::form::Form;
 use rocket::{
-    fairing,
     http::{ContentType, Status},
-    request::LenientForm,
     response::{self, status::Custom, Responder, Response},
     Request,
 };
-use rocket_contrib::json::Json;
-use std::{
-    collections::HashMap,
-    io::{prelude::*, Cursor},
-};
+use std::{collections::HashMap, io::Cursor};
 use veloci::{
     doc_store::*,
     error::VelociError,
@@ -56,30 +50,26 @@ struct SearchResult(search::SearchResultWithDoc);
 #[derive(Debug)]
 struct SuggestResult(search_field::SuggestFieldResult);
 
-impl<'r> Responder<'r> for SearchResult {
-    fn respond_to(self, _req: &Request) -> response::Result<'r> {
-        Response::build()
-            .header(ContentType::JSON)
-            .sized_body(Cursor::new(serde_json::to_string(&self.0).unwrap()))
-            .ok()
+impl<'r, 'o: 'r> Responder<'r, 'o> for SearchResult {
+    fn respond_to(self, _req: &'r Request) -> response::Result<'o> {
+        let json = serde_json::to_string(&self.0).unwrap();
+        Response::build().header(ContentType::JSON).sized_body(json.len(), Cursor::new(json)).ok()
     }
 }
-// impl<'r> Responder<'r> for SearchErroro {
-//     fn respond_to(self, _req: &Request) -> response::Result<'r> {
-//         let formatted_error: String = format!("{:?}", &self.0);
-//         Response::build()
-//             .header(ContentType::JSON)
-//             .sized_body(Cursor::new(serde_json::to_string(&json!({ "error": formatted_error })).unwrap()))
-//             .ok()
-//     }
-// }
+//impl<'r> Responder<'r> for SearchErroro {
+//fn respond_to(self, _req: &Request) -> response::Result<'r> {
+//let formatted_error: String = format!("{:?}", &self.0);
+//Response::build()
+//.header(ContentType::JSON)
+//.sized_body(Cursor::new(serde_json::to_string(&json!({ "error": formatted_error })).unwrap()))
+//.ok()
+//}
+//}
 
-impl<'r> Responder<'r> for SuggestResult {
-    fn respond_to(self, _req: &Request) -> response::Result<'r> {
-        Response::build()
-            .header(ContentType::JSON)
-            .sized_body(Cursor::new(serde_json::to_string(&self.0).unwrap()))
-            .ok()
+impl<'r, 'o: 'r> Responder<'r, 'o> for SuggestResult {
+    fn respond_to(self, _req: &'r Request) -> response::Result<'o> {
+        let json = serde_json::to_string(&self.0).unwrap();
+        Response::build().header(ContentType::JSON).sized_body(json.len(), Cursor::new(json)).ok()
     }
 }
 
@@ -149,9 +139,9 @@ fn query_param_to_vec(name: Option<String>) -> Option<Vec<String>> {
     name.map(|el| el.split(',').map(|f| f.to_string()).collect())
 }
 
-fn ensure_database(database: &String) -> Result<(), VelociError> {
+fn ensure_database(database: &String) -> Result<(), ReturnedError> {
     if !PERSISTENCES.contains_key(database) {
-        PERSISTENCES.insert(database.clone(), persistence::Persistence::load(database.clone())?);
+        PERSISTENCES.insert(database.clone(), persistence::Persistence::load(database.clone()).map_err(search_error_to_rocket_error)?);
     }
     Ok(())
 }
@@ -166,15 +156,15 @@ fn ensure_database(database: &String) -> Result<(), VelociError> {
 
 #[get("/version")]
 fn version() -> String {
-    "0.7".to_string()
+    "0.8".to_string()
 }
 
-fn search_in_persistence(persistence: &Persistence, request: veloci::search::Request) -> Result<SearchResult, VelociError> {
+fn search_in_persistence(persistence: &Persistence, request: veloci::search::Request) -> Result<SearchResult, ReturnedError> {
     // info!("Searching ... ");
     let select = request.select.clone();
     let hits = {
         info_time!("Searching ... ");
-        search::search(request, persistence)?
+        search::search(request, persistence).map_err(search_error_to_rocket_error)?
     };
     info!("Loading Documents... ");
     let doc = {
@@ -185,16 +175,16 @@ fn search_in_persistence(persistence: &Persistence, request: veloci::search::Req
     Ok(doc)
 }
 
-fn excute_suggest(persistence: &Persistence, struct_body: search::Request, _flame: bool) -> Result<SuggestResult, VelociError> {
+fn excute_suggest(persistence: &Persistence, struct_body: search::Request, _flame: bool) -> Result<SuggestResult, ReturnedError> {
     info_time!("search total");
     info!("Suggesting ... ");
-    let hits = search_field::suggest_multi(persistence, struct_body)?;
+    let hits = search_field::suggest_multi(persistence, struct_body).map_err(search_error_to_rocket_error)?;
     debug!("Returning ... ");
     Ok(SuggestResult(hits))
 }
 
 #[post("/<database>/search", format = "application/json", data = "<request>")]
-fn search_post(database: String, request: Json<search::Request>) -> Result<SearchResult, VelociError> {
+fn search_post(database: String, request: Json<search::Request>) -> Result<SearchResult, ReturnedError> {
     ensure_database(&database)?;
     let persistence = PERSISTENCES.get(&database).unwrap();
 
@@ -224,15 +214,15 @@ fn get_doc_for_id_direct(database: String, id: u32) -> Json<serde_json::Value> {
 }
 
 // #[get("/<database>/<id>")]
-// fn get_doc_for_id(database: String, id: u32) -> Result<serde_json::Value, VelociError> {
+// fn get_doc_for_id(database: String, id: u32) -> Result<serde_json::Value,ReturnedError> {
 //     let persistence = PERSISTENCES.get(&database).unwrap();
 //     let fields = persistence.get_all_fields();
 //     let tree = search::get_read_tree_from_fields(&persistence, &fields);
 //     search::read_tree(&persistence, 25000, &tree)
 // }
 
-fn search_from_query_params(database: String, params: QueryParams) -> Result<SearchResult, Custom<String>> {
-    ensure_database(&database).map_err(search_error_to_rocket_error)?;
+fn search_from_query_params(database: String, params: QueryParams) -> Result<SearchResult, ReturnedError> {
+    ensure_database(&database)?;
     let persistence = PERSISTENCES.get(&database).unwrap();
 
     let facets: Option<Vec<String>> = query_param_to_vec(params.facets);
@@ -300,7 +290,7 @@ fn search_from_query_params(database: String, params: QueryParams) -> Result<Sea
     request.select = query_param_to_vec(params.select);
 
     debug!("{}", serde_json::to_string(&request).unwrap());
-    search_in_persistence(&persistence, request).map_err(search_error_to_rocket_error)
+    search_in_persistence(&persistence, request)
 }
 
 // #[post("/<database>/search_smart", format = "application/json", data = "<request>")]
@@ -309,9 +299,9 @@ fn search_from_query_params(database: String, params: QueryParams) -> Result<Sea
 // }
 
 #[post("/<database>/search_query_params/explain_plan", format = "application/json", data = "<request>")]
-fn search_post_query_params_explain(database: String, request: Json<query_generator::SearchQueryGeneratorParameters>) -> Result<String, Custom<String>> {
+fn search_post_query_params_explain(database: String, request: Json<query_generator::SearchQueryGeneratorParameters>) -> Result<String, ReturnedError> {
     let q_params = request.0;
-    ensure_database(&database).unwrap();
+    ensure_database(&database)?;
     let persistence = PERSISTENCES.get(&database).unwrap();
 
     let mut request = query_generator::search_query(&persistence, q_params.clone()).map_err(|err| Custom(Status::BadRequest, format!("query_generation failed: {:?}", err)))?;
@@ -323,7 +313,7 @@ fn search_post_query_params_explain(database: String, request: Json<query_genera
 }
 
 #[post("/<database>/search_query_params", format = "application/json", data = "<request>")]
-fn search_post_query_params(database: String, request: Json<query_generator::SearchQueryGeneratorParameters>) -> Result<SearchResult, Custom<String>> {
+fn search_post_query_params(database: String, request: Json<query_generator::SearchQueryGeneratorParameters>) -> Result<SearchResult, ReturnedError> {
     let q_params = request.0;
     ensure_database(&database).unwrap();
     let persistence = PERSISTENCES.get(&database).unwrap();
@@ -333,7 +323,7 @@ fn search_post_query_params(database: String, request: Json<query_generator::Sea
     request.select = query_param_to_vec(q_params.select);
 
     debug!("{}", serde_json::to_string(&request).unwrap());
-    search_in_persistence(&persistence, request).map_err(search_error_to_rocket_error)
+    search_in_persistence(&persistence, request)
 }
 
 // #[get("/<database>/search/explain_plan?<params..>")]
@@ -352,89 +342,14 @@ fn search_post_query_params(database: String, request: Json<query_generator::Sea
 // }
 
 #[get("/<database>/search?<params..>")]
-fn search_get(database: String, params: LenientForm<QueryParams>) -> Result<SearchResult, Custom<String>> {
+fn search_get(database: String, params: QueryParams) -> Result<SearchResult, Custom<String>> {
     // let params = params.map_err(|err| Custom(Status::BadRequest, format!("{:let params: QueryParams = params.into_inner();?}", err)))?;
-    let params: QueryParams = params.into_inner();
     search_from_query_params(database, params)
 }
 
-// #[get("/<database>/search_shard?<params..>")]
-// fn search_get_shard(database: String, params: LenientForm<QueryParams>) -> Result<SearchResult, VelociError> {
-//     let params: QueryParams = params.into_inner();
-//     ensure_shard(&database)?;
-//     let shard = SHARDS.get(&database).unwrap();
+type ReturnedError = Custom<String>;
 
-//     let facets: Option<Vec<String>> = query_param_to_vec(params.facets);
-//     let stopword_lists: Option<Vec<String>> = query_param_to_vec(params.stopword_lists);
-//     let fields: Option<Vec<String>> = query_param_to_vec(params.fields);
-//     let boost_fields: HashMap<String, f32> = query_param_to_vec(params.boost_fields)
-//         .map(|mkay| {
-//             mkay.into_iter()
-//                 .map(|el| {
-//                     let field_n_boost = el.split("->").collect::<Vec<&str>>();
-//                     (field_n_boost[0].to_string(), field_n_boost[1].parse::<f32>().unwrap())
-//                 })
-//                 .collect()
-//         })
-//         .unwrap_or(HashMap::default());
-
-//     // let filter_queries = query_param_to_vec(params.filter).map(|mkay| {
-//     //         mkay.into_iter()
-//     //             .map(|el| {
-//     //                 let field_n_term = el.split(":").collect::<Vec<&str>>();
-//     //                 let field = field_n_term[0].to_string();
-//     //                 let term = field_n_term[1].to_string();
-//     //                 search::RequestSearchPart{
-//     //                     path:field,
-//     //                     terms: vec![term],
-//     //                     ..Default::default()
-//     //                 }
-//     //             })
-//     //             .collect::<Vec<_>>()
-//     //     });
-
-//     let boost_terms: HashMap<String, f32> = query_param_to_vec(params.boost_terms)
-//         .map(|mkay| {
-//             mkay.into_iter()
-//                 .map(|el| {
-//                     let field_n_boost = el.split("->").collect::<Vec<&str>>();
-//                     (field_n_boost[0].to_string(), field_n_boost.get(1).map(|el| el.parse::<f32>().unwrap()).unwrap_or(2.0))
-//                 })
-//                 .collect()
-//         })
-//         .unwrap_or(HashMap::default());
-
-//     let q_params = query_generator::SearchQueryGeneratorParameters {
-//         search_term: params.query.to_string(),
-//         top: params.top,
-//         skip: params.skip,
-//         operator: params.operator,
-//         levenshtein: params.levenshtein,
-//         levenshtein_auto_limit: params.levenshtein_auto_limit,
-//         facetlimit: params.facetlimit,
-//         why_found: params.why_found,
-//         phrase_pairs: params.phrase_pairs.map(|el| el.to_lowercase() == "true"),
-//         text_locality: params.text_locality.map(|el| el.to_lowercase() == "true"),
-//         facets: facets,
-//         fields: fields,
-//         stopword_lists,
-//         boost_fields: boost_fields,
-//         boost_terms: boost_terms,
-//         explain: params.explain.map(|el| el.to_lowercase() == "true"),
-//         boost_queries: None,
-//         select: None,
-//         filter: params.filter,
-//     };
-
-//     //TODO enable
-//     // if let Some(el) = params.boost_queries {
-//     //     q_params.boost_queries = serde_json::from_str(&el).map_err(|_err| Custom(Status::BadRequest, "wrong format boost_queries".to_string()) )?;
-//     // }
-
-//     Ok(SearchResult(shard.search_all_shards_from_qp(&q_params, &query_param_to_vec(params.select))?))
-// }
-
-fn search_error_to_rocket_error(err: VelociError) -> Custom<String> {
+fn search_error_to_rocket_error(err: VelociError) -> ReturnedError {
     match err {
         VelociError::StringError(msg) => Custom(Status::BadRequest, msg),
         _ => Custom(Status::InternalServerError, format!("SearchError: {:?}", err)),
@@ -562,11 +477,11 @@ fn search_error_to_rocket_error(err: VelociError) -> Custom<String> {
 // }
 
 #[get("/<database>/inspect/<path>/<id>")]
-fn inspect_data(database: String, path: String, id: u64) -> Result<String, VelociError> {
+fn inspect_data(database: String, path: String, id: u64) -> Result<String, ReturnedError> {
     ensure_database(&database)?;
     let persistence = PERSISTENCES.get(&database).unwrap();
     // persistence.get(path)
-    let data = persistence.get_valueid_to_parent(&path)?;
+    let data = persistence.get_valueid_to_parent(&path).map_err(search_error_to_rocket_error)?;
     Ok(serde_json::to_string(&data.get_values(id)).unwrap())
 }
 
@@ -581,8 +496,7 @@ fn suggest_post(database: String, request: Json<search::Request>) -> Json<serde_
 }
 
 #[get("/<database>/suggest?<params..>", format = "application/json")]
-fn suggest_get(database: String, params: LenientForm<QueryParams>) -> Result<SuggestResult, VelociError> {
-    let params: QueryParams = params.into_inner();
+fn suggest_get(database: String, params: QueryParams) -> Result<SuggestResult, ReturnedError> {
     ensure_database(&database)?;
     let persistence = PERSISTENCES.get(&database).unwrap();
 
@@ -611,7 +525,14 @@ fn highlight_post(database: String, mut request: Json<search::RequestSearchPart>
     serde_json::to_string(&hits).unwrap()
 }
 
-fn rocket() -> rocket::Rocket {
+#[launch]
+fn rocket() -> _ {
+    veloci::trace::enable_log();
+
+    for preload_db in std::env::args().skip(1) {
+        ensure_database(&preload_db).unwrap();
+    }
+    println!("Starting Server...");
     let default = rocket_cors::CorsOptions::default();
     let cors_options = rocket_cors::Cors::from_options(&default).unwrap();
     //let cors_options = rocket_cors::Cors {
@@ -621,7 +542,7 @@ fn rocket() -> rocket::Rocket {
     //allow_credentials: true,
     //..Default::default()
     //};
-    rocket::ignite()
+    rocket::build()
         .mount(
             "/",
             routes![
@@ -642,48 +563,34 @@ fn rocket() -> rocket::Rocket {
                 inspect_data
             ],
         )
-        .attach(Gzip)
+        //.attach(Gzip)
         .attach(cors_options)
 }
 
-fn main() {
-    veloci::trace::enable_log();
+//pub struct Gzip;
+//impl fairing::Fairing for Gzip {
+//fn on_response(&self, request: &Request, response: &mut Response) {
+//use flate2::Compression;
+//let headers = request.headers();
+//if headers.get("Accept-Encoding").any(|e| e.to_lowercase().contains("gzip")) {
+//response.body_bytes().and_then(|body| {
+//let mut gz = GzEncoder::new(&body[..], Compression::default());
+//let mut buf = Vec::with_capacity(body.len());
+//gz.read_to_end(&mut buf)
+//.map(|_| {
+//response.set_sized_body(Cursor::new(buf));
+//response.set_raw_header("Content-Encoding", "gzip");
+//})
+//.map_err(|e| eprintln!("{}", e))
+//.ok()
+//});
+//}
+//}
 
-    for preload_db in std::env::args().skip(1) {
-        ensure_database(&preload_db).unwrap();
-    }
-    // for preload_db in std::env::args().skip(1) {
-    //     ensure_shard(&preload_db).unwrap();
-    // }
-
-    println!("Starting Server...");
-    rocket().launch();
-}
-
-pub struct Gzip;
-impl fairing::Fairing for Gzip {
-    fn on_response(&self, request: &Request, response: &mut Response) {
-        use flate2::Compression;
-        let headers = request.headers();
-        if headers.get("Accept-Encoding").any(|e| e.to_lowercase().contains("gzip")) {
-            response.body_bytes().and_then(|body| {
-                let mut gz = GzEncoder::new(&body[..], Compression::default());
-                let mut buf = Vec::with_capacity(body.len());
-                gz.read_to_end(&mut buf)
-                    .map(|_| {
-                        response.set_sized_body(Cursor::new(buf));
-                        response.set_raw_header("Content-Encoding", "gzip");
-                    })
-                    .map_err(|e| eprintln!("{}", e))
-                    .ok()
-            });
-        }
-    }
-
-    fn info(&self) -> fairing::Info {
-        fairing::Info {
-            name: "Gzip compression",
-            kind: fairing::Kind::Response,
-        }
-    }
-}
+//fn info(&self) -> fairing::Info {
+//fairing::Info {
+//name: "Gzip compression",
+//kind: fairing::Kind::Response,
+//}
+//}
+//}
