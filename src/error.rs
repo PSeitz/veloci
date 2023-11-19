@@ -15,9 +15,6 @@ pub enum VelociError {
 
     #[error("All fields filtered all_fields: {all_fields:?} filter: {filter:?}")]
     AllFieldsFiltered { all_fields: Vec<String>, filter: Option<Vec<String>> },
-    /// Ron Sir Error
-    #[error("{0:?}")]
-    RonSerError(ron::ser::Error),
     /// The Data is corrupted
     #[error("{:?}", _0)]
     JsonError(serde_json::Error),
@@ -73,10 +70,5 @@ impl From<serde_json::Error> for VelociError {
 impl From<toml::de::Error> for VelociError {
     fn from(error: toml::de::Error) -> VelociError {
         VelociError::TomlError(error)
-    }
-}
-impl From<ron::ser::Error> for VelociError {
-    fn from(error: ron::ser::Error) -> VelociError {
-        VelociError::RonSerError(error)
     }
 }
