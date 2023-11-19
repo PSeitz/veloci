@@ -1,5 +1,5 @@
 ///
-/// A werserver connecting the search engine
+/// A webserver connecting the search engine
 /// The api is a horrible mess, don't use it.
 ///
 
@@ -23,8 +23,6 @@ use chashmap::CHashMap;
 // };
 
 use rocket::serde::{json::Json, Serialize};
-//use rocket::json::Json;
-//use rocket::form::Form;
 use rocket::{
     http::{ContentType, Status},
     response::{self, status::Custom, Responder, Response},
@@ -45,7 +43,6 @@ lazy_static! {
 
 #[derive(Debug)]
 struct SearchResult(search::SearchResultWithDoc);
-// struct SearchErroro(VelociError);
 
 #[derive(Debug)]
 struct SuggestResult(search_field::SuggestFieldResult);
@@ -56,15 +53,6 @@ impl<'r, 'o: 'r> Responder<'r, 'o> for SearchResult {
         Response::build().header(ContentType::JSON).sized_body(json.len(), Cursor::new(json)).ok()
     }
 }
-//impl<'r> Responder<'r> for SearchErroro {
-//fn respond_to(self, _req: &Request) -> response::Result<'r> {
-//let formatted_error: String = format!("{:?}", &self.0);
-//Response::build()
-//.header(ContentType::JSON)
-//.sized_body(Cursor::new(serde_json::to_string(&json!({ "error": formatted_error })).unwrap()))
-//.ok()
-//}
-//}
 
 impl<'r, 'o: 'r> Responder<'r, 'o> for SuggestResult {
     fn respond_to(self, _req: &'r Request) -> response::Result<'o> {
@@ -98,41 +86,6 @@ struct QueryParams {
     text_locality: Option<String>,
     filter: Option<String>,
 }
-
-// struct MyParam {
-//     key: String,
-//     value: usize
-// }
-
-// use rocket::request::FromParam;
-// use rocket::http::RawStr;
-
-// impl FromParam for MyParam {
-//     type Error = RawStr;
-
-//     fn from_param(param: RawStr) -> Result<Self, Self::Error> {
-//         let (key, val_str) = match param.find(':') {
-//             Some(i) if i > 0 => (&param[..i], &param[(i + 1)..]),
-//             _ => return Err(param)
-//         };
-
-//         if !key.chars().all(|c| (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')) {
-//             return Err(param);
-//         }
-
-//         val_str.parse().map(|value| {
-//             MyParam {
-//                 key: key,
-//                 value: value
-//             }
-//         }).map_err(|_| param)
-//     }
-// }
-
-// #[get("/test")]
-// fn test() -> String {
-//     "0.5".to_string()
-// }
 
 fn query_param_to_vec(name: Option<String>) -> Option<Vec<String>> {
     // TODO Replace with FromForm ? directly in QueryParams
@@ -202,7 +155,6 @@ fn get_doc_for_id_tree(database: String, id: u32) -> Json<serde_json::Value> {
 
 #[get("/<database>/_id/<id>")]
 fn get_doc_for_id_direct(database: String, id: u32) -> Json<serde_json::Value> {
-    // let persistence = PERSISTENCES.get(&database).unwrap();
     // let fields = persistence.get_all_fields();
     // let tree = search::get_read_tree_from_fields(&persistence, &fields);
     ensure_database(&database).unwrap();
@@ -242,7 +194,6 @@ fn search_from_query_params(database: String, params: QueryParams) -> Result<Sea
             })
             .collect()
     });
-    // .unwrap_or(Ok(HashMap::default()));
 
     let boost_terms: Option<HashMap<String, f32>> = query_param_to_vec(params.boost_terms).map(|mkay| {
         mkay.into_iter()
@@ -252,7 +203,6 @@ fn search_from_query_params(database: String, params: QueryParams) -> Result<Sea
             })
             .collect()
     });
-    // .unwrap_or(HashMap::default());
 
     let mut q_params = query_generator::SearchQueryGeneratorParameters {
         search_term: params.query.to_string(),
@@ -330,19 +280,15 @@ fn search_post_query_params(database: String, request: Json<query_generator::Sea
 // fn search_get_explain(database: String, params: LenientForm<QueryParams>) -> Result<String, VelociError> {
 //     // let params = params.map_err(|err| Custom(Status::BadRequest, format!("{:let params: QueryParams = params.into_inner();?}", err)))?;
 //     let params: QueryParams = params.into_inner();
-
 //     let q_params = request.0;
 //     let persistence = PERSISTENCES.get(&database).unwrap();
-
 //     let mut request = query_generator::search_query(&persistence, q_params.clone()).map_err(|err| Custom(Status::BadRequest, format!("query_generation failed: {:?}", err)))?;
-
 //     request.select = query_param_to_vec(q_params.select);
-
 //     search::explain_plan(request, &persistence)
 // }
 
 #[get("/<database>/search?<params..>")]
-fn search_get(database: String, params: QueryParams) -> Result<SearchResult, Custom<String>> {
+fn search_get(database: String, params: QueryParams) -> Result<SearchResult, ReturnedError> {
     // let params = params.map_err(|err| Custom(Status::BadRequest, format!("{:let params: QueryParams = params.into_inner();?}", err)))?;
     search_from_query_params(database, params)
 }
