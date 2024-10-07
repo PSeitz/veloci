@@ -202,7 +202,7 @@ pub fn to_node_tree(mut paths: Vec<Vec<String>>) -> NodeTree {
     // paths.sort_by(|x, y| x[0].cmp(&y[0])); // sort for group_by
     paths.sort_by_key(|el| el[0].clone()); // sort for group_by
     let mut next = HashMap::default();
-    for (key, group) in &paths.into_iter().group_by(|el| el.get(0).cloned()) {
+    for (key, group) in &paths.into_iter().group_by(|el| el.first().cloned()) {
         let key = key.unwrap();
         let mut next_paths = group.collect_vec();
 

@@ -1,4 +1,4 @@
-#![cfg_attr(feature = "cargo-clippy", allow(clippy::boxed_local))]
+#![allow(clippy::boxed_local)]
 use crate::{
     error::*,
     persistence::{Persistence, *},

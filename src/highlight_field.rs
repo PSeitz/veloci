@@ -142,58 +142,6 @@ pub fn highlight_text(text: &str, set: &FnvHashSet<String>, opt: &SnippetInfo, t
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn get_test_tokenizer() -> Arc<dyn Tokenizer> {
-        Arc::new(SimpleTokenizerCharsIterateGroupTokens::default())
-    }
-
-    #[test]
-    fn test_highlight_text() {
-        assert_eq!(
-            highlight_text(
-                "mein treffer",
-                &["treffer"].iter().map(|el| el.to_string()).collect(),
-                &DEFAULT_SNIPPETINFO,
-                Some(&get_test_tokenizer())
-            )
-            .unwrap(),
-            "mein <b>treffer</b>"
-        );
-        assert_eq!(
-            highlight_text(
-                "mein treffer treffers",
-                &["treffers", "treffer"].iter().map(|el| el.to_string()).collect(),
-                &DEFAULT_SNIPPETINFO,
-                Some(&get_test_tokenizer())
-            )
-            .unwrap(),
-            "mein <b>treffer</b> <b>treffers</b>"
-        );
-        assert_eq!(
-            highlight_text(
-                "Schön-Hans",
-                &["Hans"].iter().map(|el| el.to_string()).collect(),
-                &DEFAULT_SNIPPETINFO,
-                Some(&get_test_tokenizer())
-            )
-            .unwrap(),
-            "Schön-<b>Hans</b>"
-        );
-        assert_eq!(
-            highlight_text(
-                "Schön-Hans",
-                &["Haus"].iter().map(|el| el.to_string()).collect(),
-                &DEFAULT_SNIPPETINFO,
-                Some(&get_test_tokenizer())
-            ),
-            None
-        );
-    }
-}
-
 /// This is used for a fast why_found highlighting, by retokenizing the document and highlighting on the fly. This is reasonable as long as
 /// the tokenization is faster, than loading the single tokens of the document from the FST. (which is currently the case 30-09-2020)
 /// `SearchResult` stores why_found_terms from the search, which is used to build the tokens which should be highlighted.
@@ -318,4 +266,56 @@ pub fn highlight_document(persistence: &Persistence, path: &str, value_id: u64, 
     ellipsis_snippet(&mut snippet, &hit_pos_of_tokens_in_doc, documents_token_ids.len(), opt);
 
     Ok(Some(snippet))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn get_test_tokenizer() -> Arc<dyn Tokenizer> {
+        Arc::new(SimpleTokenizerCharsIterateGroupTokens::default())
+    }
+
+    #[test]
+    fn test_highlight_text() {
+        assert_eq!(
+            highlight_text(
+                "mein treffer",
+                &["treffer"].iter().map(|el| el.to_string()).collect(),
+                &DEFAULT_SNIPPETINFO,
+                Some(&get_test_tokenizer())
+            )
+            .unwrap(),
+            "mein <b>treffer</b>"
+        );
+        assert_eq!(
+            highlight_text(
+                "mein treffer treffers",
+                &["treffers", "treffer"].iter().map(|el| el.to_string()).collect(),
+                &DEFAULT_SNIPPETINFO,
+                Some(&get_test_tokenizer())
+            )
+            .unwrap(),
+            "mein <b>treffer</b> <b>treffers</b>"
+        );
+        assert_eq!(
+            highlight_text(
+                "Schön-Hans",
+                &["Hans"].iter().map(|el| el.to_string()).collect(),
+                &DEFAULT_SNIPPETINFO,
+                Some(&get_test_tokenizer())
+            )
+            .unwrap(),
+            "Schön-<b>Hans</b>"
+        );
+        assert_eq!(
+            highlight_text(
+                "Schön-Hans",
+                &["Haus"].iter().map(|el| el.to_string()).collect(),
+                &DEFAULT_SNIPPETINFO,
+                Some(&get_test_tokenizer())
+            ),
+            None
+        );
+    }
 }

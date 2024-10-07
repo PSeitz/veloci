@@ -116,7 +116,7 @@ fn test_get_text_lines_from_fst_regex_search() {
         teh_callback,
     )
     .unwrap();
-    assert_eq!(hits.get(0), Some(&"awesome".to_string()));
+    assert_eq!(hits.first(), Some(&"awesome".to_string()));
 }
 #[test]
 fn test_get_text_lines_from_fst_regex_search_with_starts_with() {
@@ -137,7 +137,7 @@ fn test_get_text_lines_from_fst_regex_search_with_starts_with() {
         teh_callback,
     )
     .unwrap();
-    assert_eq!(hits.get(0), Some(&"awesome".to_string()));
+    assert_eq!(hits.first(), Some(&"awesome".to_string()));
 }
 
 #[inline]
@@ -480,7 +480,7 @@ pub fn resolve_token_to_anchor(
             {
                 fast_field_res_ids.extend(&result.hits_ids);
             } else {
-                let text_id_to_anchor = persistence.get_valueid_to_parent(&options.path.add(TEXT_ID_TO_ANCHOR))?;
+                let text_id_to_anchor = persistence.get_valueid_to_parent(options.path.add(TEXT_ID_TO_ANCHOR))?;
 
                 debug_time!("{} tokens to anchor_id", &options.path);
                 for id in &result.hits_ids {

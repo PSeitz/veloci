@@ -451,7 +451,7 @@ pub(crate) fn get_boost_ids_and_resolve_to_anchor(persistence: &Persistence, pat
     // resolve to anchor
     let mut data = vec![];
     path.suffix = Some(VALUE_ID_TO_ANCHOR);
-    let kv_store = persistence.get_valueid_to_parent(&path.as_string())?; //TODO should be get_kv_store
+    let kv_store = persistence.get_valueid_to_parent(path.as_string())?; //TODO should be get_kv_store
     for boost_pair in &mut hits.boost_ids {
         let val_opt = kv_store.get_value(u64::from(boost_pair.id));
 
