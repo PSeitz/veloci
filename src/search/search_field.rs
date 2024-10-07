@@ -290,7 +290,7 @@ pub fn get_term_ids_in_field(persistence: &Persistence, options: &mut PlanReques
     trace!("Will Check starts_with {:?}", options.request.starts_with);
 
     let limit_result = options.request.top.is_some();
-    let mut worst_score = std::f32::MIN;
+    let mut worst_score = f32::MIN;
     let top_n_search = (options.request.top.unwrap_or(10) + options.request.skip.unwrap_or(0)) as u32;
 
     {

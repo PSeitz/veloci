@@ -84,8 +84,7 @@ pub(crate) fn join_anchor_to_leaf(persistence: &Persistence, ids: &[u32], steps:
 
 fn join_for_n_to_m(persistence: &Persistence, value_ids: &[u32], path: &str) -> Result<Vec<u32>, VelociError> {
     let kv_store = persistence.get_valueid_to_parent(path)?;
-    let mut hits = vec![];
-    hits.reserve(value_ids.len()); // TODO reserve by statistics
+    let mut hits = Vec::with_capacity(value_ids.len()); // TODO reserve by statistics
 
     kv_store.append_values_for_ids(value_ids, &mut hits);
 

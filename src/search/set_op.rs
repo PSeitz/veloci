@@ -1,13 +1,13 @@
 use super::*;
 
 pub use self::result::*;
-use std::{self, f32, u32};
+use std::{self, f32};
 
 use fnv::FnvHashMap;
 use itertools::Itertools;
 
 pub fn get_shortest_result<T: std::iter::ExactSizeIterator>(results: &[T]) -> usize {
-    let mut shortest = (0, std::u64::MAX);
+    let mut shortest = (0, u64::MAX);
     for (index, res) in results.iter().enumerate() {
         if (res.len() as u64) < shortest.1 {
             shortest = (index, res.len() as u64);
@@ -17,7 +17,7 @@ pub fn get_shortest_result<T: std::iter::ExactSizeIterator>(results: &[T]) -> us
 }
 
 pub fn get_longest_result<T: std::iter::ExactSizeIterator>(results: &[T]) -> usize {
-    let mut longest = (0, std::u64::MIN);
+    let mut longest = (0, u64::MIN);
     for (index, res) in results.iter().enumerate() {
         if (res.len() as u64) > longest.1 {
             longest = (index, res.len() as u64);
@@ -182,7 +182,7 @@ pub fn union_hits_score(mut or_results: Vec<SearchFieldResult>) -> SearchFieldRe
 
             let sum_over_distinct_with_distinct_term_boost = max_scores_per_term.iter().sum::<f32>() * num_distinct_terms * num_distinct_terms;
             debug_assert!(!sum_over_distinct_with_distinct_term_boost.is_nan());
-            debug_assert!(sum_over_distinct_with_distinct_term_boost != std::f32::INFINITY);
+            debug_assert!(sum_over_distinct_with_distinct_term_boost != f32::INFINITY);
             union_hits.push(Hit::new(id, sum_over_distinct_with_distinct_term_boost));
             if should_explain {
                 let explain = explain_hits.entry(id).or_default();

@@ -18,7 +18,7 @@ use num::{self, cast::ToPrimitive, Integer};
 use parking_lot::RwLock;
 use prettytable::{format, Table};
 
-use std::{self, collections::HashMap, fmt, fmt::Debug, io, marker::Sync, path::Path, str, time::Duration, u32};
+use std::{self, collections::HashMap, fmt, fmt::Debug, io, marker::Sync, path::Path, str, time::Duration};
 
 pub const TOKENS_TO_TEXT_ID: &str = ".tokens_to_text_id";
 pub const TEXT_ID_TO_TOKEN_IDS: &str = ".text_id_to_token_ids";

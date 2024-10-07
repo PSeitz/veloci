@@ -3,7 +3,7 @@ use core::cmp::Ordering;
 
 #[inline]
 pub(crate) fn top_n_sort(data: Vec<Hit>, top_n: u32) -> Vec<Hit> {
-    let mut worst_score = std::f32::MIN;
+    let mut worst_score = f32::MIN;
 
     let mut new_data: Vec<Hit> = Vec::with_capacity(top_n as usize * 5 + 1);
     for el in data {

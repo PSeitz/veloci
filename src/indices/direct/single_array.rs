@@ -1,5 +1,5 @@
 use crate::{indices::metadata::IndexValuesMetadata, persistence::*, type_info::TypeInfo};
-use std::{self, io, marker::PhantomData, ptr::copy_nonoverlapping, u32};
+use std::{self, io, marker::PhantomData, ptr::copy_nonoverlapping};
 
 use ownedbytes::OwnedBytes;
 

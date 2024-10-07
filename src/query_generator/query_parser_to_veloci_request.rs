@@ -16,7 +16,7 @@ pub(crate) fn ast_to_search_request(query_ast: &UserAST, all_fields: &[String], 
 
 /// Converts the SearchQueryGeneratorParameters into an SearchRequest ast
 ///
-/// * has a special meaning as a searchterm, it counts as a wildcard, e.g.
+/// "*" has a special meaning as a searchterm, it counts as a wildcard, e.g.
 /// foo* will match all tokens starting with foo
 /// foo*bar will match all tokens starting with foo and ending with bar
 /// *foo* will match all tokens containing foo

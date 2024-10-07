@@ -7,7 +7,7 @@ use crate::{
     util::*,
 };
 use num::{self, cast::ToPrimitive};
-use std::{self, io, mem, path::PathBuf, u32};
+use std::{self, io, mem, path::PathBuf};
 use vint32::vint_array::VIntArray;
 
 fn to_serialized_vint_array(add_data: Vec<u32>) -> Vec<u8> {

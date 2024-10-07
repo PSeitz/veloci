@@ -2,7 +2,7 @@ use super::calc_avg_join_size;
 use crate::{error::VelociError, indices::*, persistence::*, type_info::TypeInfo, util::*};
 use directory::Directory;
 use ownedbytes::OwnedBytes;
-use std::{self, cmp::Ordering::Greater, io, marker::PhantomData, path::PathBuf, u32};
+use std::{self, cmp::Ordering::Greater, io, marker::PhantomData, path::PathBuf};
 use vint32::{iterator::VintArrayIterator, vint_array::VIntArray};
 
 impl_type_info_single_templ!(IndirectIMFlushingInOrderVintNoDirectEncode);

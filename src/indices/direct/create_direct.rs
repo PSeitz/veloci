@@ -2,7 +2,7 @@ use crate::{directory::Directory, persistence::vec_to_bytes};
 
 use super::{super::*, *};
 
-use std::{self, io, u32};
+use std::{self, io};
 
 /// This data structure assumes that a set is only called once for a id, and ids are set in order.
 #[derive(Debug, Clone)]

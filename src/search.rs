@@ -28,7 +28,7 @@ use rayon::prelude::*;
 use std::{
     self,
     cmp::{self, Ordering},
-    f32, mem, str, u32,
+    f32, mem, str,
 };
 
 #[derive(Serialize, Deserialize, Clone, Debug, Default)]

@@ -25,7 +25,7 @@ fn default_snippet_connector() -> String {
     " ... ".to_string()
 }
 fn default_max_snippets() -> u32 {
-    std::u32::MAX
+    u32::MAX
 }
 
 lazy_static! {

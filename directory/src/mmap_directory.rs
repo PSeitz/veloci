@@ -119,7 +119,7 @@ impl Directory for MmapDirectory {
         debug!("Open Write {:?}", path);
         let full_path = self.resolve_path(path);
 
-        let mut file = OpenOptions::new().read(true).write(true).append(true).create(true).open(full_path)?;
+        let mut file = OpenOptions::new().read(true).append(true).create(true).open(full_path)?;
 
         // making sure the file is created.
         file.flush()?;

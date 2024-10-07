@@ -27,7 +27,7 @@ impl FieldsConfig {
     }
 
     pub fn features_to_indices(&mut self) -> Result<(), VelociError> {
-        if self.0.get(ALL_FIELD_CONFIG).is_none() {
+        if !self.0.contains_key(ALL_FIELD_CONFIG) {
             let default_field_config = FieldConfig::default();
             self.0.insert(ALL_FIELD_CONFIG.to_string(), default_field_config);
         }

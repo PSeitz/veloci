@@ -1,4 +1,4 @@
-#![cfg_attr(clippy, allow(clippy::field_reassign_with_default))]
+#![allow(clippy::field_reassign_with_default)]
 #![recursion_limit = "128"]
 
 #[macro_use]

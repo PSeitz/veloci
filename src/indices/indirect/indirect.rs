@@ -1,7 +1,7 @@
 use super::*;
 use crate::{error::VelociError, indices::*, persistence::*, type_info::TypeInfo};
 use ownedbytes::OwnedBytes;
-use std::{marker::PhantomData, u32, usize};
+use std::marker::PhantomData;
 use vint32::iterator::VintArrayIterator;
 
 impl_type_info_single_templ!(Indirect);
