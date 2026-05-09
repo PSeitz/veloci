@@ -13,3 +13,6 @@ path = "bench/bench.rs"
 [features]
 unstable = []
 
+[dependencies]
+fnv = "1.0.7"
+

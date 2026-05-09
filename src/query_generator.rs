@@ -1,10 +1,8 @@
 mod query_parser_to_veloci_request;
 use crate::persistence::TEXTINDEX;
+use fnv::{FnvHashMap, FnvHashSet};
 use query_parser_to_veloci_request::*;
-use std::{
-    collections::{HashMap, HashSet},
-    f32, str,
-};
+use std::{f32, str};
 
 use crate::{
     error::VelociError,
@@ -67,13 +65,13 @@ pub struct SearchQueryGeneratorParameters {
     pub boost_queries: Option<Vec<RequestBoostPart>>,
     pub facets: Option<Vec<String>>,
     pub stopword_lists: Option<Vec<String>>,
-    pub stopwords: Option<HashSet<String>>,
+    pub stopwords: Option<FnvHashSet<String>>,
     pub fields: Option<Vec<String>>,
-    pub boost_fields: Option<HashMap<String, f32>>,
+    pub boost_fields: Option<FnvHashMap<String, f32>>,
 
     /// format is term:field_name(optional)->boost_value
     /// city:berlin->2.0
-    pub boost_terms: Option<HashMap<String, f32>>,
+    pub boost_terms: Option<FnvHashMap<String, f32>>,
     pub phrase_pairs: Option<bool>,
     pub explain: Option<bool>,
     pub filter: Option<String>,
@@ -203,7 +201,7 @@ pub fn search_query(persistence: &Persistence, mut opt: SearchQueryGeneratorPara
 
     let facets_req = facets_req.map_or(Ok(None), |r| r.map(Some))?;
 
-    let boost_term = opt.boost_terms.map(|boosts: HashMap<String, f32>| {
+    let boost_term = opt.boost_terms.map(|boosts: FnvHashMap<String, f32>| {
         let requests = boosts
             .iter()
             .flat_map(|(boost_term, boost_value): (&String, &f32)| handle_boost_term_query(persistence, boost_term, boost_value))
@@ -211,7 +209,7 @@ pub fn search_query(persistence: &Persistence, mut opt: SearchQueryGeneratorPara
         requests
     });
 
-    let terms: HashSet<[&str; 2]> = query_ast.get_phrase_pairs();
+    let terms: FnvHashSet<[&str; 2]> = query_ast.get_phrase_pairs();
     info!("Terms for Phrase{:?}", terms);
     if opt.phrase_pairs.unwrap_or(false) && !terms.is_empty() {
         request.phrase_boosts = Some(generate_phrase_queries_for_searchterm(
@@ -248,7 +246,7 @@ pub fn search_query(persistence: &Persistence, mut opt: SearchQueryGeneratorPara
 /// Generates Phrase Boosts queries for adjoined terms on selected fields
 ///
 pub fn generate_phrase_queries_simple(persistence: &Persistence, terms: &[&str], fields: Vec<String>) -> Result<Vec<RequestPhraseBoost>, VelociError> {
-    let terms: HashSet<[&str; 2]> = terms.windows(2).map(|window| [window[0], window[1]]).collect();
+    let terms: FnvHashSet<[&str; 2]> = terms.windows(2).map(|window| [window[0], window[1]]).collect();
     generate_phrase_queries_for_searchterm(persistence, &Some(fields), terms, Some(0), Some(0), &None)
 }
 
@@ -257,10 +255,10 @@ pub fn generate_phrase_queries_simple(persistence: &Persistence, terms: &[&str],
 pub fn generate_phrase_queries_for_searchterm(
     persistence: &Persistence,
     fields: &Option<Vec<String>>,
-    terms: HashSet<[&str; 2]>,
+    terms: FnvHashSet<[&str; 2]>,
     levenshtein: Option<usize>,
     levenshtein_auto_limit: Option<usize>,
-    boost_fields: &Option<HashMap<String, f32>>,
+    boost_fields: &Option<FnvHashMap<String, f32>>,
 ) -> Result<Vec<RequestPhraseBoost>, VelociError> {
     let mut phase_boost_requests = vec![];
     for [term_a, term_b] in terms.iter() {

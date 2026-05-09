@@ -1,10 +1,11 @@
 mod leaf;
 mod operator;
 
+use fnv::FnvHashSet;
 pub use leaf::UserFilter;
 pub use operator::Operator;
 
-use std::{collections::HashSet, convert::From, fmt};
+use std::{convert::From, fmt};
 
 #[derive(Clone, PartialEq, Eq)]
 pub enum UserAST {
@@ -107,10 +108,10 @@ impl UserAST {
         F: FnMut(UserAST, Option<&str>) -> UserAST,
     {
         match self {
-            UserAST::Attributed(ref attr, ref mut ast) => *ast = Box::new(UserAST::map_ast(*ast.clone(), map_fn, Some(attr))),
+            UserAST::Attributed(ref attr, ref mut ast) => **ast = UserAST::map_ast(*ast.clone(), map_fn, Some(attr)),
             UserAST::BinaryClause(ref mut ast1, _op, ref mut ast2) => {
-                *ast1 = Box::new(UserAST::map_ast(*ast1.clone(), map_fn, current_attr));
-                *ast2 = Box::new(UserAST::map_ast(*ast2.clone(), map_fn, current_attr));
+                **ast1 = UserAST::map_ast(*ast1.clone(), map_fn, current_attr);
+                **ast2 = UserAST::map_ast(*ast2.clone(), map_fn, current_attr);
             }
             UserAST::Leaf(ref _filter) => {}
         }
@@ -119,13 +120,13 @@ impl UserAST {
     }
 
     /// walking the ast and grouping adjacent terms for phrase boosting
-    pub fn get_phrase_pairs(&self) -> HashSet<[&str; 2]> {
-        let mut collect = HashSet::new();
+    pub fn get_phrase_pairs(&self) -> FnvHashSet<[&str; 2]> {
+        let mut collect = FnvHashSet::default();
         self._get_phrase_pairs(&mut collect, &mut None, None);
         collect
     }
 
-    fn _get_phrase_pairs<'a>(&'a self, collect: &mut HashSet<[&'a str; 2]>, last_term: &mut Option<&'a str>, curr_attr: Option<&'a str>) {
+    fn _get_phrase_pairs<'a>(&'a self, collect: &mut FnvHashSet<[&'a str; 2]>, last_term: &mut Option<&'a str>, curr_attr: Option<&'a str>) {
         match self {
             UserAST::Attributed(attr, ast) => {
                 if curr_attr == Some(attr) || curr_attr.is_none() {
