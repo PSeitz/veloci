@@ -11,6 +11,7 @@ path = "rocket_server.rs"
 
 [dependencies]
 chashmap = "2.2.2"
+fnv = "1.0.7"
 #flate2 = "1.0.25"
 #fnv = "1.0.7"
 lazy_static = "1.4.0"

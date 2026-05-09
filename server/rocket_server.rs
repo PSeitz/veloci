@@ -16,6 +16,7 @@ extern crate measure_time;
 mod tests;
 
 use chashmap::CHashMap;
+use fnv::FnvHashMap;
 //use flate2::read::GzEncoder;
 // use multipart::server::{
 //     save::{Entries, SaveResult::*},
@@ -28,7 +29,7 @@ use rocket::{
     response::{self, status::Custom, Responder, Response},
     Request,
 };
-use std::{collections::HashMap, io::Cursor};
+use std::io::Cursor;
 use veloci::{
     doc_store::*,
     error::VelociError,
@@ -182,7 +183,7 @@ fn search_from_query_params(database: String, params: QueryParams) -> Result<Sea
     let stopwords: Option<Vec<String>> = query_param_to_vec(params.stopwords);
     let fields: Option<Vec<String>> = query_param_to_vec(params.fields);
 
-    let boost_fields: Option<Result<HashMap<String, f32>, _>> = query_param_to_vec(params.boost_fields).map(|mkay| {
+    let boost_fields: Option<Result<FnvHashMap<String, f32>, _>> = query_param_to_vec(params.boost_fields).map(|mkay| {
         mkay.into_iter()
             .map(|el| {
                 let field_n_boost = el.split("->").collect::<Vec<&str>>();
@@ -195,7 +196,7 @@ fn search_from_query_params(database: String, params: QueryParams) -> Result<Sea
             .collect()
     });
 
-    let boost_terms: Option<HashMap<String, f32>> = query_param_to_vec(params.boost_terms).map(|mkay| {
+    let boost_terms: Option<FnvHashMap<String, f32>> = query_param_to_vec(params.boost_terms).map(|mkay| {
         mkay.into_iter()
             .map(|el| {
                 let field_n_boost = el.split("->").collect::<Vec<&str>>();
